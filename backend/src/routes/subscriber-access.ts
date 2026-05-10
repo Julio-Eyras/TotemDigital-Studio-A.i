@@ -124,7 +124,7 @@ router.get('/plan-publisher',
  */
 router.post('/reconcile',
   authorizeRole(['admin', 'admin_sql']),
-  body('planId').optional().isInt({ min: 1 }),
+  body('planId').optional({ nullable: true }).isInt({ min: 1 }),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -153,9 +153,9 @@ router.post('/plan-publisher',
   authorizeRole(['admin', 'admin_sql']),
   body('planId').toInt().isInt({ min: 1 }),
   body('publisherId').toInt().isInt({ min: 1 }),
-  body('isAllowed').optional().default(true).toBoolean().isBoolean(),
-  body('restrictions').optional().custom((val) => val === null || val === undefined || (typeof val === 'object' && !Array.isArray(val))).withMessage('restrictions deve ser um objeto ou null'),
-  body('notes').optional().isString(),
+  body('isAllowed').optional({ nullable: true }).default(true).toBoolean().isBoolean(),
+  body('restrictions').optional({ nullable: true }).custom((val) => val === null || val === undefined || (typeof val === 'object' && !Array.isArray(val))).withMessage('restrictions deve ser um objeto ou null'),
+  body('notes').optional({ nullable: true }).isString(),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -385,8 +385,8 @@ router.post('/grant',
   body('subscriberId').isInt({ min: 1 }),
   body('publisherId').isInt({ min: 1 }),
   body('contractId').isInt({ min: 1 }),
-  body('expiresAt').optional().isISO8601(),
-  body('notes').optional().isString(),
+  body('expiresAt').optional({ nullable: true }).isISO8601(),
+  body('notes').optional({ nullable: true }).isString(),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -440,7 +440,7 @@ router.post('/:subscriberId/publishers/:publisherId/revoke',
   authorizeRole(['admin', 'admin_sql']),
   param('subscriberId').isInt({ min: 1 }),
   param('publisherId').isInt({ min: 1 }),
-  body('reason').optional().isString(),
+  body('reason').optional({ nullable: true }).isString(),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {

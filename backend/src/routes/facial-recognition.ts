@@ -28,7 +28,7 @@ router.use((req: AuthenticatedRequest, res, next) => {
  */
 router.post('/match',
   body('features').notEmpty().withMessage('features é obrigatório'),
-  body('totemId').optional().isInt({ min: 1 }),
+  body('totemId').optional({ nullable: true }).isInt({ min: 1 }),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -109,9 +109,9 @@ router.get('/persons',
  */
 router.post('/persons',
   body('personId').notEmpty().withMessage('personId é obrigatório'),
-  body('name').optional().isString(),
-  body('features').optional(),
-  body('contentId').optional().isInt({ min: 1 }),
+  body('name').optional({ nullable: true }).isString(),
+  body('features').optional({ nullable: true }),
+  body('contentId').optional({ nullable: true }).isInt({ min: 1 }),
   validateRequest,
   authorizeRole(['admin', 'admin_sql']),
   async (req: AuthenticatedRequest, res: Response) => {

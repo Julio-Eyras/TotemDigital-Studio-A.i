@@ -129,8 +129,8 @@ router.get('/:id',
 router.post('/',
   body('name').notEmpty().isString(),
   body('layoutData').isObject(),
-  body('isDefault').optional().isBoolean(),
-  body('isShared').optional().isBoolean(),
+  body('isDefault').optional({ nullable: true }).isBoolean(),
+  body('isShared').optional({ nullable: true }).isBoolean(),
   validateRequest,
   async (req: any, res: Response) => {
     try {
@@ -162,10 +162,10 @@ router.post('/',
  */
 router.put('/:id',
   param('id').isInt({ min: 1 }),
-  body('name').optional().isString(),
-  body('layoutData').optional().isObject(),
-  body('isDefault').optional().isBoolean(),
-  body('isShared').optional().isBoolean(),
+  body('name').optional({ nullable: true }).isString(),
+  body('layoutData').optional({ nullable: true }).isObject(),
+  body('isDefault').optional({ nullable: true }).isBoolean(),
+  body('isShared').optional({ nullable: true }).isBoolean(),
   validateRequest,
   async (req: any, res: Response) => {
     try {

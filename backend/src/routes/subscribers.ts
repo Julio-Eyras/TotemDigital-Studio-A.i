@@ -29,12 +29,12 @@ router.use(authMiddleware);
 const createSubscriberValidator = [
   ...nameValidators,
   // contract_id é opcional (pode criar subscriber sem contrato). Tratar '' como ausente.
-  body('contract_id').optional({ checkFalsy: true }).isInt({ min: 1 }).withMessage('Contract ID inválido'),
-  body('contact_name').optional().isString(),
-  body('category_segment').optional().isString(),
+  body('contract_id').optional({ checkFalsy: true, nullable: true }).isInt({ min: 1 }).withMessage('Contract ID inválido'),
+  body('contact_name').optional({ nullable: true }).isString(),
+  body('category_segment').optional({ nullable: true }).isString(),
   ...emailValidators,
   ...phoneValidators,
-  body('address').optional().isString(),
+  body('address').optional({ nullable: true }).isString(),
 ];
 
 const validateRequest = (req: any, res: any, next: any) => {
@@ -204,7 +204,7 @@ router.post('/',
  */
 router.put('/:id',
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
-  body('name').optional().notEmpty().withMessage('Nome não pode ser vazio'),
+  body('name').optional({ nullable: true }).notEmpty().withMessage('Nome não pode ser vazio'),
   // Allow null/empty values for optional fields (frontend may send null)
   body('contact_name').optional({ nullable: true, checkFalsy: true }).isString(),
   body('email').optional({ nullable: true, checkFalsy: true }).isEmail().withMessage('Email inválido'),

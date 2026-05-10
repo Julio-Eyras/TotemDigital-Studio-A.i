@@ -845,7 +845,7 @@ router.post('/decrypt-config',
   body('encryptedConfig.encrypted').isBoolean(),
   body('encryptedConfig.data').isString(),
   body('encryptedConfig.mac').isString(),
-  body('currentMac').optional().isString(),
+  body('currentMac').optional({ nullable: true }).isString(),
   async (req: Request, res: Response) => {
     try {
       const errors = validationResult(req);
@@ -992,13 +992,13 @@ router.get('/hardware-info', async (_req: Request, res: Response) => {
  */
 router.post('/register',
   body('uin').isString().isLength({ min: 3, max: 100 }).withMessage('UIN deve ser uma string entre 3 e 100 caracteres'),
-  body('hardware').optional().isObject().withMessage('hardware deve ser um objeto (opcional)'),
-  body('hardware.macAddress').optional().isString(),
-  body('hardware.hostname').optional().isString(),
-  body('hardware.platform').optional().isString(),
-  body('hardware.arch').optional().isString(),
-  body('hardware.hardwareHash').optional().isString(),
-  body('hardware.userAgent').optional().isString(),
+  body('hardware').optional({ nullable: true }).isObject().withMessage('hardware deve ser um objeto (opcional)'),
+  body('hardware.macAddress').optional({ nullable: true }).isString(),
+  body('hardware.hostname').optional({ nullable: true }).isString(),
+  body('hardware.platform').optional({ nullable: true }).isString(),
+  body('hardware.arch').optional({ nullable: true }).isString(),
+  body('hardware.hardwareHash').optional({ nullable: true }).isString(),
+  body('hardware.userAgent').optional({ nullable: true }).isString(),
   async (req: Request, res: Response) => {
     // Logar mensagem recebida no debug
     dispatcherDebugService.logMessage('incoming', {
@@ -1408,17 +1408,17 @@ router.post('/event',
     'playlist_end',
     'playlist_item_play'
   ]),
-  body('mediaId').optional().custom((val) => {
+  body('mediaId').optional({ nullable: true }).custom((val) => {
     if (val === undefined || val === null) return true;
     if (typeof val === 'number' && Number.isInteger(val) && val >= 0) return true;
     if (typeof val === 'string' && (/^fb-/.test(val) || /^\d+$/.test(val))) return true;
     return false;
   }).withMessage('mediaId deve ser inteiro ou id de fallback (fb-*)'),
-  body('playlistId').optional().isInt({ min: 0 }),
+  body('playlistId').optional({ nullable: true }).isInt({ min: 0 }),
   body('campaignId').optional({ nullable: true }).isInt({ min: 0 }),
-  body('duration').optional().isInt({ min: 0 }),
-  body('completed').optional().isBoolean(),
-  body('metadata').optional().isObject(),
+  body('duration').optional({ nullable: true }).isInt({ min: 0 }),
+  body('completed').optional({ nullable: true }).isBoolean(),
+  body('metadata').optional({ nullable: true }).isObject(),
   async (req: Request, res: Response) => {
     // Validação de entrada
     const errors = validationResult(req);
@@ -1437,8 +1437,8 @@ router.post('/event',
  * @access Public (para totens com PIN correto)
  */
 router.post('/exit-kiosk',
-  body('uin').optional().isString(),
-  body('token').optional().isString(),
+  body('uin').optional({ nullable: true }).isString(),
+  body('token').optional({ nullable: true }).isString(),
   async (req: Request, res: Response) => {
     try {
       const { uin, token } = req.body;
@@ -1508,8 +1508,8 @@ router.post('/command-result',
   body('token').isString().notEmpty().withMessage('Token é obrigatório'),
   body('requestId').isString().notEmpty().withMessage('requestId é obrigatório'),
   body('status').isIn(['completed', 'failed']).withMessage('status deve ser completed ou failed'),
-  body('result').optional(),
-  body('error').optional().isString(),
+  body('result').optional({ nullable: true }),
+  body('error').optional({ nullable: true }).isString(),
   validateRequest,
   async (req: Request, res: Response) => {
     try {

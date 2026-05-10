@@ -115,8 +115,8 @@ router.get('/:id',
  */
 router.post('/',
   body('name').notEmpty().withMessage('Nome é obrigatório').isString(),
-  body('description').optional().isString(),
-  body('is_active').optional().isBoolean(),
+  body('description').optional({ nullable: true }).isString(),
+  body('is_active').optional({ nullable: true }).isBoolean(),
   validateRequest,
   async (req: any, res: Response) => {
     try {
@@ -151,9 +151,9 @@ router.post('/',
  */
 router.put('/:id',
   param('id').isInt({ min: 1 }),
-  body('name').optional().isString(),
-  body('description').optional().isString(),
-  body('is_active').optional().isBoolean(),
+  body('name').optional({ nullable: true }).isString(),
+  body('description').optional({ nullable: true }).isString(),
+  body('is_active').optional({ nullable: true }).isBoolean(),
   validateRequest,
   async (req: any, res: Response) => {
     try {

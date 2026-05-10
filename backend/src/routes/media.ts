@@ -301,10 +301,10 @@ router.post('/upload', uploadLimiter,
       return next();
     });
   },
-  body('name').optional().isString().isLength({ min: 1, max: 100 }),
-  body('description').optional().isString(),
-  body('tags').optional().isString(),
-  body('subscriberId').optional().isInt({ min: 1 }),
+  body('name').optional({ nullable: true }).isString().isLength({ min: 1, max: 100 }),
+  body('description').optional({ nullable: true }).isString(),
+  body('tags').optional({ nullable: true }).isString(),
+  body('subscriberId').optional({ nullable: true }).isInt({ min: 1 }),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -464,7 +464,7 @@ router.post('/upload', uploadLimiter,
 router.post('/upload-multiple', 
   uploadLimiter,
   (req, res, next) => getMulterUpload().array('files', 10)(req, res, next), // Máximo 10 arquivos
-  body('subscriberId').optional().isInt({ min: 1 }),
+  body('subscriberId').optional({ nullable: true }).isInt({ min: 1 }),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -722,12 +722,12 @@ router.get('/:id/download',
  */
 router.post('/:id/process',
   param('id').isInt({ min: 1 }),
-  body('generateThumbnail').optional().isBoolean(),
-  body('optimize').optional().isBoolean(),
-  body('resize').optional().isObject(),
-  body('resize.width').optional().isInt({ min: 1 }),
-  body('resize.height').optional().isInt({ min: 1 }),
-  body('resize.fit').optional().isIn(['cover', 'contain', 'fill', 'inside', 'outside']),
+  body('generateThumbnail').optional({ nullable: true }).isBoolean(),
+  body('optimize').optional({ nullable: true }).isBoolean(),
+  body('resize').optional({ nullable: true }).isObject(),
+  body('resize.width').optional({ nullable: true }).isInt({ min: 1 }),
+  body('resize.height').optional({ nullable: true }).isInt({ min: 1 }),
+  body('resize.fit').optional({ nullable: true }).isIn(['cover', 'contain', 'fill', 'inside', 'outside']),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {

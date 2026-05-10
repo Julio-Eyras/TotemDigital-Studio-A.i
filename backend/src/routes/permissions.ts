@@ -159,7 +159,7 @@ router.post('/',
   body('name').notEmpty().withMessage('Nome é obrigatório').isString(),
   body('resource').notEmpty().withMessage('Resource é obrigatório').isString(),
   body('action').notEmpty().withMessage('Action é obrigatório').isString(),
-  body('description').optional().isString(),
+  body('description').optional({ nullable: true }).isString(),
   validateRequest,
   async (req: any, res: Response) => {
     try {
@@ -195,10 +195,10 @@ router.post('/',
  */
 router.put('/:id',
   param('id').isInt({ min: 1 }),
-  body('name').optional().isString(),
-  body('resource').optional().isString(),
-  body('action').optional().isString(),
-  body('description').optional().isString(),
+  body('name').optional({ nullable: true }).isString(),
+  body('resource').optional({ nullable: true }).isString(),
+  body('action').optional({ nullable: true }).isString(),
+  body('description').optional({ nullable: true }).isString(),
   validateRequest,
   async (req: any, res: Response) => {
     try {

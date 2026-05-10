@@ -46,13 +46,13 @@ function getPublisherCampaignMixService(): PublisherCampaignMixService {
 const createPublisherValidator = [
   // publisher.name obrigatório dentro do objeto publisher
   body('publisher.name').notEmpty().withMessage('Nome é obrigatório').isLength({ min: 2, max: 100 }).withMessage('Nome deve ter entre 2 e 100 caracteres'),
-  body('publisher.contract_id').optional().isInt({ min: 1 }).withMessage('Contract ID inválido (opcional, para rastreabilidade)'),
-  body('publisher.contact_name').optional().isString(),
-  body('publisher.category_segment').optional().isString(),
-  body('publisher.email').optional({ checkFalsy: true }).isEmail().withMessage('Email deve ser válido'),
-  body('publisher.phone').optional({ checkFalsy: true }).isString().withMessage('Telefone deve ser uma string'),
-  body('publisher.whatsapp').optional({ checkFalsy: true }).isString().withMessage('WhatsApp deve ser uma string'),
-  body('publisher.description').optional().isString().isLength({ max: 1000 }).withMessage('Descrição deve ter no máximo 1000 caracteres'),
+  body('publisher.contract_id').optional({ nullable: true }).isInt({ min: 1 }).withMessage('Contract ID inválido (opcional, para rastreabilidade)'),
+  body('publisher.contact_name').optional({ nullable: true }).isString(),
+  body('publisher.category_segment').optional({ nullable: true }).isString(),
+  body('publisher.email').optional({ checkFalsy: true, nullable: true }).isEmail().withMessage('Email deve ser válido'),
+  body('publisher.phone').optional({ checkFalsy: true, nullable: true }).isString().withMessage('Telefone deve ser uma string'),
+  body('publisher.whatsapp').optional({ checkFalsy: true, nullable: true }).isString().withMessage('WhatsApp deve ser uma string'),
+  body('publisher.description').optional({ nullable: true }).isString().isLength({ max: 1000 }).withMessage('Descrição deve ter no máximo 1000 caracteres'),
   // Regra do domínio: Publisher NUNCA é Subscriber/ambos. Esses campos são ignorados/removidos.
 ];
 

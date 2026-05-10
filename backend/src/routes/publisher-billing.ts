@@ -213,8 +213,8 @@ router.post('/',
   body('billingType').isIn(['revenue_share', 'payout', 'subscription', 'platform_fee']),
   body('amount').isFloat({ min: 0.01 }),
   body('direction').isIn(['incoming', 'outgoing']),
-  body('currency').optional().isString(),
-  body('description').optional().isString(),
+  body('currency').optional({ nullable: true }).isString(),
+  body('description').optional({ nullable: true }).isString(),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {

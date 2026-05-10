@@ -62,8 +62,8 @@ router.get('/status', authorizeRole(['admin']), async (_req: Request, res: Respo
 router.post('/test',
   authorizeRole(['admin']),
   body('to').notEmpty().isEmail().withMessage('Email de destino é obrigatório e deve ser válido'),
-  body('subject').optional().isString(),
-  body('message').optional().isString(),
+  body('subject').optional({ nullable: true }).isString(),
+  body('message').optional({ nullable: true }).isString(),
   validateRequest,
   async (req: Request, res: Response) => {
     try {

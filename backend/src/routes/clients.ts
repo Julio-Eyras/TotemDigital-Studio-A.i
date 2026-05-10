@@ -14,9 +14,9 @@ router.use(authMiddleware);
 // Validações
 const createClientValidator = [
   body('name').notEmpty().withMessage('Nome é obrigatório'),
-  body('email').optional().isEmail().withMessage('Email inválido'),
-  body('phone').optional().isString(),
-  body('address').optional().isString(),
+  body('email').optional({ nullable: true }).isEmail().withMessage('Email inválido'),
+  body('phone').optional({ nullable: true }).isString(),
+  body('address').optional({ nullable: true }).isString(),
 ];
 
 const validateRequest = (req: any, res: any, next: any) => {
@@ -123,10 +123,10 @@ router.post('/',
  */
 router.put('/:id',
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
-  body('name').optional().notEmpty().withMessage('Nome não pode ser vazio'),
-  body('email').optional().isEmail().withMessage('Email inválido'),
-  body('phone').optional().isString(),
-  body('address').optional().isString(),
+  body('name').optional({ nullable: true }).notEmpty().withMessage('Nome não pode ser vazio'),
+  body('email').optional({ nullable: true }).isEmail().withMessage('Email inválido'),
+  body('phone').optional({ nullable: true }).isString(),
+  body('address').optional({ nullable: true }).isString(),
   validateRequest,
   async (req: any, res: any) => {
     try {

@@ -84,9 +84,9 @@ router.post('/:totemId/dispatch-batch',
   body('timestamps.*')
     .isISO8601()
     .withMessage('Cada entrada de timestamps deve ser ISO8601'),
-  body('timezone').optional().isString().withMessage('timezone deve ser uma string'),
-  body('skipCache').optional().isBoolean().withMessage('skipCache deve ser um booleano'),
-  body('includeCandidates').optional().isBoolean().withMessage('includeCandidates deve ser um booleano'),
+  body('timezone').optional({ nullable: true }).isString().withMessage('timezone deve ser uma string'),
+  body('skipCache').optional({ nullable: true }).isBoolean().withMessage('skipCache deve ser um booleano'),
+  body('includeCandidates').optional({ nullable: true }).isBoolean().withMessage('includeCandidates deve ser um booleano'),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {

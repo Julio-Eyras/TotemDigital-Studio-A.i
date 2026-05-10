@@ -44,9 +44,9 @@ router.post(
   body('siteId').notEmpty().withMessage('siteId é obrigatório'),
   body('fromTotemId').notEmpty().withMessage('fromTotemId é obrigatório'),
   body('toTotemId').notEmpty().withMessage('toTotemId é obrigatório'),
-  body('effectId').optional().isString(),
-  body('contentId').optional().isInt(),
-  body('durationMs').optional().isInt({ min: 100 }),
+  body('effectId').optional({ nullable: true }).isString(),
+  body('contentId').optional({ nullable: true }).isInt(),
+  body('durationMs').optional({ nullable: true }).isInt({ min: 100 }),
   validateRequest,
   async (req: Request, res: Response) => {
     try {
@@ -93,9 +93,9 @@ router.post(
   body('interactionType')
     .isIn(['tag_id', 'touch', 'gesture', 'facial_recognition'])
     .withMessage('interactionType inválido'),
-  body('tagId').optional().isString(),
-  body('contentId').optional().isInt(),
-  body('timestamp').optional().isISO8601(),
+  body('tagId').optional({ nullable: true }).isString(),
+  body('contentId').optional({ nullable: true }).isInt(),
+  body('timestamp').optional({ nullable: true }).isISO8601(),
   validateRequest,
   async (req: Request, res: Response) => {
     try {
@@ -143,7 +143,7 @@ router.post(
   body('eventId').notEmpty().withMessage('eventId é obrigatório'),
   body('eventType').notEmpty().withMessage('eventType é obrigatório'),
   body('payload').notEmpty().withMessage('payload é obrigatório'),
-  body('timestamp').optional().isISO8601(),
+  body('timestamp').optional({ nullable: true }).isISO8601(),
   validateRequest,
   async (req: Request, res: Response) => {
     try {
@@ -253,7 +253,7 @@ router.post(
   '/timelines/generate',
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing']),
   body('siteId').notEmpty().withMessage('siteId é obrigatório'),
-  body('durationMinutes').optional().isInt({ min: 1, max: 1440 }),
+  body('durationMinutes').optional({ nullable: true }).isInt({ min: 1, max: 1440 }),
   validateRequest,
   async (req: Request, res: Response) => {
     try {

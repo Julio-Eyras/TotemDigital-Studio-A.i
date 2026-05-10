@@ -147,8 +147,8 @@ router.post('/',
   body('scheduleType').isIn(['campaign', 'playlist', 'campaign_activation', 'playlist_generation']).withMessage('Tipo de agendamento inválido'),
   body('targetId').isInt({ min: 1 }).withMessage('ID do target é obrigatório'),
   body('cronExpression').notEmpty().withMessage('Expressão cron é obrigatória'),
-  body('scheduleConfig').optional().isObject(),
-  body('enabled').optional().isBoolean(),
+  body('scheduleConfig').optional({ nullable: true }).isObject(),
+  body('enabled').optional({ nullable: true }).isBoolean(),
   validateRequest,
   async (req: Request, res: Response) => {
     try {
@@ -211,10 +211,10 @@ router.post('/',
  */
 router.put('/:id',
   param('id').isInt({ min: 1 }),
-  body('name').optional().notEmpty(),
-  body('cronExpression').optional().notEmpty(),
-  body('scheduleConfig').optional().isObject(),
-  body('enabled').optional().isBoolean(),
+  body('name').optional({ nullable: true }).notEmpty(),
+  body('cronExpression').optional({ nullable: true }).notEmpty(),
+  body('scheduleConfig').optional({ nullable: true }).isObject(),
+  body('enabled').optional({ nullable: true }).isBoolean(),
   validateRequest,
   async (req: Request, res: Response) => {
     const scheduleId = parseInt(req.params.id, 10);

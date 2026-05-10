@@ -208,8 +208,8 @@ router.post('/',
   body('subscriberId').isInt({ min: 1 }),
   body('billingType').isIn(['advertisement', 'campaign', 'media_upload', 'exhibition_lot', 'totem_quantity', 'time_based', 'custom']),
   body('amount').isFloat({ min: 0.01 }),
-  body('currency').optional().isString(),
-  body('description').optional().isString(),
+  body('currency').optional({ nullable: true }).isString(),
+  body('description').optional({ nullable: true }).isString(),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
