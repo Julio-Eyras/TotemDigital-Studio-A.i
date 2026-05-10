@@ -54,6 +54,22 @@ const variantAlertTail: Record<PlanTopologyUiVariant, string> = {
   details: 'neste painel',
 };
 
+/** Cabeçalhos de tabela / seções: azul escuro e tamanho destacado (leitura rápida). */
+const tableHeaderCellSx = {
+  color: 'primary.dark',
+  fontWeight: 700,
+  fontSize: '0.9375rem',
+  lineHeight: 1.3,
+  borderBottomColor: 'divider',
+} as const;
+
+const sectionHeadingSx = {
+  color: 'primary.dark',
+  fontWeight: 700,
+  fontSize: '0.9375rem',
+  lineHeight: 1.35,
+} as const;
+
 export const PlanTopologyTabPanel: React.FC<PlanTopologyTabPanelProps> = ({
   mode,
   preview,
@@ -113,7 +129,7 @@ export const PlanTopologyTabPanel: React.FC<PlanTopologyTabPanelProps> = ({
           const inner = (
             <>
               {!dense || variant !== 'details' ? (
-                <Typography variant="subtitle1" fontWeight="bold">
+                <Typography variant="h6" component="div" sx={{ color: 'primary.dark', fontWeight: 700, fontSize: '1.05rem', mb: 0.25 }}>
                   {row.title}
                 </Typography>
               ) : null}
@@ -135,7 +151,7 @@ export const PlanTopologyTabPanel: React.FC<PlanTopologyTabPanelProps> = ({
               {row.planId &&
                 row.publishers.map((pub) => (
                   <Box key={pub.publisher_id} sx={{ mb: 2, pl: 1, borderLeft: `3px solid ${theme.palette.divider}` }}>
-                    <Typography variant="subtitle2" color="primary">
+                    <Typography variant="subtitle1" component="div" sx={sectionHeadingSx}>
                       {pub.publisher_name}
                     </Typography>
                     {mode === 'locals' &&
@@ -148,8 +164,8 @@ export const PlanTopologyTabPanel: React.FC<PlanTopologyTabPanelProps> = ({
                           <Table size="small">
                             <TableHead>
                               <TableRow>
-                                <TableCell>Local</TableCell>
-                                <TableCell>Endereço</TableCell>
+                                <TableCell sx={tableHeaderCellSx}>Local</TableCell>
+                                <TableCell sx={tableHeaderCellSx}>Endereço</TableCell>
                               </TableRow>
                             </TableHead>
                             <TableBody>

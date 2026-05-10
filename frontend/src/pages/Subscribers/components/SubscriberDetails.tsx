@@ -371,11 +371,20 @@ const SubscriberDetails: React.FC<SubscriberDetailsProps> = ({
                         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start', minWidth: 0 }}>
                           <Description color="action" sx={{ mt: 0.25 }} />
                           <Box sx={{ minWidth: 0 }}>
-                            <Typography variant="subtitle1" fontWeight="bold">
+                            <Typography
+                              variant="h6"
+                              component="div"
+                              sx={{
+                                color: 'primary.dark',
+                                fontWeight: 700,
+                                fontSize: { xs: '1rem', sm: '1.125rem' },
+                                lineHeight: 1.3,
+                              }}
+                            >
                               {contract.contract_number || contract.contractNumber || 'N/A'} —{' '}
                               {contract.title || 'Sem título'}
                             </Typography>
-                            <Typography variant="body2" color="text.secondary">
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                               {contract.plan_name && (
                                 <>
                                   Plano: {contract.plan_name}
@@ -405,7 +414,16 @@ const SubscriberDetails: React.FC<SubscriberDetailsProps> = ({
 
                       <Divider sx={{ my: 2 }} />
 
-                      <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                      <Typography
+                        variant="subtitle1"
+                        component="div"
+                        sx={{
+                          color: 'primary.dark',
+                          fontWeight: 700,
+                          fontSize: '0.9375rem',
+                          mb: 0.5,
+                        }}
+                      >
                         Rede permitida pelo plano (somente leitura)
                       </Typography>
                       <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1.5 }}>
