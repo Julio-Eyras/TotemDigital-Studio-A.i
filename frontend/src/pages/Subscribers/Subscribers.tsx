@@ -1221,9 +1221,8 @@ const Subscribers: React.FC = () => {
           setError(validation.message);
           return;
         }
-      } catch (err: any) {
-        console.error('Erro na validação prévia:', err);
-        // Continuar mesmo se validação falhar (backend vai validar)
+      } catch {
+        // Validação prévia opcional; backend valida limites na mesma operação
       }
     }
 
@@ -1351,9 +1350,8 @@ const Subscribers: React.FC = () => {
           setError(validation.message || 'Limite de campanhas do plano excedido');
           return;
         }
-      } catch (err: any) {
-        console.error('Erro na validação prévia:', err);
-        // Continuar mesmo se validação falhar (backend vai validar)
+      } catch {
+        // Validação prévia opcional; backend valida limites na mesma operação
       }
     }
 
@@ -1739,10 +1737,6 @@ const Subscribers: React.FC = () => {
             const createdTotem = await totemApi.create(totemData);
             createdTotems.push(createdTotem);
           } catch (totemError: any) {
-            console.error('Erro ao criar totem:', totemError);
-            console.error('Response completa:', totemError?.response);
-            console.error('Dados enviados:', totemData);
-            
             let errorMessage = `Erro ao criar totem "${totem.identifier || totem.name}": `;
             
             if (totemError?.response?.data) {
