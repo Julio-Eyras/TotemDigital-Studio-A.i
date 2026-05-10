@@ -106,7 +106,6 @@ import { SubscriberCard, SubscriberDetails, SubscriberForm } from './components'
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import CampaignFullEditorDialog from '../Campaigns/CampaignFullEditorDialog';
-import { normalizeCampaign } from '../Campaigns/campaignHelpers';
 import { useAppSelector } from '../../store/hooks';
 import { getForeignTotemIdFromRow, getTotemIdFromRow, getTotemLocalIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
@@ -607,22 +606,19 @@ const Subscribers: React.FC = () => {
       setEditMedias(Array.isArray(mediasResponse?.data) ? mediasResponse.data : []);
       setMediaPreviewFailed(new Set());
       setEditPlaylists(Array.isArray(playlistsResponse?.data) ? playlistsResponse.data : []);
-      // campaignApi.getAll pode retornar CampaignListResponse (objeto com data) ou array diretamente
-      // Normalizar campanhas: backend retorna 'id' e 'contractId' (camelCase), frontend espera 'campaign_id' e 'contract_id' (snake_case)
-      const campaignsArray = Array.isArray(campaignsResponse) 
-        ? campaignsResponse 
+      // campaignApi.getAll já normaliza cada linha (campaignNormalize); só filtrar inválidas.
+      const campaignsArray = Array.isArray(campaignsResponse)
+        ? campaignsResponse
         : (campaignsResponse as any)?.data || [];
-      
-      const normalizedCampaigns = campaignsArray
-        .map((c: any) => normalizeCampaign(c))
-        .filter((c: any) => c.campaign_id);
-      
-      console.log('[Campanha] Campanhas normalizadas', { 
+
+      const campaignsForEdit = campaignsArray.filter((c: any) => c.campaign_id);
+
+      console.log('[Campanha] Campanhas carregadas', {
         total: campaignsArray.length,
-        normalized: normalizedCampaigns.length,
-        sample: normalizedCampaigns[0] 
+        validas: campaignsForEdit.length,
+        sample: campaignsForEdit[0],
       });
-      setEditCampaigns(normalizedCampaigns);
+      setEditCampaigns(campaignsForEdit);
       setActiveContracts(
         Array.isArray(contractsResponse) ? filterEditableContracts(contractsResponse) : []
       );
@@ -1547,28 +1543,28 @@ const Subscribers: React.FC = () => {
       console.error('[Campanha] Erro: campanha sem ID válido para navegação', { campaign });
       return;
     }
-    const n = normalizeCampaign(campaign);
-    const cid = n.contract_id ?? (n as any).contractId;
+    const cid = campaign.contract_id ?? (campaign as any).contractId;
     setEditingEditCampaignIndex(index);
     setEditCampaignForm((prev) => ({
       ...prev,
-      title: n.title || prev.title || '',
-      description: n.description ?? prev.description,
-      campaign_type: n.campaign_type || prev.campaign_type || 'general',
-      priority: n.priority ?? prev.priority ?? 1,
+      title: campaign.title || prev.title || '',
+      description: campaign.description ?? prev.description,
+      campaign_type: campaign.campaign_type || prev.campaign_type || 'general',
+      priority: campaign.priority ?? prev.priority ?? 1,
       contractId:
         cid !== undefined && cid !== null && String(cid).trim() !== '' && !Number.isNaN(Number(cid))
           ? Number(cid)
           : undefined,
-      status: n.status || prev.status || 'draft',
+      status: campaign.status || prev.status || 'draft',
       isActive:
-        n.is_active !== undefined
-          ? n.is_active
-          : (n as any).isActive !== undefined
-            ? (n as any).isActive
+        campaign.is_active !== undefined
+          ? campaign.is_active
+          : (campaign as any).isActive !== undefined
+            ? (campaign as any).isActive
             : prev.isActive ?? true,
-      start_date: formatDateForInput(n.start_date ?? (n as any).startDate) || undefined,
-      end_date: formatDateForInput(n.end_date ?? (n as any).endDate) || undefined,
+      start_date:
+        formatDateForInput(campaign.start_date ?? (campaign as any).startDate) || undefined,
+      end_date: formatDateForInput(campaign.end_date ?? (campaign as any).endDate) || undefined,
     }));
     setCampaignFullEditorId(Number(campaignId));
     setCampaignFullEditorOpen(true);
