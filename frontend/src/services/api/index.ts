@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { normalizeCampaignRecord } from '../../utils/campaignNormalize';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
@@ -1268,27 +1269,20 @@ export const campaignApi = {
     // response.data.data é o array Campaign[]
     const campaignsArray = Array.isArray(response.data?.data) ? response.data.data : [];
     
-    // NORMALIZAÇÃO DEFINITIVA: garantir que TODAS as campanhas têm campaign_id e contract_id
+    // NORMALIZAÇÃO: IDs + datas/status/totemIds (camel/snake) sem depender de ciclo com campaignHelpers
     const normalized = campaignsArray.map((c: any, idx: number) => {
-      const campaignId = c.campaign_id || c.id;
-      const contractId = c.contract_id || c.contractId;
-      
-      const normalizedCampaign: Campaign = {
-        ...c,
-        campaign_id: campaignId, // SEMPRE definir campaign_id
-        contract_id: contractId, // SEMPRE definir contract_id
-      };
-      
+      const normalizedCampaign = normalizeCampaignRecord(c) as Campaign;
+
       if (idx < 2) {
         console.log(`[CampaignAPI] Normalizando campanha ${idx}:`, {
           original: c,
           normalized: normalizedCampaign,
-          campaignId,
-          contractId,
+          campaignId: normalizedCampaign.campaign_id,
+          contractId: normalizedCampaign.contract_id,
           originalKeys: Object.keys(c),
         });
       }
-      
+
       if (!normalizedCampaign.campaign_id) {
         console.error(`[CampaignAPI] ERRO: Campanha ${idx} sem ID após normalização!`, {
           original: c,
@@ -1296,9 +1290,9 @@ export const campaignApi = {
           allKeys: Object.keys(c),
         });
       }
-      
+
       return normalizedCampaign;
-    }).filter((c: Campaign) => !!c.campaign_id); // FILTRAR campanhas sem ID
+    }).filter((c: Campaign) => !!c.campaign_id);
     
     console.log('[CampaignAPI] Campanhas normalizadas:', {
       totalRecebidas: campaignsArray.length,
@@ -1315,7 +1309,7 @@ export const campaignApi = {
 
   getById: async (id: number): Promise<Campaign> => {
     const response = await api.get(`/campaigns/${id}`);
-    return response.data.data;
+    return normalizeCampaignRecord(response.data.data) as Campaign;
   },
 
   create: async (data: CreateCampaignRequest): Promise<Campaign> => {
