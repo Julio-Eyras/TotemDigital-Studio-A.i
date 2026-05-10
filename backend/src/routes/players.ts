@@ -15,8 +15,8 @@ router.use(authMiddleware);
 // Validações
 const createPlayerValidator = [
   body('name').notEmpty().withMessage('Nome é obrigatório'),
-  body('location').optional().isString(),
-  body('clientId').optional().isInt({ min: 1 }),
+  body('location').optional({ nullable: true }).isString(),
+  body('clientId').optional({ nullable: true }).isInt({ min: 1 }),
 ];
 
 const validateRequest = (req: any, res: any, next: any) => {
@@ -143,9 +143,9 @@ router.post('/',
  */
 router.put('/:id',
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
-  body('name').optional().notEmpty().withMessage('Nome não pode ser vazio'),
-  body('location').optional().isString(),
-  body('clientId').optional().isInt({ min: 1 }),
+  body('name').optional({ nullable: true }).notEmpty().withMessage('Nome não pode ser vazio'),
+  body('location').optional({ nullable: true }).isString(),
+  body('clientId').optional({ nullable: true }).isInt({ min: 1 }),
   validateRequest,
   async (req: any, res: any) => {
     try {

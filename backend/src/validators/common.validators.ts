@@ -56,7 +56,7 @@ export const idParamValidatorDefault = idParamValidator('id');
  * Validadores de subscriberId
  */
 export const subscriberIdValidators = [
-  body('subscriberId').optional().isInt({ min: 1 }).withMessage('subscriberId deve ser um número inteiro maior que 0'),
+  body('subscriberId').optional({ nullable: true }).isInt({ min: 1 }).withMessage('subscriberId deve ser um número inteiro maior que 0'),
   query('subscriberId').optional().isInt({ min: 1 }).withMessage('subscriberId deve ser um número inteiro maior que 0'),
 ];
 
@@ -64,7 +64,7 @@ export const subscriberIdValidators = [
  * Validadores de contractId
  */
 export const contractIdValidators = [
-  body('contract_id').optional().isInt({ min: 1 }).withMessage('contract_id deve ser um número inteiro maior que 0'),
+  body('contract_id').optional({ nullable: true }).isInt({ min: 1 }).withMessage('contract_id deve ser um número inteiro maior que 0'),
   query('contractId').optional().isInt({ min: 1 }).withMessage('contractId deve ser um número inteiro maior que 0'),
 ];
 
@@ -72,7 +72,7 @@ export const contractIdValidators = [
  * Validadores de publisherId
  */
 export const publisherIdValidators = [
-  body('publisher_id').optional().isInt({ min: 1 }).withMessage('publisher_id deve ser um número inteiro maior que 0'),
+  body('publisher_id').optional({ nullable: true }).isInt({ min: 1 }).withMessage('publisher_id deve ser um número inteiro maior que 0'),
   query('publisherId').optional().isInt({ min: 1 }).withMessage('publisherId deve ser um número inteiro maior que 0'),
 ];
 
@@ -83,25 +83,24 @@ export const statusValidators = [
   query('status').optional().isString().withMessage('Status deve ser uma string'),
   query('is_active').optional().isIn(['true', 'false', '1', '0']).withMessage('is_active deve ser "true" ou "false"'),
   query('active_only').optional().isIn(['true', 'false', '1', '0']).withMessage('active_only deve ser "true" ou "false"'),
-  body('status').optional().isString().withMessage('Status deve ser uma string'),
-  body('is_active').optional().isBoolean().withMessage('is_active deve ser um booleano'),
+  body('status').optional({ nullable: true }).isString().withMessage('Status deve ser uma string'),
+  body('is_active').optional({ nullable: true }).isBoolean().withMessage('is_active deve ser um booleano'),
 ];
 
 /**
  * Validadores de email
  */
 export const emailValidators = [
-  // Tratar '' como ausente usando checkFalsy:true para evitar validar strings vazias
-  body('email').optional({ checkFalsy: true }).isEmail().withMessage('Email deve ser válido'),
+  // Tratar '' / null como ausente; checkFalsy evita validar strings vazias
+  body('email').optional({ checkFalsy: true, nullable: true }).isEmail().withMessage('Email deve ser válido'),
 ];
 
 /**
  * Validadores de telefone
  */
 export const phoneValidators = [
-  // Ignorar valores falsy ('' / null / undefined)
-  body('phone').optional({ checkFalsy: true }).isString().withMessage('Telefone deve ser uma string'),
-  body('whatsapp').optional({ checkFalsy: true }).isString().withMessage('WhatsApp deve ser uma string'),
+  body('phone').optional({ checkFalsy: true, nullable: true }).isString().withMessage('Telefone deve ser uma string'),
+  body('whatsapp').optional({ checkFalsy: true, nullable: true }).isString().withMessage('WhatsApp deve ser uma string'),
 ];
 
 /**
@@ -115,7 +114,7 @@ export const nameValidators = [
  * Validadores de descrição
  */
 export const descriptionValidators = [
-  body('description').optional().isString().isLength({ max: 1000 }).withMessage('Descrição deve ter no máximo 1000 caracteres'),
+  body('description').optional({ nullable: true }).isString().isLength({ max: 1000 }).withMessage('Descrição deve ter no máximo 1000 caracteres'),
 ];
 
 /**
@@ -143,7 +142,7 @@ export const createResourceValidators = [
  */
 export const updateResourceValidators = [
   ...idParamValidatorDefault,
-  body('name').optional().notEmpty().isLength({ min: 2, max: 100 }).withMessage('Nome deve ter entre 2 e 100 caracteres'),
+  body('name').optional({ nullable: true }).notEmpty().isLength({ min: 2, max: 100 }).withMessage('Nome deve ter entre 2 e 100 caracteres'),
   ...descriptionValidators,
   ...emailValidators,
   ...phoneValidators,
