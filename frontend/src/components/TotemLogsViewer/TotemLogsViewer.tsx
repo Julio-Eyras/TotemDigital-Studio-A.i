@@ -143,8 +143,8 @@ const TotemLogsViewer: React.FC<TotemLogsViewerProps> = ({
           } else if (message.type === 'error') {
             showError('Erro no WebSocket', message.error);
           }
-        } catch (error) {
-          console.error('Erro ao processar mensagem WebSocket:', error);
+        } catch {
+          /* payload JSON inválido */
         }
       };
 
@@ -152,7 +152,7 @@ const TotemLogsViewer: React.FC<TotemLogsViewerProps> = ({
         setWsConnected(false);
         if (!wsLoggedFailure.current) {
           wsLoggedFailure.current = true;
-          console.warn('WebSocket: falha na conexão com /ws (logs em tempo real indisponíveis). Verifique se o proxy está configurado para /ws.');
+          /* tempo real indisponível; logs históricos continuam via HTTP */
         }
       };
 

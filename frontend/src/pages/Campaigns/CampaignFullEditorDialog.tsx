@@ -651,63 +651,74 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                     </Typography>
                   </FormControl>
                 )}
-                <FormControl fullWidth margin="normal">
-                  <InputLabel>Status</InputLabel>
-                  <Select
-                    value={selectedCampaign?.status || 'draft'}
-                    onChange={(e) => setSelectedCampaign({ ...selectedCampaign!, status: e.target.value })}
-                    label="Status"
-                  >
-                    <MenuItem value="draft">Rascunho</MenuItem>
-                    <MenuItem value="active">Ativa</MenuItem>
-                    <MenuItem value="finished">Concluída</MenuItem>
-                    <MenuItem value="cancelled">Cancelada</MenuItem>
-                  </Select>
-                </FormControl>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={selectedCampaign?.is_active || false}
-                      onChange={(e) => setSelectedCampaign({ ...selectedCampaign!, is_active: e.target.checked })}
-                    />
-                  }
-                  label="Campanha Ativa"
-                />
-
-                <Grid container spacing={2} sx={{ mt: 1 }}>
+                <Grid container spacing={2} sx={{ mt: 1, alignItems: 'center' }}>
                   <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="Data de Início"
-                      type="date"
-                      value={toDateInputValue(selectedCampaign?.start_date || (selectedCampaign as any)?.startDate)}
-                      onChange={(e) =>
-                        setSelectedCampaign({
-                          ...selectedCampaign!,
-                          start_date: e.target.value,
-                        })
-                      }
-                      InputLabelProps={{ shrink: true }}
-                      helperText="Período de validade da campanha (início)"
-                    />
+                    <FormControl fullWidth margin="normal">
+                      <InputLabel>Status</InputLabel>
+                      <Select
+                        value={selectedCampaign?.status || 'draft'}
+                        onChange={(e) => setSelectedCampaign({ ...selectedCampaign!, status: e.target.value })}
+                        label="Status"
+                      >
+                        <MenuItem value="draft">Rascunho</MenuItem>
+                        <MenuItem value="active">Ativa</MenuItem>
+                        <MenuItem value="finished">Concluída</MenuItem>
+                        <MenuItem value="cancelled">Cancelada</MenuItem>
+                      </Select>
+                    </FormControl>
                   </Grid>
                   <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="Data de Fim"
-                      type="date"
-                      value={toDateInputValue(selectedCampaign?.end_date || (selectedCampaign as any)?.endDate)}
-                      onChange={(e) =>
-                        setSelectedCampaign({
-                          ...selectedCampaign!,
-                          end_date: e.target.value,
-                        })
+                    <FormControlLabel
+                      sx={{ mt: { xs: 0, sm: 1 } }}
+                      control={
+                        <Switch
+                          checked={selectedCampaign?.is_active || false}
+                          onChange={(e) => setSelectedCampaign({ ...selectedCampaign!, is_active: e.target.checked })}
+                        />
                       }
-                      InputLabelProps={{ shrink: true }}
-                      helperText="Período de validade da campanha (fim)"
+                      label="Campanha Ativa"
                     />
                   </Grid>
                 </Grid>
+
+                <Box
+                  sx={{
+                    mt: 2,
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' },
+                    gap: 2,
+                    width: '100%',
+                  }}
+                >
+                  <TextField
+                    fullWidth
+                    label="Data de Início"
+                    type="date"
+                    value={toDateInputValue(selectedCampaign?.start_date || (selectedCampaign as any)?.startDate)}
+                    onChange={(e) =>
+                      setSelectedCampaign({
+                        ...selectedCampaign!,
+                        start_date: e.target.value,
+                      })
+                    }
+                    InputLabelProps={{ shrink: true }}
+                    helperText="Período de validade da campanha (início)"
+                  />
+                  <TextField
+                    fullWidth
+                    label="Data de Fim"
+                    type="date"
+                    value={toDateInputValue(selectedCampaign?.end_date || (selectedCampaign as any)?.endDate)}
+                    onChange={(e) =>
+                      setSelectedCampaign({
+                        ...selectedCampaign!,
+                        end_date: e.target.value,
+                      })
+                    }
+                    InputLabelProps={{ shrink: true }}
+                    helperText="Período de validade da campanha (fim)"
+                  />
+                </Box>
               </>
             )}
 
@@ -989,8 +1000,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
             )}
 
             {editTab === tabTotems && selectedCampaign && (
-              <FormControl fullWidth margin="normal">
-                <InputLabel>Totens (Onde a campanha será exibida)</InputLabel>
+              <Box sx={{ mt: 2, mb: 1 }}>
                 {derivedDevicesLoading ? (
                   <LinearProgress sx={{ mt: 2 }} />
                 ) : (
@@ -998,6 +1008,15 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                     multiple
                     disableCloseOnSelect
                     filterSelectedOptions={false}
+                    sx={{
+                      '& .MuiAutocomplete-inputRoot': {
+                        alignItems: 'flex-start',
+                        py: 1,
+                      },
+                      '& .MuiAutocomplete-tag': {
+                        my: 0.25,
+                      },
+                    }}
                     options={totemAutocompleteOptions}
                     getOptionLabel={(option) => campaignTotemOptionLabel(option)}
                     isOptionEqualToValue={(option, value) =>
@@ -1066,8 +1085,9 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                     renderInput={(params) => (
                       <TextField
                         {...params}
-                        label="Totens"
-                        margin="normal"
+                        label="Totens (Onde a campanha será exibida)"
+                        margin="none"
+                        InputLabelProps={{ shrink: true }}
                         helperText={(() => {
                           const compactContractId =
                             (selectedCampaign as any)?.contract_id ??
@@ -1097,7 +1117,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                     }
                   />
                 )}
-              </FormControl>
+              </Box>
             )}
 
             {!compactMode && editTab === tabSmartTvs && (

@@ -175,9 +175,8 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
             remaining: limitsValidation.remaining,
           }
         }));
-      } catch (err: any) {
-        console.error('Erro ao validar limites:', err);
-        // Não bloquear, apenas logar erro
+      } catch {
+        // Não bloquear upload se a API de limites falhar
       }
     }
   };
@@ -220,8 +219,8 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
           setError(limitsValidation.message);
           return;
         }
-      } catch (err: any) {
-        console.error('Erro na validação prévia:', err);
+      } catch {
+        /* validação prévia opcional */
       }
     }
 
@@ -264,7 +263,6 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
       }, 2000);
 
     } catch (error: any) {
-      console.error('Erro no upload:', error);
       setError(pickApiErrorMessage(error, 'Erro ao fazer upload dos arquivos'));
       setUploadStatus('error');
     } finally {

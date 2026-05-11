@@ -546,7 +546,13 @@ const Media: React.FC = () => {
               }
             }}>
               <Box
-                sx={{ position: 'relative', height: 200, backgroundColor: theme.palette.grey[100], overflow: 'hidden' }}
+                sx={{
+                  position: 'relative',
+                  width: '100%',
+                  aspectRatio: '9 / 16',
+                  backgroundColor: theme.palette.grey[100],
+                  overflow: 'hidden',
+                }}
                 onMouseEnter={() => handlePreviewMouseEnter(media)}
                 onMouseLeave={handlePreviewMouseLeave}
               >

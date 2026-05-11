@@ -167,8 +167,8 @@ const SubscriberLayout: React.FC<SubscriberLayoutProps> = ({ children }) => {
   const handleLogout = async () => {
     try {
       await authApi.logout();
-    } catch (error) {
-      console.error('Erro ao fazer logout:', error);
+    } catch {
+      /* logout local mesmo se a API falhar */
     } finally {
       localStorage.removeItem('token');
       localStorage.removeItem('user');

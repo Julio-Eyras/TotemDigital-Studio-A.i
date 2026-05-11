@@ -3014,12 +3014,19 @@ export interface Subscriber {
   phone?: string;
   whatsapp?: string;
   address?: string;
+  city?: string;
   category_segment?: string;
   description?: string;
   is_active: boolean;
   created_at: string;
   updated_at?: string;
   contracts?: Contract[]; // Contratos do subscriber
+  active_contracts_count?: number;
+  media_count?: number;
+  playlist_count?: number;
+  campaign_count?: number;
+  storage_used_gb?: number;
+  storage_limit_gb?: number;
 }
 
 export interface CreateSubscriberRequest {

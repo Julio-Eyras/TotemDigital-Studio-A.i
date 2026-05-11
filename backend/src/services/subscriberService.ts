@@ -18,11 +18,18 @@ export interface Subscriber {
   phone?: string;
   whatsapp?: string;
   address?: string;
+  city?: string;
   category_segment?: string;
   description?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  active_contracts_count?: number;
+  media_count?: number;
+  playlist_count?: number;
+  campaign_count?: number;
+  storage_used_gb?: number;
+  storage_limit_gb?: number;
 }
 
 export interface CreateSubscriberRequest {
@@ -157,6 +164,102 @@ export class SubscriberService {
         ORDER BY ${sortField} ${orderDirection}
         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
       `, [...queryParams, limit, offset]);
+
+      if (subscribers.length > 0) {
+        const subscriberIds = subscribers.map((subscriber: Subscriber) => subscriber.subscriber_id);
+        const metricsRows = await this.db.findMany(`
+          WITH ids AS (
+            SELECT unnest($1::int[]) AS subscriber_id
+          ),
+          active_contracts AS (
+            SELECT
+              sc.subscriber_id,
+              COUNT(*)::int AS active_contracts_count
+            FROM subscriber_contracts sc
+            JOIN ids ON ids.subscriber_id = sc.subscriber_id
+            WHERE sc.status = 'active'
+              AND sc.start_date <= CURRENT_DATE
+              AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)
+            GROUP BY sc.subscriber_id
+          ),
+          media_stats AS (
+            SELECT
+              m.subscriber_id,
+              COUNT(*)::int AS media_count,
+              COALESCE(SUM(m.file_size_bytes), 0)::numeric AS storage_bytes
+            FROM medias m
+            JOIN ids ON ids.subscriber_id = m.subscriber_id
+            WHERE m.is_active = true
+            GROUP BY m.subscriber_id
+          ),
+          playlist_stats AS (
+            SELECT
+              p.subscriber_id,
+              COUNT(*)::int AS playlist_count
+            FROM playlists p
+            JOIN ids ON ids.subscriber_id = p.subscriber_id
+            WHERE p.is_active = true
+            GROUP BY p.subscriber_id
+          ),
+          campaign_stats AS (
+            SELECT
+              c.subscriber_id,
+              COUNT(*)::int AS campaign_count
+            FROM campaigns c
+            JOIN ids ON ids.subscriber_id = c.subscriber_id
+            GROUP BY c.subscriber_id
+          ),
+          city_stats AS (
+            SELECT
+              spa.subscriber_id,
+              STRING_AGG(DISTINCT l.city, ', ' ORDER BY l.city) AS city
+            FROM subscriber_publisher_access spa
+            JOIN ids ON ids.subscriber_id = spa.subscriber_id
+            JOIN locals l ON l.publisher_id = spa.publisher_id
+            WHERE spa.is_active = true
+              AND spa.revoked_at IS NULL
+              AND (spa.expires_at IS NULL OR spa.expires_at > CURRENT_TIMESTAMP)
+              AND l.is_active = true
+              AND NULLIF(TRIM(l.city), '') IS NOT NULL
+            GROUP BY spa.subscriber_id
+          )
+          SELECT
+            ids.subscriber_id,
+            COALESCE(active_contracts.active_contracts_count, 0) AS active_contracts_count,
+            COALESCE(media_stats.media_count, 0) AS media_count,
+            COALESCE(media_stats.storage_bytes, 0) / 1073741824.0 AS storage_used_gb,
+            COALESCE(playlist_stats.playlist_count, 0) AS playlist_count,
+            COALESCE(campaign_stats.campaign_count, 0) AS campaign_count,
+            city_stats.city
+          FROM ids
+          LEFT JOIN active_contracts ON active_contracts.subscriber_id = ids.subscriber_id
+          LEFT JOIN media_stats ON media_stats.subscriber_id = ids.subscriber_id
+          LEFT JOIN playlist_stats ON playlist_stats.subscriber_id = ids.subscriber_id
+          LEFT JOIN campaign_stats ON campaign_stats.subscriber_id = ids.subscriber_id
+          LEFT JOIN city_stats ON city_stats.subscriber_id = ids.subscriber_id
+        `, [subscriberIds]);
+
+        const metricsBySubscriberId = new Map(
+          metricsRows.map((row: any) => [Number(row.subscriber_id), row])
+        );
+
+        await Promise.all(
+          subscribers.map(async (subscriber: Subscriber) => {
+            const metrics = metricsBySubscriberId.get(subscriber.subscriber_id) || {};
+            const limits = await this.getMaxLimits(subscriber.subscriber_id).catch(
+              (): { storage_gb?: number } => ({})
+            );
+
+            subscriber.city = metrics.city || undefined;
+            subscriber.active_contracts_count = Number(metrics.active_contracts_count || 0);
+            subscriber.media_count = Number(metrics.media_count || 0);
+            subscriber.playlist_count = Number(metrics.playlist_count || 0);
+            subscriber.campaign_count = Number(metrics.campaign_count || 0);
+            subscriber.storage_used_gb = Number(metrics.storage_used_gb || 0);
+            subscriber.storage_limit_gb = limits.storage_gb;
+          })
+        );
+      }
 
       // Contar total
       const totalResult = await this.db.findFirst(`

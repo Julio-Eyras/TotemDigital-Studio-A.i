@@ -110,8 +110,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       try {
         const parsedUser = JSON.parse(savedUser);
         setUser(parsedUser);
-      } catch (error) {
-        console.error('Erro ao parsear user do localStorage:', error);
+      } catch {
+        /* JSON inválido em user */
       }
     }
   }, []);
@@ -247,8 +247,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const handleLogout = async () => {
     try {
       await authApi.logout();
-    } catch (error) {
-      console.error('Erro ao fazer logout:', error);
+    } catch {
+      /* logout local mesmo se a API falhar */
     } finally {
       localStorage.removeItem('token');
       localStorage.removeItem('user');

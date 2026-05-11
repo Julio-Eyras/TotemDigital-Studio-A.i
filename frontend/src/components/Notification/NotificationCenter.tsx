@@ -72,8 +72,8 @@ const NotificationCenter: React.FC = () => {
               timestamp: new Date(n.timestamp),
             }))
           );
-        } catch (e) {
-          console.error('Erro ao carregar notificações:', e);
+        } catch {
+          /* localStorage corrompido ou formato antigo */
         }
       }
     };

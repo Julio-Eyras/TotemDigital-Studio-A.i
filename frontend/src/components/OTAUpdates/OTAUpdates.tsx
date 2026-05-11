@@ -97,8 +97,8 @@ const OTAUpdates: React.FC = () => {
     try {
       const response = await otaApi.getStats();
       setStats(response.data);
-    } catch (error: any) {
-      console.error('Erro ao carregar estatísticas:', error);
+    } catch {
+      /* estatísticas opcionais; lista de updates já tratada em loadUpdates */
     }
   };
 

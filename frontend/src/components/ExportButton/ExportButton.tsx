@@ -122,7 +122,6 @@ const ExportButton: React.FC<ExportButtonProps> = ({
 
       showSuccess('Export realizado com sucesso!', `Arquivo ${format.toUpperCase()} baixado.`);
     } catch (error: any) {
-      console.error(`Erro ao exportar para ${format}:`, error);
       showError(
         pickApiErrorMessage(error, `Não foi possível exportar para ${format.toUpperCase()}.`),
         'Erro ao exportar'
