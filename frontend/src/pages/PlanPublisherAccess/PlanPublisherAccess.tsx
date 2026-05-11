@@ -285,6 +285,11 @@ const PlanPublisherAccessPage: React.FC = () => {
     return plan.priceYearly || plan.price_yearly;
   };
 
+  const getPlanContractCount = (plan?: Plan | null): number => {
+    if (!plan) return 0;
+    return Number((plan as any).contractCount ?? (plan as any).contract_count ?? 0);
+  };
+
   const getPlanIsActive = (plan: Plan): boolean => {
     return plan.isActive !== undefined ? plan.isActive : plan.is_active !== false;
   };
@@ -296,6 +301,8 @@ const PlanPublisherAccessPage: React.FC = () => {
   const getPlanSortOrder = (plan: Plan): number => {
     return plan.sortOrder || plan.sort_order || 0;
   };
+
+  const selectedPlanHasContracts = planEditMode && getPlanContractCount(selectedPlan) > 0;
 
   const loadPlanPublishers = async (planId: number) => {
     try {
@@ -581,16 +588,18 @@ const PlanPublisherAccessPage: React.FC = () => {
         const updateData: UpdatePlanRequest = {
           name: planFormData.name,
           description: planFormData.description,
-          priceMonthly: planFormData.priceMonthly,
-          priceYearly: planFormData.priceYearly,
           stripePriceIdMonthly: planFormData.stripePriceIdMonthly || undefined,
           stripePriceIdYearly: planFormData.stripePriceIdYearly || undefined,
-          features,
-          limits,
           isActive: planFormData.isActive,
           isPopular: planFormData.isPopular,
           sortOrder: planFormData.sortOrder,
         };
+        if (!selectedPlanHasContracts) {
+          updateData.priceMonthly = planFormData.priceMonthly;
+          updateData.priceYearly = planFormData.priceYearly;
+          updateData.features = features;
+          updateData.limits = limits;
+        }
         await planApi.update(planId, updateData);
       } else {
         const createData: CreatePlanRequest = {
@@ -1202,6 +1211,12 @@ const PlanPublisherAccessPage: React.FC = () => {
           {/* Aba 1: Dados do Plano */}
           {planDialogTab === 0 && (
             <Box sx={{ pt: 2 }}>
+              {selectedPlanHasContracts && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Este plano já tem {getPlanContractCount(selectedPlan)} contrato(s) vinculado(s). Preços, recursos e
+                  limites ficam congelados para preservar os contratos existentes. Para novas regras, crie um novo plano.
+                </Alert>
+              )}
               <TextField
               fullWidth
               label="Nome *"
@@ -1235,6 +1250,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                   label="Preço Mensal *"
                   type="text"
                   value={planMonthlyPriceText}
+                  disabled={selectedPlanHasContracts}
                   onChange={(e) => {
                     const draft = normalizeCurrencyDraft(e.target.value);
                     setPlanMonthlyPriceText(draft);
@@ -1255,7 +1271,11 @@ const PlanPublisherAccessPage: React.FC = () => {
                     startAdornment: <InputAdornment position="start">R$</InputAdornment>,
                   }}
                   inputProps={{ inputMode: 'decimal', autoComplete: 'off' }}
-                  helperText="Use vírgula para centavos (ex.: 99,90)"
+                  helperText={
+                    selectedPlanHasContracts
+                      ? 'Congelado porque já há contrato vinculado a este plano'
+                      : 'Use vírgula para centavos (ex.: 99,90)'
+                  }
                 />
               </Grid>
               <Grid item xs={12} md={6}>
@@ -1264,6 +1284,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                   label="Preço Anual"
                   type="text"
                   value={planYearlyPriceText}
+                  disabled={selectedPlanHasContracts}
                   onChange={(e) => {
                     const draft = normalizeCurrencyDraft(e.target.value);
                     setPlanYearlyPriceText(draft);
@@ -1295,6 +1316,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                   <InputLabel>Moeda</InputLabel>
                   <Select
                     value={planFormData.currency}
+                    disabled={selectedPlanHasContracts}
                     onChange={(e) => setPlanFormData({ ...planFormData, currency: e.target.value })}
                     label="Moeda"
                   >
@@ -1309,6 +1331,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                   <InputLabel>Intervalo de Cobrança</InputLabel>
                   <Select
                     value={planFormData.billingInterval}
+                    disabled={selectedPlanHasContracts}
                     onChange={(e) => setPlanFormData({ ...planFormData, billingInterval: e.target.value })}
                     label="Intervalo de Cobrança"
                   >
@@ -1333,6 +1356,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                   fullWidth
                   label="ID do Preço Stripe (Mensal)"
                   value={planFormData.stripePriceIdMonthly}
+                  disabled={selectedPlanHasContracts}
                   onChange={(e) => setPlanFormData({ ...planFormData, stripePriceIdMonthly: e.target.value })}
                   margin="normal"
                 />
@@ -1342,6 +1366,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                   fullWidth
                   label="ID do Preço Stripe (Anual)"
                   value={planFormData.stripePriceIdYearly}
+                  disabled={selectedPlanHasContracts}
                   onChange={(e) => setPlanFormData({ ...planFormData, stripePriceIdYearly: e.target.value })}
                   margin="normal"
                 />
@@ -1353,9 +1378,14 @@ const PlanPublisherAccessPage: React.FC = () => {
               multiline
               rows={4}
               value={typeof planFormData.features === 'string' ? planFormData.features : JSON.stringify(planFormData.features, null, 2)}
+              disabled={selectedPlanHasContracts}
               onChange={(e) => setPlanFormData({ ...planFormData, features: e.target.value })}
               margin="normal"
-              helperText="Objeto JSON com recursos do plano. Ex.: { 'recurso1': true, 'nivel': 'avancado' }"
+              helperText={
+                selectedPlanHasContracts
+                  ? 'Congelado porque já há contrato vinculado a este plano'
+                  : "Objeto JSON com recursos do plano. Ex.: { 'recurso1': true, 'nivel': 'avancado' }"
+              }
             />
             <TextField
               fullWidth
@@ -1363,9 +1393,14 @@ const PlanPublisherAccessPage: React.FC = () => {
               multiline
               rows={4}
               value={typeof planFormData.limits === 'string' ? planFormData.limits : JSON.stringify(planFormData.limits, null, 2)}
+              disabled={selectedPlanHasContracts}
               onChange={(e) => setPlanFormData({ ...planFormData, limits: e.target.value })}
               margin="normal"
-              helperText="Objeto JSON com limites. Ex.: { 'totens': 10, 'campanhas': 50, 'armazenamento_gb': 100 }"
+              helperText={
+                selectedPlanHasContracts
+                  ? 'Congelado porque já há contrato vinculado a este plano'
+                  : "Objeto JSON com limites. Ex.: { 'totens': 10, 'campanhas': 50, 'armazenamento_gb': 100 }"
+              }
             />
             <Grid container spacing={2}>
               <Grid item xs={12} md={4}>

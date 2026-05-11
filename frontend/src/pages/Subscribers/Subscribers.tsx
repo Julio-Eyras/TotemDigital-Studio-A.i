@@ -42,6 +42,7 @@ import {
   Autocomplete,
   Pagination,
   Stack,
+  InputAdornment,
 } from '@mui/material';
 import {
   Add,
@@ -223,6 +224,7 @@ const Subscribers: React.FC = () => {
     start_date: getDefaultContractStartDate(),
     end_date: getDefaultContractEndDate(),
     currency: 'BRL',
+    total_amount: undefined,
     status: 'draft',
     plan_id: undefined,
   });
@@ -234,9 +236,74 @@ const Subscribers: React.FC = () => {
     start_date: getDefaultContractStartDate(),
     end_date: getDefaultContractEndDate(),
     currency: 'BRL',
+    total_amount: undefined,
     status: 'draft',
     plan_id: undefined,
   });
+
+  const getPlanIdFromOption = (plan: any): number | undefined => {
+    const id = plan?.planId ?? plan?.plan_id;
+    const n = Number(id);
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  };
+
+  const getPlanPriceMonthly = (plan: any): number => Number(plan?.priceMonthly ?? plan?.price_monthly ?? 0);
+
+  const getPlanPriceYearly = (plan: any): number | undefined => {
+    const raw = plan?.priceYearly ?? plan?.price_yearly;
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  };
+
+  const getPlanBillingInterval = (plan: any): string => String(plan?.billingInterval ?? plan?.billing_interval ?? 'month');
+
+  const getPlanCurrency = (plan: any): string => String(plan?.currency || 'BRL').toUpperCase();
+
+  const getPlanContractAmount = (plan: any): number | undefined => {
+    if (!plan) return undefined;
+    const monthly = getPlanPriceMonthly(plan);
+    if (getPlanBillingInterval(plan) === 'year') {
+      return getPlanPriceYearly(plan) ?? (monthly > 0 ? monthly * 12 : undefined);
+    }
+    return monthly > 0 ? monthly : undefined;
+  };
+
+  const formatCurrencyAmount = (amount?: number | null, currency: string = 'BRL') => {
+    const n = Number(amount);
+    if (!Number.isFinite(n)) return '';
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: currency || 'BRL',
+    }).format(n);
+  };
+
+  const getPlanOptionLabel = (plan: any): string => {
+    const currency = getPlanCurrency(plan);
+    const amount = getPlanContractAmount(plan);
+    const interval = getPlanBillingInterval(plan) === 'year' ? 'ano' : 'mês';
+    const value = amount != null ? ` — ${formatCurrencyAmount(amount, currency)}/${interval}` : '';
+    return `${plan?.name || 'Plano'}${value}`;
+  };
+
+  const getSelectedPlanValueHelper = (planId?: number): string => {
+    const plan = availablePlansForContract.find((p: any) => getPlanIdFromOption(p) === planId);
+    const amount = getPlanContractAmount(plan);
+    if (amount == null) return 'Valor fechado neste contrato';
+    return `Valor do plano: ${formatCurrencyAmount(amount, getPlanCurrency(plan))}`;
+  };
+
+  const applyPlanToContractForm = <T extends CreateContractRequest>(form: T, planId?: number): T => {
+    const plan = availablePlansForContract.find((p: any) => getPlanIdFromOption(p) === planId);
+    if (!planId || !plan) {
+      return { ...form, plan_id: planId } as T;
+    }
+    return {
+      ...form,
+      plan_id: planId,
+      currency: getPlanCurrency(plan),
+      total_amount: getPlanContractAmount(plan),
+    } as T;
+  };
   // NOVO: Estados para gerenciar locais, totens, smart TVs e subscribers durante a criação
   const [tempLocals, setTempLocals] = useState<CreateLocalRequest[]>([]);
   const [tempTotems, setTempTotems] = useState<(CreatePlayerRequest & { tempId: string })[]>([]);
@@ -2110,6 +2177,7 @@ const Subscribers: React.FC = () => {
             start_date: getDefaultContractStartDate(),
             end_date: getDefaultContractEndDate(),
             currency: 'BRL',
+            total_amount: undefined,
             status: 'draft',
             plan_id: undefined,
           });
@@ -2174,11 +2242,16 @@ const Subscribers: React.FC = () => {
                         sx={sxSelectChosenGreen(!!subscriberContractForm.plan_id)}
                         value={subscriberContractForm.plan_id || ''}
                         label="Plano"
-                        onChange={(e) => setSubscriberContractForm({ ...subscriberContractForm, plan_id: e.target.value ? Number(e.target.value) : undefined })}
+                        onChange={(e) => {
+                          const planId = e.target.value ? Number(e.target.value) : undefined;
+                          setSubscriberContractForm(applyPlanToContractForm(subscriberContractForm, planId));
+                        }}
                       >
                         <MenuItem value="">Nenhum (contrato sem plano)</MenuItem>
                         {availablePlansForContract.map((p: any) => (
-                          <MenuItem key={p.planId} value={p.planId}>{p.name}</MenuItem>
+                          <MenuItem key={getPlanIdFromOption(p)} value={getPlanIdFromOption(p)}>
+                            {getPlanOptionLabel(p)}
+                          </MenuItem>
                         ))}
                       </Select>
                     </FormControl>
@@ -2252,7 +2325,7 @@ const Subscribers: React.FC = () => {
                       InputLabelProps={{ shrink: true }}
                     />
                   </Grid>
-                  <Grid item xs={12} md={6}>
+                  <Grid item xs={12} md={4}>
                     <TextField
                       fullWidth
                       label="Moeda"
@@ -2261,7 +2334,29 @@ const Subscribers: React.FC = () => {
                       size="small"
                     />
                   </Grid>
-                  <Grid item xs={12} md={6}>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="Valor acordado"
+                      type="number"
+                      value={subscriberContractForm.total_amount ?? ''}
+                      onChange={(e) =>
+                        setSubscriberContractForm({
+                          ...subscriberContractForm,
+                          total_amount: e.target.value === '' ? undefined : Number(e.target.value),
+                        })
+                      }
+                      size="small"
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">{subscriberContractForm.currency || 'BRL'}</InputAdornment>
+                        ),
+                      }}
+                      inputProps={{ min: 0, step: '0.01' }}
+                      helperText={getSelectedPlanValueHelper(subscriberContractForm.plan_id)}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
                     <FormControl fullWidth size="small">
                       <InputLabel>Status</InputLabel>
                       <Select
@@ -2304,6 +2399,7 @@ const Subscribers: React.FC = () => {
                           start_date: getDefaultContractStartDate(),
                           end_date: getDefaultContractEndDate(),
                           currency: 'BRL',
+                          total_amount: undefined,
                           status: 'draft',
                           plan_id: undefined,
                         });
@@ -2325,6 +2421,7 @@ const Subscribers: React.FC = () => {
                             start_date: getDefaultContractStartDate(),
                             end_date: getDefaultContractEndDate(),
                             currency: 'BRL',
+                            total_amount: undefined,
                             status: 'draft',
                             plan_id: undefined,
                           });
@@ -2360,6 +2457,8 @@ const Subscribers: React.FC = () => {
                           <Typography variant="body2" color="text.secondary">
                             {contract.description || 'Sem descrição'}
                             {contract.plan_id && ` | Plano ID: ${contract.plan_id}`}
+                            {contract.total_amount != null &&
+                              ` | Valor: ${formatCurrencyAmount(contract.total_amount, contract.currency || 'BRL')}`}
                           </Typography>
                         </Box>
                         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
@@ -2391,6 +2490,7 @@ const Subscribers: React.FC = () => {
                                   start_date: getDefaultContractStartDate(),
                                   end_date: getDefaultContractEndDate(),
                                   currency: 'BRL',
+                                  total_amount: undefined,
                                   status: 'draft',
                                   plan_id: undefined,
                                 });
@@ -2458,6 +2558,7 @@ const Subscribers: React.FC = () => {
               start_date: getDefaultContractStartDate(),
               end_date: getDefaultContractEndDate(),
               currency: 'BRL',
+              total_amount: undefined,
               status: 'draft',
               plan_id: undefined,
             });
@@ -2502,6 +2603,7 @@ const Subscribers: React.FC = () => {
             start_date: getDefaultContractStartDate(),
             end_date: getDefaultContractEndDate(),
             currency: 'BRL',
+            total_amount: undefined,
             status: 'draft',
             plan_id: undefined,
           });
@@ -2584,11 +2686,16 @@ const Subscribers: React.FC = () => {
                         sx={sxSelectChosenGreen(!!subscriberContractFormEdit.plan_id)}
                         value={subscriberContractFormEdit.plan_id || ''}
                         label="Plano"
-                        onChange={(e) => setSubscriberContractFormEdit({ ...subscriberContractFormEdit, plan_id: e.target.value ? Number(e.target.value) : undefined })}
+                        onChange={(e) => {
+                          const planId = e.target.value ? Number(e.target.value) : undefined;
+                          setSubscriberContractFormEdit(applyPlanToContractForm(subscriberContractFormEdit, planId));
+                        }}
                       >
                         <MenuItem value="">Nenhum (contrato sem plano)</MenuItem>
                         {availablePlansForContract.map((p: any) => (
-                          <MenuItem key={p.planId} value={p.planId}>{p.name}</MenuItem>
+                          <MenuItem key={getPlanIdFromOption(p)} value={getPlanIdFromOption(p)}>
+                            {getPlanOptionLabel(p)}
+                          </MenuItem>
                         ))}
                       </Select>
                     </FormControl>
@@ -2662,7 +2769,7 @@ const Subscribers: React.FC = () => {
                       InputLabelProps={{ shrink: true }}
                     />
                   </Grid>
-                  <Grid item xs={12} md={6}>
+                  <Grid item xs={12} md={4}>
                     <TextField
                       fullWidth
                       label="Moeda"
@@ -2671,7 +2778,29 @@ const Subscribers: React.FC = () => {
                       size="small"
                     />
                   </Grid>
-                  <Grid item xs={12} md={6}>
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      fullWidth
+                      label="Valor acordado"
+                      type="number"
+                      value={subscriberContractFormEdit.total_amount ?? ''}
+                      onChange={(e) =>
+                        setSubscriberContractFormEdit({
+                          ...subscriberContractFormEdit,
+                          total_amount: e.target.value === '' ? undefined : Number(e.target.value),
+                        })
+                      }
+                      size="small"
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">{subscriberContractFormEdit.currency || 'BRL'}</InputAdornment>
+                        ),
+                      }}
+                      inputProps={{ min: 0, step: '0.01' }}
+                      helperText={getSelectedPlanValueHelper(subscriberContractFormEdit.plan_id)}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={4}>
                     <FormControl fullWidth size="small">
                       <InputLabel>Status</InputLabel>
                       <Select
@@ -2736,6 +2865,7 @@ const Subscribers: React.FC = () => {
                             start_date: getDefaultContractStartDate(),
                             end_date: getDefaultContractEndDate(),
                             currency: 'BRL',
+                            total_amount: undefined,
                             status: 'draft',
                             plan_id: undefined,
                           });
@@ -2760,6 +2890,7 @@ const Subscribers: React.FC = () => {
                             start_date: getDefaultContractStartDate(),
                             end_date: getDefaultContractEndDate(),
                             currency: 'BRL',
+                            total_amount: undefined,
                             status: 'draft',
                             plan_id: undefined,
                           });
@@ -2797,6 +2928,8 @@ const Subscribers: React.FC = () => {
                             {contract.plan_name && ` | Plano: ${contract.plan_name}`}
                             {contract.start_date && ` | Início: ${new Date(contract.start_date).toLocaleDateString('pt-BR')}`}
                             {contract.end_date && ` | Fim: ${new Date(contract.end_date).toLocaleDateString('pt-BR')}`}
+                            {contract.total_amount != null &&
+                              ` | Valor: ${formatCurrencyAmount(contract.total_amount, contract.currency || 'BRL')}`}
                           </Typography>
                         </Box>
                         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
@@ -2811,6 +2944,9 @@ const Subscribers: React.FC = () => {
                               try {
                                 const plans = await planApi.getAll(false);
                                 setAvailablePlansForContract(plans ?? []);
+                                const contractPlan = (plans ?? []).find(
+                                  (p: any) => getPlanIdFromOption(p) === Number(contract.plan_id)
+                                );
                                 setSubscriberContractFormEdit({
                                   contract_number: contract.contract_number,
                                   contract_type: contract.contract_type as any,
@@ -2819,6 +2955,7 @@ const Subscribers: React.FC = () => {
                                   start_date: formatDateForInput(contract.start_date) || getDefaultContractStartDate(),
                                   end_date: formatDateForInput(contract.end_date) || getDefaultContractEndDate(),
                                   currency: contract.currency || 'BRL',
+                                  total_amount: contract.total_amount ?? getPlanContractAmount(contractPlan),
                                   status: contract.status as any || 'draft',
                                   plan_id: contract.plan_id || undefined,
                                 });
@@ -2849,6 +2986,7 @@ const Subscribers: React.FC = () => {
                                       start_date: getDefaultContractStartDate(),
                                       end_date: getDefaultContractEndDate(),
                                       currency: 'BRL',
+                                      total_amount: undefined,
                                       status: 'draft',
                                       plan_id: undefined,
                                     });

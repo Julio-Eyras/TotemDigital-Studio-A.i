@@ -300,14 +300,26 @@ export class ContractService {
       }
 
 
-      // Validar plan existe (se fornecido)
+      let agreedTotalAmount = total_amount;
+      let contractCurrency = currency;
+
+      // Validar plan existe (se fornecido) e usar o valor do plano como sugestão padrão do contrato
       if (plan_id) {
         const plan = await this.db.findFirst(`
-          SELECT plan_id FROM plans WHERE plan_id = $1
+          SELECT plan_id, price_monthly, price_yearly, currency, billing_interval FROM plans WHERE plan_id = $1
         `, [plan_id]);
 
         if (!plan) {
           throw new Error('Plano não encontrado');
+        }
+
+        if (agreedTotalAmount === undefined || agreedTotalAmount === null) {
+          const monthly = Number(plan.price_monthly || 0);
+          const yearly = plan.price_yearly != null ? Number(plan.price_yearly) : undefined;
+          agreedTotalAmount = plan.billing_interval === 'year' ? (yearly || monthly * 12) : monthly;
+        }
+        if (!data.currency && plan.currency) {
+          contractCurrency = String(plan.currency);
         }
       }
 
@@ -341,8 +353,8 @@ export class ContractService {
         description || null,
         start_date,
         end_date || null,
-        total_amount || null,
-        currency,
+        agreedTotalAmount ?? null,
+        contractCurrency,
         payment_terms || null,
         document_path || null,
         document_filename || null,
@@ -471,6 +483,30 @@ export class ContractService {
         }
       }
 
+      let agreedTotalAmount = total_amount;
+      let contractCurrency = currency;
+      if (plan_id !== undefined && plan_id) {
+        const plan = await this.db.findFirst(`
+          SELECT plan_id, price_monthly, price_yearly, currency, billing_interval FROM plans WHERE plan_id = $1
+        `, [plan_id]);
+
+        if (!plan) {
+          throw new Error('Plano não encontrado');
+        }
+
+        if (
+          (agreedTotalAmount === undefined || agreedTotalAmount === null) &&
+          Number(plan_id) !== Number(existingContract.plan_id || 0)
+        ) {
+          const monthly = Number(plan.price_monthly || 0);
+          const yearly = plan.price_yearly != null ? Number(plan.price_yearly) : undefined;
+          agreedTotalAmount = plan.billing_interval === 'year' ? (yearly || monthly * 12) : monthly;
+        }
+        if (!currency && Number(plan_id) !== Number(existingContract.plan_id || 0) && plan.currency) {
+          contractCurrency = String(plan.currency);
+        }
+      }
+
       // Preparar campos para atualização
       const updateFields: string[] = [];
       const updateParams: any[] = [];
@@ -518,15 +554,15 @@ export class ContractService {
         paramIndex++;
       }
 
-      if (total_amount !== undefined) {
+      if (agreedTotalAmount !== undefined) {
         updateFields.push(`total_amount = $${paramIndex}`);
-        updateParams.push(total_amount || null);
+        updateParams.push(agreedTotalAmount ?? null);
         paramIndex++;
       }
 
-      if (currency !== undefined) {
+      if (contractCurrency !== undefined) {
         updateFields.push(`currency = $${paramIndex}`);
-        updateParams.push(currency);
+        updateParams.push(contractCurrency);
         paramIndex++;
       }
 

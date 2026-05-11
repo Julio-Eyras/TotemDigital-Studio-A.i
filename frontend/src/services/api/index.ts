@@ -2064,6 +2064,8 @@ export interface Plan {
   isPopular: boolean; // Backend retorna como isPopular
   is_default?: boolean;
   isDefault?: boolean; // Backend retorna como isDefault (plano padrão)
+  contractCount?: number;
+  contract_count?: number;
   sort_order: number;
   sortOrder: number; // Backend retorna como sortOrder
   created_at: string;

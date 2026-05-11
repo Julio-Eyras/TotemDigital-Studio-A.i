@@ -24,6 +24,7 @@ export interface Plan {
   isActive: boolean;
   isPopular: boolean;
   isDefault?: boolean;
+  contractCount?: number;
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
@@ -94,6 +95,7 @@ export class PlanService {
           is_active as "isActive",
           is_popular as "isPopular",
           COALESCE(is_default, false) as "isDefault",
+          COALESCE((SELECT COUNT(*)::int FROM subscriber_contracts sc WHERE sc.plan_id = plans.plan_id), 0) as "contractCount",
           sort_order as "sortOrder",
           created_at as "createdAt",
           updated_at as "updatedAt"
@@ -133,6 +135,7 @@ export class PlanService {
           is_active as "isActive",
           is_popular as "isPopular",
           COALESCE(is_default, false) as "isDefault",
+          COALESCE((SELECT COUNT(*)::int FROM subscriber_contracts sc WHERE sc.plan_id = plans.plan_id), 0) as "contractCount",
           sort_order as "sortOrder",
           created_at as "createdAt",
           updated_at as "updatedAt"
@@ -171,6 +174,7 @@ export class PlanService {
           is_active as "isActive",
           is_popular as "isPopular",
           COALESCE(is_default, false) as "isDefault",
+          COALESCE((SELECT COUNT(*)::int FROM subscriber_contracts sc WHERE sc.plan_id = plans.plan_id), 0) as "contractCount",
           sort_order as "sortOrder",
           created_at as "createdAt",
           updated_at as "updatedAt"
@@ -208,6 +212,7 @@ export class PlanService {
           limits,
           is_active as "isActive",
           is_popular as "isPopular",
+          COALESCE((SELECT COUNT(*)::int FROM subscriber_contracts sc WHERE sc.plan_id = plans.plan_id), 0) as "contractCount",
           sort_order as "sortOrder",
           created_at as "createdAt",
           updated_at as "updatedAt"
@@ -313,6 +318,24 @@ export class PlanService {
       const existingPlan = await this.getPlanById(planId);
       if (!existingPlan) {
         throw new Error('Plano não encontrado');
+      }
+
+      const hasContracts = Number(existingPlan.contractCount || 0) > 0;
+      if (hasContracts) {
+        const priceMonthlyChanged =
+          data.priceMonthly !== undefined && Number(data.priceMonthly) !== Number(existingPlan.priceMonthly);
+        const priceYearlyChanged =
+          data.priceYearly !== undefined && Number(data.priceYearly || 0) !== Number(existingPlan.priceYearly || 0);
+        const featuresChanged =
+          data.features !== undefined && JSON.stringify(data.features ?? {}) !== JSON.stringify(existingPlan.features ?? {});
+        const limitsChanged =
+          data.limits !== undefined && JSON.stringify(data.limits ?? {}) !== JSON.stringify(existingPlan.limits ?? {});
+
+        if (priceMonthlyChanged || priceYearlyChanged || featuresChanged || limitsChanged) {
+          throw new Error(
+            'Plano já possui contrato vinculado. Preço, recursos e limites não podem ser alterados; crie um novo plano para novas regras.'
+          );
+        }
       }
 
       // Construir query de atualização
