@@ -638,6 +638,53 @@ router.put('/:id',
 );
 
 /**
+ * @route POST /api/media/:id/transform
+ * @desc Rotacionar mídia e gravar definitivamente em formato vertical 9:16
+ * @access Private
+ */
+router.post('/:id/transform',
+  ...idParamValidatorDefault,
+  body('rotationDegrees').isInt({ min: -270, max: 270 }).withMessage('rotationDegrees deve ser múltiplo de 90'),
+  body('fit').optional({ nullable: true }).isIn(['9:16']).withMessage('fit inválido'),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const mediaId = parseInt(req.params.id);
+      const rotationDegrees = Number(req.body.rotationDegrees);
+      if (rotationDegrees % 90 !== 0) {
+        return res.status(400).json({ error: 'rotationDegrees deve ser múltiplo de 90' });
+      }
+
+      const isAdmin = req.user?.role === 'admin' || req.user?.userType === 'system_user';
+      const requestSubscriberId = req.subscriberId || req.user?.subscriberId || req.user?.clientId;
+      const userId = req.user?.id || req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: 'Usuário não autenticado' });
+      }
+
+      const media = await getMediaService().transformMediaToPortrait(
+        mediaId,
+        { rotationDegrees, fit: '9:16' },
+        userId,
+        requestSubscriberId,
+        isAdmin
+      );
+
+      return res.json({ success: true, data: media });
+    } catch (error: any) {
+      const msg = error.message || '';
+      if (msg.includes('Acesso negado')) {
+        return res.status(403).json({ error: msg });
+      }
+      if (msg.includes('não encontrada') || msg.includes('não encontrado')) {
+        return res.status(404).json({ error: msg });
+      }
+      return res.status(400).json({ error: msg || 'Erro ao transformar mídia' });
+    }
+  }
+);
+
+/**
  * @route DELETE /api/media/:id
  * @desc Deletar arquivo de mídia
  * @access Private (Admin, Gerente Marketing, Editoração)

@@ -881,6 +881,11 @@ export interface UpdateMediaRequest {
   title?: string; // Deprecated - usar name
 }
 
+export interface TransformMediaRequest {
+  rotationDegrees: number;
+  fit?: '9:16';
+}
+
 export interface MediaListResponse {
   data: MediaItem[];
   total: number;
@@ -1050,6 +1055,14 @@ export const mediaApi = {
   update: async (id: number, data: UpdateMediaRequest): Promise<MediaItem> => {
     const response = await api.put(`/media/${id}`, data);
     return response.data;
+  },
+
+  transformToPortrait: async (id: number, data: TransformMediaRequest): Promise<MediaItem> => {
+    const response = await api.post(`/media/${id}/transform`, {
+      rotationDegrees: data.rotationDegrees,
+      fit: data.fit || '9:16',
+    });
+    return response.data.data || response.data;
   },
 
   delete: async (id: number): Promise<void> => {

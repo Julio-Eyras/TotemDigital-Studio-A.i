@@ -9,6 +9,8 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import sharp from 'sharp';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import { StorageService } from './storageService';
@@ -16,6 +18,8 @@ import { getCacheService } from './cacheService';
 import { logError, logWarn } from '../utils/loggerHelper';
 import { normalizeDownloadUrl, generateThumbnailUrl } from '../utils/pathHelper';
 import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+
+const execFileAsync = promisify(execFile);
 
 export interface CreateMediaRequest {
   name: string;
@@ -814,6 +818,244 @@ export class MediaService {
     } catch (error: any) {
       await logError('Erro ao atualizar mídia', error, { mediaId, updateData: data });
       throw error;
+    }
+  }
+
+  /**
+   * Rotaciona a mídia e grava definitivamente em formato vertical 9:16.
+   * Imagens usam sharp; vídeos usam ffmpeg instalado no sistema.
+   */
+  async transformMediaToPortrait(
+    mediaId: number,
+    options: { rotationDegrees: number; fit?: '9:16' },
+    updatedBy: number,
+    requestSubscriberId?: number,
+    isAdmin: boolean = false
+  ): Promise<MediaResponse> {
+    const media = await this.getMediaById(mediaId, requestSubscriberId, isAdmin);
+    if (!media || !media.filePath) {
+      throw new Error('Mídia não encontrada ou sem arquivo físico');
+    }
+
+    if (!isAdmin && requestSubscriberId && media.subscriberId !== requestSubscriberId) {
+      throw new Error('Acesso negado: mídia não pertence a este subscriber');
+    }
+
+    const sourcePath = this.resolveExistingMediaPath(media.filePath);
+    if (!sourcePath) {
+      throw new Error('Arquivo físico da mídia não encontrado');
+    }
+
+    const normalizedRotation = this.normalizeRotation(options.rotationDegrees);
+    if (normalizedRotation === 0) {
+      return media;
+    }
+
+    const mediaType = String(media.mediaType || '').toLowerCase();
+    if (mediaType !== 'image' && mediaType !== 'video') {
+      throw new Error('Transformação disponível apenas para imagens e vídeos');
+    }
+
+    const ext = mediaType === 'video' ? '.mp4' : this.getImageOutputExtension(media.mimeType, sourcePath);
+    const outputPath = this.getTransformedOutputPath(sourcePath, ext);
+    const thumbnailPath = outputPath.replace(/\.[^/.]+$/, '_thumb.jpg');
+
+    try {
+      if (mediaType === 'image') {
+        await this.transformImageToPortrait(sourcePath, outputPath, normalizedRotation, media.mimeType);
+      } else {
+        await this.transformVideoToPortrait(sourcePath, outputPath, normalizedRotation);
+      }
+
+      const stats = await fs.promises.stat(outputPath);
+      const dimensions =
+        mediaType === 'image'
+          ? await (sharp as any)(outputPath).metadata()
+          : { width: 1080, height: 1920 };
+
+      if (mediaType === 'image') {
+        const outputBuffer = await fs.promises.readFile(outputPath);
+        await this.generateThumbnail(outputBuffer, outputPath);
+      } else {
+        await this.generateVideoThumbnail(Buffer.alloc(0), outputPath);
+      }
+
+      const nextMimeType = mediaType === 'video' ? 'video/mp4' : this.getImageMimeTypeFromExtension(ext);
+      const nextFileName = path.basename(outputPath);
+      const previewUrl = generateThumbnailUrl(thumbnailPath, mediaType);
+
+      await this.db.executeRaw(`
+        UPDATE medias
+        SET file_path = $1,
+            file_name = $2,
+            file_size_bytes = $3,
+            mime_type = $4,
+            width = $5,
+            height = $6,
+            preview_url = $7,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE media_id = $8
+      `, [
+        outputPath,
+        nextFileName,
+        stats.size,
+        nextMimeType,
+        dimensions.width || 1080,
+        dimensions.height || 1920,
+        previewUrl,
+        mediaId,
+      ]);
+
+      await this.removeFileIfExists(sourcePath);
+      await this.removeFileIfExists(sourcePath.replace(/\.[^/.]+$/, '_thumb.jpg'));
+
+      await this.getAuditService().log('media', 'transformed', updatedBy, {
+        mediaId,
+        rotationDegrees: normalizedRotation,
+        fit: options.fit || '9:16',
+        subscriberId: media.subscriberId,
+      });
+
+      await getCacheService().invalidateEntity('media', mediaId).catch(() => {});
+      await getCacheService().invalidateEntity('subscriber', media.subscriberId).catch(() => {});
+
+      const updatedMedia = await this.getMediaById(mediaId, requestSubscriberId, isAdmin);
+      if (!updatedMedia) {
+        throw new Error('Erro ao buscar mídia transformada');
+      }
+      return updatedMedia;
+    } catch (error: any) {
+      await this.removeFileIfExists(outputPath);
+      await this.removeFileIfExists(thumbnailPath);
+      await logError('Erro ao transformar mídia para 9:16', error, { mediaId, mediaType, sourcePath });
+      throw error.message?.includes('ffmpeg')
+        ? new Error('Não foi possível processar o vídeo. Verifique se o ffmpeg está instalado no servidor.')
+        : error;
+    }
+  }
+
+  private normalizeRotation(rotationDegrees: number): number {
+    const n = Number(rotationDegrees);
+    if (!Number.isFinite(n)) return 0;
+    const normalized = ((Math.round(n / 90) * 90) % 360 + 360) % 360;
+    return [0, 90, 180, 270].includes(normalized) ? normalized : 0;
+  }
+
+  private resolveExistingMediaPath(filePath: string): string | null {
+    if (fs.existsSync(filePath)) return filePath;
+    const altPath = filePath
+      .replace(/client-(\d+)/, 'subscriber-$1')
+      .replace(/subscriber-(\d+)/, 'client-$1');
+    if (altPath !== filePath && fs.existsSync(altPath)) return altPath;
+    return null;
+  }
+
+  private getTransformedOutputPath(sourcePath: string, extension: string): string {
+    const dir = path.dirname(sourcePath);
+    const base = path.basename(sourcePath, path.extname(sourcePath));
+    return path.join(dir, `${base}_portrait_${Date.now()}${extension}`);
+  }
+
+  private getImageOutputExtension(mimeType?: string, sourcePath?: string): string {
+    const mime = String(mimeType || '').toLowerCase();
+    if (mime.includes('png')) return '.png';
+    if (mime.includes('webp')) return '.webp';
+    if (mime.includes('jpeg') || mime.includes('jpg')) return '.jpg';
+
+    const ext = path.extname(sourcePath || '').toLowerCase();
+    if (['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
+      return ext === '.jpeg' ? '.jpg' : ext;
+    }
+    return '.jpg';
+  }
+
+  private getImageMimeTypeFromExtension(extension: string): string {
+    switch (extension.toLowerCase()) {
+      case '.png':
+        return 'image/png';
+      case '.webp':
+        return 'image/webp';
+      default:
+        return 'image/jpeg';
+    }
+  }
+
+  private async transformImageToPortrait(
+    sourcePath: string,
+    outputPath: string,
+    rotationDegrees: number,
+    mimeType?: string
+  ): Promise<void> {
+    let pipeline = (sharp as any)(sourcePath)
+      .rotate(rotationDegrees)
+      .resize(1080, 1920, { fit: 'cover', position: 'center' });
+
+    const ext = this.getImageOutputExtension(mimeType, outputPath);
+    if (ext === '.png') {
+      pipeline = pipeline.png({ compressionLevel: 9, adaptiveFiltering: true });
+    } else if (ext === '.webp') {
+      pipeline = pipeline.webp({ quality: 85 });
+    } else {
+      pipeline = pipeline.jpeg({ quality: 88, progressive: true });
+    }
+
+    await pipeline.toFile(outputPath);
+  }
+
+  private async transformVideoToPortrait(
+    sourcePath: string,
+    outputPath: string,
+    rotationDegrees: number
+  ): Promise<void> {
+    const rotationFilters = this.getFfmpegRotationFilters(rotationDegrees);
+    const filters = [
+      ...rotationFilters,
+      'scale=1080:1920:force_original_aspect_ratio=increase',
+      'crop=1080:1920',
+      'setsar=1',
+    ].join(',');
+
+    await execFileAsync('ffmpeg', [
+      '-y',
+      '-i',
+      sourcePath,
+      '-vf',
+      filters,
+      '-c:v',
+      'libx264',
+      '-preset',
+      'veryfast',
+      '-crf',
+      '23',
+      '-c:a',
+      'copy',
+      '-movflags',
+      '+faststart',
+      outputPath,
+    ]);
+  }
+
+  private getFfmpegRotationFilters(rotationDegrees: number): string[] {
+    switch (rotationDegrees) {
+      case 90:
+        return ['transpose=1'];
+      case 180:
+        return ['transpose=1', 'transpose=1'];
+      case 270:
+        return ['transpose=2'];
+      default:
+        return [];
+    }
+  }
+
+  private async removeFileIfExists(filePath?: string | null): Promise<void> {
+    if (!filePath) return;
+    try {
+      if (fs.existsSync(filePath)) {
+        await fs.promises.unlink(filePath);
+      }
+    } catch {
+      // Remoção best-effort: não falhar a transformação por limpeza de arquivo antigo.
     }
   }
 
