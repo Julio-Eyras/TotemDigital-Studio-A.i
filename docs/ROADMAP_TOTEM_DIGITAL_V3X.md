@@ -168,6 +168,7 @@ Entregas:
 - Templates para promocao.
 - Templates para anuncio.
 - Templates para comunicado.
+- Templates inteligentes por segmento comercial.
 - Templates verticais 9:16.
 - Templates horizontais 16:9.
 
@@ -230,8 +231,13 @@ Modulos futuros:
 
 - Cardapio com produtos/precos.
 - IA para artes.
+- SmartDisplay Animate para transformar arte estatica em video.
 - Analytics.
 - Marketplace de templates.
+- Multi-tela sincronizado.
+- AI Director para adaptar conteudo por contexto.
+- QuadraX Mesh para cache compartilhado e failover local.
+- Edge AI e sensores para modo presenca.
 - Revendas/franquias.
 - APIs publicas.
 - Edge/cache distribuido.

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -50,6 +51,16 @@ interface PresetOption {
   descriptionTemplate: string;
   bullets: string[];
   premium?: boolean;
+}
+
+interface SegmentOption {
+  value: string;
+  label: string;
+  shortLabel: string;
+  description: string;
+  visualLanguage: string;
+  defaultPreset: QuickPublishPreset;
+  bullets: string[];
 }
 
 const PRESETS: PresetOption[] = [
@@ -122,7 +133,80 @@ const PRESETS: PresetOption[] = [
   },
 ];
 
+const SEGMENTS: SegmentOption[] = [
+  {
+    value: 'restaurant',
+    label: 'Restaurante / Lancheria',
+    shortLabel: 'Restaurante',
+    description: 'Cardápios, combos, promoções e chamadas para pedido.',
+    visualLanguage: 'preços legíveis, fotos apetitosas, contraste forte e leitura rápida no balcão.',
+    defaultPreset: 'menu',
+    bullets: ['Cardápio', 'Combos', 'Preço em destaque'],
+  },
+  {
+    value: 'retail',
+    label: 'Loja / Varejo',
+    shortLabel: 'Varejo',
+    description: 'Ofertas, vitrines digitais e anúncios de produto.',
+    visualLanguage: 'mensagem direta, urgência comercial e destaque para produto ou marca.',
+    defaultPreset: 'promotion',
+    bullets: ['Oferta', 'Vitrine', 'Chamada rápida'],
+  },
+  {
+    value: 'church',
+    label: 'Igreja / Evento',
+    shortLabel: 'Evento',
+    description: 'Avisos, agenda, eventos e comunicação com a comunidade.',
+    visualLanguage: 'comunicados claros, clima acolhedor e boa leitura à distância.',
+    defaultPreset: 'announcement',
+    bullets: ['Avisos', 'Agenda', 'Comunidade'],
+  },
+  {
+    value: 'health',
+    label: 'Clínica / Saúde',
+    shortLabel: 'Clínica',
+    description: 'Orientações, serviços, campanhas preventivas e avisos de recepção.',
+    visualLanguage: 'tom confiável, visual limpo, informação objetiva e sensação de cuidado.',
+    defaultPreset: 'institutional',
+    bullets: ['Recepção', 'Orientações', 'Confiança'],
+  },
+  {
+    value: 'hotel',
+    label: 'Hotel / Recepção',
+    shortLabel: 'Hotel',
+    description: 'Boas-vindas, serviços, eventos internos e comunicação institucional.',
+    visualLanguage: 'aparência premium, mensagens elegantes e foco em experiência do visitante.',
+    defaultPreset: 'institutional',
+    bullets: ['Boas-vindas', 'Serviços', 'Premium'],
+  },
+  {
+    value: 'gym',
+    label: 'Academia',
+    shortLabel: 'Academia',
+    description: 'Planos, aulas, desafios, motivação e campanhas de retenção.',
+    visualLanguage: 'energia visual, ritmo forte, chamadas motivacionais e movimento.',
+    defaultPreset: 'ad',
+    bullets: ['Energia', 'Aulas', 'Planos'],
+  },
+];
+
 const STEPS = ['Cliente', 'Tela', 'Conteúdo', 'Publicar'];
+
+function resolvePreset(value: string | null): QuickPublishPreset {
+  return PRESETS.some((item) => item.value === value) ? (value as QuickPublishPreset) : 'ad';
+}
+
+function findPresetOption(value: QuickPublishPreset): PresetOption {
+  return PRESETS.find((item) => item.value === value) || PRESETS[2];
+}
+
+function resolveSegment(value: string | null): string {
+  return SEGMENTS.some((item) => item.value === value) ? String(value) : SEGMENTS[0].value;
+}
+
+function findSegmentOption(value: string): SegmentOption {
+  return SEGMENTS.find((item) => item.value === value) || SEGMENTS[0];
+}
 
 function getSubscriberName(subscriber?: Subscriber | null): string {
   return String(subscriber?.name || '').trim();
@@ -151,17 +235,27 @@ function isApprovedMedia(media: MediaItem): boolean {
     && String(media.approvalStatus || '').toLowerCase() === 'approved';
 }
 
-function buildTemplateTitle(template: PresetOption, subscriber?: Subscriber | null): string {
+function buildTemplateTitle(template: PresetOption, subscriber?: Subscriber | null, segment?: SegmentOption): string {
   const subscriberName = getSubscriberName(subscriber);
-  return [template.titleSuffix, subscriberName].filter(Boolean).join(' - ');
+  return [template.titleSuffix, segment?.shortLabel, subscriberName].filter(Boolean).join(' - ');
 }
 
-function buildTemplateDescription(template: PresetOption): string {
-  return `${template.descriptionTemplate} Direção visual: ${template.headline}.`;
+function buildTemplateDescription(template: PresetOption, segment?: SegmentOption): string {
+  const segmentGuidance = segment
+    ? ` Segmento: ${segment.label}. Linguagem visual: ${segment.visualLanguage}`
+    : '';
+  return `${template.descriptionTemplate} Direção visual: ${template.headline}.${segmentGuidance}`;
 }
 
 const QuickPublish: React.FC = () => {
   const breadcrumbs = useBreadcrumbs();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialSegment = resolveSegment(searchParams.get('segment'));
+  const initialSegmentOption = findSegmentOption(initialSegment);
+  const initialPreset = searchParams.get('preset')
+    ? resolvePreset(searchParams.get('preset'))
+    : initialSegmentOption.defaultPreset;
+  const initialPresetOption = findPresetOption(initialPreset);
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [totems, setTotems] = useState<Player[]>([]);
@@ -170,10 +264,11 @@ const QuickPublish: React.FC = () => {
   const [contractId, setContractId] = useState<number | ''>('');
   const [totemIds, setTotemIds] = useState<number[]>([]);
   const [mediaIds, setMediaIds] = useState<number[]>([]);
-  const [preset, setPreset] = useState<QuickPublishPreset>('ad');
+  const [segment, setSegment] = useState(initialSegment);
+  const [preset, setPreset] = useState<QuickPublishPreset>(initialPreset);
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [durationMs, setDurationMs] = useState(10000);
+  const [description, setDescription] = useState(buildTemplateDescription(initialPresetOption, initialSegmentOption));
+  const [durationMs, setDurationMs] = useState(initialPresetOption.recommendedDurationMs);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadName, setUploadName] = useState('');
   const [uploadingMedia, setUploadingMedia] = useState(false);
@@ -189,8 +284,13 @@ const QuickPublish: React.FC = () => {
   );
 
   const selectedPreset = useMemo(
-    () => PRESETS.find((item) => item.value === preset) || PRESETS[2],
+    () => findPresetOption(preset),
     [preset]
+  );
+
+  const selectedSegment = useMemo(
+    () => findSegmentOption(segment),
+    [segment]
   );
 
   const activeStep = useMemo(() => {
@@ -235,6 +335,24 @@ const QuickPublish: React.FC = () => {
   useEffect(() => {
     loadSubscribers();
   }, []);
+
+  useEffect(() => {
+    const urlSegment = resolveSegment(searchParams.get('segment'));
+    const segmentOption = findSegmentOption(urlSegment);
+    const urlPreset = searchParams.get('preset')
+      ? resolvePreset(searchParams.get('preset'))
+      : segmentOption.defaultPreset;
+
+    if (urlPreset === preset && urlSegment === segment) {
+      return;
+    }
+
+    const template = findPresetOption(urlPreset);
+    setSegment(urlSegment);
+    setPreset(template.value);
+    setDurationMs(template.recommendedDurationMs);
+    setDescription(buildTemplateDescription(template, segmentOption));
+  }, [preset, searchParams, segment]);
 
   useEffect(() => {
     if (!subscriberId) {
@@ -297,15 +415,34 @@ const QuickPublish: React.FC = () => {
 
   useEffect(() => {
     if (!title.trim() && selectedSubscriber) {
-      setTitle(buildTemplateTitle(selectedPreset, selectedSubscriber));
+      setTitle(buildTemplateTitle(selectedPreset, selectedSubscriber, selectedSegment));
     }
-  }, [selectedPreset.label, selectedSubscriber, title]);
+  }, [selectedPreset.label, selectedSegment.value, selectedSubscriber, title]);
+
+  const setPublishParams = (nextPreset: QuickPublishPreset, nextSegment: string) => {
+    setSearchParams({ preset: nextPreset, segment: nextSegment }, { replace: true });
+  };
 
   const handleSelectPreset = (template: PresetOption) => {
     setPreset(template.value);
     setDurationMs(template.recommendedDurationMs);
-    setTitle(buildTemplateTitle(template, selectedSubscriber));
-    setDescription(buildTemplateDescription(template));
+    setTitle(buildTemplateTitle(template, selectedSubscriber, selectedSegment));
+    setDescription(buildTemplateDescription(template, selectedSegment));
+    setPublishParams(template.value, segment);
+  };
+
+  const handleSelectSegment = (nextSegment: string) => {
+    const segmentOption = findSegmentOption(nextSegment);
+    const shouldUseSegmentPreset = !searchParams.get('preset') || preset === selectedSegment.defaultPreset;
+    const nextPreset = shouldUseSegmentPreset ? segmentOption.defaultPreset : preset;
+    const template = findPresetOption(nextPreset);
+
+    setSegment(nextSegment);
+    setPreset(nextPreset);
+    setDurationMs(template.recommendedDurationMs);
+    setTitle(buildTemplateTitle(template, selectedSubscriber, segmentOption));
+    setDescription(buildTemplateDescription(template, segmentOption));
+    setPublishParams(nextPreset, nextSegment);
   };
 
   const handlePublish = async () => {
@@ -482,12 +619,29 @@ const QuickPublish: React.FC = () => {
               </FormControl>
             </Grid>
 
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth size="small" disabled={publishing}>
+                <InputLabel>Segmento comercial</InputLabel>
+                <Select
+                  value={segment}
+                  label="Segmento comercial"
+                  onChange={(e) => handleSelectSegment(String(e.target.value))}
+                >
+                  {SEGMENTS.map((item) => (
+                    <MenuItem key={item.value} value={item.value}>
+                      <ListItemText primary={item.label} secondary={item.description} />
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+
             <Grid item xs={12}>
               <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
-                Template visual
+                Template visual inteligente
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Escolha um modelo comercial para preencher automaticamente título, descrição e duração recomendada.
+                Escolha o segmento e o modelo para preencher automaticamente título, descrição, linguagem visual e duração recomendada.
               </Typography>
               <Grid container spacing={2}>
                 {PRESETS.map((item) => {
@@ -552,6 +706,9 @@ const QuickPublish: React.FC = () => {
                   {selectedPreset.bullets.map((bullet) => (
                     <Chip key={bullet} size="small" label={bullet} variant="outlined" />
                   ))}
+                  {selectedSegment.bullets.map((bullet) => (
+                    <Chip key={bullet} size="small" label={bullet} color="primary" variant="outlined" />
+                  ))}
                 </Box>
               </Alert>
             </Grid>
@@ -572,14 +729,17 @@ const QuickPublish: React.FC = () => {
                 <CardContent>
                   <Chip
                     size="small"
-                    label="Prévia 9:16"
+                    label={`Prévia 9:16 - ${selectedSegment.shortLabel}`}
                     sx={{ bgcolor: 'rgba(255,255,255,0.18)', color: '#fff', fontWeight: 700, mb: 2 }}
                   />
                   <Typography variant="h6" sx={{ fontWeight: 900 }}>
-                    {title.trim() || buildTemplateTitle(selectedPreset, selectedSubscriber) || selectedPreset.headline}
+                    {title.trim() || buildTemplateTitle(selectedPreset, selectedSubscriber, selectedSegment) || selectedPreset.headline}
                   </Typography>
                   <Typography variant="body2" sx={{ mt: 1, color: 'rgba(255,255,255,0.82)' }}>
                     {selectedPreset.headline}
+                  </Typography>
+                  <Typography variant="caption" sx={{ display: 'block', mt: 1, color: 'rgba(255,255,255,0.72)' }}>
+                    {selectedSegment.visualLanguage}
                   </Typography>
                   <Box sx={{ mt: 3, borderTop: '1px solid rgba(255,255,255,0.2)', pt: 1 }}>
                     <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.78)' }}>
@@ -722,19 +882,23 @@ const QuickPublish: React.FC = () => {
             Resumo da publicação
           </Typography>
           <Grid container spacing={2}>
-            <Grid item xs={12} md={3}>
+            <Grid item xs={12} sm={6} md={2.4}>
               <Typography variant="caption" color="text.secondary">Cliente</Typography>
               <Typography variant="body2">{selectedSubscriber?.name || '-'}</Typography>
             </Grid>
-            <Grid item xs={12} md={3}>
+            <Grid item xs={12} sm={6} md={2.4}>
+              <Typography variant="caption" color="text.secondary">Segmento</Typography>
+              <Typography variant="body2">{selectedSegment.shortLabel}</Typography>
+            </Grid>
+            <Grid item xs={12} sm={6} md={2.4}>
               <Typography variant="caption" color="text.secondary">Preset</Typography>
               <Typography variant="body2">{selectedPreset.label}</Typography>
             </Grid>
-            <Grid item xs={12} md={3}>
+            <Grid item xs={12} sm={6} md={2.4}>
               <Typography variant="caption" color="text.secondary">Telas</Typography>
               <Typography variant="body2">{totemIds.length}</Typography>
             </Grid>
-            <Grid item xs={12} md={3}>
+            <Grid item xs={12} sm={6} md={2.4}>
               <Typography variant="caption" color="text.secondary">Mídias</Typography>
               <Typography variant="body2">{mediaIds.length}</Typography>
             </Grid>

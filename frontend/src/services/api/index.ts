@@ -191,6 +191,15 @@ export interface AdvertiserOverviewStats {
   totalCampaigns: number;
 }
 
+export interface CommercialOverviewStats {
+  totalScreens: number;
+  onlineScreens: number;
+  offlineScreens: number;
+  activeCampaigns: number;
+  recentPublications: number;
+  pendingActivations: number;
+}
+
 export interface DashboardStats {
   totalMedia: number;
   totalPlaylists: number;
@@ -198,6 +207,7 @@ export interface DashboardStats {
   totalUsers: number;
   activePlayers: number;
   offlinePlayers: number;
+  commercialOverview: CommercialOverviewStats;
   advertiserOverview?: AdvertiserOverviewStats;
 }
 

@@ -20,6 +20,12 @@ Mensagem tecnica interna:
 
 > Produto simples na superficie, arquitetura distribuida e modular no bastidor.
 
+Posicionamento aspiracional de longo prazo:
+
+> Plataforma operacional de ambientes inteligentes.
+
+Esse posicionamento futuro nao deve inflar o MVP. Ele orienta a arquitetura para que o produto possa evoluir de digital signage para um ecossistema de midia, automacao, IA embarcada, experiencia interativa, edge computing e operacao distribuida.
+
 ## Nicho Inicial
 
 O primeiro nicho comercial sera negocios locais com telas comerciais:
@@ -100,6 +106,32 @@ Modulos evolutivos:
 - Templates Premium.
 - IA.
 - Enterprise / Edge.
+
+## Arquitetura Aspiracional
+
+A V3x deve preservar uma arquitetura que possa crescer para um "Media Operating System" sem obrigar o cliente inicial a entender isso.
+
+Modulos futuros possiveis:
+
+- Core Media Engine: reproducao, playlists, cache e plano de exibicao.
+- SmartDisplay Animate: transformacao de artes estaticas em videos e motion graphics.
+- QuadraX Studio: editor visual e templates comerciais.
+- QuadraX Sync: sincronizacao multi-tela.
+- QuadraX Mesh: descoberta local, cache compartilhado e failover entre players.
+- QuadraX Edge AI: IA local para contexto, sensores e decisao offline.
+- QuadraX Metrics: analytics operacional e comercial.
+- QuadraX Sensor Hub: integracao com presenca, luminosidade, BLE, RFID, NFC e IoT.
+- AI Director: selecao automatica de conteudo por horario, publico, fluxo, clima e contexto.
+
+Conceito de experiencia futura:
+
+> Totem Vivo.
+
+O totem deixa de ser apenas uma tela passiva e passa a perceber contexto, reagir a presenca, adaptar conteudo, sincronizar ambiente e operar mesmo com conectividade parcial.
+
+Regra de prioridade:
+
+> Toda evolucao futurista deve reforcar publicacao simples, player robusto e operacao confiavel. Nenhum modulo avancado pode quebrar o fluxo de 5 minutos.
 
 ## Diferencial De Mercado
 

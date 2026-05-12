@@ -12,6 +12,15 @@ export interface AdvertiserOverviewStats {
   totalCampaigns: number;
 }
 
+export interface CommercialOverviewStats {
+  totalScreens: number;
+  onlineScreens: number;
+  offlineScreens: number;
+  activeCampaigns: number;
+  recentPublications: number;
+  pendingActivations: number;
+}
+
 export interface DashboardStats {
   totalMedia: number;
   totalPlaylists: number;
@@ -19,6 +28,8 @@ export interface DashboardStats {
   totalUsers: number;
   activePlayers: number;
   offlinePlayers: number;
+  /** Métricas de produto para o dashboard comercial V3x. */
+  commercialOverview: CommercialOverviewStats;
   /** Preenchido apenas no escopo global (admin); métricas agregadas para a área Anunciantes. */
   advertiserOverview?: AdvertiserOverviewStats;
 }
@@ -69,6 +80,13 @@ const SQL_TOTEMS_SUBSCRIBER_NETWORK = `
     AND COALESCE(ppa.is_active, true) = true
 `;
 
+const SQL_ACTIVE_CAMPAIGN_CONDITION = `
+  c.status = 'active'
+  AND COALESCE(c.is_active, true) = true
+  AND (c.start_date IS NULL OR c.start_date <= CURRENT_TIMESTAMP)
+  AND (c.end_date IS NULL OR c.end_date >= CURRENT_TIMESTAMP)
+`;
+
 export class DashboardService {
   private get db() {
     return getDatabase();
@@ -82,6 +100,14 @@ export class DashboardService {
       totalUsers: 0,
       activePlayers: 0,
       offlinePlayers: 0,
+      commercialOverview: {
+        totalScreens: 0,
+        onlineScreens: 0,
+        offlineScreens: 0,
+        activeCampaigns: 0,
+        recentPublications: 0,
+        pendingActivations: 0,
+      },
       advertiserOverview: {
         totalSubscribers: 0,
         activeSubscribers: 0,
@@ -91,6 +117,10 @@ export class DashboardService {
         totalCampaigns: 0,
       },
     };
+  }
+
+  private toNumber(value: unknown): number {
+    return parseInt(String(value ?? '0'), 10);
   }
 
   /**
@@ -166,20 +196,66 @@ export class DashboardService {
         (SELECT COUNT(*)::int FROM campaigns) AS total_campaigns
     `);
 
+    const commercialOverviewRow = await this.db.findFirst(`
+      SELECT
+        (SELECT COUNT(*)::int FROM totems WHERE COALESCE(is_active, true) = true) AS total_screens,
+        (
+          SELECT COUNT(*)::int
+          FROM totems
+          WHERE COALESCE(is_active, true) = true
+            AND last_heartbeat IS NOT NULL
+            AND last_heartbeat > NOW() - INTERVAL '5 minutes'
+        ) AS online_screens,
+        (
+          SELECT COUNT(*)::int
+          FROM totems
+          WHERE COALESCE(is_active, true) = true
+            AND (
+              last_heartbeat IS NULL
+              OR last_heartbeat <= NOW() - INTERVAL '5 minutes'
+            )
+        ) AS offline_screens,
+        (
+          SELECT COUNT(*)::int
+          FROM campaigns c
+          WHERE ${SQL_ACTIVE_CAMPAIGN_CONDITION}
+        ) AS active_campaigns,
+        (
+          SELECT COUNT(*)::int
+          FROM campaigns c
+          WHERE COALESCE(c.is_active, true) = true
+            AND COALESCE(c.updated_at, c.created_at) >= NOW() - INTERVAL '7 days'
+        ) AS recent_publications,
+        (
+          SELECT COUNT(*)::int
+          FROM totems
+          WHERE COALESCE(is_active, true) = true
+            AND status IN ('pending_activation', 'pending_approval')
+        ) AS pending_activations
+    `);
+
     return {
-      totalMedia: parseInt(String(mediaCount?.total || '0'), 10),
-      totalPlaylists: parseInt(String(playlistCount?.total || '0'), 10),
-      totalPlayers: parseInt(String(playerCount?.total || '0'), 10),
-      totalUsers: parseInt(String(userCount?.total || '0'), 10),
-      activePlayers: parseInt(String(activePlayerCount?.total || '0'), 10),
-      offlinePlayers: parseInt(String(offlinePlayerCount?.total || '0'), 10),
+      totalMedia: this.toNumber(mediaCount?.total),
+      totalPlaylists: this.toNumber(playlistCount?.total),
+      totalPlayers: this.toNumber(playerCount?.total),
+      totalUsers: this.toNumber(userCount?.total),
+      activePlayers: this.toNumber(activePlayerCount?.total),
+      offlinePlayers: this.toNumber(offlinePlayerCount?.total),
+      commercialOverview: {
+        totalScreens: this.toNumber(commercialOverviewRow?.total_screens),
+        onlineScreens: this.toNumber(commercialOverviewRow?.online_screens),
+        offlineScreens: this.toNumber(commercialOverviewRow?.offline_screens),
+        activeCampaigns: this.toNumber(commercialOverviewRow?.active_campaigns),
+        recentPublications: this.toNumber(commercialOverviewRow?.recent_publications),
+        pendingActivations: this.toNumber(commercialOverviewRow?.pending_activations),
+      },
       advertiserOverview: {
-        totalSubscribers: parseInt(String(advertiserOverviewRow?.total_subscribers ?? '0'), 10),
-        activeSubscribers: parseInt(String(advertiserOverviewRow?.active_subscribers ?? '0'), 10),
-        inactiveSubscribers: parseInt(String(advertiserOverviewRow?.inactive_subscribers ?? '0'), 10),
-        totalMedias: parseInt(String(advertiserOverviewRow?.total_medias ?? '0'), 10),
-        totalPlaylists: parseInt(String(advertiserOverviewRow?.total_playlists ?? '0'), 10),
-        totalCampaigns: parseInt(String(advertiserOverviewRow?.total_campaigns ?? '0'), 10),
+        totalSubscribers: this.toNumber(advertiserOverviewRow?.total_subscribers),
+        activeSubscribers: this.toNumber(advertiserOverviewRow?.active_subscribers),
+        inactiveSubscribers: this.toNumber(advertiserOverviewRow?.inactive_subscribers),
+        totalMedias: this.toNumber(advertiserOverviewRow?.total_medias),
+        totalPlaylists: this.toNumber(advertiserOverviewRow?.total_playlists),
+        totalCampaigns: this.toNumber(advertiserOverviewRow?.total_campaigns),
       },
     };
   }
@@ -243,13 +319,80 @@ export class DashboardService {
       [pid]
     );
 
+    const commercialOverviewRow = await this.db.findFirst(
+      `
+      SELECT
+        (
+          SELECT COUNT(*)::int
+          FROM totems t
+          INNER JOIN locals l ON l.local_id = t.local_id
+          WHERE COALESCE(t.is_active, true) = true
+            AND l.publisher_id = ?
+        ) AS total_screens,
+        (
+          SELECT COUNT(*)::int
+          FROM totems t
+          INNER JOIN locals l ON l.local_id = t.local_id
+          WHERE COALESCE(t.is_active, true) = true
+            AND l.publisher_id = ?
+            AND t.last_heartbeat IS NOT NULL
+            AND t.last_heartbeat > NOW() - INTERVAL '5 minutes'
+        ) AS online_screens,
+        (
+          SELECT COUNT(*)::int
+          FROM totems t
+          INNER JOIN locals l ON l.local_id = t.local_id
+          WHERE COALESCE(t.is_active, true) = true
+            AND l.publisher_id = ?
+            AND (
+              t.last_heartbeat IS NULL
+              OR t.last_heartbeat <= NOW() - INTERVAL '5 minutes'
+            )
+        ) AS offline_screens,
+        (
+          SELECT COUNT(DISTINCT c.campaign_id)::int
+          FROM campaigns c
+          INNER JOIN campaign_publishers cp ON cp.campaign_id = c.campaign_id
+          WHERE cp.publisher_id = ?
+            AND COALESCE(cp.is_active, true) = true
+            AND ${SQL_ACTIVE_CAMPAIGN_CONDITION}
+        ) AS active_campaigns,
+        (
+          SELECT COUNT(DISTINCT c.campaign_id)::int
+          FROM campaigns c
+          INNER JOIN campaign_publishers cp ON cp.campaign_id = c.campaign_id
+          WHERE cp.publisher_id = ?
+            AND COALESCE(cp.is_active, true) = true
+            AND COALESCE(c.is_active, true) = true
+            AND COALESCE(c.updated_at, c.created_at) >= NOW() - INTERVAL '7 days'
+        ) AS recent_publications,
+        (
+          SELECT COUNT(*)::int
+          FROM totems t
+          INNER JOIN locals l ON l.local_id = t.local_id
+          WHERE COALESCE(t.is_active, true) = true
+            AND l.publisher_id = ?
+            AND t.status IN ('pending_activation', 'pending_approval')
+        ) AS pending_activations
+      `,
+      [pid, pid, pid, pid, pid, pid]
+    );
+
     return {
-      totalMedia: parseInt(String(mediaCount?.total || '0'), 10),
-      totalPlaylists: parseInt(String(playlistCount?.total || '0'), 10),
-      totalPlayers: parseInt(String(playerCount?.total || '0'), 10),
-      totalUsers: parseInt(String(userCount?.total || '0'), 10),
-      activePlayers: parseInt(String(activePlayerCount?.total || '0'), 10),
-      offlinePlayers: parseInt(String(offlinePlayerCount?.total || '0'), 10)
+      totalMedia: this.toNumber(mediaCount?.total),
+      totalPlaylists: this.toNumber(playlistCount?.total),
+      totalPlayers: this.toNumber(playerCount?.total),
+      totalUsers: this.toNumber(userCount?.total),
+      activePlayers: this.toNumber(activePlayerCount?.total),
+      offlinePlayers: this.toNumber(offlinePlayerCount?.total),
+      commercialOverview: {
+        totalScreens: this.toNumber(commercialOverviewRow?.total_screens),
+        onlineScreens: this.toNumber(commercialOverviewRow?.online_screens),
+        offlineScreens: this.toNumber(commercialOverviewRow?.offline_screens),
+        activeCampaigns: this.toNumber(commercialOverviewRow?.active_campaigns),
+        recentPublications: this.toNumber(commercialOverviewRow?.recent_publications),
+        pendingActivations: this.toNumber(commercialOverviewRow?.pending_activations),
+      }
     };
   }
 
@@ -301,13 +444,64 @@ export class DashboardService {
       [sid]
     );
 
+    const commercialOverviewRow = await this.db.findFirst(
+      `
+      SELECT
+        (
+          SELECT COUNT(DISTINCT t.totem_id)::int ${SQL_TOTEMS_SUBSCRIBER_NETWORK}
+          WHERE COALESCE(t.is_active, true) = true
+        ) AS total_screens,
+        (
+          SELECT COUNT(DISTINCT t.totem_id)::int ${SQL_TOTEMS_SUBSCRIBER_NETWORK}
+          WHERE COALESCE(t.is_active, true) = true
+            AND t.last_heartbeat IS NOT NULL
+            AND t.last_heartbeat > NOW() - INTERVAL '5 minutes'
+        ) AS online_screens,
+        (
+          SELECT COUNT(DISTINCT t.totem_id)::int ${SQL_TOTEMS_SUBSCRIBER_NETWORK}
+          WHERE COALESCE(t.is_active, true) = true
+            AND (
+              t.last_heartbeat IS NULL
+              OR t.last_heartbeat <= NOW() - INTERVAL '5 minutes'
+            )
+        ) AS offline_screens,
+        (
+          SELECT COUNT(*)::int
+          FROM campaigns c
+          WHERE c.subscriber_id = ?
+            AND ${SQL_ACTIVE_CAMPAIGN_CONDITION}
+        ) AS active_campaigns,
+        (
+          SELECT COUNT(*)::int
+          FROM campaigns c
+          WHERE c.subscriber_id = ?
+            AND COALESCE(c.is_active, true) = true
+            AND COALESCE(c.updated_at, c.created_at) >= NOW() - INTERVAL '7 days'
+        ) AS recent_publications,
+        (
+          SELECT COUNT(DISTINCT t.totem_id)::int ${SQL_TOTEMS_SUBSCRIBER_NETWORK}
+          WHERE COALESCE(t.is_active, true) = true
+            AND t.status IN ('pending_activation', 'pending_approval')
+        ) AS pending_activations
+      `,
+      [sid, sid, sid, sid, sid, sid]
+    );
+
     return {
-      totalMedia: parseInt(String(mediaCount?.total || '0'), 10),
-      totalPlaylists: parseInt(String(playlistCount?.total || '0'), 10),
-      totalPlayers: parseInt(String(playerCount?.total || '0'), 10),
-      totalUsers: parseInt(String(userCount?.total || '0'), 10),
-      activePlayers: parseInt(String(activePlayerCount?.total || '0'), 10),
-      offlinePlayers: parseInt(String(offlinePlayerCount?.total || '0'), 10)
+      totalMedia: this.toNumber(mediaCount?.total),
+      totalPlaylists: this.toNumber(playlistCount?.total),
+      totalPlayers: this.toNumber(playerCount?.total),
+      totalUsers: this.toNumber(userCount?.total),
+      activePlayers: this.toNumber(activePlayerCount?.total),
+      offlinePlayers: this.toNumber(offlinePlayerCount?.total),
+      commercialOverview: {
+        totalScreens: this.toNumber(commercialOverviewRow?.total_screens),
+        onlineScreens: this.toNumber(commercialOverviewRow?.online_screens),
+        offlineScreens: this.toNumber(commercialOverviewRow?.offline_screens),
+        activeCampaigns: this.toNumber(commercialOverviewRow?.active_campaigns),
+        recentPublications: this.toNumber(commercialOverviewRow?.recent_publications),
+        pendingActivations: this.toNumber(commercialOverviewRow?.pending_activations),
+      }
     };
   }
 

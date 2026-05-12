@@ -15,7 +15,6 @@ import {
   Grid,
   Chip,
   LinearProgress,
-  IconButton,
   Tooltip,
   Avatar,
   List,
@@ -23,25 +22,26 @@ import {
   ListItemText,
   ListItemAvatar,
   Divider,
-  Paper,
   useTheme,
   alpha,
 } from '@mui/material';
 import {
-  TrendingUp,
-  TrendingDown,
+  Add,
+  AutoAwesome,
+  Campaign,
   PlayCircleOutline,
   People,
   VideoLibrary,
   QueueMusic,
   Computer,
   Refresh,
-  MoreVert,
+  Storefront,
+  Tv,
   CheckCircle,
   Warning,
-  Error,
 } from '@mui/icons-material';
 import { dashboardApi } from '../../services/api';
+import type { QuickPublishPreset } from '../../services/api';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 
@@ -54,6 +54,15 @@ interface AdvertiserOverviewStats {
   totalCampaigns: number;
 }
 
+interface CommercialOverviewStats {
+  totalScreens: number;
+  onlineScreens: number;
+  offlineScreens: number;
+  activeCampaigns: number;
+  recentPublications: number;
+  pendingActivations: number;
+}
+
 interface DashboardStats {
   totalMedia: number;
   totalPlaylists: number;
@@ -61,6 +70,7 @@ interface DashboardStats {
   totalUsers: number;
   activePlayers: number;
   offlinePlayers: number;
+  commercialOverview?: CommercialOverviewStats;
   advertiserOverview?: AdvertiserOverviewStats;
 }
 
@@ -72,6 +82,67 @@ interface RecentActivity {
   status: 'success' | 'warning' | 'error';
 }
 
+const EMPTY_COMMERCIAL_OVERVIEW: CommercialOverviewStats = {
+  totalScreens: 0,
+  onlineScreens: 0,
+  offlineScreens: 0,
+  activeCampaigns: 0,
+  recentPublications: 0,
+  pendingActivations: 0,
+};
+
+const FEATURED_TEMPLATES = [
+  {
+    value: 'menu' as QuickPublishPreset,
+    segment: 'restaurant',
+    title: 'Cardápio digital',
+    description: 'Ideal para restaurantes, lancherias e balcões.',
+    icon: <Storefront />,
+  },
+  {
+    value: 'promotion' as QuickPublishPreset,
+    segment: 'retail',
+    title: 'Promoção do dia',
+    description: 'Oferta direta para vender rápido na tela.',
+    icon: <Campaign />,
+  },
+  {
+    value: 'ad' as QuickPublishPreset,
+    segment: 'gym',
+    title: 'Anúncio indoor',
+    description: 'Conteúdo de impacto para TVs e totens.',
+    icon: <Tv />,
+  },
+  {
+    value: 'announcement' as QuickPublishPreset,
+    segment: 'church',
+    title: 'Comunicado',
+    description: 'Avisos, eventos e mensagens locais.',
+    icon: <AutoAwesome />,
+  },
+];
+
+function getCommercialOverview(stats: DashboardStats | null): CommercialOverviewStats {
+  if (stats?.commercialOverview) {
+    return stats.commercialOverview;
+  }
+
+  return {
+    ...EMPTY_COMMERCIAL_OVERVIEW,
+    totalScreens: stats?.totalPlayers || 0,
+    onlineScreens: stats?.activePlayers || 0,
+    offlineScreens: stats?.offlinePlayers || 0,
+  };
+}
+
+function getOnlinePercentage(overview: CommercialOverviewStats): number {
+  if (overview.totalScreens <= 0) {
+    return 0;
+  }
+
+  return Math.round((overview.onlineScreens / overview.totalScreens) * 100);
+}
+
 const Dashboard: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
@@ -79,6 +150,61 @@ const Dashboard: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [activities, setActivities] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
+  const commercialOverview = getCommercialOverview(stats);
+  const onlinePercentage = getOnlinePercentage(commercialOverview);
+  const activeClients = stats?.advertiserOverview?.activeSubscribers || 0;
+  const hasCommercialAlerts = commercialOverview.offlineScreens > 0 || commercialOverview.pendingActivations > 0;
+  const commercialCards = [
+    {
+      label: 'Telas online',
+      value: commercialOverview.onlineScreens,
+      helper: `de ${commercialOverview.totalScreens} tela(s) cadastrada(s)`,
+      icon: <Computer />,
+      color: theme.palette.success.main,
+    },
+    {
+      label: 'Telas offline',
+      value: commercialOverview.offlineScreens,
+      helper: commercialOverview.offlineScreens > 0 ? 'precisam de atenção' : 'operação estável',
+      icon: <Warning />,
+      color: commercialOverview.offlineScreens > 0 ? theme.palette.warning.main : theme.palette.success.main,
+    },
+    {
+      label: 'Publicações recentes',
+      value: commercialOverview.recentPublications,
+      helper: 'campanhas atualizadas nos últimos 7 dias',
+      icon: <PlayCircleOutline />,
+      color: theme.palette.primary.main,
+    },
+    {
+      label: 'Campanhas ativas',
+      value: commercialOverview.activeCampaigns,
+      helper: 'conteúdo em veiculação',
+      icon: <Campaign />,
+      color: theme.palette.info.main,
+    },
+    {
+      label: 'Clientes ativos',
+      value: activeClients,
+      helper: stats?.advertiserOverview ? 'anunciantes ativos' : 'escopo atual',
+      icon: <People />,
+      color: theme.palette.secondary.main,
+    },
+    {
+      label: 'Ativações pendentes',
+      value: commercialOverview.pendingActivations,
+      helper: commercialOverview.pendingActivations > 0 ? 'telas aguardando ativação' : 'nenhuma pendência',
+      icon: <Tv />,
+      color: commercialOverview.pendingActivations > 0 ? theme.palette.warning.main : theme.palette.success.main,
+    },
+  ];
+  const openQuickPublish = (presetValue?: QuickPublishPreset, segmentValue?: string) => {
+    const params = new URLSearchParams();
+    if (presetValue) params.set('preset', presetValue);
+    if (segmentValue) params.set('segment', segmentValue);
+    const queryString = params.toString();
+    navigate(queryString ? `/quick-publish?${queryString}` : '/quick-publish');
+  };
 
   useEffect(() => {
     loadDashboardData();
@@ -124,12 +250,18 @@ const Dashboard: React.FC = () => {
   return (
     <Box sx={{ p: 3 }}>
       <PageHeader
-        title="Painel"
-        subtitle="Visão geral do sistema — inclui resumo de anunciantes e totais globais; tetos por anunciante vêm de plano (contrato) e defaults no sistema"
+        title="Dashboard Comercial"
+        subtitle="Acompanhe telas, publicações e próximos passos sem abrir módulos técnicos."
         breadcrumbs={breadcrumbs}
         onRefresh={loadDashboardData}
         loading={loading}
         actions={[
+          {
+            label: 'Nova publicação',
+            icon: <Add />,
+            onClick: () => openQuickPublish(),
+            variant: 'contained',
+          },
           {
             label: 'Atualizar',
             icon: <Refresh />,
@@ -141,111 +273,263 @@ const Dashboard: React.FC = () => {
 
       {loading && <LinearProgress sx={{ mb: 3 }} />}
 
-      {/* Stats Cards */}
+      <Card
+        sx={{
+          mb: 3,
+          overflow: 'hidden',
+          color: 'common.white',
+          background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 55%, ${theme.palette.secondary.main} 100%)`,
+        }}
+      >
+        <CardContent sx={{ p: { xs: 2, md: 3 } }}>
+          <Grid container spacing={3} alignItems="center">
+            <Grid item xs={12} md={7}>
+              <Chip
+                label="V3x - publicação rápida"
+                size="small"
+                sx={{
+                  mb: 2,
+                  bgcolor: alpha(theme.palette.common.white, 0.18),
+                  color: 'common.white',
+                }}
+              />
+              <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
+                Publique conteúdo em uma tela em poucos passos.
+              </Typography>
+              <Typography variant="body1" sx={{ color: alpha(theme.palette.common.white, 0.86), mb: 3 }}>
+                Escolha cliente, tela e mídia. O sistema cria os vínculos técnicos por trás para entregar a publicação ao player.
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                <Button
+                  variant="contained"
+                  color="secondary"
+                  startIcon={<Add />}
+                  onClick={() => openQuickPublish()}
+                >
+                  Nova publicação
+                </Button>
+                <Button
+                  variant="outlined"
+                  sx={{ color: 'common.white', borderColor: alpha(theme.palette.common.white, 0.6) }}
+                  onClick={() => navigate('/totems')}
+                >
+                  Ver telas
+                </Button>
+              </Box>
+            </Grid>
+            <Grid item xs={12} md={5}>
+              <Card sx={{ bgcolor: alpha(theme.palette.common.white, 0.14), color: 'common.white', boxShadow: 'none' }}>
+                <CardContent>
+                  <Typography variant="overline" sx={{ color: alpha(theme.palette.common.white, 0.76) }}>
+                    Saúde da operação
+                  </Typography>
+                  <Typography variant="h3" sx={{ fontWeight: 700 }}>
+                    {onlinePercentage}%
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: alpha(theme.palette.common.white, 0.82), mb: 2 }}>
+                    das telas ativas estão online agora
+                  </Typography>
+                  <LinearProgress
+                    variant="determinate"
+                    value={onlinePercentage}
+                    sx={{
+                      height: 8,
+                      borderRadius: 999,
+                      bgcolor: alpha(theme.palette.common.white, 0.2),
+                      '& .MuiLinearProgress-bar': {
+                        bgcolor: theme.palette.common.white,
+                      },
+                    }}
+                  />
+                  <Typography variant="caption" sx={{ display: 'block', mt: 1.5, color: alpha(theme.palette.common.white, 0.78) }}>
+                    {commercialOverview.onlineScreens} online / {commercialOverview.offlineScreens} offline
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+
       <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
+        {commercialCards.map((card) => (
+          <Grid item xs={12} sm={6} md={4} key={card.label}>
+            <Card sx={{ height: '100%' }}>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+                  <Box>
+                    <Typography color="text.secondary" gutterBottom variant="body2">
+                      {card.label}
+                    </Typography>
+                    <Typography variant="h4">{card.value}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {card.helper}
+                    </Typography>
+                  </Box>
+                  <Avatar
+                    sx={{
+                      bgcolor: alpha(card.color, 0.12),
+                      color: card.color,
+                    }}
+                  >
+                    {card.icon}
+                  </Avatar>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid item xs={12} md={8}>
+          <Card sx={{ height: '100%' }}>
             <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', mb: 2 }}>
                 <Box>
-                  <Typography color="text.secondary" gutterBottom variant="body2">
-                    Total de Mídias
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    Templates em destaque
                   </Typography>
-                  <Typography variant="h4">
-                    {stats?.totalMedia || 0}
+                  <Typography variant="body2" color="text.secondary">
+                    Comece por um formato comercial e publique na tela pelo fluxo rápido.
                   </Typography>
                 </Box>
-                <Avatar
-                  sx={{
-                    bgcolor: alpha(theme.palette.primary.main, 0.1),
-                    color: theme.palette.primary.main,
-                  }}
-                >
-                  <VideoLibrary />
-                </Avatar>
+                <Button size="small" variant="outlined" onClick={() => openQuickPublish()}>
+                  Abrir publicação
+                </Button>
               </Box>
+              <Grid container spacing={2}>
+                {FEATURED_TEMPLATES.map((template) => (
+                  <Grid item xs={12} sm={6} key={template.title}>
+                    <Card
+                      variant="outlined"
+                      onClick={() => openQuickPublish(template.value, template.segment)}
+                      sx={{
+                        height: '100%',
+                        cursor: 'pointer',
+                        transition: 'border-color 160ms ease, transform 160ms ease',
+                        '&:hover': {
+                          borderColor: theme.palette.primary.main,
+                          transform: 'translateY(-2px)',
+                        },
+                      }}
+                    >
+                      <CardContent sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+                        <Avatar
+                          sx={{
+                            bgcolor: alpha(theme.palette.primary.main, 0.1),
+                            color: theme.palette.primary.main,
+                            width: 36,
+                            height: 36,
+                          }}
+                        >
+                          {template.icon}
+                        </Avatar>
+                        <Box>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                            {template.title}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {template.description}
+                          </Typography>
+                          <Typography variant="caption" color="primary" sx={{ display: 'block', mt: 0.75, fontWeight: 600 }}>
+                            Usar este template
+                          </Typography>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
             </CardContent>
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
+        <Grid item xs={12} md={4}>
+          <Card
+            sx={{
+              height: '100%',
+              border: `1px solid ${alpha(hasCommercialAlerts ? theme.palette.warning.main : theme.palette.success.main, 0.35)}`,
+            }}
+          >
             <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Box>
-                  <Typography color="text.secondary" gutterBottom variant="body2">
-                    Total de Playlists
-                  </Typography>
-                  <Typography variant="h4">
-                    {stats?.totalPlaylists || 0}
-                  </Typography>
-                </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
                 <Avatar
                   sx={{
-                    bgcolor: alpha(theme.palette.secondary.main, 0.1),
-                    color: theme.palette.secondary.main,
+                    bgcolor: alpha(hasCommercialAlerts ? theme.palette.warning.main : theme.palette.success.main, 0.12),
+                    color: hasCommercialAlerts ? theme.palette.warning.main : theme.palette.success.main,
                   }}
                 >
-                  <QueueMusic />
+                  {hasCommercialAlerts ? <Warning /> : <CheckCircle />}
                 </Avatar>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Box>
-                  <Typography color="text.secondary" gutterBottom variant="body2">
-                    Players Ativos
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    Alertas simples
                   </Typography>
-                  <Typography variant="h4">
-                    {stats?.activePlayers || 0}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    de {stats?.totalPlayers || 0} total
+                  <Typography variant="body2" color="text.secondary">
+                    Próximas ações operacionais
                   </Typography>
                 </Box>
-                <Avatar
-                  sx={{
-                    bgcolor: alpha(theme.palette.success.main, 0.1),
-                    color: theme.palette.success.main,
-                  }}
-                >
-                  <Computer />
-                </Avatar>
               </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={3}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Box>
-                  <Typography color="text.secondary" gutterBottom variant="body2">
-                    Total de Usuários
-                  </Typography>
-                  <Typography variant="h4">
-                    {stats?.totalUsers || 0}
-                  </Typography>
-                </Box>
-                <Avatar
-                  sx={{
-                    bgcolor: alpha(theme.palette.info.main, 0.1),
-                    color: theme.palette.info.main,
-                  }}
-                >
-                  <People />
-                </Avatar>
-              </Box>
+              <List dense disablePadding>
+                <ListItem disableGutters>
+                  <ListItemText
+                    primary={commercialOverview.offlineScreens > 0 ? 'Há telas offline' : 'Telas sem alerta crítico'}
+                    secondary={
+                      commercialOverview.offlineScreens > 0
+                        ? `${commercialOverview.offlineScreens} tela(s) fora da janela de heartbeat`
+                        : 'Nenhuma tela offline no momento'
+                    }
+                  />
+                </ListItem>
+                <Divider component="li" />
+                <ListItem disableGutters>
+                  <ListItemText
+                    primary={
+                      commercialOverview.pendingActivations > 0
+                        ? 'Ativações aguardando conclusão'
+                        : 'Ativações em dia'
+                    }
+                    secondary={`${commercialOverview.pendingActivations} tela(s) pendente(s)`}
+                  />
+                </ListItem>
+              </List>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
+
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+          Resumo operacional
+        </Typography>
+        <Grid container spacing={2}>
+          {[
+            { label: 'Mídias', value: stats?.totalMedia || 0, icon: <VideoLibrary />, color: theme.palette.primary.main },
+            { label: 'Playlists', value: stats?.totalPlaylists || 0, icon: <QueueMusic />, color: theme.palette.secondary.main },
+            { label: 'Players ativos', value: stats?.activePlayers || 0, icon: <Computer />, color: theme.palette.success.main },
+            { label: 'Usuários', value: stats?.totalUsers || 0, icon: <People />, color: theme.palette.info.main },
+          ].map((item) => (
+            <Grid item xs={6} md={3} key={item.label}>
+              <Card variant="outlined">
+                <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">
+                        {item.label}
+                      </Typography>
+                      <Typography variant="h6">{item.value}</Typography>
+                    </Box>
+                    <Avatar sx={{ bgcolor: alpha(item.color, 0.1), color: item.color, width: 34, height: 34 }}>
+                      {item.icon}
+                    </Avatar>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      </Box>
 
       {stats?.advertiserOverview && (
         <Box sx={{ mb: 3 }}>
@@ -371,7 +655,7 @@ const Dashboard: React.FC = () => {
                 </Typography>
               ) : (
                 <List>
-                  {activities.slice(0, 5).map((activity, index) => (
+                  {activities.slice(0, 5).map((activity, index, visibleActivities) => (
                     <React.Fragment key={activity.id}>
                       <ListItem>
                         <ListItemAvatar>
@@ -400,7 +684,7 @@ const Dashboard: React.FC = () => {
                           }
                         />
                       </ListItem>
-                      {index < activities.length - 1 && <Divider variant="inset" component="li" />}
+                      {index < visibleActivities.length - 1 && <Divider variant="inset" component="li" />}
                     </React.Fragment>
                   ))}
                 </List>
@@ -431,16 +715,16 @@ const Dashboard: React.FC = () => {
                 <Divider variant="inset" component="li" />
                 <ListItem>
                   <ListItemAvatar>
-                    <Avatar sx={{ bgcolor: stats?.offlinePlayers && stats.offlinePlayers > 0 ? theme.palette.warning.main : theme.palette.success.main }}>
-                      {stats?.offlinePlayers && stats.offlinePlayers > 0 ? <Warning /> : <CheckCircle />}
+                    <Avatar sx={{ bgcolor: commercialOverview.offlineScreens > 0 ? theme.palette.warning.main : theme.palette.success.main }}>
+                      {commercialOverview.offlineScreens > 0 ? <Warning /> : <CheckCircle />}
                     </Avatar>
                   </ListItemAvatar>
                   <ListItemText
-                    primary="Players"
+                    primary="Telas"
                     secondary={
-                      stats?.offlinePlayers && stats.offlinePlayers > 0
-                        ? `${stats.offlinePlayers} player(s) offline`
-                        : 'Todos os players online'
+                      commercialOverview.offlineScreens > 0
+                        ? `${commercialOverview.offlineScreens} tela(s) offline`
+                        : 'Todas as telas online'
                     }
                   />
                 </ListItem>
