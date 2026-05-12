@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
@@ -12,6 +12,7 @@ import {
   FormControl,
   Grid,
   InputLabel,
+  LinearProgress,
   ListItemText,
   MenuItem,
   Select,
@@ -21,7 +22,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { CheckCircle, Refresh, Send } from '@mui/icons-material';
+import { CheckCircle, CloudUpload, Refresh, Send } from '@mui/icons-material';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import {
@@ -93,6 +94,9 @@ const QuickPublish: React.FC = () => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [durationMs, setDurationMs] = useState(10000);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadName, setUploadName] = useState('');
+  const [uploadingMedia, setUploadingMedia] = useState(false);
   const [loadingInitial, setLoadingInitial] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -127,6 +131,13 @@ const QuickPublish: React.FC = () => {
   );
 
   const canPublish = Boolean(subscriberId && contractId && totemIds.length > 0 && mediaIds.length > 0 && title.trim());
+
+  const loadApprovedMedias = useCallback(async (targetSubscriberId: number) => {
+    const mediaResult = await mediaApi.getAll({ subscriberId: targetSubscriberId, limit: 1000 });
+    const approvedMedias = (mediaResult.data || []).filter(isApprovedMedia);
+    setMedias(approvedMedias);
+    return approvedMedias;
+  }, []);
 
   const loadSubscribers = async () => {
     try {
@@ -163,14 +174,13 @@ const QuickPublish: React.FC = () => {
         setContractId('');
         setTotemIds([]);
         setMediaIds([]);
-        const [contractsResult, mediaResult] = await Promise.all([
+        const [contractsResult] = await Promise.all([
           subscriberApi.getContracts(Number(subscriberId), { activeOnly: true }),
-          mediaApi.getAll({ subscriberId: Number(subscriberId), limit: 1000 }),
+          loadApprovedMedias(Number(subscriberId)),
         ]);
         const activeContracts = Array.isArray(contractsResult) ? contractsResult : [];
         setContracts(activeContracts);
         setContractId(activeContracts[0]?.contract_id || '');
-        setMedias((mediaResult.data || []).filter(isApprovedMedia));
       } catch (e) {
         setError(pickApiErrorMessage(e, 'Erro ao carregar dados do anunciante.'));
       } finally {
@@ -179,7 +189,7 @@ const QuickPublish: React.FC = () => {
     };
 
     loadSubscriberDetails();
-  }, [subscriberId]);
+  }, [loadApprovedMedias, subscriberId]);
 
   useEffect(() => {
     if (!subscriberId || !contractId) {
@@ -243,6 +253,50 @@ const QuickPublish: React.FC = () => {
     }
   };
 
+  const handleUploadMedia = async () => {
+    if (!subscriberId) {
+      setError('Selecione um anunciante antes de enviar mídia.');
+      return;
+    }
+    if (!uploadFile) {
+      setError('Selecione um arquivo para enviar.');
+      return;
+    }
+
+    try {
+      setUploadingMedia(true);
+      setError(null);
+      setSuccess(null);
+      const uploaded = await mediaApi.upload(uploadFile, {
+        name: uploadName.trim() || uploadFile.name.replace(/\.[^.]+$/, ''),
+        description: `Enviado pelo fluxo Publicar em Tela (${selectedPreset.label})`,
+        tags: ['quick-publish', preset],
+        subscriberId: Number(subscriberId),
+      });
+
+      const approvedMedias = await loadApprovedMedias(Number(subscriberId));
+      if (isApprovedMedia(uploaded)) {
+        const uploadedId = uploaded.media_id;
+        setMediaIds((prev) => [...new Set([...prev, uploadedId])]);
+        setSuccess('Mídia enviada e selecionada para publicação.');
+      } else {
+        const foundUploaded = approvedMedias.find((media) => media.media_id === uploaded.media_id);
+        if (foundUploaded) {
+          setMediaIds((prev) => [...new Set([...prev, foundUploaded.media_id])]);
+          setSuccess('Mídia enviada e selecionada para publicação.');
+        } else {
+          setSuccess('Mídia enviada. Ela ficará disponível para publicação assim que estiver aprovada.');
+        }
+      }
+      setUploadFile(null);
+      setUploadName('');
+    } catch (e) {
+      setError(pickApiErrorMessage(e, 'Erro ao enviar mídia.'));
+    } finally {
+      setUploadingMedia(false);
+    }
+  };
+
   return (
     <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
       <PageHeader
@@ -257,7 +311,7 @@ const QuickPublish: React.FC = () => {
             variant: 'outlined',
           },
         ]}
-        loading={loadingInitial || loadingDetails || publishing}
+        loading={loadingInitial || loadingDetails || publishing || uploadingMedia}
       />
 
       {error && (
@@ -364,6 +418,64 @@ const QuickPublish: React.FC = () => {
                   <strong>{selectedPreset.label}:</strong> {selectedPreset.description}
                 </Typography>
               </Alert>
+            </Grid>
+
+            <Grid item xs={12}>
+              <Card variant="outlined">
+                <CardContent>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+                    Enviar nova mídia
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Use esta opção para trazer uma arte ou vídeo direto para o fluxo de publicação.
+                  </Typography>
+                  {uploadingMedia && <LinearProgress sx={{ mb: 2 }} />}
+                  <Grid container spacing={2} alignItems="center">
+                    <Grid item xs={12} md={5}>
+                      <Button
+                        component="label"
+                        variant="outlined"
+                        startIcon={<CloudUpload />}
+                        fullWidth
+                        disabled={!subscriberId || uploadingMedia || publishing}
+                      >
+                        {uploadFile ? uploadFile.name : 'Selecionar arquivo'}
+                        <input
+                          hidden
+                          type="file"
+                          accept="image/*,video/*,audio/*,application/pdf"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] || null;
+                            setUploadFile(file);
+                            setUploadName(file ? file.name.replace(/\.[^.]+$/, '') : '');
+                            e.target.value = '';
+                          }}
+                        />
+                      </Button>
+                    </Grid>
+                    <Grid item xs={12} md={5}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Nome da mídia"
+                        value={uploadName}
+                        disabled={!uploadFile || uploadingMedia || publishing}
+                        onChange={(e) => setUploadName(e.target.value)}
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={2}>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        onClick={handleUploadMedia}
+                        disabled={!subscriberId || !uploadFile || uploadingMedia || publishing}
+                      >
+                        Enviar
+                      </Button>
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
             </Grid>
 
             <Grid item xs={12} md={8}>
