@@ -16,6 +16,7 @@ import os from 'os';
 import fs from 'fs';
 import path from 'path';
 import { config } from '../config/env';
+import { normalizeTotemUin } from '../utils/normalizeTotemUin';
 
 const execAsync = promisify(exec);
 
@@ -33,6 +34,30 @@ function listMediaFiles(dir: string): string[] {
 
 const router = express.Router();
 const dispatcherRouter = getDispatcherRouter();
+
+/** Alinha UIN em query/body ao formato canónico (igual Player-AD / player-web). */
+function normalizePlayerRequestUin(req: express.Request): void {
+  const q = req.query.uin;
+  const qStr = Array.isArray(q) ? q[0] : q;
+  if (typeof qStr === 'string' && qStr.trim()) {
+    (req.query as Record<string, unknown>).uin = normalizeTotemUin(qStr);
+  }
+  if (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) {
+    const raw = (req.body as { uin?: unknown }).uin;
+    if (typeof raw === 'string' && raw.trim()) {
+      (req.body as { uin: string }).uin = normalizeTotemUin(raw);
+    }
+  }
+}
+
+router.use((req, _res, next) => {
+  try {
+    normalizePlayerRequestUin(req);
+  } catch {
+    /* não bloquear o pipeline */
+  }
+  next();
+});
 
 /**
  * Processa solicitação de aprovação via heartbeat

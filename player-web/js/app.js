@@ -7,9 +7,15 @@
 
 class SmartSignagePlayer {
     constructor(config = {}) {
+        const rawTotemUin = config.totemUIN || (typeof window !== 'undefined' && window.TOTEM_UIN) || '';
+        const totemUIN =
+            typeof window !== 'undefined' && typeof window.normalizeTotemUin === 'function'
+                ? window.normalizeTotemUin(rawTotemUin)
+                : String(rawTotemUin || '').trim().toUpperCase();
+
         this.config = {
             apiBaseURL: config.apiBaseURL || (typeof window !== 'undefined' && window.API_BASE_URL) || 'http://localhost:3000',
-            totemUIN: config.totemUIN || (typeof window !== 'undefined' && window.TOTEM_UIN) || '',
+            totemUIN,
             totemSecret: config.totemSecret || (typeof window !== 'undefined' && window.TOTEM_SECRET) || '',
             deviceId: config.deviceId || this.generateDeviceId(),
             platform: 'browser-cache',

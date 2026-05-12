@@ -570,6 +570,7 @@ app.use('/api/debug', debugRoutes); // Debug endpoints (logs, diagnóstico)
 // Diagnóstico do player (público, para descobrir por que /player/js/* retorna 404)
 app.get('/api/debug/player-static', (_req, res) => {
   const files = {
+    'js/activationCode.js': fs.existsSync(path.join(playerDir, 'js', 'activationCode.js')),
     'js/app.js': fs.existsSync(path.join(playerDir, 'js', 'app.js')),
     'js/api/client.js': fs.existsSync(path.join(playerDir, 'js', 'api', 'client.js')),
     'js/cache/MediaCacheManager.js': fs.existsSync(path.join(playerDir, 'js', 'cache', 'MediaCacheManager.js')),

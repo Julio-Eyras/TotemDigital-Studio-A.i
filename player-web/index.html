@@ -261,38 +261,39 @@
     <!-- Carregar scripts na ordem correta -->
     <!-- Usar caminhos relativos que funcionam independente do protocolo -->
     <script>
-        // Garantir que scripts sejam carregados com o mesmo protocolo da página
-        (function() {
-            const protocol = window.location.protocol;
-            const host = window.location.host;
-            const baseUrl = protocol + '//' + host;
-
-            // Usar /api/player-static/ para que Nginx sempre faça proxy ao backend (evita 404 quando location ^~ /player não existe)
-            const scripts = [
+        (function () {
+            var protocol = window.location.protocol;
+            var host = window.location.host;
+            var baseUrl = protocol + '//' + host;
+            var scripts = [
+                baseUrl + '/api/player-static/js/activationCode.js',
                 baseUrl + '/api/player-static/js/cache/MediaCacheManager.js',
                 baseUrl + '/api/player-static/js/cache/PlaylistChangeDetector.js',
                 baseUrl + '/api/player-static/js/api/client.js',
                 baseUrl + '/api/player-static/js/app.js'
             ];
 
-            let loaded = 0;
-            scripts.forEach((src, index) => {
-                const script = document.createElement('script');
-                script.src = src;
-                script.onload = () => {
-                    loaded++;
-                    if (loaded === scripts.length) {
-                        console.log('[Player] Todos os scripts carregados');
-                    }
+            function loadScript(i) {
+                if (i >= scripts.length) {
+                    window.dispatchEvent(new CustomEvent('totem-player-static-ready'));
+                    return;
+                }
+                var script = document.createElement('script');
+                script.src = scripts[i];
+                script.onload = function () {
+                    loadScript(i + 1);
                 };
-                script.onerror = () => {
-                    console.error('[Player] Erro ao carregar script:', src);
+                script.onerror = function () {
+                    console.error('[Player] Erro ao carregar script:', scripts[i]);
+                    loadScript(i + 1);
                 };
                 document.head.appendChild(script);
-            });
+            }
+            loadScript(0);
         })();
     </script>
     <script>
+        window.addEventListener('totem-player-static-ready', function initTotemPlayerPage() {
         (function() {
             const debugPanel = document.getElementById('debug-panel');
             const debugControls = document.getElementById('debug-controls');
@@ -450,11 +451,13 @@
                 const params = new URLSearchParams(window.location.search);
                 const fromUrl = params.get('uin') || params.get('UIN') || '';
                 if (fromUrl) {
-                    saveActivationUin(fromUrl);
-                    return fromUrl;
+                    const norm = normalizeActivationCode(fromUrl);
+                    saveActivationUin(norm);
+                    return norm;
                 }
                 try {
-                    return localStorage.getItem('smartsignage_totem_uin') || '';
+                    const stored = localStorage.getItem('smartsignage_totem_uin') || '';
+                    return stored ? normalizeActivationCode(stored) : '';
                 } catch (e) {
                     return '';
                 }
@@ -476,6 +479,9 @@
             }
 
             function normalizeActivationCode(value) {
+                if (typeof window.normalizeTotemUin === 'function') {
+                    return window.normalizeTotemUin(value);
+                }
                 const normalized = String(value || '')
                     .trim()
                     .toUpperCase()
@@ -946,6 +952,7 @@
                 main();
             }
         })();
+        }, { once: true });
     </script>
 </body>
 </html>

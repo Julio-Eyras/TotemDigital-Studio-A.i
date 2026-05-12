@@ -97,6 +97,7 @@ class PlayerConfigLoader(private val context: Context) {
             else -> mode.name.lowercase()
         }
 
+        /** Mesma regra que `normalizeTotemUin` no backend e `activationCode.js` no player-web. */
         fun normalizeActivationCode(raw: String?): String {
             val normalized = raw
                 .orEmpty()
