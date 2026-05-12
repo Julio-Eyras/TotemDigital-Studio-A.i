@@ -39,6 +39,7 @@ import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import { getTotemIdFromRow, getTotemLocalIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { getLocalMenuItemSx, isStockLocal, orderLocalsForSelect } from '../../utils/localOrdering';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -57,21 +58,6 @@ function TabPanel(props: TabPanelProps) {
 
 const compareByDisplayName = (a?: string, b?: string) =>
   String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
-
-/** Alinhado ao backend (`totemService.isStockLocalRecord`): nome contém "estoque" ou segmento "estoque". */
-const isStockLocal = (local: any): boolean => {
-  const name = String(local?.name || '')
-    .trim()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
-  const category = String(local?.category_segment || '')
-    .trim()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
-  return name.includes('estoque') || category === 'estoque';
-};
 
 /** ID numérico do totem independente de snake_case/camelCase na API. */
 function resolveTotemRecordId(t: any): number | null {
@@ -231,8 +217,7 @@ const Totems: React.FC = () => {
       });
       const localsData = Array.isArray(response.data) ? [...response.data] : [];
       const visibleLocals = localsData.filter((local: any) => local?.is_active !== false || isStockLocal(local));
-      visibleLocals.sort((a: any, b: any) => compareByDisplayName(a?.name, b?.name));
-      setLocals(visibleLocals);
+      setLocals(orderLocalsForSelect(visibleLocals));
     } catch (error) {
     }
   };
@@ -578,8 +563,8 @@ const Totems: React.FC = () => {
                   onChange={(e) => setLocalFilter((e.target.value as any) || 'all')}
                 >
                   <MenuItem value="all">Todos</MenuItem>
-                  {locals.map((l) => (
-                    <MenuItem key={l.local_id} value={l.local_id}>
+                  {orderLocalsForSelect(locals, [localFilter !== 'all' ? localFilter : undefined]).map((l) => (
+                    <MenuItem key={l.local_id} value={l.local_id} sx={getLocalMenuItemSx(l, localFilter === l.local_id)}>
                       {formatLocalLabel(l)}
                     </MenuItem>
                   ))}
@@ -901,14 +886,14 @@ const Totems: React.FC = () => {
               label="Local *"
               onChange={(e) => setNewTotem({ ...newTotem, localId: Number(e.target.value) })}
             >
-              {locals.map((local) => {
+              {orderLocalsForSelect(locals, [newTotem.localId]).map((local) => {
                 const isSelected = Number(newTotem.localId || 0) === Number(local.local_id);
                 const label = `${formatLocalLabel(local)}${isSelected ? ' · já selecionado' : ''}`;
                 return (
                   <MenuItem
                     key={local.local_id}
                     value={local.local_id}
-                    sx={isSelected ? { color: 'success.main', fontWeight: 700 } : undefined}
+                    sx={getLocalMenuItemSx(local, isSelected)}
                   >
                     {label}
                   </MenuItem>
@@ -997,14 +982,14 @@ const Totems: React.FC = () => {
                 setEditTotem({ ...editTotem, localId: newLocalId, isActive: nextActive });
               }}
             >
-              {locals.map((local) => {
+              {orderLocalsForSelect(locals, [editTotem.localId]).map((local) => {
                 const isSelected = Number(editTotem.localId || 0) === Number(local.local_id);
                 const label = `${formatLocalLabel(local)}${isSelected ? ' · já selecionado' : ''}`;
                 return (
                   <MenuItem
                     key={local.local_id}
                     value={local.local_id}
-                    sx={isSelected ? { color: 'success.main', fontWeight: 700 } : undefined}
+                    sx={getLocalMenuItemSx(local, isSelected)}
                   >
                     {label}
                   </MenuItem>

@@ -91,6 +91,7 @@ import {
   getTotemLocalIdFromRow,
 } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { getLocalMenuItemSx, orderLocalsForSelect } from '../../utils/localOrdering';
 import { PublisherCard, PublisherForm, PublisherDetails } from './components';
 
 const getDefaultContractEndDate = (): string => `${new Date().getFullYear()}-12-31`;
@@ -1700,11 +1701,18 @@ const Publishers: React.FC = () => {
                         label="Local *"
                         onChange={(e) => setTotemForm({ ...totemForm, localId: Number(e.target.value) })}
                       >
-                        {tempLocals.map((local, index) => (
-                          <MenuItem key={index} value={index}>
-                            {local.name}
-                          </MenuItem>
-                        ))}
+                        {orderLocalsForSelect(
+                          tempLocals.map((local, index) => ({ ...local, local_id: index })),
+                          [totemForm.localId]
+                        ).map((local) => {
+                          const index = Number(local.local_id);
+                          const isSelected = totemForm.localId === index;
+                          return (
+                            <MenuItem key={index} value={index} sx={getLocalMenuItemSx(local, isSelected)}>
+                              {local.name}{isSelected ? ' · já selecionado' : ''}
+                            </MenuItem>
+                          );
+                        })}
                       </Select>
                     </FormControl>
                   </Grid>
@@ -2561,11 +2569,18 @@ const Publishers: React.FC = () => {
                         label="Local *"
                         onChange={(e) => setEditTotemForm({ ...editTotemForm, localId: Number(e.target.value) })}
                       >
-                        {editLocals.map((local, index) => (
-                          <MenuItem key={local.local_id} value={index}>
-                            {local.name}
-                          </MenuItem>
-                        ))}
+                        {orderLocalsForSelect(
+                          editLocals.map((local, index) => ({ ...local, selectIndex: index } as Local & { selectIndex: number })),
+                          [editLocals[editTotemForm.localId]?.local_id]
+                        ).map((local) => {
+                          const index = local.selectIndex;
+                          const isSelected = editTotemForm.localId === index;
+                          return (
+                            <MenuItem key={local.local_id} value={index} sx={getLocalMenuItemSx(local, isSelected)}>
+                              {local.name}{isSelected ? ' · já selecionado' : ''}
+                            </MenuItem>
+                          );
+                        })}
                       </Select>
                     </FormControl>
                   </Grid>

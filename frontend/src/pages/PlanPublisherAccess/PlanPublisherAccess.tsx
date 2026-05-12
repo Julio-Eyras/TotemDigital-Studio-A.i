@@ -65,6 +65,7 @@ import { PageHeader } from '../../components/DataDisplay';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 import { getTotemIdFromRow, getTotemLocalIdFromRow, getTotemPublisherIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { getLocalMenuItemSx, orderLocalsForSelect } from '../../utils/localOrdering';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -798,13 +799,22 @@ const PlanPublisherAccessPage: React.FC = () => {
     : [];
   const compactActiveLocalsWithPublisher = compactLocalOptions
     .filter((entry) => entry.publisherId != null && entry.local.is_active !== false)
-    .sort((a, b) => compareByName(String(a.local.name || ''), String(b.local.name || '')));
+    .sort((a, b) => {
+      const ordered = orderLocalsForSelect(
+        [a.local, b.local],
+        compactSelectedLocalIds
+      );
+      return ordered[0]?.local_id === a.local.local_id ? -1 : 1;
+    });
   const compactLocalsWithoutTotems = compactActiveLocalsWithPublisher.filter(
     (entry) => (entry.local.totem_count || 0) <= 0
   );
   const compactPlanLocals = localsCatalog
     .filter((local) => compactSelectedLocalIds.includes(local.local_id))
-    .sort((a, b) => compareByName(String(a.name || ''), String(b.name || '')));
+    .sort((a, b) => {
+      const ordered = orderLocalsForSelect([a, b], compactSelectedLocalIds);
+      return ordered[0]?.local_id === a.local_id ? -1 : 1;
+    });
   const compactTotemsBySelectedLocal = compactPlanLocals.map((local) => {
     const localTotems = compactActiveTotemsWithPublisher
       .filter(({ totem }) => getTotemLocalIdFromRow(totem) === local.local_id)
@@ -1516,11 +1526,10 @@ const PlanPublisherAccessPage: React.FC = () => {
                               <MenuItem
                                 key={local.local_id}
                                 value={String(local.local_id)}
-                                sx={isAlreadySelected ? {
-                                  color: 'success.main',
-                                  fontWeight: 700,
-                                  opacity: 0.8,
-                                } : undefined}
+                                sx={{
+                                  ...getLocalMenuItemSx(local, isAlreadySelected),
+                                  ...(isAlreadySelected ? { opacity: 0.8 } : {}),
+                                }}
                               >
                                 {`${local.name} · ${local.totem_count || 0} totem(ns) cadastrados${linkedSuffix}`}
                               </MenuItem>
@@ -1799,8 +1808,13 @@ const PlanPublisherAccessPage: React.FC = () => {
                 >
                   <MenuItem value="">{`Selecione um ${accessEntityLabel.toLowerCase()}`}</MenuItem>
                   {compactActiveLocalsWithPublisher.map(({ local }) => {
+                    const isSelected = String(local.local_id) === accessSelectedLocalId;
                     return (
-                      <MenuItem key={local.local_id} value={String(local.local_id)}>
+                      <MenuItem
+                        key={local.local_id}
+                        value={String(local.local_id)}
+                        sx={getLocalMenuItemSx(local, isSelected)}
+                      >
                         {`${local.name} · ${local.totem_count || 0} totem(ns)`}
                       </MenuItem>
                     );
