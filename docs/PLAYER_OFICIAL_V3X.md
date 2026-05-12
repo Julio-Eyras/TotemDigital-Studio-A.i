@@ -118,6 +118,13 @@ Alterar URL/codigo:
 nano ~/.config/totemdigital/player-v3x.env
 ```
 
+## Log Do Kiosk
+
+- Ficheiro: `~/.local/state/totemdigital/player-v3x-kiosk.log` (arranques do Chromium e mensagens do runner).
+- O runner **roda o log** quando ultrapassa ~5 MB, mantendo as ultimas ~4000 linhas (evita encher o disco em piloto).
+- Acompanhar em tempo real: `tail -f ~/.local/state/totemdigital/player-v3x-kiosk.log`
+- Com **systemd user**, pode tambem usar `journalctl --user -u totemdigital-player-v3x.service -f` se redirecionar a unidade para o journal no futuro; hoje o stdout do Chromium vai sobretudo para o ficheiro acima.
+
 ## Criterio De Aceite Para Piloto
 
 - O player abre sozinho apos login da sessao grafica.

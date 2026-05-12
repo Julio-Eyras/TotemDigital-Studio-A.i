@@ -128,7 +128,7 @@ Entregas:
 - Watchdog de reproducao no player-web para pular video que nao inicia ou nao finaliza.
 - Cache offline.
 - Recuperacao apos queda de rede (player-web ressincroniza em `online`).
-- Logs basicos de saude.
+- Logs basicos de saude (painel + heartbeat; log local kiosk com rotação ~5 MB).
 - Resumo de saude do player persistido no heartbeat e visivel em Totens.
 
 Criterio de aceite:

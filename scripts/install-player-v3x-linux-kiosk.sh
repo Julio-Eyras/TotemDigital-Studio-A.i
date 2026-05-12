@@ -220,7 +220,26 @@ if [[ "${ORIENTATION:-landscape}" == "portrait" ]] && command -v xrandr >/dev/nu
   fi
 fi
 
+# Rotação simples do log (piloto: evita crescimento ilimitado com Chromium verboso)
+rotate_kiosk_log_if_needed() {
+  local max_bytes=$((5 * 1024 * 1024))
+  local keep_lines=4000
+  [[ -f "$LOG_FILE" ]] || return 0
+  local sz
+  sz=$(stat -c%s "$LOG_FILE" 2>/dev/null || echo 0)
+  [[ "$sz" =~ ^[0-9]+$ ]] || return 0
+  [[ "$sz" -gt "$max_bytes" ]] || return 0
+  command -v tail >/dev/null 2>&1 || return 0
+  local tmp="${LOG_FILE}.tmp.$$"
+  if tail -n "$keep_lines" "$LOG_FILE" > "$tmp" 2>/dev/null && mv "$tmp" "$LOG_FILE" 2>/dev/null; then
+    echo "$(date -Is) log rotacionado (>${max_bytes} bytes, ultimas ${keep_lines} linhas)" >> "$LOG_FILE"
+  else
+    rm -f "$tmp" 2>/dev/null || true
+  fi
+}
+
 while true; do
+  rotate_kiosk_log_if_needed
   echo "$(date -Is) iniciando Player V3x: $PLAYER_URL" >> "$LOG_FILE"
   "$BROWSER_CMD" \
     --kiosk \
