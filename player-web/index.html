@@ -46,6 +46,86 @@
             text-align: center;
             padding: 20px;
         }
+        #activation {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 24px;
+            background:
+                radial-gradient(circle at top left, rgba(25, 118, 210, 0.22), transparent 32%),
+                radial-gradient(circle at bottom right, rgba(76, 175, 80, 0.18), transparent 28%),
+                #050505;
+        }
+        .activation-card {
+            width: min(460px, 100%);
+            padding: 28px;
+            border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 18px;
+            background: rgba(18,18,18,0.94);
+            box-shadow: 0 18px 60px rgba(0,0,0,0.55);
+        }
+        .activation-card h1 {
+            font-size: 26px;
+            margin-bottom: 8px;
+        }
+        .activation-card p {
+            color: #bdbdbd;
+            line-height: 1.45;
+            margin-bottom: 18px;
+        }
+        .activation-card label {
+            display: block;
+            margin: 16px 0 6px;
+            font-size: 13px;
+            color: #e0e0e0;
+        }
+        .activation-card input {
+            width: 100%;
+            padding: 14px 16px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.18);
+            background: #111;
+            color: #fff;
+            font-size: 18px;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+        }
+        .activation-card input.server-input {
+            font-size: 14px;
+            letter-spacing: 0;
+            text-transform: none;
+        }
+        .activation-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 22px;
+        }
+        .activation-card button {
+            border: 0;
+            border-radius: 10px;
+            padding: 13px 16px;
+            color: #fff;
+            background: #1976d2;
+            cursor: pointer;
+            font-weight: 700;
+            flex: 1;
+        }
+        .activation-card button.secondary {
+            background: rgba(255,255,255,0.12);
+        }
+        .activation-card button:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+        #activation-message {
+            min-height: 22px;
+            margin-top: 14px;
+            color: #90caf9;
+            font-size: 14px;
+        }
+        #activation-message.error { color: #ff8a80; }
+        #activation-message.success { color: #81c784; }
         #player-container {
             display: none;
             width: 100vw;
@@ -152,6 +232,21 @@
         <p id="error-message"></p>
         <p style="margin-top:20px;font-size:14px;color:#888;">Use ?uin=SEU_UIN na URL</p>
     </div>
+    <div id="activation">
+        <form id="activation-form" class="activation-card">
+            <h1>Ativar esta tela</h1>
+            <p>Digite o código de ativação exibido no painel de Totens para vincular este player à tela correta.</p>
+            <label for="activation-code">Código de ativação</label>
+            <input id="activation-code" name="activation-code" placeholder="TD-XXXX-XXXX" autocomplete="off" inputmode="text" />
+            <label for="activation-server">Servidor</label>
+            <input id="activation-server" class="server-input" name="activation-server" placeholder="http://IP:PORTA" />
+            <div class="activation-actions">
+                <button id="activation-submit" type="submit">Ativar tela</button>
+                <button id="activation-reset" class="secondary" type="button">Limpar</button>
+            </div>
+            <div id="activation-message"></div>
+        </form>
+    </div>
     <div id="player-container">
         <div class="cache-info" id="cache-info" style="display:none;">Cache: <span id="cache-size">0 MB</span></div>
     </div>
@@ -171,7 +266,7 @@
             const protocol = window.location.protocol;
             const host = window.location.host;
             const baseUrl = protocol + '//' + host;
-            
+
             // Usar /api/player-static/ para que Nginx sempre faça proxy ao backend (evita 404 quando location ^~ /player não existe)
             const scripts = [
                 baseUrl + '/api/player-static/js/cache/MediaCacheManager.js',
@@ -179,7 +274,7 @@
                 baseUrl + '/api/player-static/js/api/client.js',
                 baseUrl + '/api/player-static/js/app.js'
             ];
-            
+
             let loaded = 0;
             scripts.forEach((src, index) => {
                 const script = document.createElement('script');
@@ -215,7 +310,7 @@
             function getServerConfig() {
                 const params = new URLSearchParams(window.location.search);
                 const serverFromUrl = params.get('server') || params.get('api') || params.get('apiBase');
-                
+
                 // Prioridade 1: Parâmetro na URL
                 if (serverFromUrl) {
                     const serverUrl = serverFromUrl.replace(/\/$/, ''); // Remove trailing slash
@@ -228,7 +323,7 @@
                     }
                     return serverUrl;
                 }
-                
+
                 // Prioridade 2: Configuração salva (localStorage)
                 try {
                     const savedServer = localStorage.getItem('smartsignage_server_url');
@@ -239,7 +334,7 @@
                 } catch (e) {
                     console.warn('[Config] Erro ao ler config salva:', e);
                 }
-                
+
                 // Prioridade 3: Fallback (window.location.origin)
                 const fallback = window.location.origin;
                 console.log('[Config] Usando fallback (window.location.origin):', fallback);
@@ -272,15 +367,15 @@
                 debugPanel.style.display = debugEnabled ? 'block' : 'none';
                 const toggleBtn = document.getElementById('debug-toggle');
                 toggleBtn.textContent = debugEnabled ? '✖ Fechar Debug' : '🔍 Debug';
-                
+
                 // Ajustar posição do botão quando o painel está aberto
                 if (debugEnabled) {
                     toggleBtn.style.bottom = '320px';
-                    
+
                     // Limpar mensagem placeholder se existir
                     const placeholder = debugPanel.querySelector('.debug-placeholder');
                     if (placeholder) placeholder.remove();
-                    
+
                     // Se não houver logs, adicionar mensagem de boas-vindas
                     if (debugPanel.children.length === 0) {
                         const welcomeMsg = document.createElement('div');
@@ -298,26 +393,27 @@
 
             function log(type, message, data = null) {
                 if (!debugEnabled) return;
-                
+
                 const timestamp = new Date().toLocaleTimeString();
                 const entry = document.createElement('div');
                 entry.className = `log-entry log-${type}`;
-                
+
                 let content = `<span class="timestamp">[${timestamp}]</span> ${message}`;
                 if (data) {
                     content += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
                 }
-                
+
                 entry.innerHTML = content;
                 debugPanel.appendChild(entry);
                 debugPanel.scrollTop = debugPanel.scrollHeight;
-                
+
                 // Também logar no console
                 console.log(`[${type.toUpperCase()}]`, message, data || '');
             }
 
             function showError(msg) {
                 document.getElementById('loading').style.display = 'none';
+                document.getElementById('activation').style.display = 'none';
                 document.getElementById('player-container').style.display = 'none';
                 const el = document.getElementById('error');
                 el.style.display = 'flex';
@@ -327,13 +423,119 @@
 
             function hideLoadingShowPlayer() {
                 document.getElementById('loading').style.display = 'none';
+                document.getElementById('activation').style.display = 'none';
                 document.getElementById('error').style.display = 'none';
                 document.getElementById('player-container').style.display = 'block';
             }
 
+            function showActivation(message, type) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'none';
+                document.getElementById('player-container').style.display = 'none';
+                document.getElementById('activation').style.display = 'flex';
+
+                const serverInput = document.getElementById('activation-server');
+                if (serverInput && !serverInput.value) {
+                    serverInput.value = API_BASE;
+                }
+
+                const messageEl = document.getElementById('activation-message');
+                if (messageEl) {
+                    messageEl.textContent = message || '';
+                    messageEl.className = type || '';
+                }
+            }
+
             function getUin() {
                 const params = new URLSearchParams(window.location.search);
-                return params.get('uin') || params.get('UIN') || '';
+                const fromUrl = params.get('uin') || params.get('UIN') || '';
+                if (fromUrl) {
+                    saveActivationUin(fromUrl);
+                    return fromUrl;
+                }
+                try {
+                    return localStorage.getItem('smartsignage_totem_uin') || '';
+                } catch (e) {
+                    return '';
+                }
+            }
+
+            function saveActivationUin(uin) {
+                try {
+                    localStorage.setItem('smartsignage_totem_uin', normalizeActivationCode(uin));
+                } catch (e) {
+                    console.warn('[Activation] Erro ao salvar UIN:', e);
+                }
+            }
+
+            function clearActivationData() {
+                try {
+                    localStorage.removeItem('smartsignage_totem_uin');
+                    localStorage.removeItem('smartsignage_player_token');
+                } catch (e) {}
+            }
+
+            function normalizeActivationCode(value) {
+                return String(value || '').trim().toUpperCase();
+            }
+
+            function getOrCreateDeviceId() {
+                try {
+                    const saved = localStorage.getItem('smartsignage_device_id');
+                    if (saved) return saved;
+                } catch (e) {}
+
+                const seed = [
+                    navigator.userAgent,
+                    navigator.language,
+                    screen.width + 'x' + screen.height,
+                    new Date().getTimezoneOffset(),
+                    Math.random().toString(36)
+                ].join('|');
+
+                let hash = 0;
+                for (let i = 0; i < seed.length; i++) {
+                    hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+                    hash = hash & hash;
+                }
+                const deviceId = 'browser-player-' + Math.abs(hash).toString(16);
+                try {
+                    localStorage.setItem('smartsignage_device_id', deviceId);
+                } catch (e) {}
+                return deviceId;
+            }
+
+            function collectHardwareInfo() {
+                return {
+                    deviceId: getOrCreateDeviceId(),
+                    hostname: window.location.hostname || 'player-web',
+                    platform: 'browser',
+                    arch: navigator.platform || '',
+                    userAgent: navigator.userAgent || '',
+                    hardwareHash: getOrCreateDeviceId()
+                };
+            }
+
+            async function registerActivationCode(uin) {
+                const response = await fetch(API_BASE + '/api/player/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        uin,
+                        hardware: collectHardwareInfo()
+                    })
+                });
+
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(data.message || data.error || `HTTP ${response.status}`);
+                }
+                if (data.token) {
+                    try {
+                        localStorage.setItem('smartsignage_player_token', data.token);
+                    } catch (e) {}
+                }
+                return data;
             }
 
             // Interceptar requisições do APIClient para logar
@@ -342,7 +544,7 @@
                 window.APIClient.prototype.request = async function(endpoint, method = 'GET', data = null) {
                     const startTime = Date.now();
                     log('request', `→ ${method} ${endpoint}`, data);
-                    
+
                     try {
                         const result = await originalRequest.call(this, endpoint, method, data);
                         const duration = Date.now() - startTime;
@@ -510,50 +712,28 @@
                 }
             }
 
-            async function main() {
-                log('info', '=== Smart Signage Player - Debug Mode ===');
-                log('info', `Servidor configurado: ${API_BASE}`);
-                console.log('[Player] Servidor:', API_BASE);
-                
-                // Mostrar info de configuração na tela
-                const loadingEl = document.getElementById('loading');
-                if (loadingEl) {
-                    const infoP = document.createElement('p');
-                    infoP.style.marginTop = '10px';
-                    infoP.style.fontSize = '12px';
-                    infoP.style.color = '#888';
-                    infoP.textContent = `Servidor: ${API_BASE}`;
-                    loadingEl.appendChild(infoP);
-                }
-                
-                // 1. Obter UIN do parâmetro
-                const uin = getUin();
-                if (!uin) {
-                    showError('UIN não fornecido na URL. Use: ?uin=SEU_UIN&server=http://IP:PORTA');
-                    log('error', 'UIN não fornecido na URL');
-                    return;
-                }
-                
+            async function startPlayerWithUin(uin) {
                 log('info', `UIN: ${uin}`);
                 console.log('[Player] UIN:', uin);
                 currentUin = uin;
-                
-                // 2. Validar totem (simplificado - apenas verificar se existe e está ativo)
+
+                // Validar totem (simplificado - apenas verificar se existe e está ativo)
                 const validation = await validateTotem(uin);
                 if (!validation.valid) {
                     if (validation.pendingApproval) {
-                        showError('Totem aguardando aprovação do administrador.');
+                        showActivation('Hardware vinculado. Aguarde aprovação do administrador no painel.', 'success');
                     } else if (validation.blocked) {
                         showError(`Totem bloqueado: ${validation.reason || 'Acesso bloqueado'}`);
                     } else {
-                        showError(`Totem inválido: ${validation.error || validation.reason || 'Erro desconhecido'}`);
+                        clearActivationData();
+                        showActivation(`Código não validado: ${validation.error || validation.reason || 'verifique o código no painel.'}`, 'error');
                     }
                     return;
                 }
 
                 hideLoadingShowPlayer();
                 updateDebugControls();
-                
+
                 // 3. Configurar variáveis globais para o player
                 window.API_BASE_URL = API_BASE;
                 window.TOTEM_UIN = uin;
@@ -574,12 +754,12 @@
                     totemSecret: '',
                     maxCacheSize: 500 * 1024 * 1024 // 500MB
                 });
-                
+
                 // Adicionar logs nos eventos do player
                 player.onInitialized = () => {
                     log('info', 'Player inicializado');
                 };
-                
+
                 player.onDispatchPlanLoaded = (plan) => {
                     log('info', `Dispatch plan carregado: ${plan.mediaItems?.length || 0} itens`, {
                         playlistId: plan.playlistId,
@@ -587,34 +767,71 @@
                         mediaCount: plan.mediaItems?.length
                     });
                 };
-                
+
                 player.onPlaying = (mediaItem) => {
                     log('info', `Reproduzindo: ${mediaItem.mediaId}`, {
                         type: mediaItem.type,
                         duration: mediaItem.duration
                     });
                 };
-                
+
                 player.onPlaybackError = (err) => {
                     const msg = (err && err.message) || (err && err.type) || (err && String(err)) || 'Erro desconhecido';
                     log('error', `Erro na reprodução: ${msg}`, err);
                 };
-                
+
                 try {
                     await player.init();
-                    
+
                     // Atualizar info de cache periodicamente
                     setInterval(() => updateCacheInfo(player), 10000);
                     updateCacheInfo(player);
-                    
+
                     await player.playNext();
-                    
+
                     log('info', '=== Player iniciado com sucesso ===');
                 } catch (err) {
                     console.error('[Player] Erro:', err);
                     log('error', `Erro ao iniciar player: ${err.message}`, err);
                     showError('Erro ao iniciar player: ' + (err && err.message));
                 }
+            }
+
+            async function main() {
+                log('info', '=== Smart Signage Player - Debug Mode ===');
+                log('info', `Servidor configurado: ${API_BASE}`);
+                console.log('[Player] Servidor:', API_BASE);
+
+                // Mostrar info de configuração na tela
+                const loadingEl = document.getElementById('loading');
+                if (loadingEl) {
+                    const infoP = document.createElement('p');
+                    infoP.style.marginTop = '10px';
+                    infoP.style.fontSize = '12px';
+                    infoP.style.color = '#888';
+                    infoP.textContent = `Servidor: ${API_BASE}`;
+                    loadingEl.appendChild(infoP);
+                }
+
+                const uin = getUin();
+                if (!uin) {
+                    showActivation('Informe o código de ativação para iniciar esta tela.', '');
+                    log('info', 'Aguardando código de ativação');
+                    return;
+                }
+
+                const params = new URLSearchParams(window.location.search);
+                if (params.get('register') === '1') {
+                    showActivation('Registrando hardware no servidor...', '');
+                    const result = await registerActivationCode(uin);
+                    saveActivationUin(uin);
+                    if (result.status === 'pending_approval') {
+                        showActivation('Hardware vinculado. Aguarde aprovação do administrador no painel.', 'success');
+                        return;
+                    }
+                }
+
+                await startPlayerWithUin(uin);
             }
             // Associar botões de debug às funções
             if (btnValidate) {
@@ -638,6 +855,78 @@
                     requestDebugDispatchPlan().catch(err => {
                         console.error('[Debug] Erro ao solicitar DispatchPlan:', err);
                     });
+                });
+            }
+
+            const activationForm = document.getElementById('activation-form');
+            const activationCodeInput = document.getElementById('activation-code');
+            const activationServerInput = document.getElementById('activation-server');
+            const activationSubmit = document.getElementById('activation-submit');
+            const activationReset = document.getElementById('activation-reset');
+
+            if (activationCodeInput) {
+                activationCodeInput.addEventListener('input', () => {
+                    activationCodeInput.value = normalizeActivationCode(activationCodeInput.value);
+                });
+            }
+
+            if (activationReset) {
+                activationReset.addEventListener('click', () => {
+                    clearActivationData();
+                    if (activationCodeInput) activationCodeInput.value = '';
+                    showActivation('Dados locais limpos. Digite o código para ativar novamente.', '');
+                });
+            }
+
+            if (activationForm) {
+                activationForm.addEventListener('submit', async (event) => {
+                    event.preventDefault();
+                    const code = normalizeActivationCode(activationCodeInput && activationCodeInput.value);
+                    const server = String(activationServerInput && activationServerInput.value || '').trim().replace(/\/$/, '');
+
+                    if (!code) {
+                        showActivation('Digite o código de ativação exibido no painel.', 'error');
+                        return;
+                    }
+
+                    if (server && server !== API_BASE) {
+                        try {
+                            localStorage.setItem('smartsignage_server_url', server);
+                        } catch (e) {}
+                        const nextUrl = new URL(window.location.href);
+                        nextUrl.searchParams.set('server', server);
+                        nextUrl.searchParams.set('uin', code);
+                        nextUrl.searchParams.set('register', '1');
+                        window.location.href = nextUrl.toString();
+                        return;
+                    }
+
+                    try {
+                        if (activationSubmit) {
+                            activationSubmit.disabled = true;
+                            activationSubmit.textContent = 'Ativando...';
+                        }
+                        showActivation('Registrando hardware no servidor...', '');
+                        const result = await registerActivationCode(code);
+                        saveActivationUin(code);
+
+                        if (result.status === 'pending_approval') {
+                            showActivation('Hardware vinculado. Aguarde aprovação do administrador no painel.', 'success');
+                            return;
+                        }
+
+                        document.getElementById('activation').style.display = 'none';
+                        document.getElementById('loading').style.display = 'flex';
+                        await startPlayerWithUin(code);
+                    } catch (e) {
+                        clearActivationData();
+                        showActivation('Erro ao ativar: ' + (e && e.message ? e.message : 'verifique o código e o servidor.'), 'error');
+                    } finally {
+                        if (activationSubmit) {
+                            activationSubmit.disabled = false;
+                            activationSubmit.textContent = 'Ativar tela';
+                        }
+                    }
                 });
             }
 

@@ -68,6 +68,30 @@ function getActivationCode(totem: any): string {
   return String(totem?.uin || '').trim();
 }
 
+function hasLinkedHardware(totem: any): boolean {
+  const hardware = totem?.config?.hardware || totem?.network_info?.hardware || totem?.networkInfo?.hardware;
+  return Boolean(hardware?.linkedAt || hardware?.mac || hardware?.hardwareHash || hardware?.hostname || totem?.deviceId);
+}
+
+function getOperationalStatus(totem: any): { label: string; color: 'default' | 'primary' | 'success' | 'warning' | 'error'; variant: 'filled' | 'outlined' } {
+  if (!isTotemRegistryActive(totem)) {
+    return { label: 'Desativado', color: 'warning', variant: 'filled' };
+  }
+  if (totem?.status === 'online') {
+    return { label: 'Online', color: 'success', variant: 'filled' };
+  }
+  if (totem?.status === 'error') {
+    return { label: 'Erro', color: 'error', variant: 'filled' };
+  }
+  if (totem?.status === 'pending_approval') {
+    return { label: 'Aguardando aprovação', color: 'warning', variant: 'filled' };
+  }
+  if (hasLinkedHardware(totem)) {
+    return { label: 'Hardware vinculado', color: 'primary', variant: 'outlined' };
+  }
+  return { label: 'Aguardando ativação', color: 'default', variant: 'outlined' };
+}
+
 /** ID numérico do totem independente de snake_case/camelCase na API. */
 function resolveTotemRecordId(t: any): number | null {
   return getTotemIdFromRow(t) ?? null;
@@ -652,6 +676,7 @@ const Totems: React.FC = () => {
               const titleLine = t.name || t.identifier || (totemId ? `Totem ${totemId}` : 'Totem');
               const identStr = String(t.identifier || '').trim();
               const activationCode = getActivationCode(t);
+              const operationalStatus = getOperationalStatus(t);
               const showIdentifierLine = Boolean(identStr && identStr !== String(titleLine).trim());
               const avatarBg = !registryActive
                 ? 'warning.main'
@@ -714,11 +739,14 @@ const Totems: React.FC = () => {
                         )}
                       </Box>
                       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5 }}>
-                        {!registryActive && (
-                          <Tooltip title="Totem ativo (cadastro) desligado em Editar — não confundir com estado de rede">
-                            <Chip size="small" label="DESATIVADO" color="warning" variant="filled" />
-                          </Tooltip>
-                        )}
+                        <Tooltip title="Estado operacional do fluxo de ativação do player">
+                          <Chip
+                            size="small"
+                            label={operationalStatus.label}
+                            color={operationalStatus.color as any}
+                            variant={operationalStatus.variant}
+                          />
+                        </Tooltip>
                         <Tooltip
                           title={
                             registryActive
@@ -838,6 +866,7 @@ const Totems: React.FC = () => {
                 const titleLinePending = t.name || t.identifier || (pendingRid ? `Totem ${pendingRid}` : 'Totem');
                 const identStrPending = String(t.identifier || '').trim();
                 const activationCodePending = getActivationCode(t);
+                const operationalStatusPending = getOperationalStatus(t);
                 const showIdentifierLinePending = Boolean(
                   identStrPending && identStrPending !== String(titleLinePending).trim()
                 );
@@ -891,6 +920,14 @@ const Totems: React.FC = () => {
                             </Box>
                           )}
                         </Box>
+                      </Box>
+                      <Box sx={{ mt: 2 }}>
+                        <Chip
+                          size="small"
+                          label={operationalStatusPending.label}
+                          color={operationalStatusPending.color as any}
+                          variant={operationalStatusPending.variant}
+                        />
                       </Box>
                       {canAdministerTotems && (
                         <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
