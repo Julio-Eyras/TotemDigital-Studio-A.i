@@ -104,6 +104,9 @@ class DebugConfigActivity : AppCompatActivity() {
 
         val reason = intent.getStringExtra(EXTRA_REASON) ?: "manual"
         textReason.text = "Modo desenvolvimento aberto: $reason"
+        if (reason == "first_run") {
+            textReason.append("\n\nPré-cadastre a tela no painel (Totens), depois use «Vincular código ao hardware» — apenas API; sem SQL no servidor.")
+        }
         PlayerAdLogger.i("DEBUG_UI", "Ecrã de configuração/debug aberto: $reason")
 
         val current = PlayerConfigLoader(this).load()
@@ -343,17 +346,21 @@ class DebugConfigActivity : AppCompatActivity() {
 
             result.onSuccess { json ->
                 saveConfigInternal(cfg)
+                val status = json.optString("status", "")
                 val token = json.optString("token", "")
                 if (token.isNotBlank()) lastHeartbeatToken = token
 
-                val status = json.optString("status", "")
-                val canStartNow = status.equals("online", true) || status.equals("active", true)
-                setHeartbeatAndDispatchState(heartbeatOk = canStartNow, dispatchOk = false)
+                // Resposta de registo devolve sempre token HMAC; com isso o operador pode gravar
+                // e sair mesmo em pending_approval (reprodução completa depende da aprovação no painel).
+                val canSaveAndExit = token.isNotBlank()
+                val canStartPlaybackNow =
+                    status.equals("online", true) || status.equals("active", true)
+                setHeartbeatAndDispatchState(heartbeatOk = canSaveAndExit, dispatchOk = false)
 
                 setStatus("✔ Código vinculado ao hardware\n\n${summarizeActivationResponse(json)}")
                 appendStatus("\nConfiguração salva no aparelho.")
-                if (!canStartNow) {
-                    appendStatus("Aguarde aprovação no painel antes de iniciar a reprodução.")
+                if (!canStartPlaybackNow) {
+                    appendStatus("Aguarde aprovação no painel (Totens → Pendentes) antes do dispatch de playlists.")
                 }
                 PlayerAdLogger.i("DEBUG_UI", "Vinculação por código OK (status=$status)")
                 refreshOfflineState()

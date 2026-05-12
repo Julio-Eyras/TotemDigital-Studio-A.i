@@ -121,7 +121,7 @@ Entregas:
 - Guia oficial do player V3x (`docs/PLAYER_OFICIAL_V3X.md`).
 - Script Linux kiosk (`scripts/install-player-v3x-linux-kiosk.sh`: autostart, `--systemd-user`, `--linger`, flags Chromium leves).
 - Normalizacao do codigo de ativacao (backend `/api/player`, `player-web/js/activationCode.js`, Player-AD `PlayerConfigLoader`).
-- Vinculacao inicial de hardware no Player-AD sem editar backend manualmente.
+- Vinculacao inicial de hardware no Player-AD via `POST /api/player/register` e aprovacao em Totens (sem SQL manual; UX de «Aplicar» apos vincular melhorada).
 - Autostart.
 - Watchdog.
 - Watchdog interno no Player-AD para recuperar loop encerrado/falho e video travado.

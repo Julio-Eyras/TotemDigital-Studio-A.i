@@ -84,6 +84,15 @@ Validar que um player consegue se auto-registrar no servidor quando não possui 
 ✅ Tela de "Aguardando Aprovação" exibida no player  
 ✅ Hardware info armazenado no campo `config`
 
+### Fluxo Player-AD (pré-cadastro, só API — sem editar backend)
+
+1. No painel, em **Totens**, crie a tela e copie o código (`TD-...`).
+2. No dispositivo Android TV, abra o Player-AD; na primeira execução abre o ecrã de configuração.
+3. Preencha **URL do servidor**, **código** e **deviceId**.
+4. Toque em **Vincular código ao hardware** — isto chama `POST /api/player/register` (não altera ficheiros nem SQL no servidor à mão).
+5. Se o estado passar a `pending_approval`, no painel vá a **Totens** → **Pendentes de Aprovação** → **Aprovar**.
+6. Use **Aplicar e iniciar** para gravar `player-config.json` no aparelho e fechar o ecrã; o loop de reprodução arranca (o dispatch de playlists segue as regras do totem aprovado).
+
 ---
 
 ## Teste 2: Interface de Aprovação no Painel Admin
