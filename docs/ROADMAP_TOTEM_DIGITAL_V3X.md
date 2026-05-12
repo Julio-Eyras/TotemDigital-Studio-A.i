@@ -118,8 +118,8 @@ Motivos:
 
 Entregas:
 
-- Guia oficial do player V3x.
-- Script de instalacao/provisionamento.
+- Guia oficial do player V3x (`docs/PLAYER_OFICIAL_V3X.md`).
+- Script de instalacao/provisionamento Linux kiosk (`scripts/install-player-v3x-linux-kiosk.sh`).
 - Normalizacao do codigo de ativacao nos players web e Android.
 - Vinculacao inicial de hardware no Player-AD sem editar backend manualmente.
 - Autostart.
@@ -127,7 +127,7 @@ Entregas:
 - Watchdog interno no Player-AD para recuperar loop encerrado/falho e video travado.
 - Watchdog de reproducao no player-web para pular video que nao inicia ou nao finaliza.
 - Cache offline.
-- Recuperacao apos queda de rede.
+- Recuperacao apos queda de rede (player-web ressincroniza em `online`).
 - Logs basicos de saude.
 - Resumo de saude do player persistido no heartbeat e visivel em Totens.
 

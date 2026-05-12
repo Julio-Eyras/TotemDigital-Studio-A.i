@@ -42,6 +42,8 @@ class SmartSignagePlayer {
         this.mediaPlayer = null;
         this.mediaCacheManager = null;
         this.playlistChangeDetector = null;
+        /** debounce do handler `window.online` */
+        this._onlineRecoveryTimer = null;
     }
 
     /** Resolve URL de mídia: se for path relativo (/api/...), converte para URL absoluta com apiBaseURL */
@@ -614,6 +616,23 @@ class SmartSignagePlayer {
                 this.loadDispatchPlan().catch((e) => console.warn('[Player] Sync dispatch:', e));
             }
         }, this.config.dispatchSyncInterval);
+
+        if (typeof window !== 'undefined' && window.addEventListener) {
+            window.addEventListener('online', () => {
+                if (this._onlineRecoveryTimer) {
+                    clearTimeout(this._onlineRecoveryTimer);
+                }
+                this._onlineRecoveryTimer = setTimeout(() => {
+                    this._onlineRecoveryTimer = null;
+                    console.log('[Player] Rede de volta — ressincronizando heartbeat e dispatch');
+                    this.sendHeartbeat().catch((e) => console.warn('[Player] Heartbeat após rede:', e));
+                    this.loadDispatchPlan(true).catch((e) => console.warn('[Player] Dispatch após rede:', e));
+                }, 2000);
+            });
+            window.addEventListener('offline', () => {
+                console.warn('[Player] Rede offline — playback segue com cache/plano local quando disponível');
+            });
+        }
 
         console.log('[Player] Serviços (heartbeat, sync) iniciados.');
     }
