@@ -406,7 +406,7 @@ class PlayerController(
 
     private suspend fun fetchOnlinePlan(previousToken: String): OnlinePlanResult {
         PlayerAdLogger.i("LIFECYCLE", "(2) DispatchPlan + pré-cache (GET /api/player/dispatch)")
-        val hb = apiClient.heartbeatWithCommands()
+        val hb = apiClient.heartbeatWithCommands(buildHealthMetrics())
         var token = hb.token
         PlayerAdLogger.i("HEARTBEAT", "OK — sessão/token renovados; comandos=${hb.pendingCommands.size}")
         if (hb.pendingCommands.isNotEmpty()) {
@@ -421,6 +421,24 @@ class PlayerController(
             token = effectiveToken,
             plan = plan
         )
+    }
+
+    private fun buildHealthMetrics(): JSONObject {
+        val root = AppDirs.root(context)
+        val runtime = Runtime.getRuntime()
+        return JSONObject().apply {
+            put("player", "Player-AD")
+            put("platform", "android")
+            put("uin", apiClient.uin)
+            put("deviceId", apiClient.deviceId)
+            put("cacheRoot", root.absolutePath)
+            put("propagandasCount", listFallbackFiles(propagandasDir).size)
+            put("vinhetasCount", listFallbackFiles(vinhetasDir).size)
+            put("storageFreeBytes", root.freeSpace)
+            put("storageTotalBytes", root.totalSpace)
+            put("heapUsedBytes", runtime.totalMemory() - runtime.freeMemory())
+            put("heapMaxBytes", runtime.maxMemory())
+        }
     }
 
     private suspend fun processPendingCommands(

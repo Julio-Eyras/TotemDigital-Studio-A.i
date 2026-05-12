@@ -129,6 +129,7 @@ Entregas:
 - Cache offline.
 - Recuperacao apos queda de rede.
 - Logs basicos de saude.
+- Resumo de saude do player persistido no heartbeat e visivel em Totens.
 
 Criterio de aceite:
 

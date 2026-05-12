@@ -114,6 +114,33 @@ function getOperationalStatus(totem: any): { label: string; color: 'default' | '
   return { label: 'Aguardando ativação', color: 'default', variant: 'outlined' };
 }
 
+function formatBytes(value: unknown): string | null {
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes) || bytes < 0) return null;
+  if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getPlayerHealthLines(totem: any): string[] {
+  const health = totem?.config?.health || totem?.network_info?.health || totem?.networkInfo?.health;
+  const metrics = health?.metrics || {};
+  const lines: string[] = [];
+  const platform = metrics.platform || health?.platform || metrics.player;
+  const currentMediaId = metrics.currentMediaId;
+  const cacheSize = formatBytes(metrics.cacheSize);
+  const storageFree = formatBytes(metrics.storageFreeBytes);
+
+  if (platform) lines.push(`Player: ${platform}`);
+  if (currentMediaId) lines.push(`Mídia atual: ${currentMediaId}`);
+  if (cacheSize) lines.push(`Cache: ${cacheSize}`);
+  if (storageFree) lines.push(`Livre: ${storageFree}`);
+  if (health?.lastHeartbeatAt) {
+    lines.push(`Saúde: ${new Date(health.lastHeartbeatAt).toLocaleString()}`);
+  }
+
+  return lines.slice(0, 4);
+}
+
 /** ID numérico do totem independente de snake_case/camelCase na API. */
 function resolveTotemRecordId(t: any): number | null {
   return getTotemIdFromRow(t) ?? null;
@@ -796,6 +823,7 @@ const Totems: React.FC = () => {
               const identStr = String(t.identifier || '').trim();
               const activationCode = getActivationCode(t);
               const operationalStatus = getOperationalStatus(t);
+              const healthLines = getPlayerHealthLines(t);
               const showIdentifierLine = Boolean(identStr && identStr !== String(titleLine).trim());
               const avatarBg = !registryActive
                 ? 'warning.main'
@@ -842,6 +870,11 @@ const Totems: React.FC = () => {
                             <LocationOn fontSize="small" color="action" />
                             <Typography variant="caption" color="text.secondary">{t.location}</Typography>
                           </Box>
+                        )}
+                        {healthLines.length > 0 && (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
+                            {healthLines.join(' • ')}
+                          </Typography>
                         )}
                         {/* Indicar se foi forçado online */}
                         {(t.forced_online_until || (t as any).forced_online_until || (t as any).forcedOnlineUntil) && (

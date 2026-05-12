@@ -87,7 +87,7 @@ class DispatcherApiClient(
         token
     }
 
-    private fun performHeartbeatRequest(token: String): Pair<Int, String> {
+    private fun performHeartbeatRequest(token: String, metrics: JSONObject? = null): Pair<Int, String> {
         val url = URL(
             "$baseUrl/api/player/heartbeat?uin=${encode(uin)}&token=${encode(token)}&deviceId=${encode(deviceId)}"
         )
@@ -96,12 +96,14 @@ class DispatcherApiClient(
             setRequestProperty("Content-Type", "application/json")
         }
 
-        val body = JSONObject(
-            mapOf(
-                "uin" to uin,
-                "deviceId" to deviceId
-            )
-        ).toString()
+        val body = JSONObject().apply {
+            put("uin", uin)
+            put("deviceId", deviceId)
+            put("status", "online")
+            put("platform", "android")
+            put("version", "player-ad")
+            if (metrics != null) put("metrics", metrics)
+        }.toString()
 
         conn.outputStream.use { it.write(body.toByteArray()) }
 
@@ -116,14 +118,14 @@ class DispatcherApiClient(
         return responseCode to responseBody
     }
 
-    suspend fun heartbeatWithCommands(): HeartbeatResult = withContext(Dispatchers.IO) {
+    suspend fun heartbeatWithCommands(metrics: JSONObject? = null): HeartbeatResult = withContext(Dispatchers.IO) {
         var tkn = currentToken ?: getToken()
-        var (responseCode, responseBody) = performHeartbeatRequest(tkn)
+        var (responseCode, responseBody) = performHeartbeatRequest(tkn, metrics)
         if (responseCode == 401) {
             currentToken = null
             tkn = getToken()
             currentToken = tkn
-            val second = performHeartbeatRequest(tkn)
+            val second = performHeartbeatRequest(tkn, metrics)
             responseCode = second.first
             responseBody = second.second
         }

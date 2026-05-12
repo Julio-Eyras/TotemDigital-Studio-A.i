@@ -1129,6 +1129,29 @@ export class TotemService {
         throw new Error('Totem não encontrado');
       }
       const previousStatus = totem.status;
+      const existingConfig =
+        totem.config && typeof totem.config === 'object' && !Array.isArray(totem.config)
+          ? totem.config
+          : {};
+      const incomingConfig =
+        config && typeof config === 'object' && !Array.isArray(config)
+          ? config
+          : {};
+      const baseNetworkInfo = config ? { ...existingConfig, ...incomingConfig } : { ...existingConfig };
+      const health = {
+        ...(baseNetworkInfo.health || {}),
+        lastHeartbeatAt: new Date().toISOString(),
+        status: status || totem.status || 'online',
+        ...(version ? { version } : {}),
+        ...(firmwareVersion ? { firmwareVersion } : {}),
+        ...(ipAddress ? { ip: ipAddress } : {}),
+        ...(metrics ? { metrics } : {})
+      };
+      const networkInfo = {
+        ...baseNetworkInfo,
+        ...(ipAddress ? { ip: ipAddress } : {}),
+        health
+      };
 
       // Atualizar dados do heartbeat (PostgreSQL placeholders $1, $2, ...)
       const updates: string[] = [];
@@ -1152,21 +1175,9 @@ export class TotemService {
         params.push(firmwareVersion);
       }
 
-      if (ipAddress) {
-        // ipAddress deve ser atualizado em network_info (JSONB)
-        updates.push(`network_info = jsonb_set(COALESCE(network_info, '{}'::jsonb), '{ip}', $${paramIndex++}::jsonb)`);
-        params.push(JSON.stringify(ipAddress));
-      }
-
-      if (config) {
-        updates.push(`network_info = $${paramIndex++}::jsonb`);
-        params.push(JSON.stringify(config));
-      }
-
-      if (updates.length <= 2) {
-        // Apenas timestamps, não precisa de UPDATE
-        return await this.getTotemById(totemId) as TotemResponse;
-      }
+      // Persistir um resumo de saúde no JSONB para diagnóstico rápido no painel.
+      updates.push(`network_info = $${paramIndex++}::jsonb`);
+      params.push(JSON.stringify(networkInfo));
 
       params.push(totemId);
       const totemIdPlaceholder = `$${paramIndex}`;
