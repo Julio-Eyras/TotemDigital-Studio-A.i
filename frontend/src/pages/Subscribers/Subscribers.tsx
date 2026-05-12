@@ -102,6 +102,7 @@ import {
   smartTvApi,
   contractApi,
   planApi,
+  settingsApi,
 } from '../../services/api';
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 import { SortableList } from '../../components/SortableList/SortableList';
@@ -117,6 +118,35 @@ import { PlanTopologyTabPanel } from './PlanTopologyTabPanel';
 
 const compareByDisplayName = (a?: string, b?: string) =>
   String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
+
+interface SubscriberStatusFilterOption {
+  value: string;
+  label: string;
+  activeOnly?: boolean;
+}
+
+const DEFAULT_SUBSCRIBER_STATUS_OPTIONS: SubscriberStatusFilterOption[] = [
+  { value: 'active', label: 'Ativos', activeOnly: true },
+  { value: 'all', label: 'Todos' },
+];
+
+const normalizeSubscriberStatusOptions = (rawValue: unknown): SubscriberStatusFilterOption[] => {
+  const source = Array.isArray(rawValue)
+    ? rawValue
+    : rawValue && typeof rawValue === 'object' && Array.isArray((rawValue as any).options)
+      ? (rawValue as any).options
+      : [];
+
+  const options = source
+    .map((option: any) => ({
+      value: String(option?.value ?? '').trim(),
+      label: String(option?.label ?? option?.value ?? '').trim(),
+      activeOnly: option?.activeOnly === true,
+    }))
+    .filter((option) => option.value && option.label);
+
+  return options.length > 0 ? options : DEFAULT_SUBSCRIBER_STATUS_OPTIONS;
+};
 
 const Subscribers: React.FC = () => {
   const theme = useTheme();
@@ -185,7 +215,10 @@ const Subscribers: React.FC = () => {
   } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   // clientTypeFilter removido - subscribers não têm tipos
-  const [activeOnlyFilter, setActiveOnlyFilter] = useState<boolean>(true);
+  const [statusFilterValue, setStatusFilterValue] = useState<string>('active');
+  const [subscriberStatusOptions, setSubscriberStatusOptions] = useState<SubscriberStatusFilterOption[]>(
+    DEFAULT_SUBSCRIBER_STATUS_OPTIONS
+  );
   const [error, setError] = useState<string | null>(null);
   // Estados para paginação
   const [page, setPage] = useState<number>(1);
@@ -350,6 +383,10 @@ const Subscribers: React.FC = () => {
   const [mediaRotationDrafts, setMediaRotationDrafts] = useState<Record<number, number>>({});
   const [processingMediaRotationId, setProcessingMediaRotationId] = useState<number | null>(null);
   const [mediaThumbVersion, setMediaThumbVersion] = useState(0);
+  const activeOnlyFilter = useMemo(() => {
+    const selectedOption = subscriberStatusOptions.find((option) => option.value === statusFilterValue);
+    return selectedOption?.activeOnly === true;
+  }, [statusFilterValue, subscriberStatusOptions]);
   const [editingEditPlaylistIndex, setEditingEditPlaylistIndex] = useState<number | null>(null);
   const [editingEditCampaignIndex, setEditingEditCampaignIndex] = useState<number | null>(null);
   const [campaignSaveLoading, setCampaignSaveLoading] = useState(false);
@@ -494,6 +531,32 @@ const Subscribers: React.FC = () => {
   });
 
   useEffect(() => {
+    let cancelled = false;
+
+    const loadStatusOptions = async () => {
+      try {
+        const settings = await settingsApi.getPublic();
+        const options = normalizeSubscriberStatusOptions(settings['ui.combo.subscribers.status_filter']);
+        if (!cancelled) {
+          setSubscriberStatusOptions(options);
+          if (!options.some((option) => option.value === 'active')) {
+            setStatusFilterValue(options[0]?.value || 'active');
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          setSubscriberStatusOptions(DEFAULT_SUBSCRIBER_STATUS_OPTIONS);
+        }
+      }
+    };
+
+    loadStatusOptions();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     loadSubscribers();
   }, [activeOnlyFilter, page, limit]);
 
@@ -623,7 +686,7 @@ const Subscribers: React.FC = () => {
       setError(null);
       const response = await subscriberApi.getAll({
         search: searchTerm || undefined,
-        active_only: activeOnlyFilter,
+        active_only: activeOnlyFilter ? true : undefined,
         page,
         limit,
       });
@@ -2117,12 +2180,18 @@ const Subscribers: React.FC = () => {
                 <InputLabel>Status</InputLabel>
                 <Select
                   sx={sxSelectChosenGreen(true)}
-                  value={activeOnlyFilter ? 'active' : 'all'}
+                  value={statusFilterValue}
                   label="Status"
-                  onChange={(e) => setActiveOnlyFilter(e.target.value === 'active')}
+                  onChange={(e) => {
+                    setStatusFilterValue(String(e.target.value));
+                    setPage(1);
+                  }}
                 >
-                  <MenuItem value="active">Ativos</MenuItem>
-                  <MenuItem value="all">Todos</MenuItem>
+                  {subscriberStatusOptions.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </Grid>

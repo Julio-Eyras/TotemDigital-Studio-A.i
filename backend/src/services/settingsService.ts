@@ -47,7 +47,33 @@ export interface SettingsValidation {
   warnings: { [key: string]: string };
 }
 
+type DefaultSystemSetting = Omit<SystemSetting, 'id' | 'createdAt' | 'updatedAt' | 'value'> & {
+  value: any;
+};
+
+const DEFAULT_UI_SETTINGS: DefaultSystemSetting[] = [
+  {
+    key: 'ui.combo.subscribers.status_filter',
+    value: [
+      { value: 'active', label: 'Ativos', activeOnly: true },
+      { value: 'all', label: 'Todos' }
+    ],
+    type: 'json',
+    category: 'ui',
+    description: 'Opções do combo Status na tela de Anunciantes. Use activeOnly=true para filtrar apenas ativos; sem activeOnly lista todos.',
+    isPublic: true,
+    isEditable: true,
+    options: undefined,
+    defaultValue: JSON.stringify([
+      { value: 'active', label: 'Ativos', activeOnly: true },
+      { value: 'all', label: 'Todos' }
+    ])
+  }
+];
+
 export class SettingsService {
+  private defaultUiSettingsEnsured = false;
+
   private get db() {
     return getDatabase();
   }
@@ -72,11 +98,73 @@ export class SettingsService {
     }
   }
 
+  private async ensureDefaultUiSettings(): Promise<void> {
+    if (this.defaultUiSettingsEnsured) {
+      return;
+    }
+
+    for (const setting of DEFAULT_UI_SETTINGS) {
+      const existing = await this.db.findFirst(
+        'SELECT setting_id FROM system_settings WHERE setting_key = ?',
+        [setting.key]
+      );
+      if (existing) {
+        await this.db.executeRaw(`
+          UPDATE system_settings
+          SET setting_type = ?,
+              category = ?,
+              description = ?,
+              is_public = ?,
+              is_editable = ?,
+              validation = ?,
+              options = ?,
+              default_value = ?,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE setting_key = ?
+        `, [
+          setting.type,
+          setting.category,
+          setting.description,
+          setting.isPublic,
+          setting.isEditable,
+          setting.validation || null,
+          setting.options ? JSON.stringify(setting.options) : null,
+          setting.defaultValue,
+          setting.key
+        ]);
+        continue;
+      }
+
+      await this.db.executeRaw(`
+        INSERT INTO system_settings (
+          setting_key, setting_value, setting_type, category, description,
+          is_public, is_editable, validation, options, default_value
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        setting.key,
+        this.convertValueToString(setting.value, setting.type),
+        setting.type,
+        setting.category,
+        setting.description,
+        setting.isPublic,
+        setting.isEditable,
+        setting.validation || null,
+        setting.options ? JSON.stringify(setting.options) : null,
+        setting.defaultValue
+      ]);
+    }
+
+    this.defaultUiSettingsEnsured = true;
+  }
+
   /**
    * Busca todas as configurações organizadas por categoria
    */
   async getSettings(): Promise<SettingsResponse> {
     try {
+      await this.ensureDefaultUiSettings();
+
       const settings = await this.db.findMany(`
         SELECT 
           setting_id as id,
@@ -154,6 +242,8 @@ export class SettingsService {
    */
   async getSetting(key: string): Promise<SystemSetting | null> {
     try {
+      await this.ensureDefaultUiSettings();
+
       const setting = await this.db.findFirst(`
         SELECT 
           setting_id as id,
@@ -656,7 +746,8 @@ export class SettingsService {
       'performance': 'Performance',
       'notifications': 'Notificações',
       'integrations': 'Integrações',
-      'appearance': 'Aparência'
+      'appearance': 'Aparência',
+      'ui': 'Interface'
     };
 
     return names[category] || category;
@@ -676,7 +767,8 @@ export class SettingsService {
       'performance': 'Configurações de performance',
       'notifications': 'Configurações de notificações',
       'integrations': 'Configurações de integrações',
-      'appearance': 'Configurações de aparência'
+      'appearance': 'Configurações de aparência',
+      'ui': 'Configurações de interface e listas de seleção'
     };
 
     return descriptions[category] || 'Configurações da categoria';
@@ -696,7 +788,8 @@ export class SettingsService {
       'performance': 'speed',
       'notifications': 'notifications',
       'integrations': 'extension',
-      'appearance': 'palette'
+      'appearance': 'palette',
+      'ui': 'tune'
     };
 
     return icons[category] || 'settings';

@@ -99,11 +99,18 @@ router.get('/',
         createdTo
       } = req.query;
       
+      const activeFilter =
+        is_active !== undefined
+          ? (is_active === 'true' || is_active === '1')
+          : active_only === 'true' || active_only === '1'
+            ? true
+            : undefined;
+
       const result = await getSubscriberService().getAllSubscribers({
         page: parseInt(page as string),
         limit: parseInt(limit as string),
         search: search as string,
-        is_active: is_active !== undefined ? (is_active === 'true' || is_active === '1') : (active_only !== undefined ? (active_only === 'true' || active_only === '1') : undefined),
+        is_active: activeFilter,
         sortBy: sortBy as string,
         sortOrder: sortOrder as 'asc' | 'desc',
         createdFrom: createdFrom as string,

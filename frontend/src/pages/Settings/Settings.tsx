@@ -76,6 +76,22 @@ function isSettingReadOnly(s: SystemSetting): boolean {
   return v === false || v === 0 || v === '0' || v === 'false';
 }
 
+function formatSettingValueForEdit(s: SystemSetting): string {
+  if (s.type === 'json' || s.type === 'array') {
+    return typeof s.value === 'string' ? s.value : JSON.stringify(s.value ?? (s.type === 'array' ? [] : {}), null, 2);
+  }
+  return String(s.value ?? '');
+}
+
+function parseSettingValueForSave(s: SystemSetting): any {
+  if ((s.type === 'json' || s.type === 'array') && typeof s.value === 'string') {
+    const trimmed = s.value.trim();
+    if (!trimmed) return s.type === 'array' ? [] : {};
+    return JSON.parse(trimmed);
+  }
+  return s.value;
+}
+
 function TabPanel(props: TabPanelProps) {
   const { children, value, index, ...other } = props;
   return (
@@ -272,7 +288,7 @@ const Settings: React.FC = () => {
       // Converter para formato esperado pelo backend
       const settingsObj: { [key: string]: any } = {};
       settingsToSave.forEach(s => {
-        settingsObj[s.key] = s.value;
+        settingsObj[s.key] = parseSettingValueForSave(s);
       });
       
       await settingsApi.updateMultiple(settingsObj);
@@ -286,7 +302,7 @@ const Settings: React.FC = () => {
       // Recarregar configurações após salvar
       await loadSettings();
     } catch (e) {
-      setError('Erro ao salvar configurações');
+      setError(pickApiErrorMessage(e, 'Erro ao salvar configurações. Verifique se campos JSON estão válidos.'));
     }
   };
 
@@ -457,10 +473,17 @@ const Settings: React.FC = () => {
                           <TextField
                             fullWidth
                             label={s.description || s.key}
-                            value={String(s.value ?? '')}
+                            value={formatSettingValueForEdit(s)}
                             onChange={(e) => handleChange(s.key, e.target.value)}
                             type={s.type === 'number' ? 'number' : 'text'}
+                            multiline={s.type === 'json' || s.type === 'array'}
+                            minRows={s.type === 'json' || s.type === 'array' ? 4 : undefined}
                             disabled={readOnly}
+                            helperText={
+                              s.type === 'json' || s.type === 'array'
+                                ? 'Edite como JSON válido.'
+                                : undefined
+                            }
                           />
                         )}
                       </CardContent>
@@ -593,12 +616,16 @@ const Settings: React.FC = () => {
                       <TextField
                         fullWidth
                         label={s.description || s.key}
-                        value={String(s.value ?? '')}
+                        value={formatSettingValueForEdit(s)}
                         onChange={(e) => handleChange(s.key, e.target.value)}
                         type={s.type === 'number' ? 'number' : 'text'}
+                        multiline={s.type === 'json' || s.type === 'array'}
+                        minRows={s.type === 'json' || s.type === 'array' ? 4 : undefined}
                         disabled={readOnly}
                         helperText={
-                          s.key === 'log.rotation.max_size' || s.key === 'log.rotation.min_free_space'
+                          s.type === 'json' || s.type === 'array'
+                            ? 'Edite como JSON válido.'
+                            : s.key === 'log.rotation.max_size' || s.key === 'log.rotation.min_free_space'
                             ? 'Formato: 100MB, 1GB, etc.'
                             : undefined
                         }
@@ -731,11 +758,15 @@ const Settings: React.FC = () => {
                       <TextField
                         fullWidth
                         label={s.description || s.key}
-                        value={String(s.value ?? '')}
+                        value={formatSettingValueForEdit(s)}
                         onChange={(e) => handleChange(s.key, e.target.value)}
                         disabled={readOnly}
+                        multiline={s.type === 'json' || s.type === 'array'}
+                        minRows={s.type === 'json' || s.type === 'array' ? 4 : undefined}
                         helperText={
-                          s.key.includes('size') || s.key.includes('quota')
+                          s.type === 'json' || s.type === 'array'
+                            ? 'Edite como JSON válido.'
+                            : s.key.includes('size') || s.key.includes('quota')
                             ? 'Formato: número seguido de unidade (ex: 500MB, 1GB)'
                             : s.validation
                               ? `Validação: ${s.validation}`

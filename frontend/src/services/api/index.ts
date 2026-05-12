@@ -1510,9 +1510,9 @@ export const settingsApi = {
     return Array.isArray(data) ? data : [];
   },
 
-  getPublic: async (): Promise<SystemSetting[]> => {
+  getPublic: async (): Promise<Record<string, any>> => {
     const response = await api.get('/settings/public');
-    return response.data.data;
+    return response.data.data || {};
   },
 
   update: async (key: string, value: any): Promise<SystemSetting> => {

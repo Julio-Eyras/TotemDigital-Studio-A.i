@@ -87,8 +87,16 @@ INSERT INTO system_settings (setting_key, setting_value, setting_type, category,
 ('limits.defaults.campaigns', '0', 'number', 'limits', 'Campanhas padrão; 0 = ilimitado'),
 ('limits.defaults.totems', '0', 'number', 'limits', 'Totens padrão; 0 = ilimitado'),
 ('limits.defaults.medias', '0', 'number', 'limits', 'Mídias padrão; 0 = ilimitado'),
-('limits.defaults.playlists', '0', 'number', 'limits', 'Playlists padrão; 0 = ilimitado')
+('limits.defaults.playlists', '0', 'number', 'limits', 'Playlists padrão; 0 = ilimitado'),
+('ui.combo.subscribers.status_filter', '[{"value":"active","label":"Ativos","activeOnly":true},{"value":"all","label":"Todos"}]', 'json', 'ui', 'Opções do combo Status na tela de Anunciantes')
 ON CONFLICT (setting_key) DO NOTHING;
+
+UPDATE system_settings
+SET is_public = true,
+    is_editable = true,
+    default_value = '[{"value":"active","label":"Ativos","activeOnly":true},{"value":"all","label":"Todos"}]',
+    updated_at = CURRENT_TIMESTAMP
+WHERE setting_key = 'ui.combo.subscribers.status_filter';
 
 -- Chave legada (JSON) substituída por media.upload.allowed_types (string) consumida pelo backend
 DELETE FROM system_settings WHERE setting_key = 'media.allowed_types';

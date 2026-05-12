@@ -128,6 +128,35 @@ ON CONFLICT (setting_key) DO UPDATE SET
   updated_at = CURRENT_TIMESTAMP;
 
 -- =============================================
+-- CONFIGURAÇÕES DE INTERFACE / COMBOS
+-- =============================================
+
+INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description, is_public, is_editable, default_value, validation, options)
+VALUES
+  (
+    'ui.combo.subscribers.status_filter',
+    '[{"value":"active","label":"Ativos","activeOnly":true},{"value":"all","label":"Todos"}]',
+    'json',
+    'ui',
+    'Opções do combo Status na tela de Anunciantes. Use activeOnly=true para filtrar apenas ativos; sem activeOnly lista todos.',
+    true,
+    true,
+    '[{"value":"active","label":"Ativos","activeOnly":true},{"value":"all","label":"Todos"}]',
+    NULL,
+    NULL
+  )
+ON CONFLICT (setting_key) DO UPDATE SET
+  description = EXCLUDED.description,
+  is_editable = EXCLUDED.is_editable,
+  validation = EXCLUDED.validation,
+  options = EXCLUDED.options,
+  default_value = EXCLUDED.default_value,
+  setting_type = EXCLUDED.setting_type,
+  category = EXCLUDED.category,
+  is_public = EXCLUDED.is_public,
+  updated_at = CURRENT_TIMESTAMP;
+
+-- =============================================
 -- CONFIGURAÇÕES DO DISPATCHER (DB-first / Timeline)
 -- =============================================
 
