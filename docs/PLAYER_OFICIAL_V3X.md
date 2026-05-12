@@ -66,6 +66,29 @@ Ver estado:
 systemctl --user status totemdigital-player-v3x.service
 ```
 
+## Linger (Opcional, Com Sudo)
+
+`loginctl enable-linger` faz o **systemd user** desse utilizador arrancar no boot da maquina (util para SSH, timers e unidades user antes do primeiro login interativo). O Chromium do totem **continua a depender** da sessao grafica (`After=graphical-session.target` na unidade); em piloto mantenha **login automatico** na consola do totem.
+
+```bash
+scripts/install-player-v3x-linux-kiosk.sh \
+  --server http://IP-OU-DOMINIO \
+  --uin TD-1234-ABCD \
+  --systemd-user \
+  --linger \
+  --install-deps
+```
+
+Confirmar:
+
+```bash
+loginctl show-user "$(id -un)" -p Linger
+```
+
+## Flags Chromium (Hardening Leve)
+
+O runner passa flags adicionais para reduzir trafego em segundo plano e superficie de extensao: `disable-dev-shm-usage`, `disable-extensions`, `disable-sync`, `disable-background-networking`, `disable-default-apps`, alem do modo kiosk existente. Nao usa modo anonimo (preserva IndexedDB do player).
+
 ## Comandos Uteis
 
 Testar sem escrever arquivos:
@@ -112,4 +135,4 @@ O mesmo fluxo de ativacao e cache offline do `player-web` aplica-se ao kiosk: a 
 - Tanto o autostart XDG como o servico systemd user dependem de uma sessao grafica iniciada para esse utilizador (login automatico continua a ser o padrao em piloto).
 - O watchdog cobre queda do Chromium, mas nao reinicia o sistema operacional.
 - Rotacao `portrait` usa `xrandr` quando disponivel.
-- MDM, hardening completo e empacotamento Electron ficam para uma etapa posterior.
+- MDM, hardening completo (politicas enterprise Chromium) e empacotamento Electron ficam para uma etapa posterior.

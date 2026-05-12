@@ -119,7 +119,7 @@ Motivos:
 Entregas:
 
 - Guia oficial do player V3x (`docs/PLAYER_OFICIAL_V3X.md`).
-- Script de instalacao/provisionamento Linux kiosk (`scripts/install-player-v3x-linux-kiosk.sh`, autostart XDG ou `--systemd-user`).
+- Script Linux kiosk (`scripts/install-player-v3x-linux-kiosk.sh`: autostart, `--systemd-user`, `--linger`, flags Chromium leves).
 - Normalizacao do codigo de ativacao nos players web e Android.
 - Vinculacao inicial de hardware no Player-AD sem editar backend manualmente.
 - Autostart.

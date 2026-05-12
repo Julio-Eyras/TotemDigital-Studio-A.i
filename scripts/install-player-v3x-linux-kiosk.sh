@@ -19,6 +19,7 @@ REGISTER_ON_START=false
 INSTALL_DEPS=false
 DRY_RUN=false
 USE_SYSTEMD_USER=false
+ENABLE_LINGER=false
 
 usage() {
   cat <<'EOF'
@@ -32,6 +33,7 @@ Opcoes:
   --orientation M   landscape ou portrait (default: landscape)
   --install-deps    Instala dependencias apt basicas (chromium, unclutter, x11-xserver-utils)
   --systemd-user    Usa systemd --user em vez de entrada XDG autostart (nao misture os dois)
+  --linger          Executa sudo loginctl enable-linger (user systemd no boot; Chromium ainda exige sessao grafica)
   --dry-run         Mostra o que seria criado sem escrever arquivos
   -h, --help        Mostra esta ajuda
 
@@ -47,6 +49,14 @@ Exemplo com systemd (recomendado em Ubuntu com sessao grafica):
     --server http://192.168.1.10 \
     --uin TD-1234-ABCD \
     --systemd-user \
+    --install-deps
+
+Exemplo piloto com linger (sudo) + systemd user:
+  scripts/install-player-v3x-linux-kiosk.sh \
+    --server http://192.168.1.10 \
+    --uin TD-1234-ABCD \
+    --systemd-user \
+    --linger \
     --install-deps
 EOF
 }
@@ -79,6 +89,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --systemd-user)
       USE_SYSTEMD_USER=true
+      shift
+      ;;
+    --linger)
+      ENABLE_LINGER=true
       shift
       ;;
     -h|--help)
@@ -151,6 +165,10 @@ if [[ "$DRY_RUN" == "true" ]]; then
   fi
   echo "  BROWSER_CMD=$BROWSER_CMD"
   echo "  PLAYER_URL=$PLAYER_URL"
+  echo "  ENABLE_LINGER=$ENABLE_LINGER"
+  if [[ "$ENABLE_LINGER" == "true" ]]; then
+    echo "  (linger) sudo loginctl enable-linger $(id -un)"
+  fi
   exit 0
 fi
 
@@ -214,6 +232,11 @@ while true; do
     --autoplay-policy=no-user-gesture-required \
     --disable-translate \
     --noerrdialogs \
+    --disable-dev-shm-usage \
+    --disable-extensions \
+    --disable-sync \
+    --disable-background-networking \
+    --disable-default-apps \
     "$PLAYER_URL" >> "$LOG_FILE" 2>&1 || true
   echo "$(date -Is) Chromium saiu; reiniciando em 5s" >> "$LOG_FILE"
   sleep 5
@@ -263,6 +286,23 @@ EOF
       echo "Aviso: totemdigital-player-v3x.service (systemd user) ainda esta ativo."
       echo "  Desative para evitar dois players: systemctl --user disable --now totemdigital-player-v3x.service"
     fi
+  fi
+fi
+
+if [[ "$ENABLE_LINGER" == "true" ]]; then
+  if ! command -v sudo >/dev/null 2>&1; then
+    echo "Erro: --linger requer sudo no PATH."
+    exit 1
+  fi
+  if ! command -v loginctl >/dev/null 2>&1; then
+    echo "Erro: loginctl nao encontrado (systemd/logind)."
+    exit 1
+  fi
+  echo "Ativando linger para o utilizador $(id -un)..."
+  sudo loginctl enable-linger "$(id -un)"
+  echo "Linger ativo. Verificar: loginctl show-user $(id -un) -p Linger"
+  if [[ "$USE_SYSTEMD_USER" != "true" ]]; then
+    echo "Nota: combine --linger com --systemd-user para unidades user estaveis em piloto."
   fi
 fi
 
