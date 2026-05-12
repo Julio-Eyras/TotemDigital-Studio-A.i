@@ -83,16 +83,17 @@ async function handleApprovalRequest(
     const hardwareHash = hardware?.hardwareHash || (hardware?.macAddress || '').toLowerCase();
     const currentTotemId = (existingTotem as any).id || (existingTotem as any).totem_id;
     
-    if (hardwareHash && hardwareHash !== 'unknown' && hardware?.macAddress) {
+    if ((hardwareHash && hardwareHash !== 'unknown' && hardware?.macAddress) || hardware?.deviceId) {
       try {
         const existingHardware = await db.findFirst(`
-          SELECT totem_id, uin, identifier 
-          FROM totems 
-          WHERE (config->'hardware'->>'mac' = ? 
-             OR config->'hardware'->>'hardwareHash' = ?)
+          SELECT totem_id, uin, identifier
+          FROM totems
+          WHERE (network_info->'hardware'->>'mac' = ?
+             OR network_info->'hardware'->>'hardwareHash' = ?
+             OR (? <> '' AND device_id = ?))
             AND totem_id != ?
           LIMIT 1
-        `, [hardware?.macAddress || '', hardwareHash, currentTotemId]);
+        `, [hardware?.macAddress || '', hardwareHash, hardware?.deviceId || '', hardware?.deviceId || '', currentTotemId]);
         
         if (existingHardware) {
           await logDebug(`[${requestId}] Hardware já vinculado a outro totem`, { existingHardware, requestId });
@@ -119,7 +120,7 @@ async function handleApprovalRequest(
     const existingStatus = (existingTotem as any).status || 'pending_activation';
 
     // Preparar configuração: preservar dados do publisher e adicionar hardware info
-    const config = {
+    const networkInfo = {
       ...existingConfig,
       hardware: {
         ...(existingConfig.hardware || {}),
@@ -148,15 +149,18 @@ async function handleApprovalRequest(
     // ATUALIZAR totem existente (não criar novo)
     await db.executeRaw(`
       UPDATE totems SET
-        config = ?::jsonb,
-        ip_address = ?,
+        network_info = ?::jsonb,
+        device_id = COALESCE(NULLIF(?, ''), device_id),
         last_heartbeat = CURRENT_TIMESTAMP,
         status = ?,
         updated_at = CURRENT_TIMESTAMP
       WHERE uin = ?
     `, [
-      JSON.stringify(config),
-      ipAddress,
+      JSON.stringify({
+        ...networkInfo,
+        ip: ipAddress,
+      }),
+      hardware?.deviceId || null,
       newStatus,
       uin
     ]);
@@ -997,6 +1001,7 @@ router.post('/register',
   body('hardware.hostname').optional({ nullable: true }).isString(),
   body('hardware.platform').optional({ nullable: true }).isString(),
   body('hardware.arch').optional({ nullable: true }).isString(),
+  body('hardware.deviceId').optional({ nullable: true }).isString(),
   body('hardware.hardwareHash').optional({ nullable: true }).isString(),
   body('hardware.userAgent').optional({ nullable: true }).isString(),
   async (req: Request, res: Response) => {
@@ -1136,17 +1141,18 @@ router.post('/register',
         requestId 
       });
       
-      if (hardwareHash && hardwareHash !== 'unknown' && hardware?.macAddress) {
+      if ((hardwareHash && hardwareHash !== 'unknown' && hardware?.macAddress) || hardware?.deviceId) {
         try {
           // Buscar totem que já tem este hardware vinculado (exceto o atual)
           const existingHardware = await db.findFirst(`
-            SELECT totem_id, uin, identifier 
-            FROM totems 
-            WHERE (config->'hardware'->>'mac' = ? 
-               OR config->'hardware'->>'hardwareHash' = ?)
+            SELECT totem_id, uin, identifier
+            FROM totems
+            WHERE (network_info->'hardware'->>'mac' = ?
+               OR network_info->'hardware'->>'hardwareHash' = ?
+               OR (? <> '' AND device_id = ?))
               AND totem_id != ?
             LIMIT 1
-          `, [hardware?.macAddress || '', hardwareHash, currentTotemId]);
+          `, [hardware?.macAddress || '', hardwareHash, hardware?.deviceId || '', hardware?.deviceId || '', currentTotemId]);
           
           if (existingHardware) {
             await logDebug(`[${requestId}] Hardware já vinculado a outro totem`, { existingHardware, requestId });
@@ -1185,7 +1191,7 @@ router.post('/register',
       });
 
       // Preparar configuração: preservar dados do publisher e adicionar hardware info
-      const config = {
+      const networkInfo = {
         ...existingConfig,  // Preservar dados do publisher (resolution, orientation, etc.)
         hardware: {
           ...(existingConfig.hardware || {}),  // Preservar hardware info existente se houver
@@ -1215,15 +1221,18 @@ router.post('/register',
         // ATUALIZAR totem existente (não criar novo)
         await db.executeRaw(`
           UPDATE totems SET
-            config = ?::jsonb,
-            ip_address = ?,
+            network_info = ?::jsonb,
+            device_id = COALESCE(NULLIF(?, ''), device_id),
             last_heartbeat = CURRENT_TIMESTAMP,
             status = ?,
             updated_at = CURRENT_TIMESTAMP
           WHERE uin = ?
         `, [
-          JSON.stringify(config),
-          ipAddress,
+          JSON.stringify({
+            ...networkInfo,
+            ip: ipAddress,
+          }),
+          hardware?.deviceId || null,
           newStatus,
           uin
         ]);

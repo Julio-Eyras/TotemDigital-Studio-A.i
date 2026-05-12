@@ -13,8 +13,8 @@ from pathlib import Path
 TABLES = {
     'playlists': ['playlist_id', 'subscriber_id', 'name', 'description', 'is_active', 'schedule_config', 'metadata', 'created_at', 'updated_at'],
     'medias': ['media_id', 'subscriber_id', 'name', 'description', 'file_path', 'file_name', 'file_size_bytes', 'media_type', 'mime_type', 'duration_seconds', 'width', 'height', 'thumbnail_url', 'preview_url', 'status', 'approval_status', 'rejection_reason', 'approved_by', 'approved_at', 'tags', 'metadata', 'is_active', 'created_at', 'updated_at'],
-    'campaigns': ['campaign_id', 'subscriber_id', 'title', 'description', 'campaign_type', 'priority', 'commercial_tier', 'default_time_share_percent', 'max_consecutive_slots', 'start_date', 'end_date', 'start_time', 'end_time', 'days_of_week', 'timezone', 'status', 'is_active', 'target_audience', 'metadata', 'created_at', 'updated_at'],
-    'totems': ['totem_id', 'identifier', 'uin', 'device_id', 'local_id', 'name', 'description', 'model', 'manufacturer', 'firmware_version', 'hardware_version', 'os_version', 'status', 'last_heartbeat', 'heartbeat_interval', 'network_info', 'capabilities', 'is_active', 'created_at', 'updated_at'],
+    'campaigns': ['campaign_id', 'subscriber_id', 'contract_id', 'title', 'category_segment', 'description', 'campaign_type', 'priority', 'commercial_tier', 'default_time_share_percent', 'max_consecutive_slots', 'start_date', 'end_date', 'start_time', 'end_time', 'days_of_week', 'timezone', 'schedule_config', 'status', 'is_active', 'target_audience', 'metadata', 'created_at', 'updated_at'],
+    'totems': ['totem_id', 'identifier', 'uin', 'device_id', 'local_id', 'created_via_contract_id', 'name', 'description', 'model', 'manufacturer', 'firmware_version', 'hardware_version', 'os_version', 'status', 'last_heartbeat', 'heartbeat_interval', 'forced_online_until', 'network_info', 'capabilities', 'is_active', 'created_at', 'updated_at'],
     # Adicionar outras tabelas conforme necessário
 }
 

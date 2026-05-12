@@ -58,27 +58,36 @@ CREATE TABLE IF NOT EXISTS totems (
     hardware_version TEXT,
     os_version TEXT,
     
-    status TEXT DEFAULT 'offline', -- offline, online, error, maintenance
+    status TEXT DEFAULT 'offline', -- pending_activation, pending_approval, offline, online, error, maintenance, syncing
     last_heartbeat TIMESTAMP,
     heartbeat_interval INTEGER DEFAULT 60, -- segundos
-    
+
     -- Forçar estado online por janela de tempo (útil para debug/admin)
     forced_online_until TIMESTAMP,
 
     network_info JSONB, -- IP, MAC, DNS, etc.
     capabilities JSONB, -- Recursos do totem
-    
+
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
-    CONSTRAINT chk_totem_status 
-        CHECK (status IN ('offline', 'online', 'error', 'maintenance', 'syncing'))
+
+    CONSTRAINT chk_totem_status
+        CHECK (status IN ('pending_activation', 'pending_approval', 'offline', 'online', 'error', 'maintenance', 'syncing'))
 );
 COMMENT ON TABLE totems IS 'Totens - micro-servidores edge que controlam Smart TVs';
 COMMENT ON COLUMN totems.local_id IS 'Local onde totem está instalado (FK → locals → publishers)';
 COMMENT ON COLUMN totems.identifier IS 'Identificador único do totem';
-COMMENT ON COLUMN totems.status IS 'Status atual do totem';
+COMMENT ON COLUMN totems.status IS 'Status atual do totem: pending_activation, pending_approval, offline, online, error, maintenance, syncing';
+
+-- Compatibilidade para bancos já criados: ampliar a constraint de status dos totens.
+DO $$
+BEGIN
+    ALTER TABLE totems DROP CONSTRAINT IF EXISTS chk_totem_status;
+    ALTER TABLE totems
+        ADD CONSTRAINT chk_totem_status
+        CHECK (status IN ('pending_activation', 'pending_approval', 'offline', 'online', 'error', 'maintenance', 'syncing'));
+END $$;
 
 -- =============================================
 -- SMART_TVS (Displays Controlados)
