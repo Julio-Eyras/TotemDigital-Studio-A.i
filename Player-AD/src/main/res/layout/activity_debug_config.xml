@@ -283,6 +283,19 @@
             android:layout_marginTop="18dp">
 
             <Button
+                android:id="@+id/btnRegisterActivation"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Vincular código ao hardware"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="12dp">
+
+            <Button
                 android:id="@+id/btnTestHeartbeat"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"

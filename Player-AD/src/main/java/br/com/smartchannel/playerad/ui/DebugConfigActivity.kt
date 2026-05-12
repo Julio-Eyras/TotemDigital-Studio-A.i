@@ -2,7 +2,9 @@ package br.com.smartchannel.playerad.ui
 
 import android.app.Activity
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Log
 import android.widget.ArrayAdapter
 import android.widget.Button
@@ -27,6 +29,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -42,6 +45,7 @@ class DebugConfigActivity : AppCompatActivity() {
     private lateinit var spinnerStorage: Spinner
     private lateinit var editStoragePath: EditText
 
+    private lateinit var btnRegisterActivation: Button
     private lateinit var btnTestHeartbeat: Button
     private lateinit var btnTestDispatch: Button
     private lateinit var btnApplyAndStart: Button
@@ -78,6 +82,7 @@ class DebugConfigActivity : AppCompatActivity() {
         spinnerStorage = findViewById(R.id.spinnerStorage)
         editStoragePath = findViewById(R.id.editStoragePath)
 
+        btnRegisterActivation = findViewById(R.id.btnRegisterActivation)
         btnTestHeartbeat = findViewById(R.id.btnTestHeartbeat)
         btnTestDispatch = findViewById(R.id.btnTestDispatch)
         btnApplyAndStart = findViewById(R.id.btnApplyAndStart)
@@ -120,6 +125,9 @@ class DebugConfigActivity : AppCompatActivity() {
 
         setHeartbeatAndDispatchState(heartbeatOk = false, dispatchOk = false)
 
+        btnRegisterActivation.setOnClickListener {
+            runRegisterActivation()
+        }
         btnTestHeartbeat.setOnClickListener {
             runTestHeartbeat()
         }
@@ -311,6 +319,107 @@ class DebugConfigActivity : AppCompatActivity() {
     private fun appendStatus(msg: String) {
         val prev = textStatus.text?.toString().orEmpty()
         textStatus.text = if (prev.isBlank()) msg else prev + "\n" + msg
+    }
+
+    private fun runRegisterActivation() {
+        val cfg = readConfigOrNull()
+        if (cfg == null) {
+            setStatus("Configuração inválida. Preencha serverUrl, uin e deviceId.")
+            return
+        }
+
+        editUin.setText(cfg.uin)
+        setStatus("Vinculando código ao hardware...")
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                try {
+                    val apiClient = DispatcherApiClient(cfg.serverUrl, cfg.uin, cfg.deviceId)
+                    val json = apiClient.registerActivation(buildActivationHardware(cfg))
+                    Result.success(json)
+                } catch (e: Exception) {
+                    Result.failure<JSONObject>(e)
+                }
+            }
+
+            result.onSuccess { json ->
+                saveConfigInternal(cfg)
+                val token = json.optString("token", "")
+                if (token.isNotBlank()) lastHeartbeatToken = token
+
+                val status = json.optString("status", "")
+                val canStartNow = status.equals("online", true) || status.equals("active", true)
+                setHeartbeatAndDispatchState(heartbeatOk = canStartNow, dispatchOk = false)
+
+                setStatus("✔ Código vinculado ao hardware\n\n${summarizeActivationResponse(json)}")
+                appendStatus("\nConfiguração salva no aparelho.")
+                if (!canStartNow) {
+                    appendStatus("Aguarde aprovação no painel antes de iniciar a reprodução.")
+                }
+                PlayerAdLogger.i("DEBUG_UI", "Vinculação por código OK (status=$status)")
+                refreshOfflineState()
+                refreshOperationalLog()
+            }.onFailure { err ->
+                setHeartbeatAndDispatchState(heartbeatOk = false, dispatchOk = false)
+                setStatus("✖ Vinculação falhou: ${err.message ?: err.toString()}")
+                PlayerAdLogger.e("DEBUG_UI", "Vinculação por código falhou", err)
+                suggestBasedOnError(err)
+                refreshOperationalLog()
+            }
+        }
+    }
+
+    private fun buildActivationHardware(cfg: PlayerConfig): JSONObject {
+        val androidId = try {
+            Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID).orEmpty()
+        } catch (_: Exception) {
+            ""
+        }
+        val manufacturer = Build.MANUFACTURER.orEmpty()
+        val model = Build.MODEL.orEmpty()
+        val board = Build.BOARD.orEmpty()
+        val fingerprint = listOf(cfg.deviceId, androidId, manufacturer, model, board)
+            .joinToString("|")
+        val abi = Build.SUPPORTED_ABIS?.joinToString(",").orEmpty()
+
+        return JSONObject().apply {
+            put("deviceId", cfg.deviceId)
+            put("hostname", model.ifBlank { cfg.deviceId })
+            put("platform", "android")
+            put("arch", abi)
+            put("hardwareHash", sha256(fingerprint))
+            put(
+                "userAgent",
+                "Player-AD Android/${Build.VERSION.RELEASE.orEmpty()} " +
+                    "(${manufacturer.ifBlank { "unknown" }} ${model.ifBlank { "unknown" }})"
+            )
+        }
+    }
+
+    private fun summarizeActivationResponse(json: JSONObject): String {
+        val status = json.optString("status", "-")
+        val totem = json.optJSONObject("totem")
+        val identifier = totem?.optString("identifier", "")?.takeIf { it.isNotBlank() } ?: "-"
+        val message = totem?.optString("message", "")?.takeIf { it.isNotBlank() }
+            ?: json.optString("message", "")
+        val steps = json.optJSONArray("nextSteps")
+
+        return buildString {
+            append("- status: $status")
+            append("\n- totem: $identifier")
+            if (message.isNotBlank()) append("\n- mensagem: $message")
+            if (steps != null && steps.length() > 0) {
+                append("\n- próximos passos:")
+                for (i in 0 until steps.length().coerceAtMost(3)) {
+                    val step = steps.optString(i, "").trim()
+                    if (step.isNotBlank()) append("\n  • $step")
+                }
+            }
+        }
+    }
+
+    private fun sha256(value: String): String {
+        val bytes = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))
+        return bytes.joinToString("") { "%02x".format(it) }
     }
 
     private fun runTestHeartbeat() {

@@ -164,6 +164,39 @@ class DispatcherApiClient(
         heartbeatWithCommands().token
     }
 
+    suspend fun registerActivation(hardware: JSONObject): JSONObject = withContext(Dispatchers.IO) {
+        val url = URL("$baseUrl/api/player/register")
+        val conn = openConnection(url, "POST").apply {
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json")
+        }
+
+        val body = JSONObject().apply {
+            put("uin", uin)
+            put("hardware", hardware)
+        }.toString()
+
+        conn.outputStream.use { it.write(body.toByteArray()) }
+
+        val responseCode = try { conn.responseCode } catch (_: Exception) { -1 }
+        val responseBody = try {
+            conn.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
+        } catch (e: Exception) {
+            val errBody = conn.errorStream?.use { it.readBytes().toString(Charsets.UTF_8) }
+                ?: e.message
+            throw IOException("HTTP register falhou: code=$responseCode body=$errBody", e)
+        }
+
+        if (responseCode !in 200..299) {
+            throw IOException("HTTP register falhou: code=$responseCode body=$responseBody")
+        }
+
+        val json = JSONObject(responseBody)
+        val token = json.optString("token", "")
+        if (token.isNotBlank()) currentToken = token
+        json
+    }
+
     suspend fun getDispatchPlan(token: String): JSONObject = withContext(Dispatchers.IO) {
         fun fetchOnce(tkn: String): Pair<Int, String> {
             val tz = encode(TimeZone.getDefault().id)
