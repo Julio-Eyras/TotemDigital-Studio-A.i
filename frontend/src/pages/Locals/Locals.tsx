@@ -96,13 +96,13 @@ const Locals: React.FC = () => {
   /** Criar/apagar local: no modo compacto inclui usuário do exibidor (alinha com edição). Demais modos: só administrativo. */
   const canManageLocals = useMemo(() => {
     if (TOTEMDIGITAL_COMPACT) {
-      return isAdmin || normalizedRole === 'publisher_user';
+      return isAdmin || ['operator', 'manager', 'publisher_user'].includes(normalizedRole);
     }
     return isAdmin;
   }, [isAdmin, normalizedRole]);
   const canEditLocals = useMemo(() => {
     if (TOTEMDIGITAL_COMPACT) {
-      return isAdmin || normalizedRole === 'publisher_user';
+      return isAdmin || ['operator', 'manager', 'publisher_user'].includes(normalizedRole);
     }
     return isAdmin;
   }, [normalizedRole, isAdmin]);

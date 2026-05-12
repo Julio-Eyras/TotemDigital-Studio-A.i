@@ -1561,58 +1561,6 @@ const PlanPublisherAccessPage: React.FC = () => {
                 </Grid>
               </Box>
 
-              {TOTEMDIGITAL_COMPACT && compactPlanLocals.length > 0 && (
-                <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
-                  <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                    Totens habilitados por local
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
-                    Selecione quais totems de cada local ficam habilitados para este plano.
-                  </Typography>
-                  {compactTotemsBySelectedLocal.map(({ local, totems }) => (
-                    <Box key={local.local_id} sx={{ mb: 2, pb: 1, borderBottom: `1px dashed ${theme.palette.divider}` }}>
-                      <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-                        {local.name}
-                      </Typography>
-                      {totems.length === 0 ? (
-                        <Typography variant="caption" color="text.secondary">
-                          Sem totems ativos neste local.
-                        </Typography>
-                      ) : (
-                        <List dense sx={{ pt: 0 }}>
-                          {totems
-                            .map((totem) => {
-                            const tid = getTotemIdFromRow(totem);
-                            if (tid === undefined) return null;
-                            const enabledTotems = compactEnabledTotemsByLocal[local.local_id] || [];
-                            const checked = enabledTotems.includes(tid);
-                            return (
-                              <ListItem key={tid} disableGutters sx={{ py: 0 }}>
-                                <FormControlLabel
-                                  control={
-                                    <Checkbox
-                                      checked={checked}
-                                      onChange={() => toggleTotemForLocal(local.local_id, tid)}
-                                      size="small"
-                                    />
-                                  }
-                                  label={
-                                    <Typography variant="body2">
-                                      {formatTotemLabel(totem)}
-                                    </Typography>
-                                  }
-                                />
-                              </ListItem>
-                            );
-                          })
-                            .filter(Boolean)}
-                        </List>
-                      )}
-                    </Box>
-                  ))}
-                </Box>
-              )}
-
               {(TOTEMDIGITAL_COMPACT ? compactPlanLocals.length > 0 : planPublishers.length > 0) ? (
                 <List>
                   {TOTEMDIGITAL_COMPACT
@@ -1621,22 +1569,43 @@ const PlanPublisherAccessPage: React.FC = () => {
                           ({ totem }) => getTotemLocalIdFromRow(totem) === local.local_id
                         );
                         const enabledTotems = compactEnabledTotemsByLocal[local.local_id] || [];
+                        const totems = compactTotemsBySelectedLocal.find((row) => row.local.local_id === local.local_id)?.totems || [];
                         const sharedNotes = planPublishers[0]?.notes;
                         return (
                           <ListItem
                             key={local.local_id}
-                            sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}
+                            alignItems="flex-start"
+                            sx={{
+                              border: `1px solid ${theme.palette.divider}`,
+                              borderRadius: 1,
+                              mb: 2,
+                              p: 2,
+                              alignItems: 'flex-start',
+                            }}
                           >
-                            <ListItemIcon><Business /></ListItemIcon>
+                            <ListItemIcon sx={{ minWidth: 42, pt: 1 }}>
+                              <Business />
+                            </ListItemIcon>
                             <ListItemText
-                              primary={`${local.name} · ${local.totem_count || 0} totem(ns) cadastrados`}
+                              primary={
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
+                                  <Typography variant="subtitle1">
+                                    {local.name}
+                                  </Typography>
+                                  <Chip
+                                    label={`${local.totem_count || 0} totem(ns) cadastrados`}
+                                    size="small"
+                                    variant="outlined"
+                                  />
+                                </Box>
+                              }
                               secondary={
                                 <Box sx={{ mt: 0.5 }}>
                                   <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
                                     Totens ativos: {activeTotems.length} · habilitados no plano: {enabledTotems.length}
                                   </Typography>
                                   <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-                                    Escopo operacional: todos os totems do local selecionado.
+                                    Selecione abaixo quais totems deste local ficam permitidos para este plano.
                                   </Typography>
                                   <Box sx={{ mt: 1 }}>
                                     <Chip
@@ -1650,6 +1619,48 @@ const PlanPublisherAccessPage: React.FC = () => {
                                       <Typography variant="caption" color="text.secondary">
                                         {sharedNotes}
                                       </Typography>
+                                    )}
+                                  </Box>
+                                  <Box
+                                    sx={{
+                                      mt: 2,
+                                      pt: 1.5,
+                                      borderTop: `1px dashed ${theme.palette.divider}`,
+                                    }}
+                                  >
+                                    <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                                      Totens permitidos neste local
+                                    </Typography>
+                                    {totems.length === 0 ? (
+                                      <Typography variant="caption" color="text.secondary">
+                                        Sem totems ativos neste local.
+                                      </Typography>
+                                    ) : (
+                                      <List dense disablePadding>
+                                        {totems.map((totem) => {
+                                          const tid = getTotemIdFromRow(totem);
+                                          if (tid === undefined) return null;
+                                          const checked = enabledTotems.includes(tid);
+                                          return (
+                                            <ListItem key={tid} disableGutters sx={{ py: 0.25 }}>
+                                              <FormControlLabel
+                                                control={
+                                                  <Checkbox
+                                                    checked={checked}
+                                                    onChange={() => toggleTotemForLocal(local.local_id, tid)}
+                                                    size="small"
+                                                  />
+                                                }
+                                                label={
+                                                  <Typography variant="body2">
+                                                    {formatTotemLabel(totem)}
+                                                  </Typography>
+                                                }
+                                              />
+                                            </ListItem>
+                                          );
+                                        })}
+                                      </List>
                                     )}
                                   </Box>
                                 </Box>

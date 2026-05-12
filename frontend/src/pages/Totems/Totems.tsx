@@ -126,10 +126,10 @@ const Totems: React.FC = () => {
     }
     return false;
   }, [normalizedRole]);
-  /** Compacto: só administradores (roles admin) e owner_system. PRO: operadores, publisher_user, gerente etc. */
+  /** Compacto: quem administra totens também pode cadastrar novos totens. */
   const canCreateTotem = useMemo(() => {
     if (TOTEMDIGITAL_COMPACT) {
-      return ['admin', 'admin_sql', 'owner_system'].includes(normalizedRole);
+      return canAdministerTotems;
     }
     return (
       [
@@ -144,7 +144,7 @@ const Totems: React.FC = () => {
         'subscriber_user',
       ].includes(normalizedRole)
     );
-  }, [normalizedRole]);
+  }, [normalizedRole, canAdministerTotems]);
   const userPublisherId = user?.publisherId;
 
   const [totems, setTotems] = useState<Player[]>([]);

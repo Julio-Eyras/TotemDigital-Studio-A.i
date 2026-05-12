@@ -3408,6 +3408,7 @@ const Subscribers: React.FC = () => {
                                   <span>
                                     <IconButton
                                       size="small"
+                                      color={isTransformable ? 'primary' : 'default'}
                                       disabled={!isTransformable || processingRotation}
                                       onClick={() => handleRotateMediaPreview(media.media_id)}
                                     >
@@ -3419,7 +3420,7 @@ const Subscribers: React.FC = () => {
                                   <span>
                                     <IconButton
                                       size="small"
-                                      color="success"
+                                      color={rotationChanged ? 'success' : 'default'}
                                       disabled={!rotationChanged || processingRotation}
                                       onClick={() => handleConfirmMediaRotation(media)}
                                     >
@@ -3428,17 +3429,17 @@ const Subscribers: React.FC = () => {
                                   </span>
                                 </Tooltip>
                                 <Tooltip title="Visualizar">
-                                  <IconButton size="small">
+                                  <IconButton size="small" color="primary">
                                     <Visibility />
                                   </IconButton>
                                 </Tooltip>
                                 <Tooltip title="Editar">
-                                  <IconButton size="small" onClick={() => handleStartEditMedia(index)}>
+                                  <IconButton size="small" color="primary" onClick={() => handleStartEditMedia(index)}>
                                     <Edit />
                                   </IconButton>
                                 </Tooltip>
                                 <Tooltip title="Excluir">
-                                  <IconButton size="small" onClick={() => handleDeleteMedia(index)}>
+                                  <IconButton size="small" color="error" onClick={() => handleDeleteMedia(index)}>
                                     <Delete />
                                   </IconButton>
                                 </Tooltip>
