@@ -476,7 +476,16 @@
             }
 
             function normalizeActivationCode(value) {
-                return String(value || '').trim().toUpperCase();
+                const normalized = String(value || '')
+                    .trim()
+                    .toUpperCase()
+                    .replace(/[–—]/g, '-')
+                    .replace(/\s+/g, '');
+                const compact = normalized.replace(/-/g, '');
+                if (/^TD[A-Z0-9]{8}$/.test(compact)) {
+                    return `TD-${compact.slice(2, 6)}-${compact.slice(6, 10)}`;
+                }
+                return normalized;
             }
 
             function getOrCreateDeviceId() {

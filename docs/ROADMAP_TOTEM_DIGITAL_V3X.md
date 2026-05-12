@@ -85,6 +85,8 @@ Entregas:
 
 - Geracao de codigo de ativacao.
 - Tela de ativacao no painel.
+- Resumo no painel com aguardando player e aguardando aprovacao.
+- Atalhos do dashboard para filtros de ativacao e telas offline.
 - Endpoint de claim/provisionamento.
 - Estado do player: aguardando ativacao, ativo, expirado.
 - Registro de diagnostico basico.
@@ -117,6 +119,7 @@ Entregas:
 
 - Guia oficial do player V3x.
 - Script de instalacao/provisionamento.
+- Normalizacao do codigo de ativacao nos players web e Android.
 - Autostart.
 - Watchdog.
 - Cache offline.

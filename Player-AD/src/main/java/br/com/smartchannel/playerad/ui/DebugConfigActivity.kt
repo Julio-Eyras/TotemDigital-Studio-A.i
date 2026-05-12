@@ -270,7 +270,7 @@ class DebugConfigActivity : AppCompatActivity() {
 
     private fun readConfigOrNull(): PlayerConfig? {
         val serverUrl = editServerUrl.text?.toString()?.trim().orEmpty()
-        val uin = editUin.text?.toString()?.trim().orEmpty()
+        val uin = PlayerConfigLoader.normalizeActivationCode(editUin.text?.toString())
         val deviceId = editDeviceId.text?.toString()?.trim().orEmpty()
         if (serverUrl.isBlank() || uin.isBlank() || deviceId.isBlank()) return null
         val loaded = PlayerConfigLoader(this).load()

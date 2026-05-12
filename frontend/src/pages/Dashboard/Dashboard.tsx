@@ -205,6 +205,12 @@ const Dashboard: React.FC = () => {
     const queryString = params.toString();
     navigate(queryString ? `/quick-publish?${queryString}` : '/quick-publish');
   };
+  const openTotems = (status?: string) => {
+    const params = new URLSearchParams();
+    if (status) params.set('status', status);
+    const queryString = params.toString();
+    navigate(queryString ? `/totems?${queryString}` : '/totems');
+  };
 
   useEffect(() => {
     loadDashboardData();
@@ -311,7 +317,7 @@ const Dashboard: React.FC = () => {
                 <Button
                   variant="outlined"
                   sx={{ color: 'common.white', borderColor: alpha(theme.palette.common.white, 0.6) }}
-                  onClick={() => navigate('/totems')}
+                  onClick={() => openTotems()}
                 >
                   Ver telas
                 </Button>
@@ -729,6 +735,14 @@ const Dashboard: React.FC = () => {
                   />
                 </ListItem>
               </List>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 2 }}>
+                <Button size="small" variant="outlined" onClick={() => openTotems('offline')}>
+                  Ver telas offline
+                </Button>
+                <Button size="small" variant="contained" onClick={() => openTotems('activation_pending')}>
+                  Ver ativações
+                </Button>
+              </Box>
             </CardContent>
           </Card>
         </Grid>

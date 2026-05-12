@@ -59,6 +59,28 @@ function TabPanel(props: TabPanelProps) {
 const compareByDisplayName = (a?: string, b?: string) =>
   String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
 
+const ACTIVATION_STEPS = [
+  'Cadastre a tela no painel e copie o código.',
+  'Abra o player na TV/totem e informe o código.',
+  'O hardware aparece para aprovação no painel.',
+  'Aprove a tela para liberar publicações.',
+];
+
+const TOTEM_STATUS_FILTERS = [
+  'all',
+  'online',
+  'offline',
+  'error',
+  'activation_pending',
+  'pending_activation',
+  'pending_approval',
+  'deactivated',
+];
+
+function resolveStatusFilter(value: string | null): string {
+  return value && TOTEM_STATUS_FILTERS.includes(value) ? value : 'all';
+}
+
 function createActivationCode(): string {
   const segment = () => Math.random().toString(36).slice(2, 6).toUpperCase().padEnd(4, '0');
   return `TD-${segment()}-${segment()}`;
@@ -115,6 +137,8 @@ function matchesStatusFilter(t: any, statusFilter: string): boolean {
   if (statusFilter === 'online') return st === 'online';
   if (statusFilter === 'offline') return st === 'offline';
   if (statusFilter === 'error') return st === 'error';
+  if (statusFilter === 'activation_pending') return !hasLinkedHardware(t) || st === 'pending_approval';
+  if (statusFilter === 'pending_activation') return !hasLinkedHardware(t);
   if (statusFilter === 'pending_approval') return st === 'pending_approval';
   return true;
 }
@@ -202,8 +226,22 @@ const Totems: React.FC = () => {
     isActive: true,
   });
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>(() => resolveStatusFilter(searchParams.get('status')));
   const [localFilter, setLocalFilter] = useState<number | 'all'>('all');
+  const activationSummary = useMemo(() => {
+    const byId = new Map<string, Player>();
+    [...totems, ...pendingTotems].forEach((totem: any, index) => {
+      const key = String(totem?.totem_id ?? totem?.id ?? totem?.identifier ?? `totem-${index}`);
+      byId.set(key, totem);
+    });
+    const rows = Array.from(byId.values()).filter((totem) => isTotemRegistryActive(totem as any));
+
+    return {
+      total: rows.length,
+      waitingHardware: rows.filter((totem) => !hasLinkedHardware(totem)).length,
+      waitingApproval: rows.filter((totem: any) => totem?.status === 'pending_approval' && hasLinkedHardware(totem)).length,
+    };
+  }, [pendingTotems, totems]);
   const formatLocalLabel = (local: Local): string =>
     TOTEMDIGITAL_COMPACT
       ? `${local.name}`
@@ -245,6 +283,26 @@ const Totems: React.FC = () => {
     if (!canCreateTotem) return;
     openCreateTotemDialog();
   }, [searchParams, setSearchParams, canCreateTotem, openCreateTotemDialog]);
+
+  useEffect(() => {
+    const nextStatus = resolveStatusFilter(searchParams.get('status'));
+    if (nextStatus !== statusFilter) {
+      setStatusFilter(nextStatus);
+    }
+  }, [searchParams, statusFilter]);
+
+  const updateStatusFilter = (nextStatus: string) => {
+    const resolvedStatus = resolveStatusFilter(nextStatus);
+    setStatusFilter(resolvedStatus);
+
+    const next = new URLSearchParams(searchParams);
+    if (resolvedStatus === 'all') {
+      next.delete('status');
+    } else {
+      next.set('status', resolvedStatus);
+    }
+    setSearchParams(next, { replace: true });
+  };
 
   const loadLocals = async () => {
     try {
@@ -566,7 +624,7 @@ const Totems: React.FC = () => {
         breadcrumbs={breadcrumbs}
         actions={[
           ...(canCreateTotem ? [{
-            label: 'Criar Totem',
+            label: 'Cadastrar tela',
             icon: <Add />,
             onClick: () => openCreateTotemDialog(),
             variant: 'contained' as const,
@@ -587,6 +645,65 @@ const Totems: React.FC = () => {
           {success}
         </Alert>
       )}
+
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} md={5}>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                Ativação por código
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Fluxo V3x para vincular uma TV ou totem sem editar configuração manual no player.
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 2 }}>
+                <Chip size="small" label={`${activationSummary.total} tela(s) cadastrada(s)`} variant="outlined" />
+                <Chip
+                  size="small"
+                  label={`${activationSummary.waitingHardware} aguardando player`}
+                  color={activationSummary.waitingHardware > 0 ? 'warning' : 'default'}
+                  variant="outlined"
+                  onClick={() => updateStatusFilter('pending_activation')}
+                  sx={{ cursor: 'pointer' }}
+                />
+                <Chip
+                  size="small"
+                  label={`${activationSummary.waitingApproval} aguardando aprovação`}
+                  color={activationSummary.waitingApproval > 0 ? 'warning' : 'default'}
+                  variant="outlined"
+                  onClick={() => updateStatusFilter('pending_approval')}
+                  sx={{ cursor: 'pointer' }}
+                />
+              </Box>
+            </Grid>
+            <Grid item xs={12} md={5}>
+              <Grid container spacing={1}>
+                {ACTIVATION_STEPS.map((step, index) => (
+                  <Grid item xs={12} sm={6} key={step}>
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                      <Avatar sx={{ width: 24, height: 24, fontSize: 13, bgcolor: 'primary.main' }}>
+                        {index + 1}
+                      </Avatar>
+                      <Typography variant="body2">{step}</Typography>
+                    </Box>
+                  </Grid>
+                ))}
+              </Grid>
+            </Grid>
+            <Grid item xs={12} md={2}>
+              <Button
+                fullWidth
+                variant="contained"
+                startIcon={<Add />}
+                onClick={() => openCreateTotemDialog()}
+                disabled={!canCreateTotem}
+              >
+                Nova tela
+              </Button>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
 
       {/* Filters */}
       <Card sx={{ mb: 3 }}>
@@ -620,11 +737,13 @@ const Totems: React.FC = () => {
             <Grid item xs={12} md={3}>
               <FormControl fullWidth>
                 <InputLabel>Status</InputLabel>
-                <Select value={statusFilter} label="Status" onChange={(e) => setStatusFilter(e.target.value)}>
+                <Select value={statusFilter} label="Status" onChange={(e) => updateStatusFilter(e.target.value)}>
                   <MenuItem value="all">Todos</MenuItem>
                   <MenuItem value="online">Online (cadastro ativo)</MenuItem>
                   <MenuItem value="offline">Offline</MenuItem>
                   <MenuItem value="error">Erro</MenuItem>
+                  <MenuItem value="activation_pending">Ativação pendente</MenuItem>
+                  <MenuItem value="pending_activation">Aguardando player</MenuItem>
                   <MenuItem value="deactivated">Desativado (cadastro)</MenuItem>
                   {!TOTEMDIGITAL_COMPACT && <MenuItem value="pending_approval">Pendente</MenuItem>}
                 </Select>

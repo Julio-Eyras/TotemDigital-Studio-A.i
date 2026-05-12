@@ -47,7 +47,7 @@ class PlayerConfigLoader(private val context: Context) {
             val text = file.readText(Charsets.UTF_8)
             val json = JSONObject(text)
             val serverUrl = json.optString("serverUrl", "").trim()
-            val uin = json.optString("uin", "").trim()
+            val uin = normalizeActivationCode(json.optString("uin", ""))
             val deviceId = json.optString("deviceId", "").trim()
             if (serverUrl.isBlank() || uin.isBlank() || deviceId.isBlank()) {
                 null
@@ -95,6 +95,22 @@ class PlayerConfigLoader(private val context: Context) {
         fun storageModeToJsonValue(mode: PlayerStorageMode): String = when (mode) {
             PlayerStorageMode.SD_CARD -> "sdcard"
             else -> mode.name.lowercase()
+        }
+
+        fun normalizeActivationCode(raw: String?): String {
+            val normalized = raw
+                .orEmpty()
+                .trim()
+                .uppercase()
+                .replace('–', '-')
+                .replace('—', '-')
+                .replace(Regex("\\s+"), "")
+            val compact = normalized.replace("-", "")
+            return if (Regex("^TD[A-Z0-9]{8}$").matches(compact)) {
+                "TD-${compact.substring(2, 6)}-${compact.substring(6, 10)}"
+            } else {
+                normalized
+            }
         }
     }
 }
