@@ -41,14 +41,85 @@ interface PresetOption {
   value: QuickPublishPreset;
   label: string;
   description: string;
+  headline: string;
+  badge: string;
+  accentColor: string;
+  background: string;
+  recommendedDurationMs: number;
+  titleSuffix: string;
+  descriptionTemplate: string;
+  bullets: string[];
+  premium?: boolean;
 }
 
 const PRESETS: PresetOption[] = [
-  { value: 'menu', label: 'Cardápio Digital', description: 'Para cardápios, preços e ofertas do dia.' },
-  { value: 'promotion', label: 'Promoção', description: 'Para ofertas rápidas e chamadas comerciais.' },
-  { value: 'ad', label: 'Anúncio', description: 'Para mídia indoor e anúncios em tela cheia.' },
-  { value: 'announcement', label: 'Comunicado', description: 'Para avisos, eventos e informações locais.' },
-  { value: 'institutional', label: 'Institucional', description: 'Para conteúdo fixo de marca ou ambiente.' },
+  {
+    value: 'menu',
+    label: 'Cardápio Digital',
+    description: 'Para cardápios, preços e ofertas do dia.',
+    headline: 'Cardápio pronto para vender',
+    badge: 'Restaurante',
+    accentColor: '#ff9800',
+    background: 'linear-gradient(135deg, #2b1400 0%, #7a3a00 100%)',
+    recommendedDurationMs: 12000,
+    titleSuffix: 'Cardápio do dia',
+    descriptionTemplate: 'Template de cardápio digital com foco em leitura rápida, preços claros e chamada para pedido.',
+    bullets: ['Preços e combos', 'Visual vertical 9:16', 'Ideal para balcão e salão'],
+    premium: true,
+  },
+  {
+    value: 'promotion',
+    label: 'Promoção',
+    description: 'Para ofertas rápidas e chamadas comerciais.',
+    headline: 'Oferta em destaque',
+    badge: 'Venda rápida',
+    accentColor: '#e91e63',
+    background: 'linear-gradient(135deg, #2a0010 0%, #b0003a 100%)',
+    recommendedDurationMs: 8000,
+    titleSuffix: 'Promoção especial',
+    descriptionTemplate: 'Template promocional para destacar oferta, preço e urgência de compra.',
+    bullets: ['Chamada forte', 'Preço em evidência', 'Campanhas curtas'],
+    premium: true,
+  },
+  {
+    value: 'ad',
+    label: 'Anúncio',
+    description: 'Para mídia indoor e anúncios em tela cheia.',
+    headline: 'Anúncio de impacto',
+    badge: 'Indoor mídia',
+    accentColor: '#1976d2',
+    background: 'linear-gradient(135deg, #001a33 0%, #0d47a1 100%)',
+    recommendedDurationMs: 10000,
+    titleSuffix: 'Anúncio em tela',
+    descriptionTemplate: 'Template padrão para anúncio em tela cheia com mídia principal e mensagem objetiva.',
+    bullets: ['Tela cheia', 'Marca em destaque', 'Uso geral'],
+  },
+  {
+    value: 'announcement',
+    label: 'Comunicado',
+    description: 'Para avisos, eventos e informações locais.',
+    headline: 'Aviso claro na tela',
+    badge: 'Comunicado',
+    accentColor: '#7b1fa2',
+    background: 'linear-gradient(135deg, #160021 0%, #6a1b9a 100%)',
+    recommendedDurationMs: 9000,
+    titleSuffix: 'Comunicado importante',
+    descriptionTemplate: 'Template para comunicação local com mensagem direta e leitura confortável à distância.',
+    bullets: ['Informação direta', 'Eventos e avisos', 'Boa legibilidade'],
+  },
+  {
+    value: 'institutional',
+    label: 'Institucional',
+    description: 'Para conteúdo fixo de marca ou ambiente.',
+    headline: 'Presença de marca',
+    badge: 'Marca',
+    accentColor: '#2e7d32',
+    background: 'linear-gradient(135deg, #001f12 0%, #1b5e20 100%)',
+    recommendedDurationMs: 15000,
+    titleSuffix: 'Institucional',
+    descriptionTemplate: 'Template institucional para reforçar marca, serviços e presença no ambiente.',
+    bullets: ['Marca e confiança', 'Conteúdo perene', 'Ambiente premium'],
+  },
 ];
 
 const STEPS = ['Cliente', 'Tela', 'Conteúdo', 'Publicar'];
@@ -78,6 +149,15 @@ function getMediaLabel(media: MediaItem): string {
 function isApprovedMedia(media: MediaItem): boolean {
   return String(media.status || '').toLowerCase() === 'approved'
     && String(media.approvalStatus || '').toLowerCase() === 'approved';
+}
+
+function buildTemplateTitle(template: PresetOption, subscriber?: Subscriber | null): string {
+  const subscriberName = getSubscriberName(subscriber);
+  return [template.titleSuffix, subscriberName].filter(Boolean).join(' - ');
+}
+
+function buildTemplateDescription(template: PresetOption): string {
+  return `${template.descriptionTemplate} Direção visual: ${template.headline}.`;
 }
 
 const QuickPublish: React.FC = () => {
@@ -217,9 +297,16 @@ const QuickPublish: React.FC = () => {
 
   useEffect(() => {
     if (!title.trim() && selectedSubscriber) {
-      setTitle(`${selectedPreset.label} - ${getSubscriberName(selectedSubscriber)}`);
+      setTitle(buildTemplateTitle(selectedPreset, selectedSubscriber));
     }
   }, [selectedPreset.label, selectedSubscriber, title]);
+
+  const handleSelectPreset = (template: PresetOption) => {
+    setPreset(template.value);
+    setDurationMs(template.recommendedDurationMs);
+    setTitle(buildTemplateTitle(template, selectedSubscriber));
+    setDescription(buildTemplateDescription(template));
+  };
 
   const handlePublish = async () => {
     if (!canPublish) {
@@ -395,29 +482,112 @@ const QuickPublish: React.FC = () => {
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} md={6}>
-              <FormControl fullWidth size="small" disabled={!subscriberId || loadingDetails || publishing}>
-                <InputLabel>Preset comercial</InputLabel>
-                <Select
-                  value={preset}
-                  label="Preset comercial"
-                  onChange={(e) => setPreset(e.target.value as QuickPublishPreset)}
-                >
-                  {PRESETS.map((item) => (
-                    <MenuItem key={item.value} value={item.value}>
-                      {item.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+            <Grid item xs={12}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
+                Template visual
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Escolha um modelo comercial para preencher automaticamente título, descrição e duração recomendada.
+              </Typography>
+              <Grid container spacing={2}>
+                {PRESETS.map((item) => {
+                  const selected = item.value === preset;
+                  return (
+                    <Grid item xs={12} sm={6} md={2.4} key={item.value}>
+                      <Card
+                        variant="outlined"
+                        onClick={() => {
+                          if (!publishing) handleSelectPreset(item);
+                        }}
+                        sx={{
+                          height: '100%',
+                          cursor: publishing ? 'not-allowed' : 'pointer',
+                          opacity: publishing ? 0.6 : 1,
+                          borderColor: selected ? item.accentColor : 'divider',
+                          borderWidth: selected ? 2 : 1,
+                          transition: 'border-color 160ms ease, transform 160ms ease',
+                          '&:hover': {
+                            transform: publishing ? 'none' : 'translateY(-2px)',
+                            borderColor: item.accentColor,
+                          },
+                        }}
+                      >
+                        <Box sx={{ height: 92, p: 1.5, color: '#fff', background: item.background }}>
+                          <Chip
+                            size="small"
+                            label={item.premium ? 'Premium' : item.badge}
+                            sx={{ bgcolor: 'rgba(255,255,255,0.18)', color: '#fff', fontWeight: 700 }}
+                          />
+                          <Typography variant="subtitle2" sx={{ mt: 1.2, fontWeight: 800 }}>
+                            {item.headline}
+                          </Typography>
+                        </Box>
+                        <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                            {item.label}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', minHeight: 34 }}>
+                            {item.description}
+                          </Typography>
+                          <Chip
+                            size="small"
+                            label={`${Math.round(item.recommendedDurationMs / 1000)}s`}
+                            variant={selected ? 'filled' : 'outlined'}
+                            sx={{ mt: 1, bgcolor: selected ? item.accentColor : undefined, color: selected ? '#fff' : undefined }}
+                          />
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  );
+                })}
+              </Grid>
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid item xs={12} md={7}>
               <Alert severity="info">
                 <Typography variant="body2">
                   <strong>{selectedPreset.label}:</strong> {selectedPreset.description}
                 </Typography>
+                <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', mt: 1 }}>
+                  {selectedPreset.bullets.map((bullet) => (
+                    <Chip key={bullet} size="small" label={bullet} variant="outlined" />
+                  ))}
+                </Box>
               </Alert>
+            </Grid>
+
+            <Grid item xs={12} md={5}>
+              <Card
+                variant="outlined"
+                sx={{
+                  height: '100%',
+                  minHeight: 180,
+                  color: '#fff',
+                  background: selectedPreset.background,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <CardContent>
+                  <Chip
+                    size="small"
+                    label="Prévia 9:16"
+                    sx={{ bgcolor: 'rgba(255,255,255,0.18)', color: '#fff', fontWeight: 700, mb: 2 }}
+                  />
+                  <Typography variant="h6" sx={{ fontWeight: 900 }}>
+                    {title.trim() || buildTemplateTitle(selectedPreset, selectedSubscriber) || selectedPreset.headline}
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 1, color: 'rgba(255,255,255,0.82)' }}>
+                    {selectedPreset.headline}
+                  </Typography>
+                  <Box sx={{ mt: 3, borderTop: '1px solid rgba(255,255,255,0.2)', pt: 1 }}>
+                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.78)' }}>
+                      {selectedMediaNames.length || 0} mídia(s) • {selectedTotemNames.length || 0} tela(s)
+                    </Typography>
+                  </Box>
+                </CardContent>
+              </Card>
             </Grid>
 
             <Grid item xs={12}>
