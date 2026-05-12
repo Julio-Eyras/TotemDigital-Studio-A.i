@@ -5,10 +5,12 @@ CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/totemdigital"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/totemdigital"
 BIN_DIR="$HOME/.local/bin"
 AUTOSTART_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
+SYSTEMD_USER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 
 ENV_FILE="$CONFIG_DIR/player-v3x.env"
 RUNNER_FILE="$BIN_DIR/totemdigital-player-v3x-kiosk"
 AUTOSTART_FILE="$AUTOSTART_DIR/totemdigital-player-v3x.desktop"
+SYSTEMD_UNIT_FILE="$SYSTEMD_USER_DIR/totemdigital-player-v3x.service"
 
 SERVER_URL="${SERVER_URL:-}"
 TOTEM_UIN="${TOTEM_UIN:-}"
@@ -16,6 +18,7 @@ ORIENTATION="${ORIENTATION:-landscape}"
 REGISTER_ON_START=false
 INSTALL_DEPS=false
 DRY_RUN=false
+USE_SYSTEMD_USER=false
 
 usage() {
   cat <<'EOF'
@@ -28,6 +31,7 @@ Opcoes:
   --register        Abre o player com register=1 na primeira execucao
   --orientation M   landscape ou portrait (default: landscape)
   --install-deps    Instala dependencias apt basicas (chromium, unclutter, x11-xserver-utils)
+  --systemd-user    Usa systemd --user em vez de entrada XDG autostart (nao misture os dois)
   --dry-run         Mostra o que seria criado sem escrever arquivos
   -h, --help        Mostra esta ajuda
 
@@ -36,6 +40,13 @@ Exemplo:
     --server http://192.168.1.10 \
     --uin TD-1234-ABCD \
     --register \
+    --install-deps
+
+Exemplo com systemd (recomendado em Ubuntu com sessao grafica):
+  scripts/install-player-v3x-linux-kiosk.sh \
+    --server http://192.168.1.10 \
+    --uin TD-1234-ABCD \
+    --systemd-user \
     --install-deps
 EOF
 }
@@ -64,6 +75,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --dry-run)
       DRY_RUN=true
+      shift
+      ;;
+    --systemd-user)
+      USE_SYSTEMD_USER=true
       shift
       ;;
     -h|--help)
@@ -128,13 +143,23 @@ if [[ "$DRY_RUN" == "true" ]]; then
   echo "Dry-run:"
   echo "  ENV_FILE=$ENV_FILE"
   echo "  RUNNER_FILE=$RUNNER_FILE"
-  echo "  AUTOSTART_FILE=$AUTOSTART_FILE"
+  echo "  USE_SYSTEMD_USER=$USE_SYSTEMD_USER"
+  if [[ "$USE_SYSTEMD_USER" == "true" ]]; then
+    echo "  SYSTEMD_UNIT_FILE=$SYSTEMD_UNIT_FILE"
+  else
+    echo "  AUTOSTART_FILE=$AUTOSTART_FILE"
+  fi
   echo "  BROWSER_CMD=$BROWSER_CMD"
   echo "  PLAYER_URL=$PLAYER_URL"
   exit 0
 fi
 
-mkdir -p "$CONFIG_DIR" "$STATE_DIR" "$BIN_DIR" "$AUTOSTART_DIR"
+mkdir -p "$CONFIG_DIR" "$STATE_DIR" "$BIN_DIR"
+if [[ "$USE_SYSTEMD_USER" == "true" ]]; then
+  mkdir -p "$SYSTEMD_USER_DIR"
+else
+  mkdir -p "$AUTOSTART_DIR"
+fi
 
 cat > "$ENV_FILE" <<EOF
 SERVER_URL="$SERVER_URL"
@@ -197,7 +222,33 @@ EOF
 
 chmod +x "$RUNNER_FILE"
 
-cat > "$AUTOSTART_FILE" <<EOF
+if [[ "$USE_SYSTEMD_USER" == "true" ]]; then
+  rm -f "$AUTOSTART_FILE"
+  cat > "$SYSTEMD_UNIT_FILE" <<EOF
+[Unit]
+Description=TotemDigital Player V3x (Chromium kiosk)
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=$RUNNER_FILE
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=default.target
+EOF
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl --user daemon-reload
+    systemctl --user enable totemdigital-player-v3x.service
+    echo "Servico systemd user ativado. Inicie com: systemctl --user start totemdigital-player-v3x.service"
+  else
+    echo "Aviso: systemctl nao encontrado. Depois de instalar systemd, execute:"
+    echo "  systemctl --user daemon-reload"
+    echo "  systemctl --user enable --now totemdigital-player-v3x.service"
+  fi
+else
+  cat > "$AUTOSTART_FILE" <<EOF
 [Desktop Entry]
 Type=Application
 Version=1.0
@@ -207,13 +258,22 @@ Exec=$RUNNER_FILE
 Terminal=false
 X-GNOME-Autostart-enabled=true
 EOF
-
-chmod +x "$AUTOSTART_FILE"
+  if command -v systemctl >/dev/null 2>&1; then
+    if systemctl --user is-enabled totemdigital-player-v3x.service &>/dev/null; then
+      echo "Aviso: totemdigital-player-v3x.service (systemd user) ainda esta ativo."
+      echo "  Desative para evitar dois players: systemctl --user disable --now totemdigital-player-v3x.service"
+    fi
+  fi
+fi
 
 echo "Player Oficial V3x configurado."
 echo "Config: $ENV_FILE"
 echo "Runner: $RUNNER_FILE"
-echo "Autostart: $AUTOSTART_FILE"
+if [[ "$USE_SYSTEMD_USER" == "true" ]]; then
+  echo "Systemd user: $SYSTEMD_UNIT_FILE"
+else
+  echo "Autostart: $AUTOSTART_FILE"
+fi
 echo "URL: $PLAYER_URL"
 echo ""
 echo "Para testar agora:"

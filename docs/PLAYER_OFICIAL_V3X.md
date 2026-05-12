@@ -37,9 +37,34 @@ scripts/install-player-v3x-linux-kiosk.sh \
 
 - Arquivo de configuracao em `~/.config/totemdigital/player-v3x.env`.
 - Runner local em `~/.local/bin/totemdigital-player-v3x-kiosk`.
-- Entrada de autostart em `~/.config/autostart/totemdigital-player-v3x.desktop`.
+- Por defeito: entrada de autostart em `~/.config/autostart/totemdigital-player-v3x.desktop`.
+- Com `--systemd-user`: unidade `totemdigital-player-v3x.service` em `~/.config/systemd/user/` (sem ficheiro autostart, para nao arrancar o Chromium duas vezes).
 - Loop watchdog simples: se o Chromium sair, ele abre novamente apos 5 segundos.
 - Log local em `~/.local/state/totemdigital/player-v3x-kiosk.log`.
+
+## Systemd User (Opcional)
+
+Em ambientes Ubuntu/Debian com sessao grafica, o systemd do utilizador costuma integrar-se melhor com reinicios e `journalctl` do que apenas o autostart XDG.
+
+```bash
+scripts/install-player-v3x-linux-kiosk.sh \
+  --server http://IP-OU-DOMINIO \
+  --uin TD-1234-ABCD \
+  --systemd-user \
+  --install-deps
+```
+
+Depois da instalacao (se `systemctl` existir no PATH):
+
+```bash
+systemctl --user start totemdigital-player-v3x.service
+```
+
+Ver estado:
+
+```bash
+systemctl --user status totemdigital-player-v3x.service
+```
 
 ## Comandos Uteis
 
@@ -84,7 +109,7 @@ O mesmo fluxo de ativacao e cache offline do `player-web` aplica-se ao kiosk: a 
 
 ## Limites Desta Fase
 
-- O autostart depende da sessao grafica do usuario.
+- Tanto o autostart XDG como o servico systemd user dependem de uma sessao grafica iniciada para esse utilizador (login automatico continua a ser o padrao em piloto).
 - O watchdog cobre queda do Chromium, mas nao reinicia o sistema operacional.
 - Rotacao `portrait` usa `xrandr` quando disponivel.
 - MDM, hardening completo e empacotamento Electron ficam para uma etapa posterior.
