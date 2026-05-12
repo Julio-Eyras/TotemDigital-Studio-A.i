@@ -4126,38 +4126,42 @@ const Subscribers: React.FC = () => {
                     </FormControl>
                   </Grid>
                   <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Data de Início"
-                      type="date"
-                      size="small"
-                      value={editCampaignForm.start_date ?? ''}
-                      onChange={(e) =>
-                        setEditCampaignForm({
-                          ...editCampaignForm,
-                          start_date: e.target.value || undefined,
-                        })
-                      }
-                      InputLabelProps={{ shrink: true }}
-                      helperText="Período de validade da campanha (início)"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Data de Fim"
-                      type="date"
-                      size="small"
-                      value={editCampaignForm.end_date ?? ''}
-                      onChange={(e) =>
-                        setEditCampaignForm({
-                          ...editCampaignForm,
-                          end_date: e.target.value || undefined,
-                        })
-                      }
-                      InputLabelProps={{ shrink: true }}
-                      helperText="Período de validade da campanha (fim)"
-                    />
+                    <Grid container spacing={2}>
+                      <Grid item xs={6}>
+                        <TextField
+                          fullWidth
+                          label="Data de Início"
+                          type="date"
+                          size="small"
+                          value={editCampaignForm.start_date ?? ''}
+                          onChange={(e) =>
+                            setEditCampaignForm({
+                              ...editCampaignForm,
+                              start_date: e.target.value || undefined,
+                            })
+                          }
+                          InputLabelProps={{ shrink: true }}
+                          helperText="Período de validade da campanha (início)"
+                        />
+                      </Grid>
+                      <Grid item xs={6}>
+                        <TextField
+                          fullWidth
+                          label="Data de Fim"
+                          type="date"
+                          size="small"
+                          value={editCampaignForm.end_date ?? ''}
+                          onChange={(e) =>
+                            setEditCampaignForm({
+                              ...editCampaignForm,
+                              end_date: e.target.value || undefined,
+                            })
+                          }
+                          InputLabelProps={{ shrink: true }}
+                          helperText="Período de validade da campanha (fim)"
+                        />
+                      </Grid>
+                    </Grid>
                   </Grid>
                   <Grid item xs={12}>
                     <TextField
