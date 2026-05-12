@@ -30,6 +30,7 @@ O `Player-AD` é um player Android TV orientado a:
   - tela principal em modo kiosk/imersivo;
   - cria `ExoPlayer` + `PlayerView` + `ImageView`;
   - inicia `PlayerController.start()`;
+  - mantém watchdog interno para reiniciar o loop caso ele termine ou falhe;
   - abre `DebugConfigActivity` no primeiro arranque ou por gesto oculto (8 taps/clicks).
 - `DebugConfigActivity`
   - edição de `serverUrl`, `uin`, `deviceId`;
@@ -53,6 +54,7 @@ O `Player-AD` é um player Android TV orientado a:
   - parseia `DispatchPlan`;
   - faz pré-cache assíncrono;
   - executa loop de playback;
+  - aplica timeout por vídeo para avançar mídias travadas;
   - persiste último plano online e fonte do plano;
   - fallback na ordem:
     1. plano online;

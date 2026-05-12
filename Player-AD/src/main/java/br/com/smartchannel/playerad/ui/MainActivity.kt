@@ -25,7 +25,10 @@ import br.com.smartchannel.playerad.util.PlayerAdLogger
 import android.widget.ImageView
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
@@ -88,27 +91,37 @@ class MainActivity : AppCompatActivity() {
         // Evita iniciar duas vezes.
         if (playbackJob != null) return
 
-        val config = PlayerConfigLoader(this).load()
-        cacheManager.reloadStorageRootsIfNeeded()
-        val apiClient = DispatcherApiClient(config.serverUrl, config.uin, config.deviceId)
-        playerController = PlayerController(
-            this,
-            apiClient,
-            cacheManager,
-            exoPlayer,
-            imageView,
-            config.acceptImagesInPlaylist,
-            config.allowPlaybackAudio,
-            config.fallbackPropagandasPerVinheta,
-            config.maxSecondsWithoutServerCheck
-        )
-
         playbackJob = lifecycleScope.launch {
-            try {
-                playerController?.start()
-            } catch (e: Exception) {
-                Log.e("Player-AD", "Falha ao iniciar playback/Dispatcher (server/rede/config)", e)
-                PlayerAdLogger.e("MAIN", "Falha ao iniciar playback/Dispatcher", e)
+            while (isActive && !devUiOpen) {
+                try {
+                    val config = PlayerConfigLoader(this@MainActivity).load()
+                    cacheManager.reloadStorageRootsIfNeeded()
+                    val apiClient = DispatcherApiClient(config.serverUrl, config.uin, config.deviceId)
+                    playerController = PlayerController(
+                        this@MainActivity,
+                        apiClient,
+                        cacheManager,
+                        exoPlayer,
+                        imageView,
+                        config.acceptImagesInPlaylist,
+                        config.allowPlaybackAudio,
+                        config.fallbackPropagandasPerVinheta,
+                        config.maxSecondsWithoutServerCheck
+                    )
+                    PlayerAdLogger.i("WATCHDOG", "Loop do player iniciado")
+                    playerController?.start()
+                    PlayerAdLogger.w("WATCHDOG", "Loop do player terminou; reiniciando em ${WATCHDOG_RESTART_DELAY_MS}ms")
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e("Player-AD", "Falha no loop playback/Dispatcher; watchdog tentará reiniciar", e)
+                    PlayerAdLogger.e("WATCHDOG", "Falha no loop playback/Dispatcher; reinício programado", e)
+                } finally {
+                    try {
+                        exoPlayer.stop()
+                    } catch (_: Exception) { }
+                }
+                delay(WATCHDOG_RESTART_DELAY_MS)
             }
         }
     }
@@ -238,6 +251,7 @@ class MainActivity : AppCompatActivity() {
         private const val KEY_DEV_FIRST_RUN_DONE = "dev_first_run_done"
         private const val KEY_DEV_LAST_VERSION_CODE = "dev_last_version_code"
         private const val DEV_TAPS_REQUIRED = 8
+        private const val WATCHDOG_RESTART_DELAY_MS = 10_000L
     }
 }
 

@@ -19,6 +19,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -748,7 +749,18 @@ class PlayerController(
         exoPlayer.prepare()
         exoPlayer.play()
 
-        val playedMs = waitForPlaybackEnd()
+        val playbackTimeoutMs = playbackWatchdogTimeoutMs(item)
+        val playedMs = withTimeoutOrNull(playbackTimeoutMs) {
+            waitForPlaybackEnd()
+        } ?: run {
+            val currentPosition = exoPlayer.currentPosition
+            PlayerAdLogger.w(
+                "WATCHDOG",
+                "Timeout de reprodução mediaId=${item.mediaId}; avançando item após ${playbackTimeoutMs / 1000L}s"
+            )
+            exoPlayer.stop()
+            currentPosition
+        }
         PlayerAdLogger.logPlaybackEnd(
             "vídeo",
             item.mediaId,
@@ -854,6 +866,15 @@ class PlayerController(
             url.contains(".jpg", ignoreCase = true) || url.contains(".jpeg", ignoreCase = true) -> "jpg"
             url.contains(".png", ignoreCase = true) -> "png"
             else -> "bin"
+        }
+    }
+
+    private fun playbackWatchdogTimeoutMs(item: DispatchMediaItem): Long {
+        val declaredDurationMs = item.duration?.takeIf { it > 0L }?.times(1000L)
+        return when {
+            declaredDurationMs != null -> (declaredDurationMs + VIDEO_WATCHDOG_GRACE_MS)
+                .coerceAtLeast(VIDEO_WATCHDOG_MIN_MS)
+            else -> VIDEO_WATCHDOG_DEFAULT_MS
         }
     }
 
@@ -982,6 +1003,12 @@ class PlayerController(
         cont.invokeOnCancellation {
             exoPlayer.removeListener(listener)
         }
+    }
+
+    companion object {
+        private const val VIDEO_WATCHDOG_MIN_MS = 30_000L
+        private const val VIDEO_WATCHDOG_GRACE_MS = 15_000L
+        private const val VIDEO_WATCHDOG_DEFAULT_MS = 15 * 60 * 1000L
     }
 }
 

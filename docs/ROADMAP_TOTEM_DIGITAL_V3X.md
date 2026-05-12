@@ -124,6 +124,8 @@ Entregas:
 - Vinculacao inicial de hardware no Player-AD sem editar backend manualmente.
 - Autostart.
 - Watchdog.
+- Watchdog interno no Player-AD para recuperar loop encerrado/falho e video travado.
+- Watchdog de reproducao no player-web para pular video que nao inicia ou nao finaliza.
 - Cache offline.
 - Recuperacao apos queda de rede.
 - Logs basicos de saude.

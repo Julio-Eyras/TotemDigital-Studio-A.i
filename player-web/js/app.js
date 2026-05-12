@@ -18,7 +18,11 @@ class SmartSignagePlayer {
             dispatchSyncInterval: config.dispatchSyncInterval || 900000,
             maxCacheSize: config.maxCacheSize || 500 * 1024 * 1024, // 500MB padrão
             fallbackImageDuration: 20,
-            fallbackPropagandasPerVinheta: 5
+            fallbackPropagandasPerVinheta: 5,
+            playbackStartTimeoutMs: config.playbackStartTimeoutMs || 45000,
+            playbackWatchdogMinMs: config.playbackWatchdogMinMs || 30000,
+            playbackWatchdogGraceMs: config.playbackWatchdogGraceMs || 15000,
+            playbackWatchdogDefaultMs: config.playbackWatchdogDefaultMs || 15 * 60 * 1000
         };
 
         /** IDs de mídia que falharam (404) na playlist atual - para entrar em fallback só quando TODOS falharem */
@@ -310,7 +314,13 @@ class SmartSignagePlayer {
 
     async initMediaPlayer() {
         const container = document.getElementById('player-container') || document.body;
-        this.mediaPlayer = new MediaPlayerHTML5({ container });
+        this.mediaPlayer = new MediaPlayerHTML5({
+            container,
+            playbackStartTimeoutMs: this.config.playbackStartTimeoutMs,
+            playbackWatchdogMinMs: this.config.playbackWatchdogMinMs,
+            playbackWatchdogGraceMs: this.config.playbackWatchdogGraceMs,
+            playbackWatchdogDefaultMs: this.config.playbackWatchdogDefaultMs
+        });
 
         this.mediaPlayer.on('ended', (data) => {
             this._onMediaEnded(data);
@@ -672,6 +682,10 @@ class SmartSignagePlayer {
 class MediaPlayerHTML5 {
     constructor(options = {}) {
         this.container = options.container || document.body;
+        this.playbackStartTimeoutMs = options.playbackStartTimeoutMs || 45000;
+        this.playbackWatchdogMinMs = options.playbackWatchdogMinMs || 30000;
+        this.playbackWatchdogGraceMs = options.playbackWatchdogGraceMs || 15000;
+        this.playbackWatchdogDefaultMs = options.playbackWatchdogDefaultMs || 15 * 60 * 1000;
         this.currentElement = null;
         this.listeners = {};
         this._startedAt = null;
@@ -710,6 +724,7 @@ class MediaPlayerHTML5 {
             this._startedAt = Date.now();
             const mt = (mediaItem.mediaType || 'video').toLowerCase();
             const duration = mediaItem.duration;
+            let settled = false;
 
             // Limpar Blob URL anterior se existir
             if (this._currentBlobURL && this._currentBlobURL.startsWith('blob:')) {
@@ -718,11 +733,16 @@ class MediaPlayerHTML5 {
             this._currentBlobURL = url;
 
             const finish = (err, d) => {
+                if (settled) return;
+                settled = true;
                 const secs = d != null ? d : (Date.now() - this._startedAt) / 1000;
-                this.emit('ended', { duration: secs });
                 this._stopSilent();
-                if (err) reject(err);
-                else resolve({ duration: secs });
+                if (err) {
+                    reject(err);
+                } else {
+                    this.emit('ended', { duration: secs });
+                    resolve({ duration: secs });
+                }
             };
 
             switch (mt) {
@@ -744,6 +764,7 @@ class MediaPlayerHTML5 {
 
     _playVideo(url, durationSec, finish) {
         const v = document.createElement('video');
+        let hasActuallyPlayed = false;
         v.src = url;
         v.autoplay = true;
         v.playsInline = true;
@@ -762,6 +783,9 @@ class MediaPlayerHTML5 {
         v.addEventListener('mouseleave', () => {
             v.muted = true;
         });
+        v.addEventListener('playing', () => {
+            hasActuallyPlayed = true;
+        });
 
         v.onended = () => {
             const secs = durationSec != null ? durationSec : (Date.now() - this._startedAt) / 1000;
@@ -776,6 +800,10 @@ class MediaPlayerHTML5 {
         this.currentElement = v;
 
         let playbackStarted = false;
+        const failIfCurrent = (message) => {
+            if (this.currentElement !== v) return;
+            finish(new Error(message));
+        };
         const startPlayback = () => {
             if (playbackStarted) return;
             playbackStarted = true;
@@ -799,6 +827,23 @@ class MediaPlayerHTML5 {
                 if (this.currentElement === v) finish(null, durationSec);
             }, durationSec * 1000);
         }
+        setTimeout(() => {
+            if (this.currentElement === v && !hasActuallyPlayed) {
+                failIfCurrent('Watchdog: vídeo não iniciou reprodução dentro do limite');
+            }
+        }, this.playbackStartTimeoutMs);
+        setTimeout(() => {
+            const currentTime = Number.isFinite(v.currentTime) ? v.currentTime.toFixed(1) : '-';
+            failIfCurrent('Watchdog: vídeo não finalizou dentro do limite (posição=' + currentTime + 's)');
+        }, this._videoWatchdogTimeoutMs(durationSec));
+    }
+
+    _videoWatchdogTimeoutMs(durationSec) {
+        const declaredMs = Number(durationSec) > 0 ? Number(durationSec) * 1000 : null;
+        if (declaredMs != null) {
+            return Math.max(this.playbackWatchdogMinMs, declaredMs + this.playbackWatchdogGraceMs);
+        }
+        return this.playbackWatchdogDefaultMs;
     }
 
     _playImage(url, durationSec, finish) {
