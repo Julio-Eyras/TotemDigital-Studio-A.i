@@ -43,6 +43,7 @@ import {
   Pagination,
   Stack,
   InputAdornment,
+  CircularProgress,
 } from '@mui/material';
 import {
   Add,
@@ -70,6 +71,7 @@ import {
   QueueMusic,
   Description,
   OpenInNew,
+  RotateLeft,
 } from '@mui/icons-material';
 import { 
   subscriberApi, 
@@ -345,6 +347,9 @@ const Subscribers: React.FC = () => {
   const [editPlaylists, setEditPlaylists] = useState<PlaylistItem[]>([]);
   const [editCampaigns, setEditCampaigns] = useState<Campaign[]>([]);
   const [editingEditMediaIndex, setEditingEditMediaIndex] = useState<number | null>(null);
+  const [mediaRotationDrafts, setMediaRotationDrafts] = useState<Record<number, number>>({});
+  const [processingMediaRotationId, setProcessingMediaRotationId] = useState<number | null>(null);
+  const [mediaThumbVersion, setMediaThumbVersion] = useState(0);
   const [editingEditPlaylistIndex, setEditingEditPlaylistIndex] = useState<number | null>(null);
   const [editingEditCampaignIndex, setEditingEditCampaignIndex] = useState<number | null>(null);
   const [campaignSaveLoading, setCampaignSaveLoading] = useState(false);
@@ -1256,6 +1261,53 @@ const Subscribers: React.FC = () => {
       await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
     } catch (error: any) {
       setError(pickApiErrorMessage(error, 'Erro ao excluir mídia'));
+    }
+  };
+
+  const normalizeMediaRotation = (degrees: number) => ((degrees % 360) + 360) % 360;
+
+  const getMediaRotationDraft = (mediaId: number) => mediaRotationDrafts[mediaId] || 0;
+
+  const handleRotateMediaPreview = (mediaId: number) => {
+    setMediaRotationDrafts((prev) => ({
+      ...prev,
+      [mediaId]: normalizeMediaRotation((prev[mediaId] || 0) - 90),
+    }));
+  };
+
+  const handleConfirmMediaRotation = async (media: MediaItem) => {
+    if (!selectedSubscriber || processingMediaRotationId) return;
+    const mediaId = media.media_id;
+    const rotation = getMediaRotationDraft(mediaId);
+    if (!rotation) return;
+
+    if (!window.confirm('Rotacionar e converter esta mídia para 9:16?')) {
+      return;
+    }
+
+    try {
+      setProcessingMediaRotationId(mediaId);
+      setError(null);
+      await mediaApi.transformToPortrait(mediaId, {
+        rotationDegrees: rotation,
+        fit: '9:16',
+      });
+      setMediaRotationDrafts((prev) => {
+        const next = { ...prev };
+        delete next[mediaId];
+        return next;
+      });
+      setMediaPreviewFailed((prev) => {
+        const next = new Set(prev);
+        next.delete(mediaId);
+        return next;
+      });
+      setMediaThumbVersion((v) => v + 1);
+      await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
+    } catch (error: any) {
+      setError(pickApiErrorMessage(error, 'Erro ao rotacionar e converter mídia'));
+    } finally {
+      setProcessingMediaRotationId(null);
     }
   };
 
@@ -3138,9 +3190,11 @@ const Subscribers: React.FC = () => {
               )}
 
               {editMedias.length > 0 ? (
-                <Grid container spacing={2}>
+                <Grid container spacing={3}>
                   {editMedias.map((media, index) => {
-                    const apiThumbnail = media.media_id ? `${process.env.REACT_APP_API_URL || '/api'}/media/${media.media_id}/thumbnail` : null;
+                    const apiThumbnail = media.media_id
+                      ? `${process.env.REACT_APP_API_URL || '/api'}/media/${media.media_id}/thumbnail?v=${mediaThumbVersion}`
+                      : null;
                     let previewUrl: string | null = apiThumbnail || media.thumbnailUrl || media.previewUrl || media.file_path || null;
                     if (previewUrl && previewUrl.startsWith('/opt/smart-signage/public/assets/')) {
                       previewUrl = previewUrl.replace('/opt/smart-signage/public/assets/', '/assets/');
@@ -3150,24 +3204,65 @@ const Subscribers: React.FC = () => {
                     }
                     const showPlaceholder = mediaPreviewFailed.has(media.media_id) || !previewUrl;
                     const isThumbnailUrl = previewUrl?.includes('/thumbnail');
+                    const isTransformable = /^(image|video)$/i.test(String(media.media_type || ''));
+                    const rotationDraft = getMediaRotationDraft(media.media_id);
+                    const rotationChanged = rotationDraft !== 0;
+                    const processingRotation = processingMediaRotationId === media.media_id;
 
                     return (
-                      <Grid item xs={12} sm={6} md={4} key={media.media_id}>
-                        <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                          <Box sx={{ position: 'relative', height: 150, bgcolor: theme.palette.grey[100], overflow: 'hidden' }}>
+                      <Grid item xs={12} sm={6} md={4} lg={3} key={media.media_id}>
+                        <Card sx={{
+                          height: '100%',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+                          '&:hover': {
+                            transform: 'translateY(-4px)',
+                            boxShadow: theme.shadows[8],
+                          },
+                        }}>
+                          <Box
+                            sx={{
+                              position: 'relative',
+                              width: '100%',
+                              aspectRatio: '9 / 16',
+                              bgcolor: theme.palette.grey[100],
+                              overflow: 'hidden',
+                            }}
+                          >
                             {!showPlaceholder && previewUrl && (media.media_type === 'image' || isThumbnailUrl) ? (
                               <Box
                                 component="img"
+                                key={`${media.media_id}-${mediaThumbVersion}`}
                                 src={previewUrl}
                                 alt={media.name}
-                                sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                sx={{
+                                  width: '100%',
+                                  height: '100%',
+                                  objectFit: 'cover',
+                                  position: 'absolute',
+                                  inset: 0,
+                                  transform: `rotate(${rotationDraft}deg)`,
+                                  transformOrigin: 'center',
+                                  transition: 'transform 0.2s ease',
+                                }}
                                 onError={() => setMediaPreviewFailed(prev => new Set(prev).add(media.media_id))}
                               />
                             ) : !showPlaceholder && previewUrl && media.media_type === 'video' && !isThumbnailUrl ? (
                               <Box
                                 component="video"
                                 src={previewUrl}
-                                sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                sx={{
+                                  width: '100%',
+                                  height: '100%',
+                                  objectFit: 'cover',
+                                  position: 'absolute',
+                                  inset: 0,
+                                  transform: `rotate(${rotationDraft}deg)`,
+                                  transformOrigin: 'center',
+                                  transition: 'transform 0.2s ease',
+                                  bgcolor: 'grey.900',
+                                }}
                                 muted
                                 onError={() => setMediaPreviewFailed(prev => new Set(prev).add(media.media_id))}
                                 onMouseEnter={(e: any) => e.target.play?.()}
@@ -3175,59 +3270,181 @@ const Subscribers: React.FC = () => {
                               />
                             ) : (
                               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                                <Avatar sx={{ bgcolor: alpha(getMediaTypeColor(media.media_type), 0.1), color: getMediaTypeColor(media.media_type), width: 64, height: 64 }}>
+                                <Avatar sx={{ bgcolor: alpha(getMediaTypeColor(media.media_type), 0.1), color: getMediaTypeColor(media.media_type), width: 80, height: 80 }}>
                                   {getMediaIcon(media.media_type)}
                                 </Avatar>
                               </Box>
                             )}
-                            <Chip
-                              label={media.status || 'draft'}
-                              size="small"
+                            <Box
                               sx={{
                                 position: 'absolute',
-                                top: 8,
-                                right: 8,
-                                bgcolor: alpha(theme.palette.common.black, 0.7),
-                                color: 'white',
+                                inset: 0,
+                                pointerEvents: 'none',
+                                background: !showPlaceholder
+                                  ? 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.5) 100%)'
+                                  : 'transparent',
+                                zIndex: 2,
                               }}
-                            />
+                            >
+                              <Avatar
+                                sx={{
+                                  position: 'absolute',
+                                  top: 16,
+                                  left: 16,
+                                  bgcolor: alpha(getMediaTypeColor(media.media_type), 0.85),
+                                  color: 'white',
+                                  width: 32,
+                                  height: 32,
+                                }}
+                              >
+                                {getMediaIcon(media.media_type)}
+                              </Avatar>
+                              <Chip
+                                label={media.media_type?.toUpperCase() || 'MÍDIA'}
+                                size="small"
+                                sx={{
+                                  position: 'absolute',
+                                  top: 16,
+                                  right: 16,
+                                  bgcolor: alpha(getMediaTypeColor(media.media_type), 0.9),
+                                  color: 'white',
+                                  fontWeight: 'bold',
+                                }}
+                              />
+                              <Box
+                                sx={{
+                                  position: 'absolute',
+                                  bottom: 16,
+                                  left: 16,
+                                  right: 16,
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                }}
+                              >
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    color: 'white',
+                                    textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                                    fontWeight: 'bold',
+                                  }}
+                                >
+                                  {formatFileSize(media.size_bytes ?? (media as any).fileSizeBytes)}
+                                </Typography>
+                                {media.duration_seconds && (
+                                  <Typography
+                                    variant="caption"
+                                    sx={{
+                                      color: 'white',
+                                      textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                                      fontWeight: 'bold',
+                                    }}
+                                  >
+                                    {formatDuration(media.duration_seconds)}
+                                  </Typography>
+                                )}
+                              </Box>
+                            </Box>
                           </Box>
-                          <CardContent sx={{ flexGrow: 1, p: 2 }}>
-                            <Typography variant="subtitle2" fontWeight="bold" noWrap>
+                          <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                            <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }} noWrap>
                               {media.name}
                             </Typography>
                             {media.description && (
-                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }} noWrap>
+                              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }} noWrap>
                                 {media.description}
                               </Typography>
                             )}
-                            <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
+                            <Box sx={{ mb: 1 }}>
                               <Chip
-                                icon={getMediaIcon(media.media_type)}
-                                label={media.media_type?.toUpperCase() || 'MÍDIA'}
+                                label={`Anunciante: ${selectedSubscriber.name}`}
                                 size="small"
-                                sx={{ bgcolor: alpha(getMediaTypeColor(media.media_type), 0.1), color: getMediaTypeColor(media.media_type) }}
+                                color="primary"
+                                variant="outlined"
+                                sx={{ fontSize: '0.7rem' }}
                               />
-                              {media.size_bytes && (
-                                <Typography variant="caption" color="text.secondary">
-                                  {formatFileSize(media.size_bytes)}
-                                </Typography>
-                              )}
-                              {media.duration_seconds && (
-                                <Typography variant="caption" color="text.secondary">
-                                  {formatDuration(media.duration_seconds)}
-                                </Typography>
+                            </Box>
+                            <Box sx={{ mb: 1, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                              <Chip
+                                label={media.status || 'draft'}
+                                size="small"
+                                color={
+                                  media.status === 'approved' ? 'success' :
+                                  media.status === 'rejected' ? 'error' :
+                                  media.status === 'pending_approval' ? 'warning' :
+                                  'default'
+                                }
+                                variant="outlined"
+                              />
+                              {media.approvalStatus && (
+                                <Chip
+                                  label={`Aprovação: ${media.approvalStatus}`}
+                                  size="small"
+                                  color={media.approvalStatus === 'approved' ? 'success' : 'default'}
+                                  variant="outlined"
+                                />
                               )}
                             </Box>
+                            {media.approvedByName && (
+                              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mb: 1 }}>
+                                Aprovado por: {media.approvedByName}
+                                {media.approvedAt && ` em ${new Date(media.approvedAt).toLocaleDateString('pt-BR')}`}
+                              </Typography>
+                            )}
+                            {Array.isArray(media.tags) && media.tags.length > 0 && (
+                              <Box sx={{ mb: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                {media.tags.slice(0, 3).map((tag, idx) => (
+                                  <Chip key={idx} label={tag} size="small" sx={{ fontSize: '0.65rem', height: 20 }} />
+                                ))}
+                                {media.tags.length > 3 && (
+                                  <Chip label={`+${media.tags.length - 3}`} size="small" sx={{ fontSize: '0.65rem', height: 20 }} />
+                                )}
+                              </Box>
+                            )}
+                            <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                <Tooltip title={isTransformable ? 'Girar 90° à esquerda' : 'Rotação disponível para imagens e vídeos'}>
+                                  <span>
+                                    <IconButton
+                                      size="small"
+                                      disabled={!isTransformable || processingRotation}
+                                      onClick={() => handleRotateMediaPreview(media.media_id)}
+                                    >
+                                      <RotateLeft />
+                                    </IconButton>
+                                  </span>
+                                </Tooltip>
+                                <Tooltip title={rotationChanged ? 'Confirmar rotação e converter para 9:16' : 'Gire a mídia antes de confirmar'}>
+                                  <span>
+                                    <IconButton
+                                      size="small"
+                                      color="success"
+                                      disabled={!rotationChanged || processingRotation}
+                                      onClick={() => handleConfirmMediaRotation(media)}
+                                    >
+                                      {processingRotation ? <CircularProgress size={20} color="inherit" /> : <CheckCircle />}
+                                    </IconButton>
+                                  </span>
+                                </Tooltip>
+                                <Tooltip title="Visualizar">
+                                  <IconButton size="small">
+                                    <Visibility />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Editar">
+                                  <IconButton size="small" onClick={() => handleStartEditMedia(index)}>
+                                    <Edit />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Excluir">
+                                  <IconButton size="small" onClick={() => handleDeleteMedia(index)}>
+                                    <Delete />
+                                  </IconButton>
+                                </Tooltip>
+                              </Box>
+                            </Box>
                           </CardContent>
-                          <Box sx={{ p: 1, display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-                            <IconButton size="small" onClick={() => handleStartEditMedia(index)}>
-                              <Edit />
-                            </IconButton>
-                            <IconButton size="small" onClick={() => handleDeleteMedia(index)}>
-                              <Delete />
-                            </IconButton>
-                          </Box>
                         </Card>
                       </Grid>
                     );
