@@ -30,7 +30,7 @@ import {
   MenuItem,
   useTheme,
 } from '@mui/material';
-import { Tv, Add, Refresh, LocationOn, CheckCircle, Pending, Warning, Settings, Edit } from '@mui/icons-material';
+import { Tv, Add, Refresh, LocationOn, CheckCircle, Pending, Warning, Settings, Edit, ContentCopy } from '@mui/icons-material';
 import { totemApi, Player, CreatePlayerRequest, UpdatePlayerRequest, localApi, Local } from '../../services/api';
 import TotemRemoteControl from '../../components/TotemRemoteControl/TotemRemoteControl';
 import { useAppSelector } from '../../store';
@@ -58,6 +58,15 @@ function TabPanel(props: TabPanelProps) {
 
 const compareByDisplayName = (a?: string, b?: string) =>
   String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
+
+function createActivationCode(): string {
+  const segment = () => Math.random().toString(36).slice(2, 6).toUpperCase().padEnd(4, '0');
+  return `TD-${segment()}-${segment()}`;
+}
+
+function getActivationCode(totem: any): string {
+  return String(totem?.uin || '').trim();
+}
 
 /** ID numérico do totem independente de snake_case/camelCase na API. */
 function resolveTotemRecordId(t: any): number | null {
@@ -147,7 +156,7 @@ const Totems: React.FC = () => {
   const [newTotem, setNewTotem] = useState<CreatePlayerRequest>({ 
     identifier: '', 
     localId: 0,
-    uin: '',
+    uin: createActivationCode(),
     deviceId: '',
     name: '',
     description: '',
@@ -197,6 +206,10 @@ const Totems: React.FC = () => {
   }, [tabValue]);
 
   const openCreateTotemDialog = useCallback(() => {
+    setNewTotem((prev) => ({
+      ...prev,
+      uin: prev.uin || createActivationCode(),
+    }));
     setCreateOpen(true);
   }, []);
 
@@ -257,7 +270,7 @@ const Totems: React.FC = () => {
       setNewTotem({ 
         identifier: '', 
         localId: 0,
-        uin: '',
+        uin: createActivationCode(),
         deviceId: '',
         name: '',
         description: '',
@@ -409,6 +422,15 @@ const Totems: React.FC = () => {
   const openRemoteControl = (totem: Player) => {
     setSelectedTotemForControl(totem);
     setRemoteControlOpen(true);
+  };
+
+  const copyActivationCode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setSuccess(`Código de ativação copiado: ${code}`);
+    } catch {
+      setError('Não foi possível copiar o código de ativação automaticamente.');
+    }
   };
 
   const stockLocalFilterActive = useMemo(() => {
@@ -629,6 +651,7 @@ const Totems: React.FC = () => {
               const registryActive = isTotemRegistryActive(t);
               const titleLine = t.name || t.identifier || (totemId ? `Totem ${totemId}` : 'Totem');
               const identStr = String(t.identifier || '').trim();
+              const activationCode = getActivationCode(t);
               const showIdentifierLine = Boolean(identStr && identStr !== String(titleLine).trim());
               const avatarBg = !registryActive
                 ? 'warning.main'
@@ -657,10 +680,18 @@ const Totems: React.FC = () => {
                             Identificador: {identStr}
                           </Typography>
                         )}
-                        {t.uin && (
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                            UIN: {t.uin}
-                          </Typography>
+                        {activationCode && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mt: 0.75 }}>
+                            <Typography variant="caption" color="text.secondary">
+                              Código de ativação:
+                            </Typography>
+                            <Chip size="small" label={activationCode} color="primary" variant="outlined" />
+                            <Tooltip title="Copiar código de ativação">
+                              <IconButton size="small" onClick={() => void copyActivationCode(activationCode)}>
+                                <ContentCopy fontSize="inherit" />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
                         )}
                         {t.location && (
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
@@ -806,6 +837,7 @@ const Totems: React.FC = () => {
                 const pendingRid = resolveTotemRecordId(t);
                 const titleLinePending = t.name || t.identifier || (pendingRid ? `Totem ${pendingRid}` : 'Totem');
                 const identStrPending = String(t.identifier || '').trim();
+                const activationCodePending = getActivationCode(t);
                 const showIdentifierLinePending = Boolean(
                   identStrPending && identStrPending !== String(titleLinePending).trim()
                 );
@@ -826,10 +858,18 @@ const Totems: React.FC = () => {
                               Identificador: {identStrPending}
                             </Typography>
                           )}
-                          {t.uin && (
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                              UIN: {t.uin}
-                            </Typography>
+                          {activationCodePending && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mt: 0.75 }}>
+                              <Typography variant="caption" color="text.secondary">
+                                Código de ativação:
+                              </Typography>
+                              <Chip size="small" label={activationCodePending} color="primary" variant="outlined" />
+                              <Tooltip title="Copiar código de ativação">
+                                <IconButton size="small" onClick={() => void copyActivationCode(activationCodePending)}>
+                                  <ContentCopy fontSize="inherit" />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
                           )}
                           {t.location && (
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
@@ -911,12 +951,19 @@ const Totems: React.FC = () => {
           />
           <TextField 
             fullWidth 
-            label="UIN (Unique Identifier Number)" 
+            label="Código de ativação (UIN)" 
             margin="normal" 
             value={newTotem.uin || ''} 
             onChange={(e) => setNewTotem({ ...newTotem, uin: e.target.value })} 
-            helperText="Número único de identificação do totem"
+            helperText="Informe este código no player para vincular a tela a este totem."
           />
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => setNewTotem({ ...newTotem, uin: createActivationCode() })}
+          >
+            Gerar novo código
+          </Button>
           <TextField 
             fullWidth 
             label="Device ID" 
@@ -1012,10 +1059,11 @@ const Totems: React.FC = () => {
           />
           <TextField
             fullWidth
-            label="UIN (Unique Identifier Number)"
+            label="Código de ativação (UIN)"
             margin="normal"
             value={editTotem.uin || ''}
             onChange={(e) => setEditTotem({ ...editTotem, uin: e.target.value })}
+            helperText="Informe este código no player para vincular a tela a este totem."
           />
           <TextField
             fullWidth

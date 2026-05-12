@@ -3,6 +3,7 @@
  * Serviço de gerenciamento de totems
  */
 
+import crypto from 'crypto';
 import { getDatabase } from '../config/database';
 import { transaction } from '../config/database-pg';
 import { AuditService } from './auditService';
@@ -28,6 +29,11 @@ function isStockLocalRecord(local: { local_name?: unknown; category_segment?: un
   const localName = normalizeStockText(local.local_name);
   const segment = normalizeStockText(local.category_segment);
   return localName.includes('estoque') || segment === 'estoque';
+}
+
+function generateActivationCode(): string {
+  const raw = crypto.randomBytes(4).toString('hex').toUpperCase();
+  return `TD-${raw.slice(0, 4)}-${raw.slice(4, 8)}`;
 }
 
 export interface CreateTotemRequest {
@@ -160,6 +166,23 @@ export class TotemService {
   private get cache() {
     return getCacheService();
   }
+
+  private async resolveActivationCode(providedCode?: string): Promise<string> {
+    const normalizedProvidedCode = String(providedCode || '').trim();
+    if (normalizedProvidedCode) {
+      return normalizedProvidedCode;
+    }
+
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const code = generateActivationCode();
+      const existing = await this.db.findFirst('SELECT totem_id FROM totems WHERE uin = $1', [code]);
+      if (!existing) {
+        return code;
+      }
+    }
+
+    throw new Error('Não foi possível gerar código de ativação único');
+  }
  
   // Normaliza objeto de totem para garantir campo `totem_id` e `id` consistentes
   private normalizeTotemObject(t: any): any {
@@ -276,9 +299,9 @@ export class TotemService {
       }
 
       if (filters.search) {
-        whereClause += ` AND (t.identifier LIKE $${paramIndex} OR t.description LIKE $${paramIndex + 1} OR t.device_id LIKE $${paramIndex + 2})`;
-        params.push(`%${filters.search}%`, `%${filters.search}%`, `%${filters.search}%`);
-        paramIndex += 3;
+        whereClause += ` AND (t.identifier LIKE $${paramIndex} OR t.description LIKE $${paramIndex + 1} OR t.device_id LIKE $${paramIndex + 2} OR t.uin LIKE $${paramIndex + 3})`;
+        params.push(`%${filters.search}%`, `%${filters.search}%`, `%${filters.search}%`, `%${filters.search}%`);
+        paramIndex += 4;
       }
 
       if (filters.publisherId) {
@@ -298,6 +321,7 @@ export class TotemService {
           t.totem_id as id,
           t.name,
           t.identifier,
+          t.uin,
           t.device_id as deviceId,
           t.local_id as localId,
           l.name as location,
@@ -387,6 +411,7 @@ export class TotemService {
           t.uin,
           l.name as location,
           t.description,
+          t.network_info as config,
           t.local_id,
           t.status,
           t.is_active as active,
@@ -438,6 +463,7 @@ export class TotemService {
         t.totem_id as id,
         t.name,
         t.identifier,
+        t.uin,
         t.device_id as deviceId,
         t.local_id as localId,
         l.name as location,
@@ -483,6 +509,7 @@ export class TotemService {
           t.totem_id as id,
           t.name,
           t.identifier,
+          t.uin,
           t.device_id as deviceId,
           t.local_id as localId,
           l.name as location,
@@ -580,6 +607,7 @@ export class TotemService {
           t.totem_id as id,
           t.name,
           t.identifier,
+          t.uin,
           t.device_id as deviceId,
           t.local_id as localId,
           l.name as location,
@@ -743,14 +771,16 @@ export class TotemService {
       throw new Error('Identifier já existe');
     }
 
-    // Verificar se UIN já existe (se fornecido)
-    if (uin) {
+    const activationCode = await this.resolveActivationCode(uin);
+
+    // Verificar se UIN/código de ativação já existe
+    if (activationCode) {
       const existingUin = await this.db.findFirst(`
         SELECT totem_id FROM totems WHERE uin = $1
-      `, [uin]);
+      `, [activationCode]);
 
       if (existingUin) {
-        throw new Error('UIN já existe');
+        throw new Error('Código de ativação já existe');
       }
     }
 
@@ -823,7 +853,7 @@ export class TotemService {
       `, [
         name || identifier,
         totemIdentifier,
-        uin || null,
+        activationCode,
         deviceId || null,
         localId,
         contract_id || null,
@@ -850,7 +880,8 @@ export class TotemService {
         insertedId,
         JSON.stringify({
           totemId: insertedId,
-          identifier: totemIdentifier
+          identifier: totemIdentifier,
+          activationCode
         })
       ]);
 
