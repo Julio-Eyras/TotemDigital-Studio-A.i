@@ -21,6 +21,7 @@ export const blockClientDataAccess = (
     // Recursos bloqueados para OPERATOR (dados de clientes)
     const blockedResources = [
       'campaigns',
+      'quick-publish',
       'medias',
       'playlists',
       'reports',

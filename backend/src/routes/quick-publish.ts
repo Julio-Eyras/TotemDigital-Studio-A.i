@@ -1,0 +1,79 @@
+import { Router } from 'express';
+import { body, validationResult } from 'express-validator';
+import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
+import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
+import { getQuickPublishService } from '../services/quickPublishService';
+import { logError } from '../utils/loggerHelper';
+
+const router = Router();
+
+router.use(authenticateToken);
+router.use(blockClientDataAccess);
+
+const validateRequest = (req: any, res: any, next: any) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      error: 'Dados inválidos',
+      details: errors.array(),
+    });
+  }
+  return next();
+};
+
+/**
+ * @route POST /api/quick-publish
+ * @desc Publicação rápida V3x: cria playlist/campanha/vínculos a partir de mídias existentes.
+ */
+router.post(
+  '/',
+  authorizeRole(['admin', 'admin_sql', 'gerente_marketing', 'editoracao']),
+  body('subscriberId').isInt({ min: 1 }).withMessage('subscriberId inválido'),
+  body('contractId').isInt({ min: 1 }).withMessage('contractId inválido'),
+  body('totemIds').isArray({ min: 1 }).withMessage('Selecione ao menos um totem'),
+  body('totemIds.*').isInt({ min: 1 }).withMessage('totemId inválido'),
+  body('mediaIds').isArray({ min: 1 }).withMessage('Selecione ao menos uma mídia'),
+  body('mediaIds.*').isInt({ min: 1 }).withMessage('mediaId inválido'),
+  body('preset').optional().isIn(['menu', 'promotion', 'ad', 'announcement', 'institutional']),
+  body('title').optional().isString().trim().isLength({ min: 1, max: 160 }),
+  body('description').optional({ nullable: true }).isString().trim().isLength({ max: 500 }),
+  body('publishNow').optional().isBoolean(),
+  body('durationMs').optional().isInt({ min: 1000, max: 300000 }),
+  validateRequest,
+  async (req: any, res: any) => {
+    try {
+      const result = await getQuickPublishService().publish(
+        {
+          subscriberId: Number(req.body.subscriberId),
+          contractId: Number(req.body.contractId),
+          totemIds: req.body.totemIds,
+          mediaIds: req.body.mediaIds,
+          preset: req.body.preset,
+          title: req.body.title,
+          description: req.body.description,
+          publishNow: req.body.publishNow,
+          durationMs: req.body.durationMs,
+        },
+        req.user?.id || req.user?.userId || 0
+      );
+
+      return res.status(201).json({
+        success: true,
+        data: result,
+        message: result.message,
+      });
+    } catch (error: any) {
+      await logError('Erro na rota de publicação rápida', error);
+      const message = error?.message || 'Erro ao executar publicação rápida';
+      const status = message.includes('Acesso negado') ? 403 : 400;
+      return res.status(status).json({
+        success: false,
+        error: message,
+        message,
+      });
+    }
+  }
+);
+
+export default router;

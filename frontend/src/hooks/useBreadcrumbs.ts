@@ -15,6 +15,7 @@ export interface BreadcrumbConfig {
 
 const breadcrumbConfig: BreadcrumbConfig[] = [
   { path: '/dashboard', label: 'Dashboard' },
+  { path: '/quick-publish', label: 'Publicar em Tela', parent: '/dashboard' },
   { path: '/subscribers', label: 'Anunciantes', parent: '/dashboard' },
   { path: '/publishers', label: 'Publishers', parent: '/dashboard' },
   { path: '/campaigns', label: 'Campanhas', parent: '/dashboard' },

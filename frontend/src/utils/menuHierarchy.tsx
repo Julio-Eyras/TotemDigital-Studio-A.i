@@ -174,6 +174,7 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
       { text: 'Planos', icon: <Assignment />, path: '/plan-publisher-access' },
       { text: 'Locais', icon: <LocationOn />, path: '/locals' },
       { text: 'Totens', icon: <Computer />, path: '/totems' },
+      { text: 'Publicar em Tela', icon: <Add />, path: '/quick-publish' },
       { text: 'Anunciantes', icon: <People />, path: '/subscribers' },
       { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
       { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
@@ -240,6 +241,7 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
       icon: <Campaign />,
       path: '/subscribers',
       children: [
+        { text: 'Publicar em Tela', icon: <Add />, path: '/quick-publish' },
         { text: 'Anunciantes', icon: <People />, path: '/subscribers' },
         { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
         { text: 'Vinhetas', icon: <VideoLibrary />, path: '/vinhetas' },

@@ -49,6 +49,7 @@ export const menuPermissions: MenuItemPermission[] = [
   // Mídia - Todos exceto operator e client
   { path: '/media', roles: ['admin_sql', 'admin', 'gerente_marketing', 'editoracao', 'visualizador'], requiresClientAccess: true },
   { path: '/vinhetas', roles: ['admin_sql', 'admin', 'gerente_marketing', 'editoracao', 'visualizador'], requiresClientAccess: true },
+  { path: '/quick-publish', roles: ['admin_sql', 'admin', 'gerente_marketing', 'editoracao'], requiresClientAccess: true },
   
   // Playlists - Todos exceto operator, editoracao e client
   { path: '/playlists', roles: ['admin_sql', 'admin', 'gerente_marketing', 'visualizador'], requiresClientAccess: true },

@@ -8,6 +8,7 @@ import playerRoutes from '../routes/players';
 import mediaRoutes from '../routes/media';
 import playlistRoutes from '../routes/playlists';
 import campaignRoutes from '../routes/campaigns';
+import quickPublishRoutes from '../routes/quick-publish';
 import settingsRoutes from '../routes/settings';
 import dashboardRoutes from '../routes/dashboard';
 import healthRoutes from '../routes/health';
@@ -44,6 +45,7 @@ export function registerCompactRoutes(app: Express): void {
   app.use('/api/media', blockClientDataAccess as any, mediaRoutes);
   app.use('/api/playlists', blockClientDataAccess as any, playlistRoutes);
   app.use('/api/campaigns', blockClientDataAccess as any, campaignRoutes);
+  app.use('/api/quick-publish', blockClientDataAccess as any, quickPublishRoutes);
   app.use('/api/settings', settingsRoutes);
   app.use('/api/dashboard', authMiddleware as any, dashboardRoutes);
   app.use('/api/alerts', alertsRoutes);

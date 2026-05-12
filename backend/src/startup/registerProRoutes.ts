@@ -15,6 +15,7 @@ import subscriptionsRoutes from '../routes/subscriptions';
 import reportsRoutes from '../routes/reports';
 import aiRoutes from '../routes/ai';
 import smartPlaylistRoutes from '../routes/smart-playlist';
+import quickPublishRoutes from '../routes/quick-publish';
 import exportQueriesRoutes from '../routes/export-queries';
 import exportSchedulesRoutes from '../routes/export-schedules';
 import exportExecutionsRoutes from '../routes/export-executions';
@@ -70,6 +71,7 @@ export function registerProRoutes(app: Express): void {
   app.use('/api/reports', blockClientDataAccess as any, reportsRoutes);
   app.use('/api/ai', aiRoutes);
   app.use('/api/smart-playlist', blockClientDataAccess as any, smartPlaylistRoutes);
+  app.use('/api/quick-publish', blockClientDataAccess as any, quickPublishRoutes);
   app.use('/api/export-queries', exportQueriesRoutes);
   app.use('/api/export-schedules', exportSchedulesRoutes);
   app.use('/api/export-executions', exportExecutionsRoutes);

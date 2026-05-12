@@ -1480,6 +1480,40 @@ export const analyticsApi = {
 };
 
 // =============================================
+// QUICK PUBLISH API (V3x)
+// =============================================
+
+export type QuickPublishPreset = 'menu' | 'promotion' | 'ad' | 'announcement' | 'institutional';
+
+export interface QuickPublishRequest {
+  subscriberId: number;
+  contractId: number;
+  totemIds: number[];
+  mediaIds: number[];
+  preset: QuickPublishPreset;
+  title?: string;
+  description?: string;
+  publishNow?: boolean;
+  durationMs?: number;
+}
+
+export interface QuickPublishResult {
+  success: boolean;
+  playlistId: number;
+  campaignId: number;
+  publishedTotemIds: number[];
+  regeneratedTotemIds: number[];
+  message: string;
+}
+
+export const quickPublishApi = {
+  publish: async (data: QuickPublishRequest): Promise<QuickPublishResult> => {
+    const response = await api.post('/quick-publish', data);
+    return response.data.data;
+  },
+};
+
+// =============================================
 // SETTINGS API
 // =============================================
 
