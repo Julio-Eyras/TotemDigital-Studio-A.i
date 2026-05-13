@@ -19,7 +19,7 @@ class SmartSignagePlayer {
             totemSecret: config.totemSecret || (typeof window !== 'undefined' && window.TOTEM_SECRET) || '',
             deviceId: config.deviceId || this.generateDeviceId(),
             platform: 'browser-cache',
-            appVersion: '2.1.0',
+            appVersion: '2.2.0',
             heartbeatInterval: config.heartbeatInterval || 30000,
             dispatchSyncInterval: config.dispatchSyncInterval || 900000,
             maxCacheSize: config.maxCacheSize || 500 * 1024 * 1024, // 500MB padrão

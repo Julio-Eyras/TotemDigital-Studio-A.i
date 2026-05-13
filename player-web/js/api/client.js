@@ -77,7 +77,7 @@ class APIClient {
             uin: uin || this.totemUIN,
             deviceId: deviceId || this.deviceId || '',
             platform: platform || 'browser',
-            appVersion: appVersion || '2.1.0'
+            appVersion: appVersion || '2.2.0'
         });
 
         const response = await this.request(`/api/player/token?${q}`);

@@ -109,6 +109,16 @@ Para apontar para outro JSON: `TOTEMDIGITAL_POLICY_SRC=/caminho/politica.json` a
 
 Reinicie o Chromium ou a sessao grafica depois de instalar politicas.
 
+## Verificacao Pos Instalacao
+
+Depois do provisionamento, no mini-PC:
+
+```bash
+scripts/verify-player-v3x-kiosk.sh
+```
+
+Lista `OK` / `WARN` / `FAIL` (config, runner, autostart ou systemd, log, politicas em `/etc` ou snap) e tenta `GET /player` se existir `curl`. Codigo de saida: 0 sem bloqueios, 1 com avisos, 2 com falhas.
+
 ## Comandos Uteis
 
 Testar sem escrever arquivos:

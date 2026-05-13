@@ -120,6 +120,7 @@ Entregas:
 
 - Guia oficial do player V3x (`docs/PLAYER_OFICIAL_V3X.md`).
 - Script Linux kiosk (`scripts/install-player-v3x-linux-kiosk.sh`: autostart, `--systemd-user`, `--linger`, flags CLI, `--install-chromium-policy`, rotação de log).
+- Verificacao pos-instalacao kiosk (`scripts/verify-player-v3x-kiosk.sh`).
 - Politicas Chromium geridas (`player-web/chromium-policies/managed-totemdigital-v3x.json`).
 - Player Electron empacotado (OTA e branding): etapa seguinte; piloto suportado com Chromium kiosk.
 - Normalizacao do codigo de ativacao (backend `/api/player`, `player-web/js/activationCode.js`, Player-AD `PlayerConfigLoader`).
