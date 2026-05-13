@@ -174,22 +174,11 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
       { text: 'Planos', icon: <Assignment />, path: '/plan-publisher-access' },
       { text: 'Locais', icon: <LocationOn />, path: '/locals' },
       { text: 'Totens', icon: <Computer />, path: '/totems' },
-      { text: 'Publicar em Tela', icon: <Add />, path: '/quick-publish' },
+      { text: 'Nova publicação', icon: <Add />, path: '/quick-publish' },
       { text: 'Anunciantes', icon: <People />, path: '/subscribers' },
       { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
       { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
       { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
-      {
-        text: 'Dispatcher',
-        icon: <MonitorHeart />,
-        path: '/dispatcher-manager',
-        children: [
-          { text: 'Gerenciar', icon: <Shuffle />, path: '/dispatcher-manager' },
-          { text: 'Monitor', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
-          { text: 'Debug Online', icon: <BugReport />, path: '/dispatcher-debug' },
-          { text: 'Timeline', icon: <ViewTimeline />, path: '/dispatcher-manager?tab=timeline' },
-        ],
-      },
       { text: 'Configurações', icon: <Settings />, path: '/settings' },
     ];
   }

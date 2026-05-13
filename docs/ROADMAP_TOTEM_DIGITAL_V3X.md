@@ -167,6 +167,12 @@ Criterio de aceite:
 
 - Usuario entende a proxima acao em menos de 10 segundos.
 
+Implementacao inicial (modo compacto `REACT_APP_TOTEMDIGITAL_COMPACT=true`):
+
+- Menu lateral sem entrada **Dispatcher**; item de atalho **Nova publicacao** (`/quick-publish`).
+- Dashboard: oculta bloco tecnico «Resumo operacional» e grelha longa de anunciantes; cartao simples **Clientes**; cartao **Estado rapido** com hora da ultima atualizacao em vez de «Sistema operacional» generico.
+- Command palette (Ctrl+K) alinhada ao mesmo conjunto de paginas comerciais.
+
 ## Fase 6 - Templates Premium
 
 Objetivo:

@@ -44,6 +44,7 @@ import { dashboardApi } from '../../services/api';
 import type { QuickPublishPreset } from '../../services/api';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
+import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 
 interface AdvertiserOverviewStats {
   totalSubscribers: number;
@@ -147,9 +148,11 @@ const Dashboard: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const breadcrumbs = useBreadcrumbs();
+  const compactCommercial = TOTEMDIGITAL_COMPACT;
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [activities, setActivities] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dataAsOf, setDataAsOf] = useState('');
   const commercialOverview = getCommercialOverview(stats);
   const onlinePercentage = getOnlinePercentage(commercialOverview);
   const activeClients = stats?.advertiserOverview?.activeSubscribers || 0;
@@ -226,6 +229,7 @@ const Dashboard: React.FC = () => {
       
       setStats(statsData);
       setActivities(Array.isArray(activitiesData) ? activitiesData : []);
+      setDataAsOf(new Date().toLocaleString('pt-BR'));
     } catch (error) {
       setActivities([]);
     } finally {
@@ -257,7 +261,11 @@ const Dashboard: React.FC = () => {
     <Box sx={{ p: 3 }}>
       <PageHeader
         title="Dashboard Comercial"
-        subtitle="Acompanhe telas, publicações e próximos passos sem abrir módulos técnicos."
+        subtitle={
+          compactCommercial
+            ? 'Telas, publicações e próximos passos — sem termos técnicos na primeira vista.'
+            : 'Acompanhe telas, publicações e próximos passos sem abrir módulos técnicos.'
+        }
         breadcrumbs={breadcrumbs}
         onRefresh={loadDashboardData}
         loading={loading}
@@ -505,6 +513,7 @@ const Dashboard: React.FC = () => {
         </Grid>
       </Grid>
 
+      {!compactCommercial && (
       <Box sx={{ mb: 3 }}>
         <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
           Resumo operacional
@@ -536,8 +545,9 @@ const Dashboard: React.FC = () => {
           ))}
         </Grid>
       </Box>
+      )}
 
-      {stats?.advertiserOverview && (
+      {stats?.advertiserOverview && !compactCommercial && (
         <Box sx={{ mb: 3 }}>
           <Box
             sx={{
@@ -646,6 +656,35 @@ const Dashboard: React.FC = () => {
         </Box>
       )}
 
+      {stats?.advertiserOverview && compactCommercial && (
+        <Box sx={{ mb: 3 }}>
+          <Card variant="outlined">
+            <CardContent
+              sx={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 2,
+              }}
+            >
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  Clientes
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {stats.advertiserOverview.activeSubscribers} ativos de{' '}
+                  {stats.advertiserOverview.totalSubscribers} cadastrados
+                </Typography>
+              </Box>
+              <Button variant="contained" size="medium" onClick={() => navigate('/subscribers')}>
+                Gerir clientes
+              </Button>
+            </CardContent>
+          </Card>
+        </Box>
+      )}
+
       {/* Recent Activities */}
       <Grid container spacing={3}>
         <Grid item xs={12} md={6}>
@@ -703,22 +742,40 @@ const Dashboard: React.FC = () => {
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                Status do Sistema
+                {compactCommercial ? 'Estado rápido' : 'Status do Sistema'}
               </Typography>
               <Divider sx={{ mb: 2 }} />
               <List>
-                <ListItem>
-                  <ListItemAvatar>
-                    <Avatar sx={{ bgcolor: theme.palette.success.main }}>
-                      <CheckCircle />
-                    </Avatar>
-                  </ListItemAvatar>
-                  <ListItemText
-                    primary="Sistema Operacional"
-                    secondary="Todos os serviços funcionando normalmente"
-                  />
-                </ListItem>
-                <Divider variant="inset" component="li" />
+                {dataAsOf && compactCommercial && (
+                  <>
+                    <ListItem>
+                      <ListItemAvatar>
+                        <Avatar sx={{ bgcolor: alpha(theme.palette.info.main, 0.15), color: theme.palette.info.main }}>
+                          <Refresh />
+                        </Avatar>
+                      </ListItemAvatar>
+                      <ListItemText
+                        primary="Dados do painel"
+                        secondary={`Atualizados em ${dataAsOf}`}
+                      />
+                    </ListItem>
+                    <Divider variant="inset" component="li" />
+                  </>
+                )}
+                {!compactCommercial && (
+                  <ListItem>
+                    <ListItemAvatar>
+                      <Avatar sx={{ bgcolor: theme.palette.success.main }}>
+                        <CheckCircle />
+                      </Avatar>
+                    </ListItemAvatar>
+                    <ListItemText
+                      primary="Sistema Operacional"
+                      secondary="Todos os serviços funcionando normalmente"
+                    />
+                  </ListItem>
+                )}
+                {!compactCommercial && <Divider variant="inset" component="li" />}
                 <ListItem>
                   <ListItemAvatar>
                     <Avatar sx={{ bgcolor: commercialOverview.offlineScreens > 0 ? theme.palette.warning.main : theme.palette.success.main }}>
