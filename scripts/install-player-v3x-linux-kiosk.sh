@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+POLICY_SRC_DEFAULT="$SCRIPT_DIR/../player-web/chromium-policies/managed-totemdigital-v3x.json"
+
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/totemdigital"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/totemdigital"
 BIN_DIR="$HOME/.local/bin"
@@ -20,6 +23,8 @@ INSTALL_DEPS=false
 DRY_RUN=false
 USE_SYSTEMD_USER=false
 ENABLE_LINGER=false
+INSTALL_CHROMIUM_POLICY=false
+POLICY_SRC="${TOTEMDIGITAL_POLICY_SRC:-$POLICY_SRC_DEFAULT}"
 
 usage() {
   cat <<'EOF'
@@ -34,6 +39,7 @@ Opcoes:
   --install-deps    Instala dependencias apt basicas (chromium, unclutter, x11-xserver-utils)
   --systemd-user    Usa systemd --user em vez de entrada XDG autostart (nao misture os dois)
   --linger          Executa sudo loginctl enable-linger (user systemd no boot; Chromium ainda exige sessao grafica)
+  --install-chromium-policy  Copia politicas geridas (sudo em /etc; snap sem sudo em ~/snap/chromium/...)
   --dry-run         Mostra o que seria criado sem escrever arquivos
   -h, --help        Mostra esta ajuda
 
@@ -57,6 +63,13 @@ Exemplo piloto com linger (sudo) + systemd user:
     --uin TD-1234-ABCD \
     --systemd-user \
     --linger \
+    --install-deps
+
+Exemplo com politicas Chromium geridas (ferramentas de programador desligadas, popups bloqueados):
+  scripts/install-player-v3x-linux-kiosk.sh \
+    --server http://192.168.1.10 \
+    --uin TD-1234-ABCD \
+    --install-chromium-policy \
     --install-deps
 EOF
 }
@@ -93,6 +106,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --linger)
       ENABLE_LINGER=true
+      shift
+      ;;
+    --install-chromium-policy)
+      INSTALL_CHROMIUM_POLICY=true
       shift
       ;;
     -h|--help)
@@ -166,6 +183,8 @@ if [[ "$DRY_RUN" == "true" ]]; then
   echo "  BROWSER_CMD=$BROWSER_CMD"
   echo "  PLAYER_URL=$PLAYER_URL"
   echo "  ENABLE_LINGER=$ENABLE_LINGER"
+  echo "  INSTALL_CHROMIUM_POLICY=$INSTALL_CHROMIUM_POLICY"
+  echo "  POLICY_SRC=$POLICY_SRC"
   if [[ "$ENABLE_LINGER" == "true" ]]; then
     echo "  (linger) sudo loginctl enable-linger $(id -un)"
   fi
@@ -264,6 +283,43 @@ EOF
 
 chmod +x "$RUNNER_FILE"
 
+if [[ "$INSTALL_CHROMIUM_POLICY" == "true" ]]; then
+  if [[ ! -f "$POLICY_SRC" ]]; then
+    echo "Erro: ficheiro de politica nao encontrado: $POLICY_SRC"
+    echo "  Defina TOTEMDIGITAL_POLICY_SRC para apontar ao JSON ou execute a partir do repositorio."
+    exit 1
+  fi
+  if ! command -v sudo >/dev/null 2>&1; then
+    echo "Erro: --install-chromium-policy requer sudo para /etc/..."
+    exit 1
+  fi
+  for policy_dir in /etc/chromium/policies/managed /etc/chromium-browser/policies/managed; do
+    echo "Instalando politica Chromium em $policy_dir ..."
+    sudo mkdir -p "$policy_dir"
+    sudo cp "$POLICY_SRC" "$policy_dir/totemdigital-v3x.json"
+    sudo chmod 644 "$policy_dir/totemdigital-v3x.json"
+  done
+  case "$BROWSER_CMD" in
+    *google-chrome*)
+      gdir="/etc/opt/chrome/policies/managed"
+      echo "Instalando politica Chrome em $gdir ..."
+      sudo mkdir -p "$gdir"
+      sudo cp "$POLICY_SRC" "$gdir/totemdigital-v3x.json"
+      sudo chmod 644 "$gdir/totemdigital-v3x.json"
+      ;;
+  esac
+  case "$BROWSER_CMD" in
+    */snap/*chromium*|*snap*chromium*)
+      snapdir="${HOME}/snap/chromium/common/chromium/policies/managed"
+      echo "Instalando politica para Chromium snap em $snapdir ..."
+      mkdir -p "$snapdir"
+      cp "$POLICY_SRC" "$snapdir/totemdigital-v3x.json"
+      chmod 644 "$snapdir/totemdigital-v3x.json"
+      ;;
+  esac
+  echo "Politicas aplicadas. Reinicie o Chromium (ou a sessao) para carregar."
+fi
+
 if [[ "$USE_SYSTEMD_USER" == "true" ]]; then
   rm -f "$AUTOSTART_FILE"
   cat > "$SYSTEMD_UNIT_FILE" <<EOF
@@ -334,6 +390,9 @@ else
   echo "Autostart: $AUTOSTART_FILE"
 fi
 echo "URL: $PLAYER_URL"
+if [[ "$INSTALL_CHROMIUM_POLICY" == "true" ]]; then
+  echo "Politicas Chromium: totemdigital-v3x.json em /etc/chromium/... (e snap/Chrome se aplicavel)"
+fi
 echo ""
 echo "Para testar agora:"
 echo "  $RUNNER_FILE"

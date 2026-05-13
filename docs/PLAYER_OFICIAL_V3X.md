@@ -89,6 +89,26 @@ loginctl show-user "$(id -un)" -p Linger
 
 O runner passa flags adicionais para reduzir trafego em segundo plano e superficie de extensao: `disable-dev-shm-usage`, `disable-extensions`, `disable-sync`, `disable-background-networking`, `disable-default-apps`, alem do modo kiosk existente. Nao usa modo anonimo (preserva IndexedDB do player).
 
+## Politicas Chromium Geridas (Opcional)
+
+Ficheiro de referencia no repositorio: `player-web/chromium-policies/managed-totemdigital-v3x.json` (ferramentas de programador desligadas, modo anonimo indisponivel, popups bloqueados por politica).
+
+Com o provisionador:
+
+```bash
+scripts/install-player-v3x-linux-kiosk.sh \
+  --server http://IP-OU-DOMINIO \
+  --uin TD-1234-ABCD \
+  --install-chromium-policy \
+  --install-deps
+```
+
+Isto copia o JSON para `/etc/chromium/policies/managed/` e `/etc/chromium-browser/policies/managed/` (sudo). Se o binario for **Google Chrome**, tambem instala em `/etc/opt/chrome/policies/managed/`. Se for **Chromium snap**, copia para `~/snap/chromium/common/chromium/policies/managed/` (sem sudo).
+
+Para apontar para outro JSON: `TOTEMDIGITAL_POLICY_SRC=/caminho/politica.json` antes do comando.
+
+Reinicie o Chromium ou a sessao grafica depois de instalar politicas.
+
 ## Comandos Uteis
 
 Testar sem escrever arquivos:
@@ -142,4 +162,4 @@ O mesmo fluxo de ativacao e cache offline do `player-web` aplica-se ao kiosk: a 
 - Tanto o autostart XDG como o servico systemd user dependem de uma sessao grafica iniciada para esse utilizador (login automatico continua a ser o padrao em piloto).
 - O watchdog cobre queda do Chromium, mas nao reinicia o sistema operacional.
 - Rotacao `portrait` usa `xrandr` quando disponivel.
-- MDM, hardening completo (politicas enterprise Chromium) e empacotamento Electron ficam para uma etapa posterior.
+- MDM a nivel de frota e **empacotamento Electron** (janela dedicada, atualizacoes OTA proprias) ficam para uma etapa posterior; o caminho suportado em piloto continua a ser Chromium em kiosk com politicas e flags acima.

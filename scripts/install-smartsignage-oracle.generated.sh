@@ -6688,7 +6688,7 @@ setup_nginx() {
             sudo chmod -R 755 "$PLAYER_DEST" 2>/dev/null || true
             log "✅ Player-web em $PLAYER_DEST (Nginx com location ^~ /player)"
             # Verificação: arquivos obrigatórios para o player (scripts carregam via /api/player-static/)
-            PLAYER_FILES=( "index.html" "js/activationCode.js" "js/app.js" "js/api/client.js" "js/cache/MediaCacheManager.js" "js/cache/PlaylistChangeDetector.js" )
+            PLAYER_FILES=( "index.html" "js/activationCode.js" "js/app.js" "js/api/client.js" "js/cache/MediaCacheManager.js" "js/cache/PlaylistChangeDetector.js" "chromium-policies/managed-totemdigital-v3x.json" )
             MISSING=()
             for f in "${PLAYER_FILES[@]}"; do
                 [[ -f "$PLAYER_DEST/$f" ]] || MISSING+=("$f")
@@ -8152,7 +8152,7 @@ validate_system_complete() {
     # Single-server: Player (arquivos em /opt e endpoint /api/player-static/)
     if [[ "$INSTALL_MODE" == "single-server" ]]; then
         PLAYER_DIR="/opt/smart-signage/player-web"
-        PLAYER_FILES=( "index.html" "js/activationCode.js" "js/app.js" "js/api/client.js" "js/cache/MediaCacheManager.js" "js/cache/PlaylistChangeDetector.js" )
+        PLAYER_FILES=( "index.html" "js/activationCode.js" "js/app.js" "js/api/client.js" "js/cache/MediaCacheManager.js" "js/cache/PlaylistChangeDetector.js" "chromium-policies/managed-totemdigital-v3x.json" )
         PLAYER_MISSING=()
         for f in "${PLAYER_FILES[@]}"; do
             [[ -f "$PLAYER_DIR/$f" ]] || PLAYER_MISSING+=("$f")
