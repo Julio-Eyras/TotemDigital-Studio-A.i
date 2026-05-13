@@ -180,6 +180,12 @@ scripts/install-player-v3x-electron.sh \
 
 Isto executa `npm install` em `electron-player/`, grava `~/.config/totemdigital/player-v3x-electron.env` com `PLAYER_URL` (mesmo formato de query que o kiosk) e instala o runner `~/.local/bin/totemdigital-player-v3x-electron`. Opcional: `--systemd-user` para unidade `totemdigital-player-v3x-electron.service`.
 
+Verificacao pos-instalacao (no mini-PC):
+
+```bash
+scripts/verify-player-v3x-electron.sh
+```
+
 **Piloto suportado** continua a ser **Chromium kiosk** (politicas, flags e script principal acima). Electron nao substitui ainda OTA/branding comercial; ver `docs/ELECTRON_PLAYER_V3X_NEXT.md`.
 
 ## Limites Desta Fase

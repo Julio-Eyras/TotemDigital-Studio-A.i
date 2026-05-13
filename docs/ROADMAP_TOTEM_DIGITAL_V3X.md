@@ -14,14 +14,34 @@ Organizar a evolucao da V3x em fases curtas, com foco em transformar a base tecn
 | 1 | `POST /api/quick-publish`, pagina `/quick-publish`, presets e segmentos | Cobertura de testes E2E e hardening por perfil |
 | 2 | Upload no fluxo, preview local, validacao previa de plano (`media`) e storage, opcao **9:16** pos-upload | Conversao automatica pesada de video (ffmpeg em fila), se necessario |
 | 3 | Codigo de ativacao, rotas player, painel Totens, Player-AD | UX dedicada «tipo Netflix» se ainda nao cumprir criterio |
-| 4 | Kiosk Linux, politicas Chromium, verificacao, heartbeat, docs; esqueleto `electron-player/` + `scripts/install-player-v3x-electron.sh` | OTA, branding, builds `.deb`/`.AppImage` |
+| 4 | Kiosk Linux, politicas Chromium, `verify-player-v3x-kiosk.sh`; Electron: `electron-player/`, `install-player-v3x-electron.sh`, `verify-player-v3x-electron.sh` | OTA, branding, builds `.deb`/`.AppImage` |
 | 5 | Modo compacto; `REACT_APP_DASHBOARD_COMMERCIAL_FOCUS` no dashboard e **menu Pro** (sem Dispatcher, atalho Nova publicacao); Command Palette alinhada | Reducao adicional de jargao em todas as paginas Pro |
 | 6 | Templates/segmentos no dashboard e QuickPublish; previsualizacao comercial no wizard | Demonstracao em TV real, packs de arte, marketplace |
 | 7+ | Checklists podem referir scripts/docs de instalacao | Pilotos reais, SaaS cloud, modulos avancados (produto/infra) |
 
+## Fecho do processo no repositorio (Fases 0 a 6)
+
+No **âmbito deste repositório**, as fases **0 a 6** estão **fechadas para ciclo de revisão e piloto de campo** (código, scripts, documentação e verificações abaixo). As fases **7 a 9** não “fecham” por commit: dependem de clientes reais, SaaS cloud, operações e produto.
+
+### Checklist técnica recomendada (antes do piloto em hardware)
+
+1. `cd backend && npm run build`
+2. `cd frontend && npx tsc --noEmit`
+3. Mini-PC com **kiosk**: `scripts/verify-player-v3x-kiosk.sh` (código de saída 0 = sem bloqueios; 1 = avisos; 2 = falhas)
+4. Se usar **Electron**: `scripts/verify-player-v3x-electron.sh` (mesma convenção de códigos)
+5. Staging: fluxo **Publicar em Tela**, upload com opcional 9:16, ativação de totem e heartbeat no painel
+
+### O que permanece fora do fecho por código
+
+| Fase | Conteúdo |
+|------|-----------|
+| 7 | Pilotos comerciais, fotos/vídeo, depoimentos, checklist com cliente |
+| 8 | Cloud gerenciada, planos, billing, updates sem acesso SSH ao cliente |
+| 9 | Módulos avançados (IA, marketplace, multi-sync, etc.) após validar a base |
+
 ## Fase 0 - Fundacao Estrategica
 
-Status: em curso (visao documentada).
+Status: **concluida no repositorio** (visao e fluxo em `docs/PRODUCT_VISION_V3X.md`); workshops e decisoes comerciais sao continuacao fora do codigo.
 
 Entregas:
 
@@ -37,7 +57,7 @@ Criterio de aceite:
 
 ## Fase 1 - Publicacao Rapida
 
-Status: funcional no painel e API; continuar validacao em campo.
+Status: **funcional no repositorio**; validacao em campo (E2E, varios perfis) e melhorias incrementais continuam fora deste «fecho».
 
 Objetivo:
 
@@ -64,7 +84,7 @@ Criterio de aceite:
 
 ## Fase 2 - Upload Dentro Do Fluxo
 
-Status: upload no wizard com validacao de limites, preview local, opcao 9:16 pos-envio (imagem/video) e correcao da API de transformacao com rotacao 0.
+Status: **concluida no repositorio** (upload, quotas, preview, opcao 9:16 pos-envio, API `transform` com rotacao 0 + `fit=9:16`). Fila ffmpeg pesada fora deste fecho, se necessario.
 
 Objetivo:
 
@@ -135,7 +155,7 @@ Entregas:
 
 - Guia oficial do player V3x (`docs/PLAYER_OFICIAL_V3X.md`).
 - Script Linux kiosk (`scripts/install-player-v3x-linux-kiosk.sh`: autostart, `--systemd-user`, `--linger`, flags CLI, `--install-chromium-policy`, rotação de log); opcional Electron: `scripts/install-player-v3x-electron.sh` e `electron-player/`.
-- Verificacao pos-instalacao kiosk (`scripts/verify-player-v3x-kiosk.sh`).
+- Verificacao pos-instalacao kiosk (`scripts/verify-player-v3x-kiosk.sh`); Electron (`scripts/verify-player-v3x-electron.sh`).
 - Politicas Chromium geridas (`player-web/chromium-policies/managed-totemdigital-v3x.json`).
 - Player Electron empacotado (OTA e branding): ver `docs/ELECTRON_PLAYER_V3X_NEXT.md` e pasta `electron-player/` (shell inicial); piloto suportado com Chromium kiosk.
 - Normalizacao do codigo de ativacao (backend `/api/player`, `player-web/js/activationCode.js`, Player-AD `PlayerConfigLoader`).

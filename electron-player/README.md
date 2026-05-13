@@ -28,6 +28,8 @@ scripts/install-player-v3x-electron.sh \
 
 Opcoes: `--systemd-user`, `--dry-run`, `--install-deps` (curl). Gera `~/.config/totemdigital/player-v3x-electron.env` e o runner `~/.local/bin/totemdigital-player-v3x-electron`.
 
+Verificação após instalar no mini-PC: `scripts/verify-player-v3x-electron.sh` (no repositório ou cópia do script).
+
 Variáveis opcionais:
 
 | Variável | Efeito |

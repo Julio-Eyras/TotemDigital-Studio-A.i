@@ -15,4 +15,4 @@ Implementação inicial: pasta `electron-player/` (`npm install` + `PLAYER_URL=.
 2. **Branding** e **OTA** (ícone, nome, canal de updates).
 3. Integração com autostart no SO (systemd user, semelhante ao script kiosk).
 
-Quando esta etapa for prioritária, criar issue interna com critérios de aceite: build `.deb`/`.AppImage`, teste em Mini-PC, e verificação `scripts/verify-player-v3x-kiosk.sh` adaptada ou script irmão para Electron.
+Quando esta etapa for prioritária, criar issue interna com critérios de aceite: build `.deb`/`.AppImage`, teste em Mini-PC, e `scripts/verify-player-v3x-electron.sh` com exit 0 em ambiente real.
