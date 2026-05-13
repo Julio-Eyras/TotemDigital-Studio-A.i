@@ -7,13 +7,26 @@ Piloto suportado continua a ser **Chromium kiosk** (`docs/PLAYER_OFICIAL_V3X.md`
 - Node.js 18+
 - `npm install` nesta pasta
 
-## Executar
+## Executar (manual)
 
 ```bash
 cd electron-player
 npm install
 PLAYER_URL=https://seu-servidor/caminho-do-player/ npm start
 ```
+
+## Provisionar no totem (Linux)
+
+Com o repositorio ou pacote que inclua `scripts/` e `electron-player/`:
+
+```bash
+scripts/install-player-v3x-electron.sh \
+  --server http://IP-OU-DOMINIO \
+  --uin TD-1234-ABCD \
+  --register
+```
+
+Opcoes: `--systemd-user`, `--dry-run`, `--install-deps` (curl). Gera `~/.config/totemdigital/player-v3x-electron.env` e o runner `~/.local/bin/totemdigital-player-v3x-electron`.
 
 Variáveis opcionais:
 

@@ -167,9 +167,24 @@ nano ~/.config/totemdigital/player-v3x.env
 
 O mesmo fluxo de ativacao e cache offline do `player-web` aplica-se ao kiosk: a URL `/player` carrega o bundle com IndexedDB. Quando a rede cai e volta, o player reenvia heartbeat e tenta atualizar o dispatch automaticamente.
 
+## Alternativa Experimental: Electron
+
+Para uma janela dedicada sem barra de URL (Node.js no totem), existe um **shell inicial** em `electron-player/` e um provisionador opcional:
+
+```bash
+scripts/install-player-v3x-electron.sh \
+  --server http://IP-OU-DOMINIO \
+  --uin TD-1234-ABCD \
+  --register
+```
+
+Isto executa `npm install` em `electron-player/`, grava `~/.config/totemdigital/player-v3x-electron.env` com `PLAYER_URL` (mesmo formato de query que o kiosk) e instala o runner `~/.local/bin/totemdigital-player-v3x-electron`. Opcional: `--systemd-user` para unidade `totemdigital-player-v3x-electron.service`.
+
+**Piloto suportado** continua a ser **Chromium kiosk** (politicas, flags e script principal acima). Electron nao substitui ainda OTA/branding comercial; ver `docs/ELECTRON_PLAYER_V3X_NEXT.md`.
+
 ## Limites Desta Fase
 
 - Tanto o autostart XDG como o servico systemd user dependem de uma sessao grafica iniciada para esse utilizador (login automatico continua a ser o padrao em piloto).
 - O watchdog cobre queda do Chromium, mas nao reinicia o sistema operacional.
 - Rotacao `portrait` usa `xrandr` quando disponivel.
-- MDM a nivel de frota e **empacotamento Electron** (janela dedicada, atualizacoes OTA proprias) ficam para uma etapa posterior; o caminho suportado em piloto continua a ser Chromium em kiosk com politicas e flags acima.
+- **Empacotamento Electron** completo (OTA proprias, instalador `.deb` / branding de loja) e MDM a nivel de frota ficam para uma etapa posterior; o caminho suportado em piloto continua a ser Chromium em kiosk com politicas e flags acima. O script Electron e a pasta `electron-player/` sao ponto de partida tecnico.

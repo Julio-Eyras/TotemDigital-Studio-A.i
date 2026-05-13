@@ -14,7 +14,7 @@ Organizar a evolucao da V3x em fases curtas, com foco em transformar a base tecn
 | 1 | `POST /api/quick-publish`, pagina `/quick-publish`, presets e segmentos | Cobertura de testes E2E e hardening por perfil |
 | 2 | Upload no fluxo, preview local, validacao previa de plano (`media`) e storage, opcao **9:16** pos-upload | Conversao automatica pesada de video (ffmpeg em fila), se necessario |
 | 3 | Codigo de ativacao, rotas player, painel Totens, Player-AD | UX dedicada «tipo Netflix» se ainda nao cumprir criterio |
-| 4 | Kiosk Linux, politicas Chromium, verificacao, heartbeat, docs; **esqueleto** `electron-player/` | OTA, branding, builds `.deb`/`.AppImage` |
+| 4 | Kiosk Linux, politicas Chromium, verificacao, heartbeat, docs; esqueleto `electron-player/` + `scripts/install-player-v3x-electron.sh` | OTA, branding, builds `.deb`/`.AppImage` |
 | 5 | Modo compacto; `REACT_APP_DASHBOARD_COMMERCIAL_FOCUS` no dashboard e **menu Pro** (sem Dispatcher, atalho Nova publicacao); Command Palette alinhada | Reducao adicional de jargao em todas as paginas Pro |
 | 6 | Templates/segmentos no dashboard e QuickPublish; previsualizacao comercial no wizard | Demonstracao em TV real, packs de arte, marketplace |
 | 7+ | Checklists podem referir scripts/docs de instalacao | Pilotos reais, SaaS cloud, modulos avancados (produto/infra) |
@@ -134,7 +134,7 @@ Motivos:
 Entregas:
 
 - Guia oficial do player V3x (`docs/PLAYER_OFICIAL_V3X.md`).
-- Script Linux kiosk (`scripts/install-player-v3x-linux-kiosk.sh`: autostart, `--systemd-user`, `--linger`, flags CLI, `--install-chromium-policy`, rotação de log).
+- Script Linux kiosk (`scripts/install-player-v3x-linux-kiosk.sh`: autostart, `--systemd-user`, `--linger`, flags CLI, `--install-chromium-policy`, rotação de log); opcional Electron: `scripts/install-player-v3x-electron.sh` e `electron-player/`.
 - Verificacao pos-instalacao kiosk (`scripts/verify-player-v3x-kiosk.sh`).
 - Politicas Chromium geridas (`player-web/chromium-policies/managed-totemdigital-v3x.json`).
 - Player Electron empacotado (OTA e branding): ver `docs/ELECTRON_PLAYER_V3X_NEXT.md` e pasta `electron-player/` (shell inicial); piloto suportado com Chromium kiosk.
