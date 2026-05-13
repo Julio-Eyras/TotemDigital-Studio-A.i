@@ -37,7 +37,10 @@ import {
 } from '@mui/icons-material';
 import { UserRole, canAccess } from './rolePermissions';
 import { UserFlags } from '../store/slices/authSlice';
-import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { DASHBOARD_COMMERCIAL_FOCUS, TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+
+/** Pro com dashboard comercial: menos ruído técnico no menu (alinhado à Fase 5 do roadmap V3x). */
+const isCommercialProMenu = DASHBOARD_COMMERCIAL_FOCUS && !TOTEMDIGITAL_COMPACT;
 
 export interface HierarchicalMenuItem {
   text: string;
@@ -183,45 +186,52 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
     ];
   }
 
+  const dispatcherMenuBlock: HierarchicalMenuItem = {
+    text: 'Dispatcher',
+    icon: <MonitorHeart />,
+    path: '/dispatcher-manager',
+    children: [
+      { text: 'Gerenciar', icon: <Shuffle />, path: '/dispatcher-manager' },
+      { text: 'Monitor', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
+      { text: 'Debug Online', icon: <BugReport />, path: '/dispatcher-debug' },
+      { text: 'Timeline', icon: <ViewTimeline />, path: '/dispatcher-manager?tab=timeline' },
+    ],
+  };
+
+  const exibidoresChildren: HierarchicalMenuItem[] = [
+    { text: 'Publicadores', icon: <Business />, path: '/publishers' },
+    { text: 'Locais', icon: <LocationOn />, path: '/locals' },
+    { text: 'Totens', icon: <Computer />, path: '/totems' },
+    { text: 'Smart TVs', icon: <Tv />, path: '/smart-tvs' },
+    { text: 'Playlists por Totem', icon: <QueueMusic />, path: '/totem-playlists' },
+    { text: 'Rede Visual', icon: <Link />, path: '/network-topology' },
+    { text: 'Contratos (Exibidores)', icon: <Description />, path: '/publisher-contracts' },
+    {
+      text: 'Playlist Mix',
+      icon: <Shuffle />,
+      path: '/playlist-mix',
+      children: [
+        { text: 'Visão Geral', icon: <Shuffle />, path: '/playlist-mix' },
+        { text: 'Grupos', icon: <Assignment />, path: '/playlist-mix/groups' },
+        { text: 'Regras', icon: <Build />, path: '/playlist-mix/rules' },
+        { text: 'Analytics', icon: <Analytics />, path: '/playlist-mix/analytics' },
+      ],
+    },
+    ...(isCommercialProMenu ? [] : [dispatcherMenuBlock]),
+  ];
+
   return [
     { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+    ...(isCommercialProMenu
+      ? [{ text: 'Nova publicação', icon: <Add />, path: '/quick-publish' } as HierarchicalMenuItem]
+      : []),
 
     // Exibidores (Publicadores + operação de displays)
     {
       text: 'Exibidores',
       icon: <Tv />,
       path: '/publishers',
-      children: [
-        { text: 'Publicadores', icon: <Business />, path: '/publishers' },
-        { text: 'Locais', icon: <LocationOn />, path: '/locals' },
-        { text: 'Totens', icon: <Computer />, path: '/totems' },
-        { text: 'Smart TVs', icon: <Tv />, path: '/smart-tvs' },
-        { text: 'Playlists por Totem', icon: <QueueMusic />, path: '/totem-playlists' },
-        { text: 'Rede Visual', icon: <Link />, path: '/network-topology' },
-        { text: 'Contratos (Exibidores)', icon: <Description />, path: '/publisher-contracts' },
-        {
-          text: 'Playlist Mix',
-          icon: <Shuffle />,
-          path: '/playlist-mix',
-          children: [
-            { text: 'Visão Geral', icon: <Shuffle />, path: '/playlist-mix' },
-            { text: 'Grupos', icon: <Assignment />, path: '/playlist-mix/groups' },
-            { text: 'Regras', icon: <Build />, path: '/playlist-mix/rules' },
-            { text: 'Analytics', icon: <Analytics />, path: '/playlist-mix/analytics' },
-          ],
-        },
-        {
-          text: 'Dispatcher',
-          icon: <MonitorHeart />,
-          path: '/dispatcher-manager',
-          children: [
-            { text: 'Gerenciar', icon: <Shuffle />, path: '/dispatcher-manager' },
-            { text: 'Monitor', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
-            { text: 'Debug Online', icon: <BugReport />, path: '/dispatcher-debug' },
-            { text: 'Timeline', icon: <ViewTimeline />, path: '/dispatcher-manager?tab=timeline' },
-          ],
-        },
-      ],
+      children: exibidoresChildren,
     },
 
     // Anunciantes (conteúdo + campanhas)

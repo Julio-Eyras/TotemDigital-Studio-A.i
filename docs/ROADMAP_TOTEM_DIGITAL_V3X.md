@@ -6,14 +6,27 @@ Data: 2026-05-12
 
 Organizar a evolucao da V3x em fases curtas, com foco em transformar a base tecnica atual em produto comercial simples, demonstravel e vendavel.
 
+## Estado Resumido (codigo e docs no repositorio)
+
+| Fase | No repo (implementado / documentado) | Fora do repo ou etapa seguinte |
+|------|----------------------------------------|--------------------------------|
+| 0 | `docs/PRODUCT_VISION_V3X.md` (visao e fluxo principal) | Workshops internos, decisoes comerciais finais |
+| 1 | `POST /api/quick-publish`, pagina `/quick-publish`, presets e segmentos | Cobertura de testes E2E e hardening por perfil |
+| 2 | Upload no fluxo, preview local do ficheiro, validacao previa de plano (`media`) e storage | Conversao automatica pesada de video (ffmpeg em fila), se necessario |
+| 3 | Codigo de ativacao, rotas player, painel Totens, Player-AD | UX dedicada «tipo Netflix» se ainda nao cumprir criterio |
+| 4 | Kiosk Linux, politicas Chromium, verificacao, heartbeat, docs | **Electron** OTA/branding: `docs/ELECTRON_PLAYER_V3X_NEXT.md` |
+| 5 | Modo compacto; `REACT_APP_DASHBOARD_COMMERCIAL_FOCUS` no dashboard e **menu Pro** (sem Dispatcher, atalho Nova publicacao); Command Palette alinhada | Reducao adicional de jargao em todas as paginas Pro |
+| 6 | Templates/segmentos no dashboard e QuickPublish; previsualizacao comercial no wizard | Demonstracao em TV real, packs de arte, marketplace |
+| 7+ | Checklists podem referir scripts/docs de instalacao | Pilotos reais, SaaS cloud, modulos avancados (produto/infra) |
+
 ## Fase 0 - Fundacao Estrategica
 
-Status: iniciada.
+Status: em curso (visao documentada).
 
 Entregas:
 
 - Documentar estrategia V3x.
-- Definir Product Vision.
+- Definir Product Vision (`docs/PRODUCT_VISION_V3X.md`).
 - Definir fluxo principal: Cliente -> Tela -> Conteudo -> Publicar.
 - Registrar decisoes de player, SaaS, ativacao e dashboard.
 
@@ -24,7 +37,7 @@ Criterio de aceite:
 
 ## Fase 1 - Publicacao Rapida
 
-Status: em implementacao inicial.
+Status: funcional no painel e API; continuar validacao em campo.
 
 Objetivo:
 
@@ -51,6 +64,8 @@ Criterio de aceite:
 
 ## Fase 2 - Upload Dentro Do Fluxo
 
+Status: primeira entrega no wizard (upload, validacao previa de limites de mídia e storage, preview local do ficheiro).
+
 Objetivo:
 
 Permitir que o usuario envie midia diretamente no fluxo de publicacao rapida.
@@ -58,8 +73,8 @@ Permitir que o usuario envie midia diretamente no fluxo de publicacao rapida.
 Entregas:
 
 - Upload integrado no wizard.
-- Validacao de cota antes do upload.
-- Preview da midia.
+- Validacao de cota antes do upload (chamadas a `/api/subscribers/:id/validate/plan-limits` e `.../validate/storage` antes do `POST /media/upload`).
+- Preview da midia (preview local do ficheiro selecionado; PDF/áudio sem preview visual).
 - Rotacao/conversao quando necessario.
 - Associacao automatica da midia recem enviada a publicacao.
 
@@ -122,7 +137,7 @@ Entregas:
 - Script Linux kiosk (`scripts/install-player-v3x-linux-kiosk.sh`: autostart, `--systemd-user`, `--linger`, flags CLI, `--install-chromium-policy`, rotação de log).
 - Verificacao pos-instalacao kiosk (`scripts/verify-player-v3x-kiosk.sh`).
 - Politicas Chromium geridas (`player-web/chromium-policies/managed-totemdigital-v3x.json`).
-- Player Electron empacotado (OTA e branding): etapa seguinte; piloto suportado com Chromium kiosk.
+- Player Electron empacotado (OTA e branding): ver `docs/ELECTRON_PLAYER_V3X_NEXT.md`; piloto suportado com Chromium kiosk.
 - Normalizacao do codigo de ativacao (backend `/api/player`, `player-web/js/activationCode.js`, Player-AD `PlayerConfigLoader`).
 - Vinculacao inicial de hardware no Player-AD via `POST /api/player/register` e aprovacao em Totens (sem SQL manual; UX de «Aplicar» apos vincular melhorada).
 - Autostart.
@@ -173,7 +188,7 @@ Implementacao inicial (modo compacto `REACT_APP_TOTEMDIGITAL_COMPACT=true`):
 - Dashboard: oculta bloco tecnico «Resumo operacional» e grelha longa de anunciantes; cartao simples **Clientes**; cartao **Estado rapido** com hora da ultima atualizacao em vez de «Sistema operacional» generico.
 - Command palette (Ctrl+K) alinhada ao mesmo conjunto de paginas comerciais.
 
-Modo Pro (opcional): definir `REACT_APP_DASHBOARD_COMMERCIAL_FOCUS=true` no build do frontend para o mesmo layout comercial no `/dashboard` sem ativar o modo compacto completo.
+Modo Pro (opcional): definir `REACT_APP_DASHBOARD_COMMERCIAL_FOCUS=true` no build do frontend para o mesmo layout comercial no `/dashboard` sem ativar o modo compacto completo. Com esta flag, o menu lateral Pro deixa de mostrar **Dispatcher** e ganha atalho **Nova publicacao** ao nivel do Dashboard (Command Palette alinhada).
 
 ## Fase 6 - Templates Premium
 

@@ -34,7 +34,7 @@ import {
   Add,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { TOTEMDIGITAL_COMPACT } from '../../../config/featureFlags';
+import { DASHBOARD_COMMERCIAL_FOCUS, TOTEMDIGITAL_COMPACT } from '../../../config/featureFlags';
 
 export interface CommandItem {
   id: string;
@@ -222,6 +222,91 @@ const compactCommandItems: CommandItem[] = [
   },
 ];
 
+/** Pro com `REACT_APP_DASHBOARD_COMMERCIAL_FOCUS=true`: atalhos alinhados ao menu comercial (sem depender só do modo compacto). */
+const commercialFocusProCommandItems: CommandItem[] = [
+  {
+    id: 'dashboard',
+    label: 'Dashboard',
+    description: 'Visão geral',
+    icon: <Dashboard />,
+    type: 'page',
+    path: '/dashboard',
+    keywords: ['dashboard', 'home', 'inicio', 'visao geral'],
+  },
+  {
+    id: 'quick-publish',
+    label: 'Publicar em Tela',
+    description: 'Fluxo rápido de publicação',
+    icon: <Add />,
+    type: 'page',
+    path: '/quick-publish',
+    keywords: ['publicar', 'publicacao', 'quick', 'nova', 'tela'],
+  },
+  {
+    id: 'subscribers',
+    label: 'Anunciantes',
+    description: 'Gerenciar anunciantes',
+    icon: <People />,
+    type: 'page',
+    path: '/subscribers',
+    keywords: ['anunciantes', 'subscribers', 'clientes'],
+  },
+  {
+    id: 'totems',
+    label: 'Totens',
+    description: 'Telas e ativação',
+    icon: <Computer />,
+    type: 'page',
+    path: '/totems',
+    keywords: ['totems', 'totens', 'dispositivos', 'telas'],
+  },
+  {
+    id: 'media',
+    label: 'Mídias',
+    description: 'Biblioteca de arquivos',
+    icon: <VideoLibrary />,
+    type: 'page',
+    path: '/media',
+    keywords: ['media', 'midias', 'arquivos'],
+  },
+  {
+    id: 'publishers',
+    label: 'Publishers',
+    description: 'Gerenciar exibidores',
+    icon: <Business />,
+    type: 'page',
+    path: '/publishers',
+    keywords: ['publishers', 'publicadores', 'exibidores'],
+  },
+  {
+    id: 'campaigns',
+    label: 'Campanhas',
+    description: 'Gerenciar campanhas',
+    icon: <Campaign />,
+    type: 'page',
+    path: '/campaigns',
+    keywords: ['campaigns', 'campanhas'],
+  },
+  {
+    id: 'playlists',
+    label: 'Playlists',
+    description: 'Gerenciar playlists',
+    icon: <QueueMusic />,
+    type: 'page',
+    path: '/playlists',
+    keywords: ['playlists', 'listas'],
+  },
+  {
+    id: 'settings',
+    label: 'Configurações',
+    description: 'Configurações do sistema',
+    icon: <Settings />,
+    type: 'page',
+    path: '/settings',
+    keywords: ['settings', 'configuracoes', 'config'],
+  },
+];
+
 const CommandPalette: React.FC<CommandPaletteProps> = ({
   open,
   onClose,
@@ -232,7 +317,13 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   const commandItems = useMemo(
-    () => items ?? (TOTEMDIGITAL_COMPACT ? compactCommandItems : defaultItems),
+    () =>
+      items ??
+      (TOTEMDIGITAL_COMPACT
+        ? compactCommandItems
+        : DASHBOARD_COMMERCIAL_FOCUS
+          ? commercialFocusProCommandItems
+          : defaultItems),
     [items]
   );
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Alert,
@@ -270,6 +270,8 @@ const QuickPublish: React.FC = () => {
   const [description, setDescription] = useState(buildTemplateDescription(initialPresetOption, initialSegmentOption));
   const [durationMs, setDurationMs] = useState(initialPresetOption.recommendedDurationMs);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null);
+  const uploadPreviewRevokeRef = useRef<(() => void) | null>(null);
   const [uploadName, setUploadName] = useState('');
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [loadingInitial, setLoadingInitial] = useState(false);
@@ -335,6 +337,24 @@ const QuickPublish: React.FC = () => {
   useEffect(() => {
     loadSubscribers();
   }, []);
+
+  useEffect(() => {
+    uploadPreviewRevokeRef.current?.();
+    uploadPreviewRevokeRef.current = null;
+    if (!uploadFile) {
+      setUploadPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(uploadFile);
+    setUploadPreviewUrl(url);
+    uploadPreviewRevokeRef.current = () => {
+      URL.revokeObjectURL(url);
+      uploadPreviewRevokeRef.current = null;
+    };
+    return () => {
+      uploadPreviewRevokeRef.current?.();
+    };
+  }, [uploadFile]);
 
   useEffect(() => {
     const urlSegment = resolveSegment(searchParams.get('segment'));
@@ -491,6 +511,19 @@ const QuickPublish: React.FC = () => {
       setUploadingMedia(true);
       setError(null);
       setSuccess(null);
+
+      const planCheck = await subscriberApi.validatePlanLimits(Number(subscriberId), 'media');
+      if (!planCheck.valid) {
+        setError(planCheck.message || 'Limite de mídias do plano atingido.');
+        return;
+      }
+
+      const storageCheck = await subscriberApi.validateStorage(Number(subscriberId), uploadFile.size);
+      if (!storageCheck.valid) {
+        setError(storageCheck.message || 'Limite de armazenamento excedido para este envio.');
+        return;
+      }
+
       const uploaded = await mediaApi.upload(uploadFile, {
         name: uploadName.trim() || uploadFile.name.replace(/\.[^.]+$/, ''),
         description: `Enviado pelo fluxo Publicar em Tela (${selectedPreset.label})`,
@@ -803,6 +836,46 @@ const QuickPublish: React.FC = () => {
                         Enviar
                       </Button>
                     </Grid>
+                    {uploadPreviewUrl && uploadFile && (
+                      <Grid item xs={12}>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                          Pré-visualização do arquivo (antes do envio)
+                        </Typography>
+                        <Box
+                          sx={{
+                            maxHeight: 280,
+                            borderRadius: 1,
+                            overflow: 'hidden',
+                            bgcolor: 'action.hover',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          {uploadFile.type.startsWith('video/') ? (
+                            <Box
+                              component="video"
+                              src={uploadPreviewUrl}
+                              controls
+                              muted
+                              playsInline
+                              sx={{ maxWidth: '100%', maxHeight: 260 }}
+                            />
+                          ) : uploadFile.type.startsWith('image/') ? (
+                            <Box
+                              component="img"
+                              src={uploadPreviewUrl}
+                              alt={uploadFile.name}
+                              sx={{ maxWidth: '100%', maxHeight: 260, objectFit: 'contain' }}
+                            />
+                          ) : (
+                            <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
+                              Pré-visualização não disponível para este tipo de ficheiro. O envio continua válido.
+                            </Typography>
+                          )}
+                        </Box>
+                      </Grid>
+                    )}
                   </Grid>
                 </CardContent>
               </Card>
