@@ -6353,6 +6353,10 @@ export_frontend_build_env() {
             export REACT_APP_TOTEMDIGITAL_COMPACT=$(grep -E '^REACT_APP_TOTEMDIGITAL_COMPACT=' "$env_file" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs)
             [[ -n "$REACT_APP_TOTEMDIGITAL_COMPACT" ]] && log "Build do frontend: REACT_APP_TOTEMDIGITAL_COMPACT=$REACT_APP_TOTEMDIGITAL_COMPACT"
         fi
+        if grep -qE '^REACT_APP_DASHBOARD_COMMERCIAL_FOCUS=' "$env_file" 2>/dev/null; then
+            export REACT_APP_DASHBOARD_COMMERCIAL_FOCUS=$(grep -E '^REACT_APP_DASHBOARD_COMMERCIAL_FOCUS=' "$env_file" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs)
+            [[ -n "$REACT_APP_DASHBOARD_COMMERCIAL_FOCUS" ]] && log "Build do frontend: REACT_APP_DASHBOARD_COMMERCIAL_FOCUS=$REACT_APP_DASHBOARD_COMMERCIAL_FOCUS"
+        fi
     fi
 }
 

@@ -134,6 +134,16 @@ const FEATURED_TEMPLATES = [
   },
 ];
 
+/** Alinhado aos segmentos do QuickPublish — preset por defeito do segmento. */
+const FEATURED_SEGMENT_CHIPS: { label: string; preset: QuickPublishPreset; segment: string }[] = [
+  { label: 'Restaurante', preset: 'menu', segment: 'restaurant' },
+  { label: 'Varejo', preset: 'promotion', segment: 'retail' },
+  { label: 'Igreja / evento', preset: 'announcement', segment: 'church' },
+  { label: 'Clínica', preset: 'institutional', segment: 'health' },
+  { label: 'Hotel', preset: 'institutional', segment: 'hotel' },
+  { label: 'Academia', preset: 'ad', segment: 'gym' },
+];
+
 function getCommercialOverview(stats: DashboardStats | null): CommercialOverviewStats {
   if (stats?.commercialOverview) {
     return stats.commercialOverview;
@@ -489,6 +499,22 @@ const Dashboard: React.FC = () => {
                   Formato horizontal 16:9 (ex.: anúncio em TV)
                 </Button>
               </Stack>
+              <Divider sx={{ my: 2 }} />
+              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                Segmentos sugeridos (abre publicação rápida com o contexto certo)
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {FEATURED_SEGMENT_CHIPS.map((s) => (
+                  <Chip
+                    key={s.segment}
+                    label={s.label}
+                    variant="outlined"
+                    size="small"
+                    onClick={() => openQuickPublish(s.preset, s.segment)}
+                    sx={{ cursor: 'pointer' }}
+                  />
+                ))}
+              </Box>
             </CardContent>
           </Card>
         </Grid>

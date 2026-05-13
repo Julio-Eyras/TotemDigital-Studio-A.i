@@ -195,6 +195,7 @@ Primeira fatia no painel (dashboard):
 
 - Atalho **Institucional** em «Templates em destaque» (abre publicacao rapida com preset `institutional`); presets `menu`, `promotion`, `ad`, `announcement` ja expostos no mesmo bloco.
 - Atalhos **9:16** (preset cardapio / restaurante) e **16:9** (preset anuncio / varejo) sob a grelha de templates.
+- **Segmentos sugeridos** (chips: Restaurante, Varejo, Igreja/evento, Clínica, Hotel, Academia) alinhados ao `QuickPublish`.
 
 Criterio de aceite:
 
