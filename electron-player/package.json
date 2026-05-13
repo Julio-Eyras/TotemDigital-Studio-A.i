@@ -1,0 +1,13 @@
+{
+  "name": "totemdigital-player-electron",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shell Electron opcional para o player Totem Digital V3x (carrega PLAYER_URL).",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^33.2.0"
+  }
+}

@@ -11,6 +11,7 @@ import {
   CircularProgress,
   Divider,
   FormControl,
+  FormControlLabel,
   Grid,
   InputLabel,
   LinearProgress,
@@ -273,6 +274,8 @@ const QuickPublish: React.FC = () => {
   const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null);
   const uploadPreviewRevokeRef = useRef<(() => void) | null>(null);
   const [uploadName, setUploadName] = useState('');
+  /** Após upload, encaixar imagem/vídeo em 9:16 (API `POST /api/media/:id/transform`). */
+  const [portraitAfterUpload, setPortraitAfterUpload] = useState(true);
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [loadingInitial, setLoadingInitial] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
@@ -337,6 +340,10 @@ const QuickPublish: React.FC = () => {
   useEffect(() => {
     loadSubscribers();
   }, []);
+
+  useEffect(() => {
+    setPortraitAfterUpload(preset === 'menu');
+  }, [preset]);
 
   useEffect(() => {
     uploadPreviewRevokeRef.current?.();
@@ -531,18 +538,57 @@ const QuickPublish: React.FC = () => {
         subscriberId: Number(subscriberId),
       });
 
+      const mediaId = Number(uploaded.media_id ?? (uploaded as { id?: number }).id ?? 0);
+      let workingMedia: MediaItem = uploaded;
+      let portraitWarning: string | null = null;
+
+      const wantPortrait =
+        portraitAfterUpload &&
+        mediaId > 0 &&
+        (uploadFile.type.startsWith('image/') || uploadFile.type.startsWith('video/'));
+
+      if (wantPortrait) {
+        try {
+          workingMedia = await mediaApi.transformToPortrait(mediaId, {
+            rotationDegrees: 0,
+            fit: '9:16',
+          });
+        } catch (transformErr) {
+          portraitWarning = pickApiErrorMessage(
+            transformErr,
+            'ajuste 9:16 indisponível; tente em Mídias.'
+          );
+        }
+      }
+
       const approvedMedias = await loadApprovedMedias(Number(subscriberId));
-      if (isApprovedMedia(uploaded)) {
-        const uploadedId = uploaded.media_id;
+      if (isApprovedMedia(workingMedia)) {
+        const uploadedId = workingMedia.media_id;
         setMediaIds((prev) => [...new Set([...prev, uploadedId])]);
-        setSuccess('Mídia enviada e selecionada para publicação.');
+        setSuccess(
+          portraitWarning
+            ? `Mídia enviada e selecionada. Aviso 9:16: ${portraitWarning}`
+            : wantPortrait && !portraitWarning
+              ? 'Mídia enviada, ajustada a 9:16 e selecionada para publicação.'
+              : 'Mídia enviada e selecionada para publicação.'
+        );
       } else {
-        const foundUploaded = approvedMedias.find((media) => media.media_id === uploaded.media_id);
+        const foundUploaded = approvedMedias.find((media) => media.media_id === workingMedia.media_id);
         if (foundUploaded) {
           setMediaIds((prev) => [...new Set([...prev, foundUploaded.media_id])]);
-          setSuccess('Mídia enviada e selecionada para publicação.');
+          setSuccess(
+            portraitWarning
+              ? `Mídia enviada e selecionada. Aviso 9:16: ${portraitWarning}`
+              : wantPortrait && !portraitWarning
+                ? 'Mídia enviada, ajustada a 9:16 e selecionada para publicação.'
+                : 'Mídia enviada e selecionada para publicação.'
+          );
         } else {
-          setSuccess('Mídia enviada. Ela ficará disponível para publicação assim que estiver aprovada.');
+          setSuccess(
+            portraitWarning
+              ? `Mídia enviada. ${portraitWarning} Ficará disponível após aprovação.`
+              : 'Mídia enviada. Ela ficará disponível para publicação assim que estiver aprovada.'
+          );
         }
       }
       setUploadFile(null);
@@ -792,6 +838,17 @@ const QuickPublish: React.FC = () => {
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                     Use esta opção para trazer uma arte ou vídeo direto para o fluxo de publicação.
                   </Typography>
+                  <FormControlLabel
+                    sx={{ mb: 1, alignItems: 'flex-start' }}
+                    control={
+                      <Checkbox
+                        checked={portraitAfterUpload}
+                        onChange={(e) => setPortraitAfterUpload(e.target.checked)}
+                        disabled={uploadingMedia || publishing}
+                      />
+                    }
+                    label="Após enviar, ajustar imagem ou vídeo ao formato vertical 9:16 (recorte central; requer ffmpeg no servidor para vídeo)"
+                  />
                   {uploadingMedia && <LinearProgress sx={{ mb: 2 }} />}
                   <Grid container spacing={2} alignItems="center">
                     <Grid item xs={12} md={5}>

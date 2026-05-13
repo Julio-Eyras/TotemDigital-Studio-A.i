@@ -847,7 +847,9 @@ export class MediaService {
     }
 
     const normalizedRotation = this.normalizeRotation(options.rotationDegrees);
-    if (normalizedRotation === 0) {
+    const fitPortrait = String(options.fit || '') === '9:16';
+    // Sem rotação e sem pedido explícito de 9:16: não alterar ficheiro (comportamento legado).
+    if (normalizedRotation === 0 && !fitPortrait) {
       return media;
     }
 

@@ -9,10 +9,10 @@ O piloto oficial continua com **Chromium em modo kiosk** (`scripts/install-playe
 - **OTA** alinhada ao fluxo existente de updates do player-web quando aplicável.
 - Mesma base de URL e ativação que o kiosk atual.
 
-## Trabalho típico (não iniciado neste repositório)
+Implementação inicial: pasta `electron-player/` (`npm install` + `PLAYER_URL=... npm start`). Próximos passos técnicos:
 
-1. Repositório ou pasta `electron-player/` com `electron`, `electron-builder`.
-2. Carregar `player-web` empacotado ou URL configurável (`PLAYER_URL`).
-3. Integração com políticas de SO (autostart) semelhante ao script systemd atual.
+1. Empacotar `player-web` estático ou manter só URL configurável (`PLAYER_URL`).
+2. **Branding** e **OTA** (ícone, nome, canal de updates).
+3. Integração com autostart no SO (systemd user, semelhante ao script kiosk).
 
 Quando esta etapa for prioritária, criar issue interna com critérios de aceite: build `.deb`/`.AppImage`, teste em Mini-PC, e verificação `scripts/verify-player-v3x-kiosk.sh` adaptada ou script irmão para Electron.
