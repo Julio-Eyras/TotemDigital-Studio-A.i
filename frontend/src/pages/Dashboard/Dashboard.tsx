@@ -24,6 +24,7 @@ import {
   Divider,
   useTheme,
   alpha,
+  Stack,
 } from '@mui/material';
 import {
   Add,
@@ -40,6 +41,8 @@ import {
   Tv,
   CheckCircle,
   Warning,
+  StayCurrentPortrait,
+  StayCurrentLandscape,
 } from '@mui/icons-material';
 import { dashboardApi } from '../../services/api';
 import type { QuickPublishPreset } from '../../services/api';
@@ -464,6 +467,28 @@ const Dashboard: React.FC = () => {
                   </Grid>
                 ))}
               </Grid>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 2 }} alignItems="stretch">
+                <Button
+                  fullWidth
+                  variant="text"
+                  size="small"
+                  startIcon={<StayCurrentPortrait />}
+                  onClick={() => openQuickPublish('menu', 'restaurant')}
+                  sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
+                >
+                  Formato vertical 9:16 (ex.: cardápio em totem)
+                </Button>
+                <Button
+                  fullWidth
+                  variant="text"
+                  size="small"
+                  startIcon={<StayCurrentLandscape />}
+                  onClick={() => openQuickPublish('ad', 'retail')}
+                  sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
+                >
+                  Formato horizontal 16:9 (ex.: anúncio em TV)
+                </Button>
+              </Stack>
             </CardContent>
           </Card>
         </Grid>
