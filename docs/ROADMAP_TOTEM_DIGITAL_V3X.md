@@ -173,6 +173,8 @@ Implementacao inicial (modo compacto `REACT_APP_TOTEMDIGITAL_COMPACT=true`):
 - Dashboard: oculta bloco tecnico «Resumo operacional» e grelha longa de anunciantes; cartao simples **Clientes**; cartao **Estado rapido** com hora da ultima atualizacao em vez de «Sistema operacional» generico.
 - Command palette (Ctrl+K) alinhada ao mesmo conjunto de paginas comerciais.
 
+Modo Pro (opcional): definir `REACT_APP_DASHBOARD_COMMERCIAL_FOCUS=true` no build do frontend para o mesmo layout comercial no `/dashboard` sem ativar o modo compacto completo.
+
 ## Fase 6 - Templates Premium
 
 Objetivo:
@@ -188,6 +190,10 @@ Entregas:
 - Templates inteligentes por segmento comercial.
 - Templates verticais 9:16.
 - Templates horizontais 16:9.
+
+Primeira fatia no painel (dashboard):
+
+- Atalho **Institucional** em «Templates em destaque» (abre publicacao rapida com preset `institutional`); presets `menu`, `promotion`, `ad`, `announcement` ja expostos no mesmo bloco.
 
 Criterio de aceite:
 

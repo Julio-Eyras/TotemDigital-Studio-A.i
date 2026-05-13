@@ -111,7 +111,8 @@ const PublisherDetails: React.FC<PublisherDetailsProps> = ({
   } | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const allPublisherContracts = Array.isArray(stats?.contracts) ? stats.contracts : [];
+  const contractsFromStats = stats?.contracts;
+  const allPublisherContracts = Array.isArray(contractsFromStats) ? contractsFromStats : [];
   const filteredPublisherContracts = useMemo(() => {
     if (contractStatusFilter === 'all') return allPublisherContracts;
     return allPublisherContracts.filter(

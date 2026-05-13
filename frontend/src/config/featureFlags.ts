@@ -9,6 +9,15 @@ export const TOTEMDIGITAL_COMPACT = parseBoolean(
   process.env.REACT_APP_TOTEMDIGITAL_COMPACT
 );
 
+/**
+ * Dashboard com foco comercial (menos blocos técnicos na primeira vista).
+ * No modo Pro, ative com REACT_APP_DASHBOARD_COMMERCIAL_FOCUS=true.
+ * O modo compacto já usa este layout por defeito.
+ */
+export const DASHBOARD_COMMERCIAL_FOCUS = parseBoolean(
+  process.env.REACT_APP_DASHBOARD_COMMERCIAL_FOCUS
+);
+
 /** Alinhar com `DISABLE_DIRECT_CAMPAIGN_TOTEM` no backend (.env); usado se a API ui-context falhar. */
 export const DISABLE_DIRECT_CAMPAIGN_TOTEM = parseBoolean(
   process.env.REACT_APP_DISABLE_DIRECT_CAMPAIGN_TOTEM

@@ -138,12 +138,18 @@ const normalizeSubscriberStatusOptions = (rawValue: unknown): SubscriberStatusFi
       : [];
 
   const options = source
-    .map((option: any) => ({
-      value: String(option?.value ?? '').trim(),
-      label: String(option?.label ?? option?.value ?? '').trim(),
-      activeOnly: option?.activeOnly === true,
-    }))
-    .filter((option) => option.value && option.label);
+    .map((option: unknown) => {
+      const o = option as Record<string, unknown>;
+      return {
+        value: String(o?.value ?? '').trim(),
+        label: String(o?.label ?? o?.value ?? '').trim(),
+        activeOnly: o?.activeOnly === true,
+      };
+    })
+    .filter(
+      (option: SubscriberStatusFilterOption): option is SubscriberStatusFilterOption =>
+        Boolean(option.value && option.label)
+    );
 
   return options.length > 0 ? options : DEFAULT_SUBSCRIBER_STATUS_OPTIONS;
 };

@@ -28,6 +28,7 @@ import {
 import {
   Add,
   AutoAwesome,
+  Business,
   Campaign,
   PlayCircleOutline,
   People,
@@ -44,7 +45,7 @@ import { dashboardApi } from '../../services/api';
 import type { QuickPublishPreset } from '../../services/api';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
-import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
+import { DASHBOARD_COMMERCIAL_FOCUS, TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 
 interface AdvertiserOverviewStats {
   totalSubscribers: number;
@@ -121,6 +122,13 @@ const FEATURED_TEMPLATES = [
     description: 'Avisos, eventos e mensagens locais.',
     icon: <AutoAwesome />,
   },
+  {
+    value: 'institutional' as QuickPublishPreset,
+    segment: 'retail',
+    title: 'Institucional',
+    description: 'Marca, serviços e presença fixa no ambiente.',
+    icon: <Business />,
+  },
 ];
 
 function getCommercialOverview(stats: DashboardStats | null): CommercialOverviewStats {
@@ -148,7 +156,8 @@ const Dashboard: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const breadcrumbs = useBreadcrumbs();
-  const compactCommercial = TOTEMDIGITAL_COMPACT;
+  /** Compacto sempre comercial; Pro pode ativar REACT_APP_DASHBOARD_COMMERCIAL_FOCUS. */
+  const dashboardCommercialFocus = TOTEMDIGITAL_COMPACT || DASHBOARD_COMMERCIAL_FOCUS;
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [activities, setActivities] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -262,7 +271,7 @@ const Dashboard: React.FC = () => {
       <PageHeader
         title="Dashboard Comercial"
         subtitle={
-          compactCommercial
+          dashboardCommercialFocus
             ? 'Telas, publicações e próximos passos — sem termos técnicos na primeira vista.'
             : 'Acompanhe telas, publicações e próximos passos sem abrir módulos técnicos.'
         }
@@ -513,7 +522,7 @@ const Dashboard: React.FC = () => {
         </Grid>
       </Grid>
 
-      {!compactCommercial && (
+      {!dashboardCommercialFocus && (
       <Box sx={{ mb: 3 }}>
         <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
           Resumo operacional
@@ -547,7 +556,7 @@ const Dashboard: React.FC = () => {
       </Box>
       )}
 
-      {stats?.advertiserOverview && !compactCommercial && (
+      {stats?.advertiserOverview && !dashboardCommercialFocus && (
         <Box sx={{ mb: 3 }}>
           <Box
             sx={{
@@ -656,7 +665,7 @@ const Dashboard: React.FC = () => {
         </Box>
       )}
 
-      {stats?.advertiserOverview && compactCommercial && (
+      {stats?.advertiserOverview && dashboardCommercialFocus && (
         <Box sx={{ mb: 3 }}>
           <Card variant="outlined">
             <CardContent
@@ -742,11 +751,11 @@ const Dashboard: React.FC = () => {
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                {compactCommercial ? 'Estado rápido' : 'Status do Sistema'}
+                {dashboardCommercialFocus ? 'Estado rápido' : 'Status do Sistema'}
               </Typography>
               <Divider sx={{ mb: 2 }} />
               <List>
-                {dataAsOf && compactCommercial && (
+                {dataAsOf && dashboardCommercialFocus && (
                   <>
                     <ListItem>
                       <ListItemAvatar>
@@ -762,7 +771,7 @@ const Dashboard: React.FC = () => {
                     <Divider variant="inset" component="li" />
                   </>
                 )}
-                {!compactCommercial && (
+                {!dashboardCommercialFocus && (
                   <ListItem>
                     <ListItemAvatar>
                       <Avatar sx={{ bgcolor: theme.palette.success.main }}>
@@ -775,7 +784,7 @@ const Dashboard: React.FC = () => {
                     />
                   </ListItem>
                 )}
-                {!compactCommercial && <Divider variant="inset" component="li" />}
+                {!dashboardCommercialFocus && <Divider variant="inset" component="li" />}
                 <ListItem>
                   <ListItemAvatar>
                     <Avatar sx={{ bgcolor: commercialOverview.offlineScreens > 0 ? theme.palette.warning.main : theme.palette.success.main }}>
