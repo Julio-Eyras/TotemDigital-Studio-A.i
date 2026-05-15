@@ -101,7 +101,7 @@ function filterHierarchicalMenu(
 
 /**
  * Menu lateral modo TotemDigital Compact (mono publicador): ordem e rótulos pedidos pelo produto.
- * Sem ramo "Exibidores"; locais/totens ficam em Administração. Planos & Acessos: item único como no compacto original.
+ * Sem ramo "Exibidores"; locais, totens e Smart TVs ficam em Administração. Planos & Acessos: item único como no compacto original.
  */
 function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
   const dispatcherBlock: HierarchicalMenuItem = {
@@ -147,6 +147,7 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
         },
         { text: 'Locais', icon: <LocationOn />, path: '/locals' },
         { text: 'Totens', icon: <Computer />, path: '/totems' },
+        { text: 'Smart TVs', icon: <Tv />, path: '/smart-tvs' },
         {
           text: 'Faturamento e billing',
           icon: <Payment />,
