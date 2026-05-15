@@ -286,6 +286,7 @@ const Subscribers: React.FC = () => {
   /** Faturas em atraso (prestações) ao editar anunciante — aba Contratos */
   const [editSubscriberOverdueBillings, setEditSubscriberOverdueBillings] = useState<SubscriberBillingItem[]>([]);
   const [editSubscriberOverdueLoading, setEditSubscriberOverdueLoading] = useState(false);
+  const [editSubscriberOverdueError, setEditSubscriberOverdueError] = useState<string | null>(null);
 
   const getPlanIdFromOption = (plan: any): number | undefined => {
     const id = plan?.planId ?? plan?.plan_id;
@@ -737,33 +738,44 @@ const Subscribers: React.FC = () => {
     setActiveContracts(Array.isArray(list) ? filterEditableContracts(list) : []);
   };
 
-  const fetchSubscriberOverdueBillings = useCallback(async (subscriberId: number): Promise<SubscriberBillingItem[]> => {
-    try {
-      const res = await subscriberBillingApi.getAll({
-        subscriberId,
-        dueFilter: 'overdue',
-        limit: 50,
-        page: 1,
-      });
-      return Array.isArray(res.billings) ? res.billings : [];
-    } catch {
-      return [];
-    }
-  }, []);
+  const fetchSubscriberOverdueBillings = useCallback(
+    async (subscriberId: number): Promise<{ rows: SubscriberBillingItem[]; error: string | null }> => {
+      try {
+        const res = await subscriberBillingApi.getAll({
+          subscriberId,
+          dueFilter: 'overdue',
+          limit: 50,
+          page: 1,
+        });
+        return { rows: Array.isArray(res.billings) ? res.billings : [], error: null };
+      } catch (e: unknown) {
+        return {
+          rows: [],
+          error: pickApiErrorMessage(e, 'Erro ao carregar prestações em atraso'),
+        };
+      }
+    },
+    []
+  );
 
   /** Prestações em atraso — só na aba Contratos do modal de edição. */
   useEffect(() => {
     if (!editDialogOpen || !selectedSubscriber || editTab !== 1) {
       setEditSubscriberOverdueBillings([]);
       setEditSubscriberOverdueLoading(false);
+      setEditSubscriberOverdueError(null);
       return;
     }
     const subscriberId = selectedSubscriber.subscriber_id;
     let cancelled = false;
+    setEditSubscriberOverdueError(null);
     setEditSubscriberOverdueLoading(true);
     fetchSubscriberOverdueBillings(subscriberId)
-      .then((rows) => {
-        if (!cancelled) setEditSubscriberOverdueBillings(rows);
+      .then(({ rows, error }) => {
+        if (!cancelled) {
+          setEditSubscriberOverdueBillings(rows);
+          setEditSubscriberOverdueError(error);
+        }
       })
       .finally(() => {
         if (!cancelled) setEditSubscriberOverdueLoading(false);
@@ -2757,6 +2769,7 @@ const Subscribers: React.FC = () => {
           setEditTab(0);
           setEditSubscriberOverdueBillings([]);
           setEditSubscriberOverdueLoading(false);
+          setEditSubscriberOverdueError(null);
           setEditContractTopologySubTab(0);
           setEditMedias([]);
           setEditPlaylists([]);
@@ -2843,6 +2856,36 @@ const Subscribers: React.FC = () => {
             <Box>
               <Typography variant="h6" sx={{ mb: 2 }}>Contratos do Anunciante</Typography>
 
+              {editSubscriberOverdueError && (
+                <Alert
+                  severity="warning"
+                  sx={{ mb: 2 }}
+                  onClose={() => setEditSubscriberOverdueError(null)}
+                  action={
+                    <Button
+                      color="inherit"
+                      size="small"
+                      disabled={editSubscriberOverdueLoading}
+                      onClick={async () => {
+                        const sid = selectedSubscriber.subscriber_id;
+                        setEditSubscriberOverdueError(null);
+                        setEditSubscriberOverdueLoading(true);
+                        try {
+                          const { rows, error } = await fetchSubscriberOverdueBillings(sid);
+                          setEditSubscriberOverdueBillings(rows);
+                          setEditSubscriberOverdueError(error);
+                        } finally {
+                          setEditSubscriberOverdueLoading(false);
+                        }
+                      }}
+                    >
+                      Tentar novamente
+                    </Button>
+                  }
+                >
+                  {editSubscriberOverdueError}
+                </Alert>
+              )}
               {editSubscriberOverdueLoading && editSubscriberOverdueBillings.length === 0 && (
                 <Alert severity="info" sx={{ mb: 2 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -2852,6 +2895,7 @@ const Subscribers: React.FC = () => {
                 </Alert>
               )}
               {!editSubscriberOverdueLoading &&
+                !editSubscriberOverdueError &&
                 editSubscriberOverdueBillings.length === 0 && (
                   <Alert severity="success" variant="outlined" sx={{ mb: 2 }}>
                     <Typography variant="body2">
@@ -3090,9 +3134,11 @@ const Subscribers: React.FC = () => {
                           }
                           // Recarregar contratos
                           await refreshSubscriberContracts(selectedSubscriber.subscriber_id);
-                          setEditSubscriberOverdueBillings(
-                            await fetchSubscriberOverdueBillings(selectedSubscriber.subscriber_id)
+                          const { rows, error } = await fetchSubscriberOverdueBillings(
+                            selectedSubscriber.subscriber_id
                           );
+                          setEditSubscriberOverdueBillings(rows);
+                          setEditSubscriberOverdueError(error);
                           // Limpar formulário
                           setSubscriberContractFormEdit({
                             contract_number: '',
@@ -3213,9 +3259,11 @@ const Subscribers: React.FC = () => {
                                 try {
                                   await contractApi.delete(contract.contract_id);
                                   await refreshSubscriberContracts(selectedSubscriber!.subscriber_id);
-                                  setEditSubscriberOverdueBillings(
-                                    await fetchSubscriberOverdueBillings(selectedSubscriber!.subscriber_id)
+                                  const { rows, error } = await fetchSubscriberOverdueBillings(
+                                    selectedSubscriber!.subscriber_id
                                   );
+                                  setEditSubscriberOverdueBillings(rows);
+                                  setEditSubscriberOverdueError(error);
                                   if (editingSubscriberContractIndexEdit === index) {
                                     setEditingSubscriberContractIndexEdit(null);
                                     setSubscriberContractFormEdit({

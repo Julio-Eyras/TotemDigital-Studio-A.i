@@ -3,7 +3,7 @@
  * Página completa de gerenciamento de planos, assinaturas e faturas
  */
 
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -221,6 +221,9 @@ const Billing: React.FC = () => {
     /** Deep link: ?subscriberId= / ?subscriber_id= */
     subscriberId: undefined as number | undefined,
   });
+
+  /** Rascunho do campo "ID anunciante"; só sincroniza com URL/estado quando estes mudam. */
+  const [subscriberIdDraft, setSubscriberIdDraft] = useState('');
   
   const [publisherFilters, setPublisherFilters] = useState({
     page: 1,
@@ -261,6 +264,19 @@ const Billing: React.FC = () => {
       setNewSubscriberInvoice((prev) => ({ ...prev, subscriberId: String(id) }));
     }
   }, [billingType, searchParams.toString()]);
+
+  const billingSearchKey = searchParams.toString();
+  useEffect(() => {
+    if (billingType !== 'subscriber') {
+      setSubscriberIdDraft('');
+      return;
+    }
+    const rawId = searchParams.get('subscriberId') ?? searchParams.get('subscriber_id');
+    const fromUrl = rawId != null && rawId !== '' ? rawId : '';
+    const sid = subscriberFilters.subscriberId;
+    const fromState = sid != null ? String(sid) : '';
+    setSubscriberIdDraft(fromUrl || fromState || '');
+  }, [billingType, billingSearchKey, subscriberFilters.subscriberId]);
 
   useEffect(() => {
     loadAll();
@@ -437,6 +453,44 @@ const Billing: React.FC = () => {
       showError('Erro ao carregar faturas de assinantes');
     }
   };
+
+  /** Atualiza a query (?subscriberId=) a partir do rascunho; o layout sincroniza o estado. */
+  const applySubscriberIdFromDraftToUrl = useCallback(() => {
+    const t = subscriberIdDraft.trim();
+    const n = parseInt(t, 10);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (!t || !Number.isFinite(n) || n < 1) {
+          next.delete('subscriberId');
+          next.delete('subscriber_id');
+          next.delete('subscriberName');
+        } else {
+          next.set('subscriberId', String(n));
+          next.delete('subscriber_id');
+          next.delete('subscriberName');
+        }
+        return next;
+      },
+      { replace: true }
+    );
+  }, [subscriberIdDraft, setSearchParams]);
+
+  /** Mantém `dueFilter` na URL alinhado ao select (evita deep link a forçar filtro após "Todos"). */
+  const syncSubscriberDueFilterToUrl = useCallback(
+    (dueFilter: '' | 'overdue' | 'due_soon') => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (!dueFilter) next.delete('dueFilter');
+          else next.set('dueFilter', dueFilter);
+          return next;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
 
   const loadPublisherBillings = async () => {
     try {
@@ -1014,6 +1068,7 @@ const Billing: React.FC = () => {
                     dueFilter: '',
                     page: 1,
                   });
+                  syncSubscriberDueFilterToUrl('');
                 }}
                 onClose={() => loadSubscriberBillings()}
               >
@@ -1030,12 +1085,14 @@ const Billing: React.FC = () => {
                 value={subscriberFilters.dueFilter}
                 label="Vencimento"
                 onChange={(e) => {
+                  const dueFilter = e.target.value as '' | 'overdue' | 'due_soon';
                   setSubscriberFilters({
                     ...subscriberFilters,
-                    dueFilter: e.target.value as '' | 'overdue' | 'due_soon',
+                    dueFilter,
                     status: '',
                     page: 1,
                   });
+                  syncSubscriberDueFilterToUrl(dueFilter);
                 }}
                 onClose={() => loadSubscriberBillings()}
               >
@@ -1075,6 +1132,29 @@ const Billing: React.FC = () => {
                 }
               }}
             />
+            {!isSubscriberUser && (
+              <>
+                <TextField
+                  size="small"
+                  label="ID anunciante"
+                  value={subscriberIdDraft}
+                  onChange={(e) => setSubscriberIdDraft(e.target.value.replace(/\D/g, ''))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      applySubscriberIdFromDraftToUrl();
+                    }
+                  }}
+                  sx={{ width: 132 }}
+                  inputProps={{ inputMode: 'numeric', pattern: '[0-9]*' }}
+                  helperText="Enter p/ aplicar"
+                  FormHelperTextProps={{ sx: { m: 0, mt: 0.25 } }}
+                />
+                <Button size="small" variant="outlined" onClick={() => applySubscriberIdFromDraftToUrl()}>
+                  Aplicar ID
+                </Button>
+              </>
+            )}
             <Button startIcon={<Refresh />} variant="outlined" onClick={loadSubscriberBillings}>
               Atualizar
             </Button>
