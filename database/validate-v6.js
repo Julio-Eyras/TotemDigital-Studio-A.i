@@ -74,15 +74,19 @@ async function validateAndExecute() {
       process.exit(1);
     }
 
-    // Executar o script
-    console.log('🚀 Executando script de carga...');
-    console.log('   (Isso pode levar alguns minutos...)\n');
-    
-    const startTime = Date.now();
-    await pool.query(sqlScript);
-    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-    
-    console.log(`✅ Script executado com sucesso em ${duration}s\n`);
+    // Executar o script (omitir se seeds já foram aplicados pelo instalador dinâmico)
+    if (process.env.VALIDATE_V6_SKIP_LOAD === 'true' || process.env.VALIDATE_V6_SKIP_LOAD === '1') {
+      console.log('ℹ️  VALIDATE_V6_SKIP_LOAD: pulando execução de carga-inicial-v6.sql (apenas validação)\n');
+    } else {
+      console.log('🚀 Executando script de carga...');
+      console.log('   (Isso pode levar alguns minutos...)\n');
+
+      const startTime = Date.now();
+      await pool.query(sqlScript);
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+
+      console.log(`✅ Script executado com sucesso em ${duration}s\n`);
+    }
 
     // Validar dados inseridos
     console.log('🔍 Validando dados inseridos...\n');

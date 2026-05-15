@@ -209,6 +209,7 @@ LIMITS_DEMO_GOLD_CAMPAIGNS="${LIMITS_DEMO_GOLD_CAMPAIGNS:-120}"
 
 # Modos especiais (operações focadas)
 DB_ONLY_MODE=false                # Reinstala apenas o banco (drop + schema + seeds), sem rebuild de backend/frontend
+SEEDS_ONLY_MODE=false             # Aplica apenas seeds dinâmicos + usuários (sem drop/schema)
 BACKEND_BUILD_ONLY=false          # Faz apenas build do backend (sem mexer em banco/Nginx/etc.)
 FRONTEND_BUILD_ONLY=false         # Faz apenas build do frontend (sem mexer em banco/backend/etc.)
 BACKFRONT_BUILD_ONLY=false        # Faz build do backend e do frontend (deps + TypeScript + React), sem tocar no banco
@@ -1427,14 +1428,29 @@ execute_psql_file() {
     fi
 
     chmod 644 "$temp_schema" 2>/dev/null || true
-    local psql_output
+    local psql_output=""
     local POSTGRES_USER="${POSTGRES_SYSTEM_USER:-postgres}"
-    if ! psql_output=$(sudo -u "$POSTGRES_USER" psql -v ON_ERROR_STOP=1 -d "$database_name" -f "$schema_to_use" 2>&1); then
-        rm -f "$schema_to_use" 2>/dev/null || true
-        [[ -n "$cleanup_schema_dir" ]] && rm -rf "$cleanup_schema_dir" 2>/dev/null || true
-        error "❌ Falha ao aplicar ${description}"
-        echo "$psql_output"
-        return 1
+    local db_user="${PRIMARY_DB_USER:-${DB_USER:-}}"
+    local db_host="${DB_HOST:-localhost}"
+    local db_port="${DB_PORT:-5432}"
+    local run_ok=false
+
+    # Preferir usuário da aplicação (evita sudo em --seeds-only / automação)
+    if [[ -n "${PGPASSWORD:-}" ]] && [[ -n "$db_user" ]] && command -v psql >/dev/null 2>&1; then
+        if psql_output=$(PGPASSWORD="$PGPASSWORD" psql -v ON_ERROR_STOP=1 \
+            -h "$db_host" -p "$db_port" -U "$db_user" -d "$database_name" -f "$schema_to_use" 2>&1); then
+            run_ok=true
+        fi
+    fi
+
+    if [[ "$run_ok" != "true" ]]; then
+        if ! psql_output=$(sudo -u "$POSTGRES_USER" psql -v ON_ERROR_STOP=1 -d "$database_name" -f "$schema_to_use" 2>&1); then
+            rm -f "$schema_to_use" 2>/dev/null || true
+            [[ -n "$cleanup_schema_dir" ]] && rm -rf "$cleanup_schema_dir" 2>/dev/null || true
+            error "❌ Falha ao aplicar ${description}"
+            echo "$psql_output"
+            return 1
+        fi
     fi
 
     rm -f "$schema_to_use" 2>/dev/null || true
@@ -1600,6 +1616,13 @@ parse_arguments() {
                 SKIP_MENU=true
                 shift
                 ;;
+            --seeds-only)
+                # Aplica seeds dinâmicos (carga-inicial-v6 + bloco owner) sem recriar schema.
+                SEEDS_ONLY_MODE=true
+                LOAD_SEEDS=true
+                SKIP_MENU=true
+                shift
+                ;;
             --backend-only)
                 # Apenas instala dependências e compila o backend
                 BACKEND_BUILD_ONLY=true
@@ -1677,6 +1700,7 @@ parse_arguments() {
                 echo "  --reset-db           Apaga e recria o banco PostgreSQL se já existir (fluxo completo)"
                 echo "  --preserve-db        Preserva o banco de dados existente durante reinstalação"
                 echo "  --db-only            Reinstala APENAS o banco (drop + schema + seeds), sem rebuild de backend/frontend"
+                echo "  --seeds-only         Aplica seeds dinâmicos (owner/planos/totens demo) sem drop nem schema"
                 echo "  --backend-only       Apenas backend: parar serviço, npm install + tsc, iniciar backend (sem banco/Nginx/frontend)"
                 echo "  --frontend-only      Apenas frontend: parar Nginx, npm install + build React, reiniciar Nginx (sem banco/backend)"
                 echo "  --backfront-build    Build backend + frontend (deps + TypeScript + React), depois iniciar backend e Nginx (sem banco)"
@@ -10488,6 +10512,83 @@ test_docker_build() {
     return 0
 }
 
+# Seeds completos (carga-inicial-v6 + bloco dinâmico do owner). Reutilizado em setup_first_boot e --seeds-only.
+load_database_seeds() {
+    local TARGET_DB="${PRIMARY_DB_NAME:-smartsignage}"
+
+    if [[ "$LOAD_SEEDS" != "true" ]]; then
+        log "Seeds de demonstração foram ignorados (opção selecionada)."
+        return 0
+    fi
+
+    sanitize_owner_profile_defaults
+    sanitize_limits_defaults
+
+    log "Executando seed completo do banco de dados com dados correlacionados..."
+
+    local INITIAL_LOAD_SQL_FILE="$INSTALL_DIR/database/carga-inicial-v6.sql"
+
+    if [[ ! -f "$INITIAL_LOAD_SQL_FILE" ]]; then
+        warn "⚠️ Arquivo de seeds não encontrado: $INITIAL_LOAD_SQL_FILE"
+        warn "⚠️ Sem seeds. O sistema ficará sem dados de exemplo."
+        return 0
+    fi
+
+    log "✅ Arquivo de seeds encontrado: $(basename "$INITIAL_LOAD_SQL_FILE")"
+    local RUNTIME_SEED_FILE="$INITIAL_LOAD_SQL_FILE"
+    local TEMP_DYNAMIC_SEED_FILE=""
+
+    TEMP_DYNAMIC_SEED_FILE=$(mktemp /tmp/carga-inicial-v6.owner.XXXX.sql 2>/dev/null || true)
+    if [[ -n "$TEMP_DYNAMIC_SEED_FILE" ]]; then
+        prepare_seed_with_owner_profile "$INITIAL_LOAD_SQL_FILE" "$TEMP_DYNAMIC_SEED_FILE"
+        RUNTIME_SEED_FILE="$TEMP_DYNAMIC_SEED_FILE"
+        log "Seed dinâmico aplicado com owner='${SYSTEM_OWNER_NAME}', admin='${SYSTEM_OWNER_ADMIN_USERNAME}', plano='${SYSTEM_OWNER_PLAN_NAME}'."
+    else
+        warn "⚠️ Não foi possível criar arquivo temporário para seed dinâmico. Usando seed padrão."
+    fi
+
+    if ! execute_psql_file "$TARGET_DB" "$RUNTIME_SEED_FILE" "Carga inicial (seeds) ($(basename "$INITIAL_LOAD_SQL_FILE"))"; then
+        if [[ "$RUNTIME_SEED_FILE" != "$INITIAL_LOAD_SQL_FILE" ]]; then
+            warn "⚠️ Seed dinâmico do owner falhou. Reaplicando seed padrão para não interromper a instalação..."
+            if ! execute_psql_file "$TARGET_DB" "$INITIAL_LOAD_SQL_FILE" "Carga inicial (seeds) fallback ($(basename "$INITIAL_LOAD_SQL_FILE"))"; then
+                return 1
+            fi
+        else
+            return 1
+        fi
+    fi
+    [[ -n "$TEMP_DYNAMIC_SEED_FILE" ]] && rm -f "$TEMP_DYNAMIC_SEED_FILE" 2>/dev/null || true
+
+    install_demo_media_files || true
+
+    local FIX_SEQ_FILE="$INSTALL_DIR/database/fix-sequences-after-seed.sql"
+    if [[ -f "$FIX_SEQ_FILE" ]]; then
+        execute_psql_file "$TARGET_DB" "$FIX_SEQ_FILE" "Fix sequences after seed (fix-sequences-after-seed.sql)"
+    else
+        warn "⚠️ Arquivo de fix de sequências não encontrado: $FIX_SEQ_FILE"
+    fi
+
+    local VALIDATE_SEEDS_FILE="$INSTALL_DIR/database/validate-seeds.sql"
+    if [[ -f "$VALIDATE_SEEDS_FILE" ]]; then
+        log "Validando integridade referencial dos seeds..."
+        execute_psql_file "$TARGET_DB" "$VALIDATE_SEEDS_FILE" "Validação de integridade (validate-seeds.sql)" || true
+    fi
+
+    if [[ "${COMPACT_MERGE_LOCALS:-false}" == "true" ]]; then
+        local MERGE_SQL="$INSTALL_DIR/database/compact-merge-locals-to-single.sql"
+        if [[ -f "$MERGE_SQL" ]]; then
+            log "Migração opcional: consolidar locais num único por publisher (modo compacto)..."
+            if ! execute_psql_file "$TARGET_DB" "$MERGE_SQL" "compact-merge-locals-to-single.sql"; then
+                warn "⚠️ compact-merge-locals falhou (ex.: vários publishers ativos — defina target_publisher_id em database/compact-merge-locals-to-single.sql e execute manualmente)."
+            fi
+        else
+            warn "⚠️ Arquivo não encontrado: $MERGE_SQL (compact-merge-locals ignorado)"
+        fi
+    fi
+
+    return 0
+}
+
 setup_first_boot() {
     if [[ "$INSTALL_MODE" != "single-server" ]]; then
         log "Primeiro boot será configurado pelo Docker"
@@ -10933,78 +11034,11 @@ setup_first_boot() {
         log "✅ Diretório de logs criado e configurado: $LOGS_DIR"
     fi
     
-    if [[ "$LOAD_SEEDS" == "true" ]]; then
-        # Executar seed (dados iniciais - COMPLETO com dados correlacionados)
-        log "Executando seed completo do banco de dados com dados correlacionados..."
-
-        # Usar carga-inicial-v6.sql (validada e consistente) como padrão.
-        INITIAL_LOAD_SQL_FILE="$INSTALL_DIR/database/carga-inicial-v6.sql"
-
-        if [[ -f "$INITIAL_LOAD_SQL_FILE" ]]; then
-            log "✅ Arquivo de seeds encontrado: $(basename "$INITIAL_LOAD_SQL_FILE")"
-            local RUNTIME_SEED_FILE="$INITIAL_LOAD_SQL_FILE"
-            local TEMP_DYNAMIC_SEED_FILE=""
-
-            # Aplicar dados do owner como parâmetros dinâmicos para evitar hardcode no tenant inicial.
-            TEMP_DYNAMIC_SEED_FILE=$(mktemp /tmp/carga-inicial-v6.owner.XXXX.sql 2>/dev/null || true)
-            if [[ -n "$TEMP_DYNAMIC_SEED_FILE" ]]; then
-                prepare_seed_with_owner_profile "$INITIAL_LOAD_SQL_FILE" "$TEMP_DYNAMIC_SEED_FILE"
-                RUNTIME_SEED_FILE="$TEMP_DYNAMIC_SEED_FILE"
-                log "Seed dinâmico aplicado com owner='${SYSTEM_OWNER_NAME}', admin='${SYSTEM_OWNER_ADMIN_USERNAME}', plano='${SYSTEM_OWNER_PLAN_NAME}'."
-            else
-                warn "⚠️ Não foi possível criar arquivo temporário para seed dinâmico. Usando seed padrão."
-            fi
-
-            if ! execute_psql_file "$TARGET_DB" "$RUNTIME_SEED_FILE" "Carga inicial (seeds) ($(basename "$INITIAL_LOAD_SQL_FILE"))"; then
-                if [[ "$RUNTIME_SEED_FILE" != "$INITIAL_LOAD_SQL_FILE" ]]; then
-                    warn "⚠️ Seed dinâmico do owner falhou. Reaplicando seed padrão para não interromper a instalação..."
-                    execute_psql_file "$TARGET_DB" "$INITIAL_LOAD_SQL_FILE" "Carga inicial (seeds) fallback ($(basename "$INITIAL_LOAD_SQL_FILE"))"
-                else
-                    return 1
-                fi
-            fi
-            [[ -n "$TEMP_DYNAMIC_SEED_FILE" ]] && rm -f "$TEMP_DYNAMIC_SEED_FILE" 2>/dev/null || true
-
-            # Copiar mídias demo para que `medias.file_path` aponte para arquivos reais em /opt
-            install_demo_media_files || true
-
-            # Corrigir sequências (SERIAL) após inserts com IDs explícitos no seed
-            local FIX_SEQ_FILE="$INSTALL_DIR/database/fix-sequences-after-seed.sql"
-            if [[ -f "$FIX_SEQ_FILE" ]]; then
-                execute_psql_file "$TARGET_DB" "$FIX_SEQ_FILE" "Fix sequences after seed (fix-sequences-after-seed.sql)"
-            else
-                warn "⚠️ Arquivo de fix de sequências não encontrado: $FIX_SEQ_FILE"
-            fi
-
-            # Validação de integridade referencial (PLANO_MELHORIAS item 8)
-            local VALIDATE_SEEDS_FILE="$INSTALL_DIR/database/validate-seeds.sql"
-            if [[ -f "$VALIDATE_SEEDS_FILE" ]]; then
-                log "Validando integridade referencial dos seeds..."
-                execute_psql_file "$TARGET_DB" "$VALIDATE_SEEDS_FILE" "Validação de integridade (validate-seeds.sql)" || true
-            fi
-            
-            # Data-migrations foram integradas ao seed principal (carga-inicial-v6.sql)
-            # e, portanto, não são executadas separadamente.
-        else
-            warn "⚠️ Arquivo de seeds não encontrado: $INITIAL_LOAD_SQL_FILE"
-            warn "⚠️ Sem seeds. O sistema será instalado sem dados de exemplo."
-        fi
-    else
-        log "Seeds de demonstração foram ignorados (opção selecionada)."
+    if ! load_database_seeds; then
+        error "❌ Falha ao aplicar seeds do banco de dados"
+        exit 1
     fi
 
-    if [[ "${COMPACT_MERGE_LOCALS:-false}" == "true" ]]; then
-        local MERGE_SQL="$INSTALL_DIR/database/compact-merge-locals-to-single.sql"
-        if [[ -f "$MERGE_SQL" ]]; then
-            log "Migração opcional: consolidar locais num único por publisher (modo compacto)..."
-            if ! execute_psql_file "$TARGET_DB" "$MERGE_SQL" "compact-merge-locals-to-single.sql"; then
-                warn "⚠️ compact-merge-locals falhou (ex.: vários publishers ativos — defina target_publisher_id em database/compact-merge-locals-to-single.sql e execute manualmente)."
-            fi
-        else
-            warn "⚠️ Arquivo não encontrado: $MERGE_SQL (compact-merge-locals ignorado)"
-        fi
-    fi
-    
     # Garantir usuários ao final (após schema + possíveis seeds/fallback)
     # para evitar perda de contas quando a carga fallback executa TRUNCATE.
     if ! ensure_admin_user; then
@@ -13361,6 +13395,65 @@ main() {
         fi
 
         log "✅ Reinstalação do banco de dados concluída (modo --db-only)."
+        return 0
+    fi
+
+    # 1b) Apenas seeds dinâmicos (sem drop nem schema) — útil após corrigir part4 e reaplicar schema
+    if [[ "$SEEDS_ONLY_MODE" == "true" ]]; then
+        log "Modo especial: aplicação APENAS de seeds dinâmicos (--seeds-only)..."
+
+        detect_project_directory
+        INSTALL_DIR="${INSTALL_DIR:-$SOURCE_DIR}"
+        if [[ -z "$INSTALL_DIR" || ! -d "$INSTALL_DIR/database" ]]; then
+            error "❌ INSTALL_DIR inválido para seeds: '${INSTALL_DIR:-<vazio>}'"
+            exit 1
+        fi
+        if [[ -z "$INSTALL_MODE" ]]; then
+            INSTALL_MODE="single-server"
+        fi
+
+        LOAD_SEEDS=true
+        sanitize_owner_profile_defaults
+        sanitize_limits_defaults
+
+        if [[ -f "$INSTALL_DIR/.env" ]]; then
+            set -a
+            # shellcheck disable=SC1090
+            source "$INSTALL_DIR/.env" 2>/dev/null || true
+            set +a
+        fi
+
+        export PRIMARY_DB_NAME="${PRIMARY_DB_NAME:-${DB_NAME:-smartsignage}}"
+        export PRIMARY_DB_USER="${PRIMARY_DB_USER:-${DB_USER:-smartsignage}}"
+        export DB_PASSWORD="${DB_PASSWORD:-smartsignage123}"
+        export PGPASSWORD="${PGPASSWORD:-$DB_PASSWORD}"
+        export DATABASE_URL="${DATABASE_URL:-postgresql://${PRIMARY_DB_USER}:${DB_PASSWORD}@localhost:5432/${PRIMARY_DB_NAME}}"
+
+        if ! load_database_seeds; then
+            error "❌ Falha ao aplicar seeds (--seeds-only)"
+            exit 1
+        fi
+
+        if ! ensure_admin_user; then
+            error "❌ Não foi possível garantir usuário admin após seeds"
+            exit 1
+        fi
+        if [[ "${INSTALL_TOTEMDIGITAL_COMPACT}" == "true" ]]; then
+            if ! ensure_owner_publisher_user; then
+                error "❌ Não foi possível garantir usuário publisher do owner no modo compacto"
+                exit 1
+            fi
+        fi
+
+        if [[ -f "$INSTALL_DIR/database/validate-v6.js" ]] && command -v node >/dev/null 2>&1; then
+            log "Validando banco (validate-v6.js, sem reaplicar carga)..."
+            VALIDATE_V6_SKIP_LOAD=true \
+            DB_NAME="${PRIMARY_DB_NAME}" DB_USER="${PRIMARY_DB_USER}" DB_PASSWORD="${DB_PASSWORD}" \
+            NODE_PATH="$INSTALL_DIR/backend/node_modules${NODE_PATH:+:$NODE_PATH}" \
+                node "$INSTALL_DIR/database/validate-v6.js" || warn "⚠️ validate-v6.js reportou avisos/erros (verifique o log acima)"
+        fi
+
+        log "✅ Seeds aplicados com sucesso (modo --seeds-only)."
         return 0
     fi
 
