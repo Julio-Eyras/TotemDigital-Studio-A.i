@@ -1,29 +1,7 @@
 -- =============================================
--- Compat: remover colunas legacy se existirem (idempotente)
--- Nota: a política do projeto é manter schema definitivo nos arquivos part*.sql.
--- Estas instruções permitem aplicar a mudança em bancos existentes.
-ALTER TABLE IF EXISTS subscriber_contracts DROP COLUMN IF EXISTS created_before_subscriber CASCADE;
-ALTER TABLE IF EXISTS publisher_contracts DROP COLUMN IF EXISTS created_before_publisher CASCADE;
-
--- Remover índices parciais legacy (se existirem)
-DROP INDEX IF EXISTS idx_subscriber_contracts_created_before;
-DROP INDEX IF EXISTS idx_publisher_contracts_created_before;
-
--- Garantir unicidade por subscriber_id + contract_number (e não global em subscriber_contracts)
-ALTER TABLE IF EXISTS subscriber_contracts
-    DROP CONSTRAINT IF EXISTS subscriber_contracts_contract_number_key;
-DROP INDEX IF EXISTS subscriber_contracts_contract_number_key;
-
--- Garantir unicidade por publisher_id + contract_number (e não global)
--- (só remover índices/constraints antigos aqui; o índice novo é criado após CREATE TABLE)
-ALTER TABLE IF EXISTS publisher_contracts
-    DROP CONSTRAINT IF EXISTS publisher_contracts_contract_number_key;
-
-DROP INDEX IF EXISTS publisher_contracts_contract_number_key;
-
--- =============================================
 -- SmartSignage Pro - Schema Refatorado v2.0
 -- PARTE 4: Billing e Contratos
+-- (Compat legacy de contratos no final do arquivo, após CREATE TABLE)
 -- =============================================
 
 -- =============================================
@@ -88,29 +66,30 @@ COMMENT ON COLUMN subscriber_billing.subscriber_id IS 'Subscriber (anunciante) q
 COMMENT ON COLUMN subscriber_billing.campaign_id IS 'Campanha relacionada (se billing_type = campaign)';
 COMMENT ON COLUMN subscriber_billing.direction IS 'Sempre incoming (plataforma recebe)';
 
--- Compat pós-CREATE: colunas em bases antigas (antes dos índices)
-ALTER TABLE subscriber_billing
-    ADD COLUMN IF NOT EXISTS contract_id INTEGER;
-ALTER TABLE subscriber_billing
-    ADD COLUMN IF NOT EXISTS period_start DATE;
-ALTER TABLE subscriber_billing
-    ADD COLUMN IF NOT EXISTS period_end DATE;
-ALTER TABLE subscriber_billing
-    ADD COLUMN IF NOT EXISTS notes TEXT;
+-- Compat pós-CREATE (instalação nova + upgrades; só se a tabela existir)
+ALTER TABLE IF EXISTS subscriber_billing ADD COLUMN IF NOT EXISTS contract_id INTEGER;
+ALTER TABLE IF EXISTS subscriber_billing ADD COLUMN IF NOT EXISTS period_start DATE;
+ALTER TABLE IF EXISTS subscriber_billing ADD COLUMN IF NOT EXISTS period_end DATE;
+ALTER TABLE IF EXISTS subscriber_billing ADD COLUMN IF NOT EXISTS notes TEXT;
 
-CREATE INDEX IF NOT EXISTS idx_subscriber_billing_contract ON subscriber_billing(contract_id);
-CREATE INDEX IF NOT EXISTS idx_subscriber_billing_period ON subscriber_billing(subscriber_id, period_start, period_end);
-
-ALTER TABLE subscriber_billing DROP CONSTRAINT IF EXISTS chk_subscriber_billing_type;
-ALTER TABLE subscriber_billing ADD CONSTRAINT chk_subscriber_billing_type
+DO $subscriber_billing_post$
+BEGIN
+  IF to_regclass('public.subscriber_billing') IS NULL THEN
+    RETURN;
+  END IF;
+  CREATE INDEX IF NOT EXISTS idx_subscriber_billing_contract ON subscriber_billing(contract_id);
+  CREATE INDEX IF NOT EXISTS idx_subscriber_billing_period ON subscriber_billing(subscriber_id, period_start, period_end);
+  ALTER TABLE subscriber_billing DROP CONSTRAINT IF EXISTS chk_subscriber_billing_type;
+  ALTER TABLE subscriber_billing ADD CONSTRAINT chk_subscriber_billing_type
     CHECK (billing_type IN (
-        'advertisement', 'campaign', 'media_upload', 'storage', 'subscription',
-        'exhibition_lot', 'totem_quantity', 'time_based', 'custom'
+      'advertisement', 'campaign', 'media_upload', 'storage', 'subscription',
+      'exhibition_lot', 'totem_quantity', 'time_based', 'custom'
     ));
-
-ALTER TABLE subscriber_billing DROP CONSTRAINT IF EXISTS chk_subscriber_billing_payment_status;
-ALTER TABLE subscriber_billing ADD CONSTRAINT chk_subscriber_billing_payment_status
+  ALTER TABLE subscriber_billing DROP CONSTRAINT IF EXISTS chk_subscriber_billing_payment_status;
+  ALTER TABLE subscriber_billing ADD CONSTRAINT chk_subscriber_billing_payment_status
     CHECK (payment_status IN ('pending', 'paid', 'failed', 'refunded', 'cancelled', 'overdue'));
+END
+$subscriber_billing_post$;
 
 -- =============================================
 -- PUBLISHER_BILLING (Billing de Publishers)
@@ -190,9 +169,16 @@ COMMENT ON COLUMN publisher_billing.direction IS 'outgoing = publisher recebe, i
 COMMENT ON COLUMN publisher_billing.revenue_share_percentage IS '% que publisher recebe (ex: 70 = 70%)';
 COMMENT ON COLUMN publisher_billing.approved_by IS 'User (tenant) que aprovou o payout';
 
-ALTER TABLE publisher_billing DROP CONSTRAINT IF EXISTS chk_publisher_billing_payment_status;
-ALTER TABLE publisher_billing ADD CONSTRAINT chk_publisher_billing_payment_status
+DO $publisher_billing_post$
+BEGIN
+  IF to_regclass('public.publisher_billing') IS NULL THEN
+    RETURN;
+  END IF;
+  ALTER TABLE publisher_billing DROP CONSTRAINT IF EXISTS chk_publisher_billing_payment_status;
+  ALTER TABLE publisher_billing ADD CONSTRAINT chk_publisher_billing_payment_status
     CHECK (payment_status IN ('pending', 'pending_payout', 'paid', 'failed', 'refunded', 'cancelled', 'overdue'));
+END
+$publisher_billing_post$;
 
 -- =============================================
 -- SUBSCRIBER_CONTRACTS (Contratos de Subscribers)
@@ -330,3 +316,14 @@ COMMENT ON COLUMN publisher_contracts.revenue_share_rules IS 'Regras variáveis 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_publisher_contracts_publisher_contract_number
     ON publisher_contracts (publisher_id, contract_number);
 
+-- Compat legacy de contratos (após CREATE TABLE; idempotente)
+ALTER TABLE IF EXISTS subscriber_contracts DROP COLUMN IF EXISTS created_before_subscriber CASCADE;
+ALTER TABLE IF EXISTS publisher_contracts DROP COLUMN IF EXISTS created_before_publisher CASCADE;
+DROP INDEX IF EXISTS idx_subscriber_contracts_created_before;
+DROP INDEX IF EXISTS idx_publisher_contracts_created_before;
+ALTER TABLE IF EXISTS subscriber_contracts
+    DROP CONSTRAINT IF EXISTS subscriber_contracts_contract_number_key;
+DROP INDEX IF EXISTS subscriber_contracts_contract_number_key;
+ALTER TABLE IF EXISTS publisher_contracts
+    DROP CONSTRAINT IF EXISTS publisher_contracts_contract_number_key;
+DROP INDEX IF EXISTS publisher_contracts_contract_number_key;
