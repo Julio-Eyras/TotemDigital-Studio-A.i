@@ -12,6 +12,8 @@ const router = Router();
 router.post(
   '/pix-webhook',
   body('billingId').optional().isInt({ min: 1 }),
+  body('publisherBillingId').optional().isInt({ min: 1 }),
+  body('scope').optional().isIn(['subscriber', 'publisher']),
   body('txid').optional().isString(),
   async (req, res: Response) => {
     const secret = req.header('x-financial-webhook-secret') || req.header('X-Financial-Webhook-Secret');

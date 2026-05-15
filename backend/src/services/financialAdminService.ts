@@ -18,6 +18,14 @@ function getSubscriberBillingServiceInstance() {
   return (global as any).subscriberBillingServiceInstance;
 }
 
+function getPublisherBillingServiceInstance() {
+  if (!(global as any).publisherBillingServiceInstance) {
+    const { PublisherBillingService } = require('./publisherBillingService');
+    (global as any).publisherBillingServiceInstance = new PublisherBillingService();
+  }
+  return (global as any).publisherBillingServiceInstance;
+}
+
 export type FinancialAlertLevel = 'error' | 'warning' | 'success' | 'neutral';
 
 export interface IssueInvoicesResult {
@@ -308,30 +316,150 @@ export class FinancialAdminService {
     return { level: 'neutral', label: 'Sem contrato', tooltip: 'Sem contrato ativo registado.' };
   }
 
+  private assertPublisherIncomingPayable(billing: {
+    direction: string;
+    paymentStatus: string;
+  }): void {
+    if (billing.direction !== 'incoming') {
+      throw new Error('Apenas faturas de entrada (exibidor paga) aceitam pagamento PIX/Stripe');
+    }
+    if (!['pending', 'overdue'].includes(billing.paymentStatus)) {
+      throw new Error('Fatura não está pendente de pagamento');
+    }
+  }
+
+  async recordPublisherPayment(billingId: number, data: RecordPaymentRequest) {
+    const billing = await getPublisherBillingServiceInstance().getBillingById(billingId);
+    if (!billing) throw new Error('Fatura não encontrada');
+    if (billing.paymentStatus === 'paid') throw new Error('Fatura já está paga');
+    this.assertPublisherIncomingPayable(billing);
+
+    return getPublisherBillingServiceInstance().updateBilling(billingId, {
+      paymentStatus: 'paid',
+      paymentMethod: data.paymentMethod || 'pix',
+      paymentReference: data.paymentReference,
+    });
+  }
+
+  async getPublisherPaymentQr(billingId: number): Promise<PaymentQrResponse> {
+    const billing = await getPublisherBillingServiceInstance().getBillingById(billingId);
+    if (!billing) throw new Error('Fatura não encontrada');
+    this.assertPublisherIncomingPayable(billing);
+
+    const pixConfigured = Boolean(financialConfig.pixKey?.trim());
+    let copyPaste = '';
+    let qrDataUrl = '';
+
+    if (pixConfigured) {
+      const txid = `P${billingId}`;
+      copyPaste = buildPixCopyPaste({
+        pixKey: financialConfig.pixKey,
+        merchantName: financialConfig.pixMerchantName,
+        merchantCity: financialConfig.pixMerchantCity,
+        amount: Number(billing.amount),
+        txid,
+      });
+      qrDataUrl = await QRCode.toDataURL(copyPaste, { margin: 2, width: 280 });
+    }
+
+    return {
+      copyPaste,
+      qrDataUrl,
+      amount: Number(billing.amount),
+      currency: billing.currency || 'BRL',
+      invoiceNumber: billing.invoiceNumber,
+      dueDate: billing.dueDate,
+      pixConfigured,
+    };
+  }
+
+  async sendPublisherPaymentEmail(billingId: number) {
+    return getFinancialNotificationService().sendPublisherPaymentEmail(billingId);
+  }
+
+  async createStripeCheckoutForPublisherBilling(
+    billingId: number
+  ): Promise<{ url: string; sessionId: string }> {
+    if (!stripeConfig.enabled) throw new Error('Stripe não está habilitado');
+
+    const billing = await getPublisherBillingServiceInstance().getBillingById(billingId);
+    if (!billing) throw new Error('Fatura não encontrada');
+    if (billing.paymentStatus === 'paid') throw new Error('Fatura já paga');
+    this.assertPublisherIncomingPayable(billing);
+
+    const stripe = new StripeService();
+    const base = financialConfig.publicAppUrl.replace(/\/$/, '');
+    const session = await stripe.createOneTimePaymentSession({
+      amount: Number(billing.amount),
+      currency: billing.currency || 'BRL',
+      description: billing.description || `Fatura exibidor #${billingId}`,
+      successUrl: `${base}/billing?type=publisher&paid=${billingId}&session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${base}/billing?type=publisher&invoice=${billingId}`,
+      metadata: {
+        billingId: String(billingId),
+        source: 'publisher_billing',
+      },
+    });
+
+    if (!session.url) throw new Error('Stripe não retornou URL de checkout');
+    return { url: session.url, sessionId: session.id };
+  }
+
   /**
-   * Webhook PIX (banco/PSP): confirma pagamento por billingId ou txid F{id}.
+   * Webhook PIX: confirma por billingId, publisherBillingId ou txid F{id}/P{id}.
    */
   async processPixWebhook(payload: {
     billingId?: number;
+    publisherBillingId?: number;
+    scope?: 'subscriber' | 'publisher';
     txid?: string;
     paymentReference?: string;
     amount?: number;
-  }): Promise<{ billingId: number; alreadyPaid: boolean }> {
+  }): Promise<{ billingId: number; scope: 'subscriber' | 'publisher'; alreadyPaid: boolean }> {
+    let scope: 'subscriber' | 'publisher' = payload.scope || 'subscriber';
     let billingId = payload.billingId;
-    if (!billingId && payload.txid) {
-      const m = String(payload.txid).match(/^F(\d+)$/i);
-      if (m) billingId = parseInt(m[1], 10);
+
+    if (payload.publisherBillingId) {
+      scope = 'publisher';
+      billingId = payload.publisherBillingId;
     }
+
+    if (!billingId && payload.txid) {
+      const sub = String(payload.txid).match(/^F(\d+)$/i);
+      const pub = String(payload.txid).match(/^P(\d+)$/i);
+      if (sub) {
+        scope = 'subscriber';
+        billingId = parseInt(sub[1], 10);
+      } else if (pub) {
+        scope = 'publisher';
+        billingId = parseInt(pub[1], 10);
+      }
+    }
+
     if (!billingId || !Number.isFinite(billingId)) {
-      throw new Error('billingId ou txid (F{id}) obrigatório');
+      throw new Error('billingId, publisherBillingId ou txid (F{id}/P{id}) obrigatório');
+    }
+
+    if (scope === 'publisher') {
+      const billing = await getPublisherBillingServiceInstance().getBillingById(billingId);
+      if (!billing) throw new Error('Fatura de exibidor não encontrada');
+      if (billing.paymentStatus === 'paid') {
+        return { billingId, scope, alreadyPaid: true };
+      }
+      if (payload.amount != null && Math.abs(Number(payload.amount) - Number(billing.amount)) > 0.02) {
+        throw new Error('Valor do webhook não confere com a fatura');
+      }
+      await this.recordPublisherPayment(billingId, {
+        paymentMethod: 'pix',
+        paymentReference: payload.paymentReference || payload.txid || `pix-webhook-${Date.now()}`,
+      });
+      return { billingId, scope, alreadyPaid: false };
     }
 
     const billing = await getSubscriberBillingServiceInstance().getBillingById(billingId);
-    if (!billing) {
-      throw new Error('Fatura não encontrada');
-    }
+    if (!billing) throw new Error('Fatura não encontrada');
     if (billing.status === 'paid') {
-      return { billingId, alreadyPaid: true };
+      return { billingId, scope: 'subscriber', alreadyPaid: true };
     }
 
     if (payload.amount != null && Math.abs(Number(payload.amount) - Number(billing.amount)) > 0.02) {
@@ -344,7 +472,7 @@ export class FinancialAdminService {
       notes: 'Confirmado automaticamente via webhook PIX',
     });
 
-    return { billingId, alreadyPaid: false };
+    return { billingId, scope: 'subscriber', alreadyPaid: false };
   }
 
   async sendInvoicePaymentEmail(billingId: number) {
@@ -385,6 +513,16 @@ export class FinancialAdminService {
   async handleStripeCheckoutCompleted(metadata: Record<string, string | undefined>): Promise<boolean> {
     const billingId = metadata?.billingId ? parseInt(metadata.billingId, 10) : NaN;
     if (!Number.isFinite(billingId)) return false;
+
+    if (metadata.source === 'publisher_billing') {
+      const billing = await getPublisherBillingServiceInstance().getBillingById(billingId);
+      if (!billing || billing.paymentStatus === 'paid') return true;
+      await this.recordPublisherPayment(billingId, {
+        paymentMethod: 'stripe',
+        paymentReference: metadata?.sessionId || 'stripe-checkout',
+      });
+      return true;
+    }
 
     const billing = await getSubscriberBillingServiceInstance().getBillingById(billingId);
     if (!billing || billing.status === 'paid') return true;

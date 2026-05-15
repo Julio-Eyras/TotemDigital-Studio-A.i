@@ -39,8 +39,16 @@ export class FinancialBillingWorker {
             SET payment_status = 'overdue', updated_at = CURRENT_TIMESTAMP
             WHERE payment_status = 'pending' AND due_date < CURRENT_TIMESTAMP
           `);
-          await logInfo('Financeiro: faturas de anunciantes marcadas como vencidas', {
-            count: sub.rowCount || 0,
+          const pub = await db.executeRaw(`
+            UPDATE publisher_billing
+            SET payment_status = 'overdue', updated_at = CURRENT_TIMESTAMP
+            WHERE payment_status = 'pending'
+              AND direction = 'incoming'
+              AND due_date < CURRENT_TIMESTAMP
+          `);
+          await logInfo('Financeiro: faturas marcadas como vencidas', {
+            subscriber: sub.rowCount || 0,
+            publisherIncoming: pub.rowCount || 0,
           });
         } catch (error: any) {
           await logError('Financeiro: erro ao marcar vencidas', error);

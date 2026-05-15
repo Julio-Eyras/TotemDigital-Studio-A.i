@@ -202,6 +202,106 @@ async function validateAndExecute() {
     }
     console.log('');
 
+    // Validação módulo financeiro (billing moderno)
+    console.log('🔍 Validando módulo financeiro...\n');
+    let financialOk = true;
+
+    const financialTables = ['subscriber_billing', 'publisher_billing', 'subscriber_contracts'];
+    for (const table of financialTables) {
+      const exists = await pool.query(
+        `SELECT EXISTS (
+          SELECT FROM information_schema.tables
+          WHERE table_schema = 'public' AND table_name = $1
+        )`,
+        [table]
+      );
+      if (exists.rows[0].exists) {
+        console.log(`  ✅ Tabela ${table} existe`);
+      } else {
+        console.log(`  ❌ Tabela ${table} não encontrada`);
+        financialOk = false;
+      }
+    }
+
+    const constraintChecks = [
+      {
+        name: 'subscriber_billing.payment_status inclui overdue',
+        query: `
+          SELECT pg_get_constraintdef(oid) AS def
+          FROM pg_constraint
+          WHERE conname = 'chk_subscriber_billing_payment_status'
+        `,
+        mustInclude: 'overdue',
+      },
+      {
+        name: 'publisher_billing.payment_status inclui overdue',
+        query: `
+          SELECT pg_get_constraintdef(oid) AS def
+          FROM pg_constraint
+          WHERE conname = 'chk_publisher_billing_payment_status'
+        `,
+        mustInclude: 'overdue',
+      },
+    ];
+
+    for (const check of constraintChecks) {
+      try {
+        const result = await pool.query(check.query);
+        const def = result.rows[0]?.def || '';
+        if (def.includes(check.mustInclude)) {
+          console.log(`  ✅ ${check.name}`);
+        } else {
+          console.log(`  ❌ ${check.name} — execute smartchannel-db-v2-compat-publisher-billing-overdue.sql`);
+          financialOk = false;
+        }
+      } catch (error) {
+        console.log(`  ⚠️  ${check.name}: ${error.message}`);
+        financialOk = false;
+      }
+    }
+
+    const columnChecks = [
+      { table: 'subscriber_billing', column: 'contract_id' },
+      { table: 'subscriber_billing', column: 'period_start' },
+      { table: 'subscriber_billing', column: 'period_end' },
+      { table: 'publisher_billing', column: 'direction' },
+    ];
+    for (const col of columnChecks) {
+      const result = await pool.query(
+        `SELECT EXISTS (
+          SELECT FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = $1 AND column_name = $2
+        )`,
+        [col.table, col.column]
+      );
+      if (result.rows[0].exists) {
+        console.log(`  ✅ Coluna ${col.table}.${col.column}`);
+      } else {
+        console.log(`  ❌ Coluna ${col.table}.${col.column} ausente`);
+        financialOk = false;
+      }
+    }
+
+    try {
+      const overdueSub = await pool.query(`
+        SELECT COUNT(*)::int AS c FROM subscriber_billing WHERE payment_status = 'overdue'
+      `);
+      const overduePub = await pool.query(`
+        SELECT COUNT(*)::int AS c FROM publisher_billing WHERE payment_status = 'overdue'
+      `);
+      console.log(
+        `  ℹ️  Faturas overdue: anunciantes=${overdueSub.rows[0].c}, exibidor=${overduePub.rows[0].c}`
+      );
+    } catch (error) {
+      console.log(`  ⚠️  Contagem overdue: ${error.message}`);
+    }
+
+    if (!financialOk) {
+      console.log('\n⚠️  Módulo financeiro incompleto — aplique apply-schema-v2.sh ou o compat overdue.\n');
+    } else {
+      console.log('\n  ✅ Módulo financeiro: schema OK\n');
+    }
+
     console.log('✅ Validação concluída com sucesso!');
     console.log('📊 O banco está pronto para testes integrados.\n');
 

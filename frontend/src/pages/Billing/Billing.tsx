@@ -3,7 +3,7 @@
  * Página completa de gerenciamento de planos, assinaturas e faturas
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Box,
   Typography,
@@ -61,7 +61,10 @@ import {
   PublisherBillingItem,
 } from '../../services/api';
 import BillingControlPanel from './BillingControlPanel';
-import FinancialInvoiceDialog, { FinancialDialogMode } from './FinancialInvoiceDialog';
+import FinancialInvoiceDialog, {
+  FinancialBillingScope,
+  FinancialDialogMode,
+} from './FinancialInvoiceDialog';
 import {
   getInvoiceDueAlertLevel,
   getInvoiceDueLabel,
@@ -109,6 +112,12 @@ const Billing: React.FC = () => {
   const canCreateModernInvoices =
     canViewAllBillingTypes || (TOTEMDIGITAL_COMPACT && isPublisherUser);
 
+  /** QR PIX / Stripe: gestores ou anunciante na própria fatura */
+  const canPaySubscriberInvoices = canCreateModernInvoices || isSubscriberUser;
+
+  /** Faturas incoming do exibidor: gestores ou publisher_user */
+  const canPayPublisherInvoices = canCreateModernInvoices || isPublisherUser;
+
   const DUE_SOON_DAYS = 30;
   const rawType = searchParams.get('type');
   /** Escopo: anunciantes ou exibidor (sem legado "todos"). */
@@ -135,11 +144,13 @@ const Billing: React.FC = () => {
   const [financialDialog, setFinancialDialog] = useState<{
     open: boolean;
     mode: FinancialDialogMode;
+    billingScope: FinancialBillingScope;
     billingId: number | null;
     amount?: number;
-  }>({ open: false, mode: 'pay', billingId: null });
+  }>({ open: false, mode: 'pay', billingScope: 'subscriber', billingId: null });
   const [issuingInvoices, setIssuingInvoices] = useState(false);
   const [stripeReturnHandled, setStripeReturnHandled] = useState(false);
+  const invoiceDeepLinkHandled = useRef<number | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [newSubscriberInvoice, setNewSubscriberInvoice] = useState({
     subscriberId: '',
@@ -250,6 +261,67 @@ const Billing: React.FC = () => {
       }
     })();
   }, [searchParams, stripeReturnHandled]);
+
+  useEffect(() => {
+    const invoiceParam = searchParams.get('invoice');
+    if (!invoiceParam || loading) return;
+    if (billingType !== 'subscriber' && billingType !== 'publisher') return;
+
+    const billingId = parseInt(invoiceParam, 10);
+    if (!Number.isFinite(billingId) || billingId < 1) return;
+    const linkKey = billingType === 'publisher' ? billingId + 1_000_000 : billingId;
+    if (invoiceDeepLinkHandled.current === linkKey) return;
+
+    if (billingType === 'subscriber') {
+      const row = subscriberBillings.find((b) => b.billing_id === billingId);
+      if (row?.status === 'paid') {
+        showError('Esta fatura já está paga.');
+        invoiceDeepLinkHandled.current = linkKey;
+        const next = new URLSearchParams(searchParams);
+        next.delete('invoice');
+        setSearchParams(next, { replace: true });
+        return;
+      }
+      invoiceDeepLinkHandled.current = linkKey;
+      setFinancialDialog({
+        open: true,
+        mode: 'qr',
+        billingScope: 'subscriber',
+        billingId,
+        amount: row?.amount,
+      });
+    } else {
+      const row = publisherBillings.find((b) => b.billing_id === billingId);
+      if (row?.payment_status === 'paid') {
+        showError('Esta fatura já está paga.');
+        invoiceDeepLinkHandled.current = linkKey;
+        const next = new URLSearchParams(searchParams);
+        next.delete('invoice');
+        setSearchParams(next, { replace: true });
+        return;
+      }
+      if (row && row.direction !== 'incoming') {
+        showError('Esta fatura não é cobrança de entrada.');
+        invoiceDeepLinkHandled.current = linkKey;
+        const next = new URLSearchParams(searchParams);
+        next.delete('invoice');
+        setSearchParams(next, { replace: true });
+        return;
+      }
+      invoiceDeepLinkHandled.current = linkKey;
+      setFinancialDialog({
+        open: true,
+        mode: 'qr',
+        billingScope: 'publisher',
+        billingId,
+        amount: row?.amount,
+      });
+    }
+
+    const next = new URLSearchParams(searchParams);
+    next.delete('invoice');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, subscriberBillings, publisherBillings, billingType, loading]);
 
   const loadDashboard = async () => {
     try {
@@ -423,9 +495,50 @@ const Billing: React.FC = () => {
     setFinancialDialog({
       open: true,
       mode,
+      billingScope: 'subscriber',
       billingId: billing.billing_id,
       amount: billing.amount,
     });
+  };
+
+  const openPublisherFinancialDialog = (mode: FinancialDialogMode, billing: PublisherBillingItem) => {
+    setFinancialDialog({
+      open: true,
+      mode,
+      billingScope: 'publisher',
+      billingId: billing.billing_id,
+      amount: billing.amount,
+    });
+  };
+
+  const sendPublisherPaymentEmail = async (id: number) => {
+    try {
+      const result = await financialAdminApi.sendPublisherPaymentEmail(id);
+      if (result.sent) showSuccess('E-mail de cobrança enviado');
+      else showError(result.reason || 'Não foi possível enviar o e-mail');
+    } catch (e: unknown) {
+      showError(pickApiErrorMessage(e, 'Erro ao enviar e-mail'));
+    }
+  };
+
+  const startPublisherStripeCheckout = async (id: number) => {
+    try {
+      const { url } = await financialAdminApi.createPublisherStripeCheckout(id);
+      if (url) window.location.href = url;
+      else showError('Stripe não retornou URL de pagamento');
+    } catch (e: unknown) {
+      showError(pickApiErrorMessage(e, 'Erro ao abrir checkout Stripe'));
+    }
+  };
+
+  const markPublisherPaid = async (id: number) => {
+    try {
+      await financialAdminApi.recordPublisherPayment(id, { paymentMethod: 'pix' });
+      await Promise.all([loadPublisherBillings(), loadDashboard()]);
+      showSuccess('Pagamento registado');
+    } catch (e: unknown) {
+      showError(pickApiErrorMessage(e, 'Erro ao registar pagamento'));
+    }
   };
 
   const handleCreateSubscriberInvoice = async () => {
@@ -959,7 +1072,7 @@ const Billing: React.FC = () => {
                       {billing.paid_at ? new Date(billing.paid_at).toLocaleDateString('pt-BR') : '-'}
                     </TableCell>
                     <TableCell align="right">
-                      {billing.status !== 'paid' && canCreateModernInvoices && (
+                      {billing.status !== 'paid' && canPaySubscriberInvoices && (
                         <>
                           <Tooltip title="QR Code PIX">
                             <IconButton
@@ -968,24 +1081,6 @@ const Billing: React.FC = () => {
                               onClick={() => openFinancialDialog('qr', billing)}
                             >
                               <QrCode2 />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Registar pagamento">
-                            <IconButton
-                              size="small"
-                              color="success"
-                              onClick={() => openFinancialDialog('pay', billing)}
-                            >
-                              <Payment />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Enviar e-mail de cobrança">
-                            <IconButton
-                              size="small"
-                              color="info"
-                              onClick={() => sendSubscriberPaymentEmail(billing.billing_id)}
-                            >
-                              <Email />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Pagar com Stripe">
@@ -997,14 +1092,36 @@ const Billing: React.FC = () => {
                               <CreditCard />
                             </IconButton>
                           </Tooltip>
-                          <Tooltip title="Marcar pago (rápido)">
-                            <IconButton
-                              size="small"
-                              onClick={() => markSubscriberPaid(billing.billing_id)}
-                            >
-                              <Check />
-                            </IconButton>
-                          </Tooltip>
+                          {canCreateModernInvoices && (
+                            <>
+                              <Tooltip title="Registar pagamento">
+                                <IconButton
+                                  size="small"
+                                  color="success"
+                                  onClick={() => openFinancialDialog('pay', billing)}
+                                >
+                                  <Payment />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Enviar e-mail de cobrança">
+                                <IconButton
+                                  size="small"
+                                  color="info"
+                                  onClick={() => sendSubscriberPaymentEmail(billing.billing_id)}
+                                >
+                                  <Email />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Marcar pago (rápido)">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => markSubscriberPaid(billing.billing_id)}
+                                >
+                                  <Check />
+                                </IconButton>
+                              </Tooltip>
+                            </>
+                          )}
                         </>
                       )}
                     </TableCell>
@@ -1141,6 +1258,7 @@ const Billing: React.FC = () => {
                   <TableCell>Vencimento</TableCell>
                   <TableCell>Alerta</TableCell>
                   <TableCell>Pago em</TableCell>
+                  <TableCell align="right">Ações</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -1205,12 +1323,68 @@ const Billing: React.FC = () => {
                     <TableCell>
                       {billing.paid_at ? new Date(billing.paid_at).toLocaleDateString('pt-BR') : '-'}
                     </TableCell>
+                    <TableCell align="right">
+                      {billing.direction === 'incoming' &&
+                        billing.payment_status !== 'paid' &&
+                        canPayPublisherInvoices && (
+                          <>
+                            <Tooltip title="QR Code PIX">
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                onClick={() => openPublisherFinancialDialog('qr', billing)}
+                              >
+                                <QrCode2 />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Pagar com Stripe">
+                              <IconButton
+                                size="small"
+                                color="secondary"
+                                onClick={() => startPublisherStripeCheckout(billing.billing_id)}
+                              >
+                                <CreditCard />
+                              </IconButton>
+                            </Tooltip>
+                            {canCreateModernInvoices && (
+                              <>
+                                <Tooltip title="Registar pagamento">
+                                  <IconButton
+                                    size="small"
+                                    color="success"
+                                    onClick={() => openPublisherFinancialDialog('pay', billing)}
+                                  >
+                                    <Payment />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Enviar e-mail de cobrança">
+                                  <IconButton
+                                    size="small"
+                                    color="info"
+                                    onClick={() => sendPublisherPaymentEmail(billing.billing_id)}
+                                  >
+                                    <Email />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Marcar pago (rápido)">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => markPublisherPaid(billing.billing_id)}
+                                  >
+                                    <Check />
+                                  </IconButton>
+                                </Tooltip>
+                              </>
+                            )}
+                          </>
+                        )}
+                    </TableCell>
                   </TableRow>
                   );
                 })}
                 {publisherBillings.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={TOTEMDIGITAL_COMPACT ? 9 : 10} align="center">
+                    <TableCell colSpan={TOTEMDIGITAL_COMPACT ? 10 : 11} align="center">
                       <Typography variant="body2" color="text.secondary">
                         {TOTEMDIGITAL_COMPACT
                           ? 'Nenhuma fatura do exibidor encontrada'
@@ -1414,11 +1588,18 @@ const Billing: React.FC = () => {
       <FinancialInvoiceDialog
         open={financialDialog.open}
         mode={financialDialog.mode}
+        billingScope={financialDialog.billingScope}
         billingId={financialDialog.billingId}
         amount={financialDialog.amount}
-        onClose={() => setFinancialDialog({ open: false, mode: 'pay', billingId: null })}
+        onClose={() =>
+          setFinancialDialog({ open: false, mode: 'pay', billingScope: 'subscriber', billingId: null })
+        }
         onSuccess={() => {
-          loadSubscriberBillings();
+          if (financialDialog.billingScope === 'publisher') {
+            loadPublisherBillings();
+          } else {
+            loadSubscriberBillings();
+          }
           loadDashboard();
         }}
       />

@@ -27,7 +27,7 @@ export interface CreatePublisherBillingRequest {
   publisherShareAmount?: number; // Valor que publisher recebe
   description?: string;
   dueDate?: string;
-  paymentStatus?: 'pending' | 'pending_payout' | 'paid' | 'failed' | 'refunded' | 'cancelled';
+  paymentStatus?: 'pending' | 'pending_payout' | 'paid' | 'failed' | 'refunded' | 'cancelled' | 'overdue';
   paymentMethod?: string;
   paymentReference?: string;
   metadata?: any;
@@ -38,7 +38,7 @@ export interface UpdatePublisherBillingRequest {
   currency?: string;
   description?: string;
   dueDate?: string;
-  paymentStatus?: 'pending' | 'pending_payout' | 'paid' | 'failed' | 'refunded' | 'cancelled';
+  paymentStatus?: 'pending' | 'pending_payout' | 'paid' | 'failed' | 'refunded' | 'cancelled' | 'overdue';
   paymentMethod?: string;
   paymentReference?: string;
   approvedBy?: number; // Para aprovar payout
@@ -171,8 +171,13 @@ export class PublisherBillingService {
       }
 
       if (filters.dueFilter === 'overdue') {
-        whereClause += ` AND pb.payment_status IN ('pending', 'pending_payout')
-          AND pb.due_date IS NOT NULL AND pb.due_date < CURRENT_DATE`;
+        whereClause += ` AND (
+          pb.payment_status = 'overdue'
+          OR (
+            pb.payment_status IN ('pending', 'pending_payout')
+            AND pb.due_date IS NOT NULL AND pb.due_date < CURRENT_DATE
+          )
+        )`;
       } else if (filters.dueFilter === 'due_soon') {
         const days = Math.min(Math.max(filters.dueSoonDays ?? 30, 1), 365);
         whereClause += ` AND pb.payment_status IN ('pending', 'pending_payout')
@@ -638,8 +643,13 @@ export class PublisherBillingService {
 
       const overdueResult = await this.db.findFirst(`
         SELECT COUNT(*) as count FROM publisher_billing pb 
-        WHERE pb.payment_status IN ('pending', 'pending_payout')
-          AND pb.due_date IS NOT NULL AND pb.due_date < CURRENT_DATE ${extra}
+        WHERE (
+          pb.payment_status = 'overdue'
+          OR (
+            pb.payment_status IN ('pending', 'pending_payout')
+            AND pb.due_date IS NOT NULL AND pb.due_date < CURRENT_DATE
+          )
+        ) ${extra}
       `, params);
 
       const dueSoonResult = await this.db.findFirst(
@@ -675,8 +685,13 @@ export class PublisherBillingService {
 
       const overdueAmountResult = await this.db.findFirst(`
         SELECT COALESCE(SUM(amount), 0) as total FROM publisher_billing pb 
-        WHERE pb.payment_status IN ('pending', 'pending_payout')
-          AND pb.due_date IS NOT NULL AND pb.due_date < CURRENT_DATE ${extra}
+        WHERE (
+          pb.payment_status = 'overdue'
+          OR (
+            pb.payment_status IN ('pending', 'pending_payout')
+            AND pb.due_date IS NOT NULL AND pb.due_date < CURRENT_DATE
+          )
+        ) ${extra}
       `, params);
 
       const dueSoonAmountResult = await this.db.findFirst(

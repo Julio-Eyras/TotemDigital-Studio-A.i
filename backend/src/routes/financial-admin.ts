@@ -5,7 +5,11 @@
 import { Router, Response } from 'express';
 import { body, param, validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole, AuthenticatedRequest } from '../middleware/auth.middleware';
-import { authorizeBillingManagement } from '../middleware/billingAuthorization.middleware';
+import {
+  authorizeBillingManagement,
+  authorizeBillingManagementOrPublisherSelf,
+  authorizeBillingManagementOrSubscriberSelf,
+} from '../middleware/billingAuthorization.middleware';
 import { getFinancialAdminService } from '../services/financialAdminService';
 import { logError } from '../utils/loggerHelper';
 import { StripeService } from '../services/stripeService';
@@ -122,9 +126,9 @@ router.post(
  */
 router.post(
   '/subscriber-billing/:id/stripe-checkout',
-  authorizeBillingManagement,
   param('id').isInt({ min: 1 }),
   validateRequest,
+  authorizeBillingManagementOrSubscriberSelf,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const billingId = parseInt(req.params.id, 10);
@@ -141,7 +145,15 @@ router.post(
  */
 router.post(
   '/stripe/complete-session',
-  authorizeRole(['owner_system', 'admin', 'admin_sql', 'operador_faturamento', 'gerente_financeiro', 'subscriber_user']),
+  authorizeRole([
+    'owner_system',
+    'admin',
+    'admin_sql',
+    'operador_faturamento',
+    'gerente_financeiro',
+    'subscriber_user',
+    'publisher_user',
+  ]),
   body('sessionId').isString().notEmpty(),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
@@ -160,6 +172,92 @@ router.post(
         sessionId: session.id,
       });
       return res.json({ success: true, billingId: meta.billingId });
+    } catch (error: any) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+  }
+);
+
+/** --- Exibidor (publisher_billing incoming) --- */
+
+router.post(
+  '/publisher-billing/:id/record-payment',
+  authorizeBillingManagement,
+  param('id').isInt({ min: 1 }),
+  body('amount').optional().isFloat({ min: 0 }),
+  body('paymentMethod').optional().isString(),
+  body('paymentReference').optional().isString(),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const billingId = parseInt(req.params.id, 10);
+      const updated = await getFinancialAdminService().recordPublisherPayment(billingId, req.body);
+      return res.json({ success: true, data: updated, message: 'Pagamento registado' });
+    } catch (error: any) {
+      return res.status(400).json({ success: false, message: error.message || 'Erro ao registar pagamento' });
+    }
+  }
+);
+
+router.get(
+  '/publisher-billing/:id/payment-qr',
+  authorizeRole([
+    'owner_system',
+    'admin',
+    'admin_sql',
+    'operador_faturamento',
+    'gerente_financeiro',
+    'publisher_user',
+    'subscriber_user',
+  ]),
+  param('id').isInt({ min: 1 }),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const billingId = parseInt(req.params.id, 10);
+      const role = String(req.user?.role || '').toLowerCase();
+      if (role === 'publisher_user') {
+        const publisherId = req.user?.publisherId ?? (req.user as { publisher_id?: number })?.publisher_id;
+        const { PublisherBillingService } = require('../services/publisherBillingService');
+        const row = await new PublisherBillingService().getBillingById(billingId);
+        if (!row || row.publisherId !== publisherId) {
+          return res.status(403).json({ success: false, message: 'Acesso negado' });
+        }
+      }
+      const data = await getFinancialAdminService().getPublisherPaymentQr(billingId);
+      return res.json({ success: true, data });
+    } catch (error: any) {
+      return res.status(400).json({ success: false, message: error.message || 'Erro ao gerar QR' });
+    }
+  }
+);
+
+router.post(
+  '/publisher-billing/:id/send-payment-email',
+  authorizeBillingManagement,
+  param('id').isInt({ min: 1 }),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const billingId = parseInt(req.params.id, 10);
+      const result = await getFinancialAdminService().sendPublisherPaymentEmail(billingId);
+      return res.json({ success: result.sent, data: result });
+    } catch (error: any) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+  }
+);
+
+router.post(
+  '/publisher-billing/:id/stripe-checkout',
+  param('id').isInt({ min: 1 }),
+  validateRequest,
+  authorizeBillingManagementOrPublisherSelf,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const billingId = parseInt(req.params.id, 10);
+      const data = await getFinancialAdminService().createStripeCheckoutForPublisherBilling(billingId);
+      return res.json({ success: true, data });
     } catch (error: any) {
       return res.status(400).json({ success: false, message: error.message });
     }

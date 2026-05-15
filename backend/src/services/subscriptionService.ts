@@ -649,6 +649,27 @@ export class SubscriptionService {
           await this.handleInvoicePaymentFailed(event.data.object);
           break;
 
+        case 'checkout.session.completed': {
+          const session = event.data.object;
+          const meta = (session.metadata || {}) as Record<string, string>;
+          if (
+            (meta.source === 'subscriber_billing' || meta.source === 'publisher_billing') &&
+            session.payment_status === 'paid'
+          ) {
+            const { getFinancialAdminService } = await import('./financialAdminService');
+            await getFinancialAdminService().handleStripeCheckoutCompleted({
+              ...meta,
+              sessionId: session.id,
+            });
+            await logInfo('Fatura paga via Stripe Checkout', {
+              source: meta.source,
+              billingId: meta.billingId,
+              sessionId: session.id,
+            });
+          }
+          break;
+        }
+
         default:
           await logInfo('Webhook do Stripe não processado', { type: event.type });
       }

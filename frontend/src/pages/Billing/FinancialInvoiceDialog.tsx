@@ -20,10 +20,12 @@ import { financialAdminApi } from '../../services/api';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 export type FinancialDialogMode = 'pay' | 'qr';
+export type FinancialBillingScope = 'subscriber' | 'publisher';
 
 interface Props {
   open: boolean;
   mode: FinancialDialogMode;
+  billingScope?: FinancialBillingScope;
   billingId: number | null;
   amount?: number;
   onClose: () => void;
@@ -33,6 +35,7 @@ interface Props {
 const FinancialInvoiceDialog: React.FC<Props> = ({
   open,
   mode,
+  billingScope = 'subscriber',
   billingId,
   amount,
   onClose,
@@ -61,7 +64,10 @@ const FinancialInvoiceDialog: React.FC<Props> = ({
       setLoading(true);
       setError(null);
       try {
-        const data = await financialAdminApi.getPaymentQr(billingId);
+        const data =
+          billingScope === 'publisher'
+            ? await financialAdminApi.getPublisherPaymentQr(billingId)
+            : await financialAdminApi.getPaymentQr(billingId);
         if (!cancelled) setQr(data);
       } catch (e: unknown) {
         if (!cancelled) setError(pickApiErrorMessage(e, 'Erro ao gerar QR PIX'));
@@ -72,19 +78,26 @@ const FinancialInvoiceDialog: React.FC<Props> = ({
     return () => {
       cancelled = true;
     };
-  }, [open, mode, billingId]);
+  }, [open, mode, billingId, billingScope]);
 
   const handleRecordPayment = async () => {
     if (!billingId) return;
     setLoading(true);
     setError(null);
     try {
-      await financialAdminApi.recordPayment(billingId, {
-        amount,
-        paymentMethod,
-        paymentReference: paymentReference || undefined,
-        notes: notes || undefined,
-      });
+      if (billingScope === 'publisher') {
+        await financialAdminApi.recordPublisherPayment(billingId, {
+          paymentMethod,
+          paymentReference: paymentReference || undefined,
+        });
+      } else {
+        await financialAdminApi.recordPayment(billingId, {
+          amount,
+          paymentMethod,
+          paymentReference: paymentReference || undefined,
+          notes: notes || undefined,
+        });
+      }
       onSuccess?.();
       onClose();
     } catch (e: unknown) {
@@ -98,10 +111,12 @@ const FinancialInvoiceDialog: React.FC<Props> = ({
     if (qr?.copyPaste) navigator.clipboard.writeText(qr.copyPaste);
   };
 
+  const scopeLabel = billingScope === 'publisher' ? 'exibidor' : 'anunciante';
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>
-        {mode === 'qr' ? 'Pagamento via PIX (QR Code)' : 'Registar pagamento'}
+        {mode === 'qr' ? `Pagamento PIX (${scopeLabel})` : `Registar pagamento (${scopeLabel})`}
       </DialogTitle>
       <DialogContent>
         {error && (
@@ -114,7 +129,10 @@ const FinancialInvoiceDialog: React.FC<Props> = ({
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             <Typography variant="body2" color="text.secondary">
               Confirme o recebimento da fatura #{billingId}
-              {amount != null ? ` — valor ${amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : ''}.
+              {amount != null
+                ? ` — valor ${amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
+                : ''}
+              .
             </Typography>
             <FormControl fullWidth>
               <InputLabel>Método</InputLabel>
@@ -132,7 +150,16 @@ const FinancialInvoiceDialog: React.FC<Props> = ({
               onChange={(e) => setPaymentReference(e.target.value)}
               fullWidth
             />
-            <TextField label="Observações" value={notes} onChange={(e) => setNotes(e.target.value)} fullWidth multiline rows={2} />
+            {billingScope === 'subscriber' && (
+              <TextField
+                label="Observações"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                fullWidth
+                multiline
+                rows={2}
+              />
+            )}
           </Box>
         )}
 

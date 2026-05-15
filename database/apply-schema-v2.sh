@@ -135,6 +135,7 @@ main() {
         "smartchannel-db-v2-refactored-part3-tables-dependent.sql|Parte 3: Tabelas Dependentes"
         "smartchannel-db-v2-compat-campaign-status-cancelled.sql|Compat: chk_campaign_status com cancelled"
         "smartchannel-db-v2-refactored-part4-billing-contracts.sql|Parte 4: Billing e Contratos"
+        "smartchannel-db-v2-compat-publisher-billing-overdue.sql|Compat: publisher_billing payment_status overdue"
         "smartchannel-db-v2-refactored-part5-tables-relationships.sql|Parte 5: Relacionamentos N:N"
         "smartchannel-db-v2-refactored-part6-tables-other.sql|Parte 6: Outras Tabelas"
         "seeds-default-settings.sql|Seeds: Configurações Padrão do Sistema"

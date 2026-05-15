@@ -4219,6 +4219,32 @@ export const financialAdminApi = {
     const response = await api.post('/financial-admin/stripe/complete-session', { sessionId });
     return response.data;
   },
+
+  recordPublisherPayment: async (
+    billingId: number,
+    payload?: { amount?: number; paymentMethod?: string; paymentReference?: string }
+  ) => {
+    const response = await api.post(
+      `/financial-admin/publisher-billing/${billingId}/record-payment`,
+      payload || {}
+    );
+    return response.data.data || response.data;
+  },
+
+  getPublisherPaymentQr: async (billingId: number) => {
+    const response = await api.get(`/financial-admin/publisher-billing/${billingId}/payment-qr`);
+    return response.data.data || response.data;
+  },
+
+  sendPublisherPaymentEmail: async (billingId: number): Promise<{ sent: boolean; reason?: string }> => {
+    const response = await api.post(`/financial-admin/publisher-billing/${billingId}/send-payment-email`);
+    return response.data.data || response.data;
+  },
+
+  createPublisherStripeCheckout: async (billingId: number): Promise<{ url: string; sessionId: string }> => {
+    const response = await api.post(`/financial-admin/publisher-billing/${billingId}/stripe-checkout`);
+    return response.data.data || response.data;
+  },
 };
 
 export const billingControlApi = {

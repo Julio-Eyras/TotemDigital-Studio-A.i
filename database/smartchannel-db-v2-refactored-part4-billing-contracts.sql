@@ -144,7 +144,7 @@ CREATE TABLE IF NOT EXISTS publisher_billing (
     invoice_number TEXT UNIQUE,
     payment_status TEXT DEFAULT 'pending', 
         -- Para outgoing: pending_payout, paid, failed
-        -- Para incoming: pending, paid, failed
+        -- Para incoming: pending, paid, failed, overdue
     
     payment_date TIMESTAMP,
     due_date TIMESTAMP,
@@ -179,7 +179,7 @@ CREATE TABLE IF NOT EXISTS publisher_billing (
              revenue_share_percentage >= 0 AND revenue_share_percentage <= 100)
         ),
     CONSTRAINT chk_publisher_billing_payment_status 
-        CHECK (payment_status IN ('pending', 'pending_payout', 'paid', 'failed', 'refunded', 'cancelled'))
+        CHECK (payment_status IN ('pending', 'pending_payout', 'paid', 'failed', 'refunded', 'cancelled', 'overdue'))
 );
 
 COMMENT ON TABLE publisher_billing IS 'Cobranças/pagamentos de publishers (podem receber % OU pagar subscription)';
