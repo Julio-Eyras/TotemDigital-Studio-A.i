@@ -10589,6 +10589,27 @@ load_database_seeds() {
     return 0
 }
 
+# Valida schema/dados/financeiro via validate-v6.js sem reexecutar carga-inicial-v6.sql (evita TRUNCATE).
+run_validate_v6_skip_load() {
+    if [[ ! -f "$INSTALL_DIR/database/validate-v6.js" ]] || ! command -v node >/dev/null 2>&1; then
+        return 0
+    fi
+
+    local target_db="${PRIMARY_DB_NAME:-smartsignage}"
+    local target_user="${PRIMARY_DB_USER:-${DB_USER:-smartsignage}}"
+    local target_pass="${DB_PASSWORD:-smartsignage123}"
+
+    log "Validando banco (validate-v6.js, sem reaplicar carga)..."
+    VALIDATE_V6_SKIP_LOAD=true \
+        DB_NAME="$target_db" DB_USER="$target_user" DB_PASSWORD="$target_pass" \
+        NODE_PATH="$INSTALL_DIR/backend/node_modules${NODE_PATH:+:$NODE_PATH}" \
+        node "$INSTALL_DIR/database/validate-v6.js" || {
+            warn "⚠️ validate-v6.js reportou avisos/erros (verifique o log acima)"
+            return 1
+        }
+    return 0
+}
+
 setup_first_boot() {
     if [[ "$INSTALL_MODE" != "single-server" ]]; then
         log "Primeiro boot será configurado pelo Docker"
@@ -11051,6 +11072,8 @@ setup_first_boot() {
             exit 1
         fi
     fi
+
+    run_validate_v6_skip_load || true
 }
 
 # Detectar e tratar dados demo já existentes
@@ -13445,13 +13468,7 @@ main() {
             fi
         fi
 
-        if [[ -f "$INSTALL_DIR/database/validate-v6.js" ]] && command -v node >/dev/null 2>&1; then
-            log "Validando banco (validate-v6.js, sem reaplicar carga)..."
-            VALIDATE_V6_SKIP_LOAD=true \
-            DB_NAME="${PRIMARY_DB_NAME}" DB_USER="${PRIMARY_DB_USER}" DB_PASSWORD="${DB_PASSWORD}" \
-            NODE_PATH="$INSTALL_DIR/backend/node_modules${NODE_PATH:+:$NODE_PATH}" \
-                node "$INSTALL_DIR/database/validate-v6.js" || warn "⚠️ validate-v6.js reportou avisos/erros (verifique o log acima)"
-        fi
+        run_validate_v6_skip_load || true
 
         log "✅ Seeds aplicados com sucesso (modo --seeds-only)."
         return 0
