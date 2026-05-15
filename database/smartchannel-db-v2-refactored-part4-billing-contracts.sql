@@ -21,27 +21,6 @@ ALTER TABLE IF EXISTS publisher_contracts
 
 DROP INDEX IF EXISTS publisher_contracts_contract_number_key;
 
--- Compat: vínculo fatura ↔ contrato e período de cobrança (administração financeira)
-ALTER TABLE IF EXISTS subscriber_billing
-    ADD COLUMN IF NOT EXISTS contract_id INTEGER;
-ALTER TABLE IF EXISTS subscriber_billing
-    ADD COLUMN IF NOT EXISTS period_start DATE;
-ALTER TABLE IF EXISTS subscriber_billing
-    ADD COLUMN IF NOT EXISTS period_end DATE;
-ALTER TABLE IF EXISTS subscriber_billing
-    ADD COLUMN IF NOT EXISTS notes TEXT;
-
-CREATE INDEX IF NOT EXISTS idx_subscriber_billing_contract ON subscriber_billing(contract_id);
-CREATE INDEX IF NOT EXISTS idx_subscriber_billing_period ON subscriber_billing(subscriber_id, period_start, period_end);
-
--- Ampliar tipos de cobrança usados pela API (idempotente)
-ALTER TABLE IF EXISTS subscriber_billing DROP CONSTRAINT IF EXISTS chk_subscriber_billing_type;
-ALTER TABLE IF EXISTS subscriber_billing ADD CONSTRAINT chk_subscriber_billing_type
-    CHECK (billing_type IN (
-        'advertisement', 'campaign', 'media_upload', 'storage', 'subscription',
-        'exhibition_lot', 'totem_quantity', 'time_based', 'custom'
-    ));
-
 -- =============================================
 -- SmartSignage Pro - Schema Refatorado v2.0
 -- PARTE 4: Billing e Contratos
@@ -108,6 +87,30 @@ COMMENT ON TABLE subscriber_billing IS 'Cobranças de subscribers (anunciantes q
 COMMENT ON COLUMN subscriber_billing.subscriber_id IS 'Subscriber (anunciante) que está sendo cobrado';
 COMMENT ON COLUMN subscriber_billing.campaign_id IS 'Campanha relacionada (se billing_type = campaign)';
 COMMENT ON COLUMN subscriber_billing.direction IS 'Sempre incoming (plataforma recebe)';
+
+-- Compat pós-CREATE: colunas em bases antigas (antes dos índices)
+ALTER TABLE subscriber_billing
+    ADD COLUMN IF NOT EXISTS contract_id INTEGER;
+ALTER TABLE subscriber_billing
+    ADD COLUMN IF NOT EXISTS period_start DATE;
+ALTER TABLE subscriber_billing
+    ADD COLUMN IF NOT EXISTS period_end DATE;
+ALTER TABLE subscriber_billing
+    ADD COLUMN IF NOT EXISTS notes TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_subscriber_billing_contract ON subscriber_billing(contract_id);
+CREATE INDEX IF NOT EXISTS idx_subscriber_billing_period ON subscriber_billing(subscriber_id, period_start, period_end);
+
+ALTER TABLE subscriber_billing DROP CONSTRAINT IF EXISTS chk_subscriber_billing_type;
+ALTER TABLE subscriber_billing ADD CONSTRAINT chk_subscriber_billing_type
+    CHECK (billing_type IN (
+        'advertisement', 'campaign', 'media_upload', 'storage', 'subscription',
+        'exhibition_lot', 'totem_quantity', 'time_based', 'custom'
+    ));
+
+ALTER TABLE subscriber_billing DROP CONSTRAINT IF EXISTS chk_subscriber_billing_payment_status;
+ALTER TABLE subscriber_billing ADD CONSTRAINT chk_subscriber_billing_payment_status
+    CHECK (payment_status IN ('pending', 'paid', 'failed', 'refunded', 'cancelled', 'overdue'));
 
 -- =============================================
 -- PUBLISHER_BILLING (Billing de Publishers)
@@ -186,6 +189,10 @@ COMMENT ON TABLE publisher_billing IS 'Cobranças/pagamentos de publishers (pode
 COMMENT ON COLUMN publisher_billing.direction IS 'outgoing = publisher recebe, incoming = publisher paga';
 COMMENT ON COLUMN publisher_billing.revenue_share_percentage IS '% que publisher recebe (ex: 70 = 70%)';
 COMMENT ON COLUMN publisher_billing.approved_by IS 'User (tenant) que aprovou o payout';
+
+ALTER TABLE publisher_billing DROP CONSTRAINT IF EXISTS chk_publisher_billing_payment_status;
+ALTER TABLE publisher_billing ADD CONSTRAINT chk_publisher_billing_payment_status
+    CHECK (payment_status IN ('pending', 'pending_payout', 'paid', 'failed', 'refunded', 'cancelled', 'overdue'));
 
 -- =============================================
 -- SUBSCRIBER_CONTRACTS (Contratos de Subscribers)
