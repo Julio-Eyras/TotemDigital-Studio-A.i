@@ -7,6 +7,16 @@
 
 set -e
 
+for _ss_env in /opt/smart-signage/.env "${PWD}/.env"; do
+    if [[ -f "$_ss_env" ]] && grep -qE '^SMARTSIGNAGE_NGINX_SPLIT=true' "$_ss_env" 2>/dev/null; then
+        echo "AVISO: Este servidor usa layout Nginx dividido (site corporativo + painel em portas distintas)."
+        echo "  O ficheiro $_ss_env contém SMARTSIGNAGE_NGINX_SPLIT=true."
+        echo "  NÃO execute este script: ele força Smart Signage na porta 80 e pode apagar o site corporativo."
+        echo "  Ajuste Nginx manualmente ou volte a correr o instalador."
+        exit 2
+    fi
+done
+
 echo "=== Nginx e porta 80 (uso exclusivo SmartSignage Pro) ==="
 
 # 1. Nginx instalado?

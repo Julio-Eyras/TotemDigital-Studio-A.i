@@ -32,7 +32,7 @@ Uso:
   scripts/install-player-v3x-linux-kiosk.sh --server URL --uin CODIGO [opcoes]
 
 Opcoes:
-  --server URL       URL base do TotemDigital (ex.: http://192.168.1.10)
+  --server URL       URL base do TotemDigital (ex.: http://192.168.1.10 ou http://painel.exemplo.com:8080 em layout dividido)
   --uin CODIGO      Codigo/UIN da tela (ex.: TD-1234-ABCD)
   --register        Abre o player com register=1 na primeira execucao
   --orientation M   landscape ou portrait (default: landscape)
@@ -43,7 +43,13 @@ Opcoes:
   --dry-run         Mostra o que seria criado sem escrever arquivos
   -h, --help        Mostra esta ajuda
 
-Exemplo:
+Exemplo com layout dividido (painel na 8080):
+  scripts/install-player-v3x-linux-kiosk.sh \\
+    --server http://192.168.1.10:8080 \\
+    --uin TD-1234-ABCD \\
+    --install-deps
+
+Exemplo basico:
   scripts/install-player-v3x-linux-kiosk.sh \
     --server http://192.168.1.10 \
     --uin TD-1234-ABCD \

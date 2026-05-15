@@ -4,7 +4,7 @@
 # Smart Signage Pro - Script de Auto-Instalação para Ubuntu
 # =============================================================================
 # Versão do Sistema: 2.1.0
-# Versão do Script: 2.1.5
+# Versão do Script: 2.1.11
 # =============================================================================
 # Este script instala automaticamente o Smart Signage Pro em sistemas Ubuntu
 # Suporta modos de instalação e perfil MQTT para single-server:
@@ -17,7 +17,7 @@
 
 # Versões (podem ser diferentes)
 SYSTEM_VERSION="2.1.0"
-SCRIPT_VERSION="2.1.8"
+SCRIPT_VERSION="2.1.12"
 #
 # OPÇÕES:
 #   --fresh              Instalação COMPLETA do zero (apaga TUDO, incluindo volumes)
@@ -30,6 +30,8 @@ SCRIPT_VERSION="2.1.8"
 #   --mode <modo>        Define o modo (single-server|single-server-prod|docker) e pula o menu
 #   --mqtt-mode <modo>   Perfil MQTT no single-server (dev|production)
 #   --https-self-signed  Habilita HTTPS com certificado autoassinado (single-server)
+#   --split-corporate-system  Site estático e painel em portas HTTP distintas (menu ou env SMARTSIGNAGE_*)
+#   --public-host / --corporate-http-port / --system-http-port / --corporate-web-root  (ver --help)
 # =============================================================================
 
 set -e  # Parar em caso de erro
@@ -142,6 +144,13 @@ ENABLE_HTTPS_SELF_SIGNED=false
 ENABLE_HTTPS_LETSENCRYPT=false
 DOMAIN_NAME=""
 SSL_EMAIL=""
+# Nginx: site corporativo estático vs painel Smart Signage em portas distintas (ex.: 80 + 8080)
+SPLIT_CORPORATE_AND_SYSTEM="${SPLIT_CORPORATE_AND_SYSTEM:-false}"
+# IP ou nome público (para server_name e mensagens finais; pode ficar vazio → _)
+PUBLIC_HOST="${PUBLIC_HOST:-}"
+CORPORATE_HTTP_PORT="${CORPORATE_HTTP_PORT:-80}"
+SYSTEM_HTTP_PORT="${SYSTEM_HTTP_PORT:-80}"
+CORPORATE_WEB_ROOT="${CORPORATE_WEB_ROOT:-/var/www/corporate-site}"
 ENABLE_KIOSK_MODE=false
 RESET_DATABASE=false
 PRESERVE_DB=false
@@ -1539,6 +1548,42 @@ parse_arguments() {
                 ENABLE_HTTPS_SELF_SIGNED=true
                 shift
                 ;;
+            --split-corporate-system)
+                SPLIT_CORPORATE_AND_SYSTEM=true
+                shift
+                ;;
+            --public-host)
+                if [[ -z "${2:-}" ]]; then
+                    error "Faltou valor para --public-host (IP ou domínio deste servidor)."
+                    exit 1
+                fi
+                PUBLIC_HOST="$2"
+                shift 2
+                ;;
+            --corporate-http-port)
+                if [[ -z "${2:-}" ]]; then
+                    error "Faltou valor para --corporate-http-port."
+                    exit 1
+                fi
+                CORPORATE_HTTP_PORT="$2"
+                shift 2
+                ;;
+            --system-http-port)
+                if [[ -z "${2:-}" ]]; then
+                    error "Faltou valor para --system-http-port."
+                    exit 1
+                fi
+                SYSTEM_HTTP_PORT="$2"
+                shift 2
+                ;;
+            --corporate-web-root)
+                if [[ -z "${2:-}" ]]; then
+                    error "Faltou valor para --corporate-web-root."
+                    exit 1
+                fi
+                CORPORATE_WEB_ROOT="$2"
+                shift 2
+                ;;
             --reset-db)
                 RESET_DATABASE=true
                 shift
@@ -1621,6 +1666,14 @@ parse_arguments() {
                 echo "  --mode <modo>        Define o modo (single-server|single-server-prod|docker) e pula o menu"
                 echo "  --mqtt-mode <modo>   Perfil MQTT no single-server (dev|production)"
                 echo "  --https-self-signed  Habilita HTTPS autoassinado (single-server)"
+                echo "  --split-corporate-system  Site estático (corporativo) e painel em portas HTTP distintas (ver perguntas no menu)"
+                echo "  --public-host <IP|domínio>  Host público para Nginx e URLs (com --split ou env SMARTSIGNAGE_PUBLIC_HOST)"
+                echo "  --corporate-http-port <n>   Porta HTTP do site corporativo (padrão 80)"
+                echo "  --system-http-port <n>      Porta HTTP do painel/API/player (80 se um só vhost; com --split-corporate-system use tipicamente 8080)"
+                echo "  --corporate-web-root <dir>  Raiz estática do site corporativo (padrão /var/www/corporate-site)"
+                echo "  Env (autom./--skip-menu): SMARTSIGNAGE_SPLIT_SITE, SMARTSIGNAGE_PUBLIC_HOST, SMARTSIGNAGE_CORPORATE_HTTP_PORT,"
+                echo "                            SMARTSIGNAGE_SYSTEM_HTTP_PORT, SMARTSIGNAGE_CORPORATE_WEB_ROOT,"
+                echo "                            SMARTSIGNAGE_LETSENCRYPT=true + SMARTSIGNAGE_DOMAIN_NAME (+ SMARTSIGNAGE_SSL_EMAIL opcional) para LE no layout dividido"
                 echo "  --reset-db           Apaga e recria o banco PostgreSQL se já existir (fluxo completo)"
                 echo "  --preserve-db        Preserva o banco de dados existente durante reinstalação"
                 echo "  --db-only            Reinstala APENAS o banco (drop + schema + seeds), sem rebuild de backend/frontend"
@@ -1646,6 +1699,7 @@ parse_arguments() {
                 ;;
         esac
     done
+    finalize_https_when_split_layout
 }
 
 # Verificar se é root
@@ -2389,6 +2443,13 @@ configure_firewall() {
     sudo ufw allow 443/tcp   # HTTPS
     sudo ufw allow 3000/tcp  # Backend
     sudo ufw allow 3001/tcp  # Frontend alternativo
+
+    # Layout Nginx: site corporativo e painel em portas HTTP distintas (ex.: 80 + 8080)
+    if [[ "$SPLIT_CORPORATE_AND_SYSTEM" == "true" ]]; then
+        sudo ufw allow "${CORPORATE_HTTP_PORT}/tcp" 2>/dev/null || true
+        sudo ufw allow "${SYSTEM_HTTP_PORT}/tcp" 2>/dev/null || true
+        log "Firewall UFW: portas do layout dividido — corporativo TCP ${CORPORATE_HTTP_PORT}, sistema TCP ${SYSTEM_HTTP_PORT}."
+    fi
     
     if [[ "$INSTALL_MODE" == "docker" ]]; then
         sudo ufw allow 5432/tcp  # PostgreSQL
@@ -5648,7 +5709,21 @@ setup_environment() {
     
     # Gerar UIN único
     UIN=$(date +%s)$(cat /sys/class/net/eth0/address 2>/dev/null | tr -d ':' || echo "000000000000")
-    
+
+    local CORS_SPLIT_ORIGIN=""
+    if [[ "${SPLIT_CORPORATE_AND_SYSTEM:-false}" == "true" ]]; then
+        local _cph="${PUBLIC_HOST:-}"
+        if [[ -z "$_cph" ]] || [[ "$_cph" == "_" ]]; then
+            _cph=$(hostname -I 2>/dev/null | awk '{print $1}')
+        fi
+        if [[ -n "$_cph" ]]; then
+            CORS_SPLIT_ORIGIN=",http://${_cph}:${SYSTEM_HTTP_PORT:-8080}"
+            if [[ -n "${DOMAIN_NAME:-}" ]] && [[ "${DOMAIN_NAME}" != "_" ]]; then
+                CORS_SPLIT_ORIGIN="${CORS_SPLIT_ORIGIN},http://${DOMAIN_NAME}:${SYSTEM_HTTP_PORT:-8080}"
+            fi
+        fi
+    fi
+
     cat > $ENV_FILE << EOF
 # Smart Signage Pro v2.0 - Configuração
 # Gerado automaticamente em $(date)
@@ -5693,8 +5768,8 @@ MEDIA_QUOTA_PER_CLIENT=5GB
 LOG_LEVEL=info
 LOG_FILE=/opt/smart-signage/Logs/app.log
 
-# CORS
-CORS_ORIGIN=http://localhost:3000,http://localhost:3001
+# CORS (layout dividido: inclui origem do painel na porta do sistema)
+CORS_ORIGIN=http://localhost:3000,http://localhost:3001${CORS_SPLIT_ORIGIN}
 
 # TotemDigital modo compacto (= mono) vs Pro — menu de instalação ou --totemdigital-compact / --smartsignage-pro
 TOTEMDIGITAL_COMPACT=$INSTALL_TOTEMDIGITAL_COMPACT
@@ -5776,8 +5851,8 @@ MEDIA_QUOTA_PER_CLIENT=5GB
 LOG_LEVEL=info
 LOG_FILE=/opt/smart-signage/Logs/app.log
 
-# CORS
-CORS_ORIGIN=http://localhost:3000,http://localhost:3001
+# CORS (layout dividido: inclui origem do painel na porta do sistema)
+CORS_ORIGIN=http://localhost:3000,http://localhost:3001${CORS_SPLIT_ORIGIN}
 
 # TotemDigital modo compacto (= mono) vs Pro — menu de instalação ou --totemdigital-compact / --smartsignage-pro
 TOTEMDIGITAL_COMPACT=$INSTALL_TOTEMDIGITAL_COMPACT
@@ -5810,10 +5885,186 @@ EOF
     fi
 }
 
+# -----------------------------------------------------------------------------
+# IP/domínio público e layout Nginx: site corporativo (estático) vs painel em portas distintas
+# Com --skip-menu / automação, defina por exemplo:
+#   export SMARTSIGNAGE_SPLIT_SITE=true
+#   export SMARTSIGNAGE_PUBLIC_HOST=203.0.113.10
+#   export SMARTSIGNAGE_CORPORATE_HTTP_PORT=80
+#   export SMARTSIGNAGE_SYSTEM_HTTP_PORT=8080
+#   export SMARTSIGNAGE_CORPORATE_WEB_ROOT=/var/www/corporate-site
+# Let's Encrypt com layout dividido (não interativo): também
+#   export SMARTSIGNAGE_LETSENCRYPT=true
+#   export SMARTSIGNAGE_DOMAIN_NAME=exemplo.com.br
+#   export SMARTSIGNAGE_SSL_EMAIL=admin@exemplo.com.br   (opcional)
+# Ou flags: --split-corporate-system --public-host IP --system-http-port 8080
+# -----------------------------------------------------------------------------
+is_valid_tcp_port() {
+    [[ -n "${1:-}" ]] && [[ "$1" =~ ^[0-9]+$ ]] && (( $1 >= 1 && $1 <= 65535 ))
+}
+
+apply_split_layout_from_environment() {
+    case "${SMARTSIGNAGE_SPLIT_SITE:-}" in
+        1|true|TRUE|yes|YES|s|S) SPLIT_CORPORATE_AND_SYSTEM=true ;;
+    esac
+    [[ -n "${SMARTSIGNAGE_PUBLIC_HOST:-}" ]] && PUBLIC_HOST="${SMARTSIGNAGE_PUBLIC_HOST}"
+    [[ -n "${SMARTSIGNAGE_CORPORATE_HTTP_PORT:-}" ]] && CORPORATE_HTTP_PORT="${SMARTSIGNAGE_CORPORATE_HTTP_PORT}"
+    [[ -n "${SMARTSIGNAGE_SYSTEM_HTTP_PORT:-}" ]] && SYSTEM_HTTP_PORT="${SMARTSIGNAGE_SYSTEM_HTTP_PORT}"
+    [[ -n "${SMARTSIGNAGE_CORPORATE_WEB_ROOT:-}" ]] && CORPORATE_WEB_ROOT="${SMARTSIGNAGE_CORPORATE_WEB_ROOT}"
+    case "${SMARTSIGNAGE_LETSENCRYPT:-}" in
+        1|true|TRUE|yes|YES)
+            if [[ "${SPLIT_CORPORATE_AND_SYSTEM:-false}" == "true" ]] && [[ -n "${SMARTSIGNAGE_DOMAIN_NAME:-}" ]]; then
+                ENABLE_HTTPS_LETSENCRYPT=true
+                ENABLE_HTTPS_SELF_SIGNED=false
+                DOMAIN_NAME="${SMARTSIGNAGE_DOMAIN_NAME}"
+                SSL_EMAIL="${SMARTSIGNAGE_SSL_EMAIL:-admin@${DOMAIN_NAME}}"
+            fi
+            ;;
+    esac
+}
+
+finalize_https_when_split_layout() {
+    if [[ "$SPLIT_CORPORATE_AND_SYSTEM" != "true" ]]; then
+        return 0
+    fi
+    if [[ "$ENABLE_HTTPS_SELF_SIGNED" == "true" ]]; then
+        warning "Layout dividido: HTTPS autoassinado não é suportado neste assistente (use Let's Encrypt para HTTPS no site corporativo na 443 ou configure TLS manualmente)."
+        ENABLE_HTTPS_SELF_SIGNED=false
+    fi
+}
+
+ask_public_host_and_split_layout() {
+    if [[ "$INSTALL_MODE" == "docker" ]]; then
+        log "Modo Docker: layout site+sistema no Nginx do host não é aplicado por este passo."
+        return 0
+    fi
+    if [[ "$INSTALL_MODE" != "single-server" ]] && [[ "$INSTALL_MODE" != "development" ]]; then
+        return 0
+    fi
+
+    apply_split_layout_from_environment
+
+    local default_ip
+    default_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    [[ -z "$default_ip" ]] && default_ip=""
+
+    if [[ "$SKIP_MENU" == "true" ]]; then
+        if [[ "$SPLIT_CORPORATE_AND_SYSTEM" == "true" ]]; then
+            if [[ "$CORPORATE_HTTP_PORT" == "$SYSTEM_HTTP_PORT" ]]; then
+                SYSTEM_HTTP_PORT="${SMARTSIGNAGE_SYSTEM_HTTP_PORT:-8080}"
+            fi
+            is_valid_tcp_port "$CORPORATE_HTTP_PORT" || { error "Porta corporativa inválida: $CORPORATE_HTTP_PORT"; exit 1; }
+            is_valid_tcp_port "$SYSTEM_HTTP_PORT" || { error "Porta do sistema inválida: $SYSTEM_HTTP_PORT"; exit 1; }
+            if [[ "$CORPORATE_HTTP_PORT" == "$SYSTEM_HTTP_PORT" ]]; then
+                error "Com layout dividido, CORPORATE_HTTP_PORT e SYSTEM_HTTP_PORT devem ser diferentes (ex.: 80 e 8080)."
+                exit 1
+            fi
+            [[ -z "$PUBLIC_HOST" ]] && PUBLIC_HOST="${default_ip:-_}"
+            log "Layout dividido (não interativo): site corporativo TCP $CORPORATE_HTTP_PORT, Smart Signage TCP $SYSTEM_HTTP_PORT, host ${PUBLIC_HOST}, raiz corporativa $CORPORATE_WEB_ROOT"
+            finalize_https_when_split_layout
+        fi
+        return 0
+    fi
+
+    echo
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${CYAN}         Exposição HTTP: site corporativo e painel Smart Signage (Nginx)${NC}"
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo
+    echo "Como deseja expor o tráfego HTTP?"
+    echo -e "  ${GREEN}1)${NC} Tudo na mesma porta (padrão): painel, API e /player na porta 80."
+    echo -e "  ${GREEN}2)${NC} Site corporativo estático numa porta e o sistema noutra (ex.: site na 80, painel na 8080)."
+    echo
+    read -p "Opção [1]: " _split_choice
+    _split_choice=${_split_choice:-1}
+    case "${_split_choice}" in
+        2)
+            SPLIT_CORPORATE_AND_SYSTEM=true
+            ;;
+        *)
+            SPLIT_CORPORATE_AND_SYSTEM=false
+            CORPORATE_HTTP_PORT=80
+            SYSTEM_HTTP_PORT=80
+            log "Usando um único virtual host HTTP (porta 80) para painel e API."
+            return 0
+            ;;
+    esac
+
+    echo
+    echo -e "${YELLOW}IP público ou domínio com que browsers e players acedem a este servidor${NC}"
+    echo "(Usado em server_name e nas mensagens finais. Se só tem IP, indique o IP.)"
+    read -p "IP ou domínio [${default_ip}]: " _ph
+    PUBLIC_HOST="${_ph:-$default_ip}"
+    [[ -z "$PUBLIC_HOST" ]] && PUBLIC_HOST="_"
+
+    read -p "Porta HTTP do site corporativo (ficheiros estáticos) [80]: " _cp
+    CORPORATE_HTTP_PORT="${_cp:-80}"
+    read -p "Porta HTTP do Smart Signage — painel, /api e /player [8080]: " _sp
+    SYSTEM_HTTP_PORT="${_sp:-8080}"
+
+    read -p "Diretório raiz do site corporativo no servidor [$CORPORATE_WEB_ROOT]: " _wr
+    CORPORATE_WEB_ROOT="${_wr:-$CORPORATE_WEB_ROOT}"
+
+    if ! is_valid_tcp_port "$CORPORATE_HTTP_PORT"; then
+        warning "Porta corporativa inválida ($CORPORATE_HTTP_PORT). A usar 80."
+        CORPORATE_HTTP_PORT=80
+    fi
+    if ! is_valid_tcp_port "$SYSTEM_HTTP_PORT"; then
+        warning "Porta do sistema inválida ($SYSTEM_HTTP_PORT). A usar 8080."
+        SYSTEM_HTTP_PORT=8080
+    fi
+    if [[ "$CORPORATE_HTTP_PORT" == "$SYSTEM_HTTP_PORT" ]]; then
+        warning "As portas coincidem; a voltar ao layout único (painel na ${SYSTEM_HTTP_PORT})."
+        SPLIT_CORPORATE_AND_SYSTEM=false
+        SYSTEM_HTTP_PORT=80
+        CORPORATE_HTTP_PORT=80
+        return 0
+    fi
+
+    log "Layout dividido: site corporativo em :${CORPORATE_HTTP_PORT} (raiz ${CORPORATE_WEB_ROOT}); Smart Signage em :${SYSTEM_HTTP_PORT} (host ${PUBLIC_HOST})."
+    finalize_https_when_split_layout
+}
+
 # Perguntar sobre configuração HTTPS
 ask_https_configuration() {
     # Pular se for modo Docker (gerenciado pelo compose)
     if [[ "$INSTALL_MODE" == "docker" ]]; then
+        return 0
+    fi
+
+    # Layout dividido: sem HTTPS autoassinado; Let's Encrypt coloca TLS na 443 só no site corporativo (painel continua HTTP na porta do sistema).
+    if [[ "$SPLIT_CORPORATE_AND_SYSTEM" == "true" ]]; then
+        ENABLE_HTTPS_SELF_SIGNED=false
+        if [[ "$SKIP_MENU" == "true" ]]; then
+            if [[ "$ENABLE_HTTPS_LETSENCRYPT" == "true" ]] && [[ -n "${DOMAIN_NAME:-}" ]]; then
+                log "Layout dividido + skip-menu: Let's Encrypt ativado (SMARTSIGNAGE_LETSENCRYPT / SMARTSIGNAGE_DOMAIN_NAME)."
+            else
+                log "Layout dividido + skip-menu: HTTPS não configurado (padrão). Defina SMARTSIGNAGE_LETSENCRYPT=true e SMARTSIGNAGE_DOMAIN_NAME para TLS na 443 (site corporativo)."
+                ENABLE_HTTPS_LETSENCRYPT=false
+            fi
+            return 0
+        fi
+        echo
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${CYAN}   HTTPS com layout dividido (site corporativo + painel em portas distintas)${NC}"
+        echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo
+        echo -e "${YELLOW}O painel e a API permanecem em HTTP na porta do sistema (ex.: 8080).${NC}"
+        echo -e "${YELLOW}Com Let's Encrypt, o assistente obtém certificado para o domínio e serve HTTPS na porta 443 apenas para o site corporativo (porta corporativa HTTP deve ser 80).${NC}"
+        echo
+        echo -e "${GREEN}1)${NC} Sem HTTPS (apenas HTTP)"
+        echo -e "${GREEN}2)${NC} Let's Encrypt — HTTPS na 443 para o site corporativo (domínio + DNS + porta 80)"
+        echo
+        read -p "Digite sua escolha (1-2) [padrão: 1]: " https_split_choice
+        https_split_choice=${https_split_choice:-1}
+        case "${https_split_choice}" in
+            2)
+                ask_letsencrypt_details
+                ;;
+            *)
+                ENABLE_HTTPS_LETSENCRYPT=false
+                ;;
+        esac
         return 0
     fi
     
@@ -5950,7 +6201,6 @@ setup_letsencrypt() {
         }
     fi
     
-    # Criar configuração Nginx temporária (HTTP) para validação
     NGINX_CONFIG="/etc/nginx/sites-available/smart-signage"
     _backend_port=""
     [[ -f "$INSTALL_DIR/.env" ]] && _backend_port=$(awk -F= '/^BACKEND_PORT=/{print $2; exit}' "$INSTALL_DIR/.env" 2>/dev/null | tr -d '"' | tr -d "'" | xargs || true)
@@ -5958,9 +6208,28 @@ setup_letsencrypt() {
         log "ℹ️ BACKEND_PORT não definido no .env. Usando padrão: 3000"
     fi
     BACKEND_PORT=${_backend_port:-3000}
-    
-    # Configurar primeiro com HTTP apenas
-    sudo tee $NGINX_CONFIG > /dev/null << EOF
+
+    if [[ "$SPLIT_CORPORATE_AND_SYSTEM" == "true" ]]; then
+        if [[ "${CORPORATE_HTTP_PORT:-80}" != "80" ]]; then
+            warning "Let's Encrypt com layout dividido exige o site corporativo na porta TCP 80 (validação HTTP-01)."
+            ENABLE_HTTPS_LETSENCRYPT=false
+            return 0
+        fi
+        sudo mkdir -p /var/www/certbot/.well-known/acme-challenge
+        sudo chown -R www-data:www-data /var/www/certbot 2>/dev/null || sudo chown -R nginx:nginx /var/www/certbot 2>/dev/null || true
+        log "Layout dividido: a validar Nginx existente (webroot em /var/www/certbot) antes do certbot."
+        verify_nginx_ws_config "$NGINX_CONFIG"
+        if sudo nginx -t && { sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload; }; then
+            log "Nginx recarregado para Let's Encrypt (webroot)."
+        else
+            error "Erro ao validar/recarregar Nginx antes do Let's Encrypt"
+            warning "Continuando sem HTTPS"
+            ENABLE_HTTPS_LETSENCRYPT=false
+            return 0
+        fi
+    else
+        # Configurar primeiro com HTTP apenas (layout único na 80)
+        sudo tee $NGINX_CONFIG > /dev/null << EOF
 server {
     listen 80;
     server_name $DOMAIN_NAME www.$DOMAIN_NAME;
@@ -6047,31 +6316,61 @@ server {
 }
 EOF
     
-    sudo ln -sf $NGINX_CONFIG /etc/nginx/sites-enabled/
-    sudo rm -f /etc/nginx/sites-enabled/default
-    sanitize_nginx_default_server_conflicts "$NGINX_CONFIG"
-    verify_nginx_ws_config "$NGINX_CONFIG"
-    
-    # Recarregar Nginx
-    if sudo nginx -t && sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload; then
-        log "Nginx configurado com HTTP temporariamente"
-    else
-        error "Erro ao configurar Nginx"
-        warning "Continuando sem HTTPS"
-        ENABLE_HTTPS_LETSENCRYPT=false
-        return 0
+        sudo ln -sf $NGINX_CONFIG /etc/nginx/sites-enabled/
+        sudo rm -f /etc/nginx/sites-enabled/default
+        sanitize_nginx_default_server_conflicts "$NGINX_CONFIG"
+        verify_nginx_ws_config "$NGINX_CONFIG"
+        
+        if sudo nginx -t && { sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload; }; then
+            log "Nginx configurado com HTTP temporariamente"
+        else
+            error "Erro ao configurar Nginx"
+            warning "Continuando sem HTTPS"
+            ENABLE_HTTPS_LETSENCRYPT=false
+            return 0
+        fi
     fi
     
-    # Tentar obter certificado
     log "Obtendo certificado SSL do Let's Encrypt..."
     log "Isso pode levar alguns minutos..."
     
-    if sudo certbot --nginx -d "$DOMAIN_NAME" -d "www.$DOMAIN_NAME" --non-interactive --agree-tos --email "$SSL_EMAIL" --redirect; then
+    local cert_ok=0
+    if [[ "$SPLIT_CORPORATE_AND_SYSTEM" == "true" ]]; then
+        if sudo certbot certonly --webroot -w /var/www/certbot \
+            -d "$DOMAIN_NAME" -d "www.$DOMAIN_NAME" \
+            --non-interactive --agree-tos --email "$SSL_EMAIL" \
+            --preferred-challenges http; then
+            cert_ok=1
+        fi
+    else
+        if sudo certbot --nginx -d "$DOMAIN_NAME" -d "www.$DOMAIN_NAME" --non-interactive --agree-tos --email "$SSL_EMAIL" --redirect; then
+            cert_ok=1
+        fi
+    fi
+    
+    if [[ "$cert_ok" -eq 1 ]]; then
         log "✅ Certificado Let's Encrypt obtido com sucesso!"
+        persist_domain_name_to_env_files
         
-        # Configurar renovação automática
+        if [[ "$SPLIT_CORPORATE_AND_SYSTEM" == "true" ]]; then
+            if apply_split_nginx_corporate_https_after_le; then
+                SMARTSIGNAGE_CORPORATE_LE_HTTPS=true
+                persist_nginx_public_layout_to_env
+                local _pu="http://${DOMAIN_NAME}:${SYSTEM_HTTP_PORT}/"
+                deploy_corporate_landing_html "$CORPORATE_WEB_ROOT" "$_pu"
+            else
+                warning "Não foi possível aplicar HTTPS 443 no site corporativo; a restaurar Nginx HTTP (layout dividido)."
+                ENABLE_HTTPS_LETSENCRYPT=false
+                setup_nginx_http_only || true
+            fi
+        fi
+        
         if ! sudo crontab -l 2>/dev/null | grep -q "certbot renew"; then
-            (sudo crontab -l 2>/dev/null; echo "0 0 * * * /usr/bin/certbot renew --quiet --nginx && systemctl reload nginx") | sudo crontab -
+            if [[ "$SPLIT_CORPORATE_AND_SYSTEM" == "true" ]]; then
+                (sudo crontab -l 2>/dev/null; echo "0 0 * * * /usr/bin/certbot renew --quiet && /bin/systemctl reload nginx") | sudo crontab -
+            else
+                (sudo crontab -l 2>/dev/null; echo "0 0 * * * /usr/bin/certbot renew --quiet --nginx && systemctl reload nginx") | sudo crontab -
+            fi
             log "✓ Renovação automática configurada no cron"
         fi
     else
@@ -6084,7 +6383,6 @@ EOF
         warning "  sudo certbot --nginx -d $DOMAIN_NAME"
         ENABLE_HTTPS_LETSENCRYPT=false
         
-        # Recriar configuração sem SSL
         setup_nginx_http_only
     fi
 }
@@ -6165,6 +6463,289 @@ verify_nginx_ws_config() {
     fi
 }
 
+# Landing HTML padrão do site corporativo (layout dividido). Só substitui se não existir index
+# ou se o ficheiro contiver o marcador smart-signage-default-corporate-landing-v1.
+# Uso: deploy_corporate_landing_html [dest_root] [url_painel]
+deploy_corporate_landing_html() {
+    local dest_root="${1:-$CORPORATE_WEB_ROOT}"
+    local panel_url="${2:-}"
+    local template="${SOURCE_DIR:-.}/scripts/assets/corporate-landing/index.html"
+    local marker="smart-signage-default-corporate-landing-v1"
+    local target="${dest_root}/index.html"
+    local host_label="${PUBLIC_HOST:-}"
+
+    if [[ -z "$dest_root" ]]; then
+        warn "deploy_corporate_landing_html: raiz vazia."
+        return 1
+    fi
+    if [[ -z "$host_label" ]] || [[ "$host_label" == "_" ]]; then
+        host_label="$(hostname -I 2>/dev/null | awk '{print $1}')"
+        [[ -z "$host_label" ]] && host_label="127.0.0.1"
+    fi
+    if [[ -z "$panel_url" ]]; then
+        if [[ -n "${PUBLIC_HOST:-}" ]] && [[ "${PUBLIC_HOST}" != "_" ]]; then
+            panel_url="http://${PUBLIC_HOST}:${SYSTEM_HTTP_PORT:-8080}/"
+        else
+            panel_url="http://${host_label}:${SYSTEM_HTTP_PORT:-8080}/"
+        fi
+    fi
+
+    if [[ -f "$target" ]] && ! grep -q "$marker" "$target" 2>/dev/null; then
+        log "Site corporativo: mantendo $target (landing personalizada)."
+        return 0
+    fi
+
+    sudo mkdir -p "$dest_root"
+    local year
+    year=$(date +%Y)
+    if [[ -f "$template" ]]; then
+        if command -v python3 &>/dev/null; then
+            export TEMPLATE="$template" _LAND_PANEL_URL="$panel_url" _LAND_HOST_LABEL="$host_label" _LAND_CORP_ROOT="$dest_root" _LAND_YEAR="$year"
+            python3 << 'PY' | sudo tee "$target" > /dev/null
+import os
+from pathlib import Path
+t = Path(os.environ["TEMPLATE"]).read_text(encoding="utf-8")
+t = t.replace("__PANEL_URL__", os.environ.get("_LAND_PANEL_URL", ""))
+t = t.replace("__PUBLIC_HOST_LABEL__", os.environ.get("_LAND_HOST_LABEL", ""))
+t = t.replace("__CORPORATE_ROOT__", os.environ.get("_LAND_CORP_ROOT", ""))
+t = t.replace("__YEAR__", os.environ.get("_LAND_YEAR", ""))
+print(t, end="")
+PY
+            unset TEMPLATE _LAND_PANEL_URL _LAND_HOST_LABEL _LAND_CORP_ROOT _LAND_YEAR
+        else
+            sed -e "s|__PANEL_URL__|${panel_url//|/\\|}|g" \
+                -e "s|__PUBLIC_HOST_LABEL__|${host_label//|/\\|}|g" \
+                -e "s|__CORPORATE_ROOT__|${dest_root//|/\\|}|g" \
+                -e "s|__YEAR__|${year}|g" \
+                "$template" | sudo tee "$target" > /dev/null
+        fi
+    else
+        warn "Template corporativo em falta ($template); a gravar HTML mínimo."
+        sudo tee "$target" > /dev/null << MINHTML
+<!DOCTYPE html><html lang="pt"><head><meta charset="utf-8"/><title>${host_label}</title></head>
+<body><h1>${host_label}</h1><p><a href="${panel_url}">Painel Smart Signage</a></p><!-- ${marker} --></body></html>
+MINHTML
+    fi
+    if id www-data &>/dev/null; then
+        sudo chown -R www-data:www-data "$dest_root" 2>/dev/null || true
+    else
+        sudo chown -R nginx:nginx "$dest_root" 2>/dev/null || true
+    fi
+    log "✅ Landing corporativa: $target"
+    return 0
+}
+
+# Após certbot certonly (webroot), aplica HTTPS na porta 443 para o site corporativo e mantém o painel em HTTP na porta do sistema.
+apply_split_nginx_corporate_https_after_le() {
+    if [[ "$SPLIT_CORPORATE_AND_SYSTEM" != "true" ]]; then
+        return 0
+    fi
+    if [[ -z "${DOMAIN_NAME:-}" ]]; then
+        warn "apply_split_nginx_corporate_https_after_le: DOMAIN_NAME vazio."
+        return 1
+    fi
+    if [[ ! -f "/etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem" ]]; then
+        warn "Certificado Let's Encrypt não encontrado em /etc/letsencrypt/live/${DOMAIN_NAME}/"
+        return 1
+    fi
+
+    NGINX_CONFIG="/etc/nginx/sites-available/smart-signage"
+    BACKEND_PORT=${BACKEND_PORT:-3000}
+    FRONTEND_BUILD_DIR="${FRONTEND_BUILD_DIR:-$INSTALL_DIR/frontend/build}"
+    local map_block
+    if [[ -n "$DOMAIN_NAME" ]] && [[ "$DOMAIN_NAME" != "_" ]]; then
+        map_block="map \$host \$smssi_sd_type {
+    default main;
+    publisher.${DOMAIN_NAME} publisher;
+    subscriber.${DOMAIN_NAME} subscriber;
+}"
+    else
+        map_block="map \$host \$smssi_sd_type {
+    default main;
+}"
+    fi
+    local sys_names="${PUBLIC_HOST} _"
+    if [[ -n "$DOMAIN_NAME" ]] && [[ "$DOMAIN_NAME" != "_" ]]; then
+        sys_names="${PUBLIC_HOST} _ publisher.${DOMAIN_NAME} subscriber.${DOMAIN_NAME}"
+    fi
+
+    local ssl_extra=""
+    if [[ -f /etc/letsencrypt/options-ssl-nginx.conf ]]; then
+        ssl_extra="    include /etc/letsencrypt/options-ssl-nginx.conf;
+"
+    fi
+    if [[ -f /etc/letsencrypt/ssl-dhparams.pem ]]; then
+        ssl_extra="${ssl_extra}    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+"
+    fi
+
+    sudo tee "$NGINX_CONFIG" > /dev/null << EOF
+${map_block}
+
+# Site corporativo — HTTP (ACME + redirecionamento)
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN_NAME} www.${DOMAIN_NAME};
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+    location / {
+        return 301 https://\$host\$request_uri;
+    }
+}
+
+# Site corporativo — HTTPS (estático)
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name ${DOMAIN_NAME} www.${DOMAIN_NAME};
+
+    ssl_certificate /etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem;
+${ssl_extra}
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    root ${CORPORATE_WEB_ROOT};
+    index index.html;
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+}
+
+# Smart Signage — painel na porta ${SYSTEM_HTTP_PORT} (HTTP)
+server {
+    listen ${SYSTEM_HTTP_PORT};
+    listen [::]:${SYSTEM_HTTP_PORT};
+    server_name ${sys_names};
+
+    root $FRONTEND_BUILD_DIR;
+    index index.html;
+
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+
+    client_max_body_size 500M;
+    client_body_buffer_size 512k;
+
+    location ^~ /api/ {
+        proxy_pass http://127.0.0.1:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Subdomain-Type \$smssi_sd_type;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
+    }
+
+    location /ws {
+        proxy_pass http://127.0.0.1:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+    }
+
+    location ^~ /player {
+        proxy_pass http://127.0.0.1:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+        proxy_buffer_size 256k;
+        proxy_buffers 8 512k;
+        proxy_busy_buffers_size 512k;
+        proxy_temp_file_write_size 512k;
+        proxy_hide_header Content-Security-Policy;
+        proxy_hide_header Cross-Origin-Opener-Policy;
+        proxy_hide_header Origin-Agent-Cluster;
+    }
+
+    location /static/ {
+        alias $FRONTEND_BUILD_DIR/static/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json|webmanifest)$ {
+        root $FRONTEND_BUILD_DIR;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    location /assets/ {
+        proxy_pass http://127.0.0.1:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    location = /health {
+        proxy_pass http://127.0.0.1:${BACKEND_PORT}/health;
+        proxy_set_header Host \$host;
+    }
+
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/json application/javascript;
+}
+EOF
+    verify_nginx_ws_config "$NGINX_CONFIG"
+    if sudo nginx -t && sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload; then
+        log "✅ Nginx: HTTPS no site corporativo (443) e painel em HTTP na porta ${SYSTEM_HTTP_PORT}."
+        return 0
+    fi
+    warn "Falha ao recarregar Nginx após aplicar HTTPS corporativo."
+    return 1
+}
+
+# Grava DOMAIN_NAME no .env (para mensagens finais e operações futuras).
+persist_domain_name_to_env_files() {
+    local d="${1:-$DOMAIN_NAME}"
+    [[ -z "$d" ]] && return 0
+    local f
+    for f in "$INSTALL_DIR/.env" "$INSTALL_DIR/backend/.env"; do
+        [[ -f "$f" ]] || continue
+        local tmp
+        tmp=$(mktemp "${f}.domain.XXXXXX" 2>/dev/null || echo "${f}.domain.tmp")
+        grep -vE '^DOMAIN_NAME=' "$f" > "$tmp" 2>/dev/null || cp "$f" "$tmp"
+        mv -f "$tmp" "$f"
+        echo "DOMAIN_NAME=${d}" >> "$f"
+    done
+}
+
 # Evita conflito "duplicate default server" no Nginx quando existe
 # outro arquivo ativo com listen 80 default_server (ex.: fallback antigo).
 sanitize_nginx_default_server_conflicts() {
@@ -6192,6 +6773,41 @@ sanitize_nginx_default_server_conflicts() {
     done
 }
 
+# Grava em INSTALL_DIR/.env o layout Nginx público (site corporativo + painel em portas distintas).
+# Lido por show_final_info, validações e manage-system.sh (SMARTSIGNAGE_NGINX_*).
+persist_nginx_public_layout_to_env() {
+    local envf="$INSTALL_DIR/.env"
+    if [[ ! -f "$envf" ]]; then
+        warn "persist_nginx_public_layout_to_env: $envf não existe — não gravou SMARTSIGNAGE_NGINX_*."
+        return 0
+    fi
+    local tmp
+    local _corp_le="${SMARTSIGNAGE_CORPORATE_LE_HTTPS:-false}"
+    tmp=$(mktemp "${envf}.layout.XXXXXX" 2>/dev/null || echo "${envf}.layout.tmp")
+    grep -vE '^SMARTSIGNAGE_NGINX_SPLIT=|^SMARTSIGNAGE_CORPORATE_HTTP_PORT=|^SMARTSIGNAGE_SYSTEM_HTTP_PORT=|^SMARTSIGNAGE_CORPORATE_WEB_ROOT=|^SMARTSIGNAGE_PUBLIC_HOST=|^SMARTSIGNAGE_CORPORATE_LE_HTTPS=' "$envf" > "$tmp" 2>/dev/null || cp "$envf" "$tmp"
+    mv -f "$tmp" "$envf"
+    {
+        echo ""
+        echo "# --- Nginx: layout público (gravado pelo install-smartsignage.sh) ---"
+        if [[ "$SPLIT_CORPORATE_AND_SYSTEM" == "true" ]]; then
+            echo "SMARTSIGNAGE_NGINX_SPLIT=true"
+            echo "SMARTSIGNAGE_CORPORATE_HTTP_PORT=${CORPORATE_HTTP_PORT}"
+            echo "SMARTSIGNAGE_SYSTEM_HTTP_PORT=${SYSTEM_HTTP_PORT}"
+            echo "SMARTSIGNAGE_CORPORATE_WEB_ROOT=${CORPORATE_WEB_ROOT}"
+            echo "SMARTSIGNAGE_PUBLIC_HOST=${PUBLIC_HOST}"
+            echo "SMARTSIGNAGE_CORPORATE_LE_HTTPS=${_corp_le}"
+        else
+            echo "SMARTSIGNAGE_NGINX_SPLIT=false"
+            echo "SMARTSIGNAGE_CORPORATE_HTTP_PORT=80"
+            echo "SMARTSIGNAGE_SYSTEM_HTTP_PORT=80"
+            echo "SMARTSIGNAGE_CORPORATE_WEB_ROOT="
+            echo "SMARTSIGNAGE_PUBLIC_HOST="
+            echo "SMARTSIGNAGE_CORPORATE_LE_HTTPS=false"
+        fi
+    } >> "$envf"
+    log "✅ Layout Nginx público gravado em $envf (SMARTSIGNAGE_NGINX_*)."
+}
+
 # Configurar Nginx apenas HTTP (sem SSL)
 setup_nginx_http_only() {
     NGINX_CONFIG="/etc/nginx/sites-available/smart-signage"
@@ -6203,8 +6819,114 @@ setup_nginx_http_only() {
         BACKEND_PORT="$_backend_port"
     fi
     BACKEND_PORT=${BACKEND_PORT:-3000}
-    
-    sudo tee $NGINX_CONFIG > /dev/null << EOF
+
+    if [[ "$SPLIT_CORPORATE_AND_SYSTEM" == "true" ]]; then
+        log "Nginx (HTTP only, pós-Let's Encrypt): a reaplicar layout dividido (corporativo + sistema)."
+        sudo mkdir -p "$CORPORATE_WEB_ROOT" /var/www/certbot/.well-known/acme-challenge
+        sudo chmod -R 755 /var/www/certbot 2>/dev/null || true
+        local _ctx_ip="${PUBLIC_HOST}"
+        if [[ -z "$_ctx_ip" ]] || [[ "$_ctx_ip" == "_" ]]; then
+            _ctx_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+            [[ -z "$_ctx_ip" ]] && _ctx_ip="127.0.0.1"
+        fi
+        local _panel_url="http://${_ctx_ip}:${SYSTEM_HTTP_PORT}/"
+        [[ -n "${PUBLIC_HOST:-}" ]] && [[ "${PUBLIC_HOST}" != "_" ]] && _panel_url="http://${PUBLIC_HOST}:${SYSTEM_HTTP_PORT}/"
+        deploy_corporate_landing_html "$CORPORATE_WEB_ROOT" "$_panel_url"
+
+        local _split_map _sys_names
+        _split_map="map \$host \$smssi_sd_type {
+    default main;
+}"
+        _sys_names="${PUBLIC_HOST} _"
+        if [[ -n "${DOMAIN_NAME:-}" ]] && [[ "${DOMAIN_NAME}" != "_" ]]; then
+            _split_map="map \$host \$smssi_sd_type {
+    default main;
+    publisher.${DOMAIN_NAME} publisher;
+    subscriber.${DOMAIN_NAME} subscriber;
+}"
+            _sys_names="${PUBLIC_HOST} _ publisher.${DOMAIN_NAME} subscriber.${DOMAIN_NAME}"
+        fi
+
+        sudo tee $NGINX_CONFIG > /dev/null << EOF
+${_split_map}
+
+server {
+    listen ${CORPORATE_HTTP_PORT} default_server;
+    listen [::]:${CORPORATE_HTTP_PORT} default_server;
+    server_name ${PUBLIC_HOST} _;
+    root ${CORPORATE_WEB_ROOT};
+    index index.html;
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+    location / { try_files \$uri \$uri/ /index.html; }
+}
+server {
+    listen ${SYSTEM_HTTP_PORT};
+    listen [::]:${SYSTEM_HTTP_PORT};
+    server_name ${_sys_names};
+    root $FRONTEND_BUILD_DIR;
+    index index.html;
+    client_max_body_size 500M;
+    client_body_buffer_size 512k;
+    location ^~ /api/ {
+        proxy_pass http://127.0.0.1:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Subdomain-Type \$smssi_sd_type;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
+    }
+    location /ws {
+        proxy_pass http://127.0.0.1:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+    }
+    location ^~ /player {
+        proxy_pass http://127.0.0.1:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+        proxy_buffer_size 256k;
+        proxy_buffers 8 512k;
+        proxy_busy_buffers_size 512k;
+        proxy_temp_file_write_size 512k;
+    }
+    location /assets/ {
+        proxy_pass http://127.0.0.1:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+    location / { try_files \$uri \$uri/ /index.html; }
+}
+EOF
+    else
+        sudo tee $NGINX_CONFIG > /dev/null << EOF
 server {
     listen 80;
     server_name ${DOMAIN_NAME:-_};
@@ -6286,6 +7008,8 @@ server {
     }
 }
 EOF
+    fi
+    persist_nginx_public_layout_to_env
     verify_nginx_ws_config "$NGINX_CONFIG"
 }
 
@@ -6297,6 +7021,11 @@ setup_nginx() {
     if [[ "$INSTALL_MODE" == "docker" ]]; then
         log "Nginx será gerenciado pelo Docker Compose"
         return 0
+    fi
+
+    # Layout dividido: Let's Encrypt é tratado em setup_letsencrypt (HTTPS na 443 só no corporativo).
+    if [[ "$SPLIT_CORPORATE_AND_SYSTEM" == "true" ]]; then
+        ENABLE_HTTPS_SELF_SIGNED=false
     fi
     
     # Validar que o build do frontend existe
@@ -6416,10 +7145,21 @@ setup_nginx() {
 
     log "========================================="
     log " URLs de acesso ao Smart Signage Pro"
-    log "  - Login HTTP : http://$SERVER_IP/"
-    log "  - Login HTTPS: https://$SERVER_IP/   (se HTTPS estiver configurado no Nginx)"
-    log "  - Player HTTP: http://$SERVER_IP/player"
-    log "  - Player HTTPS: https://$SERVER_IP/player   (se HTTPS estiver configurado no Nginx)"
+    if [[ "$SPLIT_CORPORATE_AND_SYSTEM" == "true" ]]; then
+        local _disp_host="${PUBLIC_HOST}"
+        if [[ -z "$_disp_host" ]] || [[ "$_disp_host" == "_" ]]; then
+            _disp_host="$SERVER_IP"
+        fi
+        log "  - Site corporativo (HTTP): http://${_disp_host}:${CORPORATE_HTTP_PORT}/"
+        log "  - Painel / API / player (HTTP): http://${_disp_host}:${SYSTEM_HTTP_PORT}/"
+        log "  - Player (HTTP): http://${_disp_host}:${SYSTEM_HTTP_PORT}/player"
+        log "  (Layout dividido: painel em HTTP na ${SYSTEM_HTTP_PORT}; site corporativo pode usar Let's Encrypt na 443 — menu HTTPS.)"
+    else
+        log "  - Login HTTP : http://$SERVER_IP/"
+        log "  - Login HTTPS: https://$SERVER_IP/   (se HTTPS estiver configurado no Nginx)"
+        log "  - Player HTTP: http://$SERVER_IP/player"
+        log "  - Player HTTPS: https://$SERVER_IP/player   (se HTTPS estiver configurado no Nginx)"
+    fi
     log "========================================="
     
     # SINGLE-SERVER: SEMPRE fazer deploy de player-web em /opt/smart-signage/player-web (instalação funcional, sem scripts de correção)
@@ -6607,6 +7347,163 @@ server {
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
+}
+EOF
+    elif [[ "$SPLIT_CORPORATE_AND_SYSTEM" == "true" ]]; then
+        SMARTSIGNAGE_CORPORATE_LE_HTTPS=false
+        log "Nginx: site corporativo na porta ${CORPORATE_HTTP_PORT} (${CORPORATE_WEB_ROOT}); Smart Signage na porta ${SYSTEM_HTTP_PORT}."
+        sudo mkdir -p "$CORPORATE_WEB_ROOT" /var/www/certbot/.well-known/acme-challenge
+        sudo chmod -R 755 /var/www/certbot 2>/dev/null || true
+        local _ctx_ip="${PUBLIC_HOST}"
+        if [[ -z "$_ctx_ip" ]] || [[ "$_ctx_ip" == "_" ]]; then
+            _ctx_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+            [[ -z "$_ctx_ip" ]] && _ctx_ip="127.0.0.1"
+        fi
+        local _panel_url="http://${_ctx_ip}:${SYSTEM_HTTP_PORT}/"
+        [[ -n "${PUBLIC_HOST:-}" ]] && [[ "${PUBLIC_HOST}" != "_" ]] && _panel_url="http://${PUBLIC_HOST}:${SYSTEM_HTTP_PORT}/"
+        deploy_corporate_landing_html "$CORPORATE_WEB_ROOT" "$_panel_url"
+
+        local _split_map _sys_names
+        _split_map="map \$host \$smssi_sd_type {
+    default main;
+}"
+        _sys_names="${PUBLIC_HOST} _"
+        if [[ -n "${DOMAIN_NAME:-}" ]] && [[ "${DOMAIN_NAME}" != "_" ]]; then
+            _split_map="map \$host \$smssi_sd_type {
+    default main;
+    publisher.${DOMAIN_NAME} publisher;
+    subscriber.${DOMAIN_NAME} subscriber;
+}"
+            _sys_names="${PUBLIC_HOST} _ publisher.${DOMAIN_NAME} subscriber.${DOMAIN_NAME}"
+        fi
+
+        sudo tee $NGINX_CONFIG > /dev/null << EOF
+${_split_map}
+
+# Site corporativo (estático) — porta ${CORPORATE_HTTP_PORT}
+server {
+    listen ${CORPORATE_HTTP_PORT} default_server;
+    listen [::]:${CORPORATE_HTTP_PORT} default_server;
+    server_name ${PUBLIC_HOST} _;
+
+    root ${CORPORATE_WEB_ROOT};
+    index index.html;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+}
+
+# Smart Signage — painel, API, WebSocket e /player — porta ${SYSTEM_HTTP_PORT}
+server {
+    listen ${SYSTEM_HTTP_PORT};
+    listen [::]:${SYSTEM_HTTP_PORT};
+    server_name ${_sys_names};
+
+    root $FRONTEND_BUILD_DIR;
+    index index.html;
+
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+
+    client_max_body_size 500M;
+    client_body_buffer_size 512k;
+
+    location ^~ /api/ {
+        proxy_pass http://127.0.0.1:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Subdomain-Type \$smssi_sd_type;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
+    }
+
+    location /ws {
+        proxy_pass http://127.0.0.1:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+    }
+
+    location ^~ /player {
+        proxy_pass http://127.0.0.1:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+        proxy_buffer_size 256k;
+        proxy_buffers 8 512k;
+        proxy_busy_buffers_size 512k;
+        proxy_temp_file_write_size 512k;
+        proxy_hide_header Content-Security-Policy;
+        proxy_hide_header Cross-Origin-Opener-Policy;
+        proxy_hide_header Origin-Agent-Cluster;
+    }
+
+    location /static/ {
+        alias $FRONTEND_BUILD_DIR/static/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json|webmanifest)$ {
+        root $FRONTEND_BUILD_DIR;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    location /assets/ {
+        proxy_pass http://127.0.0.1:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    location = /health {
+        proxy_pass http://127.0.0.1:${BACKEND_PORT}/health;
+        proxy_set_header Host \$host;
+    }
+
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/json application/javascript;
 }
 EOF
     else
@@ -6918,9 +7815,11 @@ EOF
     sudo rm -f /etc/nginx/sites-enabled/default
     sanitize_nginx_default_server_conflicts "$NGINX_CONFIG"
     verify_nginx_ws_config "$NGINX_CONFIG"
+
+    persist_nginx_public_layout_to_env
     
-    # Se Let's Encrypt está ativo, não configurar aqui (será feito em setup_letsencrypt)
-    if [[ "$ENABLE_HTTPS_LETSENCRYPT" == "true" ]]; then
+    # Se Let's Encrypt está ativo (layout único), não concluir aqui — setup_letsencrypt sobrescreve o Nginx.
+    if [[ "$ENABLE_HTTPS_LETSENCRYPT" == "true" ]] && [[ "$SPLIT_CORPORATE_AND_SYSTEM" != "true" ]]; then
         log "Nginx será configurado pelo Let's Encrypt"
         return 0
     fi
@@ -7001,10 +7900,14 @@ EOF
             fi
             
             sleep 2
-            if curl -s -f http://localhost:80 > /dev/null 2>&1; then
-                log "✅ Nginx está respondendo na porta 80!"
+            local _nginx_test_port=80
+            if [[ "$SPLIT_CORPORATE_AND_SYSTEM" == "true" ]]; then
+                _nginx_test_port="${SYSTEM_HTTP_PORT:-8080}"
+            fi
+            if curl -s -f "http://localhost:${_nginx_test_port}" > /dev/null 2>&1; then
+                log "✅ Nginx está respondendo na porta ${_nginx_test_port} (painel / SPA)!"
                 # Verificar se retorna HTML (não erro 404 ou 403)
-                HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:80)
+                HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${_nginx_test_port}")
                 if [[ "$HTTP_STATUS" == "200" ]]; then
                     log "✅ Nginx está servindo o frontend corretamente (HTTP 200)!"
                 else
@@ -7523,13 +8426,18 @@ test_endpoints() {
         )
         
     elif [[ "$INSTALL_MODE" == "single-server" ]]; then
-        # Endpoints para Single-Server: Nginx serve frontend e player na porta 80 (não 8080)
+        local ng_sys=80
+        if [[ -f "${INSTALL_DIR:-/opt/smart-signage}/.env" ]] && grep -qE '^SMARTSIGNAGE_NGINX_SPLIT=true' "${INSTALL_DIR}/.env" 2>/dev/null; then
+            ng_sys=$(awk -F= '/^SMARTSIGNAGE_SYSTEM_HTTP_PORT=/{print $2}' "${INSTALL_DIR}/.env" 2>/dev/null | head -1 | tr -d '"' | tr -d "'" | xargs)
+            ng_sys=${ng_sys:-8080}
+        fi
+        # Endpoints para Single-Server: Nginx (porta do painel conforme .env se layout dividido)
         ENDPOINTS=(
             ["Backend Health"]="http://$SERVER_IP:3000/health"
             ["Backend API"]="http://$SERVER_IP:3000/api/health"
-            ["Player HTML (porta 80)"]="http://$SERVER_IP:80/player/"
+            ["Player HTML (Nginx)"]="http://$SERVER_IP:${ng_sys}/player/"
             ["Player estáticos (backend)"]="http://127.0.0.1:3000/api/player-static/js/app.js"
-            ["Painel Admin (porta 80)"]="http://$SERVER_IP:80"
+            ["Painel Admin (Nginx)"]="http://$SERVER_IP:${ng_sys}"
         )
         
     elif [[ "$INSTALL_MODE" == "development" ]]; then
@@ -7847,11 +8755,16 @@ validate_system_complete() {
         test_result "Backend Health Check" false "Nao foi possivel conectar a $API"
     fi
     
-    # Frontend (single-server: Nginx serve na porta 80, não 8080)
+    # Frontend (single-server: porta Nginx do painel; ver SMARTSIGNAGE_* em INSTALL_DIR/.env)
     if [[ "$INSTALL_MODE" == "docker" ]]; then
         FRONTEND_URL="http://$SERVER_IP:80"
     elif [[ "$INSTALL_MODE" == "single-server" ]]; then
-        FRONTEND_URL="http://$SERVER_IP:80"
+        local ng_sys=80
+        if [[ -f "${INSTALL_DIR:-/opt/smart-signage}/.env" ]] && grep -qE '^SMARTSIGNAGE_NGINX_SPLIT=true' "${INSTALL_DIR}/.env" 2>/dev/null; then
+            ng_sys=$(awk -F= '/^SMARTSIGNAGE_SYSTEM_HTTP_PORT=/{print $2}' "${INSTALL_DIR}/.env" 2>/dev/null | head -1 | tr -d '"' | tr -d "'" | xargs)
+            ng_sys=${ng_sys:-8080}
+        fi
+        FRONTEND_URL="http://$SERVER_IP:${ng_sys}"
     else
         FRONTEND_URL="http://$SERVER_IP:3001"
     fi
@@ -8041,11 +8954,15 @@ validate_system_complete() {
         fi
     fi
     
-    # Verificar porta do frontend (single-server: Nginx usa 80, não 8080)
+    # Verificar porta do frontend (Nginx: 80 ou SMARTSIGNAGE_SYSTEM_HTTP_PORT se layout dividido)
     if [[ "$INSTALL_MODE" == "docker" ]]; then
         FRONTEND_PORT="80"
     elif [[ "$INSTALL_MODE" == "single-server" ]]; then
         FRONTEND_PORT="80"
+        if [[ -f "${INSTALL_DIR:-/opt/smart-signage}/.env" ]] && grep -qE '^SMARTSIGNAGE_NGINX_SPLIT=true' "${INSTALL_DIR}/.env" 2>/dev/null; then
+            FRONTEND_PORT=$(awk -F= '/^SMARTSIGNAGE_SYSTEM_HTTP_PORT=/{print $2}' "${INSTALL_DIR}/.env" 2>/dev/null | head -1 | tr -d '"' | tr -d "'" | xargs)
+            FRONTEND_PORT=${FRONTEND_PORT:-8080}
+        fi
     else
         FRONTEND_PORT="3001"
     fi
@@ -10658,18 +11575,22 @@ EOF
 show_final_info() {
     # Carregar .env e padrões de portas
     if [ -f "$INSTALL_DIR/.env" ]; then
+        # shellcheck source=/dev/null
         . "$INSTALL_DIR/.env"
     fi
-    # No modo single-server:
-    # - Porta 80: Player (público)
-    # - Porta 8080: Painel Administrativo (login)
-    if [[ "$INSTALL_MODE" == "single-server" ]]; then
-        FRONTEND_PORT=${FRONTEND_PORT:-8080}  # Painel Admin na porta 8080
-        PLAYER_PORT=${PLAYER_PORT:-80}        # Player na porta 80
-    else
-        FRONTEND_PORT=${FRONTEND_PORT:-8080}
-        PLAYER_PORT=${PLAYER_PORT:-80}
+    # Porta HTTP do painel (Nginx): SMARTSIGNAGE_* gravado pelo instalador em layout dividido (ex.: 8080)
+    PANEL_HTTP_PORT="${SMARTSIGNAGE_SYSTEM_HTTP_PORT:-80}"
+    if [[ "${SMARTSIGNAGE_NGINX_SPLIT:-false}" != "true" ]] && [[ "${SMARTSIGNAGE_NGINX_SPLIT:-false}" != "1" ]]; then
+        PANEL_HTTP_PORT=80
     fi
+    [[ -z "${PANEL_HTTP_PORT// }" ]] && PANEL_HTTP_PORT=80
+    if [[ "${PANEL_HTTP_PORT}" == "80" ]]; then
+        PANEL_URL_SUFFIX=""
+    else
+        PANEL_URL_SUFFIX=":${PANEL_HTTP_PORT}"
+    fi
+    FRONTEND_PORT="${PANEL_HTTP_PORT}"
+    PLAYER_PORT="${PANEL_HTTP_PORT}"
     FRONTEND_ALT_PORT=${FRONTEND_ALT_PORT:-3001}
     BACKEND_PORT=${BACKEND_PORT:-3000}
     PROMETHEUS_PORT=${PROMETHEUS_PORT:-9090}
@@ -10713,9 +11634,25 @@ show_final_info() {
     echo -e "${GREEN}║                    🌐 LINKS DE ACESSO                        ║${NC}"
     echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
     echo
-    
-    # Determinar URLs base (porta 80 para frontend em single-server)
-    BASE_URL_IP="http://$LOCAL_IP"
+    if [[ "${SMARTSIGNAGE_NGINX_SPLIT:-false}" == "true" ]] || [[ "${SMARTSIGNAGE_NGINX_SPLIT:-false}" == "1" ]]; then
+        local _corp_p="${SMARTSIGNAGE_CORPORATE_HTTP_PORT:-80}"
+        local _corp_sfx=""
+        [[ "$_corp_p" != "80" ]] && _corp_sfx=":${_corp_p}"
+        echo -e "${CYAN}🏛 Site corporativo (estático):${NC} http://$LOCAL_IP${_corp_sfx}/"
+        if [[ "${SMARTSIGNAGE_CORPORATE_LE_HTTPS:-false}" == "true" ]] || [[ "${SMARTSIGNAGE_CORPORATE_LE_HTTPS:-false}" == "1" ]]; then
+            if [[ -n "${DOMAIN_NAME:-}" ]] && [[ "$DOMAIN_NAME" != "_" ]]; then
+                echo -e "   ${YELLOW}👉 HTTPS (Let's Encrypt): https://${DOMAIN_NAME}/${NC}"
+            fi
+        fi
+        if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
+            echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP${_corp_sfx}/${NC}"
+        fi
+        echo -e "${CYAN}📱 Painel / player (Nginx):${NC} porta ${PANEL_HTTP_PORT} (ver links abaixo)."
+        echo
+    fi
+
+    # Determinar URLs base do painel (porta Nginx conforme .env / layout dividido)
+    BASE_URL_IP="http://$LOCAL_IP${PANEL_URL_SUFFIX}"
     BASE_URL_DOMAIN=""
     DNS_VALIDATED=false
     SERVER_IP_FOR_DNS=$(hostname -I | awk '{print $1}' || echo "$LOCAL_IP")
@@ -10747,13 +11684,17 @@ show_final_info() {
         fi
         echo
     fi
+
+    if [[ -n "$BASE_URL_DOMAIN" ]] && [[ -n "$PANEL_URL_SUFFIX" ]]; then
+        BASE_URL_DOMAIN="${BASE_URL_DOMAIN}${PANEL_URL_SUFFIX}"
+    fi
     
     echo -e "${CYAN}🔐 LOGIN PRINCIPAL (Administradores/Operadores):${NC}"
     if [[ -n "$BASE_URL_DOMAIN" ]]; then
         echo -e "   ${YELLOW}👉 Domínio:    $BASE_URL_DOMAIN/login${NC} ${GREEN}(Recomendado)${NC}"
     fi
     if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
-        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP/login${NC} ${GREEN}(Acesso remoto)${NC}"
+        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP${PANEL_URL_SUFFIX}/login${NC} ${GREEN}(Acesso remoto)${NC}"
     fi
     echo -e "   ${YELLOW}👉 IP Local:   $BASE_URL_IP/login${NC} ${BLUE}(Rede interna)${NC}"
     echo -e "   ${BLUE}   (Login para administradores, operadores e publishers)${NC}"
@@ -10764,7 +11705,7 @@ show_final_info() {
         echo -e "   ${YELLOW}👉 Domínio:    $BASE_URL_DOMAIN/subscriber-login${NC} ${GREEN}(Recomendado)${NC}"
     fi
     if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
-        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP/subscriber-login${NC} ${GREEN}(Acesso remoto)${NC}"
+        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP${PANEL_URL_SUFFIX}/subscriber-login${NC} ${GREEN}(Acesso remoto)${NC}"
     fi
     echo -e "   ${YELLOW}👉 IP Local:   $BASE_URL_IP/subscriber-login${NC} ${BLUE}(Rede interna)${NC}"
     echo -e "   ${BLUE}   (Login específico para assinantes)${NC}"
@@ -10772,15 +11713,19 @@ show_final_info() {
     
     # Mostrar subdomínios se DOMAIN_NAME estiver configurado
     if [[ -n "$DOMAIN_NAME" ]] && [[ "$DOMAIN_NAME" != "_" ]]; then
+        local _sub_port_suffix=""
+        if [[ "${SMARTSIGNAGE_NGINX_SPLIT:-false}" == "true" ]] || [[ "${SMARTSIGNAGE_NGINX_SPLIT:-false}" == "1" ]]; then
+            _sub_port_suffix="${PANEL_URL_SUFFIX}"
+        fi
         echo -e "${CYAN}🏢 PUBLISHER (via subdomínio):${NC}"
-        echo -e "   ${YELLOW}👉 http://publisher.$DOMAIN_NAME${NC} ${GREEN}(Interface Publisher)${NC}"
+        echo -e "   ${YELLOW}👉 http://publisher.$DOMAIN_NAME${_sub_port_suffix}/${NC} ${GREEN}(Interface Publisher)${NC}"
         if [[ "$DNS_VALIDATED" == false ]]; then
             echo -e "   ${YELLOW}   ⚠️  Configure DNS: publisher.$DOMAIN_NAME → $SERVER_IP_FOR_DNS${NC}"
         fi
         echo
         
         echo -e "${CYAN}📺 SUBSCRIBER (via subdomínio):${NC}"
-        echo -e "   ${YELLOW}👉 http://subscriber.$DOMAIN_NAME${NC} ${GREEN}(Interface Subscriber)${NC}"
+        echo -e "   ${YELLOW}👉 http://subscriber.$DOMAIN_NAME${_sub_port_suffix}/${NC} ${GREEN}(Interface Subscriber)${NC}"
         if [[ "$DNS_VALIDATED" == false ]]; then
             echo -e "   ${YELLOW}   ⚠️  Configure DNS: subscriber.$DOMAIN_NAME → $SERVER_IP_FOR_DNS${NC}"
         fi
@@ -10808,16 +11753,16 @@ show_final_info() {
         echo -e "   ${YELLOW}👉 Domínio:    $BASE_URL_DOMAIN/dashboard${NC} ${GREEN}(Recomendado)${NC}"
     fi
     if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
-        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP/dashboard${NC} ${GREEN}(Acesso remoto)${NC}"
+        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP${PANEL_URL_SUFFIX}/dashboard${NC} ${GREEN}(Acesso remoto)${NC}"
     fi
     echo -e "   ${YELLOW}👉 IP Local:   $BASE_URL_IP/dashboard${NC} ${BLUE}(Rede interna)${NC}"
     echo -e "   ${BLUE}   (Após login - interface administrativa completa)${NC}"
     echo
     echo -e "${CYAN}📺 PLAYER DE MÍDIA (Totem):${NC}"
     if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
-    echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP:80/player?uin=TOTEM_UIN${NC} ${GREEN}(Acesso remoto)${NC}"
+        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP${PANEL_URL_SUFFIX}/player?uin=TOTEM_UIN${NC} ${GREEN}(Acesso remoto)${NC}"
     fi
-    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP:80/player?uin=TOTEM_UIN${NC} ${BLUE}(Rede interna)${NC}"
+    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP${PANEL_URL_SUFFIX}/player?uin=TOTEM_UIN${NC} ${BLUE}(Rede interna)${NC}"
     echo -e "   ${BLUE}   (Player público para totems - sem login)${NC}"
     echo -e "   ${GREEN}   ✓ Instalado do zero: nenhum passo manual necessário.${NC}"
     
@@ -10836,19 +11781,19 @@ show_final_info() {
         
         if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
             echo -e "   ${GREEN}✅ Totem 1:${NC} ${YELLOW}${START_TOTEM_UIN1}${NC}"
-            echo -e "      ${BLUE}→ IP Externo: http://$EXTERNAL_IP/player/?uin=${START_TOTEM_UIN1}${NC} ${GREEN}(Acesso remoto)${NC}"
-            echo -e "      ${BLUE}→ IP Local:   http://${TOTEM_IP}/player/?uin=${START_TOTEM_UIN1}${NC} ${BLUE}(Rede interna)${NC}"
+            echo -e "      ${BLUE}→ IP Externo: http://$EXTERNAL_IP${PANEL_URL_SUFFIX}/player/?uin=${START_TOTEM_UIN1}${NC} ${GREEN}(Acesso remoto)${NC}"
+            echo -e "      ${BLUE}→ IP Local:   http://${TOTEM_IP}${PANEL_URL_SUFFIX}/player/?uin=${START_TOTEM_UIN1}${NC} ${BLUE}(Rede interna)${NC}"
             if [[ -n "${START_TOTEM_UIN2:-}" ]] && [[ "${START_TOTEM_UIN2}" != "${START_TOTEM_UIN1}" ]]; then
                 echo -e "   ${GREEN}✅ Totem 2:${NC} ${YELLOW}${START_TOTEM_UIN2}${NC}"
-                echo -e "      ${BLUE}→ IP Externo: http://$EXTERNAL_IP/player/?uin=${START_TOTEM_UIN2}${NC} ${GREEN}(Acesso remoto)${NC}"
-                echo -e "      ${BLUE}→ IP Local:   http://${TOTEM_IP}/player/?uin=${START_TOTEM_UIN2}${NC} ${BLUE}(Rede interna)${NC}"
+                echo -e "      ${BLUE}→ IP Externo: http://$EXTERNAL_IP${PANEL_URL_SUFFIX}/player/?uin=${START_TOTEM_UIN2}${NC} ${GREEN}(Acesso remoto)${NC}"
+                echo -e "      ${BLUE}→ IP Local:   http://${TOTEM_IP}${PANEL_URL_SUFFIX}/player/?uin=${START_TOTEM_UIN2}${NC} ${BLUE}(Rede interna)${NC}"
             fi
         else
             echo -e "   ${GREEN}✅ Totem 1:${NC} ${YELLOW}${START_TOTEM_UIN1}${NC}"
-            echo -e "      ${BLUE}→ http://${TOTEM_IP}/player/?uin=${START_TOTEM_UIN1}${NC}"
+            echo -e "      ${BLUE}→ http://${TOTEM_IP}${PANEL_URL_SUFFIX}/player/?uin=${START_TOTEM_UIN1}${NC}"
             if [[ -n "${START_TOTEM_UIN2:-}" ]] && [[ "${START_TOTEM_UIN2}" != "${START_TOTEM_UIN1}" ]]; then
                 echo -e "   ${GREEN}✅ Totem 2:${NC} ${YELLOW}${START_TOTEM_UIN2}${NC}"
-                echo -e "      ${BLUE}→ http://${TOTEM_IP}/player/?uin=${START_TOTEM_UIN2}${NC}"
+                echo -e "      ${BLUE}→ http://${TOTEM_IP}${PANEL_URL_SUFFIX}/player/?uin=${START_TOTEM_UIN2}${NC}"
             fi
         fi
         echo -e "   ${BLUE}   (Players abertos automaticamente em browsers de laboratório)${NC}"
@@ -10864,7 +11809,10 @@ show_final_info() {
     if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
         echo -e "${GREEN}💡 DICA:${NC} ${YELLOW}Use o IP Externo para acesso remoto${NC}"
         echo -e "${GREEN}💡 DICA:${NC} ${YELLOW}Use o IP Local para acesso na rede interna${NC}"
-        echo -e "${YELLOW}⚠️  IMPORTANTE:${NC} ${RED}Configure firewall para permitir acesso às portas 80 e 3000${NC}"
+        echo -e "${YELLOW}⚠️  IMPORTANTE:${NC} ${RED}Abra no firewall as portas do painel (${PANEL_HTTP_PORT}) e do backend (3000)${NC}"
+        if [[ "${SMARTSIGNAGE_NGINX_SPLIT:-false}" == "true" ]] || [[ "${SMARTSIGNAGE_NGINX_SPLIT:-false}" == "1" ]]; then
+            echo -e "${YELLOW}⚠️  Layout dividido:${NC} ${RED}site corporativo na ${SMARTSIGNAGE_CORPORATE_HTTP_PORT:-80}, painel na ${PANEL_HTTP_PORT}${NC}"
+        fi
     else
         echo -e "${YELLOW}⚠️  AVISO:${NC} ${RED}IP Externo não detectado. Configure firewall para acesso remoto.${NC}"
     fi
@@ -10925,7 +11873,7 @@ show_final_info() {
         echo -e "   ${GREEN}✓${NC} Auto-login configurado"
         echo -e "   ${GREEN}✓${NC} Navegador inicia automaticamente"
         echo -e "   ${GREEN}✓${NC} Tela em modo Portrait (vertical)"
-        echo -e "   ${GREEN}✓${NC} URL: ${YELLOW}${KIOSK_URL:-http://$LOCAL_IP:80/player}${NC}"
+        echo -e "   ${GREEN}✓${NC} URL: ${YELLOW}${KIOSK_URL:-http://$LOCAL_IP${PANEL_URL_SUFFIX}/player}${NC}"
         echo
         echo -e "${BLUE}🔧 Gerenciamento do Kiosk:${NC}"
         echo -e "   ${YELLOW}$INSTALL_DIR/scripts/manage-kiosk.sh start${NC}    - Iniciar Kiosk"
@@ -10943,7 +11891,7 @@ show_final_info() {
     echo
     echo -e "${YELLOW}1.${NC} ${CYAN}Acesse o sistema:${NC} ${YELLOW}http://$SERVER_IP:$FRONTEND_PORT${NC}"
     echo -e "${YELLOW}2.${NC} ${CYAN}Faça login com:${NC} admin/admin123"
-    echo -e "${YELLOW}3.${NC} ${CYAN}Altere a senha} do administrador"
+    echo -e "${YELLOW}3.${NC} ${CYAN}Altere a senha do administrador${NC}"
     echo -e "${YELLOW}4.${NC} ${CYAN}Configure seus clientes e totems"
     echo -e "${YELLOW}5.${NC} ${CYAN}Configure SSL/HTTPS para produção"
     echo
@@ -12625,6 +13573,9 @@ main() {
         }
         log "✅ Player Web copiado para $INSTALL_DIR/player-web/ (inclui vinhetas e propagandas)"
     fi
+    
+    # Perguntar layout Nginx (site corporativo vs painel) antes de HTTPS e firewall
+    ask_public_host_and_split_layout
     
     # Perguntar sobre HTTPS (após menu, antes da instalação)
     ask_https_configuration

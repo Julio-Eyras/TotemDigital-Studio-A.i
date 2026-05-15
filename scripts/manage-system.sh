@@ -25,8 +25,30 @@ get_server_ips() {
     fi
 }
 
+# Porta HTTP do painel/player no Nginx (80 ou SMARTSIGNAGE_SYSTEM_HTTP_PORT se layout dividido em .env)
+load_smartsignage_panel_http_port() {
+    PANEL_HTTP_PORT=80
+    NGINX_SPLIT_LAYOUT=false
+    local envf="${INSTALL_DIR:-/opt/smart-signage}/.env"
+    [[ -f "$envf" ]] || envf="/opt/smart-signage/.env"
+    [[ -f "$envf" ]] || return 0
+    if grep -qE '^SMARTSIGNAGE_NGINX_SPLIT=true' "$envf" 2>/dev/null; then
+        NGINX_SPLIT_LAYOUT=true
+        PANEL_HTTP_PORT=$(awk -F= '/^SMARTSIGNAGE_SYSTEM_HTTP_PORT=/{print $2}' "$envf" 2>/dev/null | head -1 | tr -d '"' | tr -d "'" | xargs)
+        PANEL_HTTP_PORT=${PANEL_HTTP_PORT:-8080}
+    fi
+    [[ -z "${PANEL_HTTP_PORT// }" ]] && PANEL_HTTP_PORT=80
+    if [[ "$PANEL_HTTP_PORT" == "80" ]]; then
+        PANEL_URL_SUFFIX=""
+    else
+        PANEL_URL_SUFFIX=":${PANEL_HTTP_PORT}"
+    fi
+}
+
 # Função para mostrar ajuda completa
 show_help() {
+    INSTALL_DIR="${INSTALL_DIR:-/opt/smart-signage}"
+    load_smartsignage_panel_http_port
     # Obter IPs
     get_server_ips
     
@@ -79,9 +101,9 @@ show_help() {
     echo
     echo -e "${CYAN}📱 PAINEL ADMINISTRATIVO (Frontend):${NC}"
     if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
-        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP:80${NC} ${GREEN}(Acesso remoto)${NC}"
+        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP${PANEL_URL_SUFFIX}${NC} ${GREEN}(Acesso remoto)${NC}"
     fi
-    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP:80${NC} ${BLUE}(Rede interna)${NC}"
+    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP${PANEL_URL_SUFFIX}${NC} ${BLUE}(Rede interna)${NC}"
     echo -e "   ${BLUE}   (Interface principal do sistema)${NC}"
     echo
     echo -e "${CYAN}🔧 API BACKEND:${NC}"
@@ -93,15 +115,15 @@ show_help() {
     echo
     echo -e "${CYAN}📺 PLAYER DE MÍDIA:${NC}"
     if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
-        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP:80/player${NC} ${GREEN}(Acesso remoto)${NC}"
+        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP${PANEL_URL_SUFFIX}/player${NC} ${GREEN}(Acesso remoto)${NC}"
     fi
-    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP:80/player${NC} ${BLUE}(Rede interna)${NC}"
+    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP${PANEL_URL_SUFFIX}/player${NC} ${BLUE}(Rede interna)${NC}"
     echo -e "   ${BLUE}   (Player para totems)${NC}"
     echo
     if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
         echo -e "${GREEN}💡 DICA:${NC} ${YELLOW}Use o IP Externo para acesso remoto${NC}"
         echo -e "${GREEN}💡 DICA:${NC} ${YELLOW}Use o IP Local para acesso na rede interna${NC}"
-        echo -e "${YELLOW}⚠️  IMPORTANTE:${NC} ${RED}Configure firewall para permitir acesso às portas 80 e 3000${NC}"
+        echo -e "${YELLOW}⚠️  IMPORTANTE:${NC} ${RED}Configure firewall (ex.: portas ${PANEL_HTTP_PORT} e 3000)${NC}"
     else
         echo -e "${YELLOW}⚠️  AVISO:${NC} ${RED}IP Externo não detectado. Configure firewall para acesso remoto.${NC}"
     fi
@@ -150,9 +172,9 @@ show_help() {
     echo
     echo -e "${YELLOW}1.${NC} ${CYAN}Acesse o sistema:${NC}"
     if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
-        echo -e "   ${YELLOW}http://$EXTERNAL_IP:80${NC} ${GREEN}(Acesso remoto)${NC}"
+        echo -e "   ${YELLOW}http://$EXTERNAL_IP${PANEL_URL_SUFFIX}${NC} ${GREEN}(Acesso remoto)${NC}"
     fi
-    echo -e "   ${YELLOW}http://$LOCAL_IP:80${NC} ${BLUE}(Rede interna)${NC}"
+    echo -e "   ${YELLOW}http://$LOCAL_IP${PANEL_URL_SUFFIX}${NC} ${BLUE}(Rede interna)${NC}"
     echo -e "${YELLOW}2.${NC} ${CYAN}Faça login com:${NC} ${YELLOW}admin/admin${NC}"
     echo -e "${YELLOW}3.${NC} ${CYAN}Altere a senha do administrador${NC}"
     echo -e "${YELLOW}4.${NC} ${CYAN}Configure seus clientes e totems${NC}"
@@ -195,6 +217,8 @@ start_services() {
     echo ""
     
     # Obter IPs para mostrar links corretos
+    INSTALL_DIR="${INSTALL_DIR:-/opt/smart-signage}"
+    load_smartsignage_panel_http_port
     get_server_ips
     
     # Cores adicionais
@@ -207,9 +231,9 @@ start_services() {
     echo
     echo -e "${CYAN}📱 PAINEL ADMINISTRATIVO (Frontend):${NC}"
     if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
-        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP:80${NC} ${GREEN}(Acesso remoto)${NC}"
+        echo -e "   ${YELLOW}👉 IP Externo: http://$EXTERNAL_IP${PANEL_URL_SUFFIX}${NC} ${GREEN}(Acesso remoto)${NC}"
     fi
-    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP:80${NC} ${BLUE}(Rede interna)${NC}"
+    echo -e "   ${YELLOW}👉 IP Local:   http://$LOCAL_IP${PANEL_URL_SUFFIX}${NC} ${BLUE}(Rede interna)${NC}"
     echo
     echo -e "${CYAN}🔧 API BACKEND:${NC}"
     if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then
@@ -273,6 +297,8 @@ restart_services() {
 # Função para mostrar status
 show_status() {
     # Obter IPs
+    INSTALL_DIR="${INSTALL_DIR:-/opt/smart-signage}"
+    load_smartsignage_panel_http_port
     get_server_ips
     
     # Cores adicionais
@@ -309,13 +335,13 @@ show_status() {
         echo -e "${RED}❌ Backend API: Indisponível${NC}"
     fi
     
-    if curl -s http://localhost:80 > /dev/null 2>&1; then
-        RESPONSE=$(curl -s http://localhost:80)
+    if curl -s "http://localhost:${PANEL_HTTP_PORT}" > /dev/null 2>&1; then
+        RESPONSE=$(curl -s "http://localhost:${PANEL_HTTP_PORT}")
         if echo "$RESPONSE" | grep -qi "Welcome to nginx"; then
             echo -e "${YELLOW}⚠️  Frontend: Nginx está servindo página padrão${NC}"
         else
             echo -e "${GREEN}✅ Frontend: Funcionando${NC}"
-            echo -e "   ${YELLOW}http://$LOCAL_IP:80${NC}"
+            echo -e "   ${YELLOW}http://$LOCAL_IP${PANEL_URL_SUFFIX}${NC}"
         fi
     else
         echo -e "${RED}❌ Frontend: Indisponível${NC}"
