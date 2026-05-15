@@ -193,9 +193,16 @@ export class SubscriberService {
           contract_alert AS (
             SELECT
               sc.subscriber_id,
+              -- Só conta situação crítica em contratos "relevantes": ativo fora da vigência,
+              -- ou estados explícitos expired/terminated. NÃO incluir cancelled/draft/rascunhos
+              -- antigos (ex.: seed demo com Gold cancelado) — senão o anunciante fica sempre vermelho.
               BOOL_OR(
-                sc.status IN ('expired', 'terminated', 'cancelled')
-                OR (sc.end_date IS NOT NULL AND sc.end_date < CURRENT_DATE)
+                sc.status IN ('expired', 'terminated')
+                OR (
+                  sc.status = 'active'
+                  AND sc.end_date IS NOT NULL
+                  AND sc.end_date < CURRENT_DATE
+                )
               ) AS has_expired,
               BOOL_OR(
                 sc.status = 'active'
