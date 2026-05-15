@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
@@ -103,6 +103,8 @@ import {
   contractApi,
   planApi,
   settingsApi,
+  subscriberBillingApi,
+  SubscriberBillingItem,
 } from '../../services/api';
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 import { SortableList } from '../../components/SortableList/SortableList';
@@ -281,6 +283,9 @@ const Subscribers: React.FC = () => {
     status: 'draft',
     plan_id: undefined,
   });
+  /** Faturas em atraso (prestações) ao editar anunciante — aba Contratos */
+  const [editSubscriberOverdueBillings, setEditSubscriberOverdueBillings] = useState<SubscriberBillingItem[]>([]);
+  const [editSubscriberOverdueLoading, setEditSubscriberOverdueLoading] = useState(false);
 
   const getPlanIdFromOption = (plan: any): number | undefined => {
     const id = plan?.planId ?? plan?.plan_id;
@@ -731,6 +736,42 @@ const Subscribers: React.FC = () => {
     const list = await subscriberApi.getContracts(subscriberId, { activeOnly: false });
     setActiveContracts(Array.isArray(list) ? filterEditableContracts(list) : []);
   };
+
+  const fetchSubscriberOverdueBillings = useCallback(async (subscriberId: number): Promise<SubscriberBillingItem[]> => {
+    try {
+      const res = await subscriberBillingApi.getAll({
+        subscriberId,
+        dueFilter: 'overdue',
+        limit: 50,
+        page: 1,
+      });
+      return Array.isArray(res.billings) ? res.billings : [];
+    } catch {
+      return [];
+    }
+  }, []);
+
+  /** Prestações em atraso — só na aba Contratos do modal de edição. */
+  useEffect(() => {
+    if (!editDialogOpen || !selectedSubscriber || editTab !== 1) {
+      setEditSubscriberOverdueBillings([]);
+      setEditSubscriberOverdueLoading(false);
+      return;
+    }
+    const subscriberId = selectedSubscriber.subscriber_id;
+    let cancelled = false;
+    setEditSubscriberOverdueLoading(true);
+    fetchSubscriberOverdueBillings(subscriberId)
+      .then((rows) => {
+        if (!cancelled) setEditSubscriberOverdueBillings(rows);
+      })
+      .finally(() => {
+        if (!cancelled) setEditSubscriberOverdueLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [editDialogOpen, editTab, selectedSubscriber?.subscriber_id, fetchSubscriberOverdueBillings]);
 
   // Carregar dados para edição
   const loadSubscriberDataForEdit = async (subscriberId: number) => {
@@ -2714,6 +2755,8 @@ const Subscribers: React.FC = () => {
           setEditDialogOpen(false);
           setError(null);
           setEditTab(0);
+          setEditSubscriberOverdueBillings([]);
+          setEditSubscriberOverdueLoading(false);
           setEditContractTopologySubTab(0);
           setEditMedias([]);
           setEditPlaylists([]);
@@ -2799,6 +2842,62 @@ const Subscribers: React.FC = () => {
           {editTab === 1 && selectedSubscriber && (
             <Box>
               <Typography variant="h6" sx={{ mb: 2 }}>Contratos do Anunciante</Typography>
+
+              {editSubscriberOverdueLoading && editSubscriberOverdueBillings.length === 0 && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <CircularProgress size={20} />
+                    <Typography variant="body2">A carregar prestações em atraso…</Typography>
+                  </Box>
+                </Alert>
+              )}
+              {editSubscriberOverdueBillings.length > 0 && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {editSubscriberOverdueLoading && <LinearProgress sx={{ mb: 1 }} />}
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                    Prestações em atraso ({editSubscriberOverdueBillings.length})
+                  </Typography>
+                  <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+                    {editSubscriberOverdueBillings.map((b) => (
+                      <li key={b.billing_id}>
+                        <Typography variant="body2" component="span">
+                          {b.description?.trim() || `Fatura #${b.billing_id}`}
+                          {' — '}
+                          {new Intl.NumberFormat('pt-BR', {
+                            style: 'currency',
+                            currency: (b.currency || 'BRL').toUpperCase(),
+                          }).format(Number(b.amount))}
+                          {b.due_date
+                            ? ` — venc. ${formatDate(b.due_date)}`
+                            : ''}
+                          {typeof b.days_overdue === 'number' && b.days_overdue > 0
+                            ? ` (${b.days_overdue} dia${b.days_overdue === 1 ? '' : 's'} em atraso)`
+                            : ''}
+                        </Typography>
+                      </li>
+                    ))}
+                  </Box>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="inherit"
+                    sx={{ mt: 1 }}
+                    onClick={() => {
+                      const sid = selectedSubscriber.subscriber_id;
+                      const name = selectedSubscriber.name?.trim() || '';
+                      const q = new URLSearchParams({
+                        type: 'subscriber',
+                        subscriberId: String(sid),
+                        dueFilter: 'overdue',
+                      });
+                      if (name) q.set('subscriberName', name);
+                      navigate(`/billing?${q.toString()}`);
+                    }}
+                  >
+                    Abrir faturamento
+                  </Button>
+                </Alert>
+              )}
               
               {/* Formulário para criar/editar Subscriber Contract */}
               <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1, bgcolor: editingSubscriberContractIndexEdit !== null ? alpha(theme.palette.primary.main, 0.05) : 'transparent' }}>
@@ -2983,6 +3082,9 @@ const Subscribers: React.FC = () => {
                           }
                           // Recarregar contratos
                           await refreshSubscriberContracts(selectedSubscriber.subscriber_id);
+                          setEditSubscriberOverdueBillings(
+                            await fetchSubscriberOverdueBillings(selectedSubscriber.subscriber_id)
+                          );
                           // Limpar formulário
                           setSubscriberContractFormEdit({
                             contract_number: '',
@@ -3103,6 +3205,9 @@ const Subscribers: React.FC = () => {
                                 try {
                                   await contractApi.delete(contract.contract_id);
                                   await refreshSubscriberContracts(selectedSubscriber!.subscriber_id);
+                                  setEditSubscriberOverdueBillings(
+                                    await fetchSubscriberOverdueBillings(selectedSubscriber!.subscriber_id)
+                                  );
                                   if (editingSubscriberContractIndexEdit === index) {
                                     setEditingSubscriberContractIndexEdit(null);
                                     setSubscriberContractFormEdit({

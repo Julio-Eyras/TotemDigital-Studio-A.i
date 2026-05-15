@@ -3927,6 +3927,9 @@ export interface SubscriberBillingItem {
   updated_at: string;
   description?: string;
   metadata?: any;
+  /** Preenchido na listagem (mapeamento API) */
+  is_overdue?: boolean;
+  days_overdue?: number;
 }
 
 export interface SubscriberBillingListResponse {

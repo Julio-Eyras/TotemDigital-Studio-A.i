@@ -3,7 +3,7 @@
  * Página completa de gerenciamento de planos, assinaturas e faturas
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Box,
   Typography,
@@ -218,6 +218,8 @@ const Billing: React.FC = () => {
     startDate: '',
     endDate: '',
     search: '',
+    /** Deep link: ?subscriberId= / ?subscriber_id= */
+    subscriberId: undefined as number | undefined,
   });
   
   const [publisherFilters, setPublisherFilters] = useState({
@@ -232,9 +234,37 @@ const Billing: React.FC = () => {
     search: '',
   });
 
+  /** Sincronizar query string → filtros antes do primeiro paint seguinte (deep link desde Anunciantes). */
+  useLayoutEffect(() => {
+    if (billingType !== 'subscriber') return;
+
+    const rawId = searchParams.get('subscriberId') ?? searchParams.get('subscriber_id');
+    const n = rawId ? parseInt(String(rawId), 10) : NaN;
+    const id = Number.isFinite(n) && n > 0 ? n : undefined;
+
+    const hasDueInUrl = searchParams.has('dueFilter');
+    const rawDue = searchParams.get('dueFilter');
+    const dueFromUrl: '' | 'overdue' | 'due_soon' | undefined = hasDueInUrl
+      ? rawDue === 'overdue' || rawDue === 'due_soon'
+        ? rawDue
+        : ''
+      : undefined;
+
+    setSubscriberFilters((prev) => ({
+      ...prev,
+      subscriberId: id,
+      ...(hasDueInUrl && dueFromUrl !== undefined ? { dueFilter: dueFromUrl, status: '' } : {}),
+    }));
+
+    if (id != null) {
+      setTabValue(2);
+      setNewSubscriberInvoice((prev) => ({ ...prev, subscriberId: String(id) }));
+    }
+  }, [billingType, searchParams.toString()]);
+
   useEffect(() => {
     loadAll();
-  }, [billingType]);
+  }, [billingType, searchParams.toString()]);
 
   useEffect(() => {
     const sessionId = searchParams.get('session_id');
@@ -377,8 +407,10 @@ const Billing: React.FC = () => {
 
   const loadSubscriberBillings = async () => {
     try {
+      const { subscriberId, ...rest } = subscriberFilters;
       const response = await subscriberBillingApi.getAll({
-        ...subscriberFilters,
+        ...rest,
+        ...(subscriberId != null ? { subscriberId } : {}),
         dueFilter: subscriberFilters.dueFilter || undefined,
         dueSoonDays: subscriberFilters.dueFilter === 'due_soon' ? DUE_SOON_DAYS : undefined,
       });
@@ -412,8 +444,10 @@ const Billing: React.FC = () => {
       const next = { ...subscriberFilters, dueFilter: filter, status: '', page: 1 };
       setSubscriberFilters(next);
       try {
+        const { subscriberId, ...rest } = next;
         const response = await subscriberBillingApi.getAll({
-          ...next,
+          ...rest,
+          ...(subscriberId != null ? { subscriberId } : {}),
           dueFilter: filter || undefined,
           dueSoonDays: filter === 'due_soon' ? DUE_SOON_DAYS : undefined,
         });
@@ -905,6 +939,50 @@ const Billing: React.FC = () => {
       {/* TAB: FATURAS ASSINANTES */}
       {billingType === 'subscriber' && (
         <TabPanel value={tabValue} index={2}>
+          {subscriberFilters.subscriberId != null && (
+            <Alert
+              severity="info"
+              sx={{ mb: 2 }}
+              action={
+                <Button
+                  color="inherit"
+                  size="small"
+                  onClick={() => {
+                    setSearchParams((prev) => {
+                      const next = new URLSearchParams(prev);
+                      next.delete('subscriberId');
+                      next.delete('subscriber_id');
+                      next.delete('subscriberName');
+                      next.delete('dueFilter');
+                      return next;
+                    });
+                  }}
+                >
+                  Limpar filtro
+                </Button>
+              }
+            >
+              A mostrar apenas faturas do anunciante:{' '}
+              <strong>
+                {(() => {
+                  const raw = searchParams.get('subscriberName');
+                  if (raw) {
+                    try {
+                      return decodeURIComponent(raw);
+                    } catch {
+                      return raw;
+                    }
+                  }
+                  return `#${subscriberFilters.subscriberId}`;
+                })()}
+              </strong>
+              {subscriberFilters.dueFilter === 'overdue'
+                ? ' — vencimento: só em atraso'
+                : subscriberFilters.dueFilter === 'due_soon'
+                  ? ` — vencimento: a vencer (${DUE_SOON_DAYS}d)`
+                  : ''}
+            </Alert>
+          )}
           <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
             <FormControl size="small" sx={{ minWidth: 150 }}>
               <InputLabel>Status</InputLabel>
