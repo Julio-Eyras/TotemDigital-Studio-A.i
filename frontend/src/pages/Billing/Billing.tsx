@@ -77,10 +77,25 @@ const Billing: React.FC = () => {
   const isMobileNav = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
   const { showSuccess, showError } = useNotification();
   const [searchParams, setSearchParams] = useSearchParams();
-  const billingType = searchParams.get('type') || 'all'; // 'all', 'subscriber', 'publisher'
   const { user } = useAppSelector((state) => state.auth);
   const userType = (user as any)?.user_type || (user as any)?.userType;
   const isSubscriberUser = userType === 'subscriber_user' || user?.role === 'subscriber_user';
+  const isPublisherUser = userType === 'publisher_user' || user?.role === 'publisher_user';
+  const canViewAllBillingTypes =
+    user?.role === 'owner_system' ||
+    user?.role === 'admin_sql' ||
+    user?.role === 'admin' ||
+    user?.role === 'operador_faturamento';
+
+  const rawType = searchParams.get('type');
+  /** Escopo de listagens: anunciantes, publicadores ou ambos (só admins faturamento). */
+  const billingType = (() => {
+    if (isSubscriberUser) return 'subscriber';
+    if (isPublisherUser && !canViewAllBillingTypes) {
+      return rawType === 'subscriber' || rawType === 'publisher' ? rawType : 'publisher';
+    }
+    return rawType || 'all';
+  })();
   
   const [tabValue, setTabValue] = useState(0);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -356,9 +371,10 @@ const Billing: React.FC = () => {
               setTabValue(0); // Resetar para primeira aba ao mudar tipo
             }}
           >
-            <MenuItem value="all">Todos</MenuItem>
-            <MenuItem value="subscriber">Anunciantes</MenuItem>
-            <MenuItem value="publisher">Publicadores</MenuItem>
+            {canViewAllBillingTypes && <MenuItem value="all">Todos</MenuItem>}
+            {!isSubscriberUser && <MenuItem value="subscriber">Anunciantes</MenuItem>}
+            {!isSubscriberUser && <MenuItem value="publisher">Publicadores</MenuItem>}
+            {isSubscriberUser && <MenuItem value="subscriber">Anunciantes</MenuItem>}
           </Select>
         </FormControl>
       </Box>

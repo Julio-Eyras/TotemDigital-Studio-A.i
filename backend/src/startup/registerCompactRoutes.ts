@@ -18,6 +18,10 @@ import playlistEngineRoutes from '../routes/playlist-engine';
 import subscriberRoutes from '../routes/subscribers';
 import plansRoutes from '../routes/plans';
 import contractRoutes from '../routes/contracts';
+import billingRoutes from '../routes/billing';
+import subscriberBillingRoutes from '../routes/subscriber-billing';
+import publisherBillingRoutes from '../routes/publisher-billing';
+import subscriptionsRoutes from '../routes/subscriptions';
 import publisherRoutes from '../routes/publishers';
 import subscriberAccessRoutes from '../routes/subscriber-access';
 import smartTvRoutes from '../routes/smart-tvs';
@@ -26,8 +30,8 @@ import { blockClientDataAccess } from '../middleware/operatorProtection.middlewa
 
 /**
  * Rotas expostas no perfil TotemDigital compacto (monousuário).
- * Exclui a maior parte da superfície Pro (billing, smartdisplayfx, publishers UI massiva, etc.)
- * mas mantém assinantes, planos/contratos (formulários e selects) e operação de totens/mídia/dispatcher.
+ * Inclui faturamento (subscriber/publisher billing, assinaturas e rota billing legada)
+ * alinhado à versão Pro, com o mesmo middleware de auth e bloqueio operator.
  */
 export function registerCompactRoutes(app: Express): void {
   app.use('/api/auth', authRoutes);
@@ -52,5 +56,14 @@ export function registerCompactRoutes(app: Express): void {
   app.use('/api/logs', logsRoutes);
   app.use('/api/playlist-engine', playlistEngineRoutes);
   app.use('/api/health', healthRoutes);
+
+  app.use('/api/billing', authMiddleware as any, blockClientDataAccess as any, (_req, res, next) => {
+    res.setHeader('X-Deprecated-Route', 'true');
+    res.setHeader('X-Deprecated-Message', 'Esta rota está deprecated. Use /api/subscriber-billing ou /api/publisher-billing');
+    next();
+  }, billingRoutes);
+  app.use('/api/subscriber-billing', authMiddleware as any, blockClientDataAccess as any, subscriberBillingRoutes);
+  app.use('/api/publisher-billing', authMiddleware as any, blockClientDataAccess as any, publisherBillingRoutes);
+  app.use('/api/subscriptions', subscriptionsRoutes);
 }
 

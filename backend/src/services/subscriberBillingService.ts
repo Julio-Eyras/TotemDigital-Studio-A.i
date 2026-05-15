@@ -100,6 +100,8 @@ export class SubscriberBillingService {
     limit: number = 20,
     filters: {
       subscriberId?: number;
+      /** Quando definido, só linhas de assinantes com contrato ativo ligado a este publisher (ex.: publicador dono). */
+      linkedPublisherId?: number;
       campaignId?: number;
       billingType?: string;
       status?: string;
@@ -116,6 +118,22 @@ export class SubscriberBillingService {
       if (filters.subscriberId) {
         whereClause += ' AND sb.subscriber_id = $' + (params.length + 1);
         params.push(filters.subscriberId);
+      }
+
+      if (filters.linkedPublisherId != null && !Number.isNaN(Number(filters.linkedPublisherId))) {
+        const p = Number(filters.linkedPublisherId);
+        whereClause += ` AND EXISTS (
+          SELECT 1 FROM subscriber_contracts sc
+          INNER JOIN plan_publisher_access ppa ON ppa.plan_id = sc.plan_id
+            AND ppa.publisher_id = $${params.length + 1}
+            AND ppa.is_allowed = true
+            AND COALESCE(ppa.is_active, true) = true
+          WHERE sc.subscriber_id = sb.subscriber_id
+            AND sc.status = 'active'
+            AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)
+            AND (sc.start_date IS NULL OR sc.start_date <= CURRENT_DATE)
+        )`;
+        params.push(p);
       }
 
       if (filters.campaignId) {

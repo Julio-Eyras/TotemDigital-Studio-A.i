@@ -11,7 +11,8 @@ import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middlewa
 import { validateRequest } from '../middleware/validation.middleware';
 import { body, param, query } from 'express-validator';
 import { logError } from '../utils/loggerHelper';
-import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
+import { assertTenantClientParamAccess, resolvePublisherIdFromRequest } from '../utils/tenantClientAccess';
+import { isAdminRole } from '../utils/tenantScope';
 
 const router = Router();
 
@@ -50,16 +51,19 @@ router.get('/',
       }
       
       let finalPublisherId: number | undefined;
-      if (req.user.role === 'publisher' && req.user.publisherId) {
-        finalPublisherId = req.user.publisherId;
-      } else if (req.user.role === 'admin') {
+
+      if (isAdminRole(req.user.role)) {
         finalPublisherId = publisherId ? parseInt(publisherId as string) : undefined;
       } else {
-        return res.status(403).json({
-          success: false,
-          error: 'Acesso negado',
-          message: 'Apenas admins e publishers podem visualizar faturas'
-        });
+        const resolved = await resolvePublisherIdFromRequest(req);
+        if (!resolved) {
+          return res.status(403).json({
+            success: false,
+            error: 'Acesso negado',
+            message: 'Publicador não identificado',
+          });
+        }
+        finalPublisherId = resolved;
       }
       
       const result = await getPublisherBillingService().getBillings(
@@ -121,7 +125,7 @@ router.get('/',
  * @desc Obter estatísticas de billing de publishers
  */
 router.get('/stats',
-  authorizeRole(['admin', 'gerente_financeiro']),
+  authorizeRole(['admin', 'admin_sql', 'operador_faturamento', 'gerente_financeiro']),
   query('publisherId').optional().isInt({ min: 1 }),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
@@ -208,7 +212,7 @@ router.get('/:id',
  * @desc Criar nova fatura para publisher
  */
 router.post('/',
-  authorizeRole(['admin', 'gerente_financeiro']),
+  authorizeRole(['admin', 'admin_sql', 'operador_faturamento', 'gerente_financeiro']),
   body('publisherId').isInt({ min: 1 }),
   body('billingType').isIn(['revenue_share', 'payout', 'subscription', 'platform_fee']),
   body('amount').isFloat({ min: 0.01 }),
@@ -241,7 +245,7 @@ router.post('/',
  * @desc Atualizar fatura
  */
 router.put('/:id',
-  authorizeRole(['admin', 'gerente_financeiro']),
+  authorizeRole(['admin', 'admin_sql', 'operador_faturamento', 'gerente_financeiro']),
   param('id').isInt({ min: 1 }),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
@@ -271,7 +275,7 @@ router.put('/:id',
  * @desc Aprovar payout (apenas tenant users)
  */
 router.post('/:id/approve-payout',
-  authorizeRole(['admin', 'gerente_financeiro']),
+  authorizeRole(['admin', 'admin_sql', 'operador_faturamento', 'gerente_financeiro']),
   param('id').isInt({ min: 1 }),
   body('approvedBy').isInt({ min: 1 }),
   validateRequest,
@@ -284,8 +288,8 @@ router.post('/:id/approve-payout',
         return res.status(401).json({ success: false, error: 'Não autenticado' });
       }
       
-      // Validar que approvedBy é o usuário atual ou admin
-      if (approvedBy !== req.user.id && req.user.role !== 'admin') {
+      // Validar que approvedBy é o usuário atual ou papel administrativo
+      if (approvedBy !== req.user.id && !isAdminRole(req.user.role)) {
         return res.status(403).json({
           success: false,
           error: 'Acesso negado',

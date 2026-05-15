@@ -12,8 +12,8 @@ export const DISABLE_DIRECT_CAMPAIGN_TOTEM =
 
 /**
  * TotemDigital compacto (monousuário).
- * Quando true, reduz superfície Pro (subdomínios, billing multiagência, smartdisplayfx etc.)
- * e mantém foco operacional (totens, mídia, playlists, campanhas e monitoramento).
+ * Quando true, reduz superfície Pro (subdomínios, smartdisplayfx, etc.) e mantém foco operacional
+ * (totens, mídia, playlists, campanhas, monitoramento e faturamento alinhado às rotas Pro).
  */
 export const TOTEMDIGITAL_COMPACT =
   process.env.TOTEMDIGITAL_COMPACT === 'true';

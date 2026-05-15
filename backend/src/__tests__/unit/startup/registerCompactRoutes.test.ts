@@ -26,21 +26,21 @@ describe('registerCompactRoutes', () => {
         '/api/media',
         '/api/playlists',
         '/api/campaigns',
+        '/api/quick-publish',
         '/api/settings',
         '/api/dashboard',
         '/api/alerts',
         '/api/logs',
         '/api/playlist-engine',
         '/api/health',
+        '/api/billing',
+        '/api/subscriber-billing',
+        '/api/publisher-billing',
+        '/api/subscriptions',
       ])
     );
 
-    const excluded = [
-      '/api/billing',
-      '/api/users',
-      '/api/qrcodes',
-      '/api/notifications',
-    ];
+    const excluded = ['/api/users', '/api/qrcodes', '/api/notifications'];
     for (const path of excluded) {
       expect(registeredPaths).not.toContain(path);
     }

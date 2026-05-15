@@ -92,8 +92,8 @@ export const menuPermissions: MenuItemPermission[] = [
   // QR Codes - admin_sql, admin, gerente_marketing
   { path: '/qr-codes', roles: ['admin_sql', 'admin', 'gerente_marketing'], requiresClientAccess: true },
   
-  // Faturamento - admin_sql, admin, operador_faturamento (próprio cliente)
-  { path: '/billing', roles: ['owner_system', 'admin_sql', 'admin', 'operador_faturamento', 'subscriber_user'], requiresClientAccess: true, requiredFlag: 'flag_smart_3' },
+  // Faturamento — publicador vê faturas do próprio exibidor (API filtra por publisher_id)
+  { path: '/billing', roles: ['owner_system', 'admin_sql', 'admin', 'operador_faturamento', 'publisher_user', 'subscriber_user'], requiresClientAccess: true, requiredFlag: 'flag_smart_3' },
   
   // IA - admin_sql, admin, gerente_marketing
   { path: '/ai', roles: ['admin_sql', 'admin', 'gerente_marketing'], requiresClientAccess: true },
@@ -138,9 +138,9 @@ export const menuPermissions: MenuItemPermission[] = [
   { path: '/smart-tvs/config', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_0' },
   { path: '/players/status', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_0' },
   { path: '/ota-updates/history', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_1' },
-  { path: '/billing/invoices', roles: ['owner_system', 'admin_sql', 'admin', 'operador_faturamento', 'subscriber_user'], requiredFlag: 'flag_smart_3' },
-  { path: '/billing/payments', roles: ['owner_system', 'admin_sql', 'admin', 'operador_faturamento', 'subscriber_user'], requiredFlag: 'flag_smart_3' },
-  { path: '/billing/history', roles: ['owner_system', 'admin_sql', 'admin', 'operador_faturamento', 'subscriber_user'], requiredFlag: 'flag_smart_3' },
+  { path: '/billing/invoices', roles: ['owner_system', 'admin_sql', 'admin', 'operador_faturamento', 'publisher_user', 'subscriber_user'], requiredFlag: 'flag_smart_3' },
+  { path: '/billing/payments', roles: ['owner_system', 'admin_sql', 'admin', 'operador_faturamento', 'publisher_user', 'subscriber_user'], requiredFlag: 'flag_smart_3' },
+  { path: '/billing/history', roles: ['owner_system', 'admin_sql', 'admin', 'operador_faturamento', 'publisher_user', 'subscriber_user'], requiredFlag: 'flag_smart_3' },
   { path: '/subscriber-publisher-access/new', roles: ['admin_sql', 'admin'] },
   { path: '/plan-publisher-access/config', roles: ['admin_sql', 'admin'] },
   { path: '/publishers/details', roles: ['owner_system', 'admin_sql', 'admin', 'operador_comercial'] },
@@ -159,6 +159,8 @@ export function canAccess(
   path: string,
   userFlags?: UserFlags | Record<string, boolean> | null
 ): boolean {
+  const pathForPermission = (path || '').split('?')[0] || '/';
+
   // Owner system sempre tem acesso (exceto se explicitamente negado)
   if (userRole === 'owner_system') {
     return true;
@@ -167,23 +169,26 @@ export function canAccess(
   // Modo compacto mono: o publicador dono acede ao dispatcher/monitorização sem depender de flag_smart_2
   if (TOTEMDIGITAL_COMPACT && userRole === 'publisher_user') {
     if (
-      path === '/dispatcher-manager' ||
-      path === '/dispatcher-monitor' ||
-      path === '/dispatcher-debug' ||
-      path.startsWith('/dispatcher-manager')
+      pathForPermission === '/dispatcher-manager' ||
+      pathForPermission === '/dispatcher-monitor' ||
+      pathForPermission === '/dispatcher-debug' ||
+      pathForPermission.startsWith('/dispatcher-manager')
     ) {
+      return true;
+    }
+    if (pathForPermission === '/billing' || pathForPermission.startsWith('/billing/')) {
       return true;
     }
   }
 
   // Buscar permissão exata
-  let permission = menuPermissions.find(p => p.path === path);
+  let permission = menuPermissions.find(p => p.path === pathForPermission);
   
   // Se não encontrar permissão exata, tentar encontrar path pai
   if (!permission) {
     // Ordenar por tamanho do path (maior primeiro) para pegar o path pai mais específico
     const sortedPermissions = [...menuPermissions].sort((a, b) => b.path.length - a.path.length);
-    permission = sortedPermissions.find(p => path.startsWith(p.path + '/'));
+    permission = sortedPermissions.find(p => pathForPermission.startsWith(p.path + '/'));
   }
 
   if (!permission) {

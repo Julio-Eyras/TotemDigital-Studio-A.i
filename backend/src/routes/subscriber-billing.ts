@@ -10,7 +10,8 @@ import { subscriberIsolationMiddleware } from '../middleware/subscriberIsolation
 import { validateRequest } from '../middleware/validation.middleware';
 import { body, param, query } from 'express-validator';
 import { logError } from '../utils/loggerHelper';
-import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
+import { assertTenantClientParamAccess, resolvePublisherIdFromRequest } from '../utils/tenantClientAccess';
+import { isAdminRole } from '../utils/tenantScope';
 
 const router = Router();
 
@@ -49,9 +50,17 @@ router.get('/',
         return res.status(401).json({ success: false, error: 'Não autenticado' });
       }
       
-      // Se usuário é subscriber, só pode ver suas próprias faturas
+      // Subscriber portal: só as próprias faturas. Admin: opcional filtro. Publicador: só assinantes ligados ao publisher.
       let finalSubscriberId: number | undefined;
-      if (req.user.role === 'subscriber' || req.user.role === 'client') {
+      let linkedPublisherId: number | undefined;
+
+      const isPortalSubscriber =
+        req.user.role === 'subscriber' ||
+        req.user.role === 'subscriber_user' ||
+        req.user.userType === 'subscriber_user' ||
+        req.user.role === 'client';
+
+      if (isPortalSubscriber) {
         finalSubscriberId = req.subscriberId || req.user.subscriberId;
         if (!finalSubscriberId) {
           return res.status(403).json({
@@ -60,15 +69,41 @@ router.get('/',
             message: 'Subscriber ID não identificado'
           });
         }
-      } else {
+      } else if (isAdminRole(req.user.role)) {
         finalSubscriberId = subscriberId ? parseInt(subscriberId as string) : undefined;
+      } else {
+        const pubId = await resolvePublisherIdFromRequest(req);
+        if (!pubId) {
+          return res.status(403).json({
+            success: false,
+            error: 'Acesso negado',
+            message: 'Publicador não identificado para listagem de faturas de anunciantes'
+          });
+        }
+        linkedPublisherId = pubId;
+        finalSubscriberId = subscriberId ? parseInt(subscriberId as string) : undefined;
+        if (finalSubscriberId != null) {
+          try {
+            await assertTenantClientParamAccess(req, finalSubscriberId);
+          } catch (e: any) {
+            if (e?.statusCode === 403) {
+              return res.status(403).json({
+                success: false,
+                error: 'Acesso negado',
+                message: e.message || 'Sem vínculo com este anunciante',
+              });
+            }
+            throw e;
+          }
+        }
       }
-      
+
       const result = await getSubscriberBillingService().getBillings(
         parseInt(page as string),
         parseInt(limit as string),
         {
           subscriberId: finalSubscriberId,
+          linkedPublisherId,
           campaignId: campaignId ? parseInt(campaignId as string) : undefined,
           billingType: billingType as string,
           status: status as string,
@@ -119,7 +154,7 @@ router.get('/',
  * @desc Obter estatísticas de billing de subscribers
  */
 router.get('/stats',
-  authorizeRole(['admin', 'gerente_financeiro']),
+  authorizeRole(['admin', 'admin_sql', 'operador_faturamento', 'gerente_financeiro']),
   query('subscriberId').optional().isInt({ min: 1 }),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
@@ -204,7 +239,7 @@ router.get('/:id',
  * @desc Criar nova fatura para subscriber
  */
 router.post('/',
-  authorizeRole(['admin', 'gerente_financeiro']),
+  authorizeRole(['admin', 'admin_sql', 'operador_faturamento', 'gerente_financeiro']),
   body('subscriberId').isInt({ min: 1 }),
   body('billingType').isIn(['advertisement', 'campaign', 'media_upload', 'exhibition_lot', 'totem_quantity', 'time_based', 'custom']),
   body('amount').isFloat({ min: 0.01 }),
@@ -236,7 +271,7 @@ router.post('/',
  * @desc Atualizar fatura
  */
 router.put('/:id',
-  authorizeRole(['admin', 'gerente_financeiro']),
+  authorizeRole(['admin', 'admin_sql', 'operador_faturamento', 'gerente_financeiro']),
   param('id').isInt({ min: 1 }),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {

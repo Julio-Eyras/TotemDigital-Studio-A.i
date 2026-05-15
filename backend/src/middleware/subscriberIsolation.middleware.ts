@@ -21,8 +21,14 @@ export const subscriberIsolationMiddleware = async (
     next: NextFunction
 ): Promise<void> => {
     try {
-        // Apenas aplicar para subscribers/clients
-        if (req.user && (req.user.role === 'subscriber' || req.user.role === 'client')) {
+        // Apenas aplicar para subscribers/clients (inclui subscriber_user)
+        if (
+            req.user &&
+            (req.user.role === 'subscriber' ||
+                req.user.role === 'subscriber_user' ||
+                req.user.userType === 'subscriber_user' ||
+                req.user.role === 'client')
+        ) {
             // Tentar obter subscriberId do usuário
             const subscriberId = req.user.subscriberId || (req.user as any).subscriber_id;
             

@@ -64,7 +64,8 @@ function filterHierarchicalMenu(
   for (const item of items) {
     // Verificar se o item principal tem acesso
     // canAccess(userRole, path, userFlags) - verifica role e flags automaticamente
-    if (!canAccess(userRole, item.path, userFlags)) {
+    const pathKey = (item.path || '').split('?')[0] || '/';
+    if (!canAccess(userRole, pathKey, userFlags)) {
       continue; // Pular este item
     }
     
@@ -178,6 +179,17 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
     return [
       { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
       { text: 'Planos', icon: <Assignment />, path: '/plan-publisher-access' },
+      {
+        text: 'Faturamento',
+        icon: <Payment />,
+        path: '/billing',
+        requiredFlag: 'flag_smart_3',
+        children: [
+          { text: 'Visão geral', icon: <Payment />, path: '/billing' },
+          { text: 'Anunciantes', icon: <People />, path: '/billing?type=subscriber' },
+          { text: 'Publicador (exibidor)', icon: <Business />, path: '/billing?type=publisher' },
+        ],
+      },
       { text: 'Locais', icon: <LocationOn />, path: '/locals' },
       { text: 'Totens', icon: <Computer />, path: '/totems' },
       { text: 'Nova publicação', icon: <Add />, path: '/quick-publish' },
@@ -492,6 +504,12 @@ function getPublisherUserMenu(): HierarchicalMenuItem[] {
       ],
     },
     { text: 'Analytics', icon: <Analytics />, path: '/analytics' },
+    {
+      text: 'Faturamento',
+      icon: <Payment />,
+      path: '/billing?type=publisher',
+      requiredFlag: 'flag_smart_3',
+    },
     { text: 'Configurações', icon: <Settings />, path: '/settings' },
   ];
 }
