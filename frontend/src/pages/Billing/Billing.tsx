@@ -405,14 +405,32 @@ const Billing: React.FC = () => {
     }
   };
 
+  /** Evita corrida layout→estado vs primeiro loadAll: a query tem precedência quando presente. */
+  const getEffectiveSubscriberBillingFilters = () => {
+    const rawId = searchParams.get('subscriberId') ?? searchParams.get('subscriber_id');
+    const parsedId = rawId != null && rawId !== '' ? parseInt(String(rawId), 10) : NaN;
+    const idFromUrl = Number.isFinite(parsedId) && parsedId > 0 ? parsedId : undefined;
+    const subscriberId = idFromUrl ?? subscriberFilters.subscriberId;
+
+    let dueFilter: '' | 'overdue' | 'due_soon' = subscriberFilters.dueFilter;
+    if (searchParams.has('dueFilter')) {
+      const rawDue = searchParams.get('dueFilter');
+      dueFilter = rawDue === 'overdue' || rawDue === 'due_soon' ? rawDue : '';
+    }
+
+    const { subscriberId: _sid, dueFilter: _df, ...rest } = subscriberFilters;
+    return { ...rest, subscriberId, dueFilter };
+  };
+
   const loadSubscriberBillings = async () => {
     try {
-      const { subscriberId, ...rest } = subscriberFilters;
+      const ef = getEffectiveSubscriberBillingFilters();
+      const { subscriberId, ...rest } = ef;
       const response = await subscriberBillingApi.getAll({
         ...rest,
         ...(subscriberId != null ? { subscriberId } : {}),
-        dueFilter: subscriberFilters.dueFilter || undefined,
-        dueSoonDays: subscriberFilters.dueFilter === 'due_soon' ? DUE_SOON_DAYS : undefined,
+        dueFilter: ef.dueFilter || undefined,
+        dueSoonDays: ef.dueFilter === 'due_soon' ? DUE_SOON_DAYS : undefined,
       });
       setSubscriberBillings(response.billings || []);
     } catch (e) {

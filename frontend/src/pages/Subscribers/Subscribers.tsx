@@ -2851,6 +2851,14 @@ const Subscribers: React.FC = () => {
                   </Box>
                 </Alert>
               )}
+              {!editSubscriberOverdueLoading &&
+                editSubscriberOverdueBillings.length === 0 && (
+                  <Alert severity="success" variant="outlined" sx={{ mb: 2 }}>
+                    <Typography variant="body2">
+                      Sem prestações em atraso para este anunciante.
+                    </Typography>
+                  </Alert>
+                )}
               {editSubscriberOverdueBillings.length > 0 && (
                 <Alert severity="error" sx={{ mb: 2 }}>
                   {editSubscriberOverdueLoading && <LinearProgress sx={{ mb: 1 }} />}
