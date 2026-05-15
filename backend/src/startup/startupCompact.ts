@@ -11,8 +11,12 @@ export async function initializeCompactStartup(options: CompactStartupOptions): 
     await logInfo('Modo compacto: Redis desabilitado');
   }
 
-  await logInfo(
-    'Modo compacto: filas Bull, workers Pro e rotinas avançadas não serão inicializados'
-  );
+  await logInfo('Modo compacto: filas Bull e workers Pro avançados não serão inicializados');
+
+  const { FinancialBillingWorker } = await import('../workers/financialBillingWorker');
+  const financialWorker = new FinancialBillingWorker();
+  financialWorker.start();
+  (global as any).financialBillingWorker = financialWorker;
+  await logInfo('Modo compacto: Financial Billing Worker ativo (emissão, vencidas, e-mails)');
 }
 

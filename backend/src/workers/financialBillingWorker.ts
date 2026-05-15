@@ -1,0 +1,76 @@
+/**
+ * Rotinas automáticas de administração financeira (modo compacto e Pro).
+ */
+
+import cron from 'node-cron';
+import { financialConfig } from '../config/env';
+import { getFinancialAdminService } from '../services/financialAdminService';
+import { getFinancialNotificationService } from '../services/financialNotificationService';
+import { logError, logInfo } from '../utils/loggerHelper';
+import { getDatabase } from '../config/database';
+
+export class FinancialBillingWorker {
+  private jobs: cron.ScheduledTask[] = [];
+
+  start(): void {
+    if (!financialConfig.workerEnabled) {
+      logInfo('Financial Billing Worker desabilitado (FINANCIAL_WORKER_ENABLED=false)', {});
+      return;
+    }
+
+    this.jobs.push(
+      cron.schedule(financialConfig.cronIssueInvoices, async () => {
+        try {
+          await logInfo('Financeiro: emissão automática de faturas por contrato', {});
+          const result = await getFinancialAdminService().issueContractInvoices({});
+          await logInfo('Financeiro: emissão concluída', result);
+        } catch (error: any) {
+          await logError('Financeiro: erro na emissão automática', error);
+        }
+      })
+    );
+
+    this.jobs.push(
+      cron.schedule(financialConfig.cronMarkOverdue, async () => {
+        try {
+          const db = getDatabase();
+          const sub = await db.executeRaw(`
+            UPDATE subscriber_billing
+            SET payment_status = 'overdue', updated_at = CURRENT_TIMESTAMP
+            WHERE payment_status = 'pending' AND due_date < CURRENT_TIMESTAMP
+          `);
+          await logInfo('Financeiro: faturas de anunciantes marcadas como vencidas', {
+            count: sub.rowCount || 0,
+          });
+        } catch (error: any) {
+          await logError('Financeiro: erro ao marcar vencidas', error);
+        }
+      })
+    );
+
+    this.jobs.push(
+      cron.schedule(financialConfig.cronSendReminders, async () => {
+        try {
+          const result = await getFinancialNotificationService().sendPendingInvoiceReminders();
+          await logInfo('Financeiro: lembretes por e-mail', result);
+        } catch (error: any) {
+          await logError('Financeiro: erro nos lembretes', error);
+        }
+      })
+    );
+
+    logInfo('Financial Billing Worker iniciado', {
+      issue: financialConfig.cronIssueInvoices,
+      overdue: financialConfig.cronMarkOverdue,
+      reminders: financialConfig.cronSendReminders,
+    });
+  }
+
+  stop(): void {
+    for (const job of this.jobs) {
+      job.stop();
+    }
+    this.jobs = [];
+    logInfo('Financial Billing Worker parado', {});
+  }
+}

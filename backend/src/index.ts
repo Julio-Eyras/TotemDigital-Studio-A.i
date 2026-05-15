@@ -693,6 +693,15 @@ async function gracefulShutdown(signal: string): Promise<void> {
     } catch {
       shutdownFailed = true;
     }
+
+    try {
+      if ((global as any).financialBillingWorker) {
+        (global as any).financialBillingWorker.stop();
+        await logInfo('Financial Billing Worker parado');
+      }
+    } catch {
+      shutdownFailed = true;
+    }
     
     // Subscriber Access Notification Worker
     try {

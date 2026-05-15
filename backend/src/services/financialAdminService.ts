@@ -7,7 +7,9 @@ import QRCode from 'qrcode';
 import { getDatabase } from '../config/database';
 import { logError, logInfo } from '../utils/loggerHelper';
 import { buildPixCopyPaste } from '../utils/pixEmv';
-import { financialConfig } from '../config/env';
+import { financialConfig, stripeConfig } from '../config/env';
+import { StripeService } from './stripeService';
+import { getFinancialNotificationService } from './financialNotificationService';
 function getSubscriberBillingServiceInstance() {
   if (!(global as any).subscriberBillingServiceInstance) {
     const { SubscriberBillingService } = require('./subscriberBillingService');
@@ -304,6 +306,95 @@ export class FinancialAdminService {
       return { level: 'success', label: 'Em dia', tooltip: 'Contratos e pagamentos em dia.' };
     }
     return { level: 'neutral', label: 'Sem contrato', tooltip: 'Sem contrato ativo registado.' };
+  }
+
+  /**
+   * Webhook PIX (banco/PSP): confirma pagamento por billingId ou txid F{id}.
+   */
+  async processPixWebhook(payload: {
+    billingId?: number;
+    txid?: string;
+    paymentReference?: string;
+    amount?: number;
+  }): Promise<{ billingId: number; alreadyPaid: boolean }> {
+    let billingId = payload.billingId;
+    if (!billingId && payload.txid) {
+      const m = String(payload.txid).match(/^F(\d+)$/i);
+      if (m) billingId = parseInt(m[1], 10);
+    }
+    if (!billingId || !Number.isFinite(billingId)) {
+      throw new Error('billingId ou txid (F{id}) obrigatório');
+    }
+
+    const billing = await getSubscriberBillingServiceInstance().getBillingById(billingId);
+    if (!billing) {
+      throw new Error('Fatura não encontrada');
+    }
+    if (billing.status === 'paid') {
+      return { billingId, alreadyPaid: true };
+    }
+
+    if (payload.amount != null && Math.abs(Number(payload.amount) - Number(billing.amount)) > 0.02) {
+      throw new Error('Valor do webhook não confere com a fatura');
+    }
+
+    await this.recordSubscriberPayment(billingId, {
+      paymentMethod: 'pix',
+      paymentReference: payload.paymentReference || payload.txid || `pix-webhook-${Date.now()}`,
+      notes: 'Confirmado automaticamente via webhook PIX',
+    });
+
+    return { billingId, alreadyPaid: false };
+  }
+
+  async sendInvoicePaymentEmail(billingId: number) {
+    return getFinancialNotificationService().sendInvoicePaymentEmail(billingId);
+  }
+
+  async createStripeCheckoutForBilling(billingId: number): Promise<{ url: string; sessionId: string }> {
+    if (!stripeConfig.enabled) {
+      throw new Error('Stripe não está habilitado');
+    }
+
+    const billing = await getSubscriberBillingServiceInstance().getBillingById(billingId);
+    if (!billing) throw new Error('Fatura não encontrada');
+    if (billing.status === 'paid') throw new Error('Fatura já paga');
+
+    const stripe = new StripeService();
+    const base = financialConfig.publicAppUrl.replace(/\/$/, '');
+    const session = await stripe.createOneTimePaymentSession({
+      amount: Number(billing.amount),
+      currency: billing.currency || 'BRL',
+      description: billing.description || `Fatura #${billingId}`,
+      successUrl: `${base}/billing?type=subscriber&paid=${billingId}&session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${base}/billing?type=subscriber&invoice=${billingId}`,
+      metadata: {
+        billingId: String(billingId),
+        source: 'subscriber_billing',
+      },
+    });
+
+    if (!session.url) {
+      throw new Error('Stripe não retornou URL de checkout');
+    }
+
+    return { url: session.url, sessionId: session.id };
+  }
+
+  /** Processa evento Stripe checkout.session.completed para fatura avulsa. */
+  async handleStripeCheckoutCompleted(metadata: Record<string, string | undefined>): Promise<boolean> {
+    const billingId = metadata?.billingId ? parseInt(metadata.billingId, 10) : NaN;
+    if (!Number.isFinite(billingId)) return false;
+
+    const billing = await getSubscriberBillingServiceInstance().getBillingById(billingId);
+    if (!billing || billing.status === 'paid') return true;
+
+    await this.recordSubscriberPayment(billingId, {
+      paymentMethod: 'stripe',
+      paymentReference: metadata?.sessionId || 'stripe-checkout',
+      notes: 'Pago via Stripe Checkout',
+    });
+    return true;
   }
 }
 

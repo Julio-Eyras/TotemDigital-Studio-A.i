@@ -251,6 +251,48 @@ export class StripeService {
   }
 
   /**
+   * Checkout único (pagamento de fatura avulsa)
+   */
+  async createOneTimePaymentSession(params: {
+    amount: number;
+    currency: string;
+    description: string;
+    successUrl: string;
+    cancelUrl: string;
+    metadata?: Record<string, string>;
+  }): Promise<Stripe.Checkout.Session> {
+    if (!this.isEnabled()) {
+      throw new Error('Stripe não está habilitado');
+    }
+
+    const unitAmount = Math.round(params.amount * 100);
+    if (unitAmount < 1) {
+      throw new Error('Valor inválido para pagamento Stripe');
+    }
+
+    const session = await this.stripe!.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'payment',
+      line_items: [
+        {
+          price_data: {
+            currency: (params.currency || 'brl').toLowerCase(),
+            product_data: { name: params.description.slice(0, 120) },
+            unit_amount: unitAmount,
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: params.successUrl,
+      cancel_url: params.cancelUrl,
+      metadata: params.metadata || {},
+    });
+
+    await logInfo('Checkout pagamento único criado', { sessionId: session.id });
+    return session;
+  }
+
+  /**
    * Verifica webhook signature
    */
   async verifyWebhookSignature(payload: string | Buffer, signature: string): Promise<Stripe.Event> {

@@ -313,8 +313,15 @@ export const financialConfig = {
   pixKey: getEnv('FINANCIAL_PIX_KEY', ''),
   pixMerchantName: getEnv('FINANCIAL_PIX_MERCHANT_NAME', 'SMART CHANNEL'),
   pixMerchantCity: getEnv('FINANCIAL_PIX_MERCHANT_CITY', 'SAO PAULO'),
+  pixWebhookSecret: getEnv('FINANCIAL_PIX_WEBHOOK_SECRET', ''),
   invoiceDueDays: getEnvNumber('FINANCIAL_INVOICE_DUE_DAYS', 7),
   dueSoonDays: getEnvNumber('FINANCIAL_DUE_SOON_DAYS', 30),
+  publicAppUrl: getEnv('FINANCIAL_PUBLIC_APP_URL', getEnv('FRONTEND_URL', 'http://localhost:3001')),
+  whatsappNumber: getEnv('FINANCIAL_WHATSAPP_NUMBER', ''),
+  workerEnabled: getEnvBoolean('FINANCIAL_WORKER_ENABLED', true),
+  cronIssueInvoices: getEnv('FINANCIAL_CRON_ISSUE', '30 2 * * *'),
+  cronMarkOverdue: getEnv('FINANCIAL_CRON_OVERDUE', '30 3 * * *'),
+  cronSendReminders: getEnv('FINANCIAL_CRON_REMINDERS', '0 9 * * *'),
 };
 
 /**

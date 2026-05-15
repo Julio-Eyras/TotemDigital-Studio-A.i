@@ -49,6 +49,7 @@ import {
   Schedule,
   QrCode2,
   ReceiptLong,
+  Email,
 } from '@mui/icons-material';
 import {
   billingControlApi,
@@ -138,6 +139,7 @@ const Billing: React.FC = () => {
     amount?: number;
   }>({ open: false, mode: 'pay', billingId: null });
   const [issuingInvoices, setIssuingInvoices] = useState(false);
+  const [stripeReturnHandled, setStripeReturnHandled] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [newSubscriberInvoice, setNewSubscriberInvoice] = useState({
     subscriberId: '',
@@ -222,6 +224,32 @@ const Billing: React.FC = () => {
   useEffect(() => {
     loadAll();
   }, [billingType]);
+
+  useEffect(() => {
+    const sessionId = searchParams.get('session_id');
+    const paidParam = searchParams.get('paid');
+    if (!sessionId || !paidParam || stripeReturnHandled) return;
+
+    setStripeReturnHandled(true);
+    (async () => {
+      try {
+        const result = await financialAdminApi.completeStripeSession(sessionId);
+        if (result.success) {
+          showSuccess('Pagamento confirmado via Stripe');
+          await loadAll();
+        } else {
+          showError('Pagamento ainda não confirmado no Stripe. Tente atualizar em instantes.');
+        }
+      } catch (e: unknown) {
+        showError(pickApiErrorMessage(e, 'Erro ao confirmar pagamento Stripe'));
+      } finally {
+        const next = new URLSearchParams(searchParams);
+        next.delete('session_id');
+        next.delete('paid');
+        setSearchParams(next, { replace: true });
+      }
+    })();
+  }, [searchParams, stripeReturnHandled]);
 
   const loadDashboard = async () => {
     try {
@@ -338,6 +366,29 @@ const Billing: React.FC = () => {
       } catch {
         showError('Erro ao filtrar faturas');
       }
+    }
+  };
+
+  const sendSubscriberPaymentEmail = async (id: number) => {
+    try {
+      const result = await financialAdminApi.sendPaymentEmail(id);
+      if (result.sent) {
+        showSuccess('E-mail de cobrança enviado');
+      } else {
+        showError(result.reason || 'Não foi possível enviar o e-mail');
+      }
+    } catch (e: unknown) {
+      showError(pickApiErrorMessage(e, 'Erro ao enviar e-mail'));
+    }
+  };
+
+  const startStripeCheckout = async (id: number) => {
+    try {
+      const { url } = await financialAdminApi.createStripeCheckout(id);
+      if (url) window.location.href = url;
+      else showError('Stripe não retornou URL de pagamento');
+    } catch (e: unknown) {
+      showError(pickApiErrorMessage(e, 'Erro ao abrir checkout Stripe'));
     }
   };
 
@@ -926,6 +977,24 @@ const Billing: React.FC = () => {
                               onClick={() => openFinancialDialog('pay', billing)}
                             >
                               <Payment />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Enviar e-mail de cobrança">
+                            <IconButton
+                              size="small"
+                              color="info"
+                              onClick={() => sendSubscriberPaymentEmail(billing.billing_id)}
+                            >
+                              <Email />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Pagar com Stripe">
+                            <IconButton
+                              size="small"
+                              color="secondary"
+                              onClick={() => startStripeCheckout(billing.billing_id)}
+                            >
+                              <CreditCard />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Marcar pago (rápido)">

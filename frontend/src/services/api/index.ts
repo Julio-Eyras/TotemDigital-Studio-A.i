@@ -4204,6 +4204,21 @@ export const financialAdminApi = {
     const response = await api.get(`/financial-admin/subscriber-billing/${billingId}/payment-qr`);
     return response.data.data || response.data;
   },
+
+  sendPaymentEmail: async (billingId: number): Promise<{ sent: boolean; reason?: string }> => {
+    const response = await api.post(`/financial-admin/subscriber-billing/${billingId}/send-payment-email`);
+    return response.data.data || response.data;
+  },
+
+  createStripeCheckout: async (billingId: number): Promise<{ url: string; sessionId: string }> => {
+    const response = await api.post(`/financial-admin/subscriber-billing/${billingId}/stripe-checkout`);
+    return response.data.data || response.data;
+  },
+
+  completeStripeSession: async (sessionId: string): Promise<{ success: boolean; billingId?: string }> => {
+    const response = await api.post('/financial-admin/stripe/complete-session', { sessionId });
+    return response.data;
+  },
 };
 
 export const billingControlApi = {

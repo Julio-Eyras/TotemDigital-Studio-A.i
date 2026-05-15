@@ -40,6 +40,11 @@ export async function initializeProStartup(options: ProStartupOptions): Promise<
   invoiceWorker.start();
   (global as any).invoiceWorker = invoiceWorker;
 
+  const { FinancialBillingWorker } = await import('../workers/financialBillingWorker');
+  const financialWorker = new FinancialBillingWorker();
+  financialWorker.start();
+  (global as any).financialBillingWorker = financialWorker;
+
   await logInfo('Inicializando Subscriber Access Notification Worker...');
   const subscriberAccessNotificationWorker = new SubscriberAccessNotificationWorker();
   subscriberAccessNotificationWorker.start();
