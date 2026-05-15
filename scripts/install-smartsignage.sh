@@ -151,6 +151,8 @@ PUBLIC_HOST="${PUBLIC_HOST:-}"
 CORPORATE_HTTP_PORT="${CORPORATE_HTTP_PORT:-80}"
 SYSTEM_HTTP_PORT="${SYSTEM_HTTP_PORT:-80}"
 CORPORATE_WEB_ROOT="${CORPORATE_WEB_ROOT:-/var/www/corporate-site}"
+# Nome do ficheiro HTML de atalho ao painel na raiz corporativa (layout dividido)
+CORPORATE_LANDING_FILE="${CORPORATE_LANDING_FILE:-app.html}"
 ENABLE_KIOSK_MODE=false
 RESET_DATABASE=false
 PRESERVE_DB=false
@@ -1809,9 +1811,9 @@ parse_arguments() {
                 echo "  --public-host <IP|domínio>  Host público para Nginx e URLs (com --split ou env SMARTSIGNAGE_PUBLIC_HOST)"
                 echo "  --corporate-http-port <n>   Porta HTTP do site corporativo (padrão 80)"
                 echo "  --system-http-port <n>      Porta HTTP do painel/API/player (80 se um só vhost; com --split-corporate-system use tipicamente 8080)"
-                echo "  --corporate-web-root <dir>  Raiz estática do site corporativo (padrão /var/www/corporate-site)"
+                echo "  --corporate-web-root <dir>  Raiz estática do site corporativo (padrão /var/www/corporate-site; landing app.html)"
                 echo "  Env (autom./--skip-menu): SMARTSIGNAGE_SPLIT_SITE, SMARTSIGNAGE_PUBLIC_HOST, SMARTSIGNAGE_CORPORATE_HTTP_PORT,"
-                echo "                            SMARTSIGNAGE_SYSTEM_HTTP_PORT, SMARTSIGNAGE_CORPORATE_WEB_ROOT,"
+                echo "                            SMARTSIGNAGE_SYSTEM_HTTP_PORT, SMARTSIGNAGE_CORPORATE_WEB_ROOT, SMARTSIGNAGE_CORPORATE_LANDING_FILE (ex.: app.html),"
                 echo "                            SMARTSIGNAGE_LETSENCRYPT=true + SMARTSIGNAGE_DOMAIN_NAME (+ SMARTSIGNAGE_SSL_EMAIL opcional) para LE no layout dividido"
                 echo "  --reset-db           Apaga e recria o banco PostgreSQL se já existir (fluxo completo)"
                 echo "  --preserve-db        Preserva o banco de dados existente durante reinstalação"
@@ -6105,6 +6107,7 @@ EOF
 #   export SMARTSIGNAGE_CORPORATE_HTTP_PORT=80
 #   export SMARTSIGNAGE_SYSTEM_HTTP_PORT=8080
 #   export SMARTSIGNAGE_CORPORATE_WEB_ROOT=/var/www/corporate-site
+#   export SMARTSIGNAGE_CORPORATE_LANDING_FILE=app.html
 # Let's Encrypt com layout dividido (não interativo): também
 #   export SMARTSIGNAGE_LETSENCRYPT=true
 #   export SMARTSIGNAGE_DOMAIN_NAME=exemplo.com.br
@@ -6123,6 +6126,7 @@ apply_split_layout_from_environment() {
     [[ -n "${SMARTSIGNAGE_CORPORATE_HTTP_PORT:-}" ]] && CORPORATE_HTTP_PORT="${SMARTSIGNAGE_CORPORATE_HTTP_PORT}"
     [[ -n "${SMARTSIGNAGE_SYSTEM_HTTP_PORT:-}" ]] && SYSTEM_HTTP_PORT="${SMARTSIGNAGE_SYSTEM_HTTP_PORT}"
     [[ -n "${SMARTSIGNAGE_CORPORATE_WEB_ROOT:-}" ]] && CORPORATE_WEB_ROOT="${SMARTSIGNAGE_CORPORATE_WEB_ROOT}"
+    [[ -n "${SMARTSIGNAGE_CORPORATE_LANDING_FILE:-}" ]] && CORPORATE_LANDING_FILE="${SMARTSIGNAGE_CORPORATE_LANDING_FILE}"
     case "${SMARTSIGNAGE_LETSENCRYPT:-}" in
         1|true|TRUE|yes|YES)
             if [[ "${SPLIT_CORPORATE_AND_SYSTEM:-false}" == "true" ]] && [[ -n "${SMARTSIGNAGE_DOMAIN_NAME:-}" ]]; then
@@ -6675,15 +6679,22 @@ verify_nginx_ws_config() {
     fi
 }
 
-# Landing HTML padrão do site corporativo (layout dividido). Só substitui se não existir index
-# ou se o ficheiro contiver o marcador smart-signage-default-corporate-landing-v1.
+# Landing HTML padrão do site corporativo (layout dividido). Grava app.html (atalho ao painel).
+# Só substitui se não existir app.html personalizado ou se ainda for o marcador smart-signage-default-corporate-landing-v1.
+# Remove index.html legado do instalador (gerações antigas) quando continha o mesmo marcador.
 # Uso: deploy_corporate_landing_html [dest_root] [url_painel]
 deploy_corporate_landing_html() {
     local dest_root="${1:-$CORPORATE_WEB_ROOT}"
     local panel_url="${2:-}"
-    local template="${SOURCE_DIR:-.}/scripts/assets/corporate-landing/index.html"
+    local landing_name="${CORPORATE_LANDING_FILE:-app.html}"
+    local template_dir="${SOURCE_DIR:-.}/scripts/assets/corporate-landing"
+    local template="${template_dir}/${landing_name}"
+    if [[ ! -f "$template" ]]; then
+        template="${template_dir}/app.html"
+    fi
     local marker="smart-signage-default-corporate-landing-v1"
-    local target="${dest_root}/index.html"
+    local target="${dest_root}/${landing_name}"
+    local legacy_index="${dest_root}/index.html"
     local host_label="${PUBLIC_HOST:-}"
 
     if [[ -z "$dest_root" ]]; then
@@ -6732,12 +6743,19 @@ PY
                 "$template" | sudo tee "$target" > /dev/null
         fi
     else
-        warn "Template corporativo em falta ($template); a gravar HTML mínimo."
+        warn "Template corporativo em falta ($template); a gravar HTML mínimo em ${landing_name}."
         sudo tee "$target" > /dev/null << MINHTML
 <!DOCTYPE html><html lang="pt"><head><meta charset="utf-8"/><title>${host_label}</title></head>
 <body><h1>${host_label}</h1><p><a href="${panel_url}">Painel Smart Signage</a></p><!-- ${marker} --></body></html>
 MINHTML
     fi
+
+    # Migrar instaladores antigos: index.html com marcador deixa de ser usado (Nginx usa app.html)
+    if [[ -f "$legacy_index" ]] && grep -q "$marker" "$legacy_index" 2>/dev/null; then
+        sudo rm -f "$legacy_index"
+        log "Site corporativo: removido $legacy_index legado (substituído por $(basename "$target"))."
+    fi
+
     if id www-data &>/dev/null; then
         sudo chown -R www-data:www-data "$dest_root" 2>/dev/null || true
     else
@@ -6820,9 +6838,9 @@ ${ssl_extra}
     ssl_protocols TLSv1.2 TLSv1.3;
 
     root ${CORPORATE_WEB_ROOT};
-    index index.html;
+    index ${CORPORATE_LANDING_FILE} index.html;
     location / {
-        try_files \$uri \$uri/ /index.html;
+        try_files \$uri \$uri/ /${CORPORATE_LANDING_FILE};
     }
 }
 
@@ -6996,7 +7014,7 @@ persist_nginx_public_layout_to_env() {
     local tmp
     local _corp_le="${SMARTSIGNAGE_CORPORATE_LE_HTTPS:-false}"
     tmp=$(mktemp "${envf}.layout.XXXXXX" 2>/dev/null || echo "${envf}.layout.tmp")
-    grep -vE '^SMARTSIGNAGE_NGINX_SPLIT=|^SMARTSIGNAGE_CORPORATE_HTTP_PORT=|^SMARTSIGNAGE_SYSTEM_HTTP_PORT=|^SMARTSIGNAGE_CORPORATE_WEB_ROOT=|^SMARTSIGNAGE_PUBLIC_HOST=|^SMARTSIGNAGE_CORPORATE_LE_HTTPS=' "$envf" > "$tmp" 2>/dev/null || cp "$envf" "$tmp"
+    grep -vE '^SMARTSIGNAGE_NGINX_SPLIT=|^SMARTSIGNAGE_CORPORATE_HTTP_PORT=|^SMARTSIGNAGE_SYSTEM_HTTP_PORT=|^SMARTSIGNAGE_CORPORATE_WEB_ROOT=|^SMARTSIGNAGE_CORPORATE_LANDING_FILE=|^SMARTSIGNAGE_PUBLIC_HOST=|^SMARTSIGNAGE_CORPORATE_LE_HTTPS=' "$envf" > "$tmp" 2>/dev/null || cp "$envf" "$tmp"
     mv -f "$tmp" "$envf"
     {
         echo ""
@@ -7006,6 +7024,7 @@ persist_nginx_public_layout_to_env() {
             echo "SMARTSIGNAGE_CORPORATE_HTTP_PORT=${CORPORATE_HTTP_PORT}"
             echo "SMARTSIGNAGE_SYSTEM_HTTP_PORT=${SYSTEM_HTTP_PORT}"
             echo "SMARTSIGNAGE_CORPORATE_WEB_ROOT=${CORPORATE_WEB_ROOT}"
+            echo "SMARTSIGNAGE_CORPORATE_LANDING_FILE=${CORPORATE_LANDING_FILE}"
             echo "SMARTSIGNAGE_PUBLIC_HOST=${PUBLIC_HOST}"
             echo "SMARTSIGNAGE_CORPORATE_LE_HTTPS=${_corp_le}"
         else
@@ -7013,6 +7032,7 @@ persist_nginx_public_layout_to_env() {
             echo "SMARTSIGNAGE_CORPORATE_HTTP_PORT=80"
             echo "SMARTSIGNAGE_SYSTEM_HTTP_PORT=80"
             echo "SMARTSIGNAGE_CORPORATE_WEB_ROOT="
+            echo "SMARTSIGNAGE_CORPORATE_LANDING_FILE="
             echo "SMARTSIGNAGE_PUBLIC_HOST="
             echo "SMARTSIGNAGE_CORPORATE_LE_HTTPS=false"
         fi
@@ -7067,11 +7087,11 @@ server {
     listen [::]:${CORPORATE_HTTP_PORT} default_server;
     server_name ${PUBLIC_HOST} _;
     root ${CORPORATE_WEB_ROOT};
-    index index.html;
+    index ${CORPORATE_LANDING_FILE} index.html;
     location ^~ /.well-known/acme-challenge/ {
         root /var/www/certbot;
     }
-    location / { try_files \$uri \$uri/ /index.html; }
+    location / { try_files \$uri \$uri/ /${CORPORATE_LANDING_FILE}; }
 }
 server {
     listen ${SYSTEM_HTTP_PORT};
@@ -7599,14 +7619,14 @@ server {
     server_name ${PUBLIC_HOST} _;
 
     root ${CORPORATE_WEB_ROOT};
-    index index.html;
+    index ${CORPORATE_LANDING_FILE} index.html;
 
     location ^~ /.well-known/acme-challenge/ {
         root /var/www/certbot;
     }
 
     location / {
-        try_files \$uri \$uri/ /index.html;
+        try_files \$uri \$uri/ /${CORPORATE_LANDING_FILE};
     }
 }
 
