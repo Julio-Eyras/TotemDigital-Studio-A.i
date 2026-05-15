@@ -87,6 +87,10 @@ const Billing: React.FC = () => {
     user?.role === 'admin' ||
     user?.role === 'operador_faturamento';
 
+  /** Criar/editar faturas nas APIs subscriber/publisher (incl. dono no mono compacto). */
+  const canCreateModernInvoices =
+    canViewAllBillingTypes || (TOTEMDIGITAL_COMPACT && isPublisherUser);
+
   const rawType = searchParams.get('type');
   /** Escopo de listagens: anunciantes, publicadores ou ambos (só admins faturamento). */
   const billingType = (() => {
@@ -106,9 +110,33 @@ const Billing: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [createSubscriberOpen, setCreateSubscriberOpen] = useState(false);
+  const [createPublisherOpen, setCreatePublisherOpen] = useState(false);
   const [subscribeOpen, setSubscribeOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [newBill, setNewBill] = useState<CreateBillingRequest>({ billing_type: 'subscription', amount: 0 });
+  const [newSubscriberInvoice, setNewSubscriberInvoice] = useState({
+    subscriberId: '',
+    billingType: 'advertisement' as
+      | 'advertisement'
+      | 'campaign'
+      | 'media_upload'
+      | 'exhibition_lot'
+      | 'totem_quantity'
+      | 'time_based'
+      | 'custom',
+    amount: '',
+    dueDate: '',
+    description: '',
+  });
+  const [newPublisherInvoice, setNewPublisherInvoice] = useState({
+    publisherId: '',
+    billingType: 'subscription' as 'revenue_share' | 'payout' | 'subscription' | 'platform_fee',
+    direction: 'incoming' as 'incoming' | 'outgoing',
+    amount: '',
+    dueDate: '',
+    description: '',
+  });
   const parseCurrencyInputValue = (raw: string): number => {
     const normalized = raw.replace(',', '.').trim();
     if (!normalized) return 0;
@@ -259,6 +287,73 @@ const Billing: React.FC = () => {
       const msg = pickApiErrorMessage(e, 'Erro ao criar cobrança');
       setError(msg);
       showError(msg);
+    }
+  };
+
+  const handleCreateSubscriberInvoice = async () => {
+    const sid = Number.parseInt(String(newSubscriberInvoice.subscriberId).trim(), 10);
+    const amt = parseCurrencyInputValue(newSubscriberInvoice.amount);
+    if (!Number.isFinite(sid) || sid < 1 || !amt) {
+      showError('Indique um ID de anunciante válido e um valor.');
+      return;
+    }
+    try {
+      await subscriberBillingApi.create({
+        subscriberId: sid,
+        billingType: newSubscriberInvoice.billingType,
+        amount: amt,
+        description: newSubscriberInvoice.description || undefined,
+        dueDate: newSubscriberInvoice.dueDate || undefined,
+      });
+      setCreateSubscriberOpen(false);
+      setNewSubscriberInvoice({
+        subscriberId: '',
+        billingType: 'advertisement',
+        amount: '',
+        dueDate: '',
+        description: '',
+      });
+      await loadSubscriberBillings();
+      showSuccess('Cobrança de anunciante criada.');
+    } catch (e: any) {
+      showError(pickApiErrorMessage(e, 'Erro ao criar cobrança de anunciante'));
+    }
+  };
+
+  const handleCreatePublisherInvoice = async () => {
+    const pidFromUser = user?.publisherId != null ? Number(user.publisherId) : NaN;
+    const pidFromForm = Number.parseInt(String(newPublisherInvoice.publisherId).trim(), 10);
+    const pid =
+      TOTEMDIGITAL_COMPACT && isPublisherUser && Number.isFinite(pidFromUser)
+        ? pidFromUser
+        : pidFromForm;
+    const amt = parseCurrencyInputValue(newPublisherInvoice.amount);
+    if (!Number.isFinite(pid) || pid < 1 || !amt) {
+      showError('Indique o publicador e um valor válidos (no mono, o utilizador deve ter publisherId).');
+      return;
+    }
+    try {
+      await publisherBillingApi.create({
+        publisherId: pid,
+        billingType: newPublisherInvoice.billingType,
+        direction: newPublisherInvoice.direction,
+        amount: amt,
+        description: newPublisherInvoice.description || undefined,
+        dueDate: newPublisherInvoice.dueDate || undefined,
+      });
+      setCreatePublisherOpen(false);
+      setNewPublisherInvoice({
+        publisherId: '',
+        billingType: 'subscription',
+        direction: 'incoming',
+        amount: '',
+        dueDate: '',
+        description: '',
+      });
+      await loadPublisherBillings();
+      showSuccess('Fatura de publicador criada.');
+    } catch (e: any) {
+      showError(pickApiErrorMessage(e, 'Erro ao criar fatura de publicador'));
     }
   };
 
@@ -557,9 +652,11 @@ const Billing: React.FC = () => {
       {/* TAB: FATURAS */}
       <TabPanel value={tabValue} index={2}>
         <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-          <Button startIcon={<Add />} variant="contained" onClick={() => setCreateOpen(true)}>
-            Nova Cobrança
-          </Button>
+          {canViewAllBillingTypes && (
+            <Button startIcon={<Add />} variant="contained" onClick={() => setCreateOpen(true)}>
+              Nova Cobrança (legado)
+            </Button>
+          )}
           <Button startIcon={<Refresh />} variant="outlined" onClick={loadBillings}>
             Atualizar
           </Button>
@@ -674,6 +771,11 @@ const Billing: React.FC = () => {
             <Button startIcon={<Refresh />} variant="outlined" onClick={loadSubscriberBillings}>
               Atualizar
             </Button>
+            {canCreateModernInvoices && (
+              <Button startIcon={<Add />} variant="contained" onClick={() => setCreateSubscriberOpen(true)}>
+                Nova cobrança (anunciante)
+              </Button>
+            )}
           </Box>
 
           <TableContainer component={Paper}>
@@ -799,6 +901,11 @@ const Billing: React.FC = () => {
             <Button startIcon={<Refresh />} variant="outlined" onClick={loadPublisherBillings}>
               Atualizar
             </Button>
+            {canCreateModernInvoices && (
+              <Button startIcon={<Add />} variant="contained" onClick={() => setCreatePublisherOpen(true)}>
+                Nova fatura (publicador)
+              </Button>
+            )}
           </Box>
 
           <TableContainer component={Paper}>
@@ -911,6 +1018,163 @@ const Billing: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {canCreateModernInvoices && (
+        <Dialog open={createSubscriberOpen} onClose={() => setCreateSubscriberOpen(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Nova cobrança (anunciante)</DialogTitle>
+          <DialogContent>
+            <TextField
+              fullWidth
+              margin="normal"
+              label="ID do anunciante (subscriber)"
+              value={newSubscriberInvoice.subscriberId}
+              onChange={(e) => setNewSubscriberInvoice({ ...newSubscriberInvoice, subscriberId: e.target.value })}
+            />
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Tipo</InputLabel>
+              <Select
+                label="Tipo"
+                value={newSubscriberInvoice.billingType}
+                onChange={(e) =>
+                  setNewSubscriberInvoice({
+                    ...newSubscriberInvoice,
+                    billingType: e.target.value as typeof newSubscriberInvoice.billingType,
+                  })
+                }
+              >
+                <MenuItem value="advertisement">Publicidade</MenuItem>
+                <MenuItem value="campaign">Campanha</MenuItem>
+                <MenuItem value="media_upload">Upload de mídia</MenuItem>
+                <MenuItem value="exhibition_lot">Lote de exibição</MenuItem>
+                <MenuItem value="totem_quantity">Quantidade de totens</MenuItem>
+                <MenuItem value="time_based">Baseado em tempo</MenuItem>
+                <MenuItem value="custom">Personalizado</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth
+              margin="normal"
+              label="Valor (R$)"
+              value={newSubscriberInvoice.amount}
+              onChange={(e) => setNewSubscriberInvoice({ ...newSubscriberInvoice, amount: e.target.value })}
+              InputProps={{ startAdornment: <InputAdornment position="start">R$</InputAdornment> }}
+            />
+            <TextField
+              fullWidth
+              margin="normal"
+              label="Vencimento"
+              type="date"
+              InputLabelProps={{ shrink: true }}
+              value={newSubscriberInvoice.dueDate}
+              onChange={(e) => setNewSubscriberInvoice({ ...newSubscriberInvoice, dueDate: e.target.value })}
+            />
+            <TextField
+              fullWidth
+              margin="normal"
+              label="Descrição"
+              value={newSubscriberInvoice.description}
+              onChange={(e) => setNewSubscriberInvoice({ ...newSubscriberInvoice, description: e.target.value })}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setCreateSubscriberOpen(false)}>Cancelar</Button>
+            <Button variant="contained" onClick={handleCreateSubscriberInvoice}>
+              Criar
+            </Button>
+          </DialogActions>
+        </Dialog>
+      )}
+
+      {canCreateModernInvoices && (
+        <Dialog open={createPublisherOpen} onClose={() => setCreatePublisherOpen(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Nova fatura (publicador)</DialogTitle>
+          <DialogContent>
+            {(!TOTEMDIGITAL_COMPACT || !isPublisherUser || user?.publisherId == null) && (
+              <TextField
+                fullWidth
+                margin="normal"
+                label="ID do publicador"
+                value={newPublisherInvoice.publisherId}
+                onChange={(e) => setNewPublisherInvoice({ ...newPublisherInvoice, publisherId: e.target.value })}
+                helperText={
+                  TOTEMDIGITAL_COMPACT && isPublisherUser && user?.publisherId == null
+                    ? 'O seu utilizador não tem publisherId; indique o ID do exibidor.'
+                    : undefined
+                }
+              />
+            )}
+            {TOTEMDIGITAL_COMPACT && isPublisherUser && user?.publisherId != null && (
+              <Alert severity="info" sx={{ mt: 1, mb: 1 }}>
+                Publicador: #{user.publisherId} (mono compacto)
+              </Alert>
+            )}
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Tipo</InputLabel>
+              <Select
+                label="Tipo"
+                value={newPublisherInvoice.billingType}
+                onChange={(e) =>
+                  setNewPublisherInvoice({
+                    ...newPublisherInvoice,
+                    billingType: e.target.value as typeof newPublisherInvoice.billingType,
+                  })
+                }
+              >
+                <MenuItem value="subscription">Assinatura</MenuItem>
+                <MenuItem value="platform_fee">Taxa de plataforma</MenuItem>
+                <MenuItem value="payout">Repasse</MenuItem>
+                <MenuItem value="revenue_share">Participação na receita</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Direção</InputLabel>
+              <Select
+                label="Direção"
+                value={newPublisherInvoice.direction}
+                onChange={(e) =>
+                  setNewPublisherInvoice({
+                    ...newPublisherInvoice,
+                    direction: e.target.value as 'incoming' | 'outgoing',
+                  })
+                }
+              >
+                <MenuItem value="incoming">Entrada (ex.: o exibidor paga)</MenuItem>
+                <MenuItem value="outgoing">Saída (ex.: reparte / recebe)</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth
+              margin="normal"
+              label="Valor (R$)"
+              value={newPublisherInvoice.amount}
+              onChange={(e) => setNewPublisherInvoice({ ...newPublisherInvoice, amount: e.target.value })}
+              InputProps={{ startAdornment: <InputAdornment position="start">R$</InputAdornment> }}
+            />
+            <TextField
+              fullWidth
+              margin="normal"
+              label="Vencimento"
+              type="date"
+              InputLabelProps={{ shrink: true }}
+              value={newPublisherInvoice.dueDate}
+              onChange={(e) => setNewPublisherInvoice({ ...newPublisherInvoice, dueDate: e.target.value })}
+            />
+            <TextField
+              fullWidth
+              margin="normal"
+              label="Descrição"
+              value={newPublisherInvoice.description}
+              onChange={(e) => setNewPublisherInvoice({ ...newPublisherInvoice, description: e.target.value })}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setCreatePublisherOpen(false)}>Cancelar</Button>
+            <Button variant="contained" onClick={handleCreatePublisherInvoice}>
+              Criar
+            </Button>
+          </DialogActions>
+        </Dialog>
+      )}
 
       {/* DIALOG: ASSINAR PLANO */}
       <Dialog open={subscribeOpen} onClose={() => setSubscribeOpen(false)} maxWidth="sm" fullWidth>

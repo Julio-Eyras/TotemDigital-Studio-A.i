@@ -30,7 +30,7 @@ router.use(blockClientDataAccess);
  * @desc Lista faturas com paginação e filtros
  * @access Private (Admin apenas - billing é restrito)
  */
-router.get('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res) => {
+router.get('/', authorizeRole(['admin', 'admin_sql', 'operador_faturamento']), async (req: any, res) => {
   try {
     const {
       page = 1,
@@ -83,7 +83,7 @@ router.get('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res) => 
  * @desc Busca estatísticas de faturamento
  * @access Private (Admin apenas - billing é restrito)
  */
-router.get('/stats', authorizeRole(['admin', 'admin_sql']), async (_req, res) => {
+router.get('/stats', authorizeRole(['admin', 'admin_sql', 'operador_faturamento']), async (_req, res) => {
   try {
     const stats = await getBillingService().getBillingStats();
 
@@ -107,7 +107,7 @@ router.get('/stats', authorizeRole(['admin', 'admin_sql']), async (_req, res) =>
  * @desc Lista faturas vencidas
  * @access Private (Admin apenas - billing é restrito)
  */
-router.get('/overdue', authorizeRole(['admin', 'admin_sql']), async (_req, res) => {
+router.get('/overdue', authorizeRole(['admin', 'admin_sql', 'operador_faturamento']), async (_req, res) => {
   try {
     const overdueBillings = await getBillingService().getOverdueBillings();
 
@@ -131,7 +131,7 @@ router.get('/overdue', authorizeRole(['admin', 'admin_sql']), async (_req, res) 
  * @desc Lista faturas de um cliente específico
  * @access Private (Admin apenas - billing é restrito)
  */
-router.get('/client/:clientId', authorizeRole(['admin', 'admin_sql']), async (req: any, res) => {
+router.get('/client/:clientId', authorizeRole(['admin', 'admin_sql', 'operador_faturamento']), async (req: any, res) => {
   try {
     const { clientId } = req.params;
     const { limit = 50 } = req.query;
@@ -169,7 +169,7 @@ router.get('/client/:clientId', authorizeRole(['admin', 'admin_sql']), async (re
  * @desc Busca fatura por ID
  * @access Private (Admin apenas - billing é restrito)
  */
-router.get('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res) => {
+router.get('/:id', authorizeRole(['admin', 'admin_sql', 'operador_faturamento']), async (req: any, res) => {
   try {
     const { id } = req.params;
 
@@ -210,7 +210,7 @@ router.get('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res) 
  * @desc Cria nova fatura
  * @access Private (Admin, Manager)
  */
-router.post('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res) => {
+router.post('/', authorizeRole(['admin', 'admin_sql', 'operador_faturamento']), async (req: any, res) => {
   try {
     const billingData = req.body;
 
@@ -291,7 +291,7 @@ router.post('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res) =>
  * @desc Atualiza fatura
  * @access Private (Admin, Manager)
  */
-router.put('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res) => {
+router.put('/:id', authorizeRole(['admin', 'admin_sql', 'operador_faturamento']), async (req: any, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
@@ -323,7 +323,7 @@ router.put('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res) 
  * @desc Remove fatura
  * @access Private (Admin, Manager)
  */
-router.delete('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res) => {
+router.delete('/:id', authorizeRole(['admin', 'admin_sql', 'operador_faturamento']), async (req: any, res) => {
   try {
     const { id } = req.params;
 
@@ -396,7 +396,7 @@ router.post('/:id/payment', async (req: any, res) => {
  * @desc Marca faturas como vencidas
  * @access Private (Admin, Manager)
  */
-router.post('/mark-overdue', authorizeRole(['admin', 'admin_sql']), async (_req, res) => {
+router.post('/mark-overdue', authorizeRole(['admin', 'admin_sql', 'operador_faturamento']), async (_req, res) => {
   try {
     const count = await getBillingService().markOverdueBillings();
 
@@ -464,7 +464,7 @@ router.get('/:id/payments', async (req: any, res) => {
  * @desc Cancela fatura
  * @access Private (Admin, Manager)
  */
-router.post('/:id/cancel', authorizeRole(['admin', 'admin_sql']), async (req: any, res) => {
+router.post('/:id/cancel', authorizeRole(['admin', 'admin_sql', 'operador_faturamento']), async (req: any, res) => {
   try {
     const { id } = req.params;
     const { reason } = req.body;
@@ -510,7 +510,7 @@ router.post('/:id/cancel', authorizeRole(['admin', 'admin_sql']), async (req: an
  * @desc Exporta faturas
  * @access Private (Admin, Manager)
  */
-router.get('/export', authorizeRole(['admin', 'admin_sql']), async (req, res) => {
+router.get('/export', authorizeRole(['admin', 'admin_sql', 'operador_faturamento']), async (req, res) => {
   try {
     const {
       clientId,

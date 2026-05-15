@@ -13,6 +13,10 @@ import { body, param, query } from 'express-validator';
 import { logError } from '../utils/loggerHelper';
 import { assertTenantClientParamAccess, resolvePublisherIdFromRequest } from '../utils/tenantClientAccess';
 import { isAdminRole } from '../utils/tenantScope';
+import { authorizeBillingManagement } from '../middleware/billingAuthorization.middleware';
+import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+
+const normRole = (r: string | undefined) => String(r || '').trim().toLowerCase();
 
 const router = Router();
 
@@ -212,7 +216,7 @@ router.get('/:id',
  * @desc Criar nova fatura para publisher
  */
 router.post('/',
-  authorizeRole(['admin', 'admin_sql', 'operador_faturamento', 'gerente_financeiro']),
+  authorizeBillingManagement,
   body('publisherId').isInt({ min: 1 }),
   body('billingType').isIn(['revenue_share', 'payout', 'subscription', 'platform_fee']),
   body('amount').isFloat({ min: 0.01 }),
@@ -222,6 +226,17 @@ router.post('/',
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
+      if (TOTEMDIGITAL_COMPACT && normRole(req.user?.role) === 'publisher_user') {
+        const resolved = await resolvePublisherIdFromRequest(req);
+        if (!resolved || Number(req.body.publisherId) !== resolved) {
+          return res.status(403).json({
+            success: false,
+            error: 'Acesso negado',
+            message: 'No modo compacto só pode registar faturas do exibidor dono (publisherId do token).',
+          });
+        }
+      }
+
       const billing = await getPublisherBillingService().createBilling(req.body);
       
       return res.status(201).json({
@@ -245,13 +260,38 @@ router.post('/',
  * @desc Atualizar fatura
  */
 router.put('/:id',
-  authorizeRole(['admin', 'admin_sql', 'operador_faturamento', 'gerente_financeiro']),
+  authorizeBillingManagement,
   param('id').isInt({ min: 1 }),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const billingId = parseInt(req.params.id);
-      
+
+      const existing = await getPublisherBillingService().getBillingById(billingId);
+      if (!existing) {
+        return res.status(404).json({
+          success: false,
+          error: 'Fatura não encontrada',
+        });
+      }
+
+      if (TOTEMDIGITAL_COMPACT && normRole(req.user?.role) === 'publisher_user') {
+        try {
+          await assertTenantClientParamAccess(req, Number(existing.publisherId), {
+            requestedIdIsPublisherScope: true,
+          });
+        } catch (e: any) {
+          if (e?.statusCode === 403) {
+            return res.status(403).json({
+              success: false,
+              error: 'Acesso negado',
+              message: e.message || 'Sem permissão para alterar esta fatura',
+            });
+          }
+          throw e;
+        }
+      }
+
       const billing = await getPublisherBillingService().updateBilling(billingId, req.body);
       
       return res.json({

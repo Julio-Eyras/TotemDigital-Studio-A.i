@@ -3963,6 +3963,36 @@ export const subscriberBillingApi = {
     const response = await api.get(`/subscriber-billing/${id}`);
     return response.data.data;
   },
+
+  create: async (payload: {
+    subscriberId: number;
+    campaignId?: number;
+    billingType: string;
+    amount: number;
+    currency?: string;
+    description?: string;
+    dueDate?: string;
+    status?: string;
+  }): Promise<SubscriberBillingItem> => {
+    const response = await api.post('/subscriber-billing', payload);
+    return response.data.data;
+  },
+
+  update: async (
+    id: number,
+    payload: Partial<{
+      amount: number;
+      currency: string;
+      description: string;
+      dueDate: string;
+      status: string;
+      paymentMethod: string;
+      paymentReference: string;
+    }>
+  ): Promise<SubscriberBillingItem> => {
+    const response = await api.put(`/subscriber-billing/${id}`, payload);
+    return response.data.data;
+  },
 };
 
 // =============================================
@@ -4030,6 +4060,39 @@ export const publisherBillingApi = {
 
   getById: async (id: number): Promise<PublisherBillingItem> => {
     const response = await api.get(`/publisher-billing/${id}`);
+    return response.data.data;
+  },
+
+  create: async (payload: {
+    publisherId: number;
+    billingType: string;
+    amount: number;
+    direction: 'incoming' | 'outgoing';
+    currency?: string;
+    description?: string;
+    dueDate?: string;
+    campaignId?: number;
+    totemId?: number;
+    subscriptionId?: number;
+    revenueSharePercentage?: number;
+  }): Promise<PublisherBillingItem> => {
+    const response = await api.post('/publisher-billing', payload);
+    return response.data.data;
+  },
+
+  update: async (
+    id: number,
+    payload: Partial<{
+      amount: number;
+      currency: string;
+      description: string;
+      dueDate: string;
+      paymentStatus: string;
+      paymentMethod: string;
+      paymentReference: string;
+    }>
+  ): Promise<PublisherBillingItem> => {
+    const response = await api.put(`/publisher-billing/${id}`, payload);
     return response.data.data;
   },
 };
