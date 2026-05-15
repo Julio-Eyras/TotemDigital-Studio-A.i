@@ -103,8 +103,9 @@ export const menuPermissions: MenuItemPermission[] = [
   { path: '/network-topology', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico', 'operator', 'publisher_user', 'subscriber_user'] },
   
   // Dispatcher-Totem - owner_system, admin_sql, admin, operador_tecnico
-  { path: '/dispatcher-manager', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_2' },
-  { path: '/dispatcher-monitor', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_2' },
+  { path: '/dispatcher-manager', roles: ['owner_system', 'admin_sql', 'operator', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_2' },
+  { path: '/dispatcher-monitor', roles: ['owner_system', 'admin_sql', 'operator', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_2' },
+  { path: '/dispatcher-debug', roles: ['owner_system', 'admin_sql', 'operator', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_2' },
   
   // OTA Updates - admin_sql, operator, operador_tecnico
   { path: '/ota-updates', roles: ['owner_system', 'admin_sql', 'operator', 'operador_tecnico'], requiredFlag: 'flag_smart_1' },

@@ -182,14 +182,20 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
       { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
       { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
       { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
+      { text: 'Dispatcher — gerir', icon: <Shuffle />, path: '/dispatcher-manager' },
+      { text: 'Dispatcher — monitor', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
+      { text: 'Dispatcher — debug', icon: <BugReport />, path: '/dispatcher-debug' },
+      { text: 'Dispatcher — timeline', icon: <ViewTimeline />, path: '/dispatcher-manager?tab=timeline' },
       { text: 'Configurações', icon: <Settings />, path: '/settings' },
     ];
   }
 
+  /** Tráfego servidor ↔ totens / publicidades — junto de Configurações (Administração) para monitorização. */
   const dispatcherMenuBlock: HierarchicalMenuItem = {
     text: 'Dispatcher',
     icon: <MonitorHeart />,
     path: '/dispatcher-manager',
+    requiredFlag: 'flag_smart_2',
     children: [
       { text: 'Gerenciar', icon: <Shuffle />, path: '/dispatcher-manager' },
       { text: 'Monitor', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
@@ -217,7 +223,6 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
         { text: 'Analytics', icon: <Analytics />, path: '/playlist-mix/analytics' },
       ],
     },
-    ...(isCommercialProMenu ? [] : [dispatcherMenuBlock]),
   ];
 
   return [
@@ -281,6 +286,7 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
         { text: 'Analytics', icon: <Analytics />, path: '/analytics' },
         { text: 'Relatórios', icon: <Assessment />, path: '/reports' },
         { text: 'Admin Tools', icon: <Build />, path: '/admin-tools' },
+        dispatcherMenuBlock,
         { text: 'Configurações', icon: <Settings />, path: '/settings' },
       ],
     },
@@ -358,7 +364,18 @@ function getOperadorTecnicoMenu(): HierarchicalMenuItem[] {
     },
     { text: 'Rede Visual', icon: <Link />, path: '/network-topology?view=graph' },
     { text: 'Admin Tools', icon: <Build />, path: '/admin-tools', requiredFlag: 'flag_smart_2' },
-    { text: 'Monitor Dispatcher', icon: <MonitorHeart />, path: '/dispatcher-monitor', requiredFlag: 'flag_smart_2' },
+    {
+      text: 'Dispatcher',
+      icon: <MonitorHeart />,
+      path: '/dispatcher-manager',
+      requiredFlag: 'flag_smart_2',
+      children: [
+        { text: 'Gerenciar', icon: <Shuffle />, path: '/dispatcher-manager' },
+        { text: 'Monitor', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
+        { text: 'Debug Online', icon: <BugReport />, path: '/dispatcher-debug' },
+        { text: 'Timeline', icon: <ViewTimeline />, path: '/dispatcher-manager?tab=timeline' },
+      ],
+    },
   ];
 }
 

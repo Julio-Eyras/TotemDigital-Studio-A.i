@@ -5,6 +5,7 @@ import {
   Grid,
   Card,
   CardContent,
+  CardActionArea,
   TextField,
   Button,
   Alert,
@@ -33,12 +34,19 @@ import {
   Warning,
   VideoLibrary,
   Build,
-  Security
+  Security,
+  MonitorHeart,
+  Shuffle,
+  BugReport,
+  ViewTimeline,
 } from '@mui/icons-material';
 import { settingsApi, SystemSetting, logsApi, LogRotationConfig, LogFileInfo, DiskSpaceInfo, RotationStatus, authApi } from '../../services/api';
 import TwoFactor from './TwoFactor';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { Link as RouterLink } from 'react-router-dom';
+import { useAppSelector } from '../../store';
+import { canAccess } from '../../utils/rolePermissions';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -111,6 +119,7 @@ const SETTINGS_SECTIONS = [
   { label: 'Geral', icon: SettingsIcon },
   { label: 'Logs', icon: Storage },
   { label: 'Mídias', icon: VideoLibrary },
+  { label: 'Dispatcher', icon: MonitorHeart },
   { label: '2FA', icon: Security },
   { label: 'Senha', icon: Security },
 ] as const;
@@ -118,6 +127,9 @@ const SETTINGS_SECTIONS = [
 const Settings: React.FC = () => {
   const theme = useTheme();
   const isMobileNav = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
+  const { user } = useAppSelector((state) => state.auth);
+  const canDispatcherHub =
+    !!user?.role && canAccess(user.role, '/dispatcher-monitor', user.flags ?? undefined);
   const [tabValue, setTabValue] = useState(0);
   const [settings, setSettings] = useState<SystemSetting[]>([]);
   const [logSettings, setLogSettings] = useState<SystemSetting[]>([]);
@@ -284,13 +296,17 @@ const Settings: React.FC = () => {
           ? mediaSettings.filter((s) => s?.key && !isSettingReadOnly(s))
           : [];
       }
-      
+
       // Converter para formato esperado pelo backend
       const settingsObj: { [key: string]: any } = {};
-      settingsToSave.forEach(s => {
+      settingsToSave.forEach((s) => {
         settingsObj[s.key] = parseSettingValueForSave(s);
       });
-      
+
+      if (Object.keys(settingsObj).length === 0) {
+        return;
+      }
+
       await settingsApi.updateMultiple(settingsObj);
       
       // Recarregar logger se foram alteradas configurações de logs
@@ -794,10 +810,87 @@ const Settings: React.FC = () => {
       </TabPanel>
 
       <TabPanel value={tabValue} index={3}>
-        <TwoFactor />
+        <Typography variant="body2" color="text.secondary" paragraph sx={{ maxWidth: 720 }}>
+          Aceda às ferramentas do dispatcher para acompanhar mensagens, pedidos e ficheiros entre o servidor e os
+          totens, e o fluxo ligado a playlists e publicidades. Cada cartão abre a área dedicada (e mantém o menu
+          lateral completo).
+        </Typography>
+        {!canDispatcherHub ? (
+          <Alert severity="info">
+            O seu perfil não tem permissão para o dispatcher (ou falta a flag técnica). Contacte um administrador se
+            precisar de acesso.
+          </Alert>
+        ) : (
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6} md={4}>
+              <Card variant="outlined" sx={{ height: '100%' }}>
+                <CardActionArea component={RouterLink} to="/dispatcher-manager">
+                  <CardContent>
+                    <Shuffle sx={{ fontSize: 36, color: 'primary.main', mb: 1 }} />
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                      Gerenciar
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Planos de envio, totem alvo e disparos manuais ou em lote.
+                    </Typography>
+                  </CardContent>
+                </CardActionArea>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
+              <Card variant="outlined" sx={{ height: '100%' }}>
+                <CardActionArea component={RouterLink} to="/dispatcher-monitor">
+                  <CardContent>
+                    <MonitorHeart sx={{ fontSize: 36, color: 'success.main', mb: 1 }} />
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                      Monitor em tempo real
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Fluxo de mensagens e eventos entre servidor e totens (WebSocket).
+                    </Typography>
+                  </CardContent>
+                </CardActionArea>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
+              <Card variant="outlined" sx={{ height: '100%' }}>
+                <CardActionArea component={RouterLink} to="/dispatcher-debug">
+                  <CardContent>
+                    <BugReport sx={{ fontSize: 36, color: 'warning.main', mb: 1 }} />
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                      Debug online
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Redis, consultas, mensagens e estatísticas para diagnóstico técnico.
+                    </Typography>
+                  </CardContent>
+                </CardActionArea>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
+              <Card variant="outlined" sx={{ height: '100%' }}>
+                <CardActionArea component={RouterLink} to="/dispatcher-manager?tab=timeline">
+                  <CardContent>
+                    <ViewTimeline sx={{ fontSize: 36, color: 'secondary.main', mb: 1 }} />
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                      Timeline
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Vista temporal dos envios e do plano por janela de tempo.
+                    </Typography>
+                  </CardContent>
+                </CardActionArea>
+              </Card>
+            </Grid>
+          </Grid>
+        )}
       </TabPanel>
 
       <TabPanel value={tabValue} index={4}>
+        <TwoFactor />
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={5}>
         {passwordSuccess && (
           <Alert severity="success" sx={{ mb: 2 }} onClose={() => setPasswordSuccess(null)}>
             {passwordSuccess}
