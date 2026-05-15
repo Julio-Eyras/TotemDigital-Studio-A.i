@@ -166,6 +166,11 @@ export function canAccess(
     return true;
   }
 
+  // Modo compacto: operador de faturamento usa o menu administrativo completo (paridade com dono na navegação)
+  if (TOTEMDIGITAL_COMPACT && userRole === 'operador_faturamento') {
+    return true;
+  }
+
   // Modo compacto mono: o publicador dono acede ao dispatcher/monitorização sem depender de flag_smart_2
   if (TOTEMDIGITAL_COMPACT && userRole === 'publisher_user') {
     if (

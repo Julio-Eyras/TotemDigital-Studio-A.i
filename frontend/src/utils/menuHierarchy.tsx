@@ -100,6 +100,95 @@ function filterHierarchicalMenu(
 }
 
 /**
+ * Menu lateral modo TotemDigital Compact (mono publicador): ordem e rótulos pedidos pelo produto.
+ * Não inclui ramo "Exibidores" (publicador único); operação de telas permanece acessível por URLs existentes.
+ */
+function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
+  const dispatcherBlock: HierarchicalMenuItem = {
+    text: 'Dispatcher',
+    icon: <MonitorHeart />,
+    path: '/dispatcher-manager',
+    requiredFlag: 'flag_smart_2',
+    children: [
+      { text: 'Gerenciar', icon: <Shuffle />, path: '/dispatcher-manager' },
+      { text: 'Monitor', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
+      { text: 'Debug Online', icon: <BugReport />, path: '/dispatcher-debug' },
+      { text: 'TimeLine', icon: <ViewTimeline />, path: '/dispatcher-manager?tab=timeline' },
+      { text: 'SmartDisplayFX', icon: <AutoAwesome />, path: '/smartdisplayfx' },
+      { text: 'IA', icon: <SmartToy />, path: '/ai' },
+    ],
+  };
+
+  return [
+    { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+    {
+      text: 'Anunciantes',
+      icon: <Campaign />,
+      path: '/quick-publish',
+      children: [
+        { text: 'Publicar em tela', icon: <Add />, path: '/quick-publish' },
+        { text: 'Manutenção Anunciante', icon: <People />, path: '/subscribers' },
+        { text: 'Manutenção de Contratos', icon: <Description />, path: '/subscriber-contracts' },
+        { text: 'Biblioteca de Mídias', icon: <VideoLibrary />, path: '/media' },
+        { text: 'Biblioteca de Vinhetas', icon: <VideoLibrary />, path: '/vinhetas' },
+        { text: 'Listagem de Playlists', icon: <QueueMusic />, path: '/playlists' },
+        { text: 'Listagem de Campanhas', icon: <Campaign />, path: '/campaigns' },
+      ],
+    },
+    {
+      text: 'Administração',
+      icon: <AdminPanelSettings />,
+      path: '/plan-publisher-access',
+      children: [
+        {
+          text: 'Planos & Acessos',
+          icon: <Link />,
+          path: '/plan-publisher-access',
+          children: [
+            { text: 'Planos', icon: <Link />, path: '/plan-publisher-access' },
+            { text: 'Planos Expirados', icon: <Warning />, path: '/plan-publisher-access/expired' },
+            {
+              text: 'Acessos (Anunciante → Exibidor)',
+              icon: <Link />,
+              path: '/subscriber-publisher-access',
+            },
+          ],
+        },
+        {
+          text: 'Faturamento e billing',
+          icon: <Payment />,
+          path: '/billing',
+          requiredFlag: 'flag_smart_3',
+          children: [
+            { text: 'Visão geral', icon: <Payment />, path: '/billing' },
+            { text: 'Anunciantes', icon: <People />, path: '/billing?type=subscriber' },
+            { text: 'Publicador (exibidor)', icon: <Business />, path: '/billing?type=publisher' },
+          ],
+        },
+        { text: 'Manutenção Usuário', icon: <People />, path: '/users' },
+        { text: 'Tags', icon: <Assignment />, path: '/tags' },
+        { text: 'QR-Codes', icon: <QrCode />, path: '/qr-codes' },
+        {
+          text: 'Faturamento Anunciantes',
+          icon: <Payment />,
+          path: '/billing?type=subscriber',
+          requiredFlag: 'flag_smart_3',
+        },
+        { text: 'Analíticos', icon: <Analytics />, path: '/analytics' },
+        { text: 'Relatórios', icon: <Assessment />, path: '/reports' },
+        dispatcherBlock,
+        {
+          text: 'Configurações',
+          icon: <Settings />,
+          path: '/settings',
+          children: [{ text: 'OTA Update', icon: <CloudUpload />, path: '/ota-updates' }],
+        },
+      ],
+    },
+  ];
+}
+
+/**
  * Estrutura hierárquica de menus por role (com filtragem de permissões)
  */
 export const getMenuHierarchyByRole = (
@@ -107,9 +196,16 @@ export const getMenuHierarchyByRole = (
   userFlags?: UserFlags | null
 ): HierarchicalMenuItem[] => {
   if (TOTEMDIGITAL_COMPACT) {
+    if (role === 'operador_tecnico' || role === 'operator') {
+      return filterHierarchicalMenu(getOperadorTecnicoMenu(), role, userFlags);
+    }
     const menu = getSystemAdminMenu(role);
-    const isSystemAdmin = role === 'owner_system' || role === 'admin_sql' || role === 'admin';
-    if (isSystemAdmin) return menu;
+    const compactFullNav =
+      role === 'owner_system' ||
+      role === 'admin_sql' ||
+      role === 'admin' ||
+      role === 'operador_faturamento';
+    if (compactFullNav) return menu;
     return filterHierarchicalMenu(menu, role, userFlags);
   }
 
@@ -207,6 +303,10 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
       { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
       { text: 'Configurações', icon: <Settings />, path: '/settings' },
     ];
+  }
+
+  if (TOTEMDIGITAL_COMPACT && ownerLikeInCompact) {
+    return getCompactReorganizedAdminMenu();
   }
 
   /** Tráfego servidor ↔ totens / publicidades — junto de Configurações (Administração) para monitorização. */

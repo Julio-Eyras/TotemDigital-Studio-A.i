@@ -62,6 +62,7 @@ import {
   Link as LinkIcon,
   OpenInNew,
 } from '@mui/icons-material';
+import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import { 
   publisherApi, 
   Publisher, 
@@ -1344,20 +1345,24 @@ const Publishers: React.FC = () => {
             📢 Manter Publicadores
           </Typography>
           <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
-            Gerencie publicadores e suas informações
+            {TOTEMDIGITAL_COMPACT
+              ? 'No modo Compact existe um único publicador do sistema; os dados são apenas para consulta.'
+              : 'Gerencie publicadores e suas informações'}
           </Typography>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => setCreateDialogOpen(true)}
-          sx={{ 
-            backgroundColor: theme.palette.primary.main,
-            '&:hover': { backgroundColor: theme.palette.primary.dark }
-          }}
-        >
-          Adicionar Publicador
-        </Button>
+        {!TOTEMDIGITAL_COMPACT && (
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={() => setCreateDialogOpen(true)}
+            sx={{
+              backgroundColor: theme.palette.primary.main,
+              '&:hover': { backgroundColor: theme.palette.primary.dark },
+            }}
+          >
+            Adicionar Publicador
+          </Button>
+        )}
       </Box>
 
       {/* Filters */}
@@ -1422,11 +1427,15 @@ const Publishers: React.FC = () => {
             <PublisherCard
               publisher={publisher}
               onView={() => handleViewDetails(publisher)}
-              onEdit={() => {
-                setSelectedPublisher(publisher);
-                setEditDialogOpen(true);
-              }}
-              onDelete={() => handleDeletePublisher(publisher.publisher_id)}
+              onEdit={
+                TOTEMDIGITAL_COMPACT
+                  ? undefined
+                  : () => {
+                      setSelectedPublisher(publisher);
+                      setEditDialogOpen(true);
+                    }
+              }
+              onDelete={TOTEMDIGITAL_COMPACT ? undefined : () => handleDeletePublisher(publisher.publisher_id)}
             />
           </Grid>
         ))}
@@ -1441,15 +1450,15 @@ const Publishers: React.FC = () => {
               Nenhum publicador encontrado
             </Typography>
             <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 3 }}>
-              Comece adicionando seus primeiros publicadores
+              {TOTEMDIGITAL_COMPACT
+                ? 'No modo Compact o publicador do sistema é provisionado automaticamente.'
+                : 'Comece adicionando seus primeiros publicadores'}
             </Typography>
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={() => setCreateDialogOpen(true)}
-            >
-              Adicionar Primeiro Publicador
-            </Button>
+            {!TOTEMDIGITAL_COMPACT && (
+              <Button variant="contained" startIcon={<Add />} onClick={() => setCreateDialogOpen(true)}>
+                Adicionar Primeiro Publicador
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}
@@ -3241,10 +3250,14 @@ const Publishers: React.FC = () => {
         onClose={() => {
           setDetailsDialogOpen(false);
         }}
-        onEdit={(publisher) => {
-          setSelectedPublisher(publisher);
-          setEditDialogOpen(true);
-        }}
+        onEdit={
+          TOTEMDIGITAL_COMPACT
+            ? undefined
+            : (publisher) => {
+                setSelectedPublisher(publisher);
+                setEditDialogOpen(true);
+              }
+        }
       />
     </Box>
   );
