@@ -101,7 +101,7 @@ function filterHierarchicalMenu(
 
 /**
  * Menu lateral modo TotemDigital Compact (mono publicador): ordem e rótulos pedidos pelo produto.
- * Não inclui ramo "Exibidores" (publicador único); operação de telas permanece acessível por URLs existentes.
+ * Sem ramo "Exibidores"; locais/totens ficam em Administração. Planos & Acessos: item único como no compacto original.
  */
 function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
   const dispatcherBlock: HierarchicalMenuItem = {
@@ -142,18 +142,11 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
       children: [
         {
           text: 'Planos & Acessos',
-          icon: <Link />,
+          icon: <Assignment />,
           path: '/plan-publisher-access',
-          children: [
-            { text: 'Planos', icon: <Link />, path: '/plan-publisher-access' },
-            { text: 'Planos Expirados', icon: <Warning />, path: '/plan-publisher-access/expired' },
-            {
-              text: 'Acessos (Anunciante → Exibidor)',
-              icon: <Link />,
-              path: '/subscriber-publisher-access',
-            },
-          ],
         },
+        { text: 'Locais', icon: <LocationOn />, path: '/locals' },
+        { text: 'Totens', icon: <Computer />, path: '/totems' },
         {
           text: 'Faturamento e billing',
           icon: <Payment />,
