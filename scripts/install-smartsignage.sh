@@ -446,6 +446,7 @@ prepare_seed_with_owner_profile() {
 -- CARGA DEMO DINÂMICA (PRO/COMPACT)
 -- 3 planos (bronze/silver/gold), 6 locais, 13 totems (12 ativos + estoque inativo),
 -- 5 subscribers com 3 contratos por subscriber (active + draft + cancelled)
+-- Faturas demo: overdue / a vencer / paga + exibidor (semáforo financeiro)
 -- =============================================
 DO \$\$
 DECLARE
@@ -457,6 +458,7 @@ DECLARE
     v_silver_plan_id INTEGER;
     v_gold_plan_id INTEGER;
     v_subscriber_id INTEGER;
+    v_contract_id INTEGER;
     v_local_name TEXT;
     v_totem_name TEXT;
     v_subscriber_name TEXT;
@@ -732,6 +734,120 @@ BEGIN
               is_active = EXCLUDED.is_active,
               updated_at = CURRENT_TIMESTAMP;
     END LOOP;
+
+    -- Faturas demo para testar semáforo financeiro (cartões de anunciantes + painel Billing)
+    SELECT subscriber_id INTO v_subscriber_id
+    FROM subscribers WHERE email = 'subscriber.demo.01@totemdigital.local' LIMIT 1;
+    IF v_subscriber_id IS NOT NULL THEN
+        SELECT contract_id INTO v_contract_id
+        FROM subscriber_contracts
+        WHERE subscriber_id = v_subscriber_id AND status = 'active'
+        ORDER BY contract_id LIMIT 1;
+        INSERT INTO subscriber_billing (
+            subscriber_id, contract_id, period_start, period_end,
+            billing_type, amount, currency, direction, description,
+            invoice_number, payment_method, payment_status, due_date, is_active
+        ) VALUES (
+            v_subscriber_id, v_contract_id,
+            date_trunc('month', CURRENT_DATE)::date,
+            (date_trunc('month', CURRENT_DATE) + INTERVAL '1 month' - INTERVAL '1 day')::date,
+            'subscription', 1548.00, 'BRL', 'incoming',
+            'Mensalidade demo — vencida (semáforo vermelho)',
+            format('DEMO-SUB-%s-OVERDUE', v_subscriber_id),
+            'pix', 'overdue',
+            CURRENT_TIMESTAMP - INTERVAL '10 days',
+            true
+        )
+        ON CONFLICT (invoice_number) DO UPDATE SET
+            payment_status = EXCLUDED.payment_status,
+            due_date = EXCLUDED.due_date,
+            updated_at = CURRENT_TIMESTAMP;
+    END IF;
+
+    SELECT subscriber_id INTO v_subscriber_id
+    FROM subscribers WHERE email = 'subscriber.demo.02@totemdigital.local' LIMIT 1;
+    IF v_subscriber_id IS NOT NULL THEN
+        SELECT contract_id INTO v_contract_id
+        FROM subscriber_contracts
+        WHERE subscriber_id = v_subscriber_id AND status = 'active'
+        ORDER BY contract_id LIMIT 1;
+        INSERT INTO subscriber_billing (
+            subscriber_id, contract_id, period_start, period_end,
+            billing_type, amount, currency, direction, description,
+            invoice_number, payment_method, payment_status, due_date, is_active
+        ) VALUES (
+            v_subscriber_id, v_contract_id,
+            date_trunc('month', CURRENT_DATE)::date,
+            (date_trunc('month', CURRENT_DATE) + INTERVAL '1 month' - INTERVAL '1 day')::date,
+            'subscription', 2388.00, 'BRL', 'incoming',
+            'Mensalidade demo — a vencer (semáforo laranja)',
+            format('DEMO-SUB-%s-DUESOON', v_subscriber_id),
+            'pix', 'pending',
+            CURRENT_TIMESTAMP + INTERVAL '15 days',
+            true
+        )
+        ON CONFLICT (invoice_number) DO UPDATE SET
+            payment_status = EXCLUDED.payment_status,
+            due_date = EXCLUDED.due_date,
+            updated_at = CURRENT_TIMESTAMP;
+    END IF;
+
+    SELECT subscriber_id INTO v_subscriber_id
+    FROM subscribers WHERE email = 'subscriber.demo.03@totemdigital.local' LIMIT 1;
+    IF v_subscriber_id IS NOT NULL THEN
+        SELECT contract_id INTO v_contract_id
+        FROM subscriber_contracts
+        WHERE subscriber_id = v_subscriber_id AND status = 'active'
+        ORDER BY contract_id LIMIT 1;
+        INSERT INTO subscriber_billing (
+            subscriber_id, contract_id, period_start, period_end,
+            billing_type, amount, currency, direction, description,
+            invoice_number, payment_method, payment_status, due_date, payment_date, is_active
+        ) VALUES (
+            v_subscriber_id, v_contract_id,
+            date_trunc('month', CURRENT_DATE)::date,
+            (date_trunc('month', CURRENT_DATE) + INTERVAL '1 month' - INTERVAL '1 day')::date,
+            'subscription', 1548.00, 'BRL', 'incoming',
+            'Mensalidade demo — paga (semáforo verde)',
+            format('DEMO-SUB-%s-PAID', v_subscriber_id),
+            'pix', 'paid',
+            CURRENT_TIMESTAMP - INTERVAL '5 days',
+            CURRENT_TIMESTAMP - INTERVAL '2 days',
+            true
+        )
+        ON CONFLICT (invoice_number) DO UPDATE SET
+            payment_status = EXCLUDED.payment_status,
+            payment_date = EXCLUDED.payment_date,
+            updated_at = CURRENT_TIMESTAMP;
+    END IF;
+
+    -- Contrato a vencer em ~20 dias (anunciante 4 — semáforo laranja por contrato)
+    UPDATE subscriber_contracts sc
+    SET end_date = CURRENT_DATE + INTERVAL '20 days',
+        updated_at = CURRENT_TIMESTAMP
+    FROM subscribers s
+    WHERE sc.subscriber_id = s.subscriber_id
+      AND s.email = 'subscriber.demo.04@totemdigital.local'
+      AND sc.status = 'active'
+      AND sc.contract_number LIKE '%-BRONZE';
+
+    -- Mensalidade do exibidor (incoming) vencida
+    INSERT INTO publisher_billing (
+        publisher_id, billing_type, amount, currency, direction,
+        description, invoice_number, payment_method, payment_status, due_date, is_active
+    ) VALUES (
+        v_target_publisher_id,
+        'subscription', 299.00, 'BRL', 'incoming',
+        'Assinatura plataforma demo — vencida',
+        format('DEMO-PUB-%s-OVERDUE', v_target_publisher_id),
+        'pix', 'overdue',
+        CURRENT_TIMESTAMP - INTERVAL '7 days',
+        true
+    )
+    ON CONFLICT (invoice_number) DO UPDATE SET
+        payment_status = EXCLUDED.payment_status,
+        due_date = EXCLUDED.due_date,
+        updated_at = CURRENT_TIMESTAMP;
 END
 \$\$;
 
@@ -5696,6 +5812,72 @@ SQL
     return 0
 }
 
+# URL pública do painel (links em e-mails/PIX). Usa --public-host / layout dividido quando definidos.
+resolve_financial_public_app_url() {
+    local fin_url=""
+    local host="${PUBLIC_HOST:-}"
+    if [[ -z "$host" || "$host" == "_" ]]; then
+        host=$(hostname -I 2>/dev/null | awk '{print $1}')
+    fi
+    if [[ -n "$host" ]]; then
+        local sys_port="${SYSTEM_HTTP_PORT:-80}"
+        if [[ "${SPLIT_CORPORATE_AND_SYSTEM:-false}" == "true" ]] && [[ "$sys_port" != "80" ]]; then
+            fin_url="http://${host}:${sys_port}"
+        else
+            fin_url="http://${host}"
+        fi
+    fi
+    [[ -z "$fin_url" ]] && fin_url="http://localhost:8080"
+    printf '%s' "$fin_url"
+}
+
+# Bloco .env: financeiro, Stripe e SMTP (placeholders; preencher PIX/SMTP em produção).
+build_financial_env_block() {
+    local fin_url fin_webhook_secret
+    fin_url="$(resolve_financial_public_app_url)"
+    fin_webhook_secret="$(openssl rand -hex 24 2>/dev/null || echo "change-me-financial-webhook-secret")"
+    cat <<EOF
+
+# =============================================
+# STRIPE / PAGAMENTOS
+# =============================================
+STRIPE_ENABLED=false
+STRIPE_SECRET_KEY=
+STRIPE_PUBLISHABLE_KEY=
+STRIPE_WEBHOOK_SECRET=
+STRIPE_CURRENCY=brl
+STRIPE_API_VERSION=2024-11-20.acacia
+
+# =============================================
+# FINANCEIRO / PIX (faturas anunciantes e exibidor)
+# =============================================
+FINANCIAL_PIX_KEY=
+FINANCIAL_PIX_MERCHANT_NAME=SMART CHANNEL
+FINANCIAL_PIX_MERCHANT_CITY=SAO PAULO
+FINANCIAL_PIX_WEBHOOK_SECRET=${fin_webhook_secret}
+FINANCIAL_INVOICE_DUE_DAYS=7
+FINANCIAL_DUE_SOON_DAYS=30
+FINANCIAL_PUBLIC_APP_URL=${fin_url}
+FINANCIAL_WHATSAPP_NUMBER=
+FINANCIAL_WORKER_ENABLED=true
+FINANCIAL_CRON_ISSUE=30 2 * * *
+FINANCIAL_CRON_OVERDUE=30 3 * * *
+FINANCIAL_CRON_REMINDERS=0 9 * * *
+
+# =============================================
+# E-MAIL (lembretes financeiros e notificações)
+# =============================================
+EMAIL_ENABLED=false
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=
+SMTP_PASS=
+SMTP_FROM=Smart Signage <noreply@smartsignage.com>
+SMTP_TLS_REJECT_UNAUTHORIZED=true
+EOF
+}
+
 # Aplicar schemas adicionais (export/export views)
 # Configurar variáveis de ambiente
 setup_environment() {
@@ -5733,6 +5915,9 @@ setup_environment() {
     
     # Gerar UIN único
     UIN=$(date +%s)$(cat /sys/class/net/eth0/address 2>/dev/null | tr -d ':' || echo "000000000000")
+
+    local FINANCIAL_ENV_BLOCK
+    FINANCIAL_ENV_BLOCK="$(build_financial_env_block)"
 
     local CORS_SPLIT_ORIGIN=""
     if [[ "${SPLIT_CORPORATE_AND_SYSTEM:-false}" == "true" ]]; then
@@ -5820,9 +6005,11 @@ SMARTDISPLAYFX_MQTT_WS_URL=${MQTT_WS_URL_DEFAULT}
 SMARTDISPLAYFX_MQTT_USERNAME=${MQTT_BACKEND_USERNAME}
 SMARTDISPLAYFX_MQTT_PASSWORD=${MQTT_BACKEND_PASSWORD}
 SMARTDISPLAYFX_MQTT_PREFIX=smartdisplay
+${FINANCIAL_ENV_BLOCK}
 EOF
 
     log "Variáveis de ambiente configuradas em $ENV_FILE"
+    log "Financeiro: FINANCIAL_PUBLIC_APP_URL=$(resolve_financial_public_app_url) (defina FINANCIAL_PIX_KEY no .env para PIX real)"
     
     # Também criar .env no diretório backend para garantir que seja lido
     BACKEND_ENV_FILE="$INSTALL_DIR/backend/.env"
@@ -5903,6 +6090,7 @@ SMARTDISPLAYFX_MQTT_WS_URL=${MQTT_WS_URL_DEFAULT}
 SMARTDISPLAYFX_MQTT_USERNAME=${MQTT_BACKEND_USERNAME}
 SMARTDISPLAYFX_MQTT_PASSWORD=${MQTT_BACKEND_PASSWORD}
 SMARTDISPLAYFX_MQTT_PREFIX=smartdisplay
+${FINANCIAL_ENV_BLOCK}
 EOF
         }
         log "✅ .env criado no diretório backend: $BACKEND_ENV_FILE"

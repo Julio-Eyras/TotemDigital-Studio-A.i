@@ -293,9 +293,23 @@ async function validateAndExecute() {
       const overduePub = await pool.query(`
         SELECT COUNT(*)::int AS c FROM publisher_billing WHERE payment_status = 'overdue'
       `);
+      const subOverdue = overdueSub.rows[0].c;
+      const pubOverdue = overduePub.rows[0].c;
       console.log(
-        `  ℹ️  Faturas overdue: anunciantes=${overdueSub.rows[0].c}, exibidor=${overduePub.rows[0].c}`
+        `  ℹ️  Faturas overdue: anunciantes=${subOverdue}, exibidor=${pubOverdue}`
       );
+      if (process.env.VALIDATE_V6_SKIP_LOAD === 'true' || process.env.VALIDATE_V6_SKIP_LOAD === '1') {
+        const subTotal = await pool.query(`SELECT COUNT(*)::int AS c FROM subscribers`);
+        if (subTotal.rows[0].c >= 3) {
+          if (subOverdue >= 1 && pubOverdue >= 1) {
+            console.log('  ✅ Seeds demo financeiros (semáforo vermelho testável)');
+          } else {
+            console.log(
+              '  ⚠️  Seeds demo financeiros incompletos — execute: bash scripts/install-smartsignage.sh --seeds-only --load-seeds'
+            );
+          }
+        }
+      }
     } catch (error) {
       console.log(`  ⚠️  Contagem overdue: ${error.message}`);
     }
