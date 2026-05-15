@@ -3,6 +3,8 @@
  * Define quais recursos cada role pode acessar
  */
 
+import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+
 export type UserRole = 
   | 'owner_system' 
   | 'admin_sql' 
@@ -160,6 +162,18 @@ export function canAccess(
   // Owner system sempre tem acesso (exceto se explicitamente negado)
   if (userRole === 'owner_system') {
     return true;
+  }
+
+  // Modo compacto mono: o publicador dono acede ao dispatcher/monitorização sem depender de flag_smart_2
+  if (TOTEMDIGITAL_COMPACT && userRole === 'publisher_user') {
+    if (
+      path === '/dispatcher-manager' ||
+      path === '/dispatcher-monitor' ||
+      path === '/dispatcher-debug' ||
+      path.startsWith('/dispatcher-manager')
+    ) {
+      return true;
+    }
   }
 
   // Buscar permissão exata

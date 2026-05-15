@@ -8,14 +8,19 @@ import { query, validationResult } from 'express-validator';
 import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
 import { dispatcherDebugService } from '../services/dispatcherDebugService';
 import { logError } from '../utils/loggerHelper';
+import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
 
 const router = Router();
 
 // Middleware de autenticação
 router.use(authMiddleware);
 
-// Apenas admins e operadores técnicos podem acessar debug
-router.use(authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_tecnico']) as any);
+const DISPATCHER_DEBUG_ROLES = TOTEMDIGITAL_COMPACT
+  ? (['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'publisher_user'] as const)
+  : (['admin', 'admin_sql', 'owner_system', 'operador_tecnico'] as const);
+
+// Apenas admins e operadores técnicos podem aceder ao debug; em modo compacto também o publicador dono
+router.use(authorizeRole([...DISPATCHER_DEBUG_ROLES]) as any);
 
 const validateRequest = (req: any, res: any, next: any) => {
   const errors = validationResult(req);

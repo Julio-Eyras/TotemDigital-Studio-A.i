@@ -106,7 +106,10 @@ export const getMenuHierarchyByRole = (
   userFlags?: UserFlags | null
 ): HierarchicalMenuItem[] => {
   if (TOTEMDIGITAL_COMPACT) {
-    return getSystemAdminMenu(role);
+    const menu = getSystemAdminMenu(role);
+    const isSystemAdmin = role === 'owner_system' || role === 'admin_sql' || role === 'admin';
+    if (isSystemAdmin) return menu;
+    return filterHierarchicalMenu(menu, role, userFlags);
   }
 
   let menu: HierarchicalMenuItem[] = [];
@@ -182,10 +185,6 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
       { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
       { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
       { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
-      { text: 'Dispatcher — gerir', icon: <Shuffle />, path: '/dispatcher-manager' },
-      { text: 'Dispatcher — monitor', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
-      { text: 'Dispatcher — debug', icon: <BugReport />, path: '/dispatcher-debug' },
-      { text: 'Dispatcher — timeline', icon: <ViewTimeline />, path: '/dispatcher-manager?tab=timeline' },
       { text: 'Configurações', icon: <Settings />, path: '/settings' },
     ];
   }

@@ -9,11 +9,16 @@ import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middlewa
 import { getDispatcherTotemService } from '../services/dispatcherTotemService';
 import { logError } from '../utils/loggerHelper';
 import { idParamValidator } from '../validators/common.validators';
+import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
 
 const router = Router();
 
 // Middleware de autenticação
 router.use(authMiddleware);
+
+const DISPATCHER_TOTEM_TECH_ROLES = TOTEMDIGITAL_COMPACT
+  ? (['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial', 'publisher_user'] as const)
+  : (['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial'] as const);
 
 const validateRequest = (req: any, res: any, next: any) => {
   const errors = validationResult(req);
@@ -175,7 +180,7 @@ router.get('/:totemId/candidates',
   query('timestamp').optional().isISO8601().withMessage('timestamp deve ser uma data ISO8601 válida'),
   query('timezone').optional().isString().withMessage('timezone deve ser uma string'),
   validateRequest,
-  authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial']) as any,
+  authorizeRole([...DISPATCHER_TOTEM_TECH_ROLES]) as any,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.totemId);
@@ -215,7 +220,7 @@ router.get(
   '/:totemId/diagnostics',
   ...idParamValidator('totemId'),
   validateRequest,
-  authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial']) as any,
+  authorizeRole([...DISPATCHER_TOTEM_TECH_ROLES]) as any,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.totemId);
@@ -241,7 +246,7 @@ router.get(
  * @access Private (Admin, Admin SQL)
  */
 router.get('/cache/config',
-  authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial']) as any,
+  authorizeRole([...DISPATCHER_TOTEM_TECH_ROLES]) as any,
   async (_req: AuthenticatedRequest, res: Response) => {
     try {
       const dispatcher = getDispatcherTotemService();
@@ -268,7 +273,7 @@ router.get('/cache/config',
  * @access Private (Admin, Admin SQL)
  */
 router.post('/cache/config',
-  authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial']) as any,
+  authorizeRole([...DISPATCHER_TOTEM_TECH_ROLES]) as any,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { enabled, ttlSeconds, maxSize } = req.body;

@@ -122,7 +122,7 @@ ON CONFLICT (user_id) DO UPDATE SET
 INSERT INTO role_flags_default (role, flag_smart_0, flag_smart_1, flag_smart_2, flag_smart_3, flag_smart_4, flag_smart_5, flag_smart_6, flag_smart_7, flag_smart_8, flag_smart_9) VALUES
 ('owner_system', true, true, true, true, true, true, true, true, true, true),
 ('admin', true, false, true, true, true, true, true, true, true, true),
-('publisher_user', true, false, false, true, false, true, true, false, true, false),
+('publisher_user', true, false, true, true, false, true, true, false, true, false),
 ('subscriber_user', false, false, false, false, false, false, true, false, false, true)
 ON CONFLICT (role) DO NOTHING;
 
