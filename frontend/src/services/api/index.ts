@@ -3086,6 +3086,13 @@ export interface Subscriber {
   campaign_count?: number;
   storage_used_gb?: number;
   storage_limit_gb?: number;
+  contract_alert_level?: 'error' | 'warning' | 'success' | 'neutral';
+  contract_alert_label?: string;
+  days_until_contract_end?: number | null;
+  financial_alert_level?: 'error' | 'warning' | 'success' | 'neutral';
+  financial_alert_label?: string;
+  has_billing_overdue?: boolean;
+  has_billing_due_soon?: boolean;
 }
 
 export interface CreateSubscriberRequest {
@@ -3937,6 +3944,8 @@ export const subscriberBillingApi = {
     campaignId?: number;
     billingType?: string;
     status?: string;
+    dueFilter?: 'overdue' | 'due_soon';
+    dueSoonDays?: number;
     startDate?: string;
     endDate?: string;
     search?: string;
@@ -4036,6 +4045,8 @@ export const publisherBillingApi = {
     billingType?: string;
     direction?: 'incoming' | 'outgoing';
     paymentStatus?: string;
+    dueFilter?: 'overdue' | 'due_soon';
+    dueSoonDays?: number;
     startDate?: string;
     endDate?: string;
     search?: string;
@@ -4094,6 +4105,115 @@ export const publisherBillingApi = {
   ): Promise<PublisherBillingItem> => {
     const response = await api.put(`/publisher-billing/${id}`, payload);
     return response.data.data;
+  },
+};
+
+// =============================================
+// BILLING CONTROL API (painel unificado)
+// =============================================
+
+export interface BillingControlDashboard {
+  dueSoonDays: number;
+  subscriberBilling: {
+    total: number;
+    pending: number;
+    paid: number;
+    overdue: number;
+    dueSoon: number;
+    pendingAmount: number;
+    overdueAmount: number;
+    dueSoonAmount: number;
+    paidAmount: number;
+    totalAmount: number;
+    byType?: Array<{ type: string; count: number; amount: number }>;
+  };
+  publisherBilling: {
+    total: number;
+    pending: number;
+    paid: number;
+    overdue: number;
+    dueSoon: number;
+    pendingAmount: number;
+    overdueAmount: number;
+    dueSoonAmount: number;
+    totalIncoming?: number;
+    totalOutgoing?: number;
+  };
+  contracts: {
+    total: number;
+    active: number;
+    expired: number;
+    expiringSoon: number;
+    withoutEndDate: number;
+  };
+  contractsExpiringSoon: Array<{
+    contract_id: number;
+    contract_number: string;
+    title: string;
+    subscriber_name: string | null;
+    end_date: string;
+    days_until_end: number;
+  }>;
+  contractsExpired: Array<{
+    contract_id: number;
+    contract_number: string;
+    title: string;
+    subscriber_name: string | null;
+    end_date: string | null;
+    days_past_end: number;
+  }>;
+}
+
+export const financialAdminApi = {
+  issueInvoices: async (payload?: {
+    subscriberId?: number;
+    contractId?: number;
+    dueInDays?: number;
+  }): Promise<{
+    created: number;
+    skipped: number;
+    errors: Array<{ contractId: number; message: string }>;
+    invoices: Array<{ billingId: number; contractId: number; invoiceNumber: string }>;
+  }> => {
+    const response = await api.post('/financial-admin/issue-invoices', payload || {});
+    return response.data.data || response.data;
+  },
+
+  recordPayment: async (
+    billingId: number,
+    payload?: {
+      amount?: number;
+      paymentMethod?: string;
+      paymentReference?: string;
+      notes?: string;
+    }
+  ) => {
+    const response = await api.post(`/financial-admin/subscriber-billing/${billingId}/record-payment`, payload || {});
+    return response.data.data || response.data;
+  },
+
+  getPaymentQr: async (billingId: number): Promise<{
+    copyPaste: string;
+    qrDataUrl: string;
+    amount: number;
+    currency: string;
+    invoiceNumber?: string;
+    dueDate?: string;
+    pixConfigured: boolean;
+  }> => {
+    const response = await api.get(`/financial-admin/subscriber-billing/${billingId}/payment-qr`);
+    return response.data.data || response.data;
+  },
+};
+
+export const billingControlApi = {
+  getDashboard: async (params?: {
+    subscriberId?: number;
+    publisherId?: number;
+    dueSoonDays?: number;
+  }): Promise<BillingControlDashboard> => {
+    const response = await api.get('/billing-control/dashboard', { params });
+    return response.data.data || response.data;
   },
 };
 

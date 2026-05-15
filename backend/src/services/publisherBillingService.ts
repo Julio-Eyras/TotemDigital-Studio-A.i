@@ -83,11 +83,13 @@ export interface PublisherBillingStats {
   pending: number;
   paid: number;
   overdue: number;
+  dueSoon: number;
   cancelled: number;
   totalAmount: number;
   pendingAmount: number;
   paidAmount: number;
   overdueAmount: number;
+  dueSoonAmount: number;
   totalOutgoing: number; // Publisher recebe
   totalIncoming: number; // Publisher paga
   byType: { type: string; count: number; amount: number }[];
@@ -126,6 +128,8 @@ export class PublisherBillingService {
       billingType?: string;
       direction?: 'incoming' | 'outgoing';
       paymentStatus?: string;
+      dueFilter?: 'overdue' | 'due_soon';
+      dueSoonDays?: number;
       startDate?: string;
       endDate?: string;
       search?: string;
@@ -164,6 +168,18 @@ export class PublisherBillingService {
       if (filters.paymentStatus) {
         whereClause += ' AND pb.payment_status = $' + (params.length + 1);
         params.push(filters.paymentStatus);
+      }
+
+      if (filters.dueFilter === 'overdue') {
+        whereClause += ` AND pb.payment_status IN ('pending', 'pending_payout')
+          AND pb.due_date IS NOT NULL AND pb.due_date < CURRENT_DATE`;
+      } else if (filters.dueFilter === 'due_soon') {
+        const days = Math.min(Math.max(filters.dueSoonDays ?? 30, 1), 365);
+        whereClause += ` AND pb.payment_status IN ('pending', 'pending_payout')
+          AND pb.due_date IS NOT NULL
+          AND pb.due_date >= CURRENT_DATE
+          AND pb.due_date <= CURRENT_DATE + ($${params.length + 1}::int * INTERVAL '1 day')`;
+        params.push(days);
       }
 
       if (filters.startDate) {
@@ -214,14 +230,29 @@ export class PublisherBillingService {
           c.title as "campaignTitle",
           t.name as "totemName",
           CASE 
-            WHEN pb.payment_status IN ('pending', 'pending_payout') AND pb.due_date < CURRENT_DATE THEN true
+            WHEN pb.payment_status IN ('pending', 'pending_payout') AND pb.due_date IS NOT NULL AND pb.due_date < CURRENT_DATE THEN true
             ELSE false
           END as "isOverdue",
           CASE 
-            WHEN pb.payment_status IN ('pending', 'pending_payout') AND pb.due_date < CURRENT_DATE 
+            WHEN pb.payment_status IN ('pending', 'pending_payout') AND pb.due_date IS NOT NULL AND pb.due_date < CURRENT_DATE 
             THEN EXTRACT(DAY FROM CURRENT_DATE - pb.due_date)::int
             ELSE 0
-          END as "daysOverdue"
+          END as "daysOverdue",
+          CASE
+            WHEN pb.payment_status IN ('pending', 'pending_payout')
+              AND pb.due_date IS NOT NULL
+              AND pb.due_date >= CURRENT_DATE
+              AND pb.due_date <= CURRENT_DATE + (30 * INTERVAL '1 day')
+            THEN true
+            ELSE false
+          END as "isDueSoon",
+          CASE
+            WHEN pb.payment_status IN ('pending', 'pending_payout')
+              AND pb.due_date IS NOT NULL
+              AND pb.due_date >= CURRENT_DATE
+            THEN GREATEST(0, EXTRACT(DAY FROM pb.due_date - CURRENT_DATE)::int)
+            ELSE NULL
+          END as "daysUntilDue"
         FROM publisher_billing pb
         LEFT JOIN publishers p ON pb.publisher_id = p.publisher_id
         LEFT JOIN campaigns c ON pb.campaign_id = c.campaign_id
@@ -566,8 +597,11 @@ export class PublisherBillingService {
   /**
    * Obter estatísticas de billing de publishers
    */
-  async getBillingStats(filters?: { publisherId?: number; startDate?: string; endDate?: string }): Promise<PublisherBillingStats> {
+  async getBillingStats(
+    filters?: { publisherId?: number; startDate?: string; endDate?: string; dueSoonDays?: number }
+  ): Promise<PublisherBillingStats> {
     try {
+      const dueSoonDays = Math.min(Math.max(filters?.dueSoonDays ?? 30, 1), 365);
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
 
@@ -586,28 +620,43 @@ export class PublisherBillingService {
         params.push(filters.endDate);
       }
 
+      const extra = whereClause.replace('WHERE 1=1', '');
+
       const totalResult = await this.db.findFirst(`
         SELECT COUNT(*) as total FROM publisher_billing pb ${whereClause}
       `, params);
 
       const pendingResult = await this.db.findFirst(`
         SELECT COUNT(*) as count FROM publisher_billing pb 
-        WHERE payment_status IN ('pending', 'pending_payout') ${whereClause.replace('WHERE 1=1', '')}
+        WHERE pb.payment_status IN ('pending', 'pending_payout') ${extra}
       `, params);
 
       const paidResult = await this.db.findFirst(`
         SELECT COUNT(*) as count FROM publisher_billing pb 
-        WHERE payment_status = 'paid' ${whereClause.replace('WHERE 1=1', '')}
+        WHERE pb.payment_status = 'paid' ${extra}
       `, params);
 
       const overdueResult = await this.db.findFirst(`
         SELECT COUNT(*) as count FROM publisher_billing pb 
-        WHERE payment_status IN ('pending', 'pending_payout') AND due_date < CURRENT_DATE ${whereClause.replace('WHERE 1=1', '')}
+        WHERE pb.payment_status IN ('pending', 'pending_payout')
+          AND pb.due_date IS NOT NULL AND pb.due_date < CURRENT_DATE ${extra}
       `, params);
+
+      const dueSoonResult = await this.db.findFirst(
+        `
+        SELECT COUNT(*) as count FROM publisher_billing pb
+        WHERE pb.payment_status IN ('pending', 'pending_payout')
+          AND pb.due_date IS NOT NULL
+          AND pb.due_date >= CURRENT_DATE
+          AND pb.due_date <= CURRENT_DATE + ($${params.length + 1}::int * INTERVAL '1 day')
+          ${extra}
+      `,
+        [...params, dueSoonDays]
+      );
 
       const cancelledResult = await this.db.findFirst(`
         SELECT COUNT(*) as count FROM publisher_billing pb 
-        WHERE payment_status = 'cancelled' ${whereClause.replace('WHERE 1=1', '')}
+        WHERE pb.payment_status = 'cancelled' ${extra}
       `, params);
 
       const totalAmountResult = await this.db.findFirst(`
@@ -616,18 +665,31 @@ export class PublisherBillingService {
 
       const pendingAmountResult = await this.db.findFirst(`
         SELECT COALESCE(SUM(amount), 0) as total FROM publisher_billing pb 
-        WHERE payment_status IN ('pending', 'pending_payout') ${whereClause.replace('WHERE 1=1', '')}
+        WHERE pb.payment_status IN ('pending', 'pending_payout') ${extra}
       `, params);
 
       const paidAmountResult = await this.db.findFirst(`
         SELECT COALESCE(SUM(amount), 0) as total FROM publisher_billing pb 
-        WHERE payment_status = 'paid' ${whereClause.replace('WHERE 1=1', '')}
+        WHERE pb.payment_status = 'paid' ${extra}
       `, params);
 
       const overdueAmountResult = await this.db.findFirst(`
         SELECT COALESCE(SUM(amount), 0) as total FROM publisher_billing pb 
-        WHERE payment_status IN ('pending', 'pending_payout') AND due_date < CURRENT_DATE ${whereClause.replace('WHERE 1=1', '')}
+        WHERE pb.payment_status IN ('pending', 'pending_payout')
+          AND pb.due_date IS NOT NULL AND pb.due_date < CURRENT_DATE ${extra}
       `, params);
+
+      const dueSoonAmountResult = await this.db.findFirst(
+        `
+        SELECT COALESCE(SUM(amount), 0) as total FROM publisher_billing pb
+        WHERE pb.payment_status IN ('pending', 'pending_payout')
+          AND pb.due_date IS NOT NULL
+          AND pb.due_date >= CURRENT_DATE
+          AND pb.due_date <= CURRENT_DATE + ($${params.length + 1}::int * INTERVAL '1 day')
+          ${extra}
+      `,
+        [...params, dueSoonDays]
+      );
 
       const totalOutgoingResult = await this.db.findFirst(`
         SELECT COALESCE(SUM(amount), 0) as total FROM publisher_billing pb 
@@ -690,11 +752,13 @@ export class PublisherBillingService {
         pending: parseInt(pendingResult?.count || '0'),
         paid: parseInt(paidResult?.count || '0'),
         overdue: parseInt(overdueResult?.count || '0'),
+        dueSoon: parseInt(dueSoonResult?.count || '0'),
         cancelled: parseInt(cancelledResult?.count || '0'),
         totalAmount: parseFloat(totalAmountResult?.total || '0'),
         pendingAmount: parseFloat(pendingAmountResult?.total || '0'),
         paidAmount: parseFloat(paidAmountResult?.total || '0'),
         overdueAmount: parseFloat(overdueAmountResult?.total || '0'),
+        dueSoonAmount: parseFloat(dueSoonAmountResult?.total || '0'),
         totalOutgoing: parseFloat(totalOutgoingResult?.total || '0'),
         totalIncoming: parseFloat(totalIncomingResult?.total || '0'),
         byType: byType.map(t => ({ type: t.type, count: parseInt(t.count), amount: parseFloat(t.amount) })),

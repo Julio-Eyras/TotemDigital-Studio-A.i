@@ -10,6 +10,8 @@ import analyticsRoutes from '../routes/analytics';
 import billingRoutes from '../routes/billing';
 import subscriberBillingRoutes from '../routes/subscriber-billing';
 import publisherBillingRoutes from '../routes/publisher-billing';
+import billingControlRoutes from '../routes/billing-control';
+import financialAdminRoutes from '../routes/financial-admin';
 import plansRoutes from '../routes/plans';
 import subscriptionsRoutes from '../routes/subscriptions';
 import reportsRoutes from '../routes/reports';
@@ -66,6 +68,8 @@ export function registerProRoutes(app: Express): void {
 
   app.use('/api/subscriber-billing', authMiddleware as any, blockClientDataAccess as any, subscriberBillingRoutes);
   app.use('/api/publisher-billing', authMiddleware as any, publisherBillingRoutes);
+  app.use('/api/billing-control', authMiddleware as any, blockClientDataAccess as any, billingControlRoutes);
+  app.use('/api/financial-admin', authMiddleware as any, blockClientDataAccess as any, financialAdminRoutes);
   app.use('/api/plans', plansRoutes);
   app.use('/api/subscriptions', subscriptionsRoutes);
   app.use('/api/reports', blockClientDataAccess as any, reportsRoutes);

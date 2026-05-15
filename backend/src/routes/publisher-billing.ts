@@ -44,10 +44,26 @@ router.get('/',
   query('billingType').optional({ checkFalsy: true }).isIn(['revenue_share', 'payout', 'subscription', 'platform_fee']),
   query('direction').optional({ checkFalsy: true }).isIn(['incoming', 'outgoing']),
   query('paymentStatus').optional({ checkFalsy: true }).isIn(['pending', 'pending_payout', 'paid', 'failed', 'refunded', 'cancelled']),
+  query('dueFilter').optional({ checkFalsy: true }).isIn(['overdue', 'due_soon']),
+  query('dueSoonDays').optional({ checkFalsy: true }).isInt({ min: 1, max: 365 }),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { page = 1, limit = 20, publisherId, campaignId, totemId, billingType, direction, paymentStatus, startDate, endDate, search } = req.query;
+      const {
+        page = 1,
+        limit = 20,
+        publisherId,
+        campaignId,
+        totemId,
+        billingType,
+        direction,
+        paymentStatus,
+        dueFilter,
+        dueSoonDays,
+        startDate,
+        endDate,
+        search,
+      } = req.query;
       
       // Validar acesso: publisher só pode ver suas próprias faturas
       if (!req.user) {
@@ -80,9 +96,11 @@ router.get('/',
           billingType: billingType as string,
           direction: direction as 'incoming' | 'outgoing' | undefined,
           paymentStatus: paymentStatus as string,
+          dueFilter: dueFilter as 'overdue' | 'due_soon' | undefined,
+          dueSoonDays: dueSoonDays ? parseInt(dueSoonDays as string, 10) : undefined,
           startDate: startDate as string,
           endDate: endDate as string,
-          search: search as string
+          search: search as string,
         }
       );
 
@@ -105,7 +123,11 @@ router.get('/',
           created_at: b.createdAt,
           updated_at: b.updatedAt,
           description: b.description,
-          metadata: b.metadata
+          metadata: b.metadata,
+          is_overdue: b.isOverdue,
+          days_overdue: b.daysOverdue,
+          is_due_soon: b.isDueSoon,
+          days_until_due: b.daysUntilDue,
         })),
         total: result.total || 0,
         page: result.page || parseInt(page as string) || 1,

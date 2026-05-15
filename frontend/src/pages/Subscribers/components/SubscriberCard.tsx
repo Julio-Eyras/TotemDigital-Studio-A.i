@@ -32,6 +32,10 @@ import {
   Storage,
 } from '@mui/icons-material';
 import { Subscriber } from '../../../services/api';
+import {
+  getSubscriberListContractAlert,
+  subscriberAlertCardSx,
+} from '../subscriberContractHealth';
 
 export interface SubscriberCardProps {
   subscriber: Subscriber;
@@ -59,6 +63,8 @@ const SubscriberCard: React.FC<SubscriberCardProps> = ({
       ? `${storageUsedGB.toFixed(2)} / ${storageLimitGB} GB`
       : `${storageUsedGB.toFixed(2)} GB usados`;
 
+  const contractAlert = getSubscriberListContractAlert(subscriber);
+
   const metricItems = [
     { label: 'Contratos', value: activeContracts, icon: <Article fontSize="small" color="action" /> },
     { label: 'Mídias', value: mediaCount, icon: <VideoLibrary fontSize="small" color="action" /> },
@@ -68,11 +74,13 @@ const SubscriberCard: React.FC<SubscriberCardProps> = ({
 
   return (
     <Card
+      variant="outlined"
       sx={{
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
         transition: 'transform 0.2s, box-shadow 0.2s',
+        ...subscriberAlertCardSx(contractAlert.health),
         '&:hover': {
           transform: 'translateY(-4px)',
           boxShadow: 4,
@@ -95,12 +103,29 @@ const SubscriberCard: React.FC<SubscriberCardProps> = ({
             <Typography variant="h6" component="div" noWrap>
               {subscriber.name}
             </Typography>
-            <Chip
-              label={subscriber.is_active ? 'Ativo' : 'Inativo'}
-              size="small"
-              color={subscriber.is_active ? 'success' : 'default'}
-              sx={{ mt: 0.5 }}
-            />
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
+              <Chip
+                label={subscriber.is_active ? 'Ativo' : 'Inativo'}
+                size="small"
+                color={subscriber.is_active ? 'success' : 'default'}
+              />
+              <Tooltip title={contractAlert.tooltip}>
+                <Chip
+                  label={contractAlert.chipLabel}
+                  size="small"
+                  color={
+                    contractAlert.health === 'error'
+                      ? 'error'
+                      : contractAlert.health === 'warning'
+                        ? 'warning'
+                        : contractAlert.health === 'success'
+                          ? 'success'
+                          : 'default'
+                  }
+                  variant={contractAlert.health === 'success' ? 'outlined' : 'filled'}
+                />
+              </Tooltip>
+            </Box>
           </Box>
         </Box>
 

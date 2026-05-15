@@ -47,8 +47,25 @@ import {
   CheckCircle,
   Cancel as CancelIcon,
   Schedule,
+  QrCode2,
+  ReceiptLong,
 } from '@mui/icons-material';
-import { billingApi, BillingItem, CreateBillingRequest, subscriberBillingApi, SubscriberBillingItem, SubscriberBillingListResponse, publisherBillingApi, PublisherBillingItem, PublisherBillingListResponse } from '../../services/api';
+import {
+  billingControlApi,
+  BillingControlDashboard,
+  financialAdminApi,
+  subscriberBillingApi,
+  SubscriberBillingItem,
+  publisherBillingApi,
+  PublisherBillingItem,
+} from '../../services/api';
+import BillingControlPanel from './BillingControlPanel';
+import FinancialInvoiceDialog, { FinancialDialogMode } from './FinancialInvoiceDialog';
+import {
+  getInvoiceDueAlertLevel,
+  getInvoiceDueLabel,
+  invoiceRowSx,
+} from '../../utils/billingDueStatus';
 import { planApi, Plan, subscriptionApi, Subscription } from '../../services/api';
 import { useNotification } from '../../hooks/useNotification';
 import { useSearchParams } from 'react-router-dom';
@@ -91,30 +108,37 @@ const Billing: React.FC = () => {
   const canCreateModernInvoices =
     canViewAllBillingTypes || (TOTEMDIGITAL_COMPACT && isPublisherUser);
 
+  const DUE_SOON_DAYS = 30;
   const rawType = searchParams.get('type');
-  /** Escopo de listagens: anunciantes, publicadores ou ambos (só admins faturamento). */
+  /** Escopo: anunciantes ou exibidor (sem legado "todos"). */
   const billingType = (() => {
     if (isSubscriberUser) return 'subscriber';
     if (isPublisherUser && !canViewAllBillingTypes) {
       return rawType === 'subscriber' || rawType === 'publisher' ? rawType : 'publisher';
     }
-    return rawType || 'all';
+    if (TOTEMDIGITAL_COMPACT) return rawType === 'publisher' ? 'publisher' : 'subscriber';
+    return rawType === 'publisher' ? 'publisher' : 'subscriber';
   })();
   
   const [tabValue, setTabValue] = useState(0);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [items, setItems] = useState<BillingItem[]>([]);
+  const [dashboard, setDashboard] = useState<BillingControlDashboard | null>(null);
   const [subscriberBillings, setSubscriberBillings] = useState<SubscriberBillingItem[]>([]);
   const [publisherBillings, setPublisherBillings] = useState<PublisherBillingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
   const [createSubscriberOpen, setCreateSubscriberOpen] = useState(false);
   const [createPublisherOpen, setCreatePublisherOpen] = useState(false);
   const [subscribeOpen, setSubscribeOpen] = useState(false);
+  const [financialDialog, setFinancialDialog] = useState<{
+    open: boolean;
+    mode: FinancialDialogMode;
+    billingId: number | null;
+    amount?: number;
+  }>({ open: false, mode: 'pay', billingId: null });
+  const [issuingInvoices, setIssuingInvoices] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
-  const [newBill, setNewBill] = useState<CreateBillingRequest>({ billing_type: 'subscription', amount: 0 });
   const [newSubscriberInvoice, setNewSubscriberInvoice] = useState({
     subscriberId: '',
     billingType: 'advertisement' as
@@ -177,6 +201,7 @@ const Billing: React.FC = () => {
     limit: 20,
     status: '',
     billingType: '',
+    dueFilter: '' as '' | 'overdue' | 'due_soon',
     startDate: '',
     endDate: '',
     search: '',
@@ -188,6 +213,7 @@ const Billing: React.FC = () => {
     paymentStatus: '',
     billingType: '',
     direction: '',
+    dueFilter: '' as '' | 'overdue' | 'due_soon',
     startDate: '',
     endDate: '',
     search: '',
@@ -197,16 +223,28 @@ const Billing: React.FC = () => {
     loadAll();
   }, [billingType]);
 
+  const loadDashboard = async () => {
+    try {
+      const data = await billingControlApi.getDashboard({
+        dueSoonDays: DUE_SOON_DAYS,
+        publisherId:
+          TOTEMDIGITAL_COMPACT && user?.publisherId != null ? Number(user.publisherId) : undefined,
+      });
+      setDashboard(data);
+    } catch {
+      setDashboard(null);
+    }
+  };
+
   const loadAll = async () => {
     try {
       setLoading(true);
       await Promise.all([
+        loadDashboard(),
         loadPlans(),
-        // Subscriptions são apenas para publishers (subscriber_user não deve carregar)
         isSubscriberUser ? Promise.resolve() : loadSubscriptions(),
-        billingType === 'all' || billingType === 'subscriber' ? loadSubscriberBillings() : Promise.resolve(),
-        billingType === 'all' || billingType === 'publisher' ? loadPublisherBillings() : Promise.resolve(),
-        billingType === 'all' ? loadBillings() : Promise.resolve(),
+        billingType === 'subscriber' ? loadSubscriberBillings() : Promise.resolve(),
+        billingType === 'publisher' ? loadPublisherBillings() : Promise.resolve(),
       ]);
     } catch (e) {
       setError('Erro ao carregar dados');
@@ -237,23 +275,13 @@ const Billing: React.FC = () => {
     }
   };
 
-  const loadBillings = async () => {
-    try {
-      const resp = await billingApi.getAll();
-      const itemsArray = Array.isArray(resp) ? resp : [];
-      const normalizedItems = itemsArray.map(item => ({
-        ...item,
-        amount: typeof item.amount === 'number' ? item.amount : parseFloat(String(item.amount || 0))
-      }));
-      setItems(normalizedItems);
-    } catch (e) {
-      showError('Erro ao carregar faturas');
-    }
-  };
-
   const loadSubscriberBillings = async () => {
     try {
-      const response = await subscriberBillingApi.getAll(subscriberFilters);
+      const response = await subscriberBillingApi.getAll({
+        ...subscriberFilters,
+        dueFilter: subscriberFilters.dueFilter || undefined,
+        dueSoonDays: subscriberFilters.dueFilter === 'due_soon' ? DUE_SOON_DAYS : undefined,
+      });
       setSubscriberBillings(response.billings || []);
     } catch (e) {
       showError('Erro ao carregar faturas de assinantes');
@@ -262,32 +290,91 @@ const Billing: React.FC = () => {
 
   const loadPublisherBillings = async () => {
     try {
-      // Converter direction vazia para undefined e garantir tipo correto
       const filters = {
         ...publisherFilters,
-        direction: publisherFilters.direction && publisherFilters.direction !== '' 
-          ? (publisherFilters.direction as 'incoming' | 'outgoing')
-          : undefined
+        dueFilter: publisherFilters.dueFilter || undefined,
+        dueSoonDays: publisherFilters.dueFilter === 'due_soon' ? DUE_SOON_DAYS : undefined,
+        direction:
+          publisherFilters.direction && publisherFilters.direction !== ''
+            ? (publisherFilters.direction as 'incoming' | 'outgoing')
+            : undefined,
       };
       const response = await publisherBillingApi.getAll(filters);
       setPublisherBillings(response.billings || []);
     } catch (e) {
-      showError('Erro ao carregar faturas de publicadores');
+      showError('Erro ao carregar faturas do exibidor');
     }
   };
 
-  const handleCreate = async () => {
-    try {
-      await billingApi.create(newBill);
-      setCreateOpen(false);
-      setNewBill({ billing_type: 'subscription', amount: 0 });
-      loadBillings();
-      showSuccess('Cobrança criada com sucesso');
-    } catch (e: any) {
-      const msg = pickApiErrorMessage(e, 'Erro ao criar cobrança');
-      setError(msg);
-      showError(msg);
+  const applyInvoiceDueFilter = async (filter: 'overdue' | 'due_soon' | '') => {
+    setTabValue(2);
+    if (billingType === 'subscriber') {
+      const next = { ...subscriberFilters, dueFilter: filter, status: '', page: 1 };
+      setSubscriberFilters(next);
+      try {
+        const response = await subscriberBillingApi.getAll({
+          ...next,
+          dueFilter: filter || undefined,
+          dueSoonDays: filter === 'due_soon' ? DUE_SOON_DAYS : undefined,
+        });
+        setSubscriberBillings(response.billings || []);
+      } catch {
+        showError('Erro ao filtrar faturas');
+      }
+    } else if (billingType === 'publisher') {
+      const next = { ...publisherFilters, dueFilter: filter, paymentStatus: '', page: 1 };
+      setPublisherFilters(next);
+      try {
+        const response = await publisherBillingApi.getAll({
+          ...next,
+          dueFilter: filter || undefined,
+          dueSoonDays: filter === 'due_soon' ? DUE_SOON_DAYS : undefined,
+          direction:
+            next.direction && next.direction !== ''
+              ? (next.direction as 'incoming' | 'outgoing')
+              : undefined,
+        });
+        setPublisherBillings(response.billings || []);
+      } catch {
+        showError('Erro ao filtrar faturas');
+      }
     }
+  };
+
+  const markSubscriberPaid = async (id: number) => {
+    try {
+      await financialAdminApi.recordPayment(id, { paymentMethod: 'pix' });
+      await Promise.all([loadSubscriberBillings(), loadDashboard()]);
+      showSuccess('Pagamento registado');
+    } catch (e: any) {
+      showError(pickApiErrorMessage(e, 'Erro ao registar pagamento'));
+    }
+  };
+
+  const handleIssueContractInvoices = async () => {
+    setIssuingInvoices(true);
+    try {
+      const result = await financialAdminApi.issueInvoices({});
+      await Promise.all([loadSubscriberBillings(), loadDashboard()]);
+      showSuccess(
+        `Emissão concluída: ${result.created} criada(s), ${result.skipped} já existente(s)${
+          result.errors.length ? `, ${result.errors.length} erro(s)` : ''
+        }.`
+      );
+    } catch (e: unknown) {
+      showError(pickApiErrorMessage(e, 'Erro ao emitir faturas do período'));
+    } finally {
+      setIssuingInvoices(false);
+    }
+  };
+
+  const openFinancialDialog = (mode: FinancialDialogMode, billing: SubscriberBillingItem) => {
+    setFinancialDialog({
+      open: true,
+      mode,
+      billingId: billing.billing_id,
+      amount: billing.amount,
+    });
   };
 
   const handleCreateSubscriberInvoice = async () => {
@@ -396,16 +483,6 @@ const Billing: React.FC = () => {
     }
   };
 
-  const markPaid = async (id: number) => {
-    try {
-      await billingApi.markAsPaid(id);
-      loadBillings();
-      showSuccess('Fatura marcada como paga');
-    } catch (e: any) {
-      showError('Erro ao marcar como pago');
-    }
-  };
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active':
@@ -454,6 +531,15 @@ const Billing: React.FC = () => {
         </Alert>
       )}
 
+      <BillingControlPanel
+        dashboard={dashboard}
+        loading={loading}
+        showPublisherKpis={billingType === 'publisher' || canViewAllBillingTypes}
+        publisherLabel={TOTEMDIGITAL_COMPACT ? 'Exibidor (sistema)' : 'Publicadores'}
+        onFilterInvoices={canViewAllBillingTypes || !isSubscriberUser ? applyInvoiceDueFilter : undefined}
+        formatCurrency={(n) => formatCurrency(n)}
+      />
+
       {/* Filtro de tipo de billing */}
       <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
         <FormControl size="small" sx={{ minWidth: 200 }}>
@@ -466,9 +552,12 @@ const Billing: React.FC = () => {
               setTabValue(0); // Resetar para primeira aba ao mudar tipo
             }}
           >
-            {canViewAllBillingTypes && <MenuItem value="all">Todos</MenuItem>}
             {!isSubscriberUser && <MenuItem value="subscriber">Anunciantes</MenuItem>}
-            {!isSubscriberUser && <MenuItem value="publisher">Publicadores</MenuItem>}
+            {!isSubscriberUser && (
+              <MenuItem value="publisher">
+                {TOTEMDIGITAL_COMPACT ? 'Exibidor (sistema)' : 'Publicadores'}
+              </MenuItem>
+            )}
             {isSubscriberUser && <MenuItem value="subscriber">Anunciantes</MenuItem>}
           </Select>
         </FormControl>
@@ -649,73 +738,6 @@ const Billing: React.FC = () => {
         </TableContainer>
       </TabPanel>
 
-      {/* TAB: FATURAS */}
-      <TabPanel value={tabValue} index={2}>
-        <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-          {canViewAllBillingTypes && (
-            <Button startIcon={<Add />} variant="contained" onClick={() => setCreateOpen(true)}>
-              Nova Cobrança (legado)
-            </Button>
-          )}
-          <Button startIcon={<Refresh />} variant="outlined" onClick={loadBillings}>
-            Atualizar
-          </Button>
-        </Box>
-
-        <Grid container spacing={3}>
-          {items.map((b) => (
-            <Grid item xs={12} sm={6} md={4} key={b.billing_id}>
-              <Card>
-                <CardContent>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                      {b.billing_type}
-                    </Typography>
-                    <Chip
-                      label={b.status}
-                      color={getStatusColor(b.status) as any}
-                      size="small"
-                    />
-                  </Box>
-                  <Typography variant="h6" sx={{ mb: 1 }}>
-                    {formatCurrency(b.amount)}
-                  </Typography>
-                  {b.due_date && (
-                    <Typography variant="caption" color="text.secondary" display="block">
-                      Vencimento: {new Date(b.due_date).toLocaleDateString('pt-BR')}
-                    </Typography>
-                  )}
-                  {b.paid_at && (
-                    <Typography variant="caption" color="text.secondary" display="block">
-                      Pago em: {new Date(b.paid_at).toLocaleDateString('pt-BR')}
-                    </Typography>
-                  )}
-                  <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
-                    {b.status !== 'paid' && (
-                      <Button
-                        size="small"
-                        startIcon={<Check />}
-                        onClick={() => markPaid(b.billing_id)}
-                        variant="outlined"
-                      >
-                        Marcar pago
-                      </Button>
-                    )}
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-          {items.length === 0 && (
-            <Grid item xs={12}>
-              <Typography variant="body2" color="text.secondary" align="center">
-                Nenhuma fatura encontrada
-              </Typography>
-            </Grid>
-          )}
-        </Grid>
-      </TabPanel>
-
       {/* TAB: FATURAS ASSINANTES */}
       {billingType === 'subscriber' && (
         <TabPanel value={tabValue} index={2}>
@@ -726,7 +748,12 @@ const Billing: React.FC = () => {
                 value={subscriberFilters.status}
                 label="Status"
                 onChange={(e) => {
-                  setSubscriberFilters({ ...subscriberFilters, status: e.target.value, page: 1 });
+                  setSubscriberFilters({
+                    ...subscriberFilters,
+                    status: e.target.value,
+                    dueFilter: '',
+                    page: 1,
+                  });
                 }}
                 onClose={() => loadSubscriberBillings()}
               >
@@ -735,6 +762,26 @@ const Billing: React.FC = () => {
                 <MenuItem value="paid">Pago</MenuItem>
                 <MenuItem value="overdue">Vencido</MenuItem>
                 <MenuItem value="cancelled">Cancelado</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <InputLabel>Vencimento</InputLabel>
+              <Select
+                value={subscriberFilters.dueFilter}
+                label="Vencimento"
+                onChange={(e) => {
+                  setSubscriberFilters({
+                    ...subscriberFilters,
+                    dueFilter: e.target.value as '' | 'overdue' | 'due_soon',
+                    status: '',
+                    page: 1,
+                  });
+                }}
+                onClose={() => loadSubscriberBillings()}
+              >
+                <MenuItem value="">Todos</MenuItem>
+                <MenuItem value="overdue">Só vencidas</MenuItem>
+                <MenuItem value="due_soon">A vencer ({DUE_SOON_DAYS}d)</MenuItem>
               </Select>
             </FormControl>
             <FormControl size="small" sx={{ minWidth: 200 }}>
@@ -772,9 +819,19 @@ const Billing: React.FC = () => {
               Atualizar
             </Button>
             {canCreateModernInvoices && (
-              <Button startIcon={<Add />} variant="contained" onClick={() => setCreateSubscriberOpen(true)}>
-                Nova cobrança (anunciante)
-              </Button>
+              <>
+                <Button
+                  startIcon={<ReceiptLong />}
+                  variant="outlined"
+                  disabled={issuingInvoices}
+                  onClick={handleIssueContractInvoices}
+                >
+                  Emitir faturas do período
+                </Button>
+                <Button startIcon={<Add />} variant="contained" onClick={() => setCreateSubscriberOpen(true)}>
+                  Nova cobrança (anunciante)
+                </Button>
+              </>
             )}
           </Box>
 
@@ -789,12 +846,36 @@ const Billing: React.FC = () => {
                   <TableCell>Valor</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Vencimento</TableCell>
+                  <TableCell>Alerta</TableCell>
                   <TableCell>Pago em</TableCell>
+                  <TableCell align="right">Ações</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {subscriberBillings.map((billing) => (
-                  <TableRow key={billing.billing_id}>
+                {subscriberBillings.map((billing) => {
+                  const dueLevel = getInvoiceDueAlertLevel(
+                    {
+                      status: billing.status,
+                      due_date: billing.due_date,
+                      is_overdue: (billing as any).is_overdue,
+                      is_due_soon: (billing as any).is_due_soon,
+                      days_overdue: (billing as any).days_overdue,
+                      days_until_due: (billing as any).days_until_due,
+                    },
+                    DUE_SOON_DAYS
+                  );
+                  const dueLabel = getInvoiceDueLabel(
+                    {
+                      status: billing.status,
+                      due_date: billing.due_date,
+                      is_overdue: (billing as any).is_overdue,
+                      days_overdue: (billing as any).days_overdue,
+                      days_until_due: (billing as any).days_until_due,
+                    },
+                    DUE_SOON_DAYS
+                  );
+                  return (
+                  <TableRow key={billing.billing_id} sx={invoiceRowSx(dueLevel)}>
                     <TableCell>{billing.billing_id}</TableCell>
                     <TableCell>{billing.subscriber_name || `Assinante #${billing.subscriber_id}`}</TableCell>
                     <TableCell>{billing.campaign_title || '-'}</TableCell>
@@ -813,13 +894,57 @@ const Billing: React.FC = () => {
                       {billing.due_date ? new Date(billing.due_date).toLocaleDateString('pt-BR') : '-'}
                     </TableCell>
                     <TableCell>
+                      {dueLabel ? (
+                        <Chip
+                          size="small"
+                          label={dueLabel}
+                          color={dueLevel === 'error' ? 'error' : dueLevel === 'warning' ? 'warning' : 'default'}
+                        />
+                      ) : (
+                        '—'
+                      )}
+                    </TableCell>
+                    <TableCell>
                       {billing.paid_at ? new Date(billing.paid_at).toLocaleDateString('pt-BR') : '-'}
                     </TableCell>
+                    <TableCell align="right">
+                      {billing.status !== 'paid' && canCreateModernInvoices && (
+                        <>
+                          <Tooltip title="QR Code PIX">
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={() => openFinancialDialog('qr', billing)}
+                            >
+                              <QrCode2 />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Registar pagamento">
+                            <IconButton
+                              size="small"
+                              color="success"
+                              onClick={() => openFinancialDialog('pay', billing)}
+                            >
+                              <Payment />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Marcar pago (rápido)">
+                            <IconButton
+                              size="small"
+                              onClick={() => markSubscriberPaid(billing.billing_id)}
+                            >
+                              <Check />
+                            </IconButton>
+                          </Tooltip>
+                        </>
+                      )}
+                    </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
                 {subscriberBillings.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} align="center">
+                    <TableCell colSpan={10} align="center">
                       <Typography variant="body2" color="text.secondary">
                         Nenhuma fatura de assinante encontrada
                       </Typography>
@@ -842,7 +967,12 @@ const Billing: React.FC = () => {
                 value={publisherFilters.paymentStatus}
                 label="Status"
                 onChange={(e) => {
-                  setPublisherFilters({ ...publisherFilters, paymentStatus: e.target.value, page: 1 });
+                  setPublisherFilters({
+                    ...publisherFilters,
+                    paymentStatus: e.target.value,
+                    dueFilter: '',
+                    page: 1,
+                  });
                 }}
                 onClose={() => loadPublisherBillings()}
               >
@@ -853,6 +983,26 @@ const Billing: React.FC = () => {
                 <MenuItem value="failed">Falhou</MenuItem>
                 <MenuItem value="refunded">Reembolsado</MenuItem>
                 <MenuItem value="cancelled">Cancelado</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <InputLabel>Vencimento</InputLabel>
+              <Select
+                value={publisherFilters.dueFilter}
+                label="Vencimento"
+                onChange={(e) => {
+                  setPublisherFilters({
+                    ...publisherFilters,
+                    dueFilter: e.target.value as '' | 'overdue' | 'due_soon',
+                    paymentStatus: '',
+                    page: 1,
+                  });
+                }}
+                onClose={() => loadPublisherBillings()}
+              >
+                <MenuItem value="">Todos</MenuItem>
+                <MenuItem value="overdue">Só vencidas</MenuItem>
+                <MenuItem value="due_soon">A vencer ({DUE_SOON_DAYS}d)</MenuItem>
               </Select>
             </FormControl>
             <FormControl size="small" sx={{ minWidth: 150 }}>
@@ -903,7 +1053,7 @@ const Billing: React.FC = () => {
             </Button>
             {canCreateModernInvoices && (
               <Button startIcon={<Add />} variant="contained" onClick={() => setCreatePublisherOpen(true)}>
-                Nova fatura (publicador)
+                {TOTEMDIGITAL_COMPACT ? 'Nova fatura (exibidor)' : 'Nova fatura (publicador)'}
               </Button>
             )}
           </Box>
@@ -920,12 +1070,32 @@ const Billing: React.FC = () => {
                   <TableCell>Valor</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell>Vencimento</TableCell>
+                  <TableCell>Alerta</TableCell>
                   <TableCell>Pago em</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {publisherBillings.map((billing) => (
-                  <TableRow key={billing.billing_id}>
+                {publisherBillings.map((billing) => {
+                  const dueLevel = getInvoiceDueAlertLevel(
+                    {
+                      payment_status: billing.payment_status,
+                      due_date: billing.due_date,
+                      is_overdue: (billing as any).is_overdue,
+                      is_due_soon: (billing as any).is_due_soon,
+                    },
+                    DUE_SOON_DAYS
+                  );
+                  const dueLabel = getInvoiceDueLabel(
+                    {
+                      payment_status: billing.payment_status,
+                      due_date: billing.due_date,
+                      is_overdue: (billing as any).is_overdue,
+                      days_until_due: (billing as any).days_until_due,
+                    },
+                    DUE_SOON_DAYS
+                  );
+                  return (
+                  <TableRow key={billing.billing_id} sx={invoiceRowSx(dueLevel)}>
                     <TableCell>{billing.billing_id}</TableCell>
                     {!TOTEMDIGITAL_COMPACT && (
                       <TableCell>{billing.publisher_name || `Publicador #${billing.publisher_id}`}</TableCell>
@@ -953,15 +1123,29 @@ const Billing: React.FC = () => {
                       {billing.due_date ? new Date(billing.due_date).toLocaleDateString('pt-BR') : '-'}
                     </TableCell>
                     <TableCell>
+                      {dueLabel ? (
+                        <Chip
+                          size="small"
+                          label={dueLabel}
+                          color={dueLevel === 'error' ? 'error' : dueLevel === 'warning' ? 'warning' : 'default'}
+                        />
+                      ) : (
+                        '—'
+                      )}
+                    </TableCell>
+                    <TableCell>
                       {billing.paid_at ? new Date(billing.paid_at).toLocaleDateString('pt-BR') : '-'}
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
                 {publisherBillings.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={TOTEMDIGITAL_COMPACT ? 8 : 9} align="center">
+                    <TableCell colSpan={TOTEMDIGITAL_COMPACT ? 9 : 10} align="center">
                       <Typography variant="body2" color="text.secondary">
-                        Nenhuma fatura de publicador encontrada
+                        {TOTEMDIGITAL_COMPACT
+                          ? 'Nenhuma fatura do exibidor encontrada'
+                          : 'Nenhuma fatura de publicador encontrada'}
                       </Typography>
                     </TableCell>
                   </TableRow>
@@ -971,53 +1155,6 @@ const Billing: React.FC = () => {
           </TableContainer>
         </TabPanel>
       )}
-
-      {/* DIALOG: NOVA COBRANÇA */}
-      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Nova Cobrança</DialogTitle>
-        <DialogContent>
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Tipo</InputLabel>
-            <Select
-              label="Tipo"
-              value={newBill.billing_type}
-              onChange={(e) => setNewBill({ ...newBill, billing_type: e.target.value })}
-            >
-              <MenuItem value="subscription">Assinatura</MenuItem>
-              <MenuItem value="service">Serviço</MenuItem>
-              <MenuItem value="license">Licença</MenuItem>
-            </Select>
-          </FormControl>
-          <TextField
-            fullWidth
-            label="Valor (R$)"
-            type="number"
-            margin="normal"
-            value={newBill.amount}
-            onChange={(e) => {
-              setNewBill({ ...newBill, amount: parseCurrencyInputValue(e.target.value) });
-            }}
-            InputProps={{
-              startAdornment: <InputAdornment position="start">R$</InputAdornment>,
-            }}
-            inputProps={{ min: 0, step: '0.01', inputMode: 'decimal' }}
-          />
-          <TextField
-            fullWidth
-            label="Vencimento"
-            type="date"
-            margin="normal"
-            InputLabelProps={{ shrink: true }}
-            onChange={(e) => setNewBill({ ...newBill, due_date: e.target.value })}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCreateOpen(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={handleCreate} disabled={!newBill.amount}>
-            Criar
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {canCreateModernInvoices && (
         <Dialog open={createSubscriberOpen} onClose={() => setCreateSubscriberOpen(false)} maxWidth="sm" fullWidth>
@@ -1204,6 +1341,18 @@ const Billing: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <FinancialInvoiceDialog
+        open={financialDialog.open}
+        mode={financialDialog.mode}
+        billingId={financialDialog.billingId}
+        amount={financialDialog.amount}
+        onClose={() => setFinancialDialog({ open: false, mode: 'pay', billingId: null })}
+        onSuccess={() => {
+          loadSubscriberBillings();
+          loadDashboard();
+        }}
+      />
     </Box>
   );
 };

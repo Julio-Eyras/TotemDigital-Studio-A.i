@@ -131,3 +131,76 @@ export function getSubscriberContractHealth(contract: Record<string, unknown>): 
     tooltip: msgs.length > 0 ? msgs.join(' ') : operationalHint,
   };
 }
+
+/** Nível de alerta na listagem de anunciantes (contrato + pagamentos, vindo da API). */
+export function getSubscriberListContractAlert(subscriber: {
+  financial_alert_level?: string;
+  financial_alert_label?: string;
+  contract_alert_level?: string;
+  contract_alert_label?: string;
+  days_until_contract_end?: number | null;
+  active_contracts_count?: number;
+  has_billing_overdue?: boolean;
+  has_billing_due_soon?: boolean;
+}): SubscriberContractHealth {
+  const finLevel = String(subscriber.financial_alert_level || '').toLowerCase();
+  if (finLevel === 'error' || finLevel === 'warning' || finLevel === 'success' || finLevel === 'neutral') {
+    const chipLabel =
+      subscriber.financial_alert_label ||
+      (finLevel === 'error' ? 'Atenção' : finLevel === 'warning' ? 'A vencer' : finLevel === 'success' ? 'Em dia' : '—');
+    return {
+      health: finLevel as ContractHealthLevel,
+      chipLabel: chipLabel.length > 24 ? chipLabel.slice(0, 22) + '…' : chipLabel,
+      tooltip: subscriber.contract_alert_label || chipLabel,
+    };
+  }
+
+  const level = String(subscriber.contract_alert_level || '').toLowerCase();
+  if (level === 'error') {
+    return {
+      health: 'error',
+      chipLabel: 'Vencido',
+      tooltip: subscriber.contract_alert_label || 'Contrato vencido ou encerrado',
+    };
+  }
+  if (level === 'warning') {
+    return {
+      health: 'warning',
+      chipLabel: 'A vencer',
+      tooltip: subscriber.contract_alert_label || 'Contrato próximo do fim da vigência',
+    };
+  }
+  if (level === 'success' || (subscriber.active_contracts_count || 0) > 0) {
+    return {
+      health: 'success',
+      chipLabel: 'Em dia',
+      tooltip: subscriber.contract_alert_label || 'Contratos ativos em vigência',
+    };
+  }
+  return {
+    health: 'warning',
+    chipLabel: 'Sem contrato',
+    tooltip: 'Nenhum contrato ativo no momento',
+  };
+}
+
+/** Fundo do cartão/linha na listagem (semáforo). */
+export function subscriberAlertCardSx(
+  health: ContractHealthLevel
+): Record<string, unknown> | undefined {
+  if (health === 'error') {
+    return {
+      bgcolor: 'error.light',
+      borderColor: 'error.main',
+      '&:hover': { bgcolor: 'error.light', boxShadow: 4 },
+    };
+  }
+  if (health === 'warning') {
+    return {
+      bgcolor: 'warning.light',
+      borderColor: 'warning.main',
+      '&:hover': { bgcolor: 'warning.light', boxShadow: 4 },
+    };
+  }
+  return undefined;
+}

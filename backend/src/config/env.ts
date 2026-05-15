@@ -308,6 +308,15 @@ export const stripeConfig = {
   apiVersion: getEnv('STRIPE_API_VERSION', '2024-11-20.acacia')
 };
 
+/** PIX / administração financeira (faturas de anunciantes) */
+export const financialConfig = {
+  pixKey: getEnv('FINANCIAL_PIX_KEY', ''),
+  pixMerchantName: getEnv('FINANCIAL_PIX_MERCHANT_NAME', 'SMART CHANNEL'),
+  pixMerchantCity: getEnv('FINANCIAL_PIX_MERCHANT_CITY', 'SAO PAULO'),
+  invoiceDueDays: getEnvNumber('FINANCIAL_INVOICE_DUE_DAYS', 7),
+  dueSoonDays: getEnvNumber('FINANCIAL_DUE_SOON_DAYS', 30),
+};
+
 /**
  * Valida configurações críticas na inicialização
  */
@@ -361,6 +370,7 @@ export const config = {
   backup: backupConfig,
   analytics: analyticsConfig,
   stripe: stripeConfig,
+  financial: financialConfig,
   player: playerConfig
 };
 

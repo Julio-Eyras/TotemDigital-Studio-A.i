@@ -30,6 +30,14 @@ export interface Subscriber {
   campaign_count?: number;
   storage_used_gb?: number;
   storage_limit_gb?: number;
+  /** Semáforo na listagem: contratos vencidos / a vencer (30 dias). */
+  contract_alert_level?: 'error' | 'warning' | 'success' | 'neutral';
+  contract_alert_label?: string;
+  days_until_contract_end?: number | null;
+  financial_alert_level?: 'error' | 'warning' | 'success' | 'neutral';
+  financial_alert_label?: string;
+  has_billing_overdue?: boolean;
+  has_billing_due_soon?: boolean;
 }
 
 export interface CreateSubscriberRequest {
@@ -182,6 +190,51 @@ export class SubscriberService {
               AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)
             GROUP BY sc.subscriber_id
           ),
+          contract_alert AS (
+            SELECT
+              sc.subscriber_id,
+              BOOL_OR(
+                sc.status IN ('expired', 'terminated', 'cancelled')
+                OR (sc.end_date IS NOT NULL AND sc.end_date < CURRENT_DATE)
+              ) AS has_expired,
+              BOOL_OR(
+                sc.status = 'active'
+                AND sc.end_date IS NOT NULL
+                AND sc.end_date >= CURRENT_DATE
+                AND sc.end_date <= CURRENT_DATE + (30 * INTERVAL '1 day')
+              ) AS has_expiring_soon,
+              MIN(
+                CASE
+                  WHEN sc.status = 'active'
+                    AND sc.end_date IS NOT NULL
+                    AND sc.end_date >= CURRENT_DATE
+                  THEN (sc.end_date - CURRENT_DATE)::int
+                  ELSE NULL
+                END
+              ) AS days_until_contract_end
+            FROM subscriber_contracts sc
+            JOIN ids ON ids.subscriber_id = sc.subscriber_id
+            GROUP BY sc.subscriber_id
+          ),
+          billing_alert AS (
+            SELECT
+              sb.subscriber_id,
+              BOOL_OR(
+                sb.payment_status IN ('pending', 'overdue')
+                AND sb.due_date IS NOT NULL
+                AND sb.due_date < CURRENT_DATE
+              ) AS has_billing_overdue,
+              BOOL_OR(
+                sb.payment_status = 'pending'
+                AND sb.due_date IS NOT NULL
+                AND sb.due_date >= CURRENT_DATE
+                AND sb.due_date <= CURRENT_DATE + (30 * INTERVAL '1 day')
+              ) AS has_billing_due_soon
+            FROM subscriber_billing sb
+            JOIN ids ON ids.subscriber_id = sb.subscriber_id
+            WHERE sb.payment_status NOT IN ('paid', 'cancelled', 'refunded')
+            GROUP BY sb.subscriber_id
+          ),
           media_stats AS (
             SELECT
               m.subscriber_id,
@@ -230,9 +283,20 @@ export class SubscriberService {
             COALESCE(media_stats.storage_bytes, 0) / 1073741824.0 AS storage_used_gb,
             COALESCE(playlist_stats.playlist_count, 0) AS playlist_count,
             COALESCE(campaign_stats.campaign_count, 0) AS campaign_count,
-            city_stats.city
+            city_stats.city,
+            CASE
+              WHEN COALESCE(contract_alert.has_expired, false) THEN 'error'
+              WHEN COALESCE(contract_alert.has_expiring_soon, false) THEN 'warning'
+              WHEN COALESCE(active_contracts.active_contracts_count, 0) > 0 THEN 'success'
+              ELSE 'neutral'
+            END AS contract_alert_level,
+            contract_alert.days_until_contract_end,
+            COALESCE(billing_alert.has_billing_overdue, false) AS has_billing_overdue,
+            COALESCE(billing_alert.has_billing_due_soon, false) AS has_billing_due_soon
           FROM ids
           LEFT JOIN active_contracts ON active_contracts.subscriber_id = ids.subscriber_id
+          LEFT JOIN contract_alert ON contract_alert.subscriber_id = ids.subscriber_id
+          LEFT JOIN billing_alert ON billing_alert.subscriber_id = ids.subscriber_id
           LEFT JOIN media_stats ON media_stats.subscriber_id = ids.subscriber_id
           LEFT JOIN playlist_stats ON playlist_stats.subscriber_id = ids.subscriber_id
           LEFT JOIN campaign_stats ON campaign_stats.subscriber_id = ids.subscriber_id
@@ -257,6 +321,25 @@ export class SubscriberService {
             subscriber.campaign_count = Number(metrics.campaign_count || 0);
             subscriber.storage_used_gb = Number(metrics.storage_used_gb || 0);
             subscriber.storage_limit_gb = limits.storage_gb;
+
+            const alertLevel = metrics.contract_alert_level as Subscriber['contract_alert_level'];
+            subscriber.contract_alert_level = alertLevel || 'neutral';
+            const daysUntil = metrics.days_until_contract_end;
+            subscriber.days_until_contract_end =
+              daysUntil != null && daysUntil !== '' ? Number(daysUntil) : null;
+            subscriber.has_billing_overdue = Boolean(metrics.has_billing_overdue);
+            subscriber.has_billing_due_soon = Boolean(metrics.has_billing_due_soon);
+
+            const { getFinancialAdminService } = require('./financialAdminService');
+            const fin = getFinancialAdminService().resolveSubscriberFinancialAlert({
+              contract_alert_level: alertLevel,
+              has_billing_overdue: subscriber.has_billing_overdue,
+              has_billing_due_soon: subscriber.has_billing_due_soon,
+              days_until_contract_end: subscriber.days_until_contract_end,
+            });
+            subscriber.financial_alert_level = fin.level;
+            subscriber.financial_alert_label = fin.label;
+            subscriber.contract_alert_label = fin.tooltip;
           })
         );
       }

@@ -21,6 +21,8 @@ import contractRoutes from '../routes/contracts';
 import billingRoutes from '../routes/billing';
 import subscriberBillingRoutes from '../routes/subscriber-billing';
 import publisherBillingRoutes from '../routes/publisher-billing';
+import billingControlRoutes from '../routes/billing-control';
+import financialAdminRoutes from '../routes/financial-admin';
 import subscriptionsRoutes from '../routes/subscriptions';
 import publisherRoutes from '../routes/publishers';
 import subscriberAccessRoutes from '../routes/subscriber-access';
@@ -64,6 +66,8 @@ export function registerCompactRoutes(app: Express): void {
   }, billingRoutes);
   app.use('/api/subscriber-billing', authMiddleware as any, blockClientDataAccess as any, subscriberBillingRoutes);
   app.use('/api/publisher-billing', authMiddleware as any, blockClientDataAccess as any, publisherBillingRoutes);
+  app.use('/api/billing-control', authMiddleware as any, blockClientDataAccess as any, billingControlRoutes);
+  app.use('/api/financial-admin', authMiddleware as any, blockClientDataAccess as any, financialAdminRoutes);
   app.use('/api/subscriptions', subscriptionsRoutes);
 }
 

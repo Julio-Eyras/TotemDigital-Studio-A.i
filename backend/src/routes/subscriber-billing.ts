@@ -45,10 +45,24 @@ router.get('/',
   // Frontend envia billingType/status como string vazia (billingType=&status=). checkFalsy evita 400.
   query('billingType').optional({ checkFalsy: true }).isIn(['advertisement', 'campaign', 'media_upload', 'exhibition_lot', 'totem_quantity', 'time_based', 'custom']),
   query('status').optional({ checkFalsy: true }).isIn(['pending', 'paid', 'overdue', 'cancelled']),
+  query('dueFilter').optional({ checkFalsy: true }).isIn(['overdue', 'due_soon']),
+  query('dueSoonDays').optional({ checkFalsy: true }).isInt({ min: 1, max: 365 }),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { page = 1, limit = 20, subscriberId, campaignId, billingType, status, startDate, endDate, search } = req.query;
+      const {
+        page = 1,
+        limit = 20,
+        subscriberId,
+        campaignId,
+        billingType,
+        status,
+        dueFilter,
+        dueSoonDays,
+        startDate,
+        endDate,
+        search,
+      } = req.query;
       
       if (!req.user) {
         return res.status(401).json({ success: false, error: 'Não autenticado' });
@@ -111,9 +125,11 @@ router.get('/',
           campaignId: campaignId ? parseInt(campaignId as string) : undefined,
           billingType: billingType as string,
           status: status as string,
+          dueFilter: dueFilter as 'overdue' | 'due_soon' | undefined,
+          dueSoonDays: dueSoonDays ? parseInt(dueSoonDays as string, 10) : undefined,
           startDate: startDate as string,
           endDate: endDate as string,
-          search: search as string
+          search: search as string,
         }
       );
 
@@ -134,7 +150,11 @@ router.get('/',
           created_at: b.createdAt,
           updated_at: b.updatedAt,
           description: b.description,
-          metadata: b.metadata
+          metadata: b.metadata,
+          is_overdue: b.isOverdue,
+          days_overdue: b.daysOverdue,
+          is_due_soon: b.isDueSoon,
+          days_until_due: b.daysUntilDue,
         })),
         total: result.total || 0,
         page: result.page || parseInt(page as string) || 1,
@@ -163,12 +183,13 @@ router.get('/stats',
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const { subscriberId, startDate, endDate } = req.query;
-      
+      const { subscriberId, startDate, endDate, dueSoonDays } = req.query;
+
       const stats = await getSubscriberBillingService().getBillingStats({
-        subscriberId: subscriberId ? parseInt(subscriberId as string) : undefined,
+        subscriberId: subscriberId ? parseInt(subscriberId as string, 10) : undefined,
         startDate: startDate as string,
-        endDate: endDate as string
+        endDate: endDate as string,
+        dueSoonDays: dueSoonDays ? parseInt(dueSoonDays as string, 10) : undefined,
       });
       
       return res.json({

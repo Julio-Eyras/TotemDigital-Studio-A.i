@@ -21,6 +21,27 @@ ALTER TABLE IF EXISTS publisher_contracts
 
 DROP INDEX IF EXISTS publisher_contracts_contract_number_key;
 
+-- Compat: vínculo fatura ↔ contrato e período de cobrança (administração financeira)
+ALTER TABLE IF EXISTS subscriber_billing
+    ADD COLUMN IF NOT EXISTS contract_id INTEGER;
+ALTER TABLE IF EXISTS subscriber_billing
+    ADD COLUMN IF NOT EXISTS period_start DATE;
+ALTER TABLE IF EXISTS subscriber_billing
+    ADD COLUMN IF NOT EXISTS period_end DATE;
+ALTER TABLE IF EXISTS subscriber_billing
+    ADD COLUMN IF NOT EXISTS notes TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_subscriber_billing_contract ON subscriber_billing(contract_id);
+CREATE INDEX IF NOT EXISTS idx_subscriber_billing_period ON subscriber_billing(subscriber_id, period_start, period_end);
+
+-- Ampliar tipos de cobrança usados pela API (idempotente)
+ALTER TABLE IF EXISTS subscriber_billing DROP CONSTRAINT IF EXISTS chk_subscriber_billing_type;
+ALTER TABLE IF EXISTS subscriber_billing ADD CONSTRAINT chk_subscriber_billing_type
+    CHECK (billing_type IN (
+        'advertisement', 'campaign', 'media_upload', 'storage', 'subscription',
+        'exhibition_lot', 'totem_quantity', 'time_based', 'custom'
+    ));
+
 -- =============================================
 -- SmartSignage Pro - Schema Refatorado v2.0
 -- PARTE 4: Billing e Contratos
@@ -35,6 +56,9 @@ CREATE TABLE IF NOT EXISTS subscriber_billing (
     subscriber_id INTEGER NOT NULL, -- FK para subscribers
     
     campaign_id INTEGER, -- FK para campaigns (opcional - billing pode ser de campanha específica)
+    contract_id INTEGER, -- FK para subscriber_contracts (cobrança recorrente do contrato)
+    period_start DATE, -- Início do período faturado (mensal/anual conforme plano)
+    period_end DATE, -- Fim do período faturado
     
     billing_type TEXT NOT NULL, 
         -- 'advertisement' (publicidade geral)
@@ -62,12 +86,16 @@ CREATE TABLE IF NOT EXISTS subscriber_billing (
     
     is_active BOOLEAN DEFAULT true,
     metadata JSONB, -- Dados adicionais
+    notes TEXT,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     CONSTRAINT chk_subscriber_billing_type 
-        CHECK (billing_type IN ('advertisement', 'campaign', 'media_upload', 'storage', 'subscription')),
+        CHECK (billing_type IN (
+            'advertisement', 'campaign', 'media_upload', 'storage', 'subscription',
+            'exhibition_lot', 'totem_quantity', 'time_based', 'custom'
+        )),
     CONSTRAINT chk_subscriber_billing_direction 
         CHECK (direction = 'incoming'),
     CONSTRAINT chk_subscriber_billing_amount 
