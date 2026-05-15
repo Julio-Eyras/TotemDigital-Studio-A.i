@@ -1,6 +1,7 @@
 /**
  * Autorização explícita para escrita/gestão de faturamento (subscriber + publisher billing).
- * Inclui owner_system, papéis tenant de faturamento e, no modo compacto mono, o publicador dono.
+ * Inclui `owner_system` (dono do produto; no mono compacto alinha-se ao exibidor único),
+ * papéis tenant de faturamento e, no modo compacto mono, o `publisher_user` operador do exibidor.
  */
 
 import { Response, NextFunction } from 'express';

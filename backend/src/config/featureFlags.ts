@@ -12,8 +12,9 @@ export const DISABLE_DIRECT_CAMPAIGN_TOTEM =
 
 /**
  * TotemDigital compacto (monousuário).
- * Quando true, reduz superfície Pro (subdomínios, smartdisplayfx, etc.) e mantém foco operacional
- * (totens, mídia, playlists, campanhas, monitoramento e faturamento alinhado às rotas Pro).
+ * A base de rotas (`registerCompactRoutes`) cobre operação e faturamento; `registerCompactProParityRoutes`
+ * acrescenta o restante da API Pro para o dono (`owner_system` / admins) ter a mesma superfície backend
+ * que na versão Pro. O utilizador `publisher_user` no mono corresponde ao operador do exibidor dono.
  */
 export const TOTEMDIGITAL_COMPACT =
   process.env.TOTEMDIGITAL_COMPACT === 'true';

@@ -175,7 +175,15 @@ export const getMenuHierarchyByRole = (
  * - "Exibidores" substitui "Veículos de Mídia" na interface
  */
 function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
-  if (TOTEMDIGITAL_COMPACT) {
+  /** Mono: utilizador operacional (ex.: publisher_user) mantém menu curto; dono/admins/operador faturamento vê paridade com Pro. */
+  const ownerLikeInCompact =
+    TOTEMDIGITAL_COMPACT &&
+    (role === 'owner_system' ||
+      role === 'admin_sql' ||
+      role === 'admin' ||
+      role === 'operador_faturamento');
+
+  if (TOTEMDIGITAL_COMPACT && !ownerLikeInCompact) {
     return [
       { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
       { text: 'Planos', icon: <Assignment />, path: '/plan-publisher-access' },
@@ -308,21 +316,21 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
  * Menu: OWNER_SYSTEM (legacy)
  */
 function getOwnerSystemMenu(): HierarchicalMenuItem[] {
-  return getSystemAdminMenu();
+  return getSystemAdminMenu('owner_system');
 }
 
 /**
  * Menu: ADMIN_SQL
  */
 function getAdminSqlMenu(): HierarchicalMenuItem[] {
-  return getSystemAdminMenu();
+  return getSystemAdminMenu('admin_sql');
 }
 
 /**
  * Menu: ADMIN
  */
 function getAdminMenu(): HierarchicalMenuItem[] {
-  return getSystemAdminMenu();
+  return getSystemAdminMenu('admin');
 }
 
 /**

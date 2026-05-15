@@ -4,6 +4,7 @@ const parseBoolean = (value?: string): boolean =>
 /**
  * Modo compacto do TotemDigital (frontend).
  * Use REACT_APP_TOTEMDIGITAL_COMPACT=true para ativar.
+ * O dono (`owner_system` / admins) deve ver a mesma navegação Pro que o backend expõe em paridade compacta.
  */
 export const TOTEMDIGITAL_COMPACT = parseBoolean(
   process.env.REACT_APP_TOTEMDIGITAL_COMPACT

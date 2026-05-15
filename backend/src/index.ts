@@ -749,7 +749,7 @@ async function startServer() {
   try {
     await logInfo('Iniciando Smart Signage v2.1...');
     if (TOTEMDIGITAL_COMPACT) {
-      await logInfo('Modo TotemDigital compacto ativo (superfície Pro reduzida)');
+      await logInfo('Modo TotemDigital compacto ativo (mono; dono/admin com paridade de API Pro onde aplicável)');
     }
     
     // Inicializar database PRIMEIRO (necessário para carregar configurações de mídia)
@@ -780,7 +780,11 @@ async function startServer() {
     // Registrar rotas da API conforme perfil (compacto/pro)
     await logInfo('Registrando rotas da API...');
     registerCompactRoutes(app);
-    if (!TOTEMDIGITAL_COMPACT) {
+    if (TOTEMDIGITAL_COMPACT) {
+      const { registerCompactProParityRoutes } = await import('./startup/registerCompactProParityRoutes');
+      registerCompactProParityRoutes(app);
+      await logInfo('Modo compacto: rotas Pro de paridade registadas (API alinhada ao dono/admin)');
+    } else {
       const { registerProRoutes } = await import('./startup/registerProRoutes');
       registerProRoutes(app);
     }
