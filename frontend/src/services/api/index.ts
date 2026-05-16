@@ -4022,7 +4022,7 @@ export interface PublisherBillingItem {
   direction: 'incoming' | 'outgoing';
   amount: number;
   currency: string;
-  payment_status: 'pending' | 'pending_payout' | 'paid' | 'failed' | 'refunded' | 'cancelled';
+  payment_status: 'pending' | 'pending_payout' | 'paid' | 'failed' | 'refunded' | 'cancelled' | 'overdue';
   due_date?: string;
   paid_at?: string;
   created_at: string;

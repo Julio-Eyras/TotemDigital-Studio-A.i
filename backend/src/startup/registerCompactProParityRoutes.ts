@@ -31,6 +31,7 @@ import smartDisplayFxSitesRoutes from '../routes/smartdisplayfx-sites';
 import smartDisplayFxTelemetryRoutes from '../routes/smartdisplayfx-telemetry';
 import smartDisplayFxAnalyticsRoutes from '../routes/smartdisplayfx-analytics';
 import rolesRoutes from '../routes/roles';
+import usersRoutes from '../routes/users';
 import permissionsRoutes from '../routes/permissions';
 import webhooksRoutes from '../routes/webhooks';
 import dashboardLayoutsRoutes from '../routes/dashboard-layouts';
@@ -68,6 +69,7 @@ export function registerCompactProParityRoutes(app: Express): void {
   app.use('/api/smartdisplayfx/telemetry', smartDisplayFxTelemetryRoutes);
   app.use('/api/smartdisplayfx/analytics', smartDisplayFxAnalyticsRoutes);
   app.use('/api/roles', rolesRoutes);
+  app.use('/api/users', blockClientDataAccess as any, usersRoutes);
   app.use('/api/permissions', permissionsRoutes);
   app.use('/api/webhooks', webhooksRoutes);
   app.use('/api/dashboard-layouts', dashboardLayoutsRoutes);

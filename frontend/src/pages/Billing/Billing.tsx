@@ -118,6 +118,13 @@ const Billing: React.FC = () => {
   /** Faturas incoming do exibidor: gestores ou publisher_user */
   const canPayPublisherInvoices = canCreateModernInvoices || isPublisherUser;
 
+  /**
+   * Mono compacto: dono/admin/operador de faturamento gere só faturas de anunciantes neste ecrã.
+   * `publisher_user` mantém acesso ao tipo "publisher" quando não é gestor global.
+   */
+  const compactBillingAdminOnly =
+    TOTEMDIGITAL_COMPACT && canViewAllBillingTypes && !isPublisherUser;
+
   const DUE_SOON_DAYS = 30;
   const rawType = searchParams.get('type');
   /** Escopo: anunciantes ou exibidor (sem legado "todos"). */
@@ -126,6 +133,7 @@ const Billing: React.FC = () => {
     if (isPublisherUser && !canViewAllBillingTypes) {
       return rawType === 'subscriber' || rawType === 'publisher' ? rawType : 'publisher';
     }
+    if (compactBillingAdminOnly) return 'subscriber';
     if (TOTEMDIGITAL_COMPACT) return rawType === 'publisher' ? 'publisher' : 'subscriber';
     return rawType === 'publisher' ? 'publisher' : 'subscriber';
   })();
@@ -281,6 +289,20 @@ const Billing: React.FC = () => {
   useEffect(() => {
     loadAll();
   }, [billingType, searchParams.toString()]);
+
+  /** Evita ?type=publisher no mono quando o ecrã é só administrativo de anunciantes. */
+  useEffect(() => {
+    if (!compactBillingAdminOnly) return;
+    if (rawType !== 'publisher') return;
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('type', 'subscriber');
+        return next;
+      },
+      { replace: true }
+    );
+  }, [compactBillingAdminOnly, rawType, setSearchParams]);
 
   useEffect(() => {
     const sessionId = searchParams.get('session_id');
@@ -441,9 +463,11 @@ const Billing: React.FC = () => {
   const loadSubscriberBillings = async () => {
     try {
       const ef = getEffectiveSubscriberBillingFilters();
-      const { subscriberId, ...rest } = ef;
+      const { subscriberId, limit, ...rest } = ef;
+      const effLimit = subscriberId != null ? Math.max(Number(limit) || 20, 50) : limit;
       const response = await subscriberBillingApi.getAll({
         ...rest,
+        limit: effLimit,
         ...(subscriberId != null ? { subscriberId } : {}),
         dueFilter: ef.dueFilter || undefined,
         dueSoonDays: ef.dueFilter === 'due_soon' ? DUE_SOON_DAYS : undefined,
@@ -515,10 +539,13 @@ const Billing: React.FC = () => {
     if (billingType === 'subscriber') {
       const next = { ...subscriberFilters, dueFilter: filter, status: '', page: 1 };
       setSubscriberFilters(next);
+      syncSubscriberDueFilterToUrl(filter);
       try {
-        const { subscriberId, ...rest } = next;
+        const { subscriberId, limit, ...rest } = next;
+        const effLimit = subscriberId != null ? Math.max(Number(limit) || 20, 50) : limit;
         const response = await subscriberBillingApi.getAll({
           ...rest,
+          limit: effLimit,
           ...(subscriberId != null ? { subscriberId } : {}),
           dueFilter: filter || undefined,
           dueSoonDays: filter === 'due_soon' ? DUE_SOON_DAYS : undefined,
@@ -526,6 +553,11 @@ const Billing: React.FC = () => {
         setSubscriberBillings(response.billings || []);
       } catch {
         showError('Erro ao filtrar faturas');
+      }
+      try {
+        await loadDashboard();
+      } catch {
+        /* KPIs opcionais */
       }
     } else if (billingType === 'publisher') {
       const next = { ...publisherFilters, dueFilter: filter, paymentStatus: '', page: 1 };
@@ -804,34 +836,40 @@ const Billing: React.FC = () => {
       <BillingControlPanel
         dashboard={dashboard}
         loading={loading}
-        showPublisherKpis={billingType === 'publisher' || canViewAllBillingTypes}
+        showPublisherKpis={
+          TOTEMDIGITAL_COMPACT
+            ? billingType === 'publisher'
+            : billingType === 'publisher' || canViewAllBillingTypes
+        }
         publisherLabel={TOTEMDIGITAL_COMPACT ? 'Exibidor (sistema)' : 'Publicadores'}
         onFilterInvoices={canViewAllBillingTypes || !isSubscriberUser ? applyInvoiceDueFilter : undefined}
         formatCurrency={(n) => formatCurrency(n)}
       />
 
-      {/* Filtro de tipo de billing */}
-      <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
-        <FormControl size="small" sx={{ minWidth: 200 }}>
-          <InputLabel>Tipo de Faturamento</InputLabel>
-          <Select
-            value={billingType}
-            label="Tipo de Faturamento"
-            onChange={(e) => {
-              setSearchParams({ type: e.target.value });
-              setTabValue(0); // Resetar para primeira aba ao mudar tipo
-            }}
-          >
-            {!isSubscriberUser && <MenuItem value="subscriber">Anunciantes</MenuItem>}
-            {!isSubscriberUser && (
-              <MenuItem value="publisher">
-                {TOTEMDIGITAL_COMPACT ? 'Exibidor (sistema)' : 'Publicadores'}
-              </MenuItem>
-            )}
-            {isSubscriberUser && <MenuItem value="subscriber">Anunciantes</MenuItem>}
-          </Select>
-        </FormControl>
-      </Box>
+      {/* Filtro de tipo de billing (omitido no mono compacto para gestores: só anunciantes) */}
+      {!compactBillingAdminOnly && (
+        <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
+          <FormControl size="small" sx={{ minWidth: 200 }}>
+            <InputLabel>Tipo de Faturamento</InputLabel>
+            <Select
+              value={billingType}
+              label="Tipo de Faturamento"
+              onChange={(e) => {
+                setSearchParams({ type: e.target.value });
+                setTabValue(0); // Resetar para primeira aba ao mudar tipo
+              }}
+            >
+              {!isSubscriberUser && <MenuItem value="subscriber">Anunciantes</MenuItem>}
+              {!isSubscriberUser && !(TOTEMDIGITAL_COMPACT && canViewAllBillingTypes) && (
+                <MenuItem value="publisher">
+                  {TOTEMDIGITAL_COMPACT ? 'Exibidor (sistema)' : 'Publicadores'}
+                </MenuItem>
+              )}
+              {isSubscriberUser && <MenuItem value="subscriber">Anunciantes</MenuItem>}
+            </Select>
+          </FormControl>
+        </Box>
+      )}
 
       <Box sx={{ mb: 3 }}>
         <ResponsiveSectionNav
@@ -1146,11 +1184,20 @@ const Billing: React.FC = () => {
                     }
                   }}
                   sx={{ width: 132 }}
-                  inputProps={{ inputMode: 'numeric', pattern: '[0-9]*' }}
+                  inputProps={{
+                    inputMode: 'numeric',
+                    pattern: '[0-9]*',
+                    'aria-label': 'Filtrar faturas por ID do anunciante',
+                  }}
                   helperText="Enter p/ aplicar"
                   FormHelperTextProps={{ sx: { m: 0, mt: 0.25 } }}
                 />
-                <Button size="small" variant="outlined" onClick={() => applySubscriberIdFromDraftToUrl()}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => applySubscriberIdFromDraftToUrl()}
+                  aria-label="Aplicar filtro de ID do anunciante na URL"
+                >
                   Aplicar ID
                 </Button>
               </>
@@ -1501,7 +1548,7 @@ const Billing: React.FC = () => {
                     </TableCell>
                     <TableCell align="right">
                       {billing.direction === 'incoming' &&
-                        billing.payment_status !== 'paid' &&
+                        (billing.payment_status === 'pending' || billing.payment_status === 'overdue') &&
                         canPayPublisherInvoices && (
                           <>
                             <Tooltip title="QR Code PIX">

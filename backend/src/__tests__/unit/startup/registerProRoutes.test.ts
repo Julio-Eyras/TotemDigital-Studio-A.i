@@ -30,6 +30,7 @@ describe('registerProRoutes', () => {
         '/api/subscriber-billing',
         '/api/publisher-billing',
         '/api/plans',
+        '/api/users',
         '/api/subscriptions',
         '/api/reports',
         '/api/ai',

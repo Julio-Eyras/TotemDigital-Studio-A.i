@@ -19,6 +19,7 @@ describe('registerCompactProParityRoutes', () => {
         '/api/export-queries',
         '/api/network',
         '/api/roles',
+        '/api/users',
         '/api/backups',
       ])
     );

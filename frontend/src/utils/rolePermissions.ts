@@ -108,6 +108,8 @@ export const menuPermissions: MenuItemPermission[] = [
   { path: '/dispatcher-manager', roles: ['owner_system', 'admin_sql', 'operator', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_2' },
   { path: '/dispatcher-monitor', roles: ['owner_system', 'admin_sql', 'operator', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_2' },
   { path: '/dispatcher-debug', roles: ['owner_system', 'admin_sql', 'operator', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_2' },
+  /** Playlist Mix — resultado final por totem (debug junto ao dispatcher) */
+  { path: '/playlist-mix', roles: ['owner_system', 'admin_sql', 'operator', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_2' },
   
   // OTA Updates - admin_sql, operator, operador_tecnico
   { path: '/ota-updates', roles: ['owner_system', 'admin_sql', 'operator', 'operador_tecnico'], requiredFlag: 'flag_smart_1' },
@@ -179,6 +181,9 @@ export function canAccess(
       pathForPermission === '/dispatcher-debug' ||
       pathForPermission.startsWith('/dispatcher-manager')
     ) {
+      return true;
+    }
+    if (pathForPermission === '/playlist-mix' || pathForPermission.startsWith('/playlist-mix/')) {
       return true;
     }
     if (pathForPermission === '/billing' || pathForPermission.startsWith('/billing/')) {

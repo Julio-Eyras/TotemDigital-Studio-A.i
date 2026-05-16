@@ -38,6 +38,7 @@ import smartDisplayFxTelemetryRoutes from '../routes/smartdisplayfx-telemetry';
 import smartDisplayFxAnalyticsRoutes from '../routes/smartdisplayfx-analytics';
 import alertsRoutes from '../routes/alerts';
 import rolesRoutes from '../routes/roles';
+import usersRoutes from '../routes/users';
 import permissionsRoutes from '../routes/permissions';
 import webhooksRoutes from '../routes/webhooks';
 import dashboardLayoutsRoutes from '../routes/dashboard-layouts';
@@ -97,6 +98,7 @@ export function registerProRoutes(app: Express): void {
   app.use('/api/smartdisplayfx/analytics', smartDisplayFxAnalyticsRoutes);
   app.use('/api/alerts', alertsRoutes);
   app.use('/api/roles', rolesRoutes);
+  app.use('/api/users', blockClientDataAccess as any, usersRoutes);
   app.use('/api/permissions', permissionsRoutes);
   app.use('/api/webhooks', webhooksRoutes);
   app.use('/api/dashboard-layouts', dashboardLayoutsRoutes);

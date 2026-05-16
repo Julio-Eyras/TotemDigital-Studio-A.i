@@ -99,6 +99,16 @@ function filterHierarchicalMenu(
   return filtered;
 }
 
+/** Submenus Playlist Mix (mix por totem, regras, analytics) — agrupados sob Dispatcher para debug. */
+function getDispatcherPlaylistMixChildren(): HierarchicalMenuItem[] {
+  return [
+    { text: 'Mix por totem', icon: <Shuffle />, path: '/playlist-mix' },
+    { text: 'Grupos', icon: <Assignment />, path: '/playlist-mix/groups' },
+    { text: 'Regras', icon: <Build />, path: '/playlist-mix/rules' },
+    { text: 'Analytics', icon: <Analytics />, path: '/playlist-mix/analytics' },
+  ];
+}
+
 /**
  * Menu lateral modo TotemDigital Compact (mono publicador): ordem e rótulos pedidos pelo produto.
  * Sem ramo "Exibidores"; locais, totens e Smart TVs ficam em Administração. Planos & Acessos: item único como no compacto original.
@@ -114,6 +124,12 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
       { text: 'Monitor', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
       { text: 'Debug Online', icon: <BugReport />, path: '/dispatcher-debug' },
       { text: 'TimeLine', icon: <ViewTimeline />, path: '/dispatcher-manager?tab=timeline' },
+      {
+        text: 'Playlist Mix',
+        icon: <Shuffle />,
+        path: '/playlist-mix',
+        children: getDispatcherPlaylistMixChildren(),
+      },
       { text: 'SmartDisplayFX', icon: <AutoAwesome />, path: '/smartdisplayfx' },
       { text: 'IA', icon: <SmartToy />, path: '/ai' },
     ],
@@ -156,7 +172,6 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
           children: [
             { text: 'Visão geral', icon: <Payment />, path: '/billing' },
             { text: 'Anunciantes', icon: <People />, path: '/billing?type=subscriber' },
-            { text: 'Publicador (exibidor)', icon: <Business />, path: '/billing?type=publisher' },
           ],
         },
         { text: 'Manutenção Usuário', icon: <People />, path: '/users' },
@@ -314,6 +329,12 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
       { text: 'Monitor', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
       { text: 'Debug Online', icon: <BugReport />, path: '/dispatcher-debug' },
       { text: 'Timeline', icon: <ViewTimeline />, path: '/dispatcher-manager?tab=timeline' },
+      {
+        text: 'Playlist Mix',
+        icon: <Shuffle />,
+        path: '/playlist-mix',
+        children: getDispatcherPlaylistMixChildren(),
+      },
     ],
   };
 
@@ -487,6 +508,12 @@ function getOperadorTecnicoMenu(): HierarchicalMenuItem[] {
         { text: 'Monitor', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
         { text: 'Debug Online', icon: <BugReport />, path: '/dispatcher-debug' },
         { text: 'Timeline', icon: <ViewTimeline />, path: '/dispatcher-manager?tab=timeline' },
+        {
+          text: 'Playlist Mix',
+          icon: <Shuffle />,
+          path: '/playlist-mix',
+          children: getDispatcherPlaylistMixChildren(),
+        },
       ],
     },
   ];
