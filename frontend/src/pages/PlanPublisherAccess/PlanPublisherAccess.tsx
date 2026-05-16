@@ -188,6 +188,8 @@ const PlanPublisherAccessPage: React.FC = () => {
     currency: 'BRL',
     billingInterval: 'month',
     stripePriceIdMonthly: '',
+    stripePriceIdFourMonth: '',
+    stripePriceIdSemester: '',
     stripePriceIdYearly: '',
     stripeProductId: '',
     features: {},
@@ -400,6 +402,8 @@ const PlanPublisherAccessPage: React.FC = () => {
         currency: plan.currency || 'BRL',
         billingInterval: plan.billingInterval || plan.billing_interval || 'month',
         stripePriceIdMonthly: plan.stripePriceIdMonthly || plan.stripe_price_id_monthly || '',
+        stripePriceIdFourMonth: plan.stripePriceIdFourMonth || plan.stripe_price_id_four_month || '',
+        stripePriceIdSemester: plan.stripePriceIdSemester || plan.stripe_price_id_semester || '',
         stripePriceIdYearly: plan.stripePriceIdYearly || plan.stripe_price_id_yearly || '',
         stripeProductId: plan.stripeProductId || plan.stripe_product_id || '',
         features: plan.features || {},
@@ -428,6 +432,8 @@ const PlanPublisherAccessPage: React.FC = () => {
         currency: 'BRL',
         billingInterval: 'month',
         stripePriceIdMonthly: '',
+        stripePriceIdFourMonth: '',
+        stripePriceIdSemester: '',
         stripePriceIdYearly: '',
         stripeProductId: '',
         features: {},
@@ -614,6 +620,8 @@ const PlanPublisherAccessPage: React.FC = () => {
           name: planFormData.name,
           description: planFormData.description,
           stripePriceIdMonthly: planFormData.stripePriceIdMonthly || undefined,
+          stripePriceIdFourMonth: planFormData.stripePriceIdFourMonth || undefined,
+          stripePriceIdSemester: planFormData.stripePriceIdSemester || undefined,
           stripePriceIdYearly: planFormData.stripePriceIdYearly || undefined,
           isActive: planFormData.isActive,
           isPopular: planFormData.isPopular,
@@ -1463,7 +1471,7 @@ const PlanPublisherAccessPage: React.FC = () => {
               </Grid>
             </Grid>
             <Grid container spacing={2}>
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
                   label="ID do Produto Stripe"
@@ -1472,26 +1480,25 @@ const PlanPublisherAccessPage: React.FC = () => {
                   margin="normal"
                 />
               </Grid>
-              <Grid item xs={12} md={4}>
-                <TextField
-                  fullWidth
-                  label="ID do Preço Stripe (Mensal)"
-                  value={planFormData.stripePriceIdMonthly}
-                  disabled={selectedPlanHasContracts}
-                  onChange={(e) => setPlanFormData({ ...planFormData, stripePriceIdMonthly: e.target.value })}
-                  margin="normal"
-                />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <TextField
-                  fullWidth
-                  label="ID do Preço Stripe (Anual)"
-                  value={planFormData.stripePriceIdYearly}
-                  disabled={selectedPlanHasContracts}
-                  onChange={(e) => setPlanFormData({ ...planFormData, stripePriceIdYearly: e.target.value })}
-                  margin="normal"
-                />
-              </Grid>
+              {(
+                [
+                  ['Mensal', 'stripePriceIdMonthly'],
+                  ['Quadrimestral', 'stripePriceIdFourMonth'],
+                  ['Semestral', 'stripePriceIdSemester'],
+                  ['Anual', 'stripePriceIdYearly'],
+                ] as const
+              ).map(([label, key]) => (
+                <Grid item xs={12} md={6} key={key}>
+                  <TextField
+                    fullWidth
+                    label={`ID do Preço Stripe (${label})`}
+                    value={(planFormData as any)[key] || ''}
+                    disabled={selectedPlanHasContracts}
+                    onChange={(e) => setPlanFormData({ ...planFormData, [key]: e.target.value })}
+                    margin="normal"
+                  />
+                </Grid>
+              ))}
             </Grid>
             <TextField
               fullWidth

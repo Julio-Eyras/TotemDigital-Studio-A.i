@@ -11,7 +11,7 @@ import { financialConfig, stripeConfig } from '../config/env';
 import {
   getPlanPriceForInterval,
   normalizeBillingInterval,
-  periodBoundsForInterval,
+  resolveInvoicePeriodBounds,
 } from '../utils/billingIntervals';
 import { StripeService } from './stripeService';
 import { getFinancialNotificationService } from './financialNotificationService';
@@ -63,10 +63,6 @@ export class FinancialAdminService {
     return getDatabase();
   }
 
-  private periodBounds(interval: string, ref: Date = new Date()): { start: string; end: string; label: string } {
-    return periodBoundsForInterval(interval, ref);
-  }
-
   private computeDueDate(daysFromNow = 7): string {
     const d = new Date();
     d.setDate(d.getDate() + daysFromNow);
@@ -111,6 +107,7 @@ export class FinancialAdminService {
           sc.contract_id,
           sc.subscriber_id,
           sc.title,
+          sc.start_date,
           sc.total_amount,
           sc.currency,
           COALESCE(sc.billing_interval, p.billing_interval, 'month') AS billing_interval,
@@ -135,7 +132,10 @@ export class FinancialAdminService {
         const subscriberId = Number(row.subscriber_id);
         try {
           const interval = normalizeBillingInterval(String(row.billing_interval || 'month'));
-          const period = this.periodBounds(interval);
+          const contractStart = row.start_date
+            ? String(row.start_date).split('T')[0]
+            : undefined;
+          const period = resolveInvoicePeriodBounds(interval, contractStart, new Date());
 
           const existing = await this.db.findFirst(
             `

@@ -66,6 +66,7 @@ import {
   UpdatePublisherContractRequest,
 } from '../../services/api';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { BILLING_INTERVAL_OPTIONS } from '../../utils/billingIntervals';
 import { ContractCard, ContractForm, ContractDetails } from './components';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 
@@ -1340,8 +1341,11 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
                   label="Intervalo"
                   onChange={(e) => setPublisherContractForm({ ...publisherContractForm, subscription_interval: e.target.value })}
                 >
-                  <MenuItem value="month">Mensal</MenuItem>
-                  <MenuItem value="year">Anual</MenuItem>
+                  {BILLING_INTERVAL_OPTIONS.map((opt) => (
+                    <MenuItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </>
@@ -1524,8 +1528,11 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
                   label="Intervalo"
                   onChange={(e) => setPublisherContractForm({ ...publisherContractForm, subscription_interval: e.target.value })}
                 >
-                  <MenuItem value="month">Mensal</MenuItem>
-                  <MenuItem value="year">Anual</MenuItem>
+                  {BILLING_INTERVAL_OPTIONS.map((opt) => (
+                    <MenuItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </>

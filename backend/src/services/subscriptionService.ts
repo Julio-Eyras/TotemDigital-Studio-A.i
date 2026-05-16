@@ -7,6 +7,26 @@ import { getDatabase } from '../config/database';
 import { StripeService } from './stripeService';
 import { PlanService } from './planService';
 import { logError, logInfo } from '../utils/loggerHelper';
+import {
+  getStripePriceIdForInterval,
+  monthsForBillingInterval,
+  normalizeBillingInterval,
+} from '../utils/billingIntervals';
+
+/** Intervalo efetivo: metadata da assinatura ou plano. */
+const SUBSCRIPTION_INTERVAL_SQL = `COALESCE(
+  NULLIF(TRIM(s.metadata->>'billingInterval'), ''),
+  NULLIF(TRIM(s.metadata->>'billing_interval'), ''),
+  pl.billing_interval,
+  'month'
+)`;
+
+const SUBSCRIPTION_AMOUNT_SQL = `CASE ${SUBSCRIPTION_INTERVAL_SQL}
+  WHEN 'year' THEN COALESCE(pl.price_yearly, pl.price_monthly, 0)
+  WHEN 'four_month' THEN COALESCE(pl.price_four_month, pl.price_monthly * 4, 0)
+  WHEN 'semester' THEN COALESCE(pl.price_semester, pl.price_monthly * 6, 0)
+  ELSE COALESCE(pl.price_monthly, 0)
+END`;
 
 export interface Subscription {
   subscriptionId: number;
@@ -35,7 +55,7 @@ export interface CreateSubscriptionRequest {
   publisherId: number; // NOVO: FK para publishers
   subscriberId?: number; // clientId deprecated, usar subscriberId
   planId: number;
-  billingInterval?: 'month' | 'year';
+  billingInterval?: string;
   trialDays?: number;
 }
 
@@ -103,12 +123,9 @@ export class SubscriptionService {
           s.stripe_subscription_id,
           s.stripe_customer_id,
           s.status,
-          COALESCE(pl.billing_interval, 'month') as billing_interval,
+          ${SUBSCRIPTION_INTERVAL_SQL} as billing_interval,
           COALESCE(pl.currency, 'BRL') as currency,
-          CASE
-            WHEN COALESCE(pl.billing_interval, 'month') = 'year' THEN COALESCE(pl.price_yearly, pl.price_monthly, 0)
-            ELSE COALESCE(pl.price_monthly, 0)
-          END as amount,
+          ${SUBSCRIPTION_AMOUNT_SQL} as amount,
           COALESCE(s.current_period_start, s.created_at) as start_date,
           s.current_period_end as end_date,
           s.current_period_start,
@@ -128,7 +145,7 @@ export class SubscriptionService {
           s.plan_id as "planId",
           s.stripe_subscription_id as "stripeSubscriptionId",
           s.stripe_customer_id as "stripeCustomerId",
-          COALESCE(pl.billing_interval, 'month') as "billingInterval",
+          ${SUBSCRIPTION_INTERVAL_SQL} as "billingInterval",
           s.current_period_start as "currentPeriodStart",
           s.current_period_end as "currentPeriodEnd",
           s.cancel_at_period_end as "cancelAtPeriodEnd",
@@ -178,12 +195,9 @@ export class SubscriptionService {
           s.stripe_subscription_id,
           s.stripe_customer_id,
           s.status,
-          COALESCE(pl.billing_interval, 'month') as billing_interval,
+          ${SUBSCRIPTION_INTERVAL_SQL} as billing_interval,
           COALESCE(pl.currency, 'BRL') as currency,
-          CASE
-            WHEN COALESCE(pl.billing_interval, 'month') = 'year' THEN COALESCE(pl.price_yearly, pl.price_monthly, 0)
-            ELSE COALESCE(pl.price_monthly, 0)
-          END as amount,
+          ${SUBSCRIPTION_AMOUNT_SQL} as amount,
           COALESCE(s.current_period_start, s.created_at) as start_date,
           s.current_period_end as end_date,
           s.current_period_start,
@@ -203,7 +217,7 @@ export class SubscriptionService {
           s.plan_id as "planId",
           s.stripe_subscription_id as "stripeSubscriptionId",
           s.stripe_customer_id as "stripeCustomerId",
-          COALESCE(pl.billing_interval, 'month') as "billingInterval",
+          ${SUBSCRIPTION_INTERVAL_SQL} as "billingInterval",
           s.current_period_start as "currentPeriodStart",
           s.current_period_end as "currentPeriodEnd",
           s.cancel_at_period_end as "cancelAtPeriodEnd",
@@ -251,12 +265,9 @@ export class SubscriptionService {
           s.stripe_subscription_id,
           s.stripe_customer_id,
           s.status,
-          COALESCE(pl.billing_interval, 'month') as billing_interval,
+          ${SUBSCRIPTION_INTERVAL_SQL} as billing_interval,
           COALESCE(pl.currency, 'BRL') as currency,
-          CASE
-            WHEN COALESCE(pl.billing_interval, 'month') = 'year' THEN COALESCE(pl.price_yearly, pl.price_monthly, 0)
-            ELSE COALESCE(pl.price_monthly, 0)
-          END as amount,
+          ${SUBSCRIPTION_AMOUNT_SQL} as amount,
           COALESCE(s.current_period_start, s.created_at) as start_date,
           s.current_period_end as end_date,
           s.current_period_start,
@@ -276,7 +287,7 @@ export class SubscriptionService {
           s.plan_id as "planId",
           s.stripe_subscription_id as "stripeSubscriptionId",
           s.stripe_customer_id as "stripeCustomerId",
-          COALESCE(pl.billing_interval, 'month') as "billingInterval",
+          ${SUBSCRIPTION_INTERVAL_SQL} as "billingInterval",
           s.current_period_start as "currentPeriodStart",
           s.current_period_end as "currentPeriodEnd",
           s.cancel_at_period_end as "cancelAtPeriodEnd",
@@ -331,7 +342,8 @@ export class SubscriptionService {
         throw new Error('publisherId é obrigatório');
       }
 
-      const { planId, billingInterval = 'month', trialDays } = data;
+      const { planId, trialDays } = data;
+      const billingInterval = normalizeBillingInterval(data.billingInterval || 'month');
 
       // Validar publisher
       const publisher = await this.db.findFirst(`
@@ -385,9 +397,7 @@ export class SubscriptionService {
           `, [publisherId, customer.id, publisher.email || null]);
 
           // Selecionar price ID baseado no intervalo
-          const priceId = billingInterval === 'year' && plan.stripePriceIdYearly
-            ? plan.stripePriceIdYearly
-            : plan.stripePriceIdMonthly;
+          const priceId = getStripePriceIdForInterval(plan, billingInterval);
 
           if (priceId) {
             // Criar subscription no Stripe
@@ -418,7 +428,7 @@ export class SubscriptionService {
       // Calcular períodos se não vier do Stripe
       if (!currentPeriodStart) {
         currentPeriodStart = new Date();
-        const months = billingInterval === 'year' ? 12 : 1;
+        const months = monthsForBillingInterval(billingInterval);
         currentPeriodEnd = new Date(currentPeriodStart);
         currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + months);
       }
@@ -449,7 +459,7 @@ export class SubscriptionService {
         currentPeriodEnd,
         trialStart,
         trialEnd,
-        JSON.stringify({ createdBy: 'system' })
+        JSON.stringify({ createdBy: 'system', billingInterval })
       ]);
 
       const subscriptionRow = result.rows?.[0];
@@ -498,9 +508,10 @@ export class SubscriptionService {
         // Atualizar no Stripe se houver
         if (this.stripeService.isEnabled() && existingSubscription.stripeSubscriptionId) {
           try {
-            const priceId = existingSubscription.billingInterval === 'year' && plan.stripePriceIdYearly
-              ? plan.stripePriceIdYearly
-              : plan.stripePriceIdMonthly;
+            const priceId = getStripePriceIdForInterval(
+              plan,
+              normalizeBillingInterval(existingSubscription.billingInterval || 'month')
+            );
 
             if (priceId) {
               await this.stripeService.getStripeInstance()?.subscriptions.update(

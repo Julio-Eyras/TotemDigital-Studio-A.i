@@ -25,6 +25,8 @@ const PLAN_SELECT = `
           currency,
           billing_interval as "billingInterval",
           stripe_price_id_monthly as "stripePriceIdMonthly",
+          stripe_price_id_four_month as "stripePriceIdFourMonth",
+          stripe_price_id_semester as "stripePriceIdSemester",
           stripe_price_id_yearly as "stripePriceIdYearly",
           stripe_product_id as "stripeProductId",
           features,
@@ -49,6 +51,8 @@ export interface Plan {
   currency: string;
   billingInterval: string;
   stripePriceIdMonthly?: string;
+  stripePriceIdFourMonth?: string;
+  stripePriceIdSemester?: string;
   stripePriceIdYearly?: string;
   stripeProductId?: string;
   features: any;
@@ -73,6 +77,8 @@ export interface CreatePlanRequest {
   currency?: string;
   billingInterval?: string;
   stripePriceIdMonthly?: string;
+  stripePriceIdFourMonth?: string;
+  stripePriceIdSemester?: string;
   stripePriceIdYearly?: string;
   stripeProductId?: string;
   features?: any;
@@ -91,6 +97,8 @@ export interface UpdatePlanRequest {
   priceYearly?: number;
   billingInterval?: string;
   stripePriceIdMonthly?: string;
+  stripePriceIdFourMonth?: string;
+  stripePriceIdSemester?: string;
   stripePriceIdYearly?: string;
   features?: any;
   limits?: any;
@@ -206,6 +214,8 @@ export class PlanService {
         currency = 'BRL',
         billingInterval = 'month',
         stripePriceIdMonthly,
+        stripePriceIdFourMonth,
+        stripePriceIdSemester,
         stripePriceIdYearly,
         stripeProductId,
         features = {},
@@ -248,10 +258,11 @@ export class PlanService {
       const result = await this.db.executeRaw(`
         INSERT INTO plans (
           name, slug, description, price_monthly, price_four_month, price_semester, price_yearly,
-          currency, billing_interval, stripe_price_id_monthly, stripe_price_id_yearly,
+          currency, billing_interval,
+          stripe_price_id_monthly, stripe_price_id_four_month, stripe_price_id_semester, stripe_price_id_yearly,
           stripe_product_id, features, limits, is_active, is_popular, sort_order
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING plan_id
       `, [
         name,
@@ -264,6 +275,8 @@ export class PlanService {
         currency,
         defaultInterval,
         stripePriceIdMonthly,
+        stripePriceIdFourMonth,
+        stripePriceIdSemester,
         stripePriceIdYearly,
         stripeProductId,
         JSON.stringify(features),
@@ -382,6 +395,16 @@ export class PlanService {
       if (data.stripePriceIdMonthly !== undefined) {
         updates.push('stripe_price_id_monthly = ?');
         params.push(data.stripePriceIdMonthly);
+      }
+
+      if (data.stripePriceIdFourMonth !== undefined) {
+        updates.push('stripe_price_id_four_month = ?');
+        params.push(data.stripePriceIdFourMonth);
+      }
+
+      if (data.stripePriceIdSemester !== undefined) {
+        updates.push('stripe_price_id_semester = ?');
+        params.push(data.stripePriceIdSemester);
       }
 
       if (data.stripePriceIdYearly !== undefined) {

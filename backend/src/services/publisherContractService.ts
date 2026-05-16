@@ -1,4 +1,5 @@
 import { getDatabase } from '../config/database';
+import { isBillingIntervalCode, normalizeBillingInterval } from '../utils/billingIntervals';
 import { logError } from '../utils/loggerHelper';
 
 export interface PublisherContract {
@@ -288,6 +289,14 @@ export class PublisherContractService {
         throw new Error('Número de contrato já existe');
       }
 
+      let normalizedSubscriptionInterval: string | null = null;
+      if (subscription_interval) {
+        normalizedSubscriptionInterval = normalizeBillingInterval(subscription_interval);
+        if (!isBillingIntervalCode(normalizedSubscriptionInterval)) {
+          throw new Error('Intervalo de assinatura inválido');
+        }
+      }
+
       // Criar contrato
       const result = await this.db.executeRaw(`
         INSERT INTO publisher_contracts (
@@ -313,7 +322,7 @@ export class PublisherContractService {
         revenue_share_rules ? JSON.stringify(revenue_share_rules) : null,
         minimum_payout_amount || null,
         subscription_amount || null,
-        subscription_interval || null,
+        normalizedSubscriptionInterval,
         currency,
         payment_terms || null,
         document_path || null,
@@ -405,8 +414,14 @@ export class PublisherContractService {
       }
 
       if (data.subscription_interval !== undefined) {
+        const iv = data.subscription_interval
+          ? normalizeBillingInterval(data.subscription_interval)
+          : null;
+        if (iv && !isBillingIntervalCode(iv)) {
+          throw new Error('Intervalo de assinatura inválido');
+        }
         updateFields.push(`subscription_interval = $${paramIndex++}`);
-        updateParams.push(data.subscription_interval || null);
+        updateParams.push(iv);
       }
 
       if (data.currency !== undefined) {

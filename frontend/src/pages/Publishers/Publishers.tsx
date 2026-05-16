@@ -92,6 +92,7 @@ import {
   getTotemLocalIdFromRow,
 } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { BILLING_INTERVAL_OPTIONS } from '../../utils/billingIntervals';
 import { getLocalMenuItemSx, orderLocalsForSelect } from '../../utils/localOrdering';
 import { PublisherCard, PublisherForm, PublisherDetails } from './components';
 
@@ -3055,8 +3056,11 @@ const Publishers: React.FC = () => {
                             label="Intervalo"
                             onChange={(e) => setPublisherContractForm({ ...publisherContractForm, subscription_interval: e.target.value })}
                           >
-                            <MenuItem value="month">Mensal</MenuItem>
-                            <MenuItem value="year">Anual</MenuItem>
+                            {BILLING_INTERVAL_OPTIONS.map((opt) => (
+                              <MenuItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </MenuItem>
+                            ))}
                           </Select>
                         </FormControl>
                       </Grid>

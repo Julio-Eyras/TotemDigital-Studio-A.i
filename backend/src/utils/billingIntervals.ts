@@ -32,6 +32,19 @@ export function billingIntervalLabel(code?: string | null): string {
   return BILLING_INTERVAL_LABELS[n];
 }
 
+export function monthsForBillingInterval(interval: string): number {
+  switch (normalizeBillingInterval(interval)) {
+    case 'year':
+      return 12;
+    case 'four_month':
+      return 4;
+    case 'semester':
+      return 6;
+    default:
+      return 1;
+  }
+}
+
 export type PlanPriceRow = {
   price_monthly?: number | string | null;
   priceMonthly?: number | string | null;
@@ -43,6 +56,14 @@ export type PlanPriceRow = {
   priceYearly?: number | string | null;
   billing_interval?: string | null;
   billingInterval?: string | null;
+  stripe_price_id_monthly?: string | null;
+  stripePriceIdMonthly?: string | null;
+  stripe_price_id_four_month?: string | null;
+  stripePriceIdFourMonth?: string | null;
+  stripe_price_id_semester?: string | null;
+  stripePriceIdSemester?: string | null;
+  stripe_price_id_yearly?: string | null;
+  stripePriceIdYearly?: string | null;
 };
 
 function num(v: unknown): number | undefined {
@@ -65,6 +86,24 @@ export function getPlanPriceForInterval(plan: PlanPriceRow | null | undefined, i
   }
 }
 
+export function getStripePriceIdForInterval(
+  plan: PlanPriceRow | null | undefined,
+  interval: string
+): string | undefined {
+  if (!plan) return undefined;
+  const code = normalizeBillingInterval(interval);
+  switch (code) {
+    case 'year':
+      return plan.stripePriceIdYearly ?? plan.stripe_price_id_yearly ?? undefined;
+    case 'four_month':
+      return plan.stripePriceIdFourMonth ?? plan.stripe_price_id_four_month ?? undefined;
+    case 'semester':
+      return plan.stripePriceIdSemester ?? plan.stripe_price_id_semester ?? undefined;
+    default:
+      return plan.stripePriceIdMonthly ?? plan.stripe_price_id_monthly ?? undefined;
+  }
+}
+
 /** Intervalo padrão do plano (referência para novos contratos). */
 export function getPlanDefaultBillingInterval(plan: PlanPriceRow | null | undefined): BillingIntervalCode {
   return normalizeBillingInterval(plan?.billingInterval ?? plan?.billing_interval ?? 'month');
@@ -81,7 +120,30 @@ export function resolveContractAmountFromPlan(
   return getPlanPriceForInterval(plan, interval);
 }
 
-/** Período de faturação alinhado ao calendário (para emissão de faturas). */
+function parseYmd(input: string | Date): Date {
+  if (input instanceof Date) {
+    return new Date(input.getFullYear(), input.getMonth(), input.getDate());
+  }
+  const [y, m, d] = String(input).split('T')[0].split('-').map((x) => parseInt(x, 10));
+  return new Date(y, (m || 1) - 1, d || 1);
+}
+
+function formatYmd(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function addMonths(d: Date, months: number): Date {
+  const out = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const day = out.getDate();
+  out.setMonth(out.getMonth() + months);
+  if (out.getDate() < day) {
+    out.setDate(0);
+  }
+  return out;
+}
+
+/** Período de faturação alinhado ao calendário (legado / fallback). */
 export function periodBoundsForInterval(
   interval: string,
   ref: Date = new Date()
@@ -129,4 +191,51 @@ export function periodBoundsForInterval(
     end: `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}`,
     label: `${y}-${pad(m + 1)}`,
   };
+}
+
+/**
+ * Período de faturação ancorado na data de início do contrato (solução B).
+ * O período que contém `ref` é calculado em ciclos de N meses desde `contractStart`.
+ */
+export function periodBoundsFromContractStart(
+  interval: string,
+  contractStart: string | Date,
+  ref: Date = new Date()
+): { start: string; end: string; label: string } {
+  const step = monthsForBillingInterval(interval);
+  const anchor = parseYmd(contractStart);
+  const refD = parseYmd(ref);
+  const code = normalizeBillingInterval(interval);
+
+  let n = 0;
+  for (let guard = 0; guard < 5000; guard++) {
+    const periodStart = addMonths(anchor, n * step);
+    const nextStart = addMonths(anchor, (n + 1) * step);
+    const periodEnd = new Date(nextStart);
+    periodEnd.setDate(periodEnd.getDate() - 1);
+
+    if (refD >= periodStart && refD <= periodEnd) {
+      const label = `${formatYmd(periodStart)}_${code}`;
+      return { start: formatYmd(periodStart), end: formatYmd(periodEnd), label };
+    }
+    if (refD < periodStart) {
+      const label = `${formatYmd(periodStart)}_${code}`;
+      return { start: formatYmd(periodStart), end: formatYmd(periodEnd), label };
+    }
+    n++;
+  }
+
+  return periodBoundsForInterval(interval, ref);
+}
+
+/** Resolve período: contrato com start_date usa aniversário; senão calendário. */
+export function resolveInvoicePeriodBounds(
+  interval: string,
+  contractStart: string | Date | null | undefined,
+  ref: Date = new Date()
+): { start: string; end: string; label: string } {
+  if (contractStart) {
+    return periodBoundsFromContractStart(interval, contractStart, ref);
+  }
+  return periodBoundsForInterval(interval, ref);
 }

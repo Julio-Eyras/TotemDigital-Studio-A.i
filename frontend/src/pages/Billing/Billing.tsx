@@ -80,7 +80,11 @@ import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
-import { billingIntervalLabel } from '../../utils/billingIntervals';
+import {
+  billingIntervalLabel,
+  getPlanDefaultBillingInterval,
+  getPlanPriceForInterval,
+} from '../../utils/billingIntervals';
 import {
   billingViewFromTabIndex,
   parseBillingView,
@@ -212,7 +216,7 @@ const Billing: React.FC = () => {
   };
 
   const getPlanPrice = (plan: Plan): number => {
-    return plan.priceMonthly || plan.price_monthly || 0;
+    return getPlanPriceForInterval(plan, getPlanDefaultBillingInterval(plan)) ?? 0;
   };
 
   const getPlanBillingInterval = (plan: Plan): string => {

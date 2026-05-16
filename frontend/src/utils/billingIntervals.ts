@@ -75,3 +75,9 @@ export function getPlanContractAmount(plan: PlanPriceFields | null | undefined, 
   const iv = interval ?? getPlanDefaultBillingInterval(plan);
   return getPlanPriceForInterval(plan, iv);
 }
+
+/** Não sobrescreve valor já negociado (> 0). */
+export function shouldApplyPlanReferenceAmount(currentTotal?: number | null): boolean {
+  const n = Number(currentTotal);
+  return !(Number.isFinite(n) && n > 0);
+}

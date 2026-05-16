@@ -547,9 +547,11 @@ router.post('/checkout', async (req: any, res) => {
     );
 
     // Selecionar price ID
-    const priceId = billingInterval === 'year' && plan.stripePriceIdYearly
-      ? plan.stripePriceIdYearly
-      : plan.stripePriceIdMonthly;
+    const { getStripePriceIdForInterval, normalizeBillingInterval } = await import(
+      '../utils/billingIntervals'
+    );
+    const interval = normalizeBillingInterval(billingInterval);
+    const priceId = getStripePriceIdForInterval(plan, interval);
 
     if (!priceId) {
       return res.status(400).json({

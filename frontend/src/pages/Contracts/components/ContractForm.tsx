@@ -42,6 +42,7 @@ import {
   getPlanDefaultBillingInterval,
   getPlanPriceForInterval,
   normalizeBillingInterval,
+  shouldApplyPlanReferenceAmount,
 } from '../../../utils/billingIntervals';
 
 export interface ContractFormProps {
@@ -165,7 +166,9 @@ const ContractForm: React.FC<ContractFormProps> = ({
       billing_interval: interval,
       payment_terms: billingIntervalLabel(interval),
       currency: plan.currency || (data as any).currency || 'BRL',
-      ...(ref != null ? { total_amount: ref } : {}),
+      ...(ref != null && shouldApplyPlanReferenceAmount((data as any).total_amount)
+        ? { total_amount: ref }
+        : {}),
     });
   };
 
@@ -176,7 +179,9 @@ const ContractForm: React.FC<ContractFormProps> = ({
       ...data,
       billing_interval: code,
       payment_terms: billingIntervalLabel(code),
-      ...(ref != null ? { total_amount: ref } : {}),
+      ...(ref != null && shouldApplyPlanReferenceAmount((data as any).total_amount)
+        ? { total_amount: ref }
+        : {}),
     });
   };
 

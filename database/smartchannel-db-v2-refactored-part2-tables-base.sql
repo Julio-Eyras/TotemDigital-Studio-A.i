@@ -120,6 +120,8 @@ CREATE TABLE IF NOT EXISTS plans (
     currency TEXT DEFAULT 'BRL',
     billing_interval TEXT DEFAULT 'month', -- month, four_month, semester, year (referência padrão)
     stripe_price_id_monthly TEXT,
+    stripe_price_id_four_month TEXT,
+    stripe_price_id_semester TEXT,
     stripe_price_id_yearly TEXT,
     stripe_product_id TEXT,
     features JSONB DEFAULT '{}'::jsonb, -- Limites e features do plano

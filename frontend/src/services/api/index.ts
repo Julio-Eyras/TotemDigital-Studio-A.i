@@ -2100,6 +2100,10 @@ export interface Plan {
   billingInterval: string; // Backend retorna como billingInterval
   stripe_price_id_monthly?: string;
   stripePriceIdMonthly?: string; // Backend retorna como stripePriceIdMonthly
+  stripe_price_id_four_month?: string;
+  stripePriceIdFourMonth?: string;
+  stripe_price_id_semester?: string;
+  stripePriceIdSemester?: string;
   stripe_price_id_yearly?: string;
   stripePriceIdYearly?: string; // Backend retorna como stripePriceIdYearly
   stripe_product_id?: string;
@@ -2134,6 +2138,8 @@ export interface CreatePlanRequest {
   currency?: string;
   billingInterval?: string;
   stripePriceIdMonthly?: string;
+  stripePriceIdFourMonth?: string;
+  stripePriceIdSemester?: string;
   stripePriceIdYearly?: string;
   stripeProductId?: string;
   features?: any;
@@ -2153,6 +2159,8 @@ export interface UpdatePlanRequest {
   priceYearly?: number;
   billingInterval?: string;
   stripePriceIdMonthly?: string;
+  stripePriceIdFourMonth?: string;
+  stripePriceIdSemester?: string;
   stripePriceIdYearly?: string;
   features?: any;
   limits?: any;
@@ -2218,7 +2226,7 @@ export interface Subscription {
   current_period_end: string;
   trial_start?: string;
   trial_end?: string;
-  billing_interval: 'month' | 'year';
+  billing_interval: 'month' | 'four_month' | 'semester' | 'year';
   amount: number;
   currency: string;
   metadata?: any;
@@ -3356,6 +3364,7 @@ export interface UpdateContractRequest {
   end_date?: string;
   total_amount?: number;
   currency?: string;
+  billing_interval?: string;
   payment_terms?: string;
   document_path?: string;
   document_filename?: string;

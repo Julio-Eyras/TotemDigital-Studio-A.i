@@ -280,6 +280,10 @@ BEGIN
     END
     WHERE sc.billing_interval IS NULL;
   END IF;
+  IF to_regclass('public.plans') IS NOT NULL THEN
+    ALTER TABLE plans ADD COLUMN IF NOT EXISTS stripe_price_id_four_month TEXT;
+    ALTER TABLE plans ADD COLUMN IF NOT EXISTS stripe_price_id_semester TEXT;
+  END IF;
 END
 $billing_interval_upgrade$;
 
@@ -311,7 +315,7 @@ CREATE TABLE IF NOT EXISTS publisher_contracts (
     
     -- Termos de subscription (se aplicável)
     subscription_amount NUMERIC(12, 2), -- Valor mensal/anual da subscription
-    subscription_interval TEXT, -- month, year
+    subscription_interval TEXT, -- month, four_month, semester, year
     
     currency TEXT DEFAULT 'BRL',
     payment_terms TEXT,

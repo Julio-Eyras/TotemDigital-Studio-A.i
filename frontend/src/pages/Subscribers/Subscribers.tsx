@@ -121,6 +121,7 @@ import {
   getPlanDefaultBillingInterval,
   getPlanPriceForInterval,
   normalizeBillingInterval,
+  shouldApplyPlanReferenceAmount,
 } from '../../utils/billingIntervals';
 import { PlanTopologyPreviewRow, loadPlanTopologyPreviewRows, countTopologyInRows } from './planTopologyPreview';
 import { PlanTopologyTabPanel } from './PlanTopologyTabPanel';
@@ -353,7 +354,9 @@ const Subscribers: React.FC = () => {
       billing_interval: interval,
       payment_terms: billingIntervalLabel(interval),
       currency: getPlanCurrency(plan),
-      total_amount: refAmount,
+      ...(refAmount != null && shouldApplyPlanReferenceAmount(form.total_amount)
+        ? { total_amount: refAmount }
+        : {}),
     } as T;
   };
 
@@ -365,7 +368,9 @@ const Subscribers: React.FC = () => {
       ...form,
       billing_interval: code,
       payment_terms: billingIntervalLabel(code),
-      ...(refAmount != null ? { total_amount: refAmount } : {}),
+      ...(refAmount != null && shouldApplyPlanReferenceAmount(form.total_amount)
+        ? { total_amount: refAmount }
+        : {}),
     } as T;
   };
   // NOVO: Estados para gerenciar locais, totens, smart TVs e subscribers durante a criação
@@ -2624,6 +2629,7 @@ const Subscribers: React.FC = () => {
                           total_amount: undefined,
                           status: 'draft',
                           plan_id: undefined,
+                          billing_interval: 'month',
                         });
                       }}
                       disabled={!(subscriberContractForm.contract_number || defaultNewSubscriberContractNumber) || !subscriberContractForm.title}
@@ -2646,6 +2652,7 @@ const Subscribers: React.FC = () => {
                             total_amount: undefined,
                             status: 'draft',
                             plan_id: undefined,
+                            billing_interval: 'month',
                           });
                         }}
                         sx={{ ml: 1 }}
@@ -3218,6 +3225,7 @@ const Subscribers: React.FC = () => {
                             total_amount: undefined,
                             status: 'draft',
                             plan_id: undefined,
+                            billing_interval: 'month',
                           });
                         } catch (error: any) {
                           setError(pickApiErrorMessage(error, 'Erro ao salvar contrato'));
@@ -3243,6 +3251,7 @@ const Subscribers: React.FC = () => {
                             total_amount: undefined,
                             status: 'draft',
                             plan_id: undefined,
+                            billing_interval: 'month',
                           });
                         }}
                         sx={{ ml: 1 }}
