@@ -6188,11 +6188,11 @@ ask_public_host_and_split_layout() {
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo
     echo "Como deseja expor o tráfego HTTP?"
-    echo -e "  ${GREEN}1)${NC} Tudo na mesma porta (padrão): painel, API e /player na porta 80."
-    echo -e "  ${GREEN}2)${NC} Site corporativo estático numa porta e o sistema noutra (ex.: site na 80, painel na 8080)."
+    echo -e "  ${GREEN}1)${NC} Tudo na mesma porta: painel, API e /player na porta 80."
+    echo -e "  ${GREEN}2)${NC} Site corporativo estático numa porta e o sistema noutra (padrão; ex.: site na 80, painel na 8080)."
     echo
-    read -p "Opção [1]: " _split_choice
-    _split_choice=${_split_choice:-1}
+    read -p "Opção [2]: " _split_choice
+    _split_choice=${_split_choice:-2}
     case "${_split_choice}" in
         2)
             SPLIT_CORPORATE_AND_SYSTEM=true
