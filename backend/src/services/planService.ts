@@ -6,6 +6,36 @@
 import { getDatabase } from '../config/database';
 import { logError, logInfo } from '../utils/loggerHelper';
 import { getCacheService } from './cacheService';
+import {
+  BILLING_INTERVAL_CODES,
+  getPlanPriceForInterval,
+  isBillingIntervalCode,
+  normalizeBillingInterval,
+} from '../utils/billingIntervals';
+
+const PLAN_SELECT = `
+          plan_id as "planId",
+          name,
+          slug,
+          description,
+          price_monthly as "priceMonthly",
+          price_four_month as "priceFourMonth",
+          price_semester as "priceSemester",
+          price_yearly as "priceYearly",
+          currency,
+          billing_interval as "billingInterval",
+          stripe_price_id_monthly as "stripePriceIdMonthly",
+          stripe_price_id_yearly as "stripePriceIdYearly",
+          stripe_product_id as "stripeProductId",
+          features,
+          limits,
+          is_active as "isActive",
+          is_popular as "isPopular",
+          COALESCE(is_default, false) as "isDefault",
+          COALESCE((SELECT COUNT(*)::int FROM subscriber_contracts sc WHERE sc.plan_id = plans.plan_id), 0) as "contractCount",
+          sort_order as "sortOrder",
+          created_at as "createdAt",
+          updated_at as "updatedAt"`;
 
 export interface Plan {
   planId: number;
@@ -13,6 +43,8 @@ export interface Plan {
   slug: string;
   description?: string;
   priceMonthly: number;
+  priceFourMonth?: number;
+  priceSemester?: number;
   priceYearly?: number;
   currency: string;
   billingInterval: string;
@@ -35,7 +67,9 @@ export interface CreatePlanRequest {
   slug: string;
   description?: string;
   priceMonthly: number;
-  priceYearly?: number;
+  priceFourMonth: number;
+  priceSemester: number;
+  priceYearly: number;
   currency?: string;
   billingInterval?: string;
   stripePriceIdMonthly?: string;
@@ -52,7 +86,10 @@ export interface UpdatePlanRequest {
   name?: string;
   description?: string;
   priceMonthly?: number;
+  priceFourMonth?: number;
+  priceSemester?: number;
   priceYearly?: number;
+  billingInterval?: string;
   stripePriceIdMonthly?: string;
   stripePriceIdYearly?: string;
   features?: any;
@@ -79,26 +116,7 @@ export class PlanService {
 
       const plans = await this.db.findMany(`
         SELECT 
-          plan_id as "planId",
-          name,
-          slug,
-          description,
-          price_monthly as "priceMonthly",
-          price_yearly as "priceYearly",
-          currency,
-          billing_interval as "billingInterval",
-          stripe_price_id_monthly as "stripePriceIdMonthly",
-          stripe_price_id_yearly as "stripePriceIdYearly",
-          stripe_product_id as "stripeProductId",
-          features,
-          limits,
-          is_active as "isActive",
-          is_popular as "isPopular",
-          COALESCE(is_default, false) as "isDefault",
-          COALESCE((SELECT COUNT(*)::int FROM subscriber_contracts sc WHERE sc.plan_id = plans.plan_id), 0) as "contractCount",
-          sort_order as "sortOrder",
-          created_at as "createdAt",
-          updated_at as "updatedAt"
+          ${PLAN_SELECT}
         FROM plans
         ${whereClause}
         ORDER BY COALESCE(is_default, false) DESC, sort_order ASC, name ASC
@@ -119,26 +137,7 @@ export class PlanService {
     try {
       const plan = await this.db.findFirst(`
         SELECT 
-          plan_id as "planId",
-          name,
-          slug,
-          description,
-          price_monthly as "priceMonthly",
-          price_yearly as "priceYearly",
-          currency,
-          billing_interval as "billingInterval",
-          stripe_price_id_monthly as "stripePriceIdMonthly",
-          stripe_price_id_yearly as "stripePriceIdYearly",
-          stripe_product_id as "stripeProductId",
-          features,
-          limits,
-          is_active as "isActive",
-          is_popular as "isPopular",
-          COALESCE(is_default, false) as "isDefault",
-          COALESCE((SELECT COUNT(*)::int FROM subscriber_contracts sc WHERE sc.plan_id = plans.plan_id), 0) as "contractCount",
-          sort_order as "sortOrder",
-          created_at as "createdAt",
-          updated_at as "updatedAt"
+          ${PLAN_SELECT}
         FROM plans
         WHERE plan_id = ?
       `, [planId]);
@@ -158,26 +157,7 @@ export class PlanService {
     try {
       const plan = await this.db.findFirst(`
         SELECT 
-          plan_id as "planId",
-          name,
-          slug,
-          description,
-          price_monthly as "priceMonthly",
-          price_yearly as "priceYearly",
-          currency,
-          billing_interval as "billingInterval",
-          stripe_price_id_monthly as "stripePriceIdMonthly",
-          stripe_price_id_yearly as "stripePriceIdYearly",
-          stripe_product_id as "stripeProductId",
-          features,
-          limits,
-          is_active as "isActive",
-          is_popular as "isPopular",
-          COALESCE(is_default, false) as "isDefault",
-          COALESCE((SELECT COUNT(*)::int FROM subscriber_contracts sc WHERE sc.plan_id = plans.plan_id), 0) as "contractCount",
-          sort_order as "sortOrder",
-          created_at as "createdAt",
-          updated_at as "updatedAt"
+          ${PLAN_SELECT}
         FROM plans
         WHERE is_active = true
         ORDER BY COALESCE(is_default, false) DESC, sort_order ASC NULLS LAST, plan_id ASC
@@ -197,25 +177,7 @@ export class PlanService {
     try {
       const plan = await this.db.findFirst(`
         SELECT 
-          plan_id as "planId",
-          name,
-          slug,
-          description,
-          price_monthly as "priceMonthly",
-          price_yearly as "priceYearly",
-          currency,
-          billing_interval as "billingInterval",
-          stripe_price_id_monthly as "stripePriceIdMonthly",
-          stripe_price_id_yearly as "stripePriceIdYearly",
-          stripe_product_id as "stripeProductId",
-          features,
-          limits,
-          is_active as "isActive",
-          is_popular as "isPopular",
-          COALESCE((SELECT COUNT(*)::int FROM subscriber_contracts sc WHERE sc.plan_id = plans.plan_id), 0) as "contractCount",
-          sort_order as "sortOrder",
-          created_at as "createdAt",
-          updated_at as "updatedAt"
+          ${PLAN_SELECT}
         FROM plans
         WHERE slug = ?
       `, [slug]);
@@ -238,6 +200,8 @@ export class PlanService {
         slug,
         description,
         priceMonthly,
+        priceFourMonth,
+        priceSemester,
         priceYearly,
         currency = 'BRL',
         billingInterval = 'month',
@@ -251,9 +215,27 @@ export class PlanService {
         sortOrder = 0
       } = data;
 
-      // Validar campos obrigatórios
-      if (!name || !slug || !priceMonthly) {
-        throw new Error('Nome, slug e preço mensal são obrigatórios');
+      const defaultInterval = normalizeBillingInterval(billingInterval);
+      if (!isBillingIntervalCode(defaultInterval)) {
+        throw new Error('Intervalo de cobrança de referência inválido');
+      }
+
+      if (!name || !slug) {
+        throw new Error('Nome e slug são obrigatórios');
+      }
+      for (const code of BILLING_INTERVAL_CODES) {
+        const p = getPlanPriceForInterval(
+          {
+            priceMonthly,
+            priceFourMonth,
+            priceSemester,
+            priceYearly,
+          },
+          code
+        );
+        if (p == null) {
+          throw new Error(`Preço obrigatório para periodicidade: ${code}`);
+        }
       }
 
       // Verificar se slug já existe
@@ -265,20 +247,22 @@ export class PlanService {
       // Criar plano
       const result = await this.db.executeRaw(`
         INSERT INTO plans (
-          name, slug, description, price_monthly, price_yearly, currency,
-          billing_interval, stripe_price_id_monthly, stripe_price_id_yearly,
+          name, slug, description, price_monthly, price_four_month, price_semester, price_yearly,
+          currency, billing_interval, stripe_price_id_monthly, stripe_price_id_yearly,
           stripe_product_id, features, limits, is_active, is_popular, sort_order
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING plan_id
       `, [
         name,
         slug,
         description,
         priceMonthly,
+        priceFourMonth,
+        priceSemester,
         priceYearly,
         currency,
-        billingInterval,
+        defaultInterval,
         stripePriceIdMonthly,
         stripePriceIdYearly,
         stripeProductId,
@@ -324,14 +308,32 @@ export class PlanService {
       if (hasContracts) {
         const priceMonthlyChanged =
           data.priceMonthly !== undefined && Number(data.priceMonthly) !== Number(existingPlan.priceMonthly);
+        const priceFourMonthChanged =
+          data.priceFourMonth !== undefined &&
+          Number(data.priceFourMonth || 0) !== Number(existingPlan.priceFourMonth || 0);
+        const priceSemesterChanged =
+          data.priceSemester !== undefined &&
+          Number(data.priceSemester || 0) !== Number(existingPlan.priceSemester || 0);
         const priceYearlyChanged =
           data.priceYearly !== undefined && Number(data.priceYearly || 0) !== Number(existingPlan.priceYearly || 0);
+        const billingIntervalChanged =
+          data.billingInterval !== undefined &&
+          normalizeBillingInterval(data.billingInterval) !==
+            normalizeBillingInterval(existingPlan.billingInterval);
         const featuresChanged =
           data.features !== undefined && JSON.stringify(data.features ?? {}) !== JSON.stringify(existingPlan.features ?? {});
         const limitsChanged =
           data.limits !== undefined && JSON.stringify(data.limits ?? {}) !== JSON.stringify(existingPlan.limits ?? {});
 
-        if (priceMonthlyChanged || priceYearlyChanged || featuresChanged || limitsChanged) {
+        if (
+          priceMonthlyChanged ||
+          priceFourMonthChanged ||
+          priceSemesterChanged ||
+          priceYearlyChanged ||
+          billingIntervalChanged ||
+          featuresChanged ||
+          limitsChanged
+        ) {
           throw new Error(
             'Plano já possui contrato vinculado. Preço, recursos e limites não podem ser alterados; crie um novo plano para novas regras.'
           );
@@ -357,9 +359,24 @@ export class PlanService {
         params.push(data.priceMonthly);
       }
 
+      if (data.priceFourMonth !== undefined) {
+        updates.push('price_four_month = ?');
+        params.push(data.priceFourMonth);
+      }
+
+      if (data.priceSemester !== undefined) {
+        updates.push('price_semester = ?');
+        params.push(data.priceSemester);
+      }
+
       if (data.priceYearly !== undefined) {
         updates.push('price_yearly = ?');
         params.push(data.priceYearly);
+      }
+
+      if (data.billingInterval !== undefined) {
+        updates.push('billing_interval = ?');
+        params.push(normalizeBillingInterval(data.billingInterval));
       }
 
       if (data.stripePriceIdMonthly !== undefined) {

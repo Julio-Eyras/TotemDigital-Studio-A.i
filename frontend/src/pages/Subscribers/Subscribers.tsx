@@ -115,6 +115,13 @@ import CampaignFullEditorDialog from '../Campaigns/CampaignFullEditorDialog';
 import { useAppSelector } from '../../store/hooks';
 import { getForeignTotemIdFromRow, getTotemIdFromRow, getTotemLocalIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import {
+  BILLING_INTERVAL_OPTIONS,
+  billingIntervalLabel,
+  getPlanDefaultBillingInterval,
+  getPlanPriceForInterval,
+  normalizeBillingInterval,
+} from '../../utils/billingIntervals';
 import { PlanTopologyPreviewRow, loadPlanTopologyPreviewRows, countTopologyInRows } from './planTopologyPreview';
 import { PlanTopologyTabPanel } from './PlanTopologyTabPanel';
 
@@ -268,6 +275,7 @@ const Subscribers: React.FC = () => {
     end_date: getDefaultContractEndDate(),
     currency: 'BRL',
     total_amount: undefined,
+    billing_interval: 'month',
     status: 'draft',
     plan_id: undefined,
   });
@@ -280,6 +288,7 @@ const Subscribers: React.FC = () => {
     end_date: getDefaultContractEndDate(),
     currency: 'BRL',
     total_amount: undefined,
+    billing_interval: 'month',
     status: 'draft',
     plan_id: undefined,
   });
@@ -294,26 +303,7 @@ const Subscribers: React.FC = () => {
     return Number.isFinite(n) && n > 0 ? n : undefined;
   };
 
-  const getPlanPriceMonthly = (plan: any): number => Number(plan?.priceMonthly ?? plan?.price_monthly ?? 0);
-
-  const getPlanPriceYearly = (plan: any): number | undefined => {
-    const raw = plan?.priceYearly ?? plan?.price_yearly;
-    const n = Number(raw);
-    return Number.isFinite(n) && n > 0 ? n : undefined;
-  };
-
-  const getPlanBillingInterval = (plan: any): string => String(plan?.billingInterval ?? plan?.billing_interval ?? 'month');
-
   const getPlanCurrency = (plan: any): string => String(plan?.currency || 'BRL').toUpperCase();
-
-  const getPlanContractAmount = (plan: any): number | undefined => {
-    if (!plan) return undefined;
-    const monthly = getPlanPriceMonthly(plan);
-    if (getPlanBillingInterval(plan) === 'year') {
-      return getPlanPriceYearly(plan) ?? (monthly > 0 ? monthly * 12 : undefined);
-    }
-    return monthly > 0 ? monthly : undefined;
-  };
 
   const formatCurrencyAmount = (amount?: number | null, currency: string = 'BRL') => {
     const n = Number(amount);
@@ -326,29 +316,56 @@ const Subscribers: React.FC = () => {
 
   const getPlanOptionLabel = (plan: any): string => {
     const currency = getPlanCurrency(plan);
-    const amount = getPlanContractAmount(plan);
-    const interval = getPlanBillingInterval(plan) === 'year' ? 'ano' : 'mês';
-    const value = amount != null ? ` — ${formatCurrencyAmount(amount, currency)}/${interval}` : '';
+    const iv = getPlanDefaultBillingInterval(plan);
+    const amount = getPlanPriceForInterval(plan, iv);
+    const value =
+      amount != null
+        ? ` — ref. ${formatCurrencyAmount(amount, currency)} (${billingIntervalLabel(iv)})`
+        : '';
     return `${plan?.name || 'Plano'}${value}`;
   };
 
-  const getSelectedPlanValueHelper = (planId?: number): string => {
+  const getSelectedPlanValueHelper = (planId?: number, billingInterval?: string): string => {
     const plan = availablePlansForContract.find((p: any) => getPlanIdFromOption(p) === planId);
-    const amount = getPlanContractAmount(plan);
-    if (amount == null) return 'Valor fechado neste contrato';
-    return `Valor do plano: ${formatCurrencyAmount(amount, getPlanCurrency(plan))}`;
+    if (!plan) return 'Valor fechado neste contrato';
+    const iv = normalizeBillingInterval(billingInterval ?? getPlanDefaultBillingInterval(plan));
+    const ref = getPlanPriceForInterval(plan, iv);
+    if (ref == null) return 'Informe o valor acordado para este contrato';
+    return `Referência do plano (${billingIntervalLabel(iv)}): ${formatCurrencyAmount(ref, getPlanCurrency(plan))} — pode negociar abaixo`;
   };
 
-  const applyPlanToContractForm = <T extends CreateContractRequest>(form: T, planId?: number): T => {
+  const applyPlanToContractForm = <T extends CreateContractRequest>(
+    form: T,
+    planId?: number,
+    intervalOverride?: string
+  ): T => {
     const plan = availablePlansForContract.find((p: any) => getPlanIdFromOption(p) === planId);
     if (!planId || !plan) {
       return { ...form, plan_id: planId } as T;
     }
+    const interval = normalizeBillingInterval(
+      intervalOverride ?? (form as any).billing_interval ?? getPlanDefaultBillingInterval(plan)
+    );
+    const refAmount = getPlanPriceForInterval(plan, interval);
     return {
       ...form,
       plan_id: planId,
+      billing_interval: interval,
+      payment_terms: billingIntervalLabel(interval),
       currency: getPlanCurrency(plan),
-      total_amount: getPlanContractAmount(plan),
+      total_amount: refAmount,
+    } as T;
+  };
+
+  const applyContractBillingInterval = <T extends CreateContractRequest>(form: T, interval: string): T => {
+    const plan = availablePlansForContract.find((p: any) => getPlanIdFromOption(p) === form.plan_id);
+    const code = normalizeBillingInterval(interval);
+    const refAmount = plan ? getPlanPriceForInterval(plan, code) : undefined;
+    return {
+      ...form,
+      billing_interval: code,
+      payment_terms: billingIntervalLabel(code),
+      ...(refAmount != null ? { total_amount: refAmount } : {}),
     } as T;
   };
   // NOVO: Estados para gerenciar locais, totens, smart TVs e subscribers durante a criação
@@ -1871,6 +1888,7 @@ const Subscribers: React.FC = () => {
             end_date: c.end_date ? formatDateForAPI(c.end_date) : undefined,
             total_amount: c.total_amount,
             currency: c.currency || 'BRL',
+            billing_interval: c.billing_interval,
             payment_terms: c.payment_terms,
             description: c.description,
           })),
@@ -2515,6 +2533,27 @@ const Subscribers: React.FC = () => {
                     />
                   </Grid>
                   <Grid item xs={12} md={4}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Intervalo de cobrança</InputLabel>
+                      <Select
+                        sx={sxSelectChosenGreen(!!subscriberContractForm.billing_interval)}
+                        value={normalizeBillingInterval(subscriberContractForm.billing_interval || 'month')}
+                        label="Intervalo de cobrança"
+                        onChange={(e) =>
+                          setSubscriberContractForm(
+                            applyContractBillingInterval(subscriberContractForm, e.target.value)
+                          )
+                        }
+                      >
+                        {BILLING_INTERVAL_OPTIONS.map((opt) => (
+                          <MenuItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
                     <TextField
                       fullWidth
                       label="Valor acordado"
@@ -2533,7 +2572,10 @@ const Subscribers: React.FC = () => {
                         ),
                       }}
                       inputProps={{ min: 0, step: '0.01' }}
-                      helperText={getSelectedPlanValueHelper(subscriberContractForm.plan_id)}
+                      helperText={getSelectedPlanValueHelper(
+                        subscriberContractForm.plan_id,
+                        subscriberContractForm.billing_interval
+                      )}
                     />
                   </Grid>
                   <Grid item xs={12} md={4}>
@@ -3058,6 +3100,27 @@ const Subscribers: React.FC = () => {
                     />
                   </Grid>
                   <Grid item xs={12} md={4}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Intervalo de cobrança</InputLabel>
+                      <Select
+                        sx={sxSelectChosenGreen(!!subscriberContractFormEdit.billing_interval)}
+                        value={normalizeBillingInterval(subscriberContractFormEdit.billing_interval || 'month')}
+                        label="Intervalo de cobrança"
+                        onChange={(e) =>
+                          setSubscriberContractFormEdit(
+                            applyContractBillingInterval(subscriberContractFormEdit, e.target.value)
+                          )
+                        }
+                      >
+                        {BILLING_INTERVAL_OPTIONS.map((opt) => (
+                          <MenuItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
                     <TextField
                       fullWidth
                       label="Valor acordado"
@@ -3076,7 +3139,10 @@ const Subscribers: React.FC = () => {
                         ),
                       }}
                       inputProps={{ min: 0, step: '0.01' }}
-                      helperText={getSelectedPlanValueHelper(subscriberContractFormEdit.plan_id)}
+                      helperText={getSelectedPlanValueHelper(
+                        subscriberContractFormEdit.plan_id,
+                        subscriberContractFormEdit.billing_interval
+                      )}
                     />
                   </Grid>
                   <Grid item xs={12} md={4}>
@@ -3231,6 +3297,9 @@ const Subscribers: React.FC = () => {
                                 const contractPlan = (plans ?? []).find(
                                   (p: any) => getPlanIdFromOption(p) === Number(contract.plan_id)
                                 );
+                                const iv = normalizeBillingInterval(
+                                  (contract as any).billing_interval || contract.payment_terms
+                                );
                                 setSubscriberContractFormEdit({
                                   contract_number: contract.contract_number,
                                   contract_type: contract.contract_type as any,
@@ -3239,7 +3308,11 @@ const Subscribers: React.FC = () => {
                                   start_date: formatDateForInput(contract.start_date) || getDefaultContractStartDate(),
                                   end_date: formatDateForInput(contract.end_date) || getDefaultContractEndDate(),
                                   currency: contract.currency || 'BRL',
-                                  total_amount: contract.total_amount ?? getPlanContractAmount(contractPlan),
+                                  billing_interval: iv,
+                                  payment_terms: billingIntervalLabel(iv),
+                                  total_amount:
+                                    contract.total_amount ??
+                                    (contractPlan ? getPlanPriceForInterval(contractPlan, iv) : undefined),
                                   status: contract.status as any || 'draft',
                                   plan_id: contract.plan_id || undefined,
                                 });

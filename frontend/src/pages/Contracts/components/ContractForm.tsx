@@ -36,6 +36,13 @@ import {
   Plan,
   Publisher,
 } from '../../../services/api';
+import {
+  BILLING_INTERVAL_OPTIONS,
+  billingIntervalLabel,
+  getPlanDefaultBillingInterval,
+  getPlanPriceForInterval,
+  normalizeBillingInterval,
+} from '../../../utils/billingIntervals';
 
 export interface ContractFormProps {
   mode: 'create' | 'edit';
@@ -139,6 +146,39 @@ const ContractForm: React.FC<ContractFormProps> = ({
 
   const isCreateMode = mode === 'create';
   const hasSubscriber = !!(data as CreateContractRequest).subscriber_id;
+
+  const selectedPlan = plans.find((p) => (p.planId || p.plan_id) === getFieldValue('plan_id'));
+
+  const applyPlanSelection = (planId?: number) => {
+    const plan = plans.find((p) => (p.planId || p.plan_id) === planId);
+    if (!planId || !plan) {
+      onChange({ ...data, plan_id: planId });
+      return;
+    }
+    const interval = normalizeBillingInterval(
+      (data as any).billing_interval || getPlanDefaultBillingInterval(plan)
+    );
+    const ref = getPlanPriceForInterval(plan, interval);
+    onChange({
+      ...data,
+      plan_id: planId,
+      billing_interval: interval,
+      payment_terms: billingIntervalLabel(interval),
+      currency: plan.currency || (data as any).currency || 'BRL',
+      ...(ref != null ? { total_amount: ref } : {}),
+    });
+  };
+
+  const applyIntervalSelection = (interval: string) => {
+    const code = normalizeBillingInterval(interval);
+    const ref = selectedPlan ? getPlanPriceForInterval(selectedPlan, code) : undefined;
+    onChange({
+      ...data,
+      billing_interval: code,
+      payment_terms: billingIntervalLabel(code),
+      ...(ref != null ? { total_amount: ref } : {}),
+    });
+  };
 
   return (
     <Box>
@@ -295,7 +335,9 @@ const ContractForm: React.FC<ContractFormProps> = ({
                 <Select
                   value={getFieldValue('plan_id') || ''}
                   label="Plano"
-                  onChange={(e) => handleFieldChange('plan_id', e.target.value ? Number(e.target.value) : undefined)}
+                  onChange={(e) =>
+                    applyPlanSelection(e.target.value ? Number(e.target.value) : undefined)
+                  }
                 >
                   <MenuItem value="">Nenhum</MenuItem>
                   {plans.map((plan) => {
@@ -392,19 +434,24 @@ const ContractForm: React.FC<ContractFormProps> = ({
               </FormControl>
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid item xs={12} md={6}>
               {canViewSensitiveValues && (
-                <TextField
-                  fullWidth
-                  label="Condições de Pagamento"
-                  value={getFieldValue('payment_terms') || ''}
-                  onChange={(e) => handleFieldChange('payment_terms', e.target.value)}
-                  margin="normal"
-                  multiline
-                  rows={2}
-                  error={hasError('payment_terms')}
-                  helperText={getHelperText('payment_terms')}
-                />
+                <FormControl fullWidth margin="normal">
+                  <InputLabel>Intervalo de cobrança</InputLabel>
+                  <Select
+                    value={normalizeBillingInterval(
+                      getFieldValue('billing_interval') || getFieldValue('payment_terms') || 'month'
+                    )}
+                    label="Intervalo de cobrança"
+                    onChange={(e) => applyIntervalSelection(e.target.value)}
+                  >
+                    {BILLING_INTERVAL_OPTIONS.map((opt) => (
+                      <MenuItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
               )}
             </Grid>
           </Grid>

@@ -114,9 +114,11 @@ CREATE TABLE IF NOT EXISTS plans (
     slug TEXT UNIQUE NOT NULL,
     description TEXT,
     price_monthly NUMERIC(12, 2) NOT NULL,
+    price_four_month NUMERIC(12, 2),
+    price_semester NUMERIC(12, 2),
     price_yearly NUMERIC(12, 2),
     currency TEXT DEFAULT 'BRL',
-    billing_interval TEXT DEFAULT 'month', -- month, year
+    billing_interval TEXT DEFAULT 'month', -- month, four_month, semester, year (referência padrão)
     stripe_price_id_monthly TEXT,
     stripe_price_id_yearly TEXT,
     stripe_product_id TEXT,

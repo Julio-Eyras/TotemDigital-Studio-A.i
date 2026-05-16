@@ -80,6 +80,7 @@ import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
+import { billingIntervalLabel } from '../../utils/billingIntervals';
 import {
   billingViewFromTabIndex,
   parseBillingView,
@@ -1150,7 +1151,7 @@ const Billing: React.FC = () => {
                     {formatCurrency(sub.amount, sub.currency)}
                   </TableCell>
                   <TableCell>
-                    {sub.billing_interval === 'month' ? 'Mensal' : 'Anual'}
+                    {billingIntervalLabel(sub.billing_interval)}
                   </TableCell>
                   <TableCell>
                     {new Date(sub.start_date).toLocaleDateString('pt-BR')}

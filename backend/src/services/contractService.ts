@@ -1,5 +1,11 @@
 import { getDatabase } from '../config/database';
 import { logError, logDebugSync, logErrorSync } from '../utils/loggerHelper';
+import {
+  billingIntervalLabel,
+  getPlanDefaultBillingInterval,
+  normalizeBillingInterval,
+  resolveContractAmountFromPlan,
+} from '../utils/billingIntervals';
 
 export interface Contract {
   contract_id: number;
@@ -13,6 +19,7 @@ export interface Contract {
   end_date?: string;
   total_amount?: number;
   currency: string;
+  billing_interval?: string;
   payment_terms?: string;
   document_path?: string;
   document_filename?: string;
@@ -41,6 +48,7 @@ export interface CreateContractRequest {
   end_date?: string;
   total_amount?: number;
   currency?: string;
+  billing_interval?: string;
   payment_terms?: string;
   document_path?: string;
   document_filename?: string;
@@ -64,6 +72,7 @@ export interface UpdateContractRequest {
   end_date?: string;
   total_amount?: number;
   currency?: string;
+  billing_interval?: string;
   payment_terms?: string;
   document_path?: string;
   document_filename?: string;
@@ -157,6 +166,7 @@ export class ContractService {
           sc.end_date,
           sc.total_amount,
           sc.currency,
+          sc.billing_interval,
           sc.payment_terms,
           sc.document_path,
           sc.document_filename,
@@ -215,6 +225,7 @@ export class ContractService {
           sc.end_date,
           sc.total_amount,
           sc.currency,
+          sc.billing_interval,
           sc.payment_terms,
           sc.document_path,
           sc.document_filename,
@@ -271,6 +282,7 @@ export class ContractService {
         end_date,
         total_amount,
         currency = 'BRL',
+        billing_interval: billingIntervalInput,
         payment_terms,
         document_path,
         document_filename,
@@ -302,21 +314,29 @@ export class ContractService {
 
       let agreedTotalAmount = total_amount;
       let contractCurrency = currency;
+      let contractBillingInterval = normalizeBillingInterval(
+        billingIntervalInput || payment_terms || 'month'
+      );
+      let contractPaymentTerms = payment_terms || billingIntervalLabel(contractBillingInterval);
 
-      // Validar plan existe (se fornecido) e usar o valor do plano como sugestão padrão do contrato
       if (plan_id) {
         const plan = await this.db.findFirst(`
-          SELECT plan_id, price_monthly, price_yearly, currency, billing_interval FROM plans WHERE plan_id = $1
+          SELECT plan_id, price_monthly, price_four_month, price_semester, price_yearly,
+                 currency, billing_interval
+          FROM plans WHERE plan_id = $1
         `, [plan_id]);
 
         if (!plan) {
           throw new Error('Plano não encontrado');
         }
 
-        if (agreedTotalAmount === undefined || agreedTotalAmount === null) {
-          const monthly = Number(plan.price_monthly || 0);
-          const yearly = plan.price_yearly != null ? Number(plan.price_yearly) : undefined;
-          agreedTotalAmount = plan.billing_interval === 'year' ? (yearly || monthly * 12) : monthly;
+        if (!billingIntervalInput && !payment_terms) {
+          contractBillingInterval = getPlanDefaultBillingInterval(plan);
+        }
+        contractPaymentTerms = billingIntervalLabel(contractBillingInterval);
+        const resolved = resolveContractAmountFromPlan(plan, contractBillingInterval, agreedTotalAmount);
+        if (resolved != null) {
+          agreedTotalAmount = resolved;
         }
         if (!data.currency && plan.currency) {
           contractCurrency = String(plan.currency);
@@ -336,12 +356,12 @@ export class ContractService {
       const insertSql = `
         INSERT INTO subscriber_contracts (
           subscriber_id, plan_id, contract_number, contract_type, title, description,
-          start_date, end_date, total_amount, currency, payment_terms,
+          start_date, end_date, total_amount, currency, billing_interval, payment_terms,
           document_path, document_filename, document_mime_type, document_size_bytes,
           status, signed_by_subscriber_at, signed_by_tenant_at, metadata,
           created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING contract_id
       `;
       const insertParams = [
@@ -355,7 +375,8 @@ export class ContractService {
         end_date || null,
         agreedTotalAmount ?? null,
         contractCurrency,
-        payment_terms || null,
+        contractBillingInterval,
+        contractPaymentTerms,
         document_path || null,
         document_filename || null,
         document_mime_type || null,
@@ -458,6 +479,7 @@ export class ContractService {
         end_date,
         total_amount,
         currency,
+        billing_interval: billingIntervalInput,
         payment_terms,
         document_path,
         document_filename,
@@ -485,26 +507,62 @@ export class ContractService {
 
       let agreedTotalAmount = total_amount;
       let contractCurrency = currency;
-      if (plan_id !== undefined && plan_id) {
+      let contractBillingInterval: string | undefined =
+        billingIntervalInput !== undefined
+          ? normalizeBillingInterval(billingIntervalInput || payment_terms)
+          : undefined;
+      let contractPaymentTerms: string | undefined =
+        payment_terms !== undefined
+          ? payment_terms || billingIntervalLabel(contractBillingInterval || 'month')
+          : undefined;
+
+      const effectivePlanId =
+        plan_id !== undefined ? plan_id : existingContract.plan_id;
+      const planChanged =
+        plan_id !== undefined && Number(plan_id) !== Number(existingContract.plan_id || 0);
+      const intervalChanged = contractBillingInterval !== undefined;
+
+      if (effectivePlanId) {
         const plan = await this.db.findFirst(`
-          SELECT plan_id, price_monthly, price_yearly, currency, billing_interval FROM plans WHERE plan_id = $1
-        `, [plan_id]);
+          SELECT plan_id, price_monthly, price_four_month, price_semester, price_yearly,
+                 currency, billing_interval
+          FROM plans WHERE plan_id = $1
+        `, [effectivePlanId]);
 
         if (!plan) {
           throw new Error('Plano não encontrado');
         }
 
-        if (
-          (agreedTotalAmount === undefined || agreedTotalAmount === null) &&
-          Number(plan_id) !== Number(existingContract.plan_id || 0)
-        ) {
-          const monthly = Number(plan.price_monthly || 0);
-          const yearly = plan.price_yearly != null ? Number(plan.price_yearly) : undefined;
-          agreedTotalAmount = plan.billing_interval === 'year' ? (yearly || monthly * 12) : monthly;
+        if (contractBillingInterval === undefined) {
+          contractBillingInterval = normalizeBillingInterval(
+            (existingContract as any).billing_interval ||
+              existingContract.payment_terms ||
+              getPlanDefaultBillingInterval(plan)
+          );
         }
-        if (!currency && Number(plan_id) !== Number(existingContract.plan_id || 0) && plan.currency) {
+
+        if (planChanged && billingIntervalInput === undefined && payment_terms === undefined) {
+          contractBillingInterval = getPlanDefaultBillingInterval(plan);
+        }
+
+        contractPaymentTerms = billingIntervalLabel(contractBillingInterval);
+
+        const shouldRefreshAmount =
+          (agreedTotalAmount === undefined || agreedTotalAmount === null) &&
+          (planChanged || intervalChanged);
+
+        if (shouldRefreshAmount) {
+          const resolved = resolveContractAmountFromPlan(plan, contractBillingInterval, undefined);
+          if (resolved != null) {
+            agreedTotalAmount = resolved;
+          }
+        }
+
+        if (!currency && planChanged && plan.currency) {
           contractCurrency = String(plan.currency);
         }
+      } else if (contractBillingInterval !== undefined) {
+        contractPaymentTerms = billingIntervalLabel(contractBillingInterval);
       }
 
       // Preparar campos para atualização
@@ -566,7 +624,17 @@ export class ContractService {
         paramIndex++;
       }
 
-      if (payment_terms !== undefined) {
+      if (contractBillingInterval !== undefined) {
+        updateFields.push(`billing_interval = $${paramIndex}`);
+        updateParams.push(contractBillingInterval);
+        paramIndex++;
+      }
+
+      if (contractPaymentTerms !== undefined) {
+        updateFields.push(`payment_terms = $${paramIndex}`);
+        updateParams.push(contractPaymentTerms);
+        paramIndex++;
+      } else if (payment_terms !== undefined) {
         updateFields.push(`payment_terms = $${paramIndex}`);
         updateParams.push(payment_terms || null);
         paramIndex++;

@@ -528,15 +528,17 @@ BEGIN
     END IF;
 
     -- Planos base
-    INSERT INTO plans (name, slug, description, price_monthly, price_yearly, currency, billing_interval, features, limits, is_active, is_popular, is_default, sort_order)
+    INSERT INTO plans (name, slug, description, price_monthly, price_four_month, price_semester, price_yearly, currency, billing_interval, features, limits, is_active, is_popular, is_default, sort_order)
     VALUES
-      ('Plano Bronze', 'bronze', 'Plano Bronze demo dinâmico', 129.00, 1290.00, 'BRL', 'month', '{"tier":"bronze"}'::jsonb, '${demo_json_bronze}'::jsonb, true, false, true, 1),
-      ('Plano Silver', 'silver', 'Plano Silver demo dinâmico', 199.00, 1990.00, 'BRL', 'month', '{"tier":"silver"}'::jsonb, '${demo_json_silver}'::jsonb, true, true, false, 2),
-      ('Plano Gold', 'gold', 'Plano Gold demo dinâmico', 299.00, 2990.00, 'BRL', 'month', '{"tier":"gold"}'::jsonb, '${demo_json_gold}'::jsonb, true, false, false, 3)
+      ('Plano Bronze', 'bronze', 'Plano Bronze demo dinâmico', 129.00, 516.00, 774.00, 1290.00, 'BRL', 'month', '{"tier":"bronze"}'::jsonb, '${demo_json_bronze}'::jsonb, true, false, true, 1),
+      ('Plano Silver', 'silver', 'Plano Silver demo dinâmico', 199.00, 796.00, 1194.00, 1990.00, 'BRL', 'month', '{"tier":"silver"}'::jsonb, '${demo_json_silver}'::jsonb, true, true, false, 2),
+      ('Plano Gold', 'gold', 'Plano Gold demo dinâmico', 299.00, 1196.00, 1794.00, 2990.00, 'BRL', 'month', '{"tier":"gold"}'::jsonb, '${demo_json_gold}'::jsonb, true, false, false, 3)
     ON CONFLICT (slug) DO UPDATE
       SET name = EXCLUDED.name,
           description = EXCLUDED.description,
           price_monthly = EXCLUDED.price_monthly,
+          price_four_month = EXCLUDED.price_four_month,
+          price_semester = EXCLUDED.price_semester,
           price_yearly = EXCLUDED.price_yearly,
           billing_interval = EXCLUDED.billing_interval,
           features = EXCLUDED.features,
@@ -723,12 +725,12 @@ BEGIN
 
         INSERT INTO subscriber_contracts (
             subscriber_id, plan_id, contract_number, contract_type, title, description,
-            start_date, end_date, total_amount, currency, payment_terms, status,
+            start_date, end_date, total_amount, currency, billing_interval, payment_terms, status,
             signed_by_subscriber_at, signed_by_tenant_at, created_by, metadata, is_active
         ) VALUES
-        (v_subscriber_id, v_bronze_plan_id, format('SUB-%s-BRONZE', v_subscriber_id), 'subscription', 'Contrato Bronze Demo', 'Contrato demo bronze', CURRENT_DATE, CURRENT_DATE + INTERVAL '1 year', 1548.00, 'BRL', 'Mensal', 'active', NOW() - INTERVAL '3 days', NOW() - INTERVAL '3 days', v_admin_id, '{}'::jsonb, true),
-        (v_subscriber_id, v_silver_plan_id, format('SUB-%s-SILVER', v_subscriber_id), 'subscription', 'Contrato Silver Demo', 'Contrato demo silver', CURRENT_DATE, CURRENT_DATE + INTERVAL '1 year', 2388.00, 'BRL', 'Mensal', 'draft', NULL, NULL, v_admin_id, '{}'::jsonb, true),
-        (v_subscriber_id, v_gold_plan_id,   format('SUB-%s-GOLD', v_subscriber_id), 'subscription', 'Contrato Gold Demo',   'Contrato demo gold',   CURRENT_DATE, CURRENT_DATE + INTERVAL '1 year', 3588.00, 'BRL', 'Mensal', 'cancelled', NULL, NULL, v_admin_id, '{}'::jsonb, true)
+        (v_subscriber_id, v_bronze_plan_id, format('SUB-%s-BRONZE', v_subscriber_id), 'subscription', 'Contrato Bronze Demo', 'Contrato demo bronze', CURRENT_DATE, CURRENT_DATE + INTERVAL '1 year', 1548.00, 'BRL', 'year', 'Anual', 'active', NOW() - INTERVAL '3 days', NOW() - INTERVAL '3 days', v_admin_id, '{}'::jsonb, true),
+        (v_subscriber_id, v_silver_plan_id, format('SUB-%s-SILVER', v_subscriber_id), 'subscription', 'Contrato Silver Demo', 'Contrato demo silver', CURRENT_DATE, CURRENT_DATE + INTERVAL '1 year', 2388.00, 'BRL', 'year', 'Anual', 'draft', NULL, NULL, v_admin_id, '{}'::jsonb, true),
+        (v_subscriber_id, v_gold_plan_id,   format('SUB-%s-GOLD', v_subscriber_id), 'subscription', 'Contrato Gold Demo',   'Contrato demo gold',   CURRENT_DATE, CURRENT_DATE + INTERVAL '1 year', 3588.00, 'BRL', 'year', 'Anual', 'cancelled', NULL, NULL, v_admin_id, '{}'::jsonb, true)
         ON CONFLICT (subscriber_id, contract_number) DO UPDATE
           SET plan_id = EXCLUDED.plan_id,
               status = EXCLUDED.status,

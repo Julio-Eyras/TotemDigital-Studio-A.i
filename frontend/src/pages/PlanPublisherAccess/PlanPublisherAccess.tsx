@@ -62,6 +62,11 @@ import { subscriberAccessApi, PlanPublisherAccess } from '../../services/api';
 import { totemApi, Player, localApi, Local } from '../../services/api';
 import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import { PageHeader } from '../../components/DataDisplay';
+import {
+  BILLING_INTERVAL_OPTIONS,
+  billingIntervalLabel,
+  getPlanPriceForInterval,
+} from '../../utils/billingIntervals';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 import { getTotemIdFromRow, getTotemLocalIdFromRow, getTotemPublisherIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
@@ -168,6 +173,8 @@ const PlanPublisherAccessPage: React.FC = () => {
   const [localsCatalog, setLocalsCatalog] = useState<Local[]>([]);
   const [totemsCatalog, setTotemsCatalog] = useState<Player[]>([]);
   const [planMonthlyPriceText, setPlanMonthlyPriceText] = useState('');
+  const [planFourMonthPriceText, setPlanFourMonthPriceText] = useState('');
+  const [planSemesterPriceText, setPlanSemesterPriceText] = useState('');
   const [planYearlyPriceText, setPlanYearlyPriceText] = useState('');
 
   const [planFormData, setPlanFormData] = useState<CreatePlanRequest>({
@@ -175,6 +182,8 @@ const PlanPublisherAccessPage: React.FC = () => {
     slug: '',
     description: '',
     priceMonthly: undefined,
+    priceFourMonth: undefined,
+    priceSemester: undefined,
     priceYearly: undefined,
     currency: 'BRL',
     billingInterval: 'month',
@@ -373,14 +382,20 @@ const PlanPublisherAccessPage: React.FC = () => {
       setPlanEditMode(true);
       setSelectedPlan(plan);
       const pm = getPlanPriceMonthly(plan);
+      const p4 = getPlanPriceForInterval(plan, 'four_month');
+      const ps = getPlanPriceForInterval(plan, 'semester');
       const py = getPlanPriceYearly(plan);
       setPlanMonthlyPriceText(formatPlanCurrencyDisplay(pm));
+      setPlanFourMonthPriceText(p4 != null ? formatPlanCurrencyDisplay(p4) : '');
+      setPlanSemesterPriceText(ps != null ? formatPlanCurrencyDisplay(ps) : '');
       setPlanYearlyPriceText(py != null ? formatPlanCurrencyDisplay(py) : '');
       setPlanFormData({
         name: plan.name,
         slug: plan.slug,
         description: plan.description || '',
         priceMonthly: pm,
+        priceFourMonth: p4,
+        priceSemester: ps,
         priceYearly: py,
         currency: plan.currency || 'BRL',
         billingInterval: plan.billingInterval || plan.billing_interval || 'month',
@@ -399,12 +414,16 @@ const PlanPublisherAccessPage: React.FC = () => {
       setPlanEditMode(false);
       setSelectedPlan(null);
       setPlanMonthlyPriceText('');
+      setPlanFourMonthPriceText('');
+      setPlanSemesterPriceText('');
       setPlanYearlyPriceText('');
       setPlanFormData({
         name: '',
         slug: '',
         description: '',
         priceMonthly: undefined,
+        priceFourMonth: undefined,
+        priceSemester: undefined,
         priceYearly: undefined,
         currency: 'BRL',
         billingInterval: 'month',
@@ -550,13 +569,18 @@ const PlanPublisherAccessPage: React.FC = () => {
       setError(null);
 
       // Validar campos obrigatórios
-      if (
-        !planFormData.name ||
-        !planFormData.slug ||
-        planFormData.priceMonthly == null ||
-        planFormData.priceMonthly <= 0
-      ) {
-        setError('Nome, slug e preço mensal maior que zero são obrigatórios');
+      if (!planFormData.name || !planFormData.slug) {
+        setError('Nome e slug são obrigatórios');
+        return;
+      }
+      const missingPrice = ['month', 'four_month', 'semester', 'year'].find((code) => {
+        const p = getPlanPriceForInterval(planFormData as any, code);
+        return p == null || p <= 0;
+      });
+      if (missingPrice) {
+        setError(
+          `Informe preço maior que zero para: ${billingIntervalLabel(missingPrice)}`
+        );
         return;
       }
 
@@ -597,7 +621,10 @@ const PlanPublisherAccessPage: React.FC = () => {
         };
         if (!selectedPlanHasContracts) {
           updateData.priceMonthly = planFormData.priceMonthly;
+          updateData.priceFourMonth = planFormData.priceFourMonth;
+          updateData.priceSemester = planFormData.priceSemester;
           updateData.priceYearly = planFormData.priceYearly;
+          updateData.billingInterval = planFormData.billingInterval;
           updateData.features = features;
           updateData.limits = limits;
         }
@@ -972,8 +999,10 @@ const PlanPublisherAccessPage: React.FC = () => {
                 <TableRow>
                   <TableCell><strong>Nome</strong></TableCell>
                   <TableCell><strong>Slug</strong></TableCell>
-                  <TableCell><strong>Preço Mensal</strong></TableCell>
-                  <TableCell><strong>Preço Anual</strong></TableCell>
+                  <TableCell><strong>Mensal</strong></TableCell>
+                  <TableCell><strong>4 meses</strong></TableCell>
+                  <TableCell><strong>Semestral</strong></TableCell>
+                  <TableCell><strong>Anual</strong></TableCell>
                   <TableCell><strong>Status</strong></TableCell>
                   <TableCell><strong>Popular</strong></TableCell>
                   <TableCell><strong>Ordem</strong></TableCell>
@@ -1001,6 +1030,22 @@ const PlanPublisherAccessPage: React.FC = () => {
                           style: 'currency',
                           currency: plan.currency || 'BRL',
                         }).format(getPlanPriceMonthly(plan))}
+                      </TableCell>
+                      <TableCell>
+                        {getPlanPriceForInterval(plan, 'four_month') != null
+                          ? new Intl.NumberFormat('pt-BR', {
+                              style: 'currency',
+                              currency: plan.currency || 'BRL',
+                            }).format(getPlanPriceForInterval(plan, 'four_month')!)
+                          : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {getPlanPriceForInterval(plan, 'semester') != null
+                          ? new Intl.NumberFormat('pt-BR', {
+                              style: 'currency',
+                              currency: plan.currency || 'BRL',
+                            }).format(getPlanPriceForInterval(plan, 'semester')!)
+                          : '-'}
                       </TableCell>
                       <TableCell>
                         {getPlanPriceYearly(plan)
@@ -1254,7 +1299,7 @@ const PlanPublisherAccessPage: React.FC = () => {
               margin="normal"
             />
             <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12} md={6} sm={6}>
                 <TextField
                   fullWidth
                   label="Preço Mensal *"
@@ -1288,10 +1333,69 @@ const PlanPublisherAccessPage: React.FC = () => {
                   }
                 />
               </Grid>
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12} md={6} sm={6}>
                 <TextField
                   fullWidth
-                  label="Preço Anual"
+                  label="Preço Quadrimestral *"
+                  type="text"
+                  value={planFourMonthPriceText}
+                  disabled={selectedPlanHasContracts}
+                  onChange={(e) => {
+                    const draft = normalizeCurrencyDraft(e.target.value);
+                    setPlanFourMonthPriceText(draft);
+                    const n = draftToAmount(draft);
+                    setPlanFormData((prev) => ({ ...prev, priceFourMonth: n }));
+                  }}
+                  onBlur={() => {
+                    const n = draftToAmount(planFourMonthPriceText);
+                    if (n != null) {
+                      setPlanFourMonthPriceText(formatPlanCurrencyDisplay(n));
+                      setPlanFormData((prev) => ({ ...prev, priceFourMonth: n }));
+                    }
+                  }}
+                  margin="normal"
+                  required
+                  placeholder="0,00"
+                  helperText="A cada 4 meses"
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">R$</InputAdornment>,
+                  }}
+                  inputProps={{ inputMode: 'decimal', autoComplete: 'off' }}
+                />
+              </Grid>
+              <Grid item xs={12} md={6} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Preço Semestral *"
+                  type="text"
+                  value={planSemesterPriceText}
+                  disabled={selectedPlanHasContracts}
+                  onChange={(e) => {
+                    const draft = normalizeCurrencyDraft(e.target.value);
+                    setPlanSemesterPriceText(draft);
+                    const n = draftToAmount(draft);
+                    setPlanFormData((prev) => ({ ...prev, priceSemester: n }));
+                  }}
+                  onBlur={() => {
+                    const n = draftToAmount(planSemesterPriceText);
+                    if (n != null) {
+                      setPlanSemesterPriceText(formatPlanCurrencyDisplay(n));
+                      setPlanFormData((prev) => ({ ...prev, priceSemester: n }));
+                    }
+                  }}
+                  margin="normal"
+                  required
+                  placeholder="0,00"
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">R$</InputAdornment>,
+                  }}
+                  inputProps={{ inputMode: 'decimal', autoComplete: 'off' }}
+                />
+              </Grid>
+              <Grid item xs={12} md={6} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Preço Anual *"
                   type="text"
                   value={planYearlyPriceText}
                   disabled={selectedPlanHasContracts}
@@ -1312,6 +1416,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                     }
                   }}
                   margin="normal"
+                  required
                   placeholder="0,00"
                   InputProps={{
                     startAdornment: <InputAdornment position="start">R$</InputAdornment>,
@@ -1338,17 +1443,23 @@ const PlanPublisherAccessPage: React.FC = () => {
               </Grid>
               <Grid item xs={12} md={6}>
                 <FormControl fullWidth margin="normal">
-                  <InputLabel>Intervalo de Cobrança</InputLabel>
+                  <InputLabel>Intervalo de referência</InputLabel>
                   <Select
                     value={planFormData.billingInterval}
                     disabled={selectedPlanHasContracts}
                     onChange={(e) => setPlanFormData({ ...planFormData, billingInterval: e.target.value })}
-                    label="Intervalo de Cobrança"
+                    label="Intervalo de referência"
                   >
-                    <MenuItem value="month">Mensal</MenuItem>
-                    <MenuItem value="year">Anual</MenuItem>
+                    {BILLING_INTERVAL_OPTIONS.map((opt) => (
+                      <MenuItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                  Pré-seleciona intervalo e valor sugerido em novos contratos
+                </Typography>
               </Grid>
             </Grid>
             <Grid container spacing={2}>

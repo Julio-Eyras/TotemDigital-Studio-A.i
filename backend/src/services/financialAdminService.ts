@@ -8,6 +8,11 @@ import { getDatabase } from '../config/database';
 import { logError, logInfo } from '../utils/loggerHelper';
 import { buildPixCopyPaste } from '../utils/pixEmv';
 import { financialConfig, stripeConfig } from '../config/env';
+import {
+  getPlanPriceForInterval,
+  normalizeBillingInterval,
+  periodBoundsForInterval,
+} from '../utils/billingIntervals';
 import { StripeService } from './stripeService';
 import { getFinancialNotificationService } from './financialNotificationService';
 function getSubscriberBillingServiceInstance() {
@@ -59,23 +64,7 @@ export class FinancialAdminService {
   }
 
   private periodBounds(interval: string, ref: Date = new Date()): { start: string; end: string; label: string } {
-    const y = ref.getFullYear();
-    const m = ref.getMonth();
-    if (interval === 'year') {
-      return {
-        start: `${y}-01-01`,
-        end: `${y}-12-31`,
-        label: String(y),
-      };
-    }
-    const start = new Date(y, m, 1);
-    const end = new Date(y, m + 1, 0);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return {
-      start: `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`,
-      end: `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}`,
-      label: `${y}-${pad(m + 1)}`,
-    };
+    return periodBoundsForInterval(interval, ref);
   }
 
   private computeDueDate(daysFromNow = 7): string {
@@ -124,11 +113,13 @@ export class FinancialAdminService {
           sc.title,
           sc.total_amount,
           sc.currency,
+          COALESCE(sc.billing_interval, p.billing_interval, 'month') AS billing_interval,
           p.plan_id,
           p.name AS plan_name,
           p.price_monthly,
-          p.price_yearly,
-          COALESCE(p.billing_interval, 'month') AS billing_interval
+          p.price_four_month,
+          p.price_semester,
+          p.price_yearly
         FROM subscriber_contracts sc
         LEFT JOIN plans p ON p.plan_id = sc.plan_id
         ${where}
@@ -143,7 +134,7 @@ export class FinancialAdminService {
         const contractId = Number(row.contract_id);
         const subscriberId = Number(row.subscriber_id);
         try {
-          const interval = String(row.billing_interval || 'month');
+          const interval = normalizeBillingInterval(String(row.billing_interval || 'month'));
           const period = this.periodBounds(interval);
 
           const existing = await this.db.findFirst(
@@ -165,9 +156,16 @@ export class FinancialAdminService {
 
           let amount = parseFloat(row.total_amount || '0');
           if (!amount || amount <= 0) {
-            const monthly = parseFloat(row.price_monthly || '0');
-            const yearly = parseFloat(row.price_yearly || '0');
-            amount = interval === 'year' ? yearly || monthly * 12 : monthly;
+            const fromPlan = getPlanPriceForInterval(
+              {
+                price_monthly: row.price_monthly,
+                price_four_month: row.price_four_month,
+                price_semester: row.price_semester,
+                price_yearly: row.price_yearly,
+              },
+              interval
+            );
+            amount = fromPlan ?? 0;
           }
           if (!amount || amount <= 0) {
             result.errors.push({ contractId, message: 'Valor do contrato/plano não definido' });

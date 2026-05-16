@@ -17,6 +17,10 @@ export const createSubscriberContractValidators = [
   body('plan_id').optional({ nullable: true }).isInt({ min: 1 }).withMessage('plan_id deve ser um número inteiro maior que 0'),
   body('total_amount').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('total_amount deve ser um número positivo'),
   body('currency').optional({ nullable: true }).isString().isLength({ min: 3, max: 3 }).withMessage('Moeda deve ter 3 caracteres (ex: BRL)'),
+  body('billing_interval')
+    .optional({ nullable: true })
+    .isIn(['month', 'four_month', 'semester', 'year'])
+    .withMessage('billing_interval inválido'),
   body('status').optional({ nullable: true }).isIn(['draft', 'active', 'expired', 'terminated', 'cancelled']).withMessage('Status inválido'),
   body('publisherIds').optional({ nullable: true }).isArray().withMessage('publisherIds deve ser um array'),
  
@@ -33,6 +37,10 @@ export const updateSubscriberContractValidators = [
   body('end_date').optional({ nullable: true }).isISO8601().withMessage('Data de término inválida'),
   body('plan_id').optional({ nullable: true }).isInt({ min: 1 }).withMessage('plan_id deve ser um número inteiro maior que 0'),
   body('total_amount').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('total_amount deve ser um número positivo'),
+  body('billing_interval')
+    .optional({ nullable: true })
+    .isIn(['month', 'four_month', 'semester', 'year'])
+    .withMessage('billing_interval inválido'),
   body('status').optional({ nullable: true }).isIn(['draft', 'active', 'expired', 'terminated', 'cancelled']).withMessage('Status inválido'),
   body('publisherIds').optional({ nullable: true }).isArray().withMessage('publisherIds deve ser um array'),
 ];

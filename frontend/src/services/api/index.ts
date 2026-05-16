@@ -2089,10 +2089,14 @@ export interface Plan {
   description?: string;
   price_monthly: number;
   priceMonthly: number; // Backend retorna como priceMonthly
+  price_four_month?: number;
+  priceFourMonth?: number;
+  price_semester?: number;
+  priceSemester?: number;
   price_yearly?: number;
   priceYearly?: number; // Backend retorna como priceYearly
   currency: string;
-  billing_interval: 'month' | 'year';
+  billing_interval: 'month' | 'four_month' | 'semester' | 'year';
   billingInterval: string; // Backend retorna como billingInterval
   stripe_price_id_monthly?: string;
   stripePriceIdMonthly?: string; // Backend retorna como stripePriceIdMonthly
@@ -2124,6 +2128,8 @@ export interface CreatePlanRequest {
   description?: string;
   /** Obrigatório no envio à API; no formulário pode ficar indefinido até o usuário informar. */
   priceMonthly?: number;
+  priceFourMonth?: number;
+  priceSemester?: number;
   priceYearly?: number;
   currency?: string;
   billingInterval?: string;
@@ -2142,7 +2148,10 @@ export interface UpdatePlanRequest {
   name?: string;
   description?: string;
   priceMonthly?: number;
+  priceFourMonth?: number;
+  priceSemester?: number;
   priceYearly?: number;
+  billingInterval?: string;
   stripePriceIdMonthly?: string;
   stripePriceIdYearly?: string;
   features?: any;
@@ -3277,6 +3286,7 @@ export interface Contract {
   end_date?: string;
   total_amount?: number;
   currency: string;
+  billing_interval?: string;
   payment_terms?: string;
   document_path?: string;
   document_filename?: string;
@@ -3314,6 +3324,7 @@ export interface CreateContractRequest {
   end_date?: string;
   total_amount?: number;
   currency?: string;
+  billing_interval?: string;
   payment_terms?: string;
   document_path?: string;
   document_filename?: string;
