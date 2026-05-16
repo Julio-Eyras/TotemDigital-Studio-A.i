@@ -386,10 +386,15 @@ export class SubscriberService {
           sc.status,
           sc.total_amount,
           sc.currency,
+          sc.billing_interval,
+          sc.payment_terms,
+          sc.contract_type,
           p.plan_id,
           p.name AS plan_name,
           p.slug AS plan_slug,
           p.price_monthly,
+          p.price_four_month,
+          p.price_semester,
           p.price_yearly,
           CASE 
             WHEN sc.status = 'active' 
@@ -433,11 +438,15 @@ export class SubscriberService {
           sc.status,
           sc.total_amount,
           sc.currency,
+          sc.billing_interval,
+          sc.payment_terms,
           sc.contract_type,
           p.plan_id,
           p.name AS plan_name,
           p.slug AS plan_slug,
           p.price_monthly,
+          p.price_four_month,
+          p.price_semester,
           p.price_yearly,
           CASE 
             WHEN sc.status = 'active' 

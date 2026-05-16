@@ -66,7 +66,7 @@ import {
   UpdatePublisherContractRequest,
 } from '../../services/api';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
-import { BILLING_INTERVAL_OPTIONS } from '../../utils/billingIntervals';
+import { BILLING_INTERVAL_OPTIONS, billingIntervalLabel } from '../../utils/billingIntervals';
 import { ContractCard, ContractForm, ContractDetails } from './components';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 
@@ -1028,7 +1028,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
                   )}
                   {contract.subscription_amount && (
                     <Typography variant="body2" color="text.secondary">
-                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: contract.currency }).format(contract.subscription_amount)} / {contract.subscription_interval}
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: contract.currency }).format(contract.subscription_amount)} / {billingIntervalLabel(contract.subscription_interval)}
                     </Typography>
                   )}
                   <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>

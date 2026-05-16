@@ -252,7 +252,7 @@ BEGIN
     v_seq := v_seq + 1;
     v_contract_number := 'SUB-' || v_subscriber_id || '.' || lpad(v_seq::text, 6, '0');
 
-    INSERT INTO subscriber_contracts (subscriber_id, plan_id, contract_number, contract_type, title, description, start_date, end_date, total_amount, currency, payment_terms, status, signed_by_subscriber_at, signed_by_tenant_at, created_by, metadata, document_path, document_filename, document_mime_type, document_size_bytes, is_active, created_at, updated_at)
+    INSERT INTO subscriber_contracts (subscriber_id, plan_id, contract_number, contract_type, title, description, start_date, end_date, total_amount, currency, billing_interval, payment_terms, status, signed_by_subscriber_at, signed_by_tenant_at, created_by, metadata, document_path, document_filename, document_mime_type, document_size_bytes, is_active, created_at, updated_at)
     VALUES (
       v_subscriber_id,
       (NULLIF(TRIM(COALESCE(v_c->>'plan_id', '')), ''))::integer,
@@ -264,6 +264,16 @@ BEGIN
       (NULLIF(TRIM(COALESCE(v_c->>'end_date', '')), ''))::date,
       (NULLIF(TRIM(COALESCE(v_c->>'total_amount', '')), ''))::numeric,
       COALESCE(v_c->>'currency', 'BRL'),
+      COALESCE(
+        NULLIF(TRIM(COALESCE(v_c->>'billing_interval', '')), ''),
+        CASE
+          WHEN LOWER(COALESCE(v_c->>'payment_terms', '')) LIKE '%anual%' THEN 'year'
+          WHEN LOWER(COALESCE(v_c->>'payment_terms', '')) LIKE '%semestr%' THEN 'semester'
+          WHEN LOWER(COALESCE(v_c->>'payment_terms', '')) LIKE '%quadrim%'
+            OR LOWER(COALESCE(v_c->>'payment_terms', '')) LIKE '%4 mes%' THEN 'four_month'
+          ELSE 'month'
+        END
+      ),
       v_c->>'payment_terms',
       COALESCE(v_c->>'status', 'draft'),
       (NULLIF(TRIM(COALESCE(v_c->>'signed_by_subscriber_at', '')), ''))::timestamp,

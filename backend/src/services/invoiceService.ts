@@ -1,12 +1,18 @@
 /**
  * Invoice Service - Smart Signage v2.1
- * Serviço para gerar faturas automáticas
+ * Faturas automáticas de assinaturas de publishers (ciclos por intervalo do plano).
  */
 
 import { getDatabase } from '../config/database';
 import { SubscriptionService } from './subscriptionService';
 import { StripeService } from './stripeService';
 import { logError, logInfo } from '../utils/loggerHelper';
+import {
+  billingIntervalLabel,
+  getPlanPriceForInterval,
+  normalizeBillingInterval,
+  resolveInvoicePeriodBounds,
+} from '../utils/billingIntervals';
 
 export class InvoiceService {
   private get db() {
@@ -22,9 +28,17 @@ export class InvoiceService {
   }
 
   /**
-   * Gera faturas mensais para todas as assinaturas ativas
+   * Gera faturas para assinaturas ativas no fim do período de cobrança.
+   * @deprecated Nome legado; preferir generateSubscriptionInvoices.
    */
   async generateMonthlyInvoices(): Promise<{ created: number; errors: number }> {
+    return this.generateSubscriptionInvoices();
+  }
+
+  /**
+   * Gera faturas de subscription (publisher) respeitando intervalo mensal/quadrimestral/semestral/anual.
+   */
+  async generateSubscriptionInvoices(): Promise<{ created: number; errors: number }> {
     try {
       const activeSubscriptions = await this.subscriptionService.getSubscriptions({
         status: 'active',
@@ -35,125 +49,143 @@ export class InvoiceService {
 
       for (const subscription of activeSubscriptions) {
         try {
-          // Verificar se já existe fatura para este período
-          const existingInvoice = await this.db.findFirst(`
-            SELECT billing_id FROM publisher_billing
-            WHERE subscription_id = $1
-              AND billing_type = 'subscription'
-              AND payment_status IN ('pending', 'paid')
-              AND DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_TIMESTAMP)
-          `, [subscription.subscriptionId]);
+          const subId = subscription.subscriptionId ?? (subscription as any).subscription_id;
+          const publisherId = subscription.publisherId ?? (subscription as any).publisher_id;
 
-          if (existingInvoice) {
-            await logInfo('Fatura já existe para este período', {
-              subscriptionId: subscription.subscriptionId,
-              billingId: existingInvoice.billing_id,
+          if (subscription.stripeSubscriptionId && this.stripeService.isEnabled()) {
+            await logInfo('Assinatura com Stripe ativo: fatura recorrente tratada pelo Stripe', {
+              subscriptionId: subId,
             });
             continue;
           }
 
-          // Verificar se está no período de cobrança
+          const interval = normalizeBillingInterval(
+            subscription.billingInterval ?? (subscription as any).billing_interval ?? 'month'
+          );
+
+          const periodAnchor =
+            subscription.currentPeriodStart ??
+            (subscription as any).current_period_start ??
+            (subscription as any).start_date;
+
+          const period = resolveInvoicePeriodBounds(
+            interval,
+            periodAnchor ? String(periodAnchor).split('T')[0] : null,
+            new Date()
+          );
+
+          const existingInvoice = await this.db.findFirst(
+            `
+            SELECT billing_id FROM publisher_billing
+            WHERE subscription_id = $1
+              AND billing_type = 'subscription'
+              AND payment_status NOT IN ('cancelled', 'refunded')
+              AND metadata->>'periodStart' = $2
+              AND metadata->>'periodEnd' = $3
+            LIMIT 1
+          `,
+            [subId, period.start, period.end]
+          );
+
+          if (existingInvoice) {
+            await logInfo('Fatura já existe para este período', {
+              subscriptionId: subId,
+              billingId: existingInvoice.billing_id,
+              period,
+            });
+            continue;
+          }
+
           if (subscription.currentPeriodEnd) {
             const periodEnd = new Date(subscription.currentPeriodEnd);
             const now = new Date();
-
-            // Só gerar se estiver próximo do fim do período (últimos 3 dias)
-            const daysUntilEnd = Math.floor((periodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
+            const daysUntilEnd = Math.floor(
+              (periodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+            );
             if (daysUntilEnd > 3) {
               continue;
             }
           }
 
-          // Buscar plano
           const plan = subscription.plan;
           if (!plan) {
             await logError('Plano não encontrado para assinatura', new Error('Plan not found'), {
-              subscriptionId: subscription.subscriptionId,
+              subscriptionId: subId,
             });
             errors++;
             continue;
           }
 
-          // Calcular valor
-          const amount = subscription.billingInterval === 'year' && plan.priceYearly
-            ? plan.priceYearly / 12 // Dividir por 12 para mensal
-            : plan.priceMonthly;
+          const amount =
+            getPlanPriceForInterval(
+              {
+                price_monthly: plan.priceMonthly ?? plan.price_monthly,
+                price_four_month: plan.priceFourMonth ?? plan.price_four_month,
+                price_semester: plan.priceSemester ?? plan.price_semester,
+                price_yearly: plan.priceYearly ?? plan.price_yearly,
+              },
+              interval
+            ) ?? 0;
 
-          // Data de vencimento (7 dias após geração)
+          if (!amount || amount <= 0) {
+            await logError('Valor do plano indefinido para intervalo', new Error('Invalid amount'), {
+              subscriptionId: subId,
+              interval,
+            });
+            errors++;
+            continue;
+          }
+
           const dueDate = new Date();
           dueDate.setDate(dueDate.getDate() + 7);
 
-          // Criar fatura usando publisherBillingService (subscriptions pertencem a publishers)
           const { PublisherBillingService } = require('./publisherBillingService');
           const publisherBillingService = new PublisherBillingService();
-          
-          const billing = await publisherBillingService.createBilling({
-            publisherId: subscription.publisherId, // subscriptions pertencem a publishers
-            billingType: 'subscription',
-            amount,
-            currency: plan.currency || 'BRL',
-            description: `Assinatura ${plan.name} - ${subscription.billingInterval === 'year' ? 'Anual' : 'Mensal'}`,
-            dueDate: dueDate.toISOString().split('T')[0],
-            paymentStatus: 'pending',
-            direction: 'incoming', // Publisher paga subscription
-            metadata: {
-              subscriptionId: subscription.subscriptionId,
-              planId: plan.planId,
-              billingInterval: subscription.billingInterval,
-            },
-          }, 1); // System user
 
-          // Atualizar billing com subscription_id (se campo existir)
-          if (billing.id) {
-            await this.db.executeRaw(`
+          const billing = await publisherBillingService.createBilling(
+            {
+              publisherId,
+              subscriptionId: subId,
+              billingType: 'subscription',
+              amount,
+              currency: plan.currency || 'BRL',
+              description: `Assinatura ${plan.name} — ${billingIntervalLabel(interval)} (${period.label})`,
+              dueDate: dueDate.toISOString().split('T')[0],
+              paymentStatus: 'pending',
+              direction: 'incoming',
+              metadata: {
+                subscriptionId: subId,
+                planId: plan.planId ?? plan.plan_id,
+                billingInterval: interval,
+                periodStart: period.start,
+                periodEnd: period.end,
+                periodLabel: period.label,
+              },
+            },
+            1
+          );
+
+          if (billing.billingId) {
+            await this.db
+              .executeRaw(
+                `
               UPDATE publisher_billing 
               SET subscription_id = $1, updated_at = CURRENT_TIMESTAMP
               WHERE billing_id = $2
-            `, [subscription.subscriptionId, billing.id]).catch(() => {
-              // Se subscription_id não existir na tabela, ignorar
-            });
-          }
-
-          // Criar invoice no Stripe se habilitado
-          if (this.stripeService.isEnabled() && subscription.stripeCustomerId && subscription.stripeSubscriptionId) {
-            try {
-              const stripeSubscription = await this.stripeService.getSubscription(subscription.stripeSubscriptionId);
-              
-              // O Stripe cria invoices automaticamente, apenas sincronizar
-              if (stripeSubscription.latest_invoice) {
-                const invoice = typeof stripeSubscription.latest_invoice === 'string'
-                  ? await this.stripeService.getInvoice(stripeSubscription.latest_invoice)
-                  : stripeSubscription.latest_invoice;
-
-                await this.db.executeRaw(`
-                  UPDATE publisher_billing 
-                  SET stripe_invoice_id = $1,
-                      stripe_payment_intent_id = $2,
-                      updated_at = CURRENT_TIMESTAMP
-                  WHERE billing_id = $3
-                `, [
-                  invoice.id,
-                  typeof (invoice as any).payment_intent === 'string' ? (invoice as any).payment_intent : (invoice as any).payment_intent?.id,
-                  billing.id,
-                ]);
-              }
-            } catch (error: any) {
-              await logError('Erro ao sincronizar invoice do Stripe', error, {
-                billingId: billing.id,
-                subscriptionId: subscription.subscriptionId,
-              });
-              // Continuar mesmo se falhar
-            }
+            `,
+                [subId, billing.billingId]
+              )
+              .catch(() => undefined);
           }
 
           created++;
-          await logInfo('Fatura mensal gerada com sucesso', {
-            billingId: billing.id,
-            subscriptionId: subscription.subscriptionId,
+          await logInfo('Fatura de assinatura gerada', {
+            billingId: billing.billingId,
+            subscriptionId: subId,
             amount,
+            interval,
+            period,
           });
-
         } catch (error: any) {
           errors++;
           await logError('Erro ao gerar fatura para assinatura', error, {
@@ -162,12 +194,15 @@ export class InvoiceService {
         }
       }
 
-      await logInfo('Geração de faturas mensais concluída', { created, errors, total: activeSubscriptions.length });
+      await logInfo('Geração de faturas de assinatura concluída', {
+        created,
+        errors,
+        total: activeSubscriptions.length,
+      });
 
       return { created, errors };
-
     } catch (error: any) {
-      await logError('Erro ao gerar faturas mensais', error);
+      await logError('Erro ao gerar faturas de assinatura', error);
       throw error;
     }
   }
@@ -177,14 +212,12 @@ export class InvoiceService {
    */
   async markOverdueInvoices(): Promise<number> {
     try {
-      // Marcar faturas vencidas de subscribers
       const subscriberResult = await this.db.executeRaw(`
         UPDATE subscriber_billing 
         SET payment_status = 'overdue', updated_at = CURRENT_TIMESTAMP
         WHERE payment_status = 'pending' AND due_date < CURRENT_TIMESTAMP
       `);
-      
-      // Marcar faturas vencidas de publishers (incoming = publisher deve pagar)
+
       const publisherResult = await this.db.executeRaw(`
         UPDATE publisher_billing 
         SET payment_status = 'overdue', updated_at = CURRENT_TIMESTAMP
@@ -192,7 +225,7 @@ export class InvoiceService {
           AND direction = 'incoming' 
           AND due_date < CURRENT_TIMESTAMP
       `);
-      
+
       const total = (subscriberResult.rowCount || 0) + (publisherResult.rowCount || 0);
       await logInfo('Faturas vencidas marcadas', { count: total });
       return total;
@@ -207,13 +240,11 @@ export class InvoiceService {
    */
   async sendInvoiceNotifications(): Promise<number> {
     try {
-      // Buscar faturas pendentes próximas do vencimento (3 dias)
-      // Buscar tanto subscriber_billing quanto publisher_billing
       const pendingSubscriberInvoices = await this.db.findMany(`
         SELECT 
           b.billing_id,
           b.subscriber_id,
-          b.subscriber_id as client_id, -- Mantido para compatibilidade
+          b.subscriber_id as client_id,
           b.amount,
           b.due_date,
           s.name as client_name,
@@ -226,12 +257,12 @@ export class InvoiceService {
           AND b.due_date >= CURRENT_DATE
           AND s.email IS NOT NULL
       `);
-      
+
       const pendingPublisherInvoices = await this.db.findMany(`
         SELECT 
           b.billing_id,
           b.publisher_id,
-          b.publisher_id as client_id, -- Mantido para compatibilidade
+          b.publisher_id as client_id,
           b.amount,
           b.due_date,
           p.name as client_name,
@@ -240,24 +271,21 @@ export class InvoiceService {
         FROM publisher_billing b
         LEFT JOIN publishers p ON b.publisher_id = p.publisher_id
         WHERE b.payment_status = 'pending'
-          AND b.direction = 'incoming' -- Apenas faturas que publisher precisa pagar
+          AND b.direction = 'incoming'
           AND b.due_date <= CURRENT_DATE + INTERVAL '3 days'
           AND b.due_date >= CURRENT_DATE
           AND p.email IS NOT NULL
       `);
-      
-      // Combinar resultados
+
       const pendingInvoices = [...pendingSubscriberInvoices, ...pendingPublisherInvoices];
 
       let sent = 0;
 
       for (const invoice of pendingInvoices) {
         try {
-          // Aqui você pode integrar com o EmailService para enviar notificações
-          // Por enquanto, apenas logar
           await logInfo('Notificação de fatura pendente (email não enviado - EmailService não integrado)', {
             billingId: invoice.billing_id,
-            clientId: invoice.client_id || invoice.subscriber_id, // Mantido para compatibilidade
+            clientId: invoice.client_id || invoice.subscriber_id,
             email: invoice.client_email,
           });
           sent++;
@@ -269,11 +297,9 @@ export class InvoiceService {
       }
 
       return sent;
-
     } catch (error: any) {
       await logError('Erro ao enviar notificações de faturas', error);
       throw error;
     }
   }
 }
-

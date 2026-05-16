@@ -92,7 +92,7 @@ import {
   getTotemLocalIdFromRow,
 } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
-import { BILLING_INTERVAL_OPTIONS } from '../../utils/billingIntervals';
+import { BILLING_INTERVAL_OPTIONS, billingIntervalLabel } from '../../utils/billingIntervals';
 import { getLocalMenuItemSx, orderLocalsForSelect } from '../../utils/localOrdering';
 import { PublisherCard, PublisherForm, PublisherDetails } from './components';
 
@@ -3220,7 +3220,7 @@ const Publishers: React.FC = () => {
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <AttachMoney fontSize="small" color="action" />
                             <Typography variant="caption" color="text.secondary">
-                              Assinatura: {contract.currency || 'BRL'} {Number(contract.subscription_amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {contract.subscription_interval || 'month'}
+                              Assinatura: {contract.currency || 'BRL'} {Number(contract.subscription_amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {billingIntervalLabel(contract.subscription_interval)}
                             </Typography>
                           </Box>
                         )}
