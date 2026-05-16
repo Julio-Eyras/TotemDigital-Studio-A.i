@@ -1020,7 +1020,7 @@ const PlanPublisherAccessPage: React.FC = () => {
               <TableBody>
                 {plans.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                    <TableCell colSpan={9} align="center" sx={{ py: 4 }}>
                       <Typography variant="body2" color="text.secondary">
                         Nenhum plano encontrado. Clique em "Criar Plano" para criar.
                       </Typography>

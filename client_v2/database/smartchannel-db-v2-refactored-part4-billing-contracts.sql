@@ -183,7 +183,8 @@ CREATE TABLE IF NOT EXISTS subscriber_contracts (
     -- Valores contratuais
     total_amount NUMERIC(12, 2),
     currency TEXT DEFAULT 'BRL',
-    payment_terms TEXT, -- Condições de pagamento
+    billing_interval TEXT DEFAULT 'month', -- month, four_month, semester, year (período acordado)
+    payment_terms TEXT, -- Rótulo legado / condições adicionais
     
     -- Arquivo do contrato
     document_path TEXT, -- Caminho do arquivo PDF/DOC/DOCX
@@ -221,6 +222,50 @@ COMMENT ON COLUMN subscriber_contracts.document_path IS 'Caminho do arquivo do c
 CREATE UNIQUE INDEX IF NOT EXISTS idx_subscriber_contracts_subscriber_contract_number
     ON subscriber_contracts (subscriber_id, contract_number);
 
+-- Compat upgrades: preços por periodicidade no plano + intervalo estruturado no contrato
+DO $billing_interval_upgrade$
+BEGIN
+  IF to_regclass('public.plans') IS NOT NULL THEN
+    ALTER TABLE plans ADD COLUMN IF NOT EXISTS price_four_month NUMERIC(12, 2);
+    ALTER TABLE plans ADD COLUMN IF NOT EXISTS price_semester NUMERIC(12, 2);
+    UPDATE plans
+    SET price_four_month = ROUND(price_monthly * 4, 2)
+    WHERE price_four_month IS NULL AND price_monthly IS NOT NULL AND price_monthly > 0;
+    UPDATE plans
+    SET price_semester = ROUND(price_monthly * 6, 2)
+    WHERE price_semester IS NULL AND price_monthly IS NOT NULL AND price_monthly > 0;
+  END IF;
+  IF to_regclass('public.subscriber_contracts') IS NOT NULL THEN
+    ALTER TABLE subscriber_contracts ADD COLUMN IF NOT EXISTS billing_interval TEXT DEFAULT 'month';
+    UPDATE subscriber_contracts sc
+    SET billing_interval = CASE
+      WHEN LOWER(COALESCE(sc.payment_terms, '')) LIKE '%anual%' THEN 'year'
+      WHEN LOWER(COALESCE(sc.payment_terms, '')) LIKE '%semestr%' THEN 'semester'
+      WHEN LOWER(COALESCE(sc.payment_terms, '')) LIKE '%quadrim%'
+        OR LOWER(COALESCE(sc.payment_terms, '')) LIKE '%4 mes%' THEN 'four_month'
+      WHEN p.billing_interval IS NOT NULL AND p.billing_interval <> '' THEN p.billing_interval
+      ELSE 'month'
+    END
+    FROM plans p
+    WHERE sc.billing_interval IS NULL
+      AND sc.plan_id = p.plan_id;
+    UPDATE subscriber_contracts sc
+    SET billing_interval = CASE
+      WHEN LOWER(COALESCE(sc.payment_terms, '')) LIKE '%anual%' THEN 'year'
+      WHEN LOWER(COALESCE(sc.payment_terms, '')) LIKE '%semestr%' THEN 'semester'
+      WHEN LOWER(COALESCE(sc.payment_terms, '')) LIKE '%quadrim%'
+        OR LOWER(COALESCE(sc.payment_terms, '')) LIKE '%4 mes%' THEN 'four_month'
+      ELSE 'month'
+    END
+    WHERE sc.billing_interval IS NULL;
+  END IF;
+  IF to_regclass('public.plans') IS NOT NULL THEN
+    ALTER TABLE plans ADD COLUMN IF NOT EXISTS stripe_price_id_four_month TEXT;
+    ALTER TABLE plans ADD COLUMN IF NOT EXISTS stripe_price_id_semester TEXT;
+  END IF;
+END
+$billing_interval_upgrade$;
+
 -- =============================================
 -- PUBLISHER_CONTRACTS (Contratos de Publishers)
 -- =============================================
@@ -249,7 +294,7 @@ CREATE TABLE IF NOT EXISTS publisher_contracts (
     
     -- Termos de subscription (se aplicável)
     subscription_amount NUMERIC(12, 2), -- Valor mensal/anual da subscription
-    subscription_interval TEXT, -- month, year
+    subscription_interval TEXT, -- month, four_month, semester, year
     
     currency TEXT DEFAULT 'BRL',
     payment_terms TEXT,

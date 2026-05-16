@@ -25,7 +25,11 @@ jest.mock('../../../middleware/auth.middleware', () => {
     }
     next();
   };
-  return { authMiddleware: authFn };
+  return {
+    authMiddleware: authFn,
+    authenticateToken: authFn,
+    authorizeRole: () => (_req: any, _res: any, next: any) => next(),
+  };
 });
 
 jest.mock('../../../services/playerService', () => ({

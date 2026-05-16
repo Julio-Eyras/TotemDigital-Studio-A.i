@@ -11,6 +11,11 @@ import { StripeService } from '../services/stripeService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { logError } from '../utils/loggerHelper';
 import { isAdminRole } from '../utils/tenantScope';
+import {
+  getStripePriceIdForInterval,
+  isBillingIntervalCode,
+  normalizeBillingInterval,
+} from '../utils/billingIntervals';
 
 const router = Router();
 
@@ -258,10 +263,18 @@ router.post('/', async (req: any, res) => {
       });
     }
 
+    const normalizedInterval = normalizeBillingInterval(billingInterval || 'month');
+    if (!isBillingIntervalCode(normalizedInterval)) {
+      return res.status(400).json({
+        success: false,
+        message: 'billingInterval inválido (use month, four_month, semester ou year)',
+      });
+    }
+
     const subscription = await getSubscriptionService().createSubscription({
       publisherId: finalPublisherId,
       planId,
-      billingInterval: billingInterval || 'month',
+      billingInterval: normalizedInterval,
       trialDays,
     });
 
@@ -491,6 +504,14 @@ router.post('/checkout', async (req: any, res) => {
       });
     }
 
+    const normalizedCheckoutInterval = normalizeBillingInterval(billingInterval);
+    if (!isBillingIntervalCode(normalizedCheckoutInterval)) {
+      return res.status(400).json({
+        success: false,
+        message: 'billingInterval inválido (use month, four_month, semester ou year)',
+      });
+    }
+
     const stripeService = getStripeService();
     if (!stripeService.isEnabled()) {
       return res.status(400).json({
@@ -547,10 +568,7 @@ router.post('/checkout', async (req: any, res) => {
     );
 
     // Selecionar price ID
-    const { getStripePriceIdForInterval, normalizeBillingInterval } = await import(
-      '../utils/billingIntervals'
-    );
-    const interval = normalizeBillingInterval(billingInterval);
+    const interval = normalizedCheckoutInterval;
     const priceId = getStripePriceIdForInterval(plan, interval);
 
     if (!priceId) {

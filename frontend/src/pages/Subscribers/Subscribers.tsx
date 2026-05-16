@@ -2688,6 +2688,8 @@ const Subscribers: React.FC = () => {
                             {contract.plan_id && ` | Plano ID: ${contract.plan_id}`}
                             {contract.total_amount != null &&
                               ` | Valor: ${formatCurrencyAmount(contract.total_amount, contract.currency || 'BRL')}`}
+                            {((contract as any).billing_interval || contract.payment_terms) &&
+                              ` | ${billingIntervalLabel((contract as any).billing_interval || contract.payment_terms)}`}
                           </Typography>
                         </Box>
                         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
@@ -3289,6 +3291,8 @@ const Subscribers: React.FC = () => {
                             {contract.end_date && ` | Fim: ${new Date(contract.end_date).toLocaleDateString('pt-BR')}`}
                             {contract.total_amount != null &&
                               ` | Valor: ${formatCurrencyAmount(contract.total_amount, contract.currency || 'BRL')}`}
+                            {((contract as any).billing_interval || contract.payment_terms) &&
+                              ` | ${billingIntervalLabel((contract as any).billing_interval || contract.payment_terms)}`}
                           </Typography>
                         </Box>
                         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>

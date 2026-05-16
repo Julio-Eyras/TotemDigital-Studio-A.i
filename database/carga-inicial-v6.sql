@@ -65,8 +65,8 @@ INSERT INTO permissions (permission_id, name, resource, action, description) VAL
 ON CONFLICT DO NOTHING;
 
 -- Plano atrelado ao publisher "totem digital"
---INSERT INTO plans (plan_id, name, slug, description, price_monthly, price_yearly, currency, billing_interval, features, limits, is_active, is_popular, is_default, sort_order) VALUES
---(1, 'Plano Totem Digital', 'plano-totem-digital', 'Plano para assinantes do publisher Totem Digital', 199.00, 1990.00, 'BRL', 'month', '{"campaigns":20,"storage_gb":50}'::jsonb, '{"totems":10,"campaigns":20,"storage_gb":50}'::jsonb, true, true, true, 1)
+--INSERT INTO plans (plan_id, name, slug, description, price_monthly, price_four_month, price_semester, price_yearly, currency, billing_interval, features, limits, is_active, is_popular, is_default, sort_order) VALUES
+--(1, 'Plano Totem Digital', 'plano-totem-digital', 'Plano para assinantes do publisher Totem Digital', 199.00, 756.00, 1194.00, 1990.00, 'BRL', 'month', '{"campaigns":20,"storage_gb":50}'::jsonb, '{"totems":10,"campaigns":20,"storage_gb":50}'::jsonb, true, true, true, 1)
 --ON CONFLICT (slug) DO NOTHING;
 
 INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description) VALUES

@@ -3,6 +3,10 @@ import request from 'supertest';
 
 const mockGetBillingById = jest.fn();
 
+jest.mock('../../../config/featureFlags', () => ({
+  TOTEMDIGITAL_COMPACT: false,
+}));
+
 jest.mock('../../../middleware/auth.middleware', () => {
   const authFn = (req: any, res: any, next: any) => {
     const h = String(req.headers.authorization || '');
