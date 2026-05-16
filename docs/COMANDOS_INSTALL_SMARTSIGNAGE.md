@@ -1,5 +1,7 @@
 # Referência — `scripts/install-smartsignage.sh`
 
+**SO suportado:** Ubuntu LTS (servidor). Outras distribuições não são suportadas pelo instalador.
+
 Uso geral:
 
 ```bash

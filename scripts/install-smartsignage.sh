@@ -1865,7 +1865,9 @@ check_os() {
     . /etc/os-release
     
     if [[ "$ID" != "ubuntu" ]]; then
-        warn "Este script foi testado apenas no Ubuntu. Continuando..."
+        error "Instalação do servidor suportada apenas em Ubuntu (detectado: ${ID:-desconhecido})."
+        error "Use: ./scripts/install-smartsignage.sh numa máquina Ubuntu LTS."
+        exit 1
     fi
     
     log "Sistema detectado: $PRETTY_NAME"

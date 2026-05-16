@@ -299,7 +299,7 @@ vinhetas/*.mp4
 player_ad_record.mp4
 
 # Chaves SSH, pastas de credenciais e scripts one-off (evitar commit acidental)
-docs/chaves\ ssh\ oracle\ vms/
+docs/chaves*/
 /instalar_duckdns.sh
 /ssh-key-*.pub
 
