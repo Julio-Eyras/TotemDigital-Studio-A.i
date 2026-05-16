@@ -1,13 +1,15 @@
 # ✅ Melhorias na Interface de Billing Implementadas
 
-**Data:** 2026-01-08  
-**Status:** ✅ Concluído
+**Data:** 2026-01-08 (atualizado 2026-05)  
+**Status:** ✅ Concluído (UI base); ver também **[BILLING_INTERVALOS.md](./BILLING_INTERVALOS.md)** para os quatro intervalos, Stripe, deploy e testes.
 
 ---
 
 ## 📋 Resumo
 
 Melhorias na interface de Billing para suportar faturamento de assinantes e publicadores separadamente, com filtros avançados e navegação via query params.
+
+**Desde 2026-05:** intervalos mensal, quadrimestral (4 meses), semestral e anual em planos, contratos e assinaturas; emissão por data de início do contrato; quatro Price IDs Stripe por plano.
 
 ---
 

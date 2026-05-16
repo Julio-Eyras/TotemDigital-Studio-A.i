@@ -501,6 +501,8 @@ Adicionar após os dialogs existentes (no final do componente, antes do `</Box>`
             onChange={(e) => setPublisherContractForm({ ...publisherContractForm, subscription_interval: e.target.value })}
           >
             <MenuItem value="month">Mensal</MenuItem>
+            <MenuItem value="four_month">Quadrimestral</MenuItem>
+            <MenuItem value="semester">Semestral</MenuItem>
             <MenuItem value="year">Anual</MenuItem>
           </Select>
         </FormControl>

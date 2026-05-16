@@ -13,8 +13,9 @@ import {
   normalizeBillingInterval,
 } from '../utils/billingIntervals';
 
-/** Intervalo efetivo: metadata da assinatura ou plano. */
+/** Intervalo efetivo: coluna da assinatura, metadata ou plano. */
 const SUBSCRIPTION_INTERVAL_SQL = `COALESCE(
+  NULLIF(TRIM(s.billing_interval), ''),
   NULLIF(TRIM(s.metadata->>'billingInterval'), ''),
   NULLIF(TRIM(s.metadata->>'billing_interval'), ''),
   pl.billing_interval,
@@ -36,7 +37,7 @@ export interface Subscription {
   stripeSubscriptionId?: string;
   stripeCustomerId?: string;
   status: string;
-  billingInterval: string; // derivado do plano (não armazenado em subscriptions)
+  billingInterval: string;
   currentPeriodStart?: string;
   currentPeriodEnd?: string;
   cancelAtPeriodEnd: boolean;
@@ -112,8 +113,8 @@ export class SubscriptionService {
         params.push(filters.status);
       }
 
-      // NOTA: o frontend (Billing) ainda consome campos "legacy" (snake_case, amount/currency/billing_interval).
-      // Como a tabela subscriptions não armazena amount/currency/billing_interval, derivamos do plano.
+      // NOTA: o frontend (Billing) consome campos legacy (snake_case). amount/currency derivam do plano;
+      // billing_interval vem de subscriptions.billing_interval, metadata ou plano.
       const subscriptions = await this.db.findMany(`
         SELECT 
           -- snake_case (frontend legado)
@@ -445,9 +446,9 @@ export class SubscriptionService {
         INSERT INTO subscriptions (
           publisher_id, plan_id, stripe_subscription_id, stripe_customer_id,
           status, current_period_start, current_period_end,
-          trial_start, trial_end, metadata
+          trial_start, trial_end, billing_interval, metadata
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING subscription_id
       `, [
         publisherId,
@@ -459,6 +460,7 @@ export class SubscriptionService {
         currentPeriodEnd,
         trialStart,
         trialEnd,
+        billingInterval,
         JSON.stringify({ createdBy: 'system', billingInterval })
       ]);
 

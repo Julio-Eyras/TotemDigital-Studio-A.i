@@ -2,9 +2,9 @@ name: Tests and Quality Checks
 
 on:
   push:
-    branches: [ main, develop, 'versao-3.1-smartsignage-pro-inovacoes' ]
+    branches: [ main, develop, 'versao-3.1-smartsignage-pro-inovacoes', 'Totem-Digital-V3x' ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, develop, 'Totem-Digital-V3x' ]
 
 permissions:
   contents: read

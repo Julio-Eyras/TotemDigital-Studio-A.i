@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     trial_start TIMESTAMP,
     trial_end TIMESTAMP,
     
+    billing_interval TEXT DEFAULT 'month', -- month, four_month, semester, year
+    
     metadata JSONB,
     
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

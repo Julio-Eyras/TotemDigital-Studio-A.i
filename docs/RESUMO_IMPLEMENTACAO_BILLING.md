@@ -1,5 +1,7 @@
 # ✅ Resumo da Implementação P0.1 - Billing Completo
 
+> **Atualização 2026-05:** quatro intervalos de cobrança, coluna `subscriptions.billing_interval`, deploy e Stripe — ver [BILLING_INTERVALOS.md](./BILLING_INTERVALOS.md).
+
 ## 🎯 Status: BACKEND 100% COMPLETO
 
 ### ✅ Implementado:

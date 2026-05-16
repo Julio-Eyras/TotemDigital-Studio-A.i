@@ -15,6 +15,7 @@ Schema, migrations e política de instalação
 3) Instalador
 - scripts/install-smartsignage.sh chama database/apply-schema-v2.sh, que aplica os arquivos part*.sql e os seeds.
 - O instalador também executa automaticamente os SQLs em database/data-migrations/ após os seeds.
+- Em instalação **já existente** (upgrade de intervalos de cobrança): scripts/apply-billing-interval-upgrades.sh (part4 upgrade + part17). Ver docs/BILLING_INTERVALOS.md.
 
 4) Política
 - Alterações de schema/seeds devem ser feitas diretamente nos arquivos part*.sql e nos seeds.

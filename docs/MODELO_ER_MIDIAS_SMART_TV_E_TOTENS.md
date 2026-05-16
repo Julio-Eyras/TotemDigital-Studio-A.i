@@ -136,7 +136,7 @@ Isto garante que campanhas com **só mídias diretas** ou **playlist + extras** 
 - **Seeds / dados demo:** `database/carga-inicial-v6.sql`
 - **Validação pós-instalação:** `node database/validate-v6.js` (requer `pg`; pode usar `NODE_PATH` apontando para `backend/node_modules`)
 
-Desenvolvimento: apenas árvore principal (`backend/`, `frontend/`, `database/`, `scripts/`); cópia paralela `ssp-clean` foi removida do repositório.
+Desenvolvimento: apenas árvore principal (`backend/`, `frontend/`, `database/`, `scripts/`). Cópias paralelas `ssp-clean` e `client_v2` foram removidas do repositório.
 
 ---
 

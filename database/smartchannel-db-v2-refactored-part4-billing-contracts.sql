@@ -284,6 +284,22 @@ BEGIN
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS stripe_price_id_four_month TEXT;
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS stripe_price_id_semester TEXT;
   END IF;
+  IF to_regclass('public.subscriptions') IS NOT NULL THEN
+    ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS billing_interval TEXT DEFAULT 'month';
+    UPDATE subscriptions s
+    SET billing_interval = COALESCE(
+      NULLIF(TRIM(s.metadata->>'billingInterval'), ''),
+      NULLIF(TRIM(s.metadata->>'billing_interval'), ''),
+      p.billing_interval,
+      'month'
+    )
+    FROM plans p
+    WHERE s.plan_id = p.plan_id
+      AND (s.billing_interval IS NULL OR TRIM(s.billing_interval) = '');
+    UPDATE subscriptions s
+    SET billing_interval = 'month'
+    WHERE s.billing_interval IS NULL OR TRIM(s.billing_interval) = '';
+  END IF;
 END
 $billing_interval_upgrade$;
 
