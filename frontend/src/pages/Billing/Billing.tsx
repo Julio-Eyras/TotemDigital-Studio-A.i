@@ -290,6 +290,16 @@ const Billing: React.FC = () => {
     loadAll();
   }, [billingType, searchParams.toString()]);
 
+  /** Menu: Visão geral = painel + abas iniciais; Anunciantes = foco na lista de faturas. */
+  useEffect(() => {
+    const type = searchParams.get('type');
+    if (type === 'subscriber' || type === 'publisher') {
+      setTabValue(2);
+    } else {
+      setTabValue(0);
+    }
+  }, [searchParams.toString()]);
+
   /** Evita ?type=publisher no mono quando o ecrã é só administrativo de anunciantes. */
   useEffect(() => {
     if (!compactBillingAdminOnly) return;

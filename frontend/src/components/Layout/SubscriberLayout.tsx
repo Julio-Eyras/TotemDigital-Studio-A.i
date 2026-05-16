@@ -46,6 +46,7 @@ import { setTheme } from '../../store/slices/uiSlice';
 import { getMenuHierarchyByRole, HierarchicalMenuItem } from '../../utils/menuHierarchy';
 import { UserRole } from '../../utils/rolePermissions';
 import { useFlags } from '../../hooks/useFlags';
+import { menuItemOrChildActive, menuPathMatches } from '../../utils/menuPathMatch';
 
 const drawerWidth = 280;
 
@@ -102,11 +103,9 @@ const SubscriberLayout: React.FC<SubscriberLayoutProps> = ({ children }) => {
   };
 
   const renderMenuItem = (item: HierarchicalMenuItem, level: number = 0) => {
-    const isActive =
-      location.pathname === item.path ||
-      location.pathname.startsWith(item.path + '/') ||
-      (item.children?.some((child) => location.pathname === child.path || location.pathname.startsWith(child.path + '/')));
+    const loc = { pathname: location.pathname, search: location.search };
     const hasChildren = item.children && item.children.length > 0;
+    const isActive = hasChildren ? menuItemOrChildActive(item, loc) : menuPathMatches(item.path, loc);
     const menuKey = item.text.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
     const isOpen = openMenus[menuKey] || false;
 

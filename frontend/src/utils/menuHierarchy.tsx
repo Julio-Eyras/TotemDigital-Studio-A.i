@@ -165,7 +165,7 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
         { text: 'Totens', icon: <Computer />, path: '/totems' },
         { text: 'Smart TVs', icon: <Tv />, path: '/smart-tvs' },
         {
-          text: 'Faturamento e billing',
+          text: 'Faturamento e Cobrança',
           icon: <Payment />,
           path: '/billing',
           requiredFlag: 'flag_smart_3',
@@ -177,12 +177,6 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
         { text: 'Manutenção Usuário', icon: <People />, path: '/users' },
         { text: 'Tags', icon: <Assignment />, path: '/tags' },
         { text: 'QR-Codes', icon: <QrCode />, path: '/qr-codes' },
-        {
-          text: 'Faturamento Anunciantes',
-          icon: <Payment />,
-          path: '/billing?type=subscriber',
-          requiredFlag: 'flag_smart_3',
-        },
         { text: 'Analíticos', icon: <Analytics />, path: '/analytics' },
         { text: 'Relatórios', icon: <Assessment />, path: '/reports' },
         dispatcherBlock,
