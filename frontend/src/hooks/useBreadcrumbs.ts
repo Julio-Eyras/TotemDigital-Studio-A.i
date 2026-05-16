@@ -33,9 +33,10 @@ const breadcrumbConfig: BreadcrumbConfig[] = [
 
 function billingBreadcrumbLabel(search: string): string {
   const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
-  const type = params.get('type');
-  if (type === 'subscriber') return 'Faturamento — Anunciantes';
-  if (type === 'publisher') return 'Faturamento — Exibidores';
+  const view = params.get('view');
+  if (view === 'subscriptions') return 'Faturamento — Assinaturas';
+  if (view === 'invoices' || params.get('type') === 'subscriber') return 'Faturamento — Anunciantes';
+  if (params.get('type') === 'publisher') return 'Faturamento — Exibidores';
   if (params.has('dueFilter') || params.get('subscriberId') || params.get('subscriber_id')) {
     return 'Faturamento — Anunciantes';
   }

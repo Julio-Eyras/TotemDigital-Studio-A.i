@@ -49,6 +49,8 @@ export interface HierarchicalMenuItem {
   children?: HierarchicalMenuItem[];
   badge?: number;
   requiredFlag?: `flag_smart_${0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}`;
+  /** Oculto no menu compacto (funcionalidade reservada para evolução Pro). */
+  hiddenInCompact?: boolean;
 }
 
 /**
@@ -62,6 +64,10 @@ function filterHierarchicalMenu(
   const filtered: HierarchicalMenuItem[] = [];
   
   for (const item of items) {
+    if (TOTEMDIGITAL_COMPACT && item.hiddenInCompact) {
+      continue;
+    }
+
     // Verificar se o item principal tem acesso
     // canAccess(userRole, path, userFlags) - verifica role e flags automaticamente
     const pathKey = (item.path || '').split('?')[0] || '/';
@@ -102,14 +108,14 @@ function filterHierarchicalMenu(
 /** Subitens de Faturamento e Cobrança (Pro inclui exibidores; compacto admin só anunciantes). */
 function getBillingMenuChildren(includePublisher: boolean): HierarchicalMenuItem[] {
   const children: HierarchicalMenuItem[] = [
-    { text: 'Visão geral', icon: <Payment />, path: '/billing' },
-    { text: 'Anunciantes', icon: <People />, path: '/billing?type=subscriber' },
+    { text: 'Visão geral', icon: <Payment />, path: '/billing?view=plans' },
+    { text: 'Anunciantes', icon: <People />, path: '/billing?type=subscriber&view=invoices' },
   ];
   if (includePublisher) {
     children.push({
       text: 'Exibidores',
       icon: <Business />,
-      path: '/billing?type=publisher',
+      path: '/billing?type=publisher&view=invoices',
     });
   }
   return children;
@@ -156,7 +162,12 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
         path: '/playlist-mix',
         children: getDispatcherPlaylistMixChildren(),
       },
-      { text: 'SmartDisplayFX', icon: <AutoAwesome />, path: '/smartdisplayfx' },
+      {
+        text: 'SmartDisplayFX',
+        icon: <AutoAwesome />,
+        path: '/smartdisplayfx',
+        hiddenInCompact: true,
+      },
       { text: 'IA', icon: <SmartToy />, path: '/ai' },
     ],
   };
@@ -218,6 +229,15 @@ export const getMenuHierarchyByRole = (
   if (TOTEMDIGITAL_COMPACT) {
     if (role === 'operador_tecnico' || role === 'operator') {
       return filterHierarchicalMenu(getOperadorTecnicoMenu(), role, userFlags);
+    }
+    if (role === 'operador_comercial') {
+      return filterHierarchicalMenu(getOperadorComercialMenu(), role, userFlags);
+    }
+    if (role === 'operador_faturamento') {
+      return filterHierarchicalMenu(getOperadorFaturamentoMenu(), role, userFlags);
+    }
+    if (role === 'gerente_marketing' || role === 'editoracao' || role === 'visualizador') {
+      return filterHierarchicalMenu(getDefaultMenu(), role, userFlags);
     }
     const menu = getSystemAdminMenu(role);
     const compactFullNav =
@@ -406,7 +426,12 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
         { text: 'Tags', icon: <Assignment />, path: '/tags' },
         { text: 'QR Codes', icon: <QrCode />, path: '/qr-codes' },
         { text: 'OTA Updates', icon: <CloudUpload />, path: '/ota-updates' },
-        { text: 'SmartDisplayFX', icon: <AutoAwesome />, path: '/smartdisplayfx' },
+        {
+          text: 'SmartDisplayFX',
+          icon: <AutoAwesome />,
+          path: '/smartdisplayfx',
+          hiddenInCompact: true,
+        },
         { text: 'Analytics', icon: <Analytics />, path: '/analytics' },
         { text: 'Relatórios', icon: <Assessment />, path: '/reports' },
         { text: 'Admin Tools', icon: <Build />, path: '/admin-tools' },

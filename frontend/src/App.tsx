@@ -11,7 +11,7 @@ import CommandPaletteWrapper from './components/Navigation/CommandPalette/Comman
 import { useRateLimit } from './hooks/useRateLimit';
 import { useCommandPalette } from './hooks/useCommandPalette';
 import { useAppDispatch, useAppSelector } from './store/hooks';
-import { TOTEMDIGITAL_COMPACT } from './config/featureFlags';
+import { SMARTDISPLAYFX_ENABLED, TOTEMDIGITAL_COMPACT } from './config/featureFlags';
 import { canAccess } from './utils/rolePermissions';
 import { setTheme, setDarkTone } from './store/slices/uiSlice';
 
@@ -694,7 +694,7 @@ const AppContent: React.FC = () => {
             path="/smartdisplayfx"
             element={
               <ProtectedRoute>
-                <SmartDisplayFx />
+                {SMARTDISPLAYFX_ENABLED ? <SmartDisplayFx /> : <Navigate to="/dashboard" replace />}
               </ProtectedRoute>
             }
           />

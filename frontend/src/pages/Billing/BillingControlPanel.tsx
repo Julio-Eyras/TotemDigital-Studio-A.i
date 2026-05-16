@@ -35,6 +35,8 @@ interface Props {
   showPublisherKpis: boolean;
   publisherLabel?: string;
   onFilterInvoices?: (filter: 'overdue' | 'due_soon' | '') => void;
+  onFilterPendingInvoices?: () => void;
+  contractsPath?: string;
   formatCurrency: (n: number) => string;
 }
 
@@ -77,6 +79,8 @@ const BillingControlPanel: React.FC<Props> = ({
   showPublisherKpis,
   publisherLabel = 'Exibidor',
   onFilterInvoices,
+  onFilterPendingInvoices,
+  contractsPath = '/subscriber-contracts',
   formatCurrency,
 }) => {
   if (loading && !dashboard) {
@@ -108,6 +112,7 @@ const BillingControlPanel: React.FC<Props> = ({
             count={sub.pending}
             amount={sub.pendingAmount}
             icon={<Schedule />}
+            onClick={onFilterPendingInvoices}
             formatCurrency={formatCurrency}
           />
         </Grid>
@@ -193,7 +198,7 @@ const BillingControlPanel: React.FC<Props> = ({
         <Grid item xs={6} sm={3}>
           <Button
             component={RouterLink}
-            to="/subscriber-contracts"
+            to={contractsPath}
             variant="outlined"
             size="small"
             fullWidth

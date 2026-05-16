@@ -5,6 +5,10 @@ const loc = (pathname: string, search = '') => ({ pathname, search });
 describe('menuPathMatches', () => {
   it('destaca Visão geral só em /billing sem query de foco', () => {
     expect(menuPathMatches('/billing', loc('/billing'))).toBe(true);
+    expect(menuPathMatches('/billing?view=plans', loc('/billing', '?view=plans'))).toBe(true);
+    expect(menuPathMatches('/billing?view=plans', loc('/billing', '?view=invoices&type=subscriber'))).toBe(
+      false
+    );
     expect(menuPathMatches('/billing', loc('/billing', '?type=subscriber'))).toBe(false);
     expect(menuPathMatches('/billing', loc('/billing', '?dueFilter=overdue'))).toBe(false);
     expect(menuPathMatches('/billing', loc('/billing', '?subscriberId=5'))).toBe(false);
@@ -12,11 +16,23 @@ describe('menuPathMatches', () => {
 
   it('destaca Anunciantes com type=subscriber', () => {
     expect(
+      menuPathMatches(
+        '/billing?type=subscriber&view=invoices',
+        loc('/billing', '?type=subscriber&view=invoices')
+      )
+    ).toBe(true);
+    expect(
       menuPathMatches('/billing?type=subscriber', loc('/billing', '?type=subscriber'))
     ).toBe(true);
     expect(
-      menuPathMatches('/billing?type=subscriber', loc('/billing', '?type=subscriber&dueFilter=overdue'))
+      menuPathMatches(
+        '/billing?type=subscriber&view=invoices',
+        loc('/billing', '?type=subscriber&dueFilter=overdue')
+      )
     ).toBe(true);
+    expect(
+      menuPathMatches('/billing?view=plans', loc('/billing', '?type=subscriber&view=invoices'))
+    ).toBe(false);
   });
 
   it('destaca Timeline no dispatcher', () => {
@@ -39,7 +55,9 @@ describe('buildAutoOpenMenus', () => {
           {
             text: 'Faturamento e Cobrança',
             path: '/billing',
-            children: [{ text: 'Anunciantes', path: '/billing?type=subscriber' }],
+            children: [
+              { text: 'Anunciantes', path: '/billing?type=subscriber&view=invoices' },
+            ],
           },
         ],
       },

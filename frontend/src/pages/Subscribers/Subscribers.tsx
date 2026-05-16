@@ -2939,6 +2939,7 @@ const Subscribers: React.FC = () => {
                       const name = selectedSubscriber.name?.trim() || '';
                       const q = new URLSearchParams({
                         type: 'subscriber',
+                        view: 'invoices',
                         subscriberId: String(sid),
                         dueFilter: 'overdue',
                       });

@@ -16,7 +16,17 @@ export function menuKeyFromText(text: string): string {
   return text.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
 }
 
+function billingInvoicesLocation(locParams: URLSearchParams, expectedType: string): boolean {
+  if (locParams.get('type') !== expectedType) return false;
+  const view = locParams.get('view');
+  if (view === 'plans' || view === 'subscriptions') return false;
+  if (view === 'invoices') return true;
+  return true;
+}
+
 function billingOverviewLocation(locParams: URLSearchParams): boolean {
+  const view = locParams.get('view');
+  if (view === 'invoices' || view === 'subscriptions') return false;
   const type = locParams.get('type');
   if (type != null && type !== '') return false;
   if (locParams.has('dueFilter')) return false;
@@ -38,7 +48,14 @@ function pathnameSpecialMatch(
     if (!menuHasSearch) {
       return billingOverviewLocation(locParams);
     }
+    const menuView = menuParams.get('view');
     const menuType = menuParams.get('type');
+    if (menuView === 'plans') {
+      return billingOverviewLocation(locParams);
+    }
+    if (menuView === 'invoices' && menuType) {
+      return billingInvoicesLocation(locParams, menuType);
+    }
     if (menuType) {
       return locParams.get('type') === menuType;
     }

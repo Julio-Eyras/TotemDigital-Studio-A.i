@@ -43,6 +43,7 @@ import {
   Warning,
   StayCurrentPortrait,
   StayCurrentLandscape,
+  Payment,
 } from '@mui/icons-material';
 import { dashboardApi } from '../../services/api';
 import type { QuickPublishPreset } from '../../services/api';
@@ -351,6 +352,18 @@ const Dashboard: React.FC = () => {
                 >
                   Ver telas
                 </Button>
+                {dashboardCommercialFocus && (
+                  <Button
+                    variant="outlined"
+                    startIcon={<Payment />}
+                    sx={{ color: 'common.white', borderColor: alpha(theme.palette.common.white, 0.6) }}
+                    onClick={() =>
+                      navigate('/billing?type=subscriber&view=invoices&dueFilter=overdue')
+                    }
+                  >
+                    Faturas vencidas
+                  </Button>
+                )}
               </Box>
             </Grid>
             <Grid item xs={12} md={5}>

@@ -3,7 +3,7 @@
  * Página completa de gerenciamento de planos, assinaturas e faturas
  */
 
-import React, { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -35,6 +35,7 @@ import {
   Tooltip,
   useTheme,
   useMediaQuery,
+  TablePagination,
 } from '@mui/material';
 import {
   Payment,
@@ -76,7 +77,15 @@ import { useSearchParams } from 'react-router-dom';
 import { useAppSelector } from '../../store';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { PageHeader } from '../../components/DataDisplay';
+import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
+import {
+  billingViewFromTabIndex,
+  parseBillingView,
+  shouldLoadBillingInvoices,
+  tabIndexFromBillingView,
+} from '../../utils/billingNavigation';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -97,6 +106,7 @@ const Billing: React.FC = () => {
   const theme = useTheme();
   const isMobileNav = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
   const { showSuccess, showError } = useNotification();
+  const breadcrumbs = useBreadcrumbs();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAppSelector((state) => state.auth);
   const userType = (user as any)?.user_type || (user as any)?.userType;
@@ -137,13 +147,18 @@ const Billing: React.FC = () => {
     if (TOTEMDIGITAL_COMPACT) return rawType === 'publisher' ? 'publisher' : 'subscriber';
     return rawType === 'publisher' ? 'publisher' : 'subscriber';
   })();
-  
+
+  const billingView = useMemo(() => parseBillingView(searchParams), [searchParams.toString()]);
+  const loadInvoices = shouldLoadBillingInvoices(searchParams, billingType);
+
   const [tabValue, setTabValue] = useState(0);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [dashboard, setDashboard] = useState<BillingControlDashboard | null>(null);
   const [subscriberBillings, setSubscriberBillings] = useState<SubscriberBillingItem[]>([]);
+  const [subscriberBillingTotal, setSubscriberBillingTotal] = useState(0);
   const [publisherBillings, setPublisherBillings] = useState<PublisherBillingItem[]>([]);
+  const [publisherBillingTotal, setPublisherBillingTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [createSubscriberOpen, setCreateSubscriberOpen] = useState(false);
@@ -268,10 +283,13 @@ const Billing: React.FC = () => {
     }));
 
     if (id != null) {
-      setTabValue(2);
       setNewSubscriberInvoice((prev) => ({ ...prev, subscriberId: String(id) }));
     }
   }, [billingType, searchParams.toString()]);
+
+  useEffect(() => {
+    setTabValue(tabIndexFromBillingView(billingView));
+  }, [billingView]);
 
   const billingSearchKey = searchParams.toString();
   useEffect(() => {
@@ -287,42 +305,48 @@ const Billing: React.FC = () => {
   }, [billingType, billingSearchKey, subscriberFilters.subscriberId]);
 
   useEffect(() => {
-    loadAll();
-  }, [billingType, searchParams.toString()]);
+    void loadBillingCore();
+  }, [billingType, user?.publisherId]);
 
-  /** Menu: Visão geral = painel + abas iniciais; Anunciantes / KPIs / deep link = aba Faturas. */
   useEffect(() => {
-    const type = searchParams.get('type');
-    const hasDue = searchParams.has('dueFilter');
-    const rawId = searchParams.get('subscriberId') ?? searchParams.get('subscriber_id');
-    const hasSubId =
-      rawId != null &&
-      rawId !== '' &&
-      Number.isFinite(parseInt(String(rawId), 10)) &&
-      parseInt(String(rawId), 10) > 0;
-    const invoiceFocus =
-      type === 'subscriber' || type === 'publisher' || hasDue || hasSubId;
-    setTabValue(invoiceFocus ? 2 : 0);
-  }, [searchParams.toString()]);
+    if (!loadInvoices) {
+      setSubscriberBillings([]);
+      setSubscriberBillingTotal(0);
+      setPublisherBillings([]);
+      setPublisherBillingTotal(0);
+      return;
+    }
+    if (billingType === 'subscriber') void loadSubscriberBillings();
+    if (billingType === 'publisher') void loadPublisherBillings();
+  }, [billingType, loadInvoices, billingSearchKey, subscriberFilters.page, publisherFilters.page]);
 
   const handleBillingTabChange = useCallback(
     (newTab: number) => {
+      const view = billingViewFromTabIndex(newTab);
       setTabValue(newTab);
       setSearchParams(
         (prev) => {
           const next = new URLSearchParams(prev);
-          if (newTab === 2) {
+          if (view === 'plans') {
+            next.set('view', 'plans');
+            const keepFocus =
+              next.get('subscriberId') ||
+              next.get('subscriber_id') ||
+              next.get('dueFilter');
+            if (!keepFocus) {
+              next.delete('type');
+              next.delete('dueFilter');
+            }
+          } else if (view === 'subscriptions') {
+            next.set('view', 'subscriptions');
+            next.delete('type');
+          } else {
+            next.set('view', 'invoices');
             if (billingType === 'subscriber' || compactBillingAdminOnly) {
               next.set('type', 'subscriber');
             } else if (billingType === 'publisher') {
               next.set('type', 'publisher');
             }
-          } else if (newTab === 0) {
-            const keepFocus =
-              next.get('subscriberId') ||
-              next.get('subscriber_id') ||
-              next.get('dueFilter');
-            if (!keepFocus) next.delete('type');
           }
           return next;
         },
@@ -446,20 +470,26 @@ const Billing: React.FC = () => {
     }
   };
 
-  const loadAll = async () => {
+  const loadBillingCore = async () => {
     try {
       setLoading(true);
       await Promise.all([
         loadDashboard(),
         loadPlans(),
         isSubscriberUser ? Promise.resolve() : loadSubscriptions(),
-        billingType === 'subscriber' ? loadSubscriberBillings() : Promise.resolve(),
-        billingType === 'publisher' ? loadPublisherBillings() : Promise.resolve(),
       ]);
-    } catch (e) {
+    } catch {
       setError('Erro ao carregar dados');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAll = async () => {
+    await loadBillingCore();
+    if (loadInvoices) {
+      if (billingType === 'subscriber') await loadSubscriberBillings();
+      if (billingType === 'publisher') await loadPublisherBillings();
     }
   };
 
@@ -515,6 +545,7 @@ const Billing: React.FC = () => {
         dueSoonDays: ef.dueFilter === 'due_soon' ? DUE_SOON_DAYS : undefined,
       });
       setSubscriberBillings(response.billings || []);
+      setSubscriberBillingTotal(response.total ?? response.billings?.length ?? 0);
     } catch (e) {
       showError('Erro ao carregar faturas de assinantes');
     }
@@ -551,6 +582,7 @@ const Billing: React.FC = () => {
           if (!dueFilter) next.delete('dueFilter');
           else {
             next.set('dueFilter', dueFilter);
+            next.set('view', 'invoices');
             if (!next.get('type')) next.set('type', 'subscriber');
           }
           return next;
@@ -574,8 +606,39 @@ const Billing: React.FC = () => {
       };
       const response = await publisherBillingApi.getAll(filters);
       setPublisherBillings(response.billings || []);
+      setPublisherBillingTotal(response.total ?? response.billings?.length ?? 0);
     } catch (e) {
       showError('Erro ao carregar faturas do exibidor');
+    }
+  };
+
+  const applyInvoicePendingFilter = async () => {
+    if (billingType !== 'subscriber') return;
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('view', 'invoices');
+        next.set('type', 'subscriber');
+        next.delete('dueFilter');
+        return next;
+      },
+      { replace: true }
+    );
+    const next = { ...subscriberFilters, dueFilter: '' as const, status: 'pending', page: 1 };
+    setSubscriberFilters(next);
+    try {
+      const { subscriberId, limit, ...rest } = next;
+      const effLimit = subscriberId != null ? Math.max(Number(limit) || 20, 50) : limit;
+      const response = await subscriberBillingApi.getAll({
+        ...rest,
+        limit: effLimit,
+        ...(subscriberId != null ? { subscriberId } : {}),
+        status: 'pending',
+      });
+      setSubscriberBillings(response.billings || []);
+      setSubscriberBillingTotal(response.total ?? 0);
+    } catch {
+      showError('Erro ao filtrar faturas pendentes');
     }
   };
 
@@ -595,6 +658,7 @@ const Billing: React.FC = () => {
           dueSoonDays: filter === 'due_soon' ? DUE_SOON_DAYS : undefined,
         });
         setSubscriberBillings(response.billings || []);
+        setSubscriberBillingTotal(response.total ?? 0);
       } catch {
         showError('Erro ao filtrar faturas');
       }
@@ -608,6 +672,7 @@ const Billing: React.FC = () => {
         (prev) => {
           const next = new URLSearchParams(prev);
           next.set('type', 'publisher');
+          next.set('view', 'invoices');
           if (!filter) next.delete('dueFilter');
           else next.set('dueFilter', filter);
           return next;
@@ -627,6 +692,7 @@ const Billing: React.FC = () => {
               : undefined,
         });
         setPublisherBillings(response.billings || []);
+        setPublisherBillingTotal(response.total ?? 0);
       } catch {
         showError('Erro ao filtrar faturas');
       }
@@ -875,11 +941,24 @@ const Billing: React.FC = () => {
     { label: billingTabLabel, icon: Payment },
   ] as const;
 
+  const billingSubtitle =
+    billingView === 'invoices'
+      ? billingType === 'publisher'
+        ? 'Lista de faturas de exibidores'
+        : 'Lista de faturas de anunciantes'
+      : billingView === 'subscriptions'
+        ? 'Assinaturas ativas e histórico'
+        : 'Planos, controlo financeiro e KPIs';
+
   return (
     <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
-      <Typography variant="h4" gutterBottom sx={{ fontWeight: 600, mb: { xs: 2.5, md: 4 }, fontSize: { xs: '1.4rem', md: undefined } }}>
-        Faturamento e Cobrança
-      </Typography>
+      <PageHeader
+        title="Faturamento e Cobrança"
+        subtitle={billingSubtitle}
+        breadcrumbs={breadcrumbs}
+        onRefresh={loadAll}
+        loading={loading}
+      />
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
@@ -897,6 +976,10 @@ const Billing: React.FC = () => {
         }
         publisherLabel={TOTEMDIGITAL_COMPACT ? 'Exibidor (sistema)' : 'Publicadores'}
         onFilterInvoices={canViewAllBillingTypes || !isSubscriberUser ? applyInvoiceDueFilter : undefined}
+        onFilterPendingInvoices={
+          canViewAllBillingTypes || !isSubscriberUser ? applyInvoicePendingFilter : undefined
+        }
+        contractsPath="/subscriber-contracts"
         formatCurrency={(n) => formatCurrency(n)}
       />
 
@@ -909,8 +992,12 @@ const Billing: React.FC = () => {
               value={billingType}
               label="Tipo de Faturamento"
               onChange={(e) => {
-                setSearchParams({ type: e.target.value });
-                setTabValue(0); // Resetar para primeira aba ao mudar tipo
+                const type = e.target.value;
+                setSearchParams({
+                  type,
+                  view: type === 'subscriber' || type === 'publisher' ? 'invoices' : 'plans',
+                });
+                setTabValue(type === 'subscriber' || type === 'publisher' ? 2 : 0);
               }}
             >
               {!isSubscriberUser && <MenuItem value="subscriber">Anunciantes</MenuItem>}
@@ -1118,6 +1205,8 @@ const Billing: React.FC = () => {
                       next.delete('subscriber_id');
                       next.delete('subscriberName');
                       next.delete('dueFilter');
+                      next.delete('type');
+                      next.set('view', 'plans');
                       return next;
                     });
                   }}
@@ -1417,6 +1506,29 @@ const Billing: React.FC = () => {
               </TableBody>
             </Table>
           </TableContainer>
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5, mt: 1 }}>
+            <Typography variant="caption" color="text.secondary">
+              A mostrar {subscriberBillings.length} de {subscriberBillingTotal} fatura(s)
+            </Typography>
+            <TablePagination
+              count={subscriberBillingTotal}
+              page={Math.max(0, subscriberFilters.page - 1)}
+              onPageChange={(_, page) =>
+                setSubscriberFilters((prev) => ({ ...prev, page: page + 1 }))
+              }
+              rowsPerPage={subscriberFilters.limit}
+              onRowsPerPageChange={(e) => {
+                const limit = parseInt(e.target.value, 10);
+                setSubscriberFilters((prev) => ({
+                  ...prev,
+                  limit: Number.isFinite(limit) ? limit : 20,
+                  page: 1,
+                }));
+              }}
+              rowsPerPageOptions={[20, 50, 100]}
+              labelRowsPerPage="Por página"
+            />
+          </Box>
         </TabPanel>
       )}
 
@@ -1673,6 +1785,29 @@ const Billing: React.FC = () => {
               </TableBody>
             </Table>
           </TableContainer>
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.5, mt: 1 }}>
+            <Typography variant="caption" color="text.secondary">
+              A mostrar {publisherBillings.length} de {publisherBillingTotal} fatura(s)
+            </Typography>
+            <TablePagination
+              count={publisherBillingTotal}
+              page={Math.max(0, publisherFilters.page - 1)}
+              onPageChange={(_, page) =>
+                setPublisherFilters((prev) => ({ ...prev, page: page + 1 }))
+              }
+              rowsPerPage={publisherFilters.limit}
+              onRowsPerPageChange={(e) => {
+                const limit = parseInt(e.target.value, 10);
+                setPublisherFilters((prev) => ({
+                  ...prev,
+                  limit: Number.isFinite(limit) ? limit : 20,
+                  page: 1,
+                }));
+              }}
+              rowsPerPageOptions={[20, 50, 100]}
+              labelRowsPerPage="Por página"
+            />
+          </Box>
         </TabPanel>
       )}
 

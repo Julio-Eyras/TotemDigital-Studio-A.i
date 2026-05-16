@@ -29,3 +29,9 @@ export const APP_DISPLAY_NAME = TOTEMDIGITAL_COMPACT
   ? 'Smart Signage Compact'
   : 'Smart Signage Pro';
 
+/**
+ * SmartDisplayFX (rede estrela / telemetria) — desligado no menu e rota no modo compacto;
+ * código e rotas Pro mantêm-se para versão evolutiva.
+ */
+export const SMARTDISPLAYFX_ENABLED = !TOTEMDIGITAL_COMPACT;
+
