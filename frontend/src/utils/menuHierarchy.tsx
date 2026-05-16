@@ -99,6 +99,32 @@ function filterHierarchicalMenu(
   return filtered;
 }
 
+/** Subitens de Faturamento e Cobrança (Pro inclui exibidores; compacto admin só anunciantes). */
+function getBillingMenuChildren(includePublisher: boolean): HierarchicalMenuItem[] {
+  const children: HierarchicalMenuItem[] = [
+    { text: 'Visão geral', icon: <Payment />, path: '/billing' },
+    { text: 'Anunciantes', icon: <People />, path: '/billing?type=subscriber' },
+  ];
+  if (includePublisher) {
+    children.push({
+      text: 'Exibidores',
+      icon: <Business />,
+      path: '/billing?type=publisher',
+    });
+  }
+  return children;
+}
+
+function getBillingMenuBlock(includePublisher: boolean): HierarchicalMenuItem {
+  return {
+    text: 'Faturamento e Cobrança',
+    icon: <Payment />,
+    path: '/billing',
+    requiredFlag: 'flag_smart_3',
+    children: getBillingMenuChildren(includePublisher),
+  };
+}
+
 /** Submenus Playlist Mix (mix por totem, regras, analytics) — agrupados sob Dispatcher para debug. */
 function getDispatcherPlaylistMixChildren(): HierarchicalMenuItem[] {
   return [
@@ -164,16 +190,7 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
         { text: 'Locais', icon: <LocationOn />, path: '/locals' },
         { text: 'Totens', icon: <Computer />, path: '/totems' },
         { text: 'Smart TVs', icon: <Tv />, path: '/smart-tvs' },
-        {
-          text: 'Faturamento e Cobrança',
-          icon: <Payment />,
-          path: '/billing',
-          requiredFlag: 'flag_smart_3',
-          children: [
-            { text: 'Visão geral', icon: <Payment />, path: '/billing' },
-            { text: 'Anunciantes', icon: <People />, path: '/billing?type=subscriber' },
-          ],
-        },
+        getBillingMenuBlock(false),
         { text: 'Manutenção Usuário', icon: <People />, path: '/users' },
         { text: 'Tags', icon: <Assignment />, path: '/tags' },
         { text: 'QR-Codes', icon: <QrCode />, path: '/qr-codes' },
@@ -286,17 +303,7 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
     return [
       { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
       { text: 'Planos', icon: <Assignment />, path: '/plan-publisher-access' },
-      {
-        text: 'Faturamento',
-        icon: <Payment />,
-        path: '/billing',
-        requiredFlag: 'flag_smart_3',
-        children: [
-          { text: 'Visão geral', icon: <Payment />, path: '/billing' },
-          { text: 'Anunciantes', icon: <People />, path: '/billing?type=subscriber' },
-          { text: 'Publicador (exibidor)', icon: <Business />, path: '/billing?type=publisher' },
-        ],
-      },
+      getBillingMenuBlock(false),
       { text: 'Locais', icon: <LocationOn />, path: '/locals' },
       { text: 'Totens', icon: <Computer />, path: '/totems' },
       { text: 'Nova publicação', icon: <Add />, path: '/quick-publish' },
@@ -340,17 +347,6 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
     { text: 'Playlists por Totem', icon: <QueueMusic />, path: '/totem-playlists' },
     { text: 'Rede Visual', icon: <Link />, path: '/network-topology' },
     { text: 'Contratos (Exibidores)', icon: <Description />, path: '/publisher-contracts' },
-    {
-      text: 'Playlist Mix',
-      icon: <Shuffle />,
-      path: '/playlist-mix',
-      children: [
-        { text: 'Visão Geral', icon: <Shuffle />, path: '/playlist-mix' },
-        { text: 'Grupos', icon: <Assignment />, path: '/playlist-mix/groups' },
-        { text: 'Regras', icon: <Build />, path: '/playlist-mix/rules' },
-        { text: 'Analytics', icon: <Analytics />, path: '/playlist-mix/analytics' },
-      ],
-    },
   ];
 
   return [
@@ -395,10 +391,10 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
         { text: 'Planos', icon: <Link />, path: '/plan-publisher-access' },
         { text: 'Planos Expirados', icon: <Warning />, path: '/plan-publisher-access/expired' },
         { text: 'Acessos (Anunciante → Exibidor)', icon: <Link />, path: '/subscriber-publisher-access' },
-        { text: 'Faturamento (Anunciantes)', icon: <Payment />, path: '/billing?type=subscriber' },
-        { text: 'Faturamento (Exibidores)', icon: <Payment />, path: '/billing?type=publisher' },
       ],
     },
+
+    getBillingMenuBlock(true),
 
     // Operação / Administração
     {
@@ -540,8 +536,7 @@ function getOperadorFaturamentoMenu(): HierarchicalMenuItem[] {
             { text: 'Planos Publicadores', icon: <Link />, path: '/plan-publisher-access?type=publisher' },
           ],
         },
-        { text: 'Faturamento Anunciantes', icon: <Payment />, path: '/billing?type=subscriber' },
-        { text: 'Faturamento Publicador', icon: <Payment />, path: '/billing?type=publisher' },
+        getBillingMenuBlock(true),
       ],
     },
     { text: 'Relatórios Financeiros', icon: <Assessment />, path: '/reports' },
@@ -592,8 +587,7 @@ function getOperadorComercialMenu(): HierarchicalMenuItem[] {
             { text: 'Planos Publicadores', icon: <Link />, path: '/plan-publisher-access?type=publisher' },
           ],
         },
-        { text: 'Faturamento Anunciantes', icon: <Payment />, path: '/billing?type=subscriber' },
-        { text: 'Faturamento Publicador', icon: <Payment />, path: '/billing?type=publisher' },
+        getBillingMenuBlock(true),
       ],
     },
     {
@@ -628,7 +622,7 @@ function getPublisherUserMenu(): HierarchicalMenuItem[] {
     },
     { text: 'Analytics', icon: <Analytics />, path: '/analytics' },
     {
-      text: 'Faturamento',
+      text: 'Faturamento e Cobrança',
       icon: <Payment />,
       path: '/billing?type=publisher',
       requiredFlag: 'flag_smart_3',
@@ -656,7 +650,7 @@ function getSubscriberUserMenu(): HierarchicalMenuItem[] {
       ],
     },
     { text: 'Analytics', icon: <Analytics />, path: '/analytics' },
-    { text: 'Faturamento', icon: <Payment />, path: '/billing' },
+    { text: 'Faturamento e Cobrança', icon: <Payment />, path: '/billing' },
     { text: 'Configurações', icon: <Settings />, path: '/settings' },
   ];
 }

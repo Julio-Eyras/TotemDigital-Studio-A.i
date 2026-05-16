@@ -45,7 +45,11 @@ import { setTheme } from '../../store/slices/uiSlice';
 import { getMenuHierarchyByRole, HierarchicalMenuItem } from '../../utils/menuHierarchy';
 import { UserRole } from '../../utils/rolePermissions';
 import { useFlags } from '../../hooks/useFlags';
-import { menuItemOrChildActive, menuPathMatches } from '../../utils/menuPathMatch';
+import {
+  buildAutoOpenMenus,
+  menuKeyFromText,
+  menuPathMatches,
+} from '../../utils/menuPathMatch';
 
 const drawerWidth = 280;
 
@@ -94,6 +98,12 @@ const PublisherLayout: React.FC<PublisherLayoutProps> = ({ children }) => {
     return getMenuHierarchyByRole(user.role as UserRole, userFlags);
   })();
 
+  useEffect(() => {
+    const loc = { pathname: location.pathname, search: location.search };
+    const auto = buildAutoOpenMenus(menuItems, loc);
+    setOpenMenus((prev) => ({ ...prev, ...auto }));
+  }, [location.pathname, location.search, user?.role]);
+
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
@@ -135,8 +145,8 @@ const PublisherLayout: React.FC<PublisherLayoutProps> = ({ children }) => {
   const renderMenuItem = (item: MenuItem, level: number = 0) => {
     const loc = { pathname: location.pathname, search: location.search };
     const hasChildren = item.children && item.children.length > 0;
-    const isActive = hasChildren ? menuItemOrChildActive(item, loc) : menuPathMatches(item.path, loc);
-    const menuKey = item.text.toLowerCase().replace(/\s+/g, '_');
+    const isActive = menuPathMatches(item.path, loc);
+    const menuKey = menuKeyFromText(item.text);
     const isOpen = openMenus[menuKey] || false;
 
     return (

@@ -46,7 +46,11 @@ import { setTheme } from '../../store/slices/uiSlice';
 import { getMenuHierarchyByRole, HierarchicalMenuItem } from '../../utils/menuHierarchy';
 import { UserRole } from '../../utils/rolePermissions';
 import { useFlags } from '../../hooks/useFlags';
-import { menuItemOrChildActive, menuPathMatches } from '../../utils/menuPathMatch';
+import {
+  buildAutoOpenMenus,
+  menuKeyFromText,
+  menuPathMatches,
+} from '../../utils/menuPathMatch';
 
 const drawerWidth = 280;
 
@@ -87,13 +91,19 @@ const SubscriberLayout: React.FC<SubscriberLayoutProps> = ({ children }) => {
         { text: 'Minhas Mídias', icon: <VideoLibrary />, path: '/media' },
         { text: 'Minhas Playlists', icon: <QueueMusic />, path: '/playlists' },
         { text: 'Analytics', icon: <Analytics />, path: '/analytics' },
-        { text: 'Faturamento', icon: <Payment />, path: '/billing' },
+        { text: 'Faturamento e Cobrança', icon: <Payment />, path: '/billing' },
         { text: 'Configurações', icon: <Settings />, path: '/settings' },
       ];
     }
     const userFlags = user?.flags || flags;
     return getMenuHierarchyByRole(user.role as UserRole, userFlags);
   })();
+
+  useEffect(() => {
+    const loc = { pathname: location.pathname, search: location.search };
+    const auto = buildAutoOpenMenus(menuItems, loc);
+    setOpenMenus((prev) => ({ ...prev, ...auto }));
+  }, [location.pathname, location.search, user?.role]);
 
   const handleToggleMenu = (menuKey: string) => {
     setOpenMenus((prev) => ({
@@ -105,8 +115,8 @@ const SubscriberLayout: React.FC<SubscriberLayoutProps> = ({ children }) => {
   const renderMenuItem = (item: HierarchicalMenuItem, level: number = 0) => {
     const loc = { pathname: location.pathname, search: location.search };
     const hasChildren = item.children && item.children.length > 0;
-    const isActive = hasChildren ? menuItemOrChildActive(item, loc) : menuPathMatches(item.path, loc);
-    const menuKey = item.text.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    const isActive = menuPathMatches(item.path, loc);
+    const menuKey = menuKeyFromText(item.text);
     const isOpen = openMenus[menuKey] || false;
 
     return (

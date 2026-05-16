@@ -23,49 +23,58 @@ const breadcrumbConfig: BreadcrumbConfig[] = [
   { path: '/playlists', label: 'Playlists', parent: '/dashboard' },
   { path: '/totems', label: 'Totens', parent: '/dashboard' },
   { path: '/users', label: 'Usuários', parent: '/dashboard' },
-  { path: '/billing', label: 'Faturamento', parent: '/dashboard' },
+  { path: '/billing', label: 'Faturamento e Cobrança', parent: '/dashboard' },
+  { path: '/dispatcher-manager', label: 'Dispatcher', parent: '/dashboard' },
+  { path: '/playlist-mix', label: 'Playlist Mix', parent: '/dashboard' },
   { path: '/reports', label: 'Relatórios', parent: '/dashboard' },
   { path: '/analytics', label: 'Analytics', parent: '/dashboard' },
   { path: '/settings', label: 'Configurações', parent: '/dashboard' },
 ];
+
+function billingBreadcrumbLabel(search: string): string {
+  const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+  const type = params.get('type');
+  if (type === 'subscriber') return 'Faturamento — Anunciantes';
+  if (type === 'publisher') return 'Faturamento — Exibidores';
+  if (params.has('dueFilter') || params.get('subscriberId') || params.get('subscriber_id')) {
+    return 'Faturamento — Anunciantes';
+  }
+  return 'Faturamento — Visão geral';
+}
 
 export function useBreadcrumbs(customItems?: BreadcrumbItem[]): BreadcrumbItem[] {
   const location = useLocation();
   const navigate = useNavigate();
 
   const breadcrumbs = useMemo(() => {
-    // Se houver items customizados, usar eles
     if (customItems && customItems.length > 0) {
       return customItems;
     }
 
-    // Construir breadcrumbs baseado na rota atual
     const items: BreadcrumbItem[] = [];
     const pathParts = location.pathname.split('/').filter(Boolean);
 
-    // Sempre adicionar Home
     items.push({
       label: 'Home',
       path: '/dashboard',
       onClick: () => navigate('/dashboard'),
     });
 
-    // Construir caminho incremental
     let currentPath = '';
-    pathParts.forEach((part, index) => {
+    pathParts.forEach((part) => {
       currentPath += `/${part}`;
-      
-      // Buscar configuração para este path
+
       const config = breadcrumbConfig.find((c) => c.path === currentPath);
-      
       if (config) {
+        const label =
+          currentPath === '/billing' ? billingBreadcrumbLabel(location.search) : config.label;
         items.push({
-          label: config.label,
-          path: currentPath,
-          onClick: () => navigate(currentPath),
+          label,
+          path: currentPath + (currentPath === '/billing' ? location.search : ''),
+          onClick: () =>
+            navigate(currentPath + (currentPath === '/billing' ? location.search : '')),
         });
       } else {
-        // Se não houver config, usar o nome do path capitalizado
         const label = part
           .split('-')
           .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
@@ -79,7 +88,7 @@ export function useBreadcrumbs(customItems?: BreadcrumbItem[]): BreadcrumbItem[]
     });
 
     return items;
-  }, [location.pathname, navigate, customItems]);
+  }, [location.pathname, location.search, navigate, customItems]);
 
   return breadcrumbs;
 }

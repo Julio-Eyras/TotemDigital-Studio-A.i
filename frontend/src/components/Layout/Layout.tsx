@@ -62,7 +62,7 @@ import { useSystemAlerts } from '../../services/api/queries';
 import { useFlags } from '../../hooks/useFlags';
 import NotificationCenter from '../Notification/NotificationCenter';
 import { APP_DISPLAY_NAME, TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
-import { menuItemOrChildActive, menuPathMatches } from '../../utils/menuPathMatch';
+import { buildAutoOpenMenus, menuKeyFromText, menuPathMatches } from '../../utils/menuPathMatch';
 
 const drawerWidth = 280;
 
@@ -144,6 +144,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   const menuItems = getMenuItems();
+
+  useEffect(() => {
+    const loc = { pathname: location.pathname, search: location.search };
+    const auto = buildAutoOpenMenus(menuItems, loc);
+    setOpenMenus((prev) => ({ ...prev, ...auto }));
+  }, [location.pathname, location.search, user?.role]);
+
   const compactOwnerDisplayName = useMemo(() => {
     if (!TOTEMDIGITAL_COMPACT) return APP_DISPLAY_NAME;
     if (user?.role !== 'owner_system') return APP_DISPLAY_NAME;
@@ -165,10 +172,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const renderMenuItem = (item: HierarchicalMenuItem, level: number = 0) => {
     const loc = { pathname: location.pathname, search: location.search };
     const hasChildren = item.children && item.children.length > 0;
-    const isActive = hasChildren
-      ? menuItemOrChildActive(item, loc)
-      : menuPathMatches(item.path, loc);
-    const menuKey = item.text.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    const isActive = menuPathMatches(item.path, loc);
+    const menuKey = menuKeyFromText(item.text);
     const isOpen = openMenus[menuKey] || false;
 
     return (

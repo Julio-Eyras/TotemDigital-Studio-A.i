@@ -290,15 +290,47 @@ const Billing: React.FC = () => {
     loadAll();
   }, [billingType, searchParams.toString()]);
 
-  /** Menu: Visão geral = painel + abas iniciais; Anunciantes = foco na lista de faturas. */
+  /** Menu: Visão geral = painel + abas iniciais; Anunciantes / KPIs / deep link = aba Faturas. */
   useEffect(() => {
     const type = searchParams.get('type');
-    if (type === 'subscriber' || type === 'publisher') {
-      setTabValue(2);
-    } else {
-      setTabValue(0);
-    }
+    const hasDue = searchParams.has('dueFilter');
+    const rawId = searchParams.get('subscriberId') ?? searchParams.get('subscriber_id');
+    const hasSubId =
+      rawId != null &&
+      rawId !== '' &&
+      Number.isFinite(parseInt(String(rawId), 10)) &&
+      parseInt(String(rawId), 10) > 0;
+    const invoiceFocus =
+      type === 'subscriber' || type === 'publisher' || hasDue || hasSubId;
+    setTabValue(invoiceFocus ? 2 : 0);
   }, [searchParams.toString()]);
+
+  const handleBillingTabChange = useCallback(
+    (newTab: number) => {
+      setTabValue(newTab);
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (newTab === 2) {
+            if (billingType === 'subscriber' || compactBillingAdminOnly) {
+              next.set('type', 'subscriber');
+            } else if (billingType === 'publisher') {
+              next.set('type', 'publisher');
+            }
+          } else if (newTab === 0) {
+            const keepFocus =
+              next.get('subscriberId') ||
+              next.get('subscriber_id') ||
+              next.get('dueFilter');
+            if (!keepFocus) next.delete('type');
+          }
+          return next;
+        },
+        { replace: true }
+      );
+    },
+    [billingType, compactBillingAdminOnly, setSearchParams]
+  );
 
   /** Evita ?type=publisher no mono quando o ecrã é só administrativo de anunciantes. */
   useEffect(() => {
@@ -517,7 +549,10 @@ const Billing: React.FC = () => {
         (prev) => {
           const next = new URLSearchParams(prev);
           if (!dueFilter) next.delete('dueFilter');
-          else next.set('dueFilter', dueFilter);
+          else {
+            next.set('dueFilter', dueFilter);
+            if (!next.get('type')) next.set('type', 'subscriber');
+          }
           return next;
         },
         { replace: true }
@@ -545,11 +580,10 @@ const Billing: React.FC = () => {
   };
 
   const applyInvoiceDueFilter = async (filter: 'overdue' | 'due_soon' | '') => {
-    setTabValue(2);
     if (billingType === 'subscriber') {
+      syncSubscriberDueFilterToUrl(filter);
       const next = { ...subscriberFilters, dueFilter: filter, status: '', page: 1 };
       setSubscriberFilters(next);
-      syncSubscriberDueFilterToUrl(filter);
       try {
         const { subscriberId, limit, ...rest } = next;
         const effLimit = subscriberId != null ? Math.max(Number(limit) || 20, 50) : limit;
@@ -570,6 +604,16 @@ const Billing: React.FC = () => {
         /* KPIs opcionais */
       }
     } else if (billingType === 'publisher') {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.set('type', 'publisher');
+          if (!filter) next.delete('dueFilter');
+          else next.set('dueFilter', filter);
+          return next;
+        },
+        { replace: true }
+      );
       const next = { ...publisherFilters, dueFilter: filter, paymentStatus: '', page: 1 };
       setPublisherFilters(next);
       try {
@@ -834,7 +878,7 @@ const Billing: React.FC = () => {
   return (
     <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
       <Typography variant="h4" gutterBottom sx={{ fontWeight: 600, mb: { xs: 2.5, md: 4 }, fontSize: { xs: '1.4rem', md: undefined } }}>
-        Faturamento e Assinaturas
+        Faturamento e Cobrança
       </Typography>
 
       {error && (
@@ -885,7 +929,7 @@ const Billing: React.FC = () => {
         <ResponsiveSectionNav
           sections={BILLING_SECTIONS}
           value={tabValue}
-          onChange={setTabValue}
+          onChange={handleBillingTabChange}
           isMobileNav={isMobileNav}
           idPrefix="billing"
         />

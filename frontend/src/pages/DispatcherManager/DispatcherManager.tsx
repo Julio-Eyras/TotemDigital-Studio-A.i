@@ -13,7 +13,8 @@
  * - Debug Online: Diagnóstico técnico (por que não funciona)
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -77,6 +78,22 @@ const DISPATCHER_SECTIONS = [
   { label: 'Timeline', icon: TimelineIcon },
   { label: 'Estatísticas', icon: BarChart },
 ] as const;
+
+const DISPATCHER_TAB_QUERY: Record<number, string> = {
+  0: 'campaigns',
+  1: 'playlists',
+  2: 'media',
+  3: 'timeline',
+  4: 'stats',
+};
+
+const DISPATCHER_QUERY_TAB: Record<string, number> = {
+  campaigns: 0,
+  playlists: 1,
+  media: 2,
+  timeline: 3,
+  stats: 4,
+};
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -162,6 +179,7 @@ interface TimelineSlot {
 
 const DispatcherManager: React.FC = () => {
   const theme = useTheme();
+  const [searchParams, setSearchParams] = useSearchParams();
   /** Abaixo do breakpoint `md`: drawer + conteúdo em largura total (Pro e Compact). */
   const isMobileNav = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
   const dialogFullScreen = useMediaQuery(theme.breakpoints.down('sm'), { noSsr: true });
@@ -180,6 +198,30 @@ const DispatcherManager: React.FC = () => {
     const id = window.setTimeout(() => setDebouncedTimestamp(selectedTimestamp), 400);
     return () => window.clearTimeout(id);
   }, [selectedTimestamp]);
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (!tab) return;
+    const idx = DISPATCHER_QUERY_TAB[tab.toLowerCase()];
+    if (idx !== undefined) setTabValue(idx);
+  }, [searchParams.toString()]);
+
+  const handleDispatcherTabChange = useCallback(
+    (nextValue: number) => {
+      setTabValue(nextValue);
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          const key = DISPATCHER_TAB_QUERY[nextValue];
+          if (key && key !== 'campaigns') next.set('tab', key);
+          else next.delete('tab');
+          return next;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
   /** Janela da timeline: menos horas = lote menor no `dispatch-batch`. */
   const [timelineSpan, setTimelineSpan] = useState<'full' | 'around3' | 'around6'>('around3');
 
@@ -638,7 +680,7 @@ const DispatcherManager: React.FC = () => {
         <ResponsiveSectionNav
           sections={DISPATCHER_SECTIONS}
           value={tabValue}
-          onChange={(nextValue) => setTabValue(nextValue)}
+          onChange={handleDispatcherTabChange}
           isMobileNav={isMobileNav}
           idPrefix="dispatcher-manager"
         />
