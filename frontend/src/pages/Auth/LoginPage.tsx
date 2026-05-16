@@ -12,7 +12,6 @@ import {
   LinearProgress,
   InputAdornment,
   IconButton,
-  Divider,
   Link,
 } from '@mui/material';
 import {
@@ -381,21 +380,6 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                 >
                   Entrar
                 </Button>
-              </Box>
-
-              <Divider sx={{ my: 3 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Credenciais Padrão
-                </Typography>
-              </Divider>
-
-              <Box sx={{ textAlign: 'center' }}>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  <strong>Usuário:</strong> admin
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  <strong>Senha:</strong> admin123
-                </Typography>
               </Box>
 
               {/* Forgot Password Link */}

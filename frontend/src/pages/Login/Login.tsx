@@ -222,12 +222,6 @@ const Login: React.FC = () => {
             {isLoading ? 'Entrando...' : 'Entrar'}
           </Button>
         </form>
-
-        <Box sx={{ textAlign: 'center', marginTop: 3 }}>
-          <Typography variant="body2" color="text.secondary">
-            Credenciais padrão: admin / admin123
-          </Typography>
-        </Box>
       </Paper>
     </Box>
   );
