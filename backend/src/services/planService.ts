@@ -7,10 +7,9 @@ import { getDatabase } from '../config/database';
 import { logError, logInfo } from '../utils/loggerHelper';
 import { getCacheService } from './cacheService';
 import {
-  BILLING_INTERVAL_CODES,
-  getPlanPriceForInterval,
   isBillingIntervalCode,
   normalizeBillingInterval,
+  validatePlanPriceConfiguration,
 } from '../utils/billingIntervals';
 
 const PLAN_SELECT = `
@@ -70,10 +69,10 @@ export interface CreatePlanRequest {
   name: string;
   slug: string;
   description?: string;
-  priceMonthly: number;
-  priceFourMonth: number;
-  priceSemester: number;
-  priceYearly: number;
+  priceMonthly?: number;
+  priceFourMonth?: number;
+  priceSemester?: number;
+  priceYearly?: number;
   currency?: string;
   billingInterval?: string;
   stripePriceIdMonthly?: string;
@@ -233,20 +232,12 @@ export class PlanService {
       if (!name || !slug) {
         throw new Error('Nome e slug são obrigatórios');
       }
-      for (const code of BILLING_INTERVAL_CODES) {
-        const p = getPlanPriceForInterval(
-          {
-            priceMonthly,
-            priceFourMonth,
-            priceSemester,
-            priceYearly,
-          },
-          code
-        );
-        if (p == null) {
-          throw new Error(`Preço obrigatório para periodicidade: ${code}`);
-        }
-      }
+      validatePlanPriceConfiguration(
+        { priceMonthly, priceFourMonth, priceSemester, priceYearly },
+        defaultInterval
+      );
+
+      const insertPrice = (v: number | undefined) => (v != null && Number(v) > 0 ? v : null);
 
       // Verificar se slug já existe
       const existingPlan = await this.getPlanBySlug(slug);
@@ -268,10 +259,10 @@ export class PlanService {
         name,
         slug,
         description,
-        priceMonthly,
-        priceFourMonth,
-        priceSemester,
-        priceYearly,
+        insertPrice(priceMonthly),
+        insertPrice(priceFourMonth),
+        insertPrice(priceSemester),
+        insertPrice(priceYearly),
         currency,
         defaultInterval,
         stripePriceIdMonthly,
@@ -435,6 +426,22 @@ export class PlanService {
       if (data.sortOrder !== undefined) {
         updates.push('sort_order = ?');
         params.push(data.sortOrder);
+      }
+
+      if (!hasContracts) {
+        validatePlanPriceConfiguration(
+          {
+            priceMonthly:
+              data.priceMonthly !== undefined ? data.priceMonthly : existingPlan.priceMonthly,
+            priceFourMonth:
+              data.priceFourMonth !== undefined ? data.priceFourMonth : existingPlan.priceFourMonth,
+            priceSemester:
+              data.priceSemester !== undefined ? data.priceSemester : existingPlan.priceSemester,
+            priceYearly:
+              data.priceYearly !== undefined ? data.priceYearly : existingPlan.priceYearly,
+          },
+          data.billingInterval ?? existingPlan.billingInterval
+        );
       }
 
       if (updates.length === 0) {

@@ -239,3 +239,79 @@ export function resolveInvoicePeriodBounds(
   }
   return periodBoundsForInterval(interval, ref);
 }
+
+/** Intervalos oferecidos pelo plano (preço > 0). */
+export function getPlanAvailableIntervals(plan: PlanPriceRow | null | undefined): BillingIntervalCode[] {
+  if (!plan) return [];
+  return BILLING_INTERVAL_CODES.filter((code) => getPlanPriceForInterval(plan, code) != null);
+}
+
+export function resolveContractBillingInterval(
+  plan: PlanPriceRow | null | undefined,
+  preferred?: string | null
+): BillingIntervalCode {
+  const available = getPlanAvailableIntervals(plan);
+  if (available.length === 0) {
+    return preferred ? normalizeBillingInterval(preferred) : 'month';
+  }
+  if (preferred) {
+    const p = normalizeBillingInterval(preferred);
+    if (available.includes(p)) return p;
+  }
+  const ref = getPlanDefaultBillingInterval(plan);
+  if (available.includes(ref)) return ref;
+  return available[0];
+}
+
+/** Término padrão: um ano após o início. */
+export function getDefaultContractEndDate(startDateYmd: string): string {
+  return formatYmd(addMonths(parseYmd(startDateYmd), 12));
+}
+
+/** Vigência mínima: duração de um período do intervalo escolhido. */
+export function getMinContractEndDate(startDateYmd: string, billingInterval: string): string {
+  return formatYmd(addMonths(parseYmd(startDateYmd), monthsForBillingInterval(billingInterval)));
+}
+
+export function clampContractEndDate(
+  startDateYmd: string,
+  endDateYmd: string | null | undefined,
+  billingInterval: string
+): string {
+  const min = getMinContractEndDate(startDateYmd, billingInterval);
+  const candidate = endDateYmd?.trim()
+    ? String(endDateYmd).split('T')[0]
+    : getDefaultContractEndDate(startDateYmd);
+  return candidate < min ? min : candidate;
+}
+
+export function assertContractEndDateValid(
+  startDateYmd: string,
+  endDateYmd: string | null | undefined,
+  billingInterval: string
+): void {
+  if (!endDateYmd?.trim()) return;
+  const end = String(endDateYmd).split('T')[0];
+  const min = getMinContractEndDate(startDateYmd, billingInterval);
+  if (end < min) {
+    throw new Error(
+      `Data de término deve ser pelo menos ${min} (duração mínima: ${billingIntervalLabel(billingInterval)})`
+    );
+  }
+}
+
+export function validatePlanPriceConfiguration(
+  plan: PlanPriceRow,
+  referenceInterval?: string | null
+): void {
+  const available = getPlanAvailableIntervals(plan);
+  if (available.length === 0) {
+    throw new Error('Informe pelo menos um preço por intervalo de cobrança');
+  }
+  const ref = normalizeBillingInterval(referenceInterval ?? getPlanDefaultBillingInterval(plan));
+  if (!available.includes(ref)) {
+    throw new Error(
+      `O intervalo de referência (${billingIntervalLabel(ref)}) precisa ter preço configurado`
+    );
+  }
+}

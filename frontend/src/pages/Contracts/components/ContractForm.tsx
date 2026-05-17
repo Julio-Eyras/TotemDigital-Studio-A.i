@@ -37,12 +37,15 @@ import {
   Publisher,
 } from '../../../services/api';
 import {
-  BILLING_INTERVAL_OPTIONS,
   billingIntervalLabel,
-  getPlanDefaultBillingInterval,
+  clampContractEndDate,
+  contractEndDateHelperText,
+  getBillingIntervalOptionsForPlan,
+  getDefaultContractEndDate,
+  getMinContractEndDate,
   getPlanPriceForInterval,
   normalizeBillingInterval,
-  shouldApplyPlanReferenceAmount,
+  resolveContractBillingInterval,
 } from '../../../utils/billingIntervals';
 
 export interface ContractFormProps {
@@ -75,7 +78,7 @@ const formatDateForInput = (dateString: string | null | undefined): string => {
   }
 };
 
-const getDefaultContractEndDate = (): string => `${new Date().getFullYear()}-12-31`;
+const getDefaultContractStartDate = (): string => new Date().toISOString().split('T')[0];
 
 const parseCurrencyInputValue = (raw: string): number | undefined => {
   const normalized = raw.replace(',', '.').trim();
@@ -156,34 +159,42 @@ const ContractForm: React.FC<ContractFormProps> = ({
       onChange({ ...data, plan_id: planId });
       return;
     }
-    const interval = normalizeBillingInterval(
-      (data as any).billing_interval || getPlanDefaultBillingInterval(plan)
-    );
+    const interval = resolveContractBillingInterval(plan, (data as any).billing_interval);
     const ref = getPlanPriceForInterval(plan, interval);
+    const start = formatDateForInput(getFieldValue('start_date')) || getDefaultContractStartDate();
+    const end = clampContractEndDate(start, formatDateForInput(getFieldValue('end_date')), interval);
     onChange({
       ...data,
       plan_id: planId,
       billing_interval: interval,
       payment_terms: billingIntervalLabel(interval),
       currency: plan.currency || (data as any).currency || 'BRL',
-      ...(ref != null && shouldApplyPlanReferenceAmount((data as any).total_amount)
-        ? { total_amount: ref }
-        : {}),
+      start_date: start,
+      end_date: end,
+      ...(ref != null ? { total_amount: ref } : {}),
     });
   };
 
   const applyIntervalSelection = (interval: string) => {
-    const code = normalizeBillingInterval(interval);
+    const code = resolveContractBillingInterval(selectedPlan, interval);
     const ref = selectedPlan ? getPlanPriceForInterval(selectedPlan, code) : undefined;
+    const start = formatDateForInput(getFieldValue('start_date')) || getDefaultContractStartDate();
+    const end = clampContractEndDate(start, formatDateForInput(getFieldValue('end_date')), code);
     onChange({
       ...data,
       billing_interval: code,
       payment_terms: billingIntervalLabel(code),
-      ...(ref != null && shouldApplyPlanReferenceAmount((data as any).total_amount)
-        ? { total_amount: ref }
-        : {}),
+      end_date: end,
+      ...(ref != null ? { total_amount: ref } : {}),
     });
   };
+
+  const contractStartYmd =
+    formatDateForInput(getFieldValue('start_date')) || getDefaultContractStartDate();
+  const contractBillingIv = normalizeBillingInterval(
+    getFieldValue('billing_interval') || getFieldValue('payment_terms') || 'month'
+  );
+  const contractIntervalOptions = getBillingIntervalOptionsForPlan(selectedPlan);
 
   return (
     <Box>
@@ -363,7 +374,14 @@ const ContractForm: React.FC<ContractFormProps> = ({
                 label="Data de Início *"
                 type="date"
                 value={formatDateForInput(getFieldValue('start_date')) || ''}
-                onChange={(e) => handleFieldChange('start_date', e.target.value)}
+                onChange={(e) => {
+                  const start = e.target.value;
+                  onChange({
+                    ...data,
+                    start_date: start,
+                    end_date: getDefaultContractEndDate(start),
+                  });
+                }}
                 margin="normal"
                 required
                 InputLabelProps={{ shrink: true }}
@@ -377,12 +395,24 @@ const ContractForm: React.FC<ContractFormProps> = ({
                 fullWidth
                 label="Data de Término"
                 type="date"
-                value={formatDateForInput(getFieldValue('end_date')) || getDefaultContractEndDate()}
-                onChange={(e) => handleFieldChange('end_date', e.target.value || getDefaultContractEndDate())}
+                value={
+                  formatDateForInput(getFieldValue('end_date')) ||
+                  getDefaultContractEndDate(contractStartYmd)
+                }
+                onChange={(e) =>
+                  onChange({
+                    ...data,
+                    end_date: clampContractEndDate(contractStartYmd, e.target.value, contractBillingIv),
+                  })
+                }
                 margin="normal"
                 InputLabelProps={{ shrink: true }}
                 error={hasError('end_date')}
-                helperText={getHelperText('end_date')}
+                helperText={
+                  getHelperText('end_date') ||
+                  contractEndDateHelperText(contractStartYmd, contractBillingIv)
+                }
+                inputProps={{ min: getMinContractEndDate(contractStartYmd, contractBillingIv) }}
               />
             </Grid>
 
@@ -448,9 +478,10 @@ const ContractForm: React.FC<ContractFormProps> = ({
                       getFieldValue('billing_interval') || getFieldValue('payment_terms') || 'month'
                     )}
                     label="Intervalo de cobrança"
+                    disabled={!getFieldValue('plan_id')}
                     onChange={(e) => applyIntervalSelection(e.target.value)}
                   >
-                    {BILLING_INTERVAL_OPTIONS.map((opt) => (
+                    {contractIntervalOptions.map((opt) => (
                       <MenuItem key={opt.value} value={opt.value}>
                         {opt.label}
                       </MenuItem>

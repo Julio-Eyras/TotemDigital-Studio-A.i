@@ -247,6 +247,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_subscriber_contracts_subscriber_contract_n
 DO $billing_interval_upgrade$
 BEGIN
   IF to_regclass('public.plans') IS NOT NULL THEN
+    ALTER TABLE plans ALTER COLUMN price_monthly DROP NOT NULL;
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS price_four_month NUMERIC(12, 2);
     ALTER TABLE plans ADD COLUMN IF NOT EXISTS price_semester NUMERIC(12, 2);
     UPDATE plans

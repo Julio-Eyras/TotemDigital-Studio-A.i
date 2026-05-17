@@ -1,10 +1,14 @@
 import { getDatabase } from '../config/database';
 import { logError, logDebugSync, logErrorSync } from '../utils/loggerHelper';
 import {
+  assertContractEndDateValid,
   billingIntervalLabel,
-  getPlanDefaultBillingInterval,
+  getPlanAvailableIntervals,
+  getPlanPriceForInterval,
+  type BillingIntervalCode,
   normalizeBillingInterval,
   resolveContractAmountFromPlan,
+  resolveContractBillingInterval,
 } from '../utils/billingIntervals';
 
 export interface Contract {
@@ -312,6 +316,9 @@ export class ContractService {
       }
 
 
+      const startYmd = String(start_date).split('T')[0];
+      let contractEndDate = end_date ? String(end_date).split('T')[0] : undefined;
+
       let agreedTotalAmount = total_amount;
       let contractCurrency = currency;
       let contractBillingInterval = normalizeBillingInterval(
@@ -330,17 +337,36 @@ export class ContractService {
           throw new Error('Plano não encontrado');
         }
 
-        if (!billingIntervalInput && !payment_terms) {
-          contractBillingInterval = getPlanDefaultBillingInterval(plan);
+        contractBillingInterval = resolveContractBillingInterval(
+          plan,
+          billingIntervalInput || payment_terms || undefined
+        );
+        const available = getPlanAvailableIntervals(plan);
+        if (available.length === 0) {
+          throw new Error('Plano sem preços configurados para nenhum intervalo de cobrança');
+        }
+        if (!available.includes(contractBillingInterval)) {
+          throw new Error(
+            `Intervalo ${billingIntervalLabel(contractBillingInterval)} não está disponível neste plano`
+          );
         }
         contractPaymentTerms = billingIntervalLabel(contractBillingInterval);
-        const resolved = resolveContractAmountFromPlan(plan, contractBillingInterval, agreedTotalAmount);
-        if (resolved != null) {
-          agreedTotalAmount = resolved;
+        const planRef = getPlanPriceForInterval(plan, contractBillingInterval);
+        if (planRef != null && (agreedTotalAmount == null || agreedTotalAmount <= 0)) {
+          agreedTotalAmount = planRef;
+        } else {
+          const resolved = resolveContractAmountFromPlan(plan, contractBillingInterval, agreedTotalAmount);
+          if (resolved != null) {
+            agreedTotalAmount = resolved;
+          }
         }
         if (!data.currency && plan.currency) {
           contractCurrency = String(plan.currency);
         }
+      }
+
+      if (contractEndDate) {
+        assertContractEndDateValid(startYmd, contractEndDate, contractBillingInterval);
       }
 
       // Validar contract_number único por subscriber
@@ -507,7 +533,7 @@ export class ContractService {
 
       let agreedTotalAmount = total_amount;
       let contractCurrency = currency;
-      let contractBillingInterval: string | undefined =
+      let contractBillingInterval: BillingIntervalCode | undefined =
         billingIntervalInput !== undefined
           ? normalizeBillingInterval(billingIntervalInput || payment_terms)
           : undefined;
@@ -533,16 +559,21 @@ export class ContractService {
           throw new Error('Plano não encontrado');
         }
 
-        if (contractBillingInterval === undefined) {
-          contractBillingInterval = normalizeBillingInterval(
-            (existingContract as any).billing_interval ||
-              existingContract.payment_terms ||
-              getPlanDefaultBillingInterval(plan)
-          );
-        }
+        const preferredInterval =
+          billingIntervalInput ||
+          payment_terms ||
+          (existingContract as any).billing_interval ||
+          existingContract.payment_terms;
+        contractBillingInterval = resolveContractBillingInterval(plan, preferredInterval);
 
-        if (planChanged && billingIntervalInput === undefined && payment_terms === undefined) {
-          contractBillingInterval = getPlanDefaultBillingInterval(plan);
+        const available = getPlanAvailableIntervals(plan);
+        if (available.length === 0) {
+          throw new Error('Plano sem preços configurados para nenhum intervalo de cobrança');
+        }
+        if (!available.includes(contractBillingInterval)) {
+          throw new Error(
+            `Intervalo ${billingIntervalLabel(contractBillingInterval)} não está disponível neste plano`
+          );
         }
 
         contractPaymentTerms = billingIntervalLabel(contractBillingInterval);
@@ -563,6 +594,27 @@ export class ContractService {
         }
       } else if (contractBillingInterval !== undefined) {
         contractPaymentTerms = billingIntervalLabel(contractBillingInterval);
+      }
+
+      const effectiveStartYmd = String(
+        start_date ?? existingContract.start_date
+      ).split('T')[0];
+      const effectiveEndYmd =
+        end_date !== undefined
+          ? end_date
+            ? String(end_date).split('T')[0]
+            : undefined
+          : existingContract.end_date
+            ? String(existingContract.end_date).split('T')[0]
+            : undefined;
+      const effectiveBillingInterval = normalizeBillingInterval(
+        contractBillingInterval ??
+          (existingContract as any).billing_interval ??
+          existingContract.payment_terms ??
+          'month'
+      );
+      if (effectiveEndYmd) {
+        assertContractEndDateValid(effectiveStartYmd, effectiveEndYmd, effectiveBillingInterval);
       }
 
       // Preparar campos para atualização

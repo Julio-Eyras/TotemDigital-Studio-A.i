@@ -116,12 +116,17 @@ import { useAppSelector } from '../../store/hooks';
 import { getForeignTotemIdFromRow, getTotemIdFromRow, getTotemLocalIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import {
-  BILLING_INTERVAL_OPTIONS,
   billingIntervalLabel,
-  getPlanDefaultBillingInterval,
+  clampContractEndDate,
+  contractEndDateHelperText,
+  getBillingIntervalOptionsForPlan,
+  getDefaultContractEndDate,
+  getMinContractEndDate,
+  getPlanAvailableIntervals,
   getPlanPriceForInterval,
+  isContractEndDateValid,
   normalizeBillingInterval,
-  shouldApplyPlanReferenceAmount,
+  resolveContractBillingInterval,
 } from '../../utils/billingIntervals';
 import { PlanTopologyPreviewRow, loadPlanTopologyPreviewRows, countTopologyInRows } from './planTopologyPreview';
 import { PlanTopologyTabPanel } from './PlanTopologyTabPanel';
@@ -186,9 +191,10 @@ const Subscribers: React.FC = () => {
 
   // Datas padrão para contratos: início = hoje, vencimento = 31/12 do ano corrente
   const getDefaultContractStartDate = (): string => new Date().toISOString().split('T')[0];
-  const getDefaultContractEndDate = (): string => {
-    const year = new Date().getFullYear();
-    return `${year}-12-31`;
+  const buildContractEndDateForStart = (startYmd?: string, billingInterval?: string, currentEnd?: string) => {
+    const start = startYmd || getDefaultContractStartDate();
+    const interval = normalizeBillingInterval(billingInterval || 'month');
+    return clampContractEndDate(start, currentEnd || getDefaultContractEndDate(start), interval);
   };
 
   // Função helper para formatar datas ISO para input type="date" (yyyy-MM-dd)
@@ -273,7 +279,7 @@ const Subscribers: React.FC = () => {
     title: '',
     description: '',
     start_date: getDefaultContractStartDate(),
-    end_date: getDefaultContractEndDate(),
+    end_date: buildContractEndDateForStart(getDefaultContractStartDate()),
     currency: 'BRL',
     total_amount: undefined,
     billing_interval: 'month',
@@ -286,7 +292,7 @@ const Subscribers: React.FC = () => {
     title: '',
     description: '',
     start_date: getDefaultContractStartDate(),
-    end_date: getDefaultContractEndDate(),
+    end_date: buildContractEndDateForStart(getDefaultContractStartDate()),
     currency: 'BRL',
     total_amount: undefined,
     billing_interval: 'month',
@@ -317,13 +323,20 @@ const Subscribers: React.FC = () => {
 
   const getPlanOptionLabel = (plan: any): string => {
     const currency = getPlanCurrency(plan);
-    const iv = getPlanDefaultBillingInterval(plan);
+    const iv = resolveContractBillingInterval(plan);
     const amount = getPlanPriceForInterval(plan, iv);
+    const offered = getPlanAvailableIntervals(plan).map((c) => billingIntervalLabel(c)).join(', ');
     const value =
       amount != null
         ? ` — ref. ${formatCurrencyAmount(amount, currency)} (${billingIntervalLabel(iv)})`
         : '';
-    return `${plan?.name || 'Plano'}${value}`;
+    const intervals = offered ? ` · ${offered}` : '';
+    return `${plan?.name || 'Plano'}${value}${intervals}`;
+  };
+
+  const getContractIntervalOptions = (planId?: number) => {
+    const plan = availablePlansForContract.find((p: any) => getPlanIdFromOption(p) === planId);
+    return getBillingIntervalOptionsForPlan(plan);
   };
 
   const getSelectedPlanValueHelper = (planId?: number, billingInterval?: string): string => {
@@ -344,34 +357,75 @@ const Subscribers: React.FC = () => {
     if (!planId || !plan) {
       return { ...form, plan_id: planId } as T;
     }
-    const interval = normalizeBillingInterval(
-      intervalOverride ?? (form as any).billing_interval ?? getPlanDefaultBillingInterval(plan)
+    const interval = resolveContractBillingInterval(
+      plan,
+      intervalOverride ?? (form as any).billing_interval
     );
     const refAmount = getPlanPriceForInterval(plan, interval);
+    const start = formatDateForInput(form.start_date) || getDefaultContractStartDate();
+    const end = clampContractEndDate(start, formatDateForInput(form.end_date), interval);
     return {
       ...form,
       plan_id: planId,
       billing_interval: interval,
       payment_terms: billingIntervalLabel(interval),
       currency: getPlanCurrency(plan),
-      ...(refAmount != null && shouldApplyPlanReferenceAmount(form.total_amount)
-        ? { total_amount: refAmount }
-        : {}),
+      start_date: start,
+      end_date: end,
+      ...(refAmount != null ? { total_amount: refAmount } : {}),
     } as T;
   };
 
   const applyContractBillingInterval = <T extends CreateContractRequest>(form: T, interval: string): T => {
     const plan = availablePlansForContract.find((p: any) => getPlanIdFromOption(p) === form.plan_id);
-    const code = normalizeBillingInterval(interval);
+    const code = resolveContractBillingInterval(plan, interval);
     const refAmount = plan ? getPlanPriceForInterval(plan, code) : undefined;
+    const start = formatDateForInput(form.start_date) || getDefaultContractStartDate();
+    const end = clampContractEndDate(start, formatDateForInput(form.end_date), code);
     return {
       ...form,
       billing_interval: code,
       payment_terms: billingIntervalLabel(code),
-      ...(refAmount != null && shouldApplyPlanReferenceAmount(form.total_amount)
-        ? { total_amount: refAmount }
-        : {}),
+      end_date: end,
+      ...(refAmount != null ? { total_amount: refAmount } : {}),
     } as T;
+  };
+
+  const applyContractStartDate = <T extends CreateContractRequest>(form: T, startYmd: string): T => ({
+    ...form,
+    start_date: startYmd,
+    end_date: getDefaultContractEndDate(startYmd),
+  } as T);
+
+  const applyContractEndDate = <T extends CreateContractRequest>(form: T, endYmd: string): T => {
+    const start = formatDateForInput(form.start_date) || getDefaultContractStartDate();
+    const interval = normalizeBillingInterval((form as any).billing_interval || 'month');
+    return {
+      ...form,
+      end_date: clampContractEndDate(start, endYmd, interval),
+    } as T;
+  };
+
+  const validateSubscriberContractForm = (form: CreateContractRequest): string | null => {
+    const start = formatDateForInput(form.start_date) || getDefaultContractStartDate();
+    const end =
+      formatDateForInput(form.end_date) ||
+      buildContractEndDateForStart(start, (form as any).billing_interval);
+    const interval = normalizeBillingInterval((form as any).billing_interval || 'month');
+    if (!isContractEndDateValid(start, end, interval)) {
+      return 'Data de término deve cobrir pelo menos um período do intervalo de cobrança escolhido';
+    }
+    if (form.plan_id) {
+      const plan = availablePlansForContract.find((p: any) => getPlanIdFromOption(p) === form.plan_id);
+      const available = getPlanAvailableIntervals(plan);
+      if (available.length === 0) {
+        return 'O plano selecionado não possui preços por intervalo configurados';
+      }
+      if (!available.includes(interval)) {
+        return 'Intervalo de cobrança não disponível para este plano';
+      }
+    }
+    return null;
   };
   // NOVO: Estados para gerenciar locais, totens, smart TVs e subscribers durante a criação
   const [tempLocals, setTempLocals] = useState<CreateLocalRequest[]>([]);
@@ -2378,7 +2432,7 @@ const Subscribers: React.FC = () => {
             title: '',
             description: '',
             start_date: getDefaultContractStartDate(),
-            end_date: getDefaultContractEndDate(),
+            end_date: buildContractEndDateForStart(getDefaultContractStartDate()),
             currency: 'BRL',
             total_amount: undefined,
             status: 'draft',
@@ -2511,7 +2565,9 @@ const Subscribers: React.FC = () => {
                       label="Data de Início *"
                       type="date"
                       value={formatDateForInput(subscriberContractForm.start_date) || ''}
-                      onChange={(e) => setSubscriberContractForm({ ...subscriberContractForm, start_date: e.target.value })}
+                      onChange={(e) =>
+                        setSubscriberContractForm(applyContractStartDate(subscriberContractForm, e.target.value))
+                      }
                       size="small"
                       InputLabelProps={{ shrink: true }}
                       required
@@ -2522,10 +2578,28 @@ const Subscribers: React.FC = () => {
                       fullWidth
                       label="Data de Término"
                       type="date"
-                      value={formatDateForInput(subscriberContractForm.end_date) || getDefaultContractEndDate()}
-                      onChange={(e) => setSubscriberContractForm({ ...subscriberContractForm, end_date: e.target.value || getDefaultContractEndDate() })}
+                      value={
+                        formatDateForInput(subscriberContractForm.end_date) ||
+                        buildContractEndDateForStart(
+                          formatDateForInput(subscriberContractForm.start_date) || getDefaultContractStartDate(),
+                          subscriberContractForm.billing_interval
+                        )
+                      }
+                      onChange={(e) =>
+                        setSubscriberContractForm(applyContractEndDate(subscriberContractForm, e.target.value))
+                      }
                       size="small"
                       InputLabelProps={{ shrink: true }}
+                      inputProps={{
+                        min: getMinContractEndDate(
+                          formatDateForInput(subscriberContractForm.start_date) || getDefaultContractStartDate(),
+                          subscriberContractForm.billing_interval || 'month'
+                        ),
+                      }}
+                      helperText={contractEndDateHelperText(
+                        formatDateForInput(subscriberContractForm.start_date) || getDefaultContractStartDate(),
+                        subscriberContractForm.billing_interval || 'month'
+                      )}
                     />
                   </Grid>
                   <Grid item xs={12} md={4}>
@@ -2544,13 +2618,14 @@ const Subscribers: React.FC = () => {
                         sx={sxSelectChosenGreen(!!subscriberContractForm.billing_interval)}
                         value={normalizeBillingInterval(subscriberContractForm.billing_interval || 'month')}
                         label="Intervalo de cobrança"
+                        disabled={!subscriberContractForm.plan_id}
                         onChange={(e) =>
                           setSubscriberContractForm(
                             applyContractBillingInterval(subscriberContractForm, e.target.value)
                           )
                         }
                       >
-                        {BILLING_INTERVAL_OPTIONS.map((opt) => (
+                        {getContractIntervalOptions(subscriberContractForm.plan_id).map((opt) => (
                           <MenuItem key={opt.value} value={opt.value}>
                             {opt.label}
                           </MenuItem>
@@ -2610,6 +2685,11 @@ const Subscribers: React.FC = () => {
                           setError('Número do contrato e título são obrigatórios');
                           return;
                         }
+                        const dateErrCreate = validateSubscriberContractForm(subscriberContractForm);
+                        if (dateErrCreate) {
+                          setError(dateErrCreate);
+                          return;
+                        }
                         if (editingSubscriberContractIndexCreate !== null) {
                           const updated = [...tempSubscriberContracts];
                           updated[editingSubscriberContractIndexCreate] = { ...subscriberContractForm, contract_number: contractNumber, tempId: tempSubscriberContracts[editingSubscriberContractIndexCreate].tempId };
@@ -2624,7 +2704,7 @@ const Subscribers: React.FC = () => {
                           title: '',
                           description: '',
                           start_date: getDefaultContractStartDate(),
-                          end_date: getDefaultContractEndDate(),
+                          end_date: buildContractEndDateForStart(getDefaultContractStartDate()),
                           currency: 'BRL',
                           total_amount: undefined,
                           status: 'draft',
@@ -2647,7 +2727,7 @@ const Subscribers: React.FC = () => {
                             title: '',
                             description: '',
                             start_date: getDefaultContractStartDate(),
-                            end_date: getDefaultContractEndDate(),
+                            end_date: buildContractEndDateForStart(getDefaultContractStartDate()),
                             currency: 'BRL',
                             total_amount: undefined,
                             status: 'draft',
@@ -2719,7 +2799,7 @@ const Subscribers: React.FC = () => {
                                   title: '',
                                   description: '',
                                   start_date: getDefaultContractStartDate(),
-                                  end_date: getDefaultContractEndDate(),
+                                  end_date: buildContractEndDateForStart(getDefaultContractStartDate()),
                                   currency: 'BRL',
                                   total_amount: undefined,
                                   status: 'draft',
@@ -2787,7 +2867,7 @@ const Subscribers: React.FC = () => {
               title: '',
               description: '',
               start_date: getDefaultContractStartDate(),
-              end_date: getDefaultContractEndDate(),
+              end_date: buildContractEndDateForStart(getDefaultContractStartDate()),
               currency: 'BRL',
               total_amount: undefined,
               status: 'draft',
@@ -2835,7 +2915,7 @@ const Subscribers: React.FC = () => {
             title: '',
             description: '',
             start_date: getDefaultContractStartDate(),
-            end_date: getDefaultContractEndDate(),
+            end_date: buildContractEndDateForStart(getDefaultContractStartDate()),
             currency: 'BRL',
             total_amount: undefined,
             status: 'draft',
@@ -3082,7 +3162,11 @@ const Subscribers: React.FC = () => {
                       label="Data de Início *"
                       type="date"
                       value={formatDateForInput(subscriberContractFormEdit.start_date) || ''}
-                      onChange={(e) => setSubscriberContractFormEdit({ ...subscriberContractFormEdit, start_date: e.target.value })}
+                      onChange={(e) =>
+                        setSubscriberContractFormEdit(
+                          applyContractStartDate(subscriberContractFormEdit, e.target.value)
+                        )
+                      }
                       size="small"
                       InputLabelProps={{ shrink: true }}
                       required
@@ -3093,10 +3177,30 @@ const Subscribers: React.FC = () => {
                       fullWidth
                       label="Data de Término"
                       type="date"
-                      value={formatDateForInput(subscriberContractFormEdit.end_date) || getDefaultContractEndDate()}
-                      onChange={(e) => setSubscriberContractFormEdit({ ...subscriberContractFormEdit, end_date: e.target.value || getDefaultContractEndDate() })}
+                      value={
+                        formatDateForInput(subscriberContractFormEdit.end_date) ||
+                        buildContractEndDateForStart(
+                          formatDateForInput(subscriberContractFormEdit.start_date) || getDefaultContractStartDate(),
+                          subscriberContractFormEdit.billing_interval
+                        )
+                      }
+                      onChange={(e) =>
+                        setSubscriberContractFormEdit(
+                          applyContractEndDate(subscriberContractFormEdit, e.target.value)
+                        )
+                      }
                       size="small"
                       InputLabelProps={{ shrink: true }}
+                      inputProps={{
+                        min: getMinContractEndDate(
+                          formatDateForInput(subscriberContractFormEdit.start_date) || getDefaultContractStartDate(),
+                          subscriberContractFormEdit.billing_interval || 'month'
+                        ),
+                      }}
+                      helperText={contractEndDateHelperText(
+                        formatDateForInput(subscriberContractFormEdit.start_date) || getDefaultContractStartDate(),
+                        subscriberContractFormEdit.billing_interval || 'month'
+                      )}
                     />
                   </Grid>
                   <Grid item xs={12} md={4}>
@@ -3115,13 +3219,14 @@ const Subscribers: React.FC = () => {
                         sx={sxSelectChosenGreen(!!subscriberContractFormEdit.billing_interval)}
                         value={normalizeBillingInterval(subscriberContractFormEdit.billing_interval || 'month')}
                         label="Intervalo de cobrança"
+                        disabled={!subscriberContractFormEdit.plan_id}
                         onChange={(e) =>
                           setSubscriberContractFormEdit(
                             applyContractBillingInterval(subscriberContractFormEdit, e.target.value)
                           )
                         }
                       >
-                        {BILLING_INTERVAL_OPTIONS.map((opt) => (
+                        {getContractIntervalOptions(subscriberContractFormEdit.plan_id).map((opt) => (
                           <MenuItem key={opt.value} value={opt.value}>
                             {opt.label}
                           </MenuItem>
@@ -3180,6 +3285,11 @@ const Subscribers: React.FC = () => {
                           setError('Número do contrato e título são obrigatórios');
                           return;
                         }
+                        const dateErrEdit = validateSubscriberContractForm(subscriberContractFormEdit);
+                        if (dateErrEdit) {
+                          setError(dateErrEdit);
+                          return;
+                        }
                         if (!selectedSubscriber?.subscriber_id) {
                           setError('Anunciante não selecionado');
                           return;
@@ -3195,7 +3305,14 @@ const Subscribers: React.FC = () => {
                             await contractApi.update(contractToUpdate.contract_id, {
                               ...subscriberContractFormEdit,
                               start_date: formatDateForAPI(subscriberContractFormEdit.start_date),
-                              end_date: formatDateForAPI(subscriberContractFormEdit.end_date || getDefaultContractEndDate()),
+                              end_date: formatDateForAPI(
+                                subscriberContractFormEdit.end_date ||
+                                  buildContractEndDateForStart(
+                                    formatDateForInput(subscriberContractFormEdit.start_date) ||
+                                      getDefaultContractStartDate(),
+                                    subscriberContractFormEdit.billing_interval
+                                  )
+                              ),
                             });
                             setEditingSubscriberContractIndexEdit(null);
                           } else {
@@ -3203,7 +3320,14 @@ const Subscribers: React.FC = () => {
                             await contractApi.create({
                               ...subscriberContractFormEdit,
                               start_date: formatDateForAPI(subscriberContractFormEdit.start_date) || '',
-                              end_date: formatDateForAPI(subscriberContractFormEdit.end_date || getDefaultContractEndDate()),
+                              end_date: formatDateForAPI(
+                                subscriberContractFormEdit.end_date ||
+                                  buildContractEndDateForStart(
+                                    formatDateForInput(subscriberContractFormEdit.start_date) ||
+                                      getDefaultContractStartDate(),
+                                    subscriberContractFormEdit.billing_interval
+                                  )
+                              ),
                               subscriber_id: selectedSubscriber.subscriber_id,
                               created_before_subscriber: false,
                             });
@@ -3222,7 +3346,7 @@ const Subscribers: React.FC = () => {
                             title: '',
                             description: '',
                             start_date: getDefaultContractStartDate(),
-                            end_date: getDefaultContractEndDate(),
+                            end_date: buildContractEndDateForStart(getDefaultContractStartDate()),
                             currency: 'BRL',
                             total_amount: undefined,
                             status: 'draft',
@@ -3248,7 +3372,7 @@ const Subscribers: React.FC = () => {
                             title: '',
                             description: '',
                             start_date: getDefaultContractStartDate(),
-                            end_date: getDefaultContractEndDate(),
+                            end_date: buildContractEndDateForStart(getDefaultContractStartDate()),
                             currency: 'BRL',
                             total_amount: undefined,
                             status: 'draft',
@@ -3319,7 +3443,7 @@ const Subscribers: React.FC = () => {
                                   title: contract.title,
                                   description: contract.description || '',
                                   start_date: formatDateForInput(contract.start_date) || getDefaultContractStartDate(),
-                                  end_date: formatDateForInput(contract.end_date) || getDefaultContractEndDate(),
+                                  end_date: formatDateForInput(contract.end_date) || buildContractEndDateForStart(getDefaultContractStartDate()),
                                   currency: contract.currency || 'BRL',
                                   billing_interval: iv,
                                   payment_terms: billingIntervalLabel(iv),
@@ -3359,7 +3483,7 @@ const Subscribers: React.FC = () => {
                                       title: '',
                                       description: '',
                                       start_date: getDefaultContractStartDate(),
-                                      end_date: getDefaultContractEndDate(),
+                                      end_date: buildContractEndDateForStart(getDefaultContractStartDate()),
                                       currency: 'BRL',
                                       total_amount: undefined,
                                       status: 'draft',

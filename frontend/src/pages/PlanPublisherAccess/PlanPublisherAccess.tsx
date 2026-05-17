@@ -65,7 +65,9 @@ import { PageHeader } from '../../components/DataDisplay';
 import {
   BILLING_INTERVAL_OPTIONS,
   billingIntervalLabel,
+  getBillingIntervalOptionsForPlan,
   getPlanPriceForInterval,
+  validatePlanPriceConfiguration,
 } from '../../utils/billingIntervals';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 import { getTotemIdFromRow, getTotemLocalIdFromRow, getTotemPublisherIdFromRow } from '../../utils/totemRowIds';
@@ -579,14 +581,12 @@ const PlanPublisherAccessPage: React.FC = () => {
         setError('Nome e slug são obrigatórios');
         return;
       }
-      const missingPrice = ['month', 'four_month', 'semester', 'year'].find((code) => {
-        const p = getPlanPriceForInterval(planFormData as any, code);
-        return p == null || p <= 0;
-      });
-      if (missingPrice) {
-        setError(
-          `Informe preço maior que zero para: ${billingIntervalLabel(missingPrice)}`
-        );
+      const planPriceCheck = validatePlanPriceConfiguration(
+        planFormData as any,
+        planFormData.billingInterval
+      );
+      if (!planPriceCheck.ok) {
+        setError(planPriceCheck.message);
         return;
       }
 
@@ -1310,7 +1310,7 @@ const PlanPublisherAccessPage: React.FC = () => {
               <Grid item xs={12} md={6} sm={6}>
                 <TextField
                   fullWidth
-                  label="Preço Mensal *"
+                  label="Preço Mensal"
                   type="text"
                   value={planMonthlyPriceText}
                   disabled={selectedPlanHasContracts}
@@ -1328,7 +1328,6 @@ const PlanPublisherAccessPage: React.FC = () => {
                     }
                   }}
                   margin="normal"
-                  required
                   placeholder="0,00"
                   InputProps={{
                     startAdornment: <InputAdornment position="start">R$</InputAdornment>,
@@ -1337,14 +1336,14 @@ const PlanPublisherAccessPage: React.FC = () => {
                   helperText={
                     selectedPlanHasContracts
                       ? 'Congelado porque já há contrato vinculado a este plano'
-                      : 'Use vírgula para centavos (ex.: 99,90)'
+                      : 'Opcional se o plano não oferecer cobrança mensal. Pelo menos um intervalo com preço é obrigatório.'
                   }
                 />
               </Grid>
               <Grid item xs={12} md={6} sm={6}>
                 <TextField
                   fullWidth
-                  label="Preço Quadrimestral *"
+                  label="Preço Quadrimestral"
                   type="text"
                   value={planFourMonthPriceText}
                   disabled={selectedPlanHasContracts}
@@ -1362,9 +1361,8 @@ const PlanPublisherAccessPage: React.FC = () => {
                     }
                   }}
                   margin="normal"
-                  required
                   placeholder="0,00"
-                  helperText="A cada 4 meses"
+                  helperText="Opcional — a cada 4 meses"
                   InputProps={{
                     startAdornment: <InputAdornment position="start">R$</InputAdornment>,
                   }}
@@ -1374,7 +1372,7 @@ const PlanPublisherAccessPage: React.FC = () => {
               <Grid item xs={12} md={6} sm={6}>
                 <TextField
                   fullWidth
-                  label="Preço Semestral *"
+                  label="Preço Semestral"
                   type="text"
                   value={planSemesterPriceText}
                   disabled={selectedPlanHasContracts}
@@ -1392,8 +1390,8 @@ const PlanPublisherAccessPage: React.FC = () => {
                     }
                   }}
                   margin="normal"
-                  required
                   placeholder="0,00"
+                  helperText="Opcional — a cada 6 meses"
                   InputProps={{
                     startAdornment: <InputAdornment position="start">R$</InputAdornment>,
                   }}
@@ -1403,7 +1401,7 @@ const PlanPublisherAccessPage: React.FC = () => {
               <Grid item xs={12} md={6} sm={6}>
                 <TextField
                   fullWidth
-                  label="Preço Anual *"
+                  label="Preço Anual"
                   type="text"
                   value={planYearlyPriceText}
                   disabled={selectedPlanHasContracts}
@@ -1424,8 +1422,8 @@ const PlanPublisherAccessPage: React.FC = () => {
                     }
                   }}
                   margin="normal"
-                  required
                   placeholder="0,00"
+                  helperText="Opcional — cobrança anual"
                   InputProps={{
                     startAdornment: <InputAdornment position="start">R$</InputAdornment>,
                   }}
@@ -1458,7 +1456,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                     onChange={(e) => setPlanFormData({ ...planFormData, billingInterval: e.target.value })}
                     label="Intervalo de referência"
                   >
-                    {BILLING_INTERVAL_OPTIONS.map((opt) => (
+                    {getBillingIntervalOptionsForPlan(planFormData as any).map((opt) => (
                       <MenuItem key={opt.value} value={opt.value}>
                         {opt.label}
                       </MenuItem>
@@ -1466,7 +1464,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                   </Select>
                 </FormControl>
                 <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                  Pré-seleciona intervalo e valor sugerido em novos contratos
+                  Pré-seleciona intervalo e valor em novos contratos (somente intervalos com preço no plano)
                 </Typography>
               </Grid>
             </Grid>

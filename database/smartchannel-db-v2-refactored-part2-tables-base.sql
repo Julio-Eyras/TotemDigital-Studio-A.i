@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS plans (
     name TEXT NOT NULL,
     slug TEXT UNIQUE NOT NULL,
     description TEXT,
-    price_monthly NUMERIC(12, 2) NOT NULL,
+    price_monthly NUMERIC(12, 2),
     price_four_month NUMERIC(12, 2),
     price_semester NUMERIC(12, 2),
     price_yearly NUMERIC(12, 2),
