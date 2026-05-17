@@ -91,12 +91,21 @@ import {
   getTotemLocalIdFromRow,
 } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
-import { BILLING_INTERVAL_OPTIONS, billingIntervalLabel } from '../../utils/billingIntervals';
+import {
+  BILLING_INTERVAL_OPTIONS,
+  billingIntervalLabel,
+  clampContractEndDate,
+  contractEndDateHelperText,
+  normalizeBillingInterval,
+} from '../../utils/billingIntervals';
 import { getLocalMenuItemSx, orderLocalsForSelect } from '../../utils/localOrdering';
 import { PublisherCard, PublisherForm, PublisherDetails } from './components';
 import { isStudioMode } from '../../config/studioMode';
 
-const getDefaultContractEndDate = (): string => `${new Date().getFullYear()}-12-31`;
+const getDefaultContractStartDate = (): string => new Date().toISOString().split('T')[0];
+
+const buildPublisherContractEnd = (startYmd: string, interval?: string | null) =>
+  clampContractEndDate(startYmd, undefined, normalizeBillingInterval(interval ?? 'month'));
 
 // Formatar data ISO para input type="date" (yyyy-MM-dd)
 const formatDateForInput = (dateString: string | null | undefined): string => {
@@ -212,8 +221,8 @@ const Publishers: React.FC = () => {
     contract_type: 'revenue_share',
     title: '',
     description: '',
-    start_date: new Date().toISOString().split('T')[0],
-    end_date: getDefaultContractEndDate(),
+    start_date: getDefaultContractStartDate(),
+    end_date: buildPublisherContractEnd(getDefaultContractStartDate()),
     currency: 'BRL',
     status: 'draft',
   });
@@ -471,7 +480,7 @@ const Publishers: React.FC = () => {
         title: '',
         description: '',
         start_date: new Date().toISOString().split('T')[0],
-        end_date: getDefaultContractEndDate(),
+        end_date: buildPublisherContractEnd(getDefaultContractStartDate()),
         currency: 'BRL',
         status: 'draft',
       });
@@ -2122,7 +2131,14 @@ const Publishers: React.FC = () => {
                       label="Data de Início *"
                       type="date"
                       value={formatDateForInput(publisherContractForm.start_date) || ''}
-                      onChange={(e) => setPublisherContractForm({ ...publisherContractForm, start_date: e.target.value })}
+                      onChange={(e) => {
+                        const start = e.target.value;
+                        setPublisherContractForm({
+                          ...publisherContractForm,
+                          start_date: start,
+                          end_date: buildPublisherContractEnd(start, publisherContractForm.subscription_interval),
+                        });
+                      }}
                       size="small"
                       InputLabelProps={{ shrink: true }}
                       required
@@ -2134,7 +2150,22 @@ const Publishers: React.FC = () => {
                       label="Data de Término"
                       type="date"
                       value={formatDateForInput(publisherContractForm.end_date) || ''}
-                      onChange={(e) => setPublisherContractForm({ ...publisherContractForm, end_date: e.target.value || undefined })}
+                      onChange={(e) => {
+                        const start =
+                          formatDateForInput(publisherContractForm.start_date) || getDefaultContractStartDate();
+                        const iv = publisherContractForm.subscription_interval;
+                        const end = e.target.value;
+                        setPublisherContractForm({
+                          ...publisherContractForm,
+                          end_date: end
+                            ? clampContractEndDate(start, end, iv ?? 'month')
+                            : buildPublisherContractEnd(start, iv),
+                        });
+                      }}
+                      helperText={contractEndDateHelperText(
+                        formatDateForInput(publisherContractForm.start_date) || getDefaultContractStartDate(),
+                        publisherContractForm.subscription_interval || 'month'
+                      )}
                       size="small"
                       InputLabelProps={{ shrink: true }}
                     />
@@ -2201,7 +2232,7 @@ const Publishers: React.FC = () => {
                           title: '',
                           description: '',
                           start_date: new Date().toISOString().split('T')[0],
-                          end_date: getDefaultContractEndDate(),
+                          end_date: buildPublisherContractEnd(getDefaultContractStartDate()),
                           currency: 'BRL',
                           status: 'draft',
                         });
@@ -2221,7 +2252,7 @@ const Publishers: React.FC = () => {
                             title: '',
                             description: '',
                             start_date: new Date().toISOString().split('T')[0],
-                            end_date: getDefaultContractEndDate(),
+                            end_date: buildPublisherContractEnd(getDefaultContractStartDate()),
                             currency: 'BRL',
                             status: 'draft',
                           });
@@ -2285,7 +2316,7 @@ const Publishers: React.FC = () => {
                                   title: '',
                                   description: '',
                                   start_date: new Date().toISOString().split('T')[0],
-                                  end_date: getDefaultContractEndDate(),
+                                  end_date: buildPublisherContractEnd(getDefaultContractStartDate()),
                                   currency: 'BRL',
                                   status: 'draft',
                                 });
@@ -2992,7 +3023,14 @@ const Publishers: React.FC = () => {
                       label="Data de Início *"
                       type="date"
                       value={formatDateForInput(publisherContractForm.start_date) || ''}
-                      onChange={(e) => setPublisherContractForm({ ...publisherContractForm, start_date: e.target.value })}
+                      onChange={(e) => {
+                        const start = e.target.value;
+                        setPublisherContractForm({
+                          ...publisherContractForm,
+                          start_date: start,
+                          end_date: buildPublisherContractEnd(start, publisherContractForm.subscription_interval),
+                        });
+                      }}
                       size="small"
                       InputLabelProps={{ shrink: true }}
                       required
@@ -3004,7 +3042,22 @@ const Publishers: React.FC = () => {
                       label="Data de Término"
                       type="date"
                       value={formatDateForInput(publisherContractForm.end_date) || ''}
-                      onChange={(e) => setPublisherContractForm({ ...publisherContractForm, end_date: e.target.value || undefined })}
+                      onChange={(e) => {
+                        const start =
+                          formatDateForInput(publisherContractForm.start_date) || getDefaultContractStartDate();
+                        const iv = publisherContractForm.subscription_interval;
+                        const end = e.target.value;
+                        setPublisherContractForm({
+                          ...publisherContractForm,
+                          end_date: end
+                            ? clampContractEndDate(start, end, iv ?? 'month')
+                            : buildPublisherContractEnd(start, iv),
+                        });
+                      }}
+                      helperText={contractEndDateHelperText(
+                        formatDateForInput(publisherContractForm.start_date) || getDefaultContractStartDate(),
+                        publisherContractForm.subscription_interval || 'month'
+                      )}
                       size="small"
                       InputLabelProps={{ shrink: true }}
                     />
@@ -3054,7 +3107,16 @@ const Publishers: React.FC = () => {
                           <Select
                             value={publisherContractForm.subscription_interval || 'month'}
                             label="Intervalo"
-                            onChange={(e) => setPublisherContractForm({ ...publisherContractForm, subscription_interval: e.target.value })}
+                            onChange={(e) => {
+                              const iv = e.target.value;
+                              const start =
+                                formatDateForInput(publisherContractForm.start_date) || getDefaultContractStartDate();
+                              setPublisherContractForm({
+                                ...publisherContractForm,
+                                subscription_interval: iv,
+                                end_date: buildPublisherContractEnd(start, iv),
+                              });
+                            }}
                           >
                             {BILLING_INTERVAL_OPTIONS.map((opt) => (
                               <MenuItem key={opt.value} value={opt.value}>
@@ -3111,7 +3173,7 @@ const Publishers: React.FC = () => {
                             title: '',
                             description: '',
                             start_date: new Date().toISOString().split('T')[0],
-                            end_date: getDefaultContractEndDate(),
+                            end_date: buildPublisherContractEnd(getDefaultContractStartDate()),
                             currency: 'BRL',
                             status: 'draft',
                           });
