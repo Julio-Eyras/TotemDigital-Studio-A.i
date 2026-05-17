@@ -130,6 +130,37 @@ describe('contract.validators', () => {
       const result = validationResult(req as any);
       expect(result.isEmpty()).toBe(false);
     });
+
+    it('deve aceitar billing_interval e subscription_amount', async () => {
+      const req = {
+        body: {
+          contract_number: 'PC-002',
+          contract_type: 'subscription',
+          title: 'Assinatura exibidor',
+          start_date: '2025-01-01T00:00:00.000Z',
+          subscription_amount: 499.9,
+          billing_interval: 'four_month',
+        },
+      };
+      await runValidators(req, createPublisherContractValidators);
+      const result = validationResult(req as any);
+      expect(result.isEmpty()).toBe(true);
+    });
+
+    it('deve rejeitar billing_interval inválido', async () => {
+      const req = {
+        body: {
+          contract_number: 'PC-003',
+          contract_type: 'subscription',
+          title: 'Título',
+          start_date: '2025-01-01T00:00:00.000Z',
+          billing_interval: 'weekly',
+        },
+      };
+      await runValidators(req, createPublisherContractValidators);
+      const result = validationResult(req as any);
+      expect(result.isEmpty()).toBe(false);
+    });
   });
 
   describe('updatePublisherContractValidators', () => {

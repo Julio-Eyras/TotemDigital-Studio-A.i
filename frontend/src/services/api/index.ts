@@ -4208,6 +4208,8 @@ export const financialAdminApi = {
   issueInvoices: async (payload?: {
     subscriberId?: number;
     contractId?: number;
+    publisherId?: number;
+    publisherContractId?: number;
     dueInDays?: number;
   }): Promise<{
     created: number;

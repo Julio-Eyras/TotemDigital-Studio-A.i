@@ -187,6 +187,53 @@ fi
 print_json "$body"
 echo
 
+# 9) UI context Studio
+echo "[9] GET /dashboard/ui-context"
+resp="$(request "GET" "$BASE/dashboard/ui-context")"
+code="$(echo "$resp" | sed -n '1p')"
+body="$(echo "$resp" | sed -n '2,$p')"
+if [[ "$code" =~ ^2 ]]; then
+  log_ok "ui-context respondeu $code"
+  if has_jq && echo "$body" | jq -e '.totemDigitalCompact == true' >/dev/null 2>&1; then
+    log_ok "ui-context totemDigitalCompact=true"
+  elif has_jq; then
+    log_fail "ui-context sem totemDigitalCompact=true (verifique TOTEMDIGITAL_COMPACT)"
+  fi
+else
+  log_fail "ui-context respondeu $code"
+fi
+print_json "$body"
+echo
+
+# 10) Faturamento exibidor (admin)
+PUBLISHER_BILLING_ID="${PUBLISHER_BILLING_ID:-1}"
+echo "[10] GET /publisher-billing/$PUBLISHER_BILLING_ID"
+resp="$(request "GET" "$BASE/publisher-billing/$PUBLISHER_BILLING_ID")"
+code="$(echo "$resp" | sed -n '1p')"
+body="$(echo "$resp" | sed -n '2,$p')"
+if [[ "$code" =~ ^2 ]]; then
+  log_ok "publisher-billing respondeu $code"
+elif [[ "$code" -eq 404 ]]; then
+  log_ok "publisher-billing 404 (sem fatura id=$PUBLISHER_BILLING_ID — OK em ambiente vazio)"
+else
+  log_fail "publisher-billing respondeu $code (esperado 2xx ou 404, não 403)"
+fi
+print_json "$body"
+echo
+
+# 11) Emissão financeira (admin) — body vazio: não cria se não houver contratos elegíveis
+echo "[11] POST /financial-admin/issue-invoices"
+resp="$(request "POST" "$BASE/financial-admin/issue-invoices" "{}")"
+code="$(echo "$resp" | sed -n '1p')"
+body="$(echo "$resp" | sed -n '2,$p')"
+if [[ "$code" =~ ^2 ]]; then
+  log_ok "issue-invoices respondeu $code"
+else
+  log_fail "issue-invoices respondeu $code"
+fi
+print_json "$body"
+echo
+
 echo "== Resultado final =="
 echo "PASS: $PASS"
 echo "FAIL: $FAIL"

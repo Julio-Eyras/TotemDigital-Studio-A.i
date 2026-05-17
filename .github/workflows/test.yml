@@ -197,7 +197,7 @@ jobs:
           NODE_ENV: test
           TOTEMDIGITAL_COMPACT: 'true'
         run: |
-          npm test -- --testPathPattern="installationPolicy|installationRuntime|startup|publisher-billing.compact|billingIntervals|registerExtendedApiRoutes|invoiceService"
+          npm test -- --testPathPattern="installationPolicy|installationRuntime|startup|publisher-billing.compact|financial-admin.issue-invoices|billingIntervals|registerExtendedApiRoutes|invoiceService|financialAdmin.publisher|contract.validators"
 
       - name: Run frontend billingIntervals unit tests (Studio build profile)
         env:
@@ -245,4 +245,13 @@ jobs:
           DB_PASSWORD: postgres
           VALIDATE_V6_SKIP_LOAD: 'true'
         run: node database/validate-v6.js
+
+      - name: Validate financial schema columns (Studio billing)
+        env:
+          DB_HOST: localhost
+          DB_PORT: '5432'
+          DB_NAME: smartsignage_validate
+          DB_USER: postgres
+          PGPASSWORD: postgres
+        run: ./scripts/validate-financial-schema.sh
 

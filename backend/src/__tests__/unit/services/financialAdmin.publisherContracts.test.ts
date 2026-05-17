@@ -63,6 +63,19 @@ describe('FinancialAdminService.issuePublisherContractInvoices', () => {
     );
   });
 
+  it('filtra por publisherContractId', async () => {
+    findMany.mockResolvedValueOnce([]);
+    findFirst.mockResolvedValue(null);
+
+    const svc = new FinancialAdminService();
+    await svc.issuePublisherContractInvoices({ publisherContractId: 99 });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.stringContaining('pc.contract_id = $'),
+      [99]
+    );
+  });
+
   it('ignora período já faturado', async () => {
     findMany.mockResolvedValueOnce([
       {
