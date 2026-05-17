@@ -11,10 +11,9 @@ export const DISABLE_DIRECT_CAMPAIGN_TOTEM =
   process.env.DISABLE_DIRECT_CAMPAIGN_TOTEM === 'true'; // default: false (form 2 enabled)
 
 /**
- * TotemDigital compacto (monousuário).
- * A base de rotas (`registerCompactRoutes`) cobre operação e faturamento; `registerExtendedApiRoutes`
- * acrescenta o restante da API Pro/Studio para o dono (`owner_system` / admins). O perfil efetivo
- * (env + BD) é resolvido por `installationRuntime` / `isStudioRuntime()`.
+ * Flag de deploy (env): mono / Smart Signage Studio.
+ * Em código de runtime preferir `isStudioRuntime()` (env + `system_settings.installation.profile`).
+ * Rotas: `registerCompactRoutes` + `registerExtendedApiRoutes` (paridade Pro/Studio).
  */
 export const TOTEMDIGITAL_COMPACT =
   process.env.TOTEMDIGITAL_COMPACT === 'true';

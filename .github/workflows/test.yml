@@ -191,10 +191,16 @@ jobs:
         working-directory: ./backend
         run: npm ci
 
-      - name: Run policy and startup tests
+      - name: Run Studio smoke tests (policy, runtime, billing, rotas)
         working-directory: ./backend
         env:
           NODE_ENV: test
           TOTEMDIGITAL_COMPACT: 'true'
-        run: npm test -- --testPathPattern="installationPolicy|startup|publisher-billing.compact"
+        run: |
+          npm test -- --testPathPattern="installationPolicy|installationRuntime|startup|publisher-billing.compact|billingIntervals|registerExtendedApiRoutes|invoiceService"
+
+      - name: Run frontend billingIntervals unit tests (Studio build profile)
+        env:
+          CI: true
+        run: npm test --prefix frontend -- --watchAll=false --testPathPattern=billingIntervals
 

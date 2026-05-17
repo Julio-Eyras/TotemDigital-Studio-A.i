@@ -33,8 +33,11 @@ import { dispatcherDebugService } from './services/dispatcherDebugService';
 import { createDatabaseWrapper } from './config/database-pg';
 import { openApiSpec } from './config/swagger';
 import { getExpressLimit, getStoragePath } from './config/mediaConfig';
-import { TOTEMDIGITAL_COMPACT } from './config/featureFlags';
 import { registerCompactRoutes } from './startup/registerCompactRoutes';
+import {
+  getInstallationProfileFromEnv,
+  isSinglePublisherInstallation,
+} from './policy/installationPolicy';
 import debugRoutes from './routes/debug';
 import playerDebugRoutes from './routes/player-debug';
 
@@ -44,7 +47,10 @@ import { SystemService } from './services/systemService';
 const app = express();
 const PORT = config.server.port;
 const HOST = config.server.host;
-const APP_PROFILE = TOTEMDIGITAL_COMPACT ? 'totemdigital-compact' : 'smartsignage-pro';
+/** Perfil no arranque (env); refinado após warmInstallationRuntime na BD. */
+const bootInstallationProfile = getInstallationProfileFromEnv();
+const bootStudioMode = isSinglePublisherInstallation(bootInstallationProfile);
+const APP_PROFILE = bootStudioMode ? 'smart-signage-studio' : 'smartsignage-pro';
 
 // Evitar ruído no console do navegador (favicon.ico 404)
 app.get('/favicon.ico', (_req, res) => res.status(204).end());
@@ -148,7 +154,7 @@ app.use(responseFormatMiddleware);
 
 // Detecção de subdomínio (deve vir antes das rotas)
 // TotemDigital compacto simplifica operação para domínio único.
-if (!TOTEMDIGITAL_COMPACT) {
+if (!bootStudioMode) {
   app.use(detectSubdomain);
 }
 
@@ -240,7 +246,7 @@ if (assetsBase) {
 
 // Root route - API information
 app.get('/', (_req, res) => {
-  const endpoints = TOTEMDIGITAL_COMPACT
+  const endpoints = bootStudioMode
     ? {
         health: '/health',
         api: '/api',
@@ -277,7 +283,9 @@ app.get('/', (_req, res) => {
     type: 'REST API',
     description: APP_DESCRIPTION,
     profile: APP_PROFILE,
-    compactMode: TOTEMDIGITAL_COMPACT,
+    studioMode: bootStudioMode,
+    compactMode: bootStudioMode,
+    installationProfile: bootInstallationProfile,
     endpoints,
     documentation: config.server.isDevelopment ? '/api-docs' : 'Not available in production',
     timestamp: new Date().toISOString()
@@ -297,7 +305,9 @@ app.get('/health', async (_req, res) => {
       timestamp: new Date().toISOString(),
       version: APP_VERSION,
       profile: APP_PROFILE,
-      compactMode: TOTEMDIGITAL_COMPACT,
+      studioMode: bootStudioMode,
+    compactMode: bootStudioMode,
+    installationProfile: bootInstallationProfile,
       database: health.database,
       memory: health.memory,
       disk: health.disk,
@@ -320,7 +330,9 @@ app.get('/api/system/info', async (_req, res) => {
     res.json({
       ...info,
       profile: APP_PROFILE,
-      compactMode: TOTEMDIGITAL_COMPACT,
+      studioMode: bootStudioMode,
+    compactMode: bootStudioMode,
+    installationProfile: bootInstallationProfile,
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -340,7 +352,9 @@ app.get('/api/health', async (_req, res) => {
       timestamp: new Date().toISOString(),
       version: APP_VERSION,
       profile: APP_PROFILE,
-      compactMode: TOTEMDIGITAL_COMPACT,
+      studioMode: bootStudioMode,
+    compactMode: bootStudioMode,
+    installationProfile: bootInstallationProfile,
       database: health.database,
       memory: health.memory,
       disk: health.disk,
@@ -359,7 +373,7 @@ app.get('/api/health', async (_req, res) => {
 app.use('/api', auditSystemUsers as any);
 
 // Validação de acesso por subdomínio (aplicar antes das rotas autenticadas)
-if (!TOTEMDIGITAL_COMPACT) {
+if (!bootStudioMode) {
   app.use('/api', validateSubdomainAccess);
 }
 
@@ -757,7 +771,7 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 async function startServer() {
   try {
     await logInfo('Iniciando Smart Signage v2.1...');
-    if (TOTEMDIGITAL_COMPACT) {
+    if (bootStudioMode) {
       await logInfo('Smart Signage Studio: perfil mono (single_publisher); paridade API Pro onde aplicável');
     }
     
