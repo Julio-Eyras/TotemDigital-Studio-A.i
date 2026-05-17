@@ -148,6 +148,15 @@ git pull origin Smart-Signage-Studio-V3x
 # Validar seed/schema (com Postgres acessível)
 cd database && node validate-v6.js
 
+# Colunas financeiras (publisher billing_interval, períodos)
+./scripts/validate-financial-schema.sh
+
+# Smoke read-only pós-deploy (contratos, faturas, planos)
+./scripts/validate-studio-finance-smoke.sh
+
+# Emissão manual (token admin): POST /api/financial-admin/issue-invoices
+# Corpo opcional: subscriberId, contractId, publisherId, publisherContractId, dueInDays
+
 # Backend (exemplo)
 cd backend && npm test -- --testPathPattern="installationPolicy|installationRuntime|billingIntervals"
 ```
