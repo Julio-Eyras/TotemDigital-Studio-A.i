@@ -91,7 +91,8 @@ import {
   shouldLoadBillingInvoices,
   tabIndexFromBillingView,
 } from '../../utils/billingNavigation';
-import { buildIssueInvoicesPayload } from '../../utils/billingIssuePayload';
+import IssueInvoicesDialog from './IssueInvoicesDialog';
+import type { IssueInvoicesScope } from '../../utils/billingIssuePayload';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -171,14 +172,7 @@ const Billing: React.FC = () => {
   }>({ open: false, mode: 'pay', billingScope: 'subscriber', billingId: null });
   const [issuingInvoices, setIssuingInvoices] = useState(false);
   const [issueInvoicesOpen, setIssueInvoicesOpen] = useState(false);
-  const [issueInvoicesForm, setIssueInvoicesForm] = useState({
-    scope: 'all' as 'all' | 'subscriber' | 'publisher',
-    subscriberId: '',
-    contractId: '',
-    publisherId: '',
-    publisherContractId: '',
-    dueInDays: '',
-  });
+  const [issueInvoicesScope, setIssueInvoicesScope] = useState<IssueInvoicesScope>('all');
   const [stripeReturnHandled, setStripeReturnHandled] = useState(false);
   const invoiceDeepLinkHandled = useRef<number | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
@@ -739,24 +733,23 @@ const Billing: React.FC = () => {
     }
   };
 
+  const studioPublisherLocked =
+    isStudioMode() && isPublisherUser && user?.publisherId != null;
+  const issueDefaultPublisherId =
+    user?.publisherId != null ? String(user.publisherId) : '';
+
   const openIssueInvoicesDialog = () => {
-    const defaultPublisherId =
-      isStudioMode() && user?.publisherId != null ? String(user.publisherId) : '';
-    setIssueInvoicesForm({
-      scope: billingType === 'publisher' ? 'publisher' : billingType === 'subscriber' ? 'subscriber' : 'all',
-      subscriberId: '',
-      contractId: '',
-      publisherId: defaultPublisherId,
-      publisherContractId: '',
-      dueInDays: '',
-    });
+    setIssueInvoicesScope(
+      billingType === 'publisher' ? 'publisher' : billingType === 'subscriber' ? 'subscriber' : 'all'
+    );
     setIssueInvoicesOpen(true);
   };
 
-  const handleIssueContractInvoicesConfirm = async () => {
+  const handleIssueContractInvoicesConfirm = async (
+    payload: Parameters<typeof financialAdminApi.issueInvoices>[0]
+  ) => {
     setIssuingInvoices(true);
     try {
-      const payload = buildIssueInvoicesPayload(issueInvoicesForm);
       const result = await financialAdminApi.issueInvoices(payload);
       await Promise.all([
         loadSubscriberBillings(),
@@ -1849,112 +1842,16 @@ const Billing: React.FC = () => {
       )}
 
       {canCreateModernInvoices && (
-        <Dialog
+        <IssueInvoicesDialog
           open={issueInvoicesOpen}
-          onClose={() => !issuingInvoices && setIssueInvoicesOpen(false)}
-          maxWidth="sm"
-          fullWidth
-        >
-          <DialogTitle>Emitir faturas do período</DialogTitle>
-          <DialogContent>
-            <Alert severity="info" sx={{ mb: 2 }}>
-              Gera faturas para contratos ativos com plano (anunciantes) ou assinatura (exibidores). Deixe os IDs
-              vazios para processar todos os elegíveis no escopo escolhido.
-            </Alert>
-            <FormControl fullWidth margin="normal">
-              <InputLabel>Escopo</InputLabel>
-              <Select
-                label="Escopo"
-                value={issueInvoicesForm.scope}
-                onChange={(e) =>
-                  setIssueInvoicesForm({
-                    ...issueInvoicesForm,
-                    scope: e.target.value as 'all' | 'subscriber' | 'publisher',
-                  })
-                }
-              >
-                <MenuItem value="all">Todos (anunciantes + exibidores)</MenuItem>
-                <MenuItem value="subscriber">Só anunciantes</MenuItem>
-                <MenuItem value="publisher">Só exibidores</MenuItem>
-              </Select>
-            </FormControl>
-            {(issueInvoicesForm.scope === 'all' || issueInvoicesForm.scope === 'subscriber') && (
-              <>
-                <TextField
-                  fullWidth
-                  margin="normal"
-                  label="ID anunciante (opcional)"
-                  value={issueInvoicesForm.subscriberId}
-                  onChange={(e) =>
-                    setIssueInvoicesForm({ ...issueInvoicesForm, subscriberId: e.target.value })
-                  }
-                  inputProps={{ inputMode: 'numeric' }}
-                />
-                <TextField
-                  fullWidth
-                  margin="normal"
-                  label="ID contrato anunciante (opcional)"
-                  value={issueInvoicesForm.contractId}
-                  onChange={(e) =>
-                    setIssueInvoicesForm({ ...issueInvoicesForm, contractId: e.target.value })
-                  }
-                  inputProps={{ inputMode: 'numeric' }}
-                />
-              </>
-            )}
-            {(issueInvoicesForm.scope === 'all' || issueInvoicesForm.scope === 'publisher') && (
-              <>
-                <TextField
-                  fullWidth
-                  margin="normal"
-                  label="ID exibidor (opcional)"
-                  value={issueInvoicesForm.publisherId}
-                  onChange={(e) =>
-                    setIssueInvoicesForm({ ...issueInvoicesForm, publisherId: e.target.value })
-                  }
-                  disabled={isStudioMode() && isPublisherUser && user?.publisherId != null}
-                  inputProps={{ inputMode: 'numeric' }}
-                  helperText={
-                    isStudioMode() && isPublisherUser && user?.publisherId != null
-                      ? `Exibidor fixo: #${user.publisherId}`
-                      : undefined
-                  }
-                />
-                <TextField
-                  fullWidth
-                  margin="normal"
-                  label="ID contrato exibidor (opcional)"
-                  value={issueInvoicesForm.publisherContractId}
-                  onChange={(e) =>
-                    setIssueInvoicesForm({ ...issueInvoicesForm, publisherContractId: e.target.value })
-                  }
-                  inputProps={{ inputMode: 'numeric' }}
-                />
-              </>
-            )}
-            <TextField
-              fullWidth
-              margin="normal"
-              label="Dias até vencimento (opcional)"
-              value={issueInvoicesForm.dueInDays}
-              onChange={(e) => setIssueInvoicesForm({ ...issueInvoicesForm, dueInDays: e.target.value })}
-              inputProps={{ inputMode: 'numeric', min: 1, max: 90 }}
-              helperText="Padrão do sistema se vazio (ex.: 30 dias)"
-            />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setIssueInvoicesOpen(false)} disabled={issuingInvoices}>
-              Cancelar
-            </Button>
-            <Button
-              variant="contained"
-              disabled={issuingInvoices}
-              onClick={() => void handleIssueContractInvoicesConfirm()}
-            >
-              {issuingInvoices ? 'A emitir…' : 'Emitir'}
-            </Button>
-          </DialogActions>
-        </Dialog>
+          issuing={issuingInvoices}
+          initialScope={issueInvoicesScope}
+          defaultPublisherId={issueDefaultPublisherId}
+          lockPublisherId={studioPublisherLocked}
+          hidePublisherPicker={studioPublisherLocked}
+          onClose={() => setIssueInvoicesOpen(false)}
+          onConfirm={(payload) => handleIssueContractInvoicesConfirm(payload)}
+        />
       )}
 
       {canCreateModernInvoices && (
