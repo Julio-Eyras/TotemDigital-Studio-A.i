@@ -205,6 +205,15 @@ export function getStripePriceFieldsForPlan(plan: PlanStripePriceFields | null |
   }));
 }
 
+export function resolvePublisherContractBillingInterval(data: {
+  billing_interval?: string | null;
+  subscription_interval?: string | null;
+}): BillingIntervalCode | null {
+  const raw = data.billing_interval ?? data.subscription_interval;
+  if (raw == null || String(raw).trim() === '') return null;
+  return normalizeBillingInterval(raw);
+}
+
 export function validatePlanPriceConfiguration(
   plan: PlanPriceFields,
   referenceInterval?: string | null

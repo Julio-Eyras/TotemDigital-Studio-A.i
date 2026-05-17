@@ -9,6 +9,7 @@ import {
   periodBoundsFromContractStart,
   resolveContractBillingInterval,
   resolveInvoicePeriodBounds,
+  resolvePublisherContractBillingInterval,
   validatePlanPriceConfiguration,
 } from '../../../utils/billingIntervals';
 
@@ -76,6 +77,13 @@ describe('billingIntervals', () => {
     expect(() =>
       assertContractEndDateValid('2026-05-16', '2026-09-16', 'four_month')
     ).not.toThrow();
+  });
+
+  it('resolve intervalo de contrato de exibidor (billing_interval ou legado)', () => {
+    expect(
+      resolvePublisherContractBillingInterval({ subscription_interval: 'quadrimestral' })
+    ).toBe('four_month');
+    expect(resolvePublisherContractBillingInterval({ billing_interval: 'year' })).toBe('year');
   });
 
   it('exige ao menos um preço e referência com preço no plano', () => {

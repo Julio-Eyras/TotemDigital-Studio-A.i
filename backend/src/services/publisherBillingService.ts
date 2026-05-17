@@ -14,6 +14,9 @@ import { logError, logDebug } from '../utils/loggerHelper';
 
 export interface CreatePublisherBillingRequest {
   publisherId: number;
+  contractId?: number;
+  periodStart?: string;
+  periodEnd?: string;
   campaignId?: number;
   totemId?: number;
   subscriptionId?: number;
@@ -420,17 +423,21 @@ export class PublisherBillingService {
 
       const result = await this.db.executeRaw(`
         INSERT INTO publisher_billing (
-          publisher_id, campaign_id, totem_id, subscription_id,
+          publisher_id, contract_id, period_start, period_end,
+          campaign_id, totem_id, subscription_id,
           billing_type, amount, currency, direction,
           revenue_share_percentage, original_campaign_amount, platform_fee_amount, publisher_share_amount,
           description, invoice_number, payment_status, due_date,
           payment_method, payment_reference, metadata,
           created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING billing_id
       `, [
         data.publisherId,
+        data.contractId || null,
+        data.periodStart || null,
+        data.periodEnd || null,
         data.campaignId || null,
         data.totemId || null,
         data.subscriptionId || null,

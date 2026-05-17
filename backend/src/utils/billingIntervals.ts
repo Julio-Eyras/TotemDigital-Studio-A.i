@@ -32,6 +32,16 @@ export function billingIntervalLabel(code?: string | null): string {
   return BILLING_INTERVAL_LABELS[n];
 }
 
+/** Intervalo canónico em contratos de exibidor (billing_interval ou legado subscription_interval). */
+export function resolvePublisherContractBillingInterval(data: {
+  billing_interval?: string | null;
+  subscription_interval?: string | null;
+}): BillingIntervalCode | null {
+  const raw = data.billing_interval ?? data.subscription_interval;
+  if (raw == null || String(raw).trim() === '') return null;
+  return normalizeBillingInterval(raw);
+}
+
 export function monthsForBillingInterval(interval: string): number {
   switch (normalizeBillingInterval(interval)) {
     case 'year':

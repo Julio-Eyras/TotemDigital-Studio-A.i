@@ -10,7 +10,7 @@ Use após `git pull` na branch `Smart-Signage-Studio-V3x`, aplicar schema/seeds 
 ## 1. Pré-requisitos (servidor)
 
 - [ ] Backend e frontend rebuildados e serviços reiniciados
-- [ ] Postgres com schema atualizado (`is_system_owner`, `installation.profile`, `price_four_month`, `price_semester`, `billing_interval` em contratos)
+- [ ] Postgres com schema atualizado (`is_system_owner`, `installation.profile`, `price_four_month`, `price_semester`, `billing_interval` em contratos anunciante e exibidor; `publisher_billing.contract_id` / `period_start` / `period_end`)
 - [ ] Seed v6 aplicado: admin com `publisher_id` do exibidor owner
 - [ ] `.env` backend: `TOTEMDIGITAL_COMPACT=true`, SMTP configurado, `FINANCIAL_*` (PIX, `FINANCIAL_PUBLIC_APP_URL`, `FINANCIAL_WORKER_ENABLED=true`)
 - [ ] Logs do backend ao arrancar: mensagem **Smart Signage Studio** e `Perfil de instalação ativo: single_publisher`
@@ -58,6 +58,7 @@ Use após `git pull` na branch `Smart-Signage-Studio-V3x`, aplicar schema/seeds 
 
 - [ ] Criar/editar contrato de exibidor com intervalo e datas alinhadas (mínimo por período, padrão +1 ano)
 - [ ] **Repasse / revenue share** configurável no fluxo de exibidor
+- [ ] Emissão automática gera fatura **incoming** para contrato exibidor com `subscription_amount` (FinancialBillingWorker)
 
 ---
 

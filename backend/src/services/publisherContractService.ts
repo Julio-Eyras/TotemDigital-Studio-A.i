@@ -1,5 +1,9 @@
 import { getDatabase } from '../config/database';
-import { isBillingIntervalCode, normalizeBillingInterval } from '../utils/billingIntervals';
+import {
+  billingIntervalLabel,
+  isBillingIntervalCode,
+  resolvePublisherContractBillingInterval,
+} from '../utils/billingIntervals';
 import { logError } from '../utils/loggerHelper';
 
 export interface PublisherContract {
@@ -15,6 +19,7 @@ export interface PublisherContract {
   revenue_share_rules?: any;
   minimum_payout_amount?: number;
   subscription_amount?: number;
+  billing_interval?: string;
   subscription_interval?: string;
   currency: string;
   payment_terms?: string;
@@ -45,6 +50,7 @@ export interface CreatePublisherContractRequest {
   revenue_share_rules?: any;
   minimum_payout_amount?: number;
   subscription_amount?: number;
+  billing_interval?: string;
   subscription_interval?: string;
   currency?: string;
   payment_terms?: string;
@@ -70,6 +76,7 @@ export interface UpdatePublisherContractRequest {
   revenue_share_rules?: any;
   minimum_payout_amount?: number;
   subscription_amount?: number;
+  billing_interval?: string;
   subscription_interval?: string;
   currency?: string;
   payment_terms?: string;
@@ -157,6 +164,7 @@ export class PublisherContractService {
           pc.revenue_share_rules,
           pc.minimum_payout_amount,
           pc.subscription_amount,
+          COALESCE(pc.billing_interval, pc.subscription_interval) AS billing_interval,
           pc.subscription_interval,
           pc.currency,
           pc.payment_terms,
@@ -216,6 +224,7 @@ export class PublisherContractService {
           pc.revenue_share_rules,
           pc.minimum_payout_amount,
           pc.subscription_amount,
+          COALESCE(pc.billing_interval, pc.subscription_interval) AS billing_interval,
           pc.subscription_interval,
           pc.currency,
           pc.payment_terms,
@@ -260,7 +269,8 @@ export class PublisherContractService {
         revenue_share_rules,
         minimum_payout_amount,
         subscription_amount,
-        subscription_interval,
+        subscription_interval: subscriptionIntervalInput,
+        billing_interval: billingIntervalInput,
         currency = 'BRL',
         payment_terms,
         document_path,
@@ -289,26 +299,33 @@ export class PublisherContractService {
         throw new Error('Número de contrato já existe');
       }
 
-      let normalizedSubscriptionInterval: string | null = null;
-      if (subscription_interval) {
-        normalizedSubscriptionInterval = normalizeBillingInterval(subscription_interval);
-        if (!isBillingIntervalCode(normalizedSubscriptionInterval)) {
-          throw new Error('Intervalo de assinatura inválido');
-        }
+      const resolvedInterval = resolvePublisherContractBillingInterval({
+        billing_interval: billingIntervalInput,
+        subscription_interval: subscriptionIntervalInput,
+      });
+      if (
+        (billingIntervalInput || subscriptionIntervalInput) &&
+        resolvedInterval &&
+        !isBillingIntervalCode(resolvedInterval)
+      ) {
+        throw new Error('Intervalo de cobrança inválido');
       }
+      const intervalToStore = resolvedInterval;
+      const paymentTermsResolved =
+        payment_terms || (intervalToStore ? billingIntervalLabel(intervalToStore) : null);
 
       // Criar contrato
       const result = await this.db.executeRaw(`
         INSERT INTO publisher_contracts (
           publisher_id, contract_number, contract_type, title, description,
           start_date, end_date, revenue_share_percentage, revenue_share_rules,
-          minimum_payout_amount, subscription_amount, subscription_interval,
+          minimum_payout_amount, subscription_amount, billing_interval, subscription_interval,
           currency, payment_terms, document_path, document_filename,
           document_mime_type, document_size_bytes, status,
           signed_by_publisher_at, signed_by_tenant_at, metadata,
           created_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
         RETURNING contract_id
       `, [
         publisher_id || null,
@@ -322,9 +339,10 @@ export class PublisherContractService {
         revenue_share_rules ? JSON.stringify(revenue_share_rules) : null,
         minimum_payout_amount || null,
         subscription_amount || null,
-        normalizedSubscriptionInterval,
+        intervalToStore,
+        intervalToStore,
         currency,
-        payment_terms || null,
+        paymentTermsResolved,
         document_path || null,
         document_filename || null,
         document_mime_type || null,
@@ -413,15 +431,20 @@ export class PublisherContractService {
         updateParams.push(data.subscription_amount || null);
       }
 
-      if (data.subscription_interval !== undefined) {
-        const iv = data.subscription_interval
-          ? normalizeBillingInterval(data.subscription_interval)
-          : null;
+      if (data.billing_interval !== undefined || data.subscription_interval !== undefined) {
+        const iv = resolvePublisherContractBillingInterval({
+          billing_interval: data.billing_interval,
+          subscription_interval: data.subscription_interval,
+        });
         if (iv && !isBillingIntervalCode(iv)) {
-          throw new Error('Intervalo de assinatura inválido');
+          throw new Error('Intervalo de cobrança inválido');
         }
+        updateFields.push(`billing_interval = $${paramIndex++}`);
+        updateParams.push(iv);
         updateFields.push(`subscription_interval = $${paramIndex++}`);
         updateParams.push(iv);
+        updateFields.push(`payment_terms = $${paramIndex++}`);
+        updateParams.push(iv ? billingIntervalLabel(iv) : null);
       }
 
       if (data.currency !== undefined) {

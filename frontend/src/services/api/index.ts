@@ -3332,6 +3332,7 @@ export interface Contract {
   revenue_share_rules?: any;
   minimum_payout_amount?: number;
   subscription_amount?: number;
+  billing_interval?: string;
   subscription_interval?: string;
 }
 
@@ -3366,6 +3367,7 @@ export interface CreateContractRequest {
   revenue_share_rules?: any;
   minimum_payout_amount?: number;
   subscription_amount?: number;
+  billing_interval?: string;
   subscription_interval?: string;
 }
 

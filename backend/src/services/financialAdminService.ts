@@ -73,10 +73,46 @@ export class FinancialAdminService {
     return `SUB-${subscriberId}-C${contractId}-${periodLabel}`.slice(0, 60);
   }
 
+  private publisherInvoiceNumberFor(
+    publisherId: number,
+    contractId: number,
+    periodLabel: string
+  ): string {
+    return `PUB-${publisherId}-C${contractId}-${periodLabel}`.slice(0, 60);
+  }
+
+  private mergeIssueResults(a: IssueInvoicesResult, b: IssueInvoicesResult): IssueInvoicesResult {
+    return {
+      created: a.created + b.created,
+      skipped: a.skipped + b.skipped,
+      errors: [...a.errors, ...b.errors],
+      invoices: [...a.invoices, ...b.invoices],
+    };
+  }
+
   /**
-   * Emite faturas pendentes para contratos ativos com plano (mensal ou anual).
+   * Emite faturas de anunciantes e exibidores (contratos ativos).
    */
   async issueContractInvoices(options?: {
+    subscriberId?: number;
+    contractId?: number;
+    publisherId?: number;
+    publisherContractId?: number;
+    dueInDays?: number;
+  }): Promise<IssueInvoicesResult> {
+    const subscriber = await this.issueSubscriberContractInvoices(options);
+    const publisher = await this.issuePublisherContractInvoices(options);
+    const merged = this.mergeIssueResults(subscriber, publisher);
+    await logInfo('Emissão financeira consolidada (anunciante + exibidor)', {
+      created: merged.created,
+      skipped: merged.skipped,
+      errors: merged.errors.length,
+    });
+    return merged;
+  }
+
+  /** Faturas recorrentes de contratos de anunciante (subscriber_contracts + plano). */
+  async issueSubscriberContractInvoices(options?: {
     subscriberId?: number;
     contractId?: number;
     dueInDays?: number;
@@ -208,7 +244,7 @@ export class FinancialAdminService {
         }
       }
 
-      await logInfo('Emissão de faturas por contrato concluída', {
+      await logInfo('Emissão de faturas por contrato (anunciante) concluída', {
         created: result.created,
         skipped: result.skipped,
         errors: result.errors.length,
@@ -216,7 +252,141 @@ export class FinancialAdminService {
 
       return result;
     } catch (error: any) {
-      await logError('Erro na emissão de faturas por contrato', error);
+      await logError('Erro na emissão de faturas por contrato (anunciante)', error);
+      throw error;
+    }
+  }
+
+  /** Faturas de assinatura de contratos de exibidor (publisher_contracts, direction incoming). */
+  async issuePublisherContractInvoices(options?: {
+    publisherId?: number;
+    publisherContractId?: number;
+    dueInDays?: number;
+  }): Promise<IssueInvoicesResult> {
+    const dueInDays = options?.dueInDays ?? financialConfig.invoiceDueDays;
+    const result: IssueInvoicesResult = { created: 0, skipped: 0, errors: [], invoices: [] };
+
+    try {
+      let where = `
+        WHERE pc.status = 'active'
+          AND pc.contract_type IN ('subscription', 'hybrid')
+          AND COALESCE(pc.subscription_amount, 0) > 0
+          AND (pc.end_date IS NULL OR pc.end_date >= CURRENT_DATE)
+          AND (pc.start_date IS NULL OR pc.start_date <= CURRENT_DATE)
+      `;
+      const params: number[] = [];
+      if (options?.publisherId) {
+        params.push(options.publisherId);
+        where += ` AND pc.publisher_id = $${params.length}`;
+      }
+      if (options?.publisherContractId) {
+        params.push(options.publisherContractId);
+        where += ` AND pc.contract_id = $${params.length}`;
+      }
+
+      const contracts = await this.db.findMany(
+        `
+        SELECT
+          pc.contract_id,
+          pc.publisher_id,
+          pc.title,
+          pc.start_date,
+          pc.subscription_amount,
+          pc.currency,
+          COALESCE(pc.billing_interval, pc.subscription_interval, 'month') AS billing_interval
+        FROM publisher_contracts pc
+        ${where}
+        ORDER BY pc.contract_id
+      `,
+        params
+      );
+
+      const billingService = getPublisherBillingServiceInstance();
+
+      for (const row of contracts) {
+        const contractId = Number(row.contract_id);
+        const publisherId = Number(row.publisher_id);
+        try {
+          const interval = normalizeBillingInterval(String(row.billing_interval || 'month'));
+          const contractStart = row.start_date
+            ? String(row.start_date).split('T')[0]
+            : undefined;
+          const period = resolveInvoicePeriodBounds(interval, contractStart, new Date());
+
+          const existing = await this.db.findFirst(
+            `
+            SELECT billing_id FROM publisher_billing
+            WHERE contract_id = $1
+              AND period_start = $2::date
+              AND period_end = $3::date
+              AND payment_status NOT IN ('cancelled', 'refunded')
+            LIMIT 1
+          `,
+            [contractId, period.start, period.end]
+          );
+
+          if (existing?.billing_id) {
+            result.skipped++;
+            continue;
+          }
+
+          const amount = parseFloat(row.subscription_amount || '0');
+          if (!amount || amount <= 0) {
+            result.errors.push({
+              contractId,
+              message: 'Valor de assinatura do contrato de exibidor não definido',
+            });
+            continue;
+          }
+
+          const invoiceNumber = this.publisherInvoiceNumberFor(
+            publisherId,
+            contractId,
+            period.label
+          );
+          const description = `Assinatura ${period.label} — ${row.title || 'Contrato exibidor'}`;
+
+          const billing = await billingService.createBilling({
+            publisherId,
+            contractId,
+            periodStart: period.start,
+            periodEnd: period.end,
+            billingType: 'subscription',
+            amount,
+            currency: row.currency || 'BRL',
+            direction: 'incoming',
+            description,
+            dueDate: this.computeDueDate(dueInDays),
+            paymentStatus: 'pending',
+            metadata: {
+              contractId,
+              billingInterval: interval,
+              periodStart: period.start,
+              periodEnd: period.end,
+              invoiceNumber,
+            },
+          });
+
+          result.created++;
+          result.invoices.push({
+            billingId: billing.billingId,
+            contractId,
+            invoiceNumber,
+          });
+        } catch (e: any) {
+          result.errors.push({ contractId, message: e?.message || 'Erro ao emitir fatura exibidor' });
+        }
+      }
+
+      await logInfo('Emissão de faturas por contrato (exibidor) concluída', {
+        created: result.created,
+        skipped: result.skipped,
+        errors: result.errors.length,
+      });
+
+      return result;
+    } catch (error: any) {
+      await logError('Erro na emissão de faturas por contrato (exibidor)', error);
       throw error;
     }
   }

@@ -508,7 +508,7 @@ const Publishers: React.FC = () => {
       revenue_share_percentage: contract.revenue_share_percentage,
       minimum_payout_amount: contract.minimum_payout_amount,
       subscription_amount: contract.subscription_amount,
-      subscription_interval: contract.subscription_interval,
+      billing_interval: contract.billing_interval || contract.subscription_interval,
       currency: contract.currency,
       payment_terms: contract.payment_terms,
       status: contract.status,
@@ -2136,7 +2136,7 @@ const Publishers: React.FC = () => {
                         setPublisherContractForm({
                           ...publisherContractForm,
                           start_date: start,
-                          end_date: buildPublisherContractEnd(start, publisherContractForm.subscription_interval),
+                          end_date: buildPublisherContractEnd(start, publisherContractForm.billing_interval),
                         });
                       }}
                       size="small"
@@ -2153,7 +2153,7 @@ const Publishers: React.FC = () => {
                       onChange={(e) => {
                         const start =
                           formatDateForInput(publisherContractForm.start_date) || getDefaultContractStartDate();
-                        const iv = publisherContractForm.subscription_interval;
+                        const iv = publisherContractForm.billing_interval;
                         const end = e.target.value;
                         setPublisherContractForm({
                           ...publisherContractForm,
@@ -2164,7 +2164,7 @@ const Publishers: React.FC = () => {
                       }}
                       helperText={contractEndDateHelperText(
                         formatDateForInput(publisherContractForm.start_date) || getDefaultContractStartDate(),
-                        publisherContractForm.subscription_interval || 'month'
+                        publisherContractForm.billing_interval || 'month'
                       )}
                       size="small"
                       InputLabelProps={{ shrink: true }}
@@ -3028,7 +3028,7 @@ const Publishers: React.FC = () => {
                         setPublisherContractForm({
                           ...publisherContractForm,
                           start_date: start,
-                          end_date: buildPublisherContractEnd(start, publisherContractForm.subscription_interval),
+                          end_date: buildPublisherContractEnd(start, publisherContractForm.billing_interval),
                         });
                       }}
                       size="small"
@@ -3045,7 +3045,7 @@ const Publishers: React.FC = () => {
                       onChange={(e) => {
                         const start =
                           formatDateForInput(publisherContractForm.start_date) || getDefaultContractStartDate();
-                        const iv = publisherContractForm.subscription_interval;
+                        const iv = publisherContractForm.billing_interval;
                         const end = e.target.value;
                         setPublisherContractForm({
                           ...publisherContractForm,
@@ -3056,7 +3056,7 @@ const Publishers: React.FC = () => {
                       }}
                       helperText={contractEndDateHelperText(
                         formatDateForInput(publisherContractForm.start_date) || getDefaultContractStartDate(),
-                        publisherContractForm.subscription_interval || 'month'
+                        publisherContractForm.billing_interval || 'month'
                       )}
                       size="small"
                       InputLabelProps={{ shrink: true }}
@@ -3105,7 +3105,7 @@ const Publishers: React.FC = () => {
                         <FormControl fullWidth size="small">
                           <InputLabel>Intervalo</InputLabel>
                           <Select
-                            value={publisherContractForm.subscription_interval || 'month'}
+                            value={publisherContractForm.billing_interval || 'month'}
                             label="Intervalo"
                             onChange={(e) => {
                               const iv = e.target.value;
@@ -3113,7 +3113,7 @@ const Publishers: React.FC = () => {
                                 formatDateForInput(publisherContractForm.start_date) || getDefaultContractStartDate();
                               setPublisherContractForm({
                                 ...publisherContractForm,
-                                subscription_interval: iv,
+                                billing_interval: iv,
                                 end_date: buildPublisherContractEnd(start, iv),
                               });
                             }}
@@ -3282,7 +3282,7 @@ const Publishers: React.FC = () => {
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <AttachMoney fontSize="small" color="action" />
                             <Typography variant="caption" color="text.secondary">
-                              Assinatura: {contract.currency || 'BRL'} {Number(contract.subscription_amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {billingIntervalLabel(contract.subscription_interval)}
+                              Assinatura: {contract.currency || 'BRL'} {Number(contract.subscription_amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {billingIntervalLabel((contract.billing_interval || contract.subscription_interval))}
                             </Typography>
                           </Box>
                         )}

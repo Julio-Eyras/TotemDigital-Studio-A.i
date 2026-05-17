@@ -204,3 +204,45 @@ jobs:
           CI: true
         run: npm test --prefix frontend -- --watchAll=false --testPathPattern=billingIntervals
 
+  validate-v6-studio:
+    name: validate v6 schema (Studio seeds)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: smartsignage_validate
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Apply schema v2 (base tables)
+        env:
+          PGPASSWORD: postgres
+        run: |
+          for f in database/smartchannel-db-v2-refactored-part*.sql; do
+            psql -h localhost -U postgres -d smartsignage_validate -v ON_ERROR_STOP=1 -f "$f" || true
+          done
+
+      - name: Validate v6 seeds and Studio profile
+        env:
+          DB_HOST: localhost
+          DB_PORT: '5432'
+          DB_NAME: smartsignage_validate
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          VALIDATE_V6_SKIP_LOAD: 'true'
+        run: node database/validate-v6.js
+

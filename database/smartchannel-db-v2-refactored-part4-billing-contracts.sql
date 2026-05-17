@@ -102,6 +102,9 @@ CREATE TABLE IF NOT EXISTS publisher_billing (
     campaign_id INTEGER, -- FK para campaigns (se revenue share)
     totem_id INTEGER, -- FK para totems (se billing específico de totem)
     subscription_id INTEGER, -- FK para subscriptions (se subscription)
+    contract_id INTEGER, -- FK para publisher_contracts (cobrança recorrente)
+    period_start DATE,
+    period_end DATE,
     
     billing_type TEXT NOT NULL,
         -- 'revenue_share' (publisher recebe % por exibir anúncios)
@@ -331,8 +334,9 @@ CREATE TABLE IF NOT EXISTS publisher_contracts (
     minimum_payout_amount NUMERIC(12, 2), -- Valor mínimo para payout
     
     -- Termos de subscription (se aplicável)
-    subscription_amount NUMERIC(12, 2), -- Valor mensal/anual da subscription
-    subscription_interval TEXT, -- month, four_month, semester, year
+    subscription_amount NUMERIC(12, 2), -- Valor por período acordado
+    billing_interval TEXT DEFAULT 'month', -- month, four_month, semester, year (canónico)
+    subscription_interval TEXT, -- legado: espelho de billing_interval
     
     currency TEXT DEFAULT 'BRL',
     payment_terms TEXT,
@@ -389,3 +393,29 @@ DROP INDEX IF EXISTS subscriber_contracts_contract_number_key;
 ALTER TABLE IF EXISTS publisher_contracts
     DROP CONSTRAINT IF EXISTS publisher_contracts_contract_number_key;
 DROP INDEX IF EXISTS publisher_contracts_contract_number_key;
+
+DO $publisher_billing_interval_upgrade$
+BEGIN
+  IF to_regclass('public.publisher_contracts') IS NOT NULL THEN
+    ALTER TABLE publisher_contracts ADD COLUMN IF NOT EXISTS billing_interval TEXT DEFAULT 'month';
+    UPDATE publisher_contracts
+    SET billing_interval = COALESCE(
+      NULLIF(TRIM(billing_interval), ''),
+      NULLIF(TRIM(subscription_interval), ''),
+      'month'
+    )
+    WHERE billing_interval IS NULL OR TRIM(billing_interval) = '';
+    UPDATE publisher_contracts
+    SET subscription_interval = billing_interval
+    WHERE subscription_interval IS DISTINCT FROM billing_interval;
+  END IF;
+  IF to_regclass('public.publisher_billing') IS NOT NULL THEN
+    ALTER TABLE publisher_billing ADD COLUMN IF NOT EXISTS contract_id INTEGER;
+    ALTER TABLE publisher_billing ADD COLUMN IF NOT EXISTS period_start DATE;
+    ALTER TABLE publisher_billing ADD COLUMN IF NOT EXISTS period_end DATE;
+    CREATE INDEX IF NOT EXISTS idx_publisher_billing_contract ON publisher_billing(contract_id);
+    CREATE INDEX IF NOT EXISTS idx_publisher_billing_period
+      ON publisher_billing(publisher_id, period_start, period_end);
+  END IF;
+END
+$publisher_billing_interval_upgrade$;

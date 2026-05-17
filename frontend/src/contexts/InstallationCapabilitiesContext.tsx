@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { Box, CircularProgress } from '@mui/material';
 import { dashboardApi } from '../services/api';
 import {
   defaultInstallationCapabilities,
@@ -6,9 +7,15 @@ import {
 } from '../types/installationCapabilities';
 import { setInstallationCapabilities as setGlobalCapabilities } from '../config/installationCapabilities';
 
-const InstallationCapabilitiesContext = createContext<InstallationCapabilities>(
-  defaultInstallationCapabilities()
-);
+type InstallationCapabilitiesContextValue = {
+  capabilities: InstallationCapabilities;
+  isReady: boolean;
+};
+
+const InstallationCapabilitiesContext = createContext<InstallationCapabilitiesContextValue>({
+  capabilities: defaultInstallationCapabilities(),
+  isReady: false,
+});
 
 export const InstallationCapabilitiesProvider: React.FC<{
   children: React.ReactNode;
@@ -17,10 +24,15 @@ export const InstallationCapabilitiesProvider: React.FC<{
   const [capabilities, setCapabilities] = useState<InstallationCapabilities>(
     defaultInstallationCapabilities()
   );
+  const [isReady, setIsReady] = useState(!enabled);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      setIsReady(true);
+      return;
+    }
     let cancelled = false;
+    setIsReady(false);
 
     (async () => {
       try {
@@ -35,6 +47,8 @@ export const InstallationCapabilitiesProvider: React.FC<{
           setCapabilities(fallback);
           setGlobalCapabilities(fallback);
         }
+      } finally {
+        if (!cancelled) setIsReady(true);
       }
     })();
 
@@ -43,7 +57,22 @@ export const InstallationCapabilitiesProvider: React.FC<{
     };
   }, [enabled]);
 
-  const value = useMemo(() => capabilities, [capabilities]);
+  const value = useMemo(() => ({ capabilities, isReady }), [capabilities, isReady]);
+
+  if (!isReady) {
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+        }}
+      >
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <InstallationCapabilitiesContext.Provider value={value}>
@@ -53,5 +82,9 @@ export const InstallationCapabilitiesProvider: React.FC<{
 };
 
 export function useInstallationCapabilities(): InstallationCapabilities {
-  return useContext(InstallationCapabilitiesContext);
+  return useContext(InstallationCapabilitiesContext).capabilities;
+}
+
+export function useInstallationCapabilitiesReady(): boolean {
+  return useContext(InstallationCapabilitiesContext).isReady;
 }

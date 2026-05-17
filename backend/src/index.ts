@@ -784,6 +784,12 @@ async function startServer() {
       const { warmInstallationRuntime } = await import('./config/installationRuntime');
       const profile = await warmInstallationRuntime(dbWarm);
       await logInfo(`Perfil de instalação ativo: ${profile}`);
+      if (profile !== bootInstallationProfile) {
+        await logWarn(
+          'Perfil de instalação (BD) difere do env no arranque; runtime usa valor da BD',
+          { envProfile: bootInstallationProfile, runtimeProfile: profile }
+        );
+      }
     } catch (err: any) {
       await logWarn('Perfil de instalação: usando variáveis de ambiente', { error: err.message });
     }
