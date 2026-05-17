@@ -20,7 +20,9 @@ export interface InstallationCapabilities {
 
 /** Perfil derivado do ambiente (build/deploy). DB pode refinir via installationProfileService. */
 export function getInstallationProfileFromEnv(): InstallationProfile {
-  return TOTEMDIGITAL_COMPACT ? 'single_publisher' : 'multi_agency';
+  const compact =
+    process.env.TOTEMDIGITAL_COMPACT === 'true' || TOTEMDIGITAL_COMPACT;
+  return compact ? 'single_publisher' : 'multi_agency';
 }
 
 export function isSinglePublisherInstallation(profile?: InstallationProfile): boolean {
@@ -43,6 +45,6 @@ export function buildInstallationCapabilities(
     bullExportQueues: !single,
     subdomainTenancy: !single,
     subscriberPortal: !single,
-    smartDisplayFx: !single,
+    smartDisplayFx: true,
   };
 }

@@ -764,6 +764,15 @@ async function startServer() {
     // Inicializar database PRIMEIRO (necessário para carregar configurações de mídia)
     await logInfo('Conectando ao database...');
     await initializeDatabase();
+
+    try {
+      const dbWarm = createDatabaseWrapper();
+      const { warmInstallationRuntime } = await import('./config/installationRuntime');
+      const profile = await warmInstallationRuntime(dbWarm);
+      await logInfo(`Perfil de instalação ativo: ${profile}`);
+    } catch (err: any) {
+      await logWarn('Perfil de instalação: usando variáveis de ambiente', { error: err.message });
+    }
     
     // Conectar query logger para debug online
     try {

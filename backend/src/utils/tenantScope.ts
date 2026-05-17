@@ -2,7 +2,7 @@
  * Escopo de tenant para agregações (analytics, dashboard, etc.).
  * `null` = visão global (apenas papéis admin).
  */
-import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { isStudioRuntime } from '../config/installationRuntime';
 import { getDatabase } from '../config/database';
 import { resolveCompactOwnerPublisherId } from './compactOwnerPublisher';
 
@@ -58,7 +58,7 @@ export async function resolveTenantScope(req: {
     return { scopedSubscriberId: Number(subId) };
   }
 
-  if (TOTEMDIGITAL_COMPACT) {
+  if (isStudioRuntime()) {
     const ownerId = await resolveCompactOwnerPublisherId(getDatabase());
     if (!ownerId) return { scopedPublisherId: -1 };
     return { scopedPublisherId: ownerId };

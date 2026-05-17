@@ -10,6 +10,8 @@ export const TOTEMDIGITAL_COMPACT = parseBoolean(
   process.env.REACT_APP_TOTEMDIGITAL_COMPACT
 );
 
+export { isStudioMode, isMultiAgencyMode } from './studioMode';
+
 /**
  * Dashboard com foco comercial (menos blocos técnicos na primeira vista).
  * No modo Pro, ative com REACT_APP_DASHBOARD_COMMERCIAL_FOCUS=true.
@@ -33,5 +35,6 @@ export const APP_DISPLAY_NAME = TOTEMDIGITAL_COMPACT
  * SmartDisplayFX — fallback de build; preferir `useInstallationCapabilities().smartDisplayFx`
  * após o provider carregar `/api/dashboard/ui-context`.
  */
-export const SMARTDISPLAYFX_ENABLED = !TOTEMDIGITAL_COMPACT;
+/** Fallback de build; após ui-context usar capabilities.smartDisplayFx */
+export const SMARTDISPLAYFX_ENABLED = true;
 

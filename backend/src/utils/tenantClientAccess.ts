@@ -3,7 +3,7 @@
  * Usado em dashboard por cliente, campanhas por cliente, etc.
  */
 import { getDatabase } from '../config/database';
-import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { isStudioRuntime } from '../config/installationRuntime';
 import { resolveCompactOwnerPublisherId } from './compactOwnerPublisher';
 import { isAdminRole } from './tenantScope';
 
@@ -33,7 +33,7 @@ function isSubscriberLikeRole(req: any): boolean {
 /** Token/compact → publisher_id (para escopo de API). */
 export async function resolvePublisherIdFromRequest(req: any): Promise<number | undefined> {
   let publisherId = req.user?.publisherId != null ? Number(req.user.publisherId) : undefined;
-  if (TOTEMDIGITAL_COMPACT && (publisherId == null || Number.isNaN(publisherId))) {
+  if (isStudioRuntime() && (publisherId == null || Number.isNaN(publisherId))) {
     const ownerId = await resolveCompactOwnerPublisherId(getDatabase());
     if (ownerId) publisherId = ownerId;
   }

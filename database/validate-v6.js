@@ -320,6 +320,77 @@ async function validateAndExecute() {
       console.log('\n  ✅ Módulo financeiro: schema OK\n');
     }
 
+    console.log('🔍 Validando perfil Studio (installation.profile + owner publisher)...\n');
+    let studioOk = true;
+
+    try {
+      const colOwner = await pool.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'publishers' AND column_name = 'is_system_owner'
+        )
+      `);
+      if (colOwner.rows[0].exists) {
+        console.log('  ✅ Coluna publishers.is_system_owner');
+      } else {
+        console.log('  ❌ Coluna publishers.is_system_owner ausente — execute apply-schema-v2.sh');
+        studioOk = false;
+      }
+
+      const profileRow = await pool.query(`
+        SELECT setting_value FROM system_settings WHERE setting_key = 'installation.profile' LIMIT 1
+      `);
+      const profile = profileRow.rows[0]?.setting_value;
+      if (profile === 'single_publisher' || profile === 'multi_agency') {
+        console.log(`  ✅ installation.profile = ${profile}`);
+      } else if (!profile) {
+        console.log('  ⚠️  installation.profile não definido (opcional em upgrades Pro)');
+      } else {
+        console.log(`  ❌ installation.profile inválido: ${profile}`);
+        studioOk = false;
+      }
+
+      const owners = await pool.query(`
+        SELECT COUNT(*)::int AS c FROM publishers WHERE is_system_owner = true AND is_active = true
+      `);
+      const ownerCount = owners.rows[0].c;
+      if (profile === 'single_publisher') {
+        if (ownerCount === 1) {
+          console.log('  ✅ Exatamente um publisher is_system_owner ativo');
+        } else {
+          console.log(`  ❌ Perfil single_publisher requer 1 owner; encontrados: ${ownerCount}`);
+          studioOk = false;
+        }
+      } else if (ownerCount > 1) {
+        console.log(`  ⚠️  Mais de um is_system_owner (${ownerCount}) — recomendado só em mono`);
+      }
+
+      const adminPub = await pool.query(`
+        SELECT u.username, u.publisher_id
+        FROM users u
+        WHERE u.role IN ('admin', 'owner_system', 'admin_sql')
+          AND u.is_active = true
+        ORDER BY u.id ASC
+        LIMIT 1
+      `);
+      if (adminPub.rows[0]?.publisher_id != null) {
+        console.log(
+          `  ✅ Admin com publisher_id=${adminPub.rows[0].publisher_id} (${adminPub.rows[0].username})`
+        );
+      } else if (profile === 'single_publisher') {
+        console.log('  ⚠️  Admin sem publisher_id — repasse exibidor pode falhar na UI');
+      }
+    } catch (error) {
+      console.log(`  ⚠️  Validação Studio: ${error.message}`);
+      studioOk = false;
+    }
+
+    if (!studioOk) {
+      console.log('\n⚠️  Perfil Studio incompleto — reaplique schema/seed ou instalador compacto.\n');
+    } else {
+      console.log('\n  ✅ Perfil Studio: validações OK\n');
+    }
+
     console.log('✅ Validação concluída com sucesso!');
     console.log('📊 O banco está pronto para testes integrados.\n');
 

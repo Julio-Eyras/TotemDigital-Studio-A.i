@@ -37,8 +37,9 @@ import {
 } from '@mui/icons-material';
 import { UserRole, canAccess } from './rolePermissions';
 import { UserFlags } from '../store/slices/authSlice';
-import { DASHBOARD_COMMERCIAL_FOCUS, TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { DASHBOARD_COMMERCIAL_FOCUS } from '../config/featureFlags';
 import { getInstallationCapabilities } from '../config/installationCapabilities';
+import { isStudioMode } from '../config/studioMode';
 
 /** Pro com dashboard comercial: menos ruído técnico no menu (alinhado à Fase 5 do roadmap V3x). */
 const isCommercialProMenu = (): boolean => {
@@ -68,7 +69,7 @@ function filterHierarchicalMenu(
   const filtered: HierarchicalMenuItem[] = [];
   
   for (const item of items) {
-    if (TOTEMDIGITAL_COMPACT && item.hiddenInCompact) {
+    if (isStudioMode() && item.hiddenInCompact) {
       continue;
     }
 
@@ -166,12 +167,7 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
         path: '/playlist-mix',
         children: getDispatcherPlaylistMixChildren(),
       },
-      {
-        text: 'SmartDisplayFX',
-        icon: <AutoAwesome />,
-        path: '/smartdisplayfx',
-        hiddenInCompact: true,
-      },
+      { text: 'SmartDisplayFX', icon: <AutoAwesome />, path: '/smartdisplayfx' },
       { text: 'IA', icon: <SmartToy />, path: '/ai' },
     ],
   };
@@ -235,7 +231,7 @@ export const getMenuHierarchyByRole = (
   role: UserRole,
   userFlags?: UserFlags | null
 ): HierarchicalMenuItem[] => {
-  if (TOTEMDIGITAL_COMPACT) {
+  if (isStudioMode()) {
     if (role === 'operador_tecnico' || role === 'operator') {
       return filterHierarchicalMenu(getOperadorTecnicoMenu(), role, userFlags);
     }
@@ -322,13 +318,13 @@ export const getMenuHierarchyByRole = (
 function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
   /** Mono: utilizador operacional (ex.: publisher_user) mantém menu curto; dono/admins/operador faturamento vê paridade com Pro. */
   const ownerLikeInCompact =
-    TOTEMDIGITAL_COMPACT &&
+    isStudioMode() &&
     (role === 'owner_system' ||
       role === 'admin_sql' ||
       role === 'admin' ||
       role === 'operador_faturamento');
 
-  if (TOTEMDIGITAL_COMPACT && !ownerLikeInCompact) {
+  if (isStudioMode() && !ownerLikeInCompact) {
     return [
       { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
       { text: 'Planos', icon: <Assignment />, path: '/plan-publisher-access' },
@@ -344,7 +340,7 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
     ];
   }
 
-  if (TOTEMDIGITAL_COMPACT && ownerLikeInCompact) {
+  if (isStudioMode() && ownerLikeInCompact) {
     return getCompactReorganizedAdminMenu();
   }
 

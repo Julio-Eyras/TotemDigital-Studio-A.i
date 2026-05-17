@@ -6,7 +6,7 @@
 
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from './auth.middleware';
-import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { isStudioRuntime } from '../config/installationRuntime';
 import { getDatabase } from '../config/database';
 
 const norm = (r: string | undefined) => String(r || '').trim().toLowerCase();
@@ -21,7 +21,7 @@ const TENANT_BILLING_ROLES = new Set([
 /**
  * POST/PUT em faturas (APIs modernas). `owner_system` incluído de forma explícita na documentação;
  * o middleware global `authorizeRole` já faz bypass para owner_system — aqui garantimos o mesmo
- * contrato num único sítio legível e permitimos `publisher_user` só em TOTEMDIGITAL_COMPACT.
+ * contrato num único sítio legível e permitimos `publisher_user` só em isStudioRuntime().
  */
 export const authorizeBillingManagement = (
   req: AuthenticatedRequest,
@@ -45,7 +45,7 @@ export const authorizeBillingManagement = (
     next();
     return;
   }
-  if (TOTEMDIGITAL_COMPACT && r === 'publisher_user') {
+  if (isStudioRuntime() && r === 'publisher_user') {
     next();
     return;
   }
@@ -61,7 +61,7 @@ function canManageBilling(req: AuthenticatedRequest): boolean {
   const r = norm(req.user.role);
   if (r === 'owner_system') return true;
   if (TENANT_BILLING_ROLES.has(r)) return true;
-  if (TOTEMDIGITAL_COMPACT && r === 'publisher_user') return true;
+  if (isStudioRuntime() && r === 'publisher_user') return true;
   return false;
 }
 

@@ -6,7 +6,7 @@
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import { logError } from '../utils/loggerHelper';
-import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { isStudioRuntime } from '../config/installationRuntime';
 import { resolveCompactOwnerPublisherId } from '../utils/compactOwnerPublisher';
 
 export interface Local {
@@ -79,7 +79,7 @@ export class LocalService {
     isAdmin: boolean = false
   ): Promise<number | undefined> {
     if (isAdmin) return undefined;
-    if (TOTEMDIGITAL_COMPACT) {
+    if (isStudioRuntime()) {
       const ownerPublisherId = await resolveCompactOwnerPublisherId(this.db);
       if (!ownerPublisherId) {
         throw new Error('Modo compacto: publisher do owner não encontrado para aplicar escopo.');
@@ -281,7 +281,7 @@ export class LocalService {
       let targetPublisherId = publisher_id;
 
       const scopedPublisherId = await this.resolveScopedPublisherId(requestPublisherId, isAdmin);
-      if (TOTEMDIGITAL_COMPACT) {
+      if (isStudioRuntime()) {
         const ownerPublisherId = await resolveCompactOwnerPublisherId(this.db);
         if (!ownerPublisherId) {
           throw new Error('Modo compacto: publisher do owner não encontrado.');
@@ -538,7 +538,7 @@ export class LocalService {
         throw new Error('Local não encontrado');
       }
 
-      if (TOTEMDIGITAL_COMPACT) {
+      if (isStudioRuntime()) {
         const activeLocalsCount = await this.db.findFirst(`
           SELECT COUNT(*) as count
           FROM locals

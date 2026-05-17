@@ -28,7 +28,7 @@ describe('installationPolicy', () => {
     const caps = buildInstallationCapabilities();
     expect(caps.bullExportQueues).toBe(false);
     expect(caps.subscriberPortal).toBe(false);
-    expect(caps.smartDisplayFx).toBe(false);
+    expect(caps.smartDisplayFx).toBe(true);
   });
 
   it('multi_agency quando TOTEMDIGITAL_COMPACT não está ativo', () => {
