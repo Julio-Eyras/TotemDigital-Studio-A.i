@@ -8,5 +8,6 @@ describe('InvoiceService', () => {
     const svc = new InvoiceService();
     expect(typeof svc.generateSubscriptionInvoices).toBe('function');
     expect(typeof svc.generateMonthlyInvoices).toBe('function');
+    expect(typeof svc.sendInvoiceNotifications).toBe('function');
   });
 });

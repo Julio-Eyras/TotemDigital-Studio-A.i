@@ -176,6 +176,35 @@ export function contractEndDateHelperText(startDateYmd: string, billingInterval:
 }
 
 /** Valida plano: pelo menos um preço; intervalo de referência com preço. */
+export type PlanStripePriceFields = PlanPriceFields & {
+  stripePriceIdMonthly?: string;
+  stripePriceIdFourMonth?: string;
+  stripePriceIdSemester?: string;
+  stripePriceIdYearly?: string;
+};
+
+const STRIPE_PRICE_FIELD_BY_INTERVAL: Record<
+  BillingIntervalCode,
+  keyof Pick<
+    PlanStripePriceFields,
+    'stripePriceIdMonthly' | 'stripePriceIdFourMonth' | 'stripePriceIdSemester' | 'stripePriceIdYearly'
+  >
+> = {
+  month: 'stripePriceIdMonthly',
+  four_month: 'stripePriceIdFourMonth',
+  semester: 'stripePriceIdSemester',
+  year: 'stripePriceIdYearly',
+};
+
+/** Campos Stripe Price ID apenas para intervalos com preço configurado no plano. */
+export function getStripePriceFieldsForPlan(plan: PlanStripePriceFields | null | undefined) {
+  return getPlanAvailableIntervals(plan).map((code) => ({
+    interval: code,
+    label: BILLING_INTERVAL_LABELS[code],
+    field: STRIPE_PRICE_FIELD_BY_INTERVAL[code],
+  }));
+}
+
 export function validatePlanPriceConfiguration(
   plan: PlanPriceFields,
   referenceInterval?: string | null

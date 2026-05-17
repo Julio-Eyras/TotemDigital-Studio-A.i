@@ -66,6 +66,7 @@ import {
   billingIntervalLabel,
   getBillingIntervalOptionsForPlan,
   getPlanPriceForInterval,
+  getStripePriceFieldsForPlan,
   validatePlanPriceConfiguration,
 } from '../../utils/billingIntervals';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
@@ -1478,25 +1479,26 @@ const PlanPublisherAccessPage: React.FC = () => {
                   margin="normal"
                 />
               </Grid>
-              {(
-                [
-                  ['Mensal', 'stripePriceIdMonthly'],
-                  ['Quadrimestral', 'stripePriceIdFourMonth'],
-                  ['Semestral', 'stripePriceIdSemester'],
-                  ['Anual', 'stripePriceIdYearly'],
-                ] as const
-              ).map(([label, key]) => (
-                <Grid item xs={12} md={6} key={key}>
+              {getStripePriceFieldsForPlan(planFormData).map(({ label, field }) => (
+                <Grid item xs={12} md={6} key={field}>
                   <TextField
                     fullWidth
                     label={`ID do Preço Stripe (${label})`}
-                    value={(planFormData as any)[key] || ''}
+                    value={(planFormData as any)[field] || ''}
                     disabled={selectedPlanHasContracts}
-                    onChange={(e) => setPlanFormData({ ...planFormData, [key]: e.target.value })}
+                    onChange={(e) => setPlanFormData({ ...planFormData, [field]: e.target.value })}
                     margin="normal"
+                    helperText={`Intervalo com preço ${label.toLowerCase()} no plano`}
                   />
                 </Grid>
               ))}
+              {getStripePriceFieldsForPlan(planFormData).length === 0 && (
+                <Grid item xs={12}>
+                  <Typography variant="caption" color="text.secondary">
+                    Informe pelo menos um preço por intervalo para configurar IDs de preço Stripe.
+                  </Typography>
+                </Grid>
+              )}
             </Grid>
             <TextField
               fullWidth

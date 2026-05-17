@@ -41,22 +41,11 @@ export class InvoiceWorker {
       }
     });
 
-    // Executar diariamente às 9h da manhã para enviar notificações
-    cron.schedule('0 9 * * *', async () => {
-      try {
-        await logInfo('Iniciando envio de notificações de faturas', {});
-        const sent = await this.invoiceService.sendInvoiceNotifications();
-        await logInfo('Envio de notificações concluído', { sent });
-      } catch (error: any) {
-        await logError('Erro no worker de notificações de faturas', error);
-      }
-    });
-
     logInfo('Invoice Worker iniciado', {
       schedules: [
-        'Geração de faturas: 02:00 diariamente',
+        'Geração de faturas Stripe/assinaturas: 02:00 diariamente',
         'Marcação de vencidas: 03:00 diariamente',
-        'Notificações: 09:00 diariamente',
+        'Lembretes por e-mail: FinancialBillingWorker (FINANCIAL_CRON_REMINDERS)',
       ],
     });
   }

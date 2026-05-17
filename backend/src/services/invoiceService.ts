@@ -7,6 +7,7 @@ import { getDatabase } from '../config/database';
 import { SubscriptionService } from './subscriptionService';
 import { StripeService } from './stripeService';
 import { logError, logInfo } from '../utils/loggerHelper';
+import { getFinancialNotificationService } from './financialNotificationService';
 import {
   billingIntervalLabel,
   getPlanPriceForInterval,
@@ -236,67 +237,14 @@ export class InvoiceService {
   }
 
   /**
-   * Envia notificações de faturas pendentes
+   * Envia lembretes de faturas pendentes (anunciante + exibidor) via SMTP/PIX.
+   * Delega a FinancialNotificationService — mesma lógica do FinancialBillingWorker.
    */
   async sendInvoiceNotifications(): Promise<number> {
     try {
-      const pendingSubscriberInvoices = await this.db.findMany(`
-        SELECT 
-          b.billing_id,
-          b.subscriber_id,
-          b.subscriber_id as client_id,
-          b.amount,
-          b.due_date,
-          s.name as client_name,
-          s.email as client_email,
-          'subscriber' as billing_source
-        FROM subscriber_billing b
-        LEFT JOIN subscribers s ON b.subscriber_id = s.subscriber_id
-        WHERE b.payment_status = 'pending'
-          AND b.due_date <= CURRENT_DATE + INTERVAL '3 days'
-          AND b.due_date >= CURRENT_DATE
-          AND s.email IS NOT NULL
-      `);
-
-      const pendingPublisherInvoices = await this.db.findMany(`
-        SELECT 
-          b.billing_id,
-          b.publisher_id,
-          b.publisher_id as client_id,
-          b.amount,
-          b.due_date,
-          p.name as client_name,
-          p.email as client_email,
-          'publisher' as billing_source
-        FROM publisher_billing b
-        LEFT JOIN publishers p ON b.publisher_id = p.publisher_id
-        WHERE b.payment_status = 'pending'
-          AND b.direction = 'incoming'
-          AND b.due_date <= CURRENT_DATE + INTERVAL '3 days'
-          AND b.due_date >= CURRENT_DATE
-          AND p.email IS NOT NULL
-      `);
-
-      const pendingInvoices = [...pendingSubscriberInvoices, ...pendingPublisherInvoices];
-
-      let sent = 0;
-
-      for (const invoice of pendingInvoices) {
-        try {
-          await logInfo('Notificação de fatura pendente (email não enviado - EmailService não integrado)', {
-            billingId: invoice.billing_id,
-            clientId: invoice.client_id || invoice.subscriber_id,
-            email: invoice.client_email,
-          });
-          sent++;
-        } catch (error: any) {
-          await logError('Erro ao enviar notificação de fatura', error, {
-            billingId: invoice.billing_id,
-          });
-        }
-      }
-
-      return sent;
+      const result = await getFinancialNotificationService().sendPendingInvoiceReminders();
+      await logInfo('Lembretes de fatura enviados', result);
+      return result.sent;
     } catch (error: any) {
       await logError('Erro ao enviar notificações de faturas', error);
       throw error;
