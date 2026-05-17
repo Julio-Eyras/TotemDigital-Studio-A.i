@@ -322,6 +322,14 @@ export const financialConfig = {
   cronIssueInvoices: getEnv('FINANCIAL_CRON_ISSUE', '30 2 * * *'),
   cronMarkOverdue: getEnv('FINANCIAL_CRON_OVERDUE', '30 3 * * *'),
   cronSendReminders: getEnv('FINANCIAL_CRON_REMINDERS', '0 9 * * *'),
+  /** Após emissão automática de faturas, gerar repasses revenue share (campanhas pagas). */
+  autoRevenueSharePayouts: getEnvBoolean(
+    'FINANCIAL_AUTO_REVENUE_SHARE',
+    getEnvBoolean('TOTEMDIGITAL_COMPACT', false)
+  ),
+  revenueShareSinceDays: getEnvNumber('FINANCIAL_REVENUE_SHARE_SINCE_DAYS', 90),
+  /** Cron dedicado a repasses (vazio = só via emissão ou manual). Ex.: `0 4 * * *` */
+  cronRevenueSharePayouts: getEnv('FINANCIAL_CRON_REVENUE_SHARE', '').trim(),
 };
 
 /**

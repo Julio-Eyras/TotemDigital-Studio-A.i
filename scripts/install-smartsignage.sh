@@ -5893,6 +5893,15 @@ FINANCIAL_WORKER_ENABLED=true
 FINANCIAL_CRON_ISSUE=30 2 * * *
 FINANCIAL_CRON_OVERDUE=30 3 * * *
 FINANCIAL_CRON_REMINDERS=0 9 * * *
+EOF
+    if [[ "${INSTALL_TOTEMDIGITAL_COMPACT:-false}" == "true" ]]; then
+        cat <<EOF
+FINANCIAL_AUTO_REVENUE_SHARE=true
+FINANCIAL_REVENUE_SHARE_SINCE_DAYS=90
+FINANCIAL_CRON_REVENUE_SHARE=0 4 * * *
+EOF
+    fi
+    cat <<EOF
 
 # =============================================
 # E-MAIL (lembretes financeiros e notificações)

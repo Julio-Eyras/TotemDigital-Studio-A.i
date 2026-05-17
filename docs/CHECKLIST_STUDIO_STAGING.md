@@ -12,7 +12,7 @@ Use após `git pull` na branch `Smart-Signage-Studio-V3x`, aplicar schema/seeds 
 - [ ] Backend e frontend rebuildados e serviços reiniciados
 - [ ] Postgres com schema atualizado (`is_system_owner`, `installation.profile`, `price_four_month`, `price_semester`, `billing_interval` em contratos anunciante e exibidor; `publisher_billing.contract_id` / `period_start` / `period_end`)
 - [ ] Seed v6 aplicado: admin com `publisher_id` do exibidor owner
-- [ ] `.env` backend: `TOTEMDIGITAL_COMPACT=true`, SMTP configurado, `FINANCIAL_*` (PIX, `FINANCIAL_PUBLIC_APP_URL`, `FINANCIAL_WORKER_ENABLED=true`)
+- [ ] `.env` backend: `TOTEMDIGITAL_COMPACT=true`, SMTP configurado, `FINANCIAL_*` (PIX, `FINANCIAL_PUBLIC_APP_URL`, `FINANCIAL_WORKER_ENABLED=true`, `FINANCIAL_AUTO_REVENUE_SHARE=true` em Studio)
 - [ ] Logs do backend ao arrancar: mensagem **Smart Signage Studio** e `Perfil de instalação ativo: single_publisher`
 
 ---
@@ -78,7 +78,8 @@ Use após `git pull` na branch `Smart-Signage-Studio-V3x`, aplicar schema/seeds 
 - [ ] Admin/owner: `GET /api/publisher-billing/:id` responde **200** (não 403)
 - [ ] `publisher_user` do exibidor owner acede ao seu faturamento
 - [ ] **Emitir faturas do período** (diálogo): escopo, seletores com pesquisa, contratos ativos; opcional **repasses revenue share** após campanhas pagas
-- [ ] Logs: **Financial Billing Worker** ativo; emissão automática sem erro crítico
+- [ ] Logs: **Financial Billing Worker** ativo; emissão automática sem erro crítico (`autoRevenueShare: true` se repasse automático)
+- [ ] Repasse: após pagamento de fatura de campanha, worker ou emissão manual gera fatura exibidor `revenue_share` / `pending_payout`
 - [ ] Logs: **Invoice Worker** (Stripe) ativo; geração/marcação vencidas sem erro crítico
 - [ ] Logs: **Playlist Mix** e **Playlist Engine** workers iniciados
 - [ ] Cron de alertas (5 min) registado nos logs

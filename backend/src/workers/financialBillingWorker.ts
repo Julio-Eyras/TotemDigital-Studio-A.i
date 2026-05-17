@@ -21,14 +21,35 @@ export class FinancialBillingWorker {
     this.jobs.push(
       cron.schedule(financialConfig.cronIssueInvoices, async () => {
         try {
-          await logInfo('Financeiro: emissão automática de faturas por contrato', {});
-          const result = await getFinancialAdminService().issueContractInvoices({});
+          await logInfo('Financeiro: emissão automática de faturas por contrato', {
+            autoRevenueShare: financialConfig.autoRevenueSharePayouts,
+          });
+          const result = await getFinancialAdminService().issueContractInvoices({
+            includeRevenueSharePayouts: financialConfig.autoRevenueSharePayouts,
+            revenueShareSinceDays: financialConfig.revenueShareSinceDays,
+          });
           await logInfo('Financeiro: emissão concluída', result);
         } catch (error: any) {
           await logError('Financeiro: erro na emissão automática', error);
         }
       })
     );
+
+    if (financialConfig.cronRevenueSharePayouts) {
+      this.jobs.push(
+        cron.schedule(financialConfig.cronRevenueSharePayouts, async () => {
+          try {
+            await logInfo('Financeiro: repasses revenue share automáticos', {});
+            const result = await getFinancialAdminService().issueRevenueSharePayouts({
+              sinceDays: financialConfig.revenueShareSinceDays,
+            });
+            await logInfo('Financeiro: repasses concluídos', result);
+          } catch (error: any) {
+            await logError('Financeiro: erro nos repasses revenue share', error);
+          }
+        })
+      );
+    }
 
     this.jobs.push(
       cron.schedule(financialConfig.cronMarkOverdue, async () => {
@@ -71,6 +92,8 @@ export class FinancialBillingWorker {
       issue: financialConfig.cronIssueInvoices,
       overdue: financialConfig.cronMarkOverdue,
       reminders: financialConfig.cronSendReminders,
+      autoRevenueShare: financialConfig.autoRevenueSharePayouts,
+      revenueShareCron: financialConfig.cronRevenueSharePayouts || '(desativado)',
     });
   }
 

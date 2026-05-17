@@ -234,6 +234,19 @@ fi
 print_json "$body"
 echo
 
+# 12) Repasses revenue share (admin) — idempotente se não houver campanhas pagas
+echo "[12] POST /financial-admin/issue-revenue-share-payouts"
+resp="$(request "POST" "$BASE/financial-admin/issue-revenue-share-payouts" "{\"sinceDays\":90}")"
+code="$(echo "$resp" | sed -n '1p')"
+body="$(echo "$resp" | sed -n '2,$p')"
+if [[ "$code" =~ ^2 ]]; then
+  log_ok "issue-revenue-share-payouts respondeu $code"
+else
+  log_fail "issue-revenue-share-payouts respondeu $code"
+fi
+print_json "$body"
+echo
+
 echo "== Resultado final =="
 echo "PASS: $PASS"
 echo "FAIL: $FAIL"
