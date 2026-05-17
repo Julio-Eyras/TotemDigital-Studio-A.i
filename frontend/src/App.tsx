@@ -11,7 +11,8 @@ import CommandPaletteWrapper from './components/Navigation/CommandPalette/Comman
 import { useRateLimit } from './hooks/useRateLimit';
 import { useCommandPalette } from './hooks/useCommandPalette';
 import { useAppDispatch, useAppSelector } from './store/hooks';
-import { SMARTDISPLAYFX_ENABLED, TOTEMDIGITAL_COMPACT } from './config/featureFlags';
+import { TOTEMDIGITAL_COMPACT } from './config/featureFlags';
+import { InstallationCapabilitiesProvider, useInstallationCapabilities } from './contexts/InstallationCapabilitiesContext';
 import { canAccess } from './utils/rolePermissions';
 import { setTheme, setDarkTone } from './store/slices/uiSlice';
 
@@ -87,7 +88,16 @@ const detectSubdomainType = (): 'publisher' | 'subscriber' | 'main' => {
   return 'main';
 };
 
+const SmartDisplayFxRoute: React.FC = () => {
+  const caps = useInstallationCapabilities();
+  if (!caps.smartDisplayFx) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <SmartDisplayFx />;
+};
+
 const AppContent: React.FC = () => {
+  const installationCaps = useInstallationCapabilities();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [subdomainType, setSubdomainType] = useState<'publisher' | 'subscriber' | 'main'>('main');
@@ -99,8 +109,7 @@ const AppContent: React.FC = () => {
   const commandPalette = useCommandPalette();
 
   useEffect(() => {
-    // Detectar subdomínio
-    const detected = detectSubdomainType();
+    const detected = installationCaps.subdomainTenancy ? detectSubdomainType() : 'main';
     setSubdomainType(detected);
     
     // Check if user is authenticated
@@ -112,7 +121,7 @@ const AppContent: React.FC = () => {
     }
     
     setLoading(false);
-  }, []);
+  }, [installationCaps.subdomainTenancy]);
 
   const handleLoginSuccess = (token: string, user: any) => {
     setIsAuthenticated(true);
@@ -122,7 +131,7 @@ const AppContent: React.FC = () => {
    * Seleciona o layout apropriado baseado no subdomínio e tipo de usuário
    */
   const getLayout = (children: React.ReactNode) => {
-    if (TOTEMDIGITAL_COMPACT) return <Layout>{children}</Layout>;
+    if (installationCaps.totemDigitalCompact) return <Layout>{children}</Layout>;
 
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const userType = user.user_type || user.userType;
@@ -182,7 +191,7 @@ const AppContent: React.FC = () => {
       return <Navigate to="/dashboard" replace />;
     }
     
-    if (!TOTEMDIGITAL_COMPACT && subdomainType === 'publisher') {
+    if (installationCaps.subdomainTenancy && subdomainType === 'publisher') {
       // Publisher subdomain: apenas publisher_user ou admins
       if (user.user_type !== 'publisher_user' && 
           user.role !== 'owner_system' && 
@@ -193,7 +202,7 @@ const AppContent: React.FC = () => {
       }
     }
     
-    if (!TOTEMDIGITAL_COMPACT && subdomainType === 'subscriber') {
+    if (installationCaps.subdomainTenancy && subdomainType === 'subscriber') {
       // Subscriber subdomain: apenas subscriber_user ou admins
       if (user.user_type !== 'subscriber_user' && 
           user.role !== 'owner_system' && 
@@ -208,7 +217,7 @@ const AppContent: React.FC = () => {
   };
 
   const SubscriberProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    if (TOTEMDIGITAL_COMPACT) {
+    if (!installationCaps.subscriberPortal) {
       return <Navigate to="/dashboard" />;
     }
 
@@ -299,7 +308,7 @@ const AppContent: React.FC = () => {
           <Route
             path="/subscriber-login"
             element={
-              TOTEMDIGITAL_COMPACT ? (
+              !installationCaps.subscriberPortal ? (
                 <Navigate to="/login" />
               ) : isAuthenticated ? (
                 <Navigate to="/subscriber/dashboard" />
@@ -310,7 +319,7 @@ const AppContent: React.FC = () => {
           />
 
           {/* Subscriber Routes */}
-          {!TOTEMDIGITAL_COMPACT && (
+          {installationCaps.subscriberPortal && (
             <>
               <Route
                 path="/subscriber/dashboard"
@@ -694,7 +703,7 @@ const AppContent: React.FC = () => {
             path="/smartdisplayfx"
             element={
               <ProtectedRoute>
-                {SMARTDISPLAYFX_ENABLED ? <SmartDisplayFx /> : <Navigate to="/dashboard" replace />}
+                <SmartDisplayFxRoute />
               </ProtectedRoute>
             }
           />
@@ -756,7 +765,9 @@ const ThemedApp: React.FC = () => {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Notification />
-      <AppContent />
+      <InstallationCapabilitiesProvider>
+        <AppContent />
+      </InstallationCapabilitiesProvider>
     </ThemeProvider>
   );
 };

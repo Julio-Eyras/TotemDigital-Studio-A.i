@@ -38,9 +38,13 @@ import {
 import { UserRole, canAccess } from './rolePermissions';
 import { UserFlags } from '../store/slices/authSlice';
 import { DASHBOARD_COMMERCIAL_FOCUS, TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { getInstallationCapabilities } from '../config/installationCapabilities';
 
 /** Pro com dashboard comercial: menos ruído técnico no menu (alinhado à Fase 5 do roadmap V3x). */
-const isCommercialProMenu = DASHBOARD_COMMERCIAL_FOCUS && !TOTEMDIGITAL_COMPACT;
+const isCommercialProMenu = (): boolean => {
+  const caps = getInstallationCapabilities();
+  return DASHBOARD_COMMERCIAL_FOCUS && caps.multiAgency;
+};
 
 export interface HierarchicalMenuItem {
   text: string;
@@ -376,7 +380,7 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
 
   return [
     { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
-    ...(isCommercialProMenu
+    ...(isCommercialProMenu()
       ? [{ text: 'Nova publicação', icon: <Add />, path: '/quick-publish' } as HierarchicalMenuItem]
       : []),
 

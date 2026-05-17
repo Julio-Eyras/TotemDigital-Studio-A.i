@@ -2,9 +2,9 @@ name: Tests and Quality Checks
 
 on:
   push:
-    branches: [ main, develop, 'versao-3.1-smartsignage-pro-inovacoes', 'Totem-Digital-V3x' ]
+    branches: [ main, develop, 'versao-3.1-smartsignage-pro-inovacoes', 'Totem-Digital-V3x', 'Smart-Signage-Studio-V3x' ]
   pull_request:
-    branches: [ main, develop, 'Totem-Digital-V3x' ]
+    branches: [ main, develop, 'Totem-Digital-V3x', 'Smart-Signage-Studio-V3x' ]
 
 permissions:
   contents: read
@@ -137,8 +137,8 @@ jobs:
         working-directory: ./backend
         run: npx tsc --noEmit
 
-  frontend-build-compact:
-    name: frontend build (TotemDigital compact)
+  frontend-build-studio:
+    name: frontend build (Smart Signage Studio)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -168,9 +168,33 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefix frontend
 
-      - name: Production build with REACT_APP_TOTEMDIGITAL_COMPACT
+      - name: Production build with REACT_APP_TOTEMDIGITAL_COMPACT (Studio)
         env:
           CI: true
           REACT_APP_TOTEMDIGITAL_COMPACT: 'true'
         run: npm run build --prefix frontend
+
+  backend-test-studio-profile:
+    name: backend tests (Studio profile env)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./backend
+        run: npm ci
+
+      - name: Run policy and startup tests
+        working-directory: ./backend
+        env:
+          NODE_ENV: test
+          TOTEMDIGITAL_COMPACT: 'true'
+        run: npm test -- --testPathPattern="installationPolicy|startup|publisher-billing.compact"
 

@@ -222,7 +222,22 @@ export interface RecentActivity {
 export interface DashboardUiContext {
   disableDirectCampaignTotem: boolean;
   totemDigitalCompact: boolean;
+  installationProfile?: 'single_publisher' | 'multi_agency';
   directCampaignTotemHint?: string;
+  capabilities?: {
+    profile: 'single_publisher' | 'multi_agency';
+    totemDigitalCompact: boolean;
+    multiAgency: boolean;
+    publisherBillingForAdmins: boolean;
+    stripeSubscriptions: boolean;
+    playlistMixWorker: boolean;
+    playlistEngineWorker: boolean;
+    alertCron: boolean;
+    bullExportQueues: boolean;
+    subdomainTenancy: boolean;
+    subscriberPortal: boolean;
+    smartDisplayFx: boolean;
+  };
 }
 
 export const dashboardApi = {
