@@ -546,7 +546,7 @@ BEGIN
         SET publisher_id = v_target_publisher_id,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = v_admin_id
-          AND role IN ('admin', 'owner_system', 'admin_sql', 'operador_faturamento')
+          AND role IN ('admin', 'owner_system', 'operador_faturamento')
           AND (publisher_id IS NULL OR publisher_id IS DISTINCT FROM v_target_publisher_id);
     END IF;
 

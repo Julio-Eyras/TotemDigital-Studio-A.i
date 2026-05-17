@@ -45,6 +45,7 @@ export function buildInstallationCapabilities(
     bullExportQueues: !single,
     subdomainTenancy: !single,
     subscriberPortal: !single,
-    smartDisplayFx: true,
+  /** Studio/mono: menu oculto; rotas API mantidas para evolução futura. */
+    smartDisplayFx: !single,
   };
 }

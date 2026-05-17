@@ -3,7 +3,10 @@ import {
   InstallationProfile,
   isSinglePublisherInstallation,
 } from '../policy/installationPolicy';
-import { resolveInstallationProfile } from '../services/installationProfileService';
+import {
+  resetInstallationProfileCache,
+  resolveInstallationProfile,
+} from '../services/installationProfileService';
 import { resetCompactOwnerPublisherCache } from '../utils/compactOwnerPublisher';
 
 let runtimeProfile: InstallationProfile = getInstallationProfileFromEnv();
@@ -20,6 +23,7 @@ export function isStudioRuntime(): boolean {
 export async function warmInstallationRuntime(db?: {
   findFirst: (sql: string, params?: unknown[]) => Promise<{ setting_value?: string } | null>;
 }): Promise<InstallationProfile> {
+  resetInstallationProfileCache();
   runtimeProfile = await resolveInstallationProfile(db);
   resetCompactOwnerPublisherCache();
   return runtimeProfile;

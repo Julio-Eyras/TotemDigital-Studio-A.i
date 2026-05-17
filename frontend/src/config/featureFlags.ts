@@ -36,5 +36,5 @@ export const APP_DISPLAY_NAME = TOTEMDIGITAL_COMPACT
  * após o provider carregar `/api/dashboard/ui-context`.
  */
 /** Fallback de build; após ui-context usar capabilities.smartDisplayFx */
-export const SMARTDISPLAYFX_ENABLED = true;
+export const SMARTDISPLAYFX_ENABLED = !TOTEMDIGITAL_COMPACT;
 

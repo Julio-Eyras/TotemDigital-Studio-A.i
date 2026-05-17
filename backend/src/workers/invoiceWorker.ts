@@ -30,21 +30,10 @@ export class InvoiceWorker {
       }
     });
 
-    // Executar diariamente às 3h da manhã para marcar faturas vencidas
-    cron.schedule('0 3 * * *', async () => {
-      try {
-        await logInfo('Iniciando marcação de faturas vencidas', {});
-        const count = await this.invoiceService.markOverdueInvoices();
-        await logInfo('Marcação de faturas vencidas concluída', { count });
-      } catch (error: any) {
-        await logError('Erro no worker de faturas vencidas', error);
-      }
-    });
-
     logInfo('Invoice Worker iniciado', {
       schedules: [
         'Geração de faturas Stripe/assinaturas: 02:00 diariamente',
-        'Marcação de vencidas: 03:00 diariamente',
+        'Marcação de vencidas: FinancialBillingWorker (FINANCIAL_CRON_OVERDUE)',
         'Lembretes por e-mail: FinancialBillingWorker (FINANCIAL_CRON_REMINDERS)',
       ],
     });

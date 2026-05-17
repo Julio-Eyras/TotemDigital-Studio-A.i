@@ -37,6 +37,6 @@ export function defaultInstallationCapabilities(): InstallationCapabilities {
     bullExportQueues: !compact,
     subdomainTenancy: !compact,
     subscriberPortal: !compact,
-    smartDisplayFx: true,
+    smartDisplayFx: !compact,
   };
 }
