@@ -521,6 +521,19 @@ BEGIN
         RETURN;
     END IF;
 
+    -- Studio/mono: um único publisher owner da instalação
+    IF v_is_compact THEN
+        UPDATE publishers SET is_system_owner = false, updated_at = CURRENT_TIMESTAMP
+        WHERE is_system_owner = true AND publisher_id IS DISTINCT FROM v_target_publisher_id;
+        UPDATE publishers SET is_system_owner = true, updated_at = CURRENT_TIMESTAMP
+        WHERE publisher_id = v_target_publisher_id;
+        INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description)
+        VALUES ('installation.profile', 'single_publisher', 'string', 'system', 'Perfil de instalação (mono)')
+        ON CONFLICT (setting_key) DO UPDATE SET
+            setting_value = EXCLUDED.setting_value,
+            updated_at = CURRENT_TIMESTAMP;
+    END IF;
+
     -- Admin responsável pelos contratos
     SELECT id INTO v_admin_id FROM users WHERE username = '${admin_sql}' LIMIT 1;
     IF v_admin_id IS NULL THEN

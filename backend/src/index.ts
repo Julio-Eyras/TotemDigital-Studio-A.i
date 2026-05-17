@@ -789,14 +789,13 @@ async function startServer() {
     // Registrar rotas da API conforme perfil (compacto/pro)
     await logInfo('Registrando rotas da API...');
     registerCompactRoutes(app);
-    if (TOTEMDIGITAL_COMPACT) {
-      const { registerCompactProParityRoutes } = await import('./startup/registerCompactProParityRoutes');
-      registerCompactProParityRoutes(app);
-      await logInfo('Modo compacto: rotas Pro de paridade registadas (API alinhada ao dono/admin)');
-    } else {
-      const { registerProRoutes } = await import('./startup/registerProRoutes');
-      registerProRoutes(app);
-    }
+    const { registerExtendedApiRoutes } = await import('./startup/registerExtendedApiRoutes');
+    registerExtendedApiRoutes(app);
+    await logInfo(
+      TOTEMDIGITAL_COMPACT
+        ? 'Modo Studio: rotas API base + estendidas registadas'
+        : 'Modo Pro: rotas API base + estendidas registadas'
+    );
 
     // Handlers finais: obrigatório depois das rotas API (registradas acima de forma assíncrona).
     app.use('*', (req, res) => {

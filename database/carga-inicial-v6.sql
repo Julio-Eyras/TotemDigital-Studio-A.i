@@ -28,9 +28,12 @@ END $$;
 -- Obrigatório antes de publisher_contracts (FK fk_publisher_contracts_publisher).
 -- prepare_seed_with_owner_profile (install) substitui totemdigital.* / Totem Digital / Encruzilhada.
 -- =============================================
-INSERT INTO publishers (publisher_id, name, contact_name, email, phone, whatsapp, category_segment, description, is_subscriber, is_publisher, client_type, is_active) VALUES
-(1, 'totem digital', 'Contato Totem Digital', 'contato@totemdigital.local', NULL, NULL, 'Totens', 'Publisher Totem Digital - Encruzilhada', false, true, 'publisher', true)
+INSERT INTO publishers (publisher_id, name, contact_name, email, phone, whatsapp, category_segment, description, is_subscriber, is_publisher, client_type, is_active, is_system_owner) VALUES
+(1, 'totem digital', 'Contato Totem Digital', 'contato@totemdigital.local', NULL, NULL, 'Totens', 'Publisher Totem Digital - Encruzilhada', false, true, 'publisher', true, true)
 ON CONFLICT (publisher_id) DO NOTHING;
+
+UPDATE publishers SET is_system_owner = true, updated_at = CURRENT_TIMESTAMP
+WHERE publisher_id = 1 AND is_system_owner IS DISTINCT FROM true;
 
 -- =============================================
 -- 1 SUBSCRIBER (assinante com contrato no plano do publisher)
@@ -72,6 +75,7 @@ ON CONFLICT DO NOTHING;
 INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description) VALUES
 ('app.name', 'SmartSignage', 'string', 'system', 'Nome da aplicação'),
 ('app.version', '2.0.0', 'string', 'system', 'Versão'),
+('installation.profile', 'single_publisher', 'string', 'system', 'Perfil de instalação: single_publisher (Studio/mono) ou multi_agency (Pro)'),
 ('dispatcher.cache_ttl_seconds', '300', 'number', 'dispatcher', 'TTL cache dispatcher'),
 ('dispatcher.cache_enabled', 'true', 'boolean', 'dispatcher', 'Cache dispatcher'),
 ('media.upload.max_size', '2GB', 'string', 'media', 'Tamanho máximo por arquivo de mídia (0 = sem limite no Multer; Express/Nginx usam teto 2G quando 0)'),

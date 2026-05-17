@@ -56,6 +56,8 @@ CREATE TABLE IF NOT EXISTS publishers (
     client_type TEXT NOT NULL DEFAULT 'publisher', -- fixo
     
     is_active BOOLEAN DEFAULT true,
+    -- Publisher dono da instalação (mono / Smart Signage Studio); no máximo um por base
+    is_system_owner BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
@@ -73,6 +75,15 @@ COMMENT ON COLUMN publishers.category_segment IS 'Categoria/segmento do publishe
 COMMENT ON COLUMN publishers.is_subscriber IS 'Fixado: false (publisher não pode ser subscriber)';
 COMMENT ON COLUMN publishers.is_publisher IS 'Fixado: true';
 COMMENT ON COLUMN publishers.client_type IS 'Fixado: publisher';
+COMMENT ON COLUMN publishers.is_system_owner IS 'True para o exibidor dono da instalação (perfil single_publisher)';
+
+-- Idempotente em bases já provisionadas
+ALTER TABLE IF EXISTS publishers
+    ADD COLUMN IF NOT EXISTS is_system_owner BOOLEAN NOT NULL DEFAULT false;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_publishers_single_system_owner
+    ON publishers (is_system_owner)
+    WHERE is_system_owner = true;
 
 -- =============================================
 -- ROLES (sem mudanças)

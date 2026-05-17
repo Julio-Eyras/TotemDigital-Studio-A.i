@@ -7,8 +7,12 @@ import { logError } from '../utils/loggerHelper';
 import { errorResponse } from '../utils/apiResponse';
 import { assertTenantClientParamAccess, resolvePublisherIdFromRequest } from '../utils/tenantClientAccess';
 import { isAdminRole, resolveTenantScope } from '../utils/tenantScope';
-import { DISABLE_DIRECT_CAMPAIGN_TOTEM, TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { DISABLE_DIRECT_CAMPAIGN_TOTEM } from '../config/featureFlags';
 import { DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT } from '../constants/campaignDeliveryPolicy';
+import {
+  buildInstallationCapabilities,
+} from '../policy/installationPolicy';
+import { resolveInstallationCapabilities } from '../services/installationProfileService';
 
 const router = express.Router();
 
@@ -105,20 +109,28 @@ router.get('/charts', async (req: any, res: any) => {
  * @route GET /api/dashboard/ui-context
  * @desc Sinalizadores de produto alinhados ao servidor (campanhas, modo compacto). Usado pela UI de campanhas.
  */
-router.get('/ui-context', (_req: any, res: any) => {
-  res.json({
-    disableDirectCampaignTotem: DISABLE_DIRECT_CAMPAIGN_TOTEM,
-    totemDigitalCompact: TOTEMDIGITAL_COMPACT,
-    directCampaignTotemHint: DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT,
-    capabilities: {
-      publisherBillingForAdmins: true,
-      stripeSubscriptions: true,
-      playlistMixWorker: true,
-      playlistEngineWorker: true,
-      alertCron: true,
-      bullExportQueues: !TOTEMDIGITAL_COMPACT,
-    },
-  });
+router.get('/ui-context', async (_req: any, res: any) => {
+  try {
+    const { createDatabaseWrapper } = await import('../config/database-pg');
+    const db = createDatabaseWrapper();
+    const capabilities = await resolveInstallationCapabilities(db);
+    res.json({
+      disableDirectCampaignTotem: DISABLE_DIRECT_CAMPAIGN_TOTEM,
+      totemDigitalCompact: capabilities.totemDigitalCompact,
+      installationProfile: capabilities.profile,
+      directCampaignTotemHint: DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT,
+      capabilities,
+    });
+  } catch {
+    const capabilities = buildInstallationCapabilities();
+    res.json({
+      disableDirectCampaignTotem: DISABLE_DIRECT_CAMPAIGN_TOTEM,
+      totemDigitalCompact: capabilities.totemDigitalCompact,
+      installationProfile: capabilities.profile,
+      directCampaignTotemHint: DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT,
+      capabilities,
+    });
+  }
 });
 
 /**
