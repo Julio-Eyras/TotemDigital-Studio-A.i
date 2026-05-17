@@ -99,10 +99,19 @@ export class FinancialAdminService {
     publisherId?: number;
     publisherContractId?: number;
     dueInDays?: number;
+    includeRevenueSharePayouts?: boolean;
+    revenueShareSinceDays?: number;
   }): Promise<IssueInvoicesResult> {
     const subscriber = await this.issueSubscriberContractInvoices(options);
     const publisher = await this.issuePublisherContractInvoices(options);
-    const merged = this.mergeIssueResults(subscriber, publisher);
+    let merged = this.mergeIssueResults(subscriber, publisher);
+    if (options?.includeRevenueSharePayouts) {
+      const repasse = await this.issueRevenueSharePayouts({
+        publisherId: options.publisherId,
+        sinceDays: options.revenueShareSinceDays,
+      });
+      merged = this.mergeIssueResults(merged, repasse);
+    }
     await logInfo('Emissão financeira consolidada (anunciante + exibidor)', {
       created: merged.created,
       skipped: merged.skipped,
@@ -387,6 +396,144 @@ export class FinancialAdminService {
       return result;
     } catch (error: any) {
       await logError('Erro na emissão de faturas por contrato (exibidor)', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Gera repasses (outgoing) para exibidor com base em faturas de campanha já pagas pelo anunciante.
+   * Usa % de campaign_publishers ou do contrato de exibidor (revenue_share / hybrid).
+   */
+  async issueRevenueSharePayouts(options?: {
+    publisherId?: number;
+    sinceDays?: number;
+  }): Promise<IssueInvoicesResult> {
+    const sinceDays = options?.sinceDays ?? 90;
+    const result: IssueInvoicesResult = { created: 0, skipped: 0, errors: [], invoices: [] };
+    const billingService = getPublisherBillingServiceInstance();
+
+    try {
+      const params: number[] = [sinceDays];
+      let publisherFilter = '';
+      if (options?.publisherId) {
+        params.push(options.publisherId);
+        publisherFilter = ` AND cp.publisher_id = $${params.length}`;
+      }
+
+      const rows = await this.db.findMany(
+        `
+        SELECT
+          sb.billing_id,
+          sb.campaign_id,
+          sb.amount::numeric AS campaign_amount,
+          sb.paid_at,
+          cp.publisher_id,
+          pc.contract_id,
+          COALESCE(cp.revenue_share_percentage, pc.revenue_share_percentage) AS share_pct,
+          pc.minimum_payout_amount,
+          c.title AS campaign_title
+        FROM subscriber_billing sb
+        INNER JOIN campaigns c ON c.campaign_id = sb.campaign_id
+        INNER JOIN campaign_publishers cp ON cp.campaign_id = sb.campaign_id AND cp.is_active = true
+        INNER JOIN publisher_contracts pc ON pc.publisher_id = cp.publisher_id
+          AND pc.status = 'active'
+          AND pc.contract_type IN ('revenue_share', 'hybrid')
+          AND (pc.end_date IS NULL OR pc.end_date >= CURRENT_DATE)
+          AND (pc.start_date IS NULL OR pc.start_date <= CURRENT_DATE)
+        WHERE sb.payment_status = 'paid'
+          AND sb.campaign_id IS NOT NULL
+          AND sb.paid_at IS NOT NULL
+          AND sb.paid_at >= CURRENT_DATE - ($1::int * INTERVAL '1 day')
+          AND COALESCE(cp.revenue_share_percentage, pc.revenue_share_percentage, 0) > 0
+          ${publisherFilter}
+        ORDER BY sb.billing_id
+      `,
+        params
+      );
+
+      for (const row of rows) {
+        const sourceBillingId = Number(row.billing_id);
+        const publisherId = Number(row.publisher_id);
+        const contractId = Number(row.contract_id);
+        const campaignId = Number(row.campaign_id);
+        const pct = parseFloat(String(row.share_pct || '0'));
+        const original = parseFloat(String(row.campaign_amount || '0'));
+
+        if (!pct || pct <= 0 || !original || original <= 0) {
+          result.skipped++;
+          continue;
+        }
+
+        const publisherShare = Math.round(((original * pct) / 100) * 100) / 100;
+        const platformFee = Math.round((original - publisherShare) * 100) / 100;
+        const minPayout = parseFloat(String(row.minimum_payout_amount || '0'));
+        if (minPayout > 0 && publisherShare < minPayout) {
+          result.skipped++;
+          continue;
+        }
+
+        const existing = await this.db.findFirst(
+          `
+          SELECT billing_id FROM publisher_billing
+          WHERE publisher_id = $1
+            AND billing_type = 'revenue_share'
+            AND metadata->>'sourceSubscriberBillingId' = $2
+          LIMIT 1
+        `,
+          [publisherId, String(sourceBillingId)]
+        );
+        if (existing?.billing_id) {
+          result.skipped++;
+          continue;
+        }
+
+        try {
+          const invoiceNumber = `REP-${publisherId}-SB${sourceBillingId}`.slice(0, 60);
+          const billing = await billingService.createBilling({
+            publisherId,
+            contractId,
+            campaignId,
+            billingType: 'revenue_share',
+            amount: publisherShare,
+            currency: 'BRL',
+            direction: 'outgoing',
+            revenueSharePercentage: pct,
+            originalCampaignAmount: original,
+            platformFeeAmount: platformFee,
+            publisherShareAmount: publisherShare,
+            description: `Repasse ${pct}% — ${row.campaign_title || 'Campanha'}`,
+            dueDate: this.computeDueDate(14),
+            paymentStatus: 'pending_payout',
+            metadata: {
+              sourceSubscriberBillingId: sourceBillingId,
+              paidAt: row.paid_at,
+              invoiceNumber,
+            },
+          });
+
+          result.created++;
+          result.invoices.push({
+            billingId: billing.billingId,
+            contractId,
+            invoiceNumber,
+          });
+        } catch (e: any) {
+          result.errors.push({
+            contractId,
+            message: e?.message || `Erro repasse campanha ${campaignId}`,
+          });
+        }
+      }
+
+      await logInfo('Emissão de repasses revenue share concluída', {
+        created: result.created,
+        skipped: result.skipped,
+        errors: result.errors.length,
+      });
+
+      return result;
+    } catch (error: any) {
+      await logError('Erro na emissão de repasses revenue share', error);
       throw error;
     }
   }

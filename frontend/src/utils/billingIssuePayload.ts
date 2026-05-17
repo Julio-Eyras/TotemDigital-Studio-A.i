@@ -7,6 +7,7 @@ export interface IssueInvoicesFormState {
   publisherId: string;
   publisherContractId: string;
   dueInDays: string;
+  includeRevenueSharePayouts: boolean;
 }
 
 export interface IssueInvoicesApiPayload {
@@ -15,6 +16,7 @@ export interface IssueInvoicesApiPayload {
   publisherId?: number;
   publisherContractId?: number;
   dueInDays?: number;
+  includeRevenueSharePayouts?: boolean;
 }
 
 export function parseOptionalPositiveInt(raw: string): number | undefined {
@@ -45,6 +47,10 @@ export function buildIssueInvoicesPayload(form: IssueInvoicesFormState): IssueIn
     const publisherContractId = parseOptionalPositiveInt(form.publisherContractId);
     if (publisherId) payload.publisherId = publisherId;
     if (publisherContractId) payload.publisherContractId = publisherContractId;
+  }
+
+  if (form.includeRevenueSharePayouts) {
+    payload.includeRevenueSharePayouts = true;
   }
 
   return payload;

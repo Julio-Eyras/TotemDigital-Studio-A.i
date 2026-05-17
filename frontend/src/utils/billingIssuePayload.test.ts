@@ -7,6 +7,7 @@ describe('buildIssueInvoicesPayload', () => {
     publisherId: '',
     publisherContractId: '',
     dueInDays: '',
+    includeRevenueSharePayouts: false,
   };
 
   it('emite vazio para escopo all sem filtros', () => {
@@ -34,6 +35,16 @@ describe('buildIssueInvoicesPayload', () => {
         publisherContractId: '5',
       })
     ).toEqual({ publisherId: 1, publisherContractId: 5 });
+  });
+
+  it('inclui flag de revenue share quando marcado', () => {
+    expect(
+      buildIssueInvoicesPayload({
+        ...base,
+        scope: 'publisher',
+        includeRevenueSharePayouts: true,
+      })
+    ).toEqual({ includeRevenueSharePayouts: true });
   });
 
   it('escopo all aceita IDs opcionais de ambos os lados', () => {

@@ -4211,6 +4211,8 @@ export const financialAdminApi = {
     publisherId?: number;
     publisherContractId?: number;
     dueInDays?: number;
+    includeRevenueSharePayouts?: boolean;
+    revenueShareSinceDays?: number;
   }): Promise<{
     created: number;
     skipped: number;

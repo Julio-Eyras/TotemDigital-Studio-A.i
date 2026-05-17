@@ -67,13 +67,14 @@ describe('POST /api/financial-admin/issue-invoices', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(mockIssueContractInvoices).toHaveBeenCalledWith({
-      subscriberId: undefined,
-      contractId: undefined,
-      publisherId: 3,
-      publisherContractId: 12,
-      dueInDays: 15,
-    });
+    expect(mockIssueContractInvoices).toHaveBeenCalledWith(
+      expect.objectContaining({
+        publisherId: 3,
+        publisherContractId: 12,
+        dueInDays: 15,
+        includeRevenueSharePayouts: false,
+      })
+    );
   });
 
   it('rejeita publisherId inválido', async () => {

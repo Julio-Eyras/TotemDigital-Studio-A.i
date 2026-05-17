@@ -77,7 +77,7 @@ Use após `git pull` na branch `Smart-Signage-Studio-V3x`, aplicar schema/seeds 
 
 - [ ] Admin/owner: `GET /api/publisher-billing/:id` responde **200** (não 403)
 - [ ] `publisher_user` do exibidor owner acede ao seu faturamento
-- [ ] **Emitir faturas do período** (diálogo): escopo todos/anunciantes/exibidor; seletores de anunciante/exibidor e contratos ativos (não só IDs manuais)
+- [ ] **Emitir faturas do período** (diálogo): escopo, seletores com pesquisa, contratos ativos; opcional **repasses revenue share** após campanhas pagas
 - [ ] Logs: **Financial Billing Worker** ativo; emissão automática sem erro crítico
 - [ ] Logs: **Invoice Worker** (Stripe) ativo; geração/marcação vencidas sem erro crítico
 - [ ] Logs: **Playlist Mix** e **Playlist Engine** workers iniciados

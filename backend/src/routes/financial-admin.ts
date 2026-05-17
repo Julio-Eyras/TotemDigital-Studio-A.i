@@ -38,6 +38,8 @@ router.post(
   body('publisherId').optional().isInt({ min: 1 }),
   body('publisherContractId').optional().isInt({ min: 1 }),
   body('dueInDays').optional().isInt({ min: 1, max: 90 }),
+  body('includeRevenueSharePayouts').optional().isBoolean(),
+  body('revenueShareSinceDays').optional().isInt({ min: 1, max: 365 }),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -47,10 +49,36 @@ router.post(
         publisherId: req.body.publisherId,
         publisherContractId: req.body.publisherContractId,
         dueInDays: req.body.dueInDays,
+        includeRevenueSharePayouts: req.body.includeRevenueSharePayouts === true,
+        revenueShareSinceDays: req.body.revenueShareSinceDays,
       });
       return res.json({ success: true, data });
     } catch (error: any) {
       await logError('Erro ao emitir faturas', error);
+      return res.status(500).json({ success: false, message: error.message || 'Erro interno' });
+    }
+  }
+);
+
+/**
+ * @route POST /api/financial-admin/issue-revenue-share-payouts
+ * @desc Repasses outgoing a partir de faturas de campanha pagas (anunciante)
+ */
+router.post(
+  '/issue-revenue-share-payouts',
+  authorizeRole(['owner_system', 'admin', 'admin_sql', 'operador_faturamento', 'gerente_financeiro']),
+  body('publisherId').optional().isInt({ min: 1 }),
+  body('sinceDays').optional().isInt({ min: 1, max: 365 }),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const data = await getFinancialAdminService().issueRevenueSharePayouts({
+        publisherId: req.body.publisherId,
+        sinceDays: req.body.sinceDays,
+      });
+      return res.json({ success: true, data });
+    } catch (error: any) {
+      await logError('Erro ao emitir repasses revenue share', error);
       return res.status(500).json({ success: false, message: error.message || 'Erro interno' });
     }
   }

@@ -1,14 +1,17 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
+  Checkbox,
   CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   FormControl,
+  FormControlLabel,
   InputLabel,
   MenuItem,
   Select,
@@ -39,6 +42,7 @@ const EMPTY_FORM: IssueInvoicesFormState = {
   publisherId: '',
   publisherContractId: '',
   dueInDays: '',
+  includeRevenueSharePayouts: false,
 };
 
 export interface IssueInvoicesDialogProps {
@@ -204,23 +208,23 @@ const IssueInvoicesDialog: React.FC<IssueInvoicesDialogProps> = ({
 
         {showSubscriberFields && (
           <>
-            <FormControl fullWidth margin="normal" disabled={issuing || loading}>
-              <InputLabel>Anunciante</InputLabel>
-              <Select
-                label="Anunciante"
-                value={form.subscriberId}
-                onChange={(e) =>
-                  setForm({ ...form, subscriberId: e.target.value, contractId: '' })
-                }
-              >
-                <MenuItem value="">Todos os anunciantes</MenuItem>
-                {subscribers.map((s) => (
-                  <MenuItem key={s.subscriber_id} value={String(s.subscriber_id)}>
-                    #{s.subscriber_id} — {s.name || 'Sem nome'}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Autocomplete
+              options={subscribers}
+              getOptionLabel={(s) => `#${s.subscriber_id} — ${s.name || 'Sem nome'}`}
+              value={subscribers.find((s) => String(s.subscriber_id) === form.subscriberId) ?? null}
+              onChange={(_e, value) =>
+                setForm({
+                  ...form,
+                  subscriberId: value ? String(value.subscriber_id) : '',
+                  contractId: '',
+                })
+              }
+              disabled={issuing || loading}
+              renderInput={(params) => (
+                <TextField {...params} label="Anunciante (opcional)" margin="normal" placeholder="Todos" />
+              )}
+              isOptionEqualToValue={(a, b) => a.subscriber_id === b.subscriber_id}
+            />
             <FormControl
               fullWidth
               margin="normal"
@@ -256,23 +260,23 @@ const IssueInvoicesDialog: React.FC<IssueInvoicesDialogProps> = ({
                 {isStudioMode() ? ' (Smart Signage Studio)' : ''}
               </Alert>
             ) : (
-              <FormControl fullWidth margin="normal" disabled={issuing || loading || lockPublisherId}>
-                <InputLabel>Exibidor</InputLabel>
-                <Select
-                  label="Exibidor"
-                  value={form.publisherId}
-                  onChange={(e) =>
-                    setForm({ ...form, publisherId: e.target.value, publisherContractId: '' })
-                  }
-                >
-                  <MenuItem value="">Todos os exibidores</MenuItem>
-                  {publishers.map((p) => (
-                    <MenuItem key={p.publisher_id} value={String(p.publisher_id)}>
-                      #{p.publisher_id} — {p.name || 'Sem nome'}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <Autocomplete
+                options={publishers}
+                getOptionLabel={(p) => `#${p.publisher_id} — ${p.name || 'Sem nome'}`}
+                value={publishers.find((p) => String(p.publisher_id) === form.publisherId) ?? null}
+                onChange={(_e, value) =>
+                  setForm({
+                    ...form,
+                    publisherId: value ? String(value.publisher_id) : '',
+                    publisherContractId: '',
+                  })
+                }
+                disabled={issuing || loading || lockPublisherId}
+                renderInput={(params) => (
+                  <TextField {...params} label="Exibidor (opcional)" margin="normal" placeholder="Todos" />
+                )}
+                isOptionEqualToValue={(a, b) => a.publisher_id === b.publisher_id}
+              />
             )}
             <FormControl
               fullWidth
@@ -321,6 +325,22 @@ const IssueInvoicesDialog: React.FC<IssueInvoicesDialogProps> = ({
           inputProps={{ inputMode: 'numeric', min: 1, max: 90 }}
           helperText="Padrão do sistema se vazio (ex.: 30 dias)"
         />
+
+        {(showPublisherFields || form.scope === 'all') && (
+          <FormControlLabel
+            sx={{ mt: 1 }}
+            control={
+              <Checkbox
+                checked={form.includeRevenueSharePayouts}
+                onChange={(e) =>
+                  setForm({ ...form, includeRevenueSharePayouts: e.target.checked })
+                }
+                disabled={issuing}
+              />
+            }
+            label="Gerar repasses revenue share (campanhas pagas pelo anunciante)"
+          />
+        )}
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={issuing}>
