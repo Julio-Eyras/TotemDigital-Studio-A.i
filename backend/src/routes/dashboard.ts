@@ -110,6 +110,14 @@ router.get('/ui-context', (_req: any, res: any) => {
     disableDirectCampaignTotem: DISABLE_DIRECT_CAMPAIGN_TOTEM,
     totemDigitalCompact: TOTEMDIGITAL_COMPACT,
     directCampaignTotemHint: DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT,
+    capabilities: {
+      publisherBillingForAdmins: true,
+      stripeSubscriptions: true,
+      playlistMixWorker: true,
+      playlistEngineWorker: true,
+      alertCron: true,
+      bullExportQueues: !TOTEMDIGITAL_COMPACT,
+    },
   });
 });
 

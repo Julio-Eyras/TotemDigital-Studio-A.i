@@ -26,7 +26,7 @@ export const DISABLE_DIRECT_CAMPAIGN_TOTEM = parseBoolean(
 
 /** Nome exibido no cabeçalho, login e separador do browser (build compacto vs Pro). */
 export const APP_DISPLAY_NAME = TOTEMDIGITAL_COMPACT
-  ? 'Smart Signage Compact'
+  ? 'Smart Signage Studio'
   : 'Smart Signage Pro';
 
 /**

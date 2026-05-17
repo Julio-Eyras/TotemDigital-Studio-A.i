@@ -15,7 +15,6 @@ import { assertTenantClientParamAccess, resolvePublisherIdFromRequest } from '..
 import { isAdminRole } from '../utils/tenantScope';
 import { authorizeBillingManagement } from '../middleware/billingAuthorization.middleware';
 import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
-import { compactPublisherBillingGuard } from '../middleware/compactPublisherBillingGuard';
 
 const normRole = (r: string | undefined) => String(r || '').trim().toLowerCase();
 
@@ -23,7 +22,6 @@ const router = Router();
 
 // Middleware de autenticação para todas as rotas
 router.use(authMiddleware);
-router.use(compactPublisherBillingGuard);
 
 // Lazy initialization
 function getPublisherBillingService(): PublisherBillingService {

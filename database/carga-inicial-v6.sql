@@ -107,7 +107,7 @@ DELETE FROM system_settings WHERE setting_key = 'media.allowed_types';
 --      por SYSTEM_OWNER_ADMIN_USERNAME (scripts/install-smartsignage.sh).
 -- =============================================
 INSERT INTO users (username, email, password_hash, first_name, last_name, name, phone, role, user_type, is_tenant_user, publisher_id, subscriber_id, is_active, email_verified) VALUES
-('totemdigital.admin', 'admin@smartsignage.local', '$2a$12$eenSYwwg9qOkcleFuH2lrOL5u3nAMN8MqQlsOQJh59mg16gcBu5A2', 'Admin', 'Sistema', 'Admin Sistema', NULL, 'admin', 'system_user', true, NULL, NULL, true, true)
+('totemdigital.admin', 'admin@smartsignage.local', '$2a$12$eenSYwwg9qOkcleFuH2lrOL5u3nAMN8MqQlsOQJh59mg16gcBu5A2', 'Admin', 'Sistema', 'Admin Sistema', NULL, 'admin', 'system_user', true, 1, NULL, true, true)
 
 ON CONFLICT (username) DO NOTHING;
 

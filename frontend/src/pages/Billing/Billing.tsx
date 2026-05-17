@@ -133,13 +133,6 @@ const Billing: React.FC = () => {
   /** Faturas incoming do exibidor: gestores ou publisher_user */
   const canPayPublisherInvoices = canCreateModernInvoices || isPublisherUser;
 
-  /**
-   * Mono compacto: dono/admin/operador de faturamento gere só faturas de anunciantes neste ecrã.
-   * `publisher_user` mantém acesso ao tipo "publisher" quando não é gestor global.
-   */
-  const compactBillingAdminOnly =
-    TOTEMDIGITAL_COMPACT && canViewAllBillingTypes && !isPublisherUser;
-
   const DUE_SOON_DAYS = 30;
   const rawType = searchParams.get('type');
   /** Escopo: anunciantes ou exibidor (sem legado "todos"). */
@@ -148,7 +141,6 @@ const Billing: React.FC = () => {
     if (isPublisherUser && !canViewAllBillingTypes) {
       return rawType === 'subscriber' || rawType === 'publisher' ? rawType : 'publisher';
     }
-    if (compactBillingAdminOnly) return 'subscriber';
     if (TOTEMDIGITAL_COMPACT) return rawType === 'publisher' ? 'publisher' : 'subscriber';
     return rawType === 'publisher' ? 'publisher' : 'subscriber';
   })();

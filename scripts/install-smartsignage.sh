@@ -527,6 +527,16 @@ BEGIN
         SELECT id INTO v_admin_id FROM users ORDER BY id ASC LIMIT 1;
     END IF;
 
+    -- Mono/Studio: dono/admin com publisher_id do exibidor owner (repasse/revenue share)
+    IF v_admin_id IS NOT NULL AND v_target_publisher_id IS NOT NULL THEN
+        UPDATE users
+        SET publisher_id = v_target_publisher_id,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = v_admin_id
+          AND role IN ('admin', 'owner_system', 'admin_sql', 'operador_faturamento')
+          AND (publisher_id IS NULL OR publisher_id IS DISTINCT FROM v_target_publisher_id);
+    END IF;
+
     -- Planos base
     INSERT INTO plans (name, slug, description, price_monthly, price_four_month, price_semester, price_yearly, currency, billing_interval, features, limits, is_active, is_popular, is_default, sort_order)
     VALUES
@@ -5587,7 +5597,8 @@ VALUES (
   '${admin_username}', '${admin_email}', '${admin_hash}',
   'Admin', 'Sistema', 'Administrador', NULL,
   'admin', 'system_user', true,
-  NULL, NULL,
+  (SELECT publisher_id FROM publishers WHERE is_active = true ORDER BY publisher_id ASC LIMIT 1),
+  NULL,
   true, true,
   NOW(), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 )
@@ -5601,7 +5612,7 @@ DO UPDATE SET
   role = EXCLUDED.role,
   user_type = EXCLUDED.user_type,
   is_tenant_user = EXCLUDED.is_tenant_user,
-  publisher_id = EXCLUDED.publisher_id,
+  publisher_id = COALESCE(users.publisher_id, EXCLUDED.publisher_id),
   subscriber_id = EXCLUDED.subscriber_id,
   is_active = EXCLUDED.is_active,
   email_verified = EXCLUDED.email_verified,

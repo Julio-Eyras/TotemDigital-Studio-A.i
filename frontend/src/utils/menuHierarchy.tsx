@@ -105,7 +105,7 @@ function filterHierarchicalMenu(
   return filtered;
 }
 
-/** Subitens de Faturamento e Cobrança (Pro inclui exibidores; compacto admin só anunciantes). */
+/** Subitens de Faturamento e Cobrança (anunciantes + exibidor/repasse quando includePublisher). */
 function getBillingMenuChildren(includePublisher: boolean): HierarchicalMenuItem[] {
   const children: HierarchicalMenuItem[] = [
     { text: 'Visão geral', icon: <Payment />, path: '/billing?view=plans' },
@@ -201,7 +201,12 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
         { text: 'Locais', icon: <LocationOn />, path: '/locals' },
         { text: 'Totens', icon: <Computer />, path: '/totems' },
         { text: 'Smart TVs', icon: <Tv />, path: '/smart-tvs' },
-        getBillingMenuBlock(false),
+        getBillingMenuBlock(true),
+        {
+          text: 'Contratos (Exibidores)',
+          icon: <Description />,
+          path: '/publisher-contracts',
+        },
         { text: 'Manutenção Usuário', icon: <People />, path: '/users' },
         { text: 'Tags', icon: <Assignment />, path: '/tags' },
         { text: 'QR-Codes', icon: <QrCode />, path: '/qr-codes' },
