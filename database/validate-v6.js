@@ -401,6 +401,13 @@ async function validateAndExecute() {
     console.log('✅ Validação concluída com sucesso!');
     console.log('📊 O banco está pronto para testes integrados.\n');
 
+    const strict =
+      process.env.VALIDATE_V6_STRICT === '1' || process.env.VALIDATE_V6_STRICT === 'true';
+    if (strict && (!financialOk || !studioOk)) {
+      console.error('❌ VALIDATE_V6_STRICT: validação financeira ou Studio falhou.');
+      process.exit(1);
+    }
+
   } catch (error) {
     console.error('❌ Erro ao executar script:', error.message);
     if (error.detail) {

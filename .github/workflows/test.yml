@@ -202,7 +202,7 @@ jobs:
       - name: Run frontend billingIntervals unit tests (Studio build profile)
         env:
           CI: true
-        run: npm test --prefix frontend -- --watchAll=false --testPathPattern=billingIntervals
+        run: npm test --prefix frontend -- --watchAll=false --testPathPattern="billingIntervals|billingIssuePayload"
 
   validate-v6-studio:
     name: validate v6 schema (Studio seeds)
@@ -228,22 +228,28 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Apply schema v2 (base tables)
-        env:
-          PGPASSWORD: postgres
-        run: |
-          for f in database/smartchannel-db-v2-refactored-part*.sql; do
-            psql -h localhost -U postgres -d smartsignage_validate -v ON_ERROR_STOP=1 -f "$f" || true
-          done
+      - name: Install Node deps (validate-v6)
+        run: npm ci --ignore-scripts
 
-      - name: Validate v6 seeds and Studio profile
+      - name: Apply schema v2 (ordered, fail on error)
+        env:
+          SKIP_CONFIRM: 'true'
+          DB_HOST: localhost
+          DB_PORT: '5432'
+          DB_NAME: smartsignage_validate
+          DB_USER: postgres
+          PGPASSWORD: postgres
+        working-directory: database
+        run: ./apply-schema-v2.sh
+
+      - name: Validate v6 seeds, Studio profile and financial columns
         env:
           DB_HOST: localhost
           DB_PORT: '5432'
           DB_NAME: smartsignage_validate
           DB_USER: postgres
           DB_PASSWORD: postgres
-          VALIDATE_V6_SKIP_LOAD: 'true'
+          VALIDATE_V6_STRICT: 'true'
         run: node database/validate-v6.js
 
       - name: Validate financial schema columns (Studio billing)
@@ -254,4 +260,13 @@ jobs:
           DB_USER: postgres
           PGPASSWORD: postgres
         run: ./scripts/validate-financial-schema.sh
+
+      - name: Studio finance smoke SQL (read-only)
+        env:
+          DB_HOST: localhost
+          DB_PORT: '5432'
+          DB_NAME: smartsignage_validate
+          DB_USER: postgres
+          PGPASSWORD: postgres
+        run: ./scripts/validate-studio-finance-smoke.sh
 
