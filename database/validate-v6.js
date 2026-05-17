@@ -268,7 +268,14 @@ async function validateAndExecute() {
       { table: 'subscriber_billing', column: 'contract_id' },
       { table: 'subscriber_billing', column: 'period_start' },
       { table: 'subscriber_billing', column: 'period_end' },
+      { table: 'subscriber_contracts', column: 'billing_interval' },
+      { table: 'publisher_contracts', column: 'billing_interval' },
       { table: 'publisher_billing', column: 'direction' },
+      { table: 'publisher_billing', column: 'contract_id' },
+      { table: 'publisher_billing', column: 'period_start' },
+      { table: 'publisher_billing', column: 'period_end' },
+      { table: 'plans', column: 'price_four_month' },
+      { table: 'plans', column: 'price_semester' },
     ];
     for (const col of columnChecks) {
       const result = await pool.query(

@@ -35,6 +35,8 @@ router.post(
   authorizeRole(['owner_system', 'admin', 'admin_sql', 'operador_faturamento', 'gerente_financeiro']),
   body('subscriberId').optional().isInt({ min: 1 }),
   body('contractId').optional().isInt({ min: 1 }),
+  body('publisherId').optional().isInt({ min: 1 }),
+  body('publisherContractId').optional().isInt({ min: 1 }),
   body('dueInDays').optional().isInt({ min: 1, max: 90 }),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
@@ -42,6 +44,8 @@ router.post(
       const data = await getFinancialAdminService().issueContractInvoices({
         subscriberId: req.body.subscriberId,
         contractId: req.body.contractId,
+        publisherId: req.body.publisherId,
+        publisherContractId: req.body.publisherContractId,
         dueInDays: req.body.dueInDays,
       });
       return res.json({ success: true, data });

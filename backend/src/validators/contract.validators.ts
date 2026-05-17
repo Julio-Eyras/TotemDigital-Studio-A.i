@@ -58,10 +58,18 @@ export const createPublisherContractValidators = [
  
   body('revenue_share_percentage').optional({ nullable: true }).isFloat({ min: 0, max: 100 }).withMessage('revenue_share_percentage deve ser entre 0 e 100'),
   body('minimum_payout_amount').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('minimum_payout_amount deve ser um número positivo'),
+  body('subscription_amount')
+    .optional({ nullable: true })
+    .isFloat({ min: 0 })
+    .withMessage('subscription_amount deve ser um número positivo'),
+  body('billing_interval')
+    .optional({ nullable: true })
+    .isIn(['month', 'four_month', 'semester', 'year'])
+    .withMessage('billing_interval inválido'),
   body('subscription_interval')
     .optional({ nullable: true })
     .isIn(['month', 'four_month', 'semester', 'year'])
-    .withMessage('subscription_interval inválido'),
+    .withMessage('subscription_interval inválido (legado; preferir billing_interval)'),
 ];
 
 /**
@@ -72,10 +80,18 @@ export const updatePublisherContractValidators = [
   body('status').optional({ nullable: true }).isIn(['draft', 'active', 'expired', 'terminated', 'cancelled']).withMessage('Status inválido'),
   body('revenue_share_percentage').optional({ nullable: true }).isFloat({ min: 0, max: 100 }).withMessage('revenue_share_percentage deve ser entre 0 e 100'),
   body('minimum_payout_amount').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('minimum_payout_amount deve ser um número positivo'),
+  body('subscription_amount')
+    .optional({ nullable: true })
+    .isFloat({ min: 0 })
+    .withMessage('subscription_amount deve ser um número positivo'),
+  body('billing_interval')
+    .optional({ nullable: true })
+    .isIn(['month', 'four_month', 'semester', 'year'])
+    .withMessage('billing_interval inválido'),
   body('subscription_interval')
     .optional({ nullable: true })
     .isIn(['month', 'four_month', 'semester', 'year'])
-    .withMessage('subscription_interval inválido'),
+    .withMessage('subscription_interval inválido (legado; preferir billing_interval)'),
 ];
 
 /**

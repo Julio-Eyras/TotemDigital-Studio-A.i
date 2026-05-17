@@ -34,6 +34,22 @@ FROM information_schema.columns
 WHERE table_schema = 'public' AND table_name = 'subscriber_billing'
   AND column_name IN ('contract_id', 'period_start', 'period_end', 'payment_status')
 ORDER BY 1;
+
+\echo '--- Colunas críticas publisher_contracts / publisher_billing ---'
+SELECT table_name, column_name, data_type
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND (
+    (table_name = 'publisher_contracts' AND column_name IN ('billing_interval', 'subscription_interval', 'subscription_amount'))
+    OR (table_name = 'publisher_billing' AND column_name IN ('contract_id', 'period_start', 'period_end', 'direction'))
+  )
+ORDER BY 1, 2;
+
+\echo '--- Planos: preços por intervalo ---'
+SELECT column_name FROM information_schema.columns
+WHERE table_schema = 'public' AND table_name = 'plans'
+  AND column_name IN ('price_four_month', 'price_semester', 'billing_interval')
+ORDER BY 1;
 SQL
 
-echo "OK — revise se overdue aparece em ambas as constraints."
+echo "OK — revise colunas Studio (billing_interval exibidor + períodos em publisher_billing)."
