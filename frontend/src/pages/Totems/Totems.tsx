@@ -36,10 +36,10 @@ import TotemRemoteControl from '../../components/TotemRemoteControl/TotemRemoteC
 import { useAppSelector } from '../../store';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
-import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import { getTotemIdFromRow, getTotemLocalIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { getLocalMenuItemSx, isStockLocal, orderLocalsForSelect } from '../../utils/localOrdering';
+import { isStudioMode } from '../../config/studioMode';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -198,7 +198,7 @@ const Totems: React.FC = () => {
   }, [normalizedRole]);
   /** Compacto: quem administra totens também pode cadastrar novos totens. */
   const canCreateTotem = useMemo(() => {
-    if (TOTEMDIGITAL_COMPACT) {
+    if (isStudioMode()) {
       return canAdministerTotems;
     }
     return (
@@ -270,7 +270,7 @@ const Totems: React.FC = () => {
     };
   }, [pendingTotems, totems]);
   const formatLocalLabel = (local: Local): string =>
-    TOTEMDIGITAL_COMPACT
+    isStudioMode()
       ? `${local.name}`
       : `${local.name}${local.publisher_name ? ` (${local.publisher_name})` : ''}`;
 
@@ -289,7 +289,7 @@ const Totems: React.FC = () => {
   }, [localFilter, locals, statusFilter]);
 
   useEffect(() => {
-    if (TOTEMDIGITAL_COMPACT && tabValue !== 0) {
+    if (isStudioMode() && tabValue !== 0) {
       setTabValue(0);
     }
   }, [tabValue]);
@@ -349,7 +349,7 @@ const Totems: React.FC = () => {
       setLoading(true);
       const [resp, pendingResp] = await Promise.all([
         totemApi.getAll({ limit: 5000 }),
-        TOTEMDIGITAL_COMPACT ? Promise.resolve({ data: [] as Player[] } as any) : totemApi.getPending()
+        isStudioMode() ? Promise.resolve({ data: [] as Player[] } as any) : totemApi.getPending()
       ]);
       const totemsData = Array.isArray(resp.data) ? [...resp.data] : [];
       totemsData.sort((a: any, b: any) => compareByDisplayName(a?.name || a?.identifier, b?.name || b?.identifier));
@@ -644,7 +644,7 @@ const Totems: React.FC = () => {
       <PageHeader
         title="Totens"
         subtitle={
-          TOTEMDIGITAL_COMPACT
+          isStudioMode()
             ? 'Gerencie totens da instalação'
             : 'Gerencie totens, aprovações e controle remoto'
         }
@@ -772,7 +772,7 @@ const Totems: React.FC = () => {
                   <MenuItem value="activation_pending">Ativação pendente</MenuItem>
                   <MenuItem value="pending_activation">Aguardando player</MenuItem>
                   <MenuItem value="deactivated">Desativado (cadastro)</MenuItem>
-                  {!TOTEMDIGITAL_COMPACT && <MenuItem value="pending_approval">Pendente</MenuItem>}
+                  {!isStudioMode() && <MenuItem value="pending_approval">Pendente</MenuItem>}
                 </Select>
                 {stockLocalFilterActive && (
                   <FormHelperText>
@@ -794,7 +794,7 @@ const Totems: React.FC = () => {
           allowScrollButtonsMobile
         >
           <Tab label="Todos os Totems" />
-          {!TOTEMDIGITAL_COMPACT && (
+          {!isStudioMode() && (
             <Tab 
               label={
                 <Badge badgeContent={pendingTotems.length} color="warning">
@@ -1001,7 +1001,7 @@ const Totems: React.FC = () => {
         </Grid>
       </TabPanel>
 
-      {!TOTEMDIGITAL_COMPACT && (
+      {!isStudioMode() && (
         <TabPanel value={tabValue} index={1}>
           <Alert severity="info" sx={{ mb: 3 }}>
             Totens <strong>pré-cadastrados</strong> pelo publisher que já <strong>vincularam hardware</strong> (conectaram pela primeira vez) e aguardam sua aprovação para ficarem ativos. Após aprovar, o totem poderá receber playlists.

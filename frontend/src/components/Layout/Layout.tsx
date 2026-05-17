@@ -61,7 +61,8 @@ import { setDarkTone, setTheme } from '../../store/slices/uiSlice';
 import { useSystemAlerts } from '../../services/api/queries';
 import { useFlags } from '../../hooks/useFlags';
 import NotificationCenter from '../Notification/NotificationCenter';
-import { APP_DISPLAY_NAME, TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
+import { isStudioMode } from '../../config/studioMode';
+import {APP_DISPLAY_NAME} from '../../config/featureFlags';
 import { buildAutoOpenMenus, menuKeyFromText, menuPathMatches } from '../../utils/menuPathMatch';
 
 const drawerWidth = 280;
@@ -152,7 +153,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   }, [location.pathname, location.search, user?.role]);
 
   const compactOwnerDisplayName = useMemo(() => {
-    if (!TOTEMDIGITAL_COMPACT) return APP_DISPLAY_NAME;
+    if (!isStudioMode()) return APP_DISPLAY_NAME;
     if (user?.role !== 'owner_system') return APP_DISPLAY_NAME;
 
     const fullName = [user?.first_name, user?.last_name].filter(Boolean).join(' ').trim();

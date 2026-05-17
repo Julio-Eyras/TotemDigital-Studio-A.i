@@ -9,7 +9,7 @@ import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middlewa
 import { param, query, body, validationResult } from 'express-validator';
 import { logError } from '../utils/loggerHelper';
 import { errorResponse } from '../utils/apiResponse';
-import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { isStudioRuntime } from '../config/installationRuntime';
 
 const router = Router();
 
@@ -28,7 +28,7 @@ const isAdminRole = (role?: string) =>
   ].includes(role || '');
 
 const getLocalsWriteRoles = () =>
-  TOTEMDIGITAL_COMPACT
+  isStudioRuntime()
     ? [
         'admin',
         'admin_sql',
@@ -41,7 +41,7 @@ const getLocalsWriteRoles = () =>
     : ['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial'];
 
 const getLocalsUpdateRoles = () =>
-  TOTEMDIGITAL_COMPACT
+  isStudioRuntime()
     ? [
         'admin',
         'admin_sql',
@@ -210,7 +210,7 @@ router.post('/',
       const { publisher_id, contract_id, name, category_segment, address, city, state, zip_code, country, latitude, longitude, timezone, description } = req.body;
       
       // Fora do compacto, publisher_id é obrigatório.
-      if (!TOTEMDIGITAL_COMPACT && !publisher_id) {
+      if (!isStudioRuntime() && !publisher_id) {
         return res.status(400).json({
           error: 'Dados inválidos',
           details: [{ msg: 'publisher_id é obrigatório. Locais pertencem apenas a publishers.' }]

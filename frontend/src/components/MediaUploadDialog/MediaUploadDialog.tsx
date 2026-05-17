@@ -30,10 +30,10 @@ import {
   Close,
 } from '@mui/icons-material';
 import { mediaApi, CreateMediaRequest, Client, subscriberApi, Subscriber } from '../../services/api';
-import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import { validateFileSize, validateFileType, VALIDATION_CONSTANTS } from '../../utils/validation';
 import { useNotification } from '../../hooks/useNotification';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { isStudioMode } from '../../config/studioMode';
 
 interface UploadDialogProps {
   open: boolean;
@@ -151,7 +151,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
     setFiles(prev => [...prev, ...validFiles]);
     
     // Validar limites e storage se subscriberId estiver definido (API Pro)
-    if (!TOTEMDIGITAL_COMPACT && formData.subscriberId && validFiles.length > 0) {
+    if (!isStudioMode() && formData.subscriberId && validFiles.length > 0) {
       try {
         // Validar storage (soma de todos os arquivos)
         const totalSize = validFiles.reduce((sum, file) => sum + file.size, 0);
@@ -200,13 +200,13 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
     }
 
     // Validar subscriberId (Pro); no compacto o backend pode aceitar só contexto admin
-    if (!formData.subscriberId && !TOTEMDIGITAL_COMPACT) {
+    if (!formData.subscriberId && !isStudioMode()) {
       setError('É necessário selecionar um subscriber (anunciante)');
       return;
     }
 
     // Validações prévias (API subscriber — não disponível no perfil compacto)
-    if (!TOTEMDIGITAL_COMPACT && formData.subscriberId) {
+    if (!isStudioMode() && formData.subscriberId) {
       try {
         const totalSize = files.reduce((sum, file) => sum + file.size, 0);
         const storageValidation = await subscriberApi.validateStorage(formData.subscriberId, totalSize);

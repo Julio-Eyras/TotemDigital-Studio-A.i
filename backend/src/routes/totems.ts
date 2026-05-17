@@ -10,7 +10,7 @@ import { validateRequest } from '../middleware/validation.middleware';
 import { body, param, query } from 'express-validator';
 import { logError, logWarn, logInfo } from '../utils/loggerHelper';
 import { getDatabase } from '../config/database';
-import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { isStudioRuntime } from '../config/installationRuntime';
 import { getTotemCreateRoles } from '../utils/totemCreateRoles';
 
 const router = Router();
@@ -23,12 +23,12 @@ const isAdminRole = (role?: string) =>
   ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial'].includes(role || '');
 
 const getTotemApproveRoles = () =>
-  TOTEMDIGITAL_COMPACT
+  isStudioRuntime()
     ? ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial', 'publisher_user']
     : ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial'];
 
 const getTotemUpdateRoles = () =>
-  TOTEMDIGITAL_COMPACT
+  isStudioRuntime()
     ? [
         'admin',
         'admin_sql',
@@ -637,7 +637,7 @@ router.put('/:id/approve',
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      if (TOTEMDIGITAL_COMPACT) {
+      if (isStudioRuntime()) {
         return res.status(400).json({
           error: 'Modo compacto: aprovação manual de totem não é necessária.'
         });

@@ -11,10 +11,10 @@ import CommandPaletteWrapper from './components/Navigation/CommandPalette/Comman
 import { useRateLimit } from './hooks/useRateLimit';
 import { useCommandPalette } from './hooks/useCommandPalette';
 import { useAppDispatch, useAppSelector } from './store/hooks';
-import { TOTEMDIGITAL_COMPACT } from './config/featureFlags';
 import { InstallationCapabilitiesProvider, useInstallationCapabilities } from './contexts/InstallationCapabilitiesContext';
 import { canAccess } from './utils/rolePermissions';
 import { setTheme, setDarkTone } from './store/slices/uiSlice';
+import { isStudioMode } from './config/studioMode';
 
 // Pages
 import LoginPage from './pages/Auth/LoginPage';
@@ -72,7 +72,7 @@ const PublisherContracts = React.lazy(() => import('./pages/PublisherContracts/P
  * Detecta o tipo de subdomínio da requisição
  */
 const detectSubdomainType = (): 'publisher' | 'subscriber' | 'main' => {
-  if (TOTEMDIGITAL_COMPACT) return 'main';
+  if (isStudioMode()) return 'main';
   if (typeof window === 'undefined') return 'main';
   
   const hostname = window.location.hostname;

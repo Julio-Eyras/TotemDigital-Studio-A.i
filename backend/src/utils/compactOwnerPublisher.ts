@@ -1,9 +1,13 @@
-import { isSinglePublisherInstallation } from '../policy/installationPolicy';
+import { isStudioRuntime } from '../config/installationRuntime';
 
 let cachedOwnerPublisherId: number | null | undefined;
 
+export function resetCompactOwnerPublisherCache(): void {
+  cachedOwnerPublisherId = undefined;
+}
+
 export async function resolveCompactOwnerPublisherId(db: any): Promise<number | undefined> {
-  if (!isSinglePublisherInstallation()) return undefined;
+  if (!isStudioRuntime()) return undefined;
   if (cachedOwnerPublisherId !== undefined) return cachedOwnerPublisherId ?? undefined;
 
   const systemOwner = await db.findFirst(
@@ -59,7 +63,7 @@ export async function resolveCompactOwnerPublisherId(db: any): Promise<number | 
 }
 
 export async function assertCompactOwnerPublisher(db: any, publisherId: number, context: string): Promise<void> {
-  if (!isSinglePublisherInstallation()) return;
+  if (!isStudioRuntime()) return;
 
   const ownerPublisherId = await resolveCompactOwnerPublisherId(db);
   if (!ownerPublisherId) {

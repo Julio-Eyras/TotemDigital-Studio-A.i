@@ -49,7 +49,8 @@ import {
   DashboardUiContext,
 } from '../../services/api';
 import { useAppSelector } from '../../store/hooks';
-import { TOTEMDIGITAL_COMPACT, DISABLE_DIRECT_CAMPAIGN_TOTEM } from '../../config/featureFlags';
+import { isStudioMode } from '../../config/studioMode';
+import {DISABLE_DIRECT_CAMPAIGN_TOTEM} from '../../config/featureFlags';
 import { DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT_PT } from '../../constants/campaignUiMessages';
 import { SortableList } from '../../components/SortableList/SortableList';
 import {
@@ -81,7 +82,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
     user?.role === 'owner_system';
   const userSubscriberId = user?.subscriberId;
 
-  const compactMode = TOTEMDIGITAL_COMPACT;
+  const compactMode = isStudioMode();
   const tabTotems = compactMode ? 1 : 2;
   const tabSmartTvs = 3;
   const tabMedias = compactMode ? 2 : 4;

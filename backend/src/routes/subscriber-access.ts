@@ -12,7 +12,7 @@ import { getSubscriberAccessServiceInstance } from '../services/subscriberAccess
 import { logError, logInfo } from '../utils/loggerHelper';
 import { getReconcileService } from '../services/reconcileService';
 import { getDatabase } from '../config/database';
-import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { isStudioRuntime } from '../config/installationRuntime';
 import { resolveCompactOwnerPublisherId } from '../utils/compactOwnerPublisher';
 import { isAdminRole } from '../utils/tenantScope';
 
@@ -29,7 +29,7 @@ const router = Router();
 router.use(authMiddleware);
 
 export async function resolveCompactScopedPublisherId(requestedPublisherId: number): Promise<number> {
-  if (!TOTEMDIGITAL_COMPACT) return requestedPublisherId;
+  if (!isStudioRuntime()) return requestedPublisherId;
 
   const ownerPublisherId = await resolveCompactOwnerPublisherId(getDatabase());
   if (!ownerPublisherId) {

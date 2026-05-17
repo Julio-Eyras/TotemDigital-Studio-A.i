@@ -50,9 +50,9 @@ import {
 import { totemPlaylistApi, TotemPlaylist, TotemPlaylistListItem, TotemPlaylistItem } from '../../services/api';
 import { totemApi, Player } from '../../services/api';
 import { Publisher } from '../../services/api';
-import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 import { getForeignTotemIdFromRow, getPublisherIdFromRow, getTotemIdFromRow } from '../../utils/totemRowIds';
+import { isStudioMode } from '../../config/studioMode';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -119,7 +119,7 @@ const TotemPlayListPage: React.FC = () => {
           : [];
 
       setTotems(totemsData);
-      if (!TOTEMDIGITAL_COMPACT) {
+      if (!isStudioMode()) {
         const { publisherApi } = await import('../../services/api');
         const publishersRes = await publisherApi.getAll({ active_only: true });
         const publishersData = Array.isArray((publishersRes as any)?.data)
@@ -216,11 +216,11 @@ const TotemPlayListPage: React.FC = () => {
     { label: 'Lista de Totens', icon: Tv },
     { label: 'Timeline/Grade', icon: Schedule, disabled: !selectedPlaylist },
     {
-      label: TOTEMDIGITAL_COMPACT ? 'Detalhes' : 'Detalhes de Anunciantes',
+      label: isStudioMode() ? 'Detalhes' : 'Detalhes de Anunciantes',
       icon: Business,
       disabled: !selectedPlaylist,
     },
-    ...(!TOTEMDIGITAL_COMPACT
+    ...(!isStudioMode()
       ? [{ label: 'Validações', icon: CheckCircle, disabled: !selectedPlaylist }]
       : []),
   ] as const;
@@ -251,7 +251,7 @@ const TotemPlayListPage: React.FC = () => {
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Grid container spacing={2}>
-            {!TOTEMDIGITAL_COMPACT && (
+            {!isStudioMode() && (
             <Grid item xs={12} sm={6} md={4}>
               <FormControl fullWidth>
                 <InputLabel id="totem-playlists-filter-publisher-label">Publicador</InputLabel>
@@ -324,7 +324,7 @@ const TotemPlayListPage: React.FC = () => {
           ) : playlists.length === 0 ? (
             <Alert severity="info">
               <Typography variant="subtitle2" fontWeight="bold" gutterBottom>Nenhuma playlist encontrada</Typography>
-              {TOTEMDIGITAL_COMPACT ? (
+              {isStudioMode() ? (
                 <Typography variant="body2" component="div">
                   No TotemDigital, a <strong>playlist consolidada</strong> do totem é criada quando há conteúdo para o motor processar: por exemplo <strong>campanha ativa</strong> com este totem associado (e mídias/playlists válidas), ou após usar <strong>Regenerar</strong> quando já existir dados para esse totem. Se ainda não configurou campanhas, comece em <strong>Campanhas</strong> ou associe mídias/playlists ao fluxo do totem. O dispatcher usa esta lista como fallback quando não há plano só de campanha.
                 </Typography>
@@ -352,7 +352,7 @@ const TotemPlayListPage: React.FC = () => {
                             <Tv fontSize="small" />
                             {playlist.totem_name || `Totem #${playlist.totem_id}`}
                           </Typography>
-                          {!TOTEMDIGITAL_COMPACT && (
+                          {!isStudioMode() && (
                             <Typography variant="body2" color="text.secondary">
                               {playlist.publisher_name || `Publisher #${playlist.publisher_id}`}
                             </Typography>
@@ -467,9 +467,9 @@ const TotemPlayListPage: React.FC = () => {
           {selectedPlaylist ? (
             <Box>
               <Typography variant="h6" gutterBottom>
-                {TOTEMDIGITAL_COMPACT ? 'Detalhes da playlist' : 'Detalhes por Anunciante'}
+                {isStudioMode() ? 'Detalhes da playlist' : 'Detalhes por Anunciante'}
               </Typography>
-              {TOTEMDIGITAL_COMPACT ? (
+              {isStudioMode() ? (
                 <Alert severity="info" sx={{ mb: 2 }}>
                   Lista técnica dos itens consolidados neste totem (origem campanha, mídias, etc.). Use o separador <strong>Timeline/Grade</strong> para a ordem de exibição.
                 </Alert>
@@ -484,7 +484,7 @@ const TotemPlayListPage: React.FC = () => {
           )}
         </TabPanel>
 
-        {!TOTEMDIGITAL_COMPACT && (
+        {!isStudioMode() && (
           <TabPanel value={tabValue} index={3}>
             {selectedPlaylist ? (
               <Box>

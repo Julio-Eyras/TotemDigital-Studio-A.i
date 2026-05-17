@@ -13,7 +13,7 @@ import { logError } from '../utils/loggerHelper';
 import { assertTenantClientParamAccess, resolvePublisherIdFromRequest } from '../utils/tenantClientAccess';
 import { isAdminRole } from '../utils/tenantScope';
 import { authorizeBillingManagement } from '../middleware/billingAuthorization.middleware';
-import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { isStudioRuntime } from '../config/installationRuntime';
 
 const router = Router();
 
@@ -273,7 +273,7 @@ router.post('/',
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
-      if (TOTEMDIGITAL_COMPACT && normRole(req.user?.role) === 'publisher_user') {
+      if (isStudioRuntime() && normRole(req.user?.role) === 'publisher_user') {
         try {
           await assertTenantClientParamAccess(req, Number(req.body.subscriberId));
         } catch (e: any) {
@@ -326,7 +326,7 @@ router.put('/:id',
         });
       }
 
-      if (TOTEMDIGITAL_COMPACT && normRole(req.user?.role) === 'publisher_user') {
+      if (isStudioRuntime() && normRole(req.user?.role) === 'publisher_user') {
         try {
           await assertTenantClientParamAccess(req, Number(existing.subscriberId));
         } catch (e: any) {

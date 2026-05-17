@@ -54,10 +54,10 @@ import {
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { useAppSelector } from '../../store/hooks';
 import { useLocation } from 'react-router-dom';
-import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { PlaylistCard, PlaylistDetails } from './components';
+import { isStudioMode } from '../../config/studioMode';
 
 const compareByDisplayName = (a?: string, b?: string) =>
   String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
@@ -123,7 +123,7 @@ const Playlists: React.FC = () => {
   }, [canSelectSubscriber, selectedSubscriberId, searchTerm]);
 
   useEffect(() => {
-    if (!TOTEMDIGITAL_COMPACT || !playlists.length) return;
+    if (!isStudioMode() || !playlists.length) return;
     const first = playlists.find((p) => p.subscriber_id ?? p.client_id);
     const sid = first?.subscriber_id ?? first?.client_id;
     if (typeof sid === 'number' && !Number.isNaN(sid)) {
@@ -202,9 +202,9 @@ const Playlists: React.FC = () => {
   const getTargetSubscriberIdForMedia = (): number | undefined => {
     if (editorMode === 'edit' && selectedPlaylist) return selectedPlaylist.subscriber_id || selectedPlaylist.client_id;
     if (editorMode === 'create') {
-      return draft.subscriberId || userSubscriberId || (TOTEMDIGITAL_COMPACT ? implicitSubscriberId : undefined);
+      return draft.subscriberId || userSubscriberId || (isStudioMode() ? implicitSubscriberId : undefined);
     }
-    return userSubscriberId || (TOTEMDIGITAL_COMPACT ? implicitSubscriberId : undefined);
+    return userSubscriberId || (isStudioMode() ? implicitSubscriberId : undefined);
   };
 
   const loadMediaItems = async () => {
@@ -259,8 +259,8 @@ const Playlists: React.FC = () => {
     setPlaylistCampaigns([]);
     setPlaylistExposure(null);
     setDraft({
-      subscriberId: userSubscriberId ?? (TOTEMDIGITAL_COMPACT ? implicitSubscriberId : undefined),
-      clientId: userSubscriberId ?? (TOTEMDIGITAL_COMPACT ? implicitSubscriberId : undefined),
+      subscriberId: userSubscriberId ?? (isStudioMode() ? implicitSubscriberId : undefined),
+      clientId: userSubscriberId ?? (isStudioMode() ? implicitSubscriberId : undefined),
       name: '',
       description: '',
     });
@@ -294,14 +294,14 @@ const Playlists: React.FC = () => {
   const handleCreatePlaylist = async () => {
     try {
       setError(null);
-      const targetSubscriberId = TOTEMDIGITAL_COMPACT
+      const targetSubscriberId = isStudioMode()
         ? draft.subscriberId || userSubscriberId || implicitSubscriberId
         : canSelectSubscriber
           ? draft.subscriberId || userSubscriberId
           : userSubscriberId;
       if (!targetSubscriberId) {
         setError(
-          TOTEMDIGITAL_COMPACT
+          isStudioMode()
             ? 'Não foi possível inferir o subscriber. Crie uma playlist ou mídia associada a um subscriber no banco (seed) ou defina subscriber no utilizador.'
             : 'É necessário selecionar um subscriber (anunciante) para criar a playlist.'
         );
@@ -331,7 +331,7 @@ const Playlists: React.FC = () => {
     if (!selectedPlaylist) return;
     try {
       setError(null);
-      const targetSubscriberId = TOTEMDIGITAL_COMPACT
+      const targetSubscriberId = isStudioMode()
         ? selectedPlaylist.subscriber_id || selectedPlaylist.client_id || userSubscriberId || implicitSubscriberId
         : canSelectSubscriber
           ? selectedPlaylist.subscriber_id || selectedPlaylist.client_id || userSubscriberId
@@ -466,13 +466,13 @@ const Playlists: React.FC = () => {
       <PageHeader
         title="Playlists"
         subtitle={
-          TOTEMDIGITAL_COMPACT
+          isStudioMode()
             ? 'Playlists consolidadas por subscriber no modelo de dados; no TotemDigital o filtro multi-subscriber não usa a API de assinantes.'
             : 'Playlists pertencem a um subscriber e contêm mídias; campanhas apontam para playlists.'
         }
         breadcrumbs={breadcrumbs}
         actions={
-          TOTEMDIGITAL_COMPACT
+          isStudioMode()
             ? []
             : [
                 {
@@ -571,7 +571,7 @@ const Playlists: React.FC = () => {
             <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 3 }}>
               Comece criando suas primeiras playlists
             </Typography>
-            {!TOTEMDIGITAL_COMPACT && (
+            {!isStudioMode() && (
               <Button variant="contained" startIcon={<Add />} onClick={openCreate}>
                 Criar Primeira Playlist
               </Button>
@@ -811,7 +811,7 @@ const Playlists: React.FC = () => {
               ) : (
                 <>
                   <Alert severity="info" sx={{ mb: 2 }}>
-                    {TOTEMDIGITAL_COMPACT
+                    {isStudioMode()
                       ? 'Exposição derivada via campanhas → locais → totems → smart TVs (para entendimento/diagnóstico).'
                       : 'Exposição derivada via campanhas → publishers → locals → totems → smart TVs (para entendimento/diagnóstico).'}
                   </Alert>
@@ -825,7 +825,7 @@ const Playlists: React.FC = () => {
                   >
                     <Tab label="Datas" />
                     <Tab label="Horas" />
-                    <Tab label={TOTEMDIGITAL_COMPACT ? 'Locais' : 'Publishers'} />
+                    <Tab label={isStudioMode() ? 'Locais' : 'Publishers'} />
                     <Tab label="Totens" />
                     <Tab label="Smart TVs" />
                   </Tabs>
@@ -929,12 +929,12 @@ const Playlists: React.FC = () => {
                         <ListItem key={p.publisher_id}>
                           <ListItemText
                             primary={p.name}
-                            secondary={TOTEMDIGITAL_COMPACT ? undefined : `publisher_id: ${p.publisher_id}`}
+                            secondary={isStudioMode() ? undefined : `publisher_id: ${p.publisher_id}`}
                           />
                         </ListItem>
                       ))}
                       {(playlistExposure?.publishers || []).length === 0 && (
-                        <Alert severity="info">{TOTEMDIGITAL_COMPACT ? 'Sem locais.' : 'Sem publishers.'}</Alert>
+                        <Alert severity="info">{isStudioMode() ? 'Sem locais.' : 'Sem publishers.'}</Alert>
                       )}
                     </List>
                   )}

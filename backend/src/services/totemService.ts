@@ -13,7 +13,7 @@ import { getCacheService } from './cacheService';
 import { getTotemPlaylistMixService } from './totemPlaylistMixService';
 import type { PoolClient } from 'pg';
 import { assertCompactOwnerPublisher } from '../utils/compactOwnerPublisher';
-import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { isStudioRuntime } from '../config/installationRuntime';
 import { resolveCompactOwnerPublisherId } from '../utils/compactOwnerPublisher';
 import { userMayCreateTotem } from '../utils/totemCreateRoles';
 
@@ -216,7 +216,7 @@ export class TotemService {
     isAdmin: boolean = false
   ): Promise<number | undefined> {
     if (isAdmin) return undefined;
-    if (TOTEMDIGITAL_COMPACT) {
+    if (isStudioRuntime()) {
       const ownerPublisherId = await resolveCompactOwnerPublisherId(this.db);
       if (!ownerPublisherId) {
         throw new Error('Modo compacto: publisher do owner não encontrado para aplicar escopo.');
@@ -828,7 +828,7 @@ export class TotemService {
 
     // Executar operações críticas dentro de transação
     const isStockLocal = isStockLocalRecord(local);
-    const initialStatus = isStockLocal ? 'offline' : (TOTEMDIGITAL_COMPACT ? 'offline' : 'pending_approval');
+    const initialStatus = isStockLocal ? 'offline' : (isStudioRuntime() ? 'offline' : 'pending_approval');
     const initialIsActive = isStockLocal ? false : Boolean(isActive);
     return await transaction(async (client) => {
       // Criar totem (dentro da transação)

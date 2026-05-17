@@ -68,10 +68,10 @@ import {
   PublisherContract,
 } from '../../services/api';
 import { useAppSelector } from '../../store';
-import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import { getForeignTotemIdFromRow, getTotemIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { PageHeader } from '../../components/DataDisplay';
+import { isStudioMode } from '../../config/studioMode';
 
 const Locals: React.FC = () => {
   const theme = useTheme();
@@ -95,13 +95,13 @@ const Locals: React.FC = () => {
   );
   /** Criar/apagar local: no modo compacto inclui usuário do exibidor (alinha com edição). Demais modos: só administrativo. */
   const canManageLocals = useMemo(() => {
-    if (TOTEMDIGITAL_COMPACT) {
+    if (isStudioMode()) {
       return isAdmin || ['operator', 'manager', 'publisher_user'].includes(normalizedRole);
     }
     return isAdmin;
   }, [isAdmin, normalizedRole]);
   const canEditLocals = useMemo(() => {
-    if (TOTEMDIGITAL_COMPACT) {
+    if (isStudioMode()) {
       return isAdmin || ['operator', 'manager', 'publisher_user'].includes(normalizedRole);
     }
     return isAdmin;
@@ -171,7 +171,7 @@ const Locals: React.FC = () => {
 
   useEffect(() => {
     loadLocals();
-    if (isAdmin && !TOTEMDIGITAL_COMPACT) {
+    if (isAdmin && !isStudioMode()) {
       loadPublishers();
     }
   }, [publisherFilter, activeOnlyFilter, isAdmin]);
@@ -219,7 +219,7 @@ const Locals: React.FC = () => {
       
       // Em modo compacto há publisher único; ordenar apenas por nome.
       const sortedLocals = [...response.data].sort((a, b) => {
-        if (TOTEMDIGITAL_COMPACT) {
+        if (isStudioMode()) {
           return (a.name || '').localeCompare(b.name || '');
         }
         const publisherCompare = (a.publisher_name || '').localeCompare(b.publisher_name || '');
@@ -254,7 +254,7 @@ const Locals: React.FC = () => {
 
   const handleCreateLocal = async () => {
     try {
-      if (!TOTEMDIGITAL_COMPACT && !newLocal.publisher_id) {
+      if (!isStudioMode() && !newLocal.publisher_id) {
         setError('Selecione um publisher');
         return;
       }
@@ -262,7 +262,7 @@ const Locals: React.FC = () => {
         setError('Nome é obrigatório');
         return;
       }
-      const payload: CreateLocalRequest = TOTEMDIGITAL_COMPACT
+      const payload: CreateLocalRequest = isStudioMode()
         ? {
             ...newLocal,
             name: String(newLocal.name).trim(),
@@ -375,13 +375,13 @@ const Locals: React.FC = () => {
   const handleOpenDetailsDialog = async (local: Local) => {
     setSelectedLocal(local);
     setDetailsDialogOpen(true);
-    setDetailsTab(TOTEMDIGITAL_COMPACT ? 0 : 1);
+    setDetailsTab(isStudioMode() ? 0 : 1);
     setLoadingDetails(true);
     setSmartTvDetailsAvailable(true);
     
     try {
       // Carregar dados do Publisher
-      if (!TOTEMDIGITAL_COMPACT && local.publisher_id) {
+      if (!isStudioMode() && local.publisher_id) {
         try {
           const publisher = await publisherApi.getById(local.publisher_id);
           setSelectedPublisher(publisher);
@@ -446,11 +446,11 @@ const Locals: React.FC = () => {
     acc[publisherName].push(local);
     return acc;
   }, {} as Record<string, Local[]>);
-  const showPublisherFilter = isAdmin && !TOTEMDIGITAL_COMPACT;
-  const localSections: Array<[string, Local[]]> = TOTEMDIGITAL_COMPACT
+  const showPublisherFilter = isAdmin && !isStudioMode();
+  const localSections: Array<[string, Local[]]> = isStudioMode()
     ? [['Locais', locals]]
     : Object.entries(groupedLocals);
-  const detailsTabIndex = TOTEMDIGITAL_COMPACT
+  const detailsTabIndex = isStudioMode()
     ? { local: 0, totems: 1, smartTvs: 2, contracts: 3 }
     : { publisher: 0, local: 1, totems: 2, smartTvs: 3, contracts: 4 };
 
@@ -467,7 +467,7 @@ const Locals: React.FC = () => {
       <PageHeader
         title="Locais"
         subtitle={
-          TOTEMDIGITAL_COMPACT
+          isStudioMode()
             ? 'Gerencie os locais da instalação'
             : 'Gerencie locais vinculados aos Veículos de Mídia (Publicadores)'
         }
@@ -558,7 +558,7 @@ const Locals: React.FC = () => {
       {/* Listagem (modo compacto: lista plana; modo Pro: agrupada por Publisher) */}
       {localSections.map(([publisherName, publisherLocals]) => (
         <Box key={publisherName} sx={{ mb: 4 }}>
-          {!TOTEMDIGITAL_COMPACT && (
+          {!isStudioMode() && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }}>
               <Business color="primary" />
               <Typography variant="h5" component="h2" sx={{ fontWeight: 'bold' }}>
@@ -672,12 +672,12 @@ const Locals: React.FC = () => {
         <DialogTitle>Criar Novo Local</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-            {canManageLocals && TOTEMDIGITAL_COMPACT && (
+            {canManageLocals && isStudioMode() && (
               <Alert severity="info">
                 No modo compacto, o local será vinculado ao publisher da instalação (owner).
               </Alert>
             )}
-            {isAdmin && !TOTEMDIGITAL_COMPACT && (
+            {isAdmin && !isStudioMode() && (
               <FormControl fullWidth>
                 <InputLabel>Publicador *</InputLabel>
                 <Select
@@ -801,7 +801,7 @@ const Locals: React.FC = () => {
                 allowScrollButtonsMobile
                 sx={{ mb: 2 }}
               >
-                {!TOTEMDIGITAL_COMPACT && <Tab label="Publicadores" icon={<Business />} iconPosition="start" />}
+                {!isStudioMode() && <Tab label="Publicadores" icon={<Business />} iconPosition="start" />}
                 <Tab label="Local" icon={<Store />} iconPosition="start" />
                 <Tab label="Totens" icon={selectedTotems.length > 0 ? <Chip label={selectedTotems.length} size="small" color="primary" /> : <Computer />} iconPosition="end" />
                 <Tab label="Smart TVs" icon={selectedSmartTvs.length > 0 ? <Chip label={selectedSmartTvs.length} size="small" color="primary" /> : <Tv />} iconPosition="end" />
@@ -809,7 +809,7 @@ const Locals: React.FC = () => {
               </Tabs>
 
               {/* Aba Publisher */}
-              {!TOTEMDIGITAL_COMPACT && detailsTab === detailsTabIndex.publisher && selectedPublisher && (
+              {!isStudioMode() && detailsTab === detailsTabIndex.publisher && selectedPublisher && (
                 <TableContainer component={Paper}>
                   <Table size="small">
                     <TableBody>
@@ -1023,7 +1023,7 @@ const Locals: React.FC = () => {
                 <Box>
                   {selectedContracts.length === 0 ? (
                     <Alert severity="info">
-                      {TOTEMDIGITAL_COMPACT
+                      {isStudioMode()
                         ? 'Nenhum contrato encontrado para esta instalação'
                         : 'Nenhum contrato encontrado para este publisher'}
                     </Alert>

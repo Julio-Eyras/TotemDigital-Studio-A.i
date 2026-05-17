@@ -37,7 +37,8 @@ import {
   Shuffle,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { DASHBOARD_COMMERCIAL_FOCUS, TOTEMDIGITAL_COMPACT } from '../../../config/featureFlags';
+import { isStudioMode } from '../../../config/studioMode';
+import {DASHBOARD_COMMERCIAL_FOCUS} from '../../../config/featureFlags';
 
 export interface CommandItem {
   id: string;
@@ -403,7 +404,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   const commandItems = useMemo(
     () =>
       items ??
-      (TOTEMDIGITAL_COMPACT
+      (isStudioMode()
         ? compactCommandItems
         : DASHBOARD_COMMERCIAL_FOCUS
           ? commercialFocusProCommandItems

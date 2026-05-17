@@ -1,6 +1,6 @@
 import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
-import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { isStudioRuntime } from '../config/installationRuntime';
 import { userMayCreateTotem } from '../utils/totemCreateRoles';
 
 export interface Player {
@@ -199,7 +199,7 @@ export class PlayerService {
         }
       }
 
-      const initialStatus = TOTEMDIGITAL_COMPACT ? 'offline' : 'pending_approval';
+      const initialStatus = isStudioRuntime() ? 'offline' : 'pending_approval';
       const result = await this.db.executeRaw(`
         INSERT INTO totems (
           name,

@@ -49,7 +49,8 @@ import { dashboardApi } from '../../services/api';
 import type { QuickPublishPreset } from '../../services/api';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
-import { DASHBOARD_COMMERCIAL_FOCUS, TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
+import { isStudioMode } from '../../config/studioMode';
+import {DASHBOARD_COMMERCIAL_FOCUS} from '../../config/featureFlags';
 
 interface AdvertiserOverviewStats {
   totalSubscribers: number;
@@ -171,7 +172,7 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const breadcrumbs = useBreadcrumbs();
   /** Compacto sempre comercial; Pro pode ativar REACT_APP_DASHBOARD_COMMERCIAL_FOCUS. */
-  const dashboardCommercialFocus = TOTEMDIGITAL_COMPACT || DASHBOARD_COMMERCIAL_FOCUS;
+  const dashboardCommercialFocus = isStudioMode() || DASHBOARD_COMMERCIAL_FOCUS;
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [activities, setActivities] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);

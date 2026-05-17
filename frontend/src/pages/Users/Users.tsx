@@ -50,7 +50,7 @@ import {
 import { userApi, User, CreateUserRequest, UserFlags, publisherApi, Publisher, subscriberApi, Subscriber } from '../../services/api';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
-import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
+import { isStudioMode } from '../../config/studioMode';
 
 const USER_TYPE_LABEL_PT: Record<string, string> = {
   publisher_user: 'Usuário do exibidor',
@@ -353,7 +353,7 @@ const Users: React.FC = () => {
                 <TableCell>Email</TableCell>
                 <TableCell>Função</TableCell>
                 <TableCell>Tipo</TableCell>
-                <TableCell>{TOTEMDIGITAL_COMPACT ? 'Escopo' : 'Publicador / Anunciante'}</TableCell>
+                <TableCell>{isStudioMode() ? 'Escopo' : 'Publicador / Anunciante'}</TableCell>
                 <TableCell>Último Login</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell align="right">Ações</TableCell>
@@ -412,7 +412,7 @@ const Users: React.FC = () => {
                       {user.publisher_id && (
                         <Chip
                           label={
-                            TOTEMDIGITAL_COMPACT
+                            isStudioMode()
                               ? 'Instalação principal'
                               : `Publicador #${user.publisher_id}`
                           }

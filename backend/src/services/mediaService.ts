@@ -17,7 +17,7 @@ import { StorageService } from './storageService';
 import { getCacheService } from './cacheService';
 import { logError, logWarn } from '../utils/loggerHelper';
 import { normalizeDownloadUrl, generateThumbnailUrl } from '../utils/pathHelper';
-import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { isStudioRuntime } from '../config/installationRuntime';
 
 const execFileAsync = promisify(execFile);
 
@@ -657,8 +657,8 @@ export class MediaService {
       }
 
       // Modo TotemDigital compacto: mídia entra já aprovada (menos passos no PoC / instalação única).
-      const initialStatus = TOTEMDIGITAL_COMPACT ? 'approved' : 'draft';
-      const approvedByInitial = TOTEMDIGITAL_COMPACT ? createdBy : null;
+      const initialStatus = isStudioRuntime() ? 'approved' : 'draft';
+      const approvedByInitial = isStudioRuntime() ? createdBy : null;
 
       // Criar registro no banco (schema v2). Trigger sync_media_approval_status preenche approval_status / approved_at.
       const result = await this.db.executeRaw(`

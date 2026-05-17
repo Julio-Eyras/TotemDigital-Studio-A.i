@@ -56,7 +56,8 @@ import {
   dashboardApi,
   DashboardUiContext,
 } from '../../../services/api';
-import { TOTEMDIGITAL_COMPACT, DISABLE_DIRECT_CAMPAIGN_TOTEM } from '../../../config/featureFlags';
+import { isStudioMode } from '../../../config/studioMode';
+import {DISABLE_DIRECT_CAMPAIGN_TOTEM} from '../../../config/featureFlags';
 import { DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT_PT } from '../../../constants/campaignUiMessages';
 import { getTotemIdFromRow } from '../../../utils/totemRowIds';
 
@@ -208,7 +209,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
 
       // Publishers (Pro)
       if (
-        !TOTEMDIGITAL_COMPACT &&
+        !isStudioMode() &&
         (campaign as any).publisherIds &&
         (campaign as any).publisherIds.length > 0
       ) {
@@ -231,7 +232,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
         .map((x: any) => Number(x))
         .filter((id: number) => !Number.isNaN(id) && id > 0);
       if (explicitTotemIds.length > 0) {
-        if (TOTEMDIGITAL_COMPACT) {
+        if (isStudioMode()) {
           promises.push(
             Promise.all(
               explicitTotemIds.map((id) => totemApi.getById(id).catch(() => ({ totem_id: id, name: `Totem ${id}` })))
@@ -247,7 +248,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
           );
         }
       } else if (
-        !TOTEMDIGITAL_COMPACT &&
+        !isStudioMode() &&
         (campaign as any).publisherIds &&
         (campaign as any).publisherIds.length > 0
       ) {
@@ -331,7 +332,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
             }
             iconPosition="end"
           />
-          {!TOTEMDIGITAL_COMPACT && <Tab label="Publicadores" />}
+          {!isStudioMode() && <Tab label="Publicadores" />}
           <Tab
             label="Totens"
             icon={
@@ -513,7 +514,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
         )}
 
         {/* Aba Publicadores */}
-        {!TOTEMDIGITAL_COMPACT && activeTab === 3 && (
+        {!isStudioMode() && activeTab === 3 && (
           <Box>
             <Typography variant="h6" sx={{ mb: 2 }}>
               Publicadores ({(campaign as any).publisherIds?.length || 0})
@@ -543,7 +544,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
         )}
 
         {/* Aba Totens */}
-        {activeTab === (TOTEMDIGITAL_COMPACT ? 3 : 4) && (
+        {activeTab === (isStudioMode() ? 3 : 4) && (
           <Box>
             <Typography variant="h6" sx={{ mb: 2 }}>
               Totens (
@@ -557,7 +558,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
             (!Array.isArray((campaign as any).totemIds) || (campaign as any).totemIds.length === 0) &&
             (!Array.isArray((campaign as any).totem_ids) || (campaign as any).totem_ids.length === 0) ? (
               <Alert severity="info">
-                {TOTEMDIGITAL_COMPACT
+                {isStudioMode()
                   ? 'Nenhum totem associado explicitamente a esta campanha.'
                   : 'Nenhum totem associado explicitamente. Totens impactados serão derivados dos publicadores selecionados na aba «Publicadores».'}
               </Alert>

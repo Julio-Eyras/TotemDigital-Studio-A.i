@@ -11,7 +11,8 @@
  */
 
 import { getDatabase } from '../config/database';
-import { DISABLE_DIRECT_CAMPAIGN_TOTEM, TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { DISABLE_DIRECT_CAMPAIGN_TOTEM } from '../config/featureFlags';
+import { isStudioRuntime } from '../config/installationRuntime';
 import { logError, logDebug } from '../utils/loggerHelper';
 import { normalizeDownloadUrl } from '../utils/pathHelper';
 import { getCacheService } from './cacheService';
@@ -1581,7 +1582,7 @@ export class DispatcherTotemService {
       // 1. Acesso comercial subscriber ↔ totem (publisher/local)
       if (candidate.subscriberId) {
         const usePlanInsteadOfSpa =
-          TOTEMDIGITAL_COMPACT &&
+          isStudioRuntime() &&
           candidate.contractId != null &&
           !Number.isNaN(Number(candidate.contractId));
 

@@ -758,7 +758,7 @@ async function startServer() {
   try {
     await logInfo('Iniciando Smart Signage v2.1...');
     if (TOTEMDIGITAL_COMPACT) {
-      await logInfo('Modo TotemDigital compacto ativo (mono; dono/admin com paridade de API Pro onde aplicável)');
+      await logInfo('Smart Signage Studio: perfil mono (single_publisher); paridade API Pro onde aplicável');
     }
     
     // Inicializar database PRIMEIRO (necessário para carregar configurações de mídia)
@@ -800,8 +800,9 @@ async function startServer() {
     registerCompactRoutes(app);
     const { registerExtendedApiRoutes } = await import('./startup/registerExtendedApiRoutes');
     registerExtendedApiRoutes(app);
+    const { isStudioRuntime: studioAtBoot } = await import('./config/installationRuntime');
     await logInfo(
-      TOTEMDIGITAL_COMPACT
+      studioAtBoot()
         ? 'Modo Studio: rotas API base + estendidas registadas'
         : 'Modo Pro: rotas API base + estendidas registadas'
     );
@@ -836,7 +837,8 @@ async function startServer() {
       await logInfo('Redis desabilitado (CACHE_ENABLED=false), continuando sem cache e filas');
     }
 
-    if (TOTEMDIGITAL_COMPACT) {
+    const { isStudioRuntime } = await import('./config/installationRuntime');
+    if (isStudioRuntime()) {
       const { initializeCompactStartup } = await import('./startup/startupCompact');
       await initializeCompactStartup({ redisEnabled: config.redis.enabled });
     } else {

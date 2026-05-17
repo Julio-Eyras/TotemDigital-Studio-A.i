@@ -9,14 +9,14 @@ import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middlewa
 import { getDispatcherTotemService } from '../services/dispatcherTotemService';
 import { logError } from '../utils/loggerHelper';
 import { idParamValidator } from '../validators/common.validators';
-import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { isStudioRuntime } from '../config/installationRuntime';
 
 const router = Router();
 
 // Middleware de autenticação
 router.use(authMiddleware);
 
-const DISPATCHER_TOTEM_TECH_ROLES = TOTEMDIGITAL_COMPACT
+const DISPATCHER_TOTEM_TECH_ROLES = isStudioRuntime()
   ? (['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial', 'publisher_user'] as const)
   : (['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial'] as const);
 

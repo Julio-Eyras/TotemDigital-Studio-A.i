@@ -1,9 +1,9 @@
+import { isStudioMode } from '../config/studioMode';
 /**
  * Role Permissions Utility
  * Define quais recursos cada role pode acessar
  */
 
-import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
 
 export type UserRole = 
   | 'owner_system' 
@@ -166,12 +166,12 @@ export function canAccess(
   }
 
   // Modo compacto: operador de faturamento usa o menu administrativo completo (paridade com dono na navegação)
-  if (TOTEMDIGITAL_COMPACT && userRole === 'operador_faturamento') {
+  if (isStudioMode() && userRole === 'operador_faturamento') {
     return true;
   }
 
   // Modo compacto mono: o publicador dono acede ao dispatcher/monitorização sem depender de flag_smart_2
-  if (TOTEMDIGITAL_COMPACT && userRole === 'publisher_user') {
+  if (isStudioMode() && userRole === 'publisher_user') {
     if (
       pathForPermission === '/dispatcher-manager' ||
       pathForPermission === '/dispatcher-monitor' ||

@@ -1,4 +1,4 @@
-import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { isStudioRuntime } from '../config/installationRuntime';
 
 const norm = (r: string | undefined) => String(r || '').trim().toLowerCase();
 
@@ -28,7 +28,7 @@ export function getTotemCreateRolesForProfile(compact: boolean): string[] {
  * PRO: operadores, publisher_user, gerente_marketing e subscriber_user (integrações legadas).
  */
 export function getTotemCreateRoles(): string[] {
-  return getTotemCreateRolesForProfile(TOTEMDIGITAL_COMPACT);
+  return getTotemCreateRolesForProfile(isStudioRuntime());
 }
 
 /**

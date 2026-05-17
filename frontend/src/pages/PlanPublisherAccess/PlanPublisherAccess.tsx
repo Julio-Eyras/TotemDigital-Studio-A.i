@@ -60,7 +60,6 @@ import { planApi, Plan, CreatePlanRequest, UpdatePlanRequest } from '../../servi
 import { publisherApi, Publisher } from '../../services/api';
 import { subscriberAccessApi, PlanPublisherAccess } from '../../services/api';
 import { totemApi, Player, localApi, Local } from '../../services/api';
-import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import { PageHeader } from '../../components/DataDisplay';
 import {
   BILLING_INTERVAL_OPTIONS,
@@ -73,6 +72,7 @@ import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionN
 import { getTotemIdFromRow, getTotemLocalIdFromRow, getTotemPublisherIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { getLocalMenuItemSx, orderLocalsForSelect } from '../../utils/localOrdering';
+import { isStudioMode } from '../../config/studioMode';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -146,11 +146,11 @@ const normalizePositiveIntArray = (value: unknown): number[] => {
 const PlanPublisherAccessPage: React.FC = () => {
   const theme = useTheme();
   const isMobileNav = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
-  const publisherEntityLabel = TOTEMDIGITAL_COMPACT ? 'Local' : 'Publisher';
-  const accessEntityLabel = TOTEMDIGITAL_COMPACT ? 'Local' : publisherEntityLabel;
-  const publishersOfPlanLabel = TOTEMDIGITAL_COMPACT ? 'Locais do Plano' : 'Publishers do Plano';
-  const maintenanceTabLabel = TOTEMDIGITAL_COMPACT ? 'Manutenção de Locais' : 'Manutenção de Publicadores';
-  const addPublisherLabel = TOTEMDIGITAL_COMPACT ? 'Adicionar Local ao Plano' : 'Adicionar Publisher ao Plano';
+  const publisherEntityLabel = isStudioMode() ? 'Local' : 'Publisher';
+  const accessEntityLabel = isStudioMode() ? 'Local' : publisherEntityLabel;
+  const publishersOfPlanLabel = isStudioMode() ? 'Locais do Plano' : 'Publishers do Plano';
+  const maintenanceTabLabel = isStudioMode() ? 'Manutenção de Locais' : 'Manutenção de Publicadores';
+  const addPublisherLabel = isStudioMode() ? 'Adicionar Local ao Plano' : 'Adicionar Publisher ao Plano';
   const [tabValue, setTabValue] = useState(0);
   
   // Estados comuns
@@ -244,7 +244,7 @@ const PlanPublisherAccessPage: React.FC = () => {
       setPlans(plansRes || []);
       setPublishers(publishersRes.data || []);
 
-      if (TOTEMDIGITAL_COMPACT) {
+      if (isStudioMode()) {
         try {
           const [totemRes, localsRes] = await Promise.all([
             totemApi.getAll({ limit: 2000, page: 1 }),
@@ -328,7 +328,7 @@ const PlanPublisherAccessPage: React.FC = () => {
           restrictions: access.restrictions,
           notes: access.notes,
         };
-        if (TOTEMDIGITAL_COMPACT) {
+        if (isStudioMode()) {
           const local = localsCatalog.find((l) => l.publisher_id === access.publisher_id);
           return {
             ...base,
@@ -338,7 +338,7 @@ const PlanPublisherAccessPage: React.FC = () => {
         return base;
       });
       setPlanPublishers(publishersData);
-      if (TOTEMDIGITAL_COMPACT) {
+      if (isStudioMode()) {
         const localIdSet = new Set<number>();
         const enabledByLocalMap = new Map<number, Set<number>>();
 
@@ -371,7 +371,7 @@ const PlanPublisherAccessPage: React.FC = () => {
       }
     } catch (error: any) {
       setPlanPublishers([]);
-      if (TOTEMDIGITAL_COMPACT) {
+      if (isStudioMode()) {
         setCompactSelectedLocalIds([]);
         setCompactEnabledTotemsByLocal({});
       }
@@ -501,7 +501,7 @@ const PlanPublisherAccessPage: React.FC = () => {
   };
 
   const handleAddPublisherToPlan = () => {
-    if (TOTEMDIGITAL_COMPACT) {
+    if (isStudioMode()) {
       if (!selectedLocalIdForPlan) return;
       const localId = parseInt(selectedLocalIdForPlan, 10);
       const alreadySelected = compactSelectedLocalIds.includes(localId);
@@ -668,7 +668,7 @@ const PlanPublisherAccessPage: React.FC = () => {
         // Adicionar/atualizar publishers
         for (const planPublisher of planPublishers) {
           try {
-            const compactRestrictions = TOTEMDIGITAL_COMPACT
+            const compactRestrictions = isStudioMode()
               ? {
                   ...(planPublisher.restrictions || {}),
                   compact_scope: {
@@ -808,7 +808,7 @@ const PlanPublisherAccessPage: React.FC = () => {
     }
   };
 
-  const compactTotemOptions: CompactTotemOption[] = TOTEMDIGITAL_COMPACT
+  const compactTotemOptions: CompactTotemOption[] = isStudioMode()
     ? totemsCatalog.map((totem) => ({
         totem,
         publisherId: getTotemPublisherIdFromRow(totem),
@@ -825,7 +825,7 @@ const PlanPublisherAccessPage: React.FC = () => {
     getTotemIsActive(entry.totem)
   );
   const compactTotemsBlockedByPublisher = compactTotemsWithPublisher.filter((entry) => entry.isAlreadyLinked);
-  const compactLocalOptions: CompactLocalOption[] = TOTEMDIGITAL_COMPACT
+  const compactLocalOptions: CompactLocalOption[] = isStudioMode()
     ? localsCatalog.map((local) => ({
         local,
         publisherId: local.publisher_id,
@@ -862,7 +862,7 @@ const PlanPublisherAccessPage: React.FC = () => {
       );
     return { local, totems: localTotems };
   });
-  const compactBadgeCount = TOTEMDIGITAL_COMPACT ? compactSelectedLocalIds.length : planPublishers.length;
+  const compactBadgeCount = isStudioMode() ? compactSelectedLocalIds.length : planPublishers.length;
   const planSections = [
     { label: 'Planos (CRUD)', icon: Star },
     { label: maintenanceTabLabel, icon: Business },
@@ -961,9 +961,9 @@ const PlanPublisherAccessPage: React.FC = () => {
   return (
     <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 }, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
       <PageHeader
-        title={TOTEMDIGITAL_COMPACT ? 'Planos' : 'Planos e Publicadores'}
+        title={isStudioMode() ? 'Planos' : 'Planos e Publicadores'}
         subtitle={
-          TOTEMDIGITAL_COMPACT
+          isStudioMode()
             ? 'Gerencie planos e configure quais locais cada plano cobre no modo compacto'
             : 'Gerencie planos e configure quais publishers cada plano permite acessar'
         }
@@ -1125,7 +1125,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                     </Select>
                   </FormControl>
                 </Grid>
-                {!TOTEMDIGITAL_COMPACT && (
+                {!isStudioMode() && (
                   <Grid item xs={12} md={5}>
                     <FormControl fullWidth>
                       <InputLabel>{`Filtrar por ${publisherEntityLabel}`}</InputLabel>
@@ -1181,7 +1181,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                     <TableRow key={`${access.plan_id}-${access.publisher_id}`}>
                       <TableCell>{access.plan_name}</TableCell>
                       <TableCell>
-                        {TOTEMDIGITAL_COMPACT
+                        {isStudioMode()
                           ? (access as any).local_name ||
                             localsCatalog.find((local) => local.publisher_id === access.publisher_id)?.name ||
                             'Local associado'
@@ -1574,29 +1574,29 @@ const PlanPublisherAccessPage: React.FC = () => {
               
               <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
                 <Typography variant="subtitle2" sx={{ mb: 2 }}>{addPublisherLabel}</Typography>
-                {TOTEMDIGITAL_COMPACT && (
+                {isStudioMode() && (
                   <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
                     No modo compact, selecione um local para escopo operacional do plano. Ao escolher um local, todos
                     os totems do local são considerados na operação.
                   </Typography>
                 )}
-                {TOTEMDIGITAL_COMPACT && (
+                {isStudioMode() && (
                   <Alert severity="info" sx={{ mb: 2 }}>
                     Escopo de seleção por local na interface (transição). A persistência atual ainda usa vínculo por
                     exibidor para manter compatibilidade.
                   </Alert>
                 )}
-                {TOTEMDIGITAL_COMPACT && localsCatalog.length === 0 && !loading && (
+                {isStudioMode() && localsCatalog.length === 0 && !loading && (
                   <Alert severity="warning" sx={{ mb: 2 }}>
                     Nenhum local encontrado. Cadastre locais em <strong>Locais</strong> e associe totems a eles.
                   </Alert>
                 )}
-                {TOTEMDIGITAL_COMPACT && localsCatalog.length > 0 && compactActiveLocalsWithPublisher.length === 0 && (
+                {isStudioMode() && localsCatalog.length > 0 && compactActiveLocalsWithPublisher.length === 0 && (
                   <Alert severity="info" sx={{ mb: 2 }}>
                     Não há locais ativos com exibidor para seleção neste plano.
                   </Alert>
                 )}
-                {TOTEMDIGITAL_COMPACT && compactLocalsWithoutTotems.length > 0 && (
+                {isStudioMode() && compactLocalsWithoutTotems.length > 0 && (
                   <Alert severity="warning" sx={{ mb: 2 }}>
                     <Typography variant="body2" component="div" sx={{ mb: 1 }}>
                       {compactLocalsWithoutTotems.length} local(is) não têm totems ativos associados.
@@ -1619,7 +1619,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                   <Grid item xs={12} md={8}>
                     <FormControl fullWidth>
                       <InputLabel>{publisherEntityLabel}</InputLabel>
-                      {TOTEMDIGITAL_COMPACT ? (
+                      {isStudioMode() ? (
                         <Select
                           value={selectedLocalIdForPlan}
                           onChange={(e) => {
@@ -1670,7 +1670,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                       )}
                     </FormControl>
                   </Grid>
-                  {!TOTEMDIGITAL_COMPACT && (
+                  {!isStudioMode() && (
                     <Grid item xs={12} md={4}>
                       <Button
                         variant="contained"
@@ -1686,9 +1686,9 @@ const PlanPublisherAccessPage: React.FC = () => {
                 </Grid>
               </Box>
 
-              {(TOTEMDIGITAL_COMPACT ? compactPlanLocals.length > 0 : planPublishers.length > 0) ? (
+              {(isStudioMode() ? compactPlanLocals.length > 0 : planPublishers.length > 0) ? (
                 <List>
-                  {TOTEMDIGITAL_COMPACT
+                  {isStudioMode()
                     ? compactPlanLocals.map((local) => {
                         const activeTotems = compactActiveTotemsWithPublisher.filter(
                           ({ totem }) => getTotemLocalIdFromRow(totem) === local.local_id
@@ -1804,7 +1804,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                     : planPublishers.map((planPublisher) => {
                     const publisher = publishers.find((p) => p.publisher_id === planPublisher.publisherId);
                     const primaryLabel =
-                      TOTEMDIGITAL_COMPACT && planPublisher.displayLabel
+                      isStudioMode() && planPublisher.displayLabel
                         ? planPublisher.displayLabel
                         : publisher?.name || `${publisherEntityLabel} ID: ${planPublisher.publisherId}`;
                     return (
@@ -1817,12 +1817,12 @@ const PlanPublisherAccessPage: React.FC = () => {
                           primary={primaryLabel}
                           secondary={
                             <Box sx={{ mt: 0.5 }}>
-                              {TOTEMDIGITAL_COMPACT && publisher?.name && (
+                              {isStudioMode() && publisher?.name && (
                                 <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
                                   Exibidor: {publisher.name}
                                 </Typography>
                               )}
-                              {TOTEMDIGITAL_COMPACT && (
+                              {isStudioMode() && (
                                 <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
                                   Escopo operacional: todos os totems do local selecionado.
                                 </Typography>
@@ -1906,7 +1906,7 @@ const PlanPublisherAccessPage: React.FC = () => {
 
             <FormControl fullWidth margin="normal">
               <InputLabel>{`${accessEntityLabel} *`}</InputLabel>
-              {TOTEMDIGITAL_COMPACT ? (
+              {isStudioMode() ? (
                 <Select
                   value={accessSelectedLocalId}
                   onChange={(e) => {
@@ -1952,7 +1952,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                 </Select>
               )}
             </FormControl>
-            {TOTEMDIGITAL_COMPACT && (
+            {isStudioMode() && (
               <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
                 Ambiente compacto com publisher único da instalação: selecione apenas o local e os totems desejados.
               </Typography>

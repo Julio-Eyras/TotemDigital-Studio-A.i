@@ -8,14 +8,14 @@ import { query, validationResult } from 'express-validator';
 import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
 import { dispatcherDebugService } from '../services/dispatcherDebugService';
 import { logError } from '../utils/loggerHelper';
-import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { isStudioRuntime } from '../config/installationRuntime';
 
 const router = Router();
 
 // Middleware de autenticação
 router.use(authMiddleware);
 
-const DISPATCHER_DEBUG_ROLES = TOTEMDIGITAL_COMPACT
+const DISPATCHER_DEBUG_ROLES = isStudioRuntime()
   ? (['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'publisher_user'] as const)
   : (['admin', 'admin_sql', 'owner_system', 'operador_tecnico'] as const);
 

@@ -49,11 +49,11 @@ import {
   CheckCircle,
 } from '@mui/icons-material';
 import { mediaApi, MediaItem, CreateMediaRequest, clientApi, Client, subscriberApi, Subscriber } from '../../services/api';
-import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { isStudioMode } from '../../config/studioMode';
 
 const compareByDisplayName = (a?: string, b?: string) =>
   String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
@@ -89,7 +89,7 @@ const Media: React.FC = () => {
 
   /** TotemDigital compacto: inferir subscriber para upload quando não há lista /api/subscribers */
   const uploadFallbackSubscriberId = useMemo(() => {
-    if (!TOTEMDIGITAL_COMPACT) return undefined;
+    if (!isStudioMode()) return undefined;
     if (userSubscriberId) return userSubscriberId;
     const m = mediaItems.find((x: any) => x.subscriberId ?? x.subscriber_id ?? x.clientId);
     if (!m) return undefined;
@@ -108,7 +108,7 @@ const Media: React.FC = () => {
     // Compat: user no localStorage pode vir em snake_case ou camelCase
     setUserSubscriberId(user?.subscriberId ?? user?.subscriber_id ?? user?.clientId);
 
-    if (canSelect && !TOTEMDIGITAL_COMPACT) {
+    if (canSelect && !isStudioMode()) {
       loadSubscribers();
     }
     loadMediaItems();
@@ -208,7 +208,7 @@ const Media: React.FC = () => {
   }, [mediaItems]);
 
   const loadSubscribers = async () => {
-    if (TOTEMDIGITAL_COMPACT) return;
+    if (isStudioMode()) return;
     try {
       // "aptos": apenas subscribers ativos
       const response = await subscriberApi.getAll({ limit: 1000, active_only: true });
@@ -231,7 +231,7 @@ const Media: React.FC = () => {
       
       // Determinar subscriberId para filtro
       let subscriberId: number | undefined = undefined;
-      if (TOTEMDIGITAL_COMPACT) {
+      if (isStudioMode()) {
         if (userSubscriberId) {
           subscriberId = userSubscriberId;
         } else if (canSelectSubscriber && subscriberFilter !== 'all' && typeof subscriberFilter === 'number') {
@@ -305,10 +305,10 @@ const Media: React.FC = () => {
         tags: Array.isArray(editForm.tags) && editForm.tags.length > 0 
           ? editForm.tags.join(',') 
           : undefined,
-        status: TOTEMDIGITAL_COMPACT ? 'approved' : editForm.status,
+        status: isStudioMode() ? 'approved' : editForm.status,
       };
 
-      if (TOTEMDIGITAL_COMPACT) {
+      if (isStudioMode()) {
         updateData.approvalStatus = 'approved';
       } else if (editForm.status === 'approved') {
         updateData.approvalStatus = 'approved';
@@ -492,7 +492,7 @@ const Media: React.FC = () => {
         subtitle="Gerencie seus arquivos de mídia"
         breadcrumbs={breadcrumbs}
         actions={
-          TOTEMDIGITAL_COMPACT
+          isStudioMode()
             ? []
             : [
                 {
@@ -523,7 +523,7 @@ const Media: React.FC = () => {
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={canSelectSubscriber && !TOTEMDIGITAL_COMPACT ? 4 : 6}>
+            <Grid item xs={12} md={canSelectSubscriber && !isStudioMode() ? 4 : 6}>
               <TextField
                 fullWidth
                 placeholder="Buscar mídia..."
@@ -534,7 +534,7 @@ const Media: React.FC = () => {
                 }}
               />
             </Grid>
-            {canSelectSubscriber && !TOTEMDIGITAL_COMPACT && (
+            {canSelectSubscriber && !isStudioMode() && (
               <Grid item xs={12} md={3}>
                 <FormControl fullWidth>
                   <InputLabel>Anunciante</InputLabel>
@@ -553,7 +553,7 @@ const Media: React.FC = () => {
                 </FormControl>
               </Grid>
             )}
-            <Grid item xs={12} md={isAdmin && !TOTEMDIGITAL_COMPACT ? 2 : 3}>
+            <Grid item xs={12} md={isAdmin && !isStudioMode() ? 2 : 3}>
               <FormControl fullWidth>
                 <InputLabel>Tipo de Mídia</InputLabel>
                 <Select
@@ -961,7 +961,7 @@ const Media: React.FC = () => {
             <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 3 }}>
               Comece adicionando seus primeiros arquivos de mídia
         </Typography>
-            {!TOTEMDIGITAL_COMPACT && (
+            {!isStudioMode() && (
               <Button
                 variant="contained"
                 startIcon={<Add />}
@@ -1029,7 +1029,7 @@ const Media: React.FC = () => {
                 margin="normal"
                 placeholder="tag1, tag2, tag3"
               />
-              {!TOTEMDIGITAL_COMPACT ? (
+              {!isStudioMode() ? (
                 <FormControl fullWidth margin="normal">
                   <InputLabel>Status</InputLabel>
                   <Select

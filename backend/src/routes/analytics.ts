@@ -11,7 +11,7 @@ import { authenticateToken, authorizeRole } from '../middleware/auth.middleware'
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { logError } from '../utils/loggerHelper';
 import { isMissingTableError } from '../utils/dbErrors';
-import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import { isStudioRuntime } from '../config/installationRuntime';
 import { resolveCompactOwnerPublisherId } from '../utils/compactOwnerPublisher';
 import { getDatabase } from '../config/database';
 import { isAdminRole, resolveTenantScope } from '../utils/tenantScope';
@@ -45,7 +45,7 @@ async function assertCampaignPublisherScope(campaignId: number, requestPublisher
     throw analyticsHttpError(404, 'Campanha não encontrada');
   }
   const pubIds = (campaign.publisherIds || []).map(Number);
-  if (TOTEMDIGITAL_COMPACT) {
+  if (isStudioRuntime()) {
     const ownerId = await resolveCompactOwnerPublisherId(getDatabase());
     if (!ownerId) {
       throw analyticsHttpError(403, 'Modo compacto: publisher do owner não encontrado para aplicar escopo.');

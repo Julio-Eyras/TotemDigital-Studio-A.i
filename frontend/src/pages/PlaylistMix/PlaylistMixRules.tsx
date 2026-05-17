@@ -43,10 +43,10 @@ import {
 } from '@mui/icons-material';
 import { getMixRules, createMixRule, updateMixRule, deleteMixRule, MixRule } from '../../services/api/playlistMixApi';
 import { totemApi, Player } from '../../services/api';
-import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import { useAppSelector } from '../../store/hooks';
 import { getForeignTotemIdFromRow, getTotemIdFromRow, getTotemPublisherIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { isStudioMode } from '../../config/studioMode';
 
 const isAdminLikeRole = (role?: string) =>
   ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial'].includes(
@@ -117,7 +117,7 @@ const PlaylistMixRules: React.FC = () => {
   }, [dialogOpen]);
 
   const scopeTotemsFiltered = useMemo(() => {
-    if (!TOTEMDIGITAL_COMPACT) return scopeTotems;
+    if (!isStudioMode()) return scopeTotems;
     if (isAdminLikeRole(user?.role)) return scopeTotems;
     const pid = user?.publisherId != null ? Number(user.publisherId) : undefined;
     if (pid == null || Number.isNaN(pid)) return scopeTotems;

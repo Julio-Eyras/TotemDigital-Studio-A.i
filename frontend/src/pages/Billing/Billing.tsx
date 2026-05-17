@@ -79,12 +79,12 @@ import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionN
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
-import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import {
   billingIntervalLabel,
   getPlanDefaultBillingInterval,
   getPlanPriceForInterval,
 } from '../../utils/billingIntervals';
+import { isStudioMode } from '../../config/studioMode';
 import {
   billingViewFromTabIndex,
   parseBillingView,
@@ -125,7 +125,7 @@ const Billing: React.FC = () => {
 
   /** Criar/editar faturas nas APIs subscriber/publisher (incl. dono no mono compacto). */
   const canCreateModernInvoices =
-    canViewAllBillingTypes || (TOTEMDIGITAL_COMPACT && isPublisherUser);
+    canViewAllBillingTypes || (isStudioMode() && isPublisherUser);
 
   /** QR PIX / Stripe: gestores ou anunciante na própria fatura */
   const canPaySubscriberInvoices = canCreateModernInvoices || isSubscriberUser;
@@ -141,7 +141,7 @@ const Billing: React.FC = () => {
     if (isPublisherUser && !canViewAllBillingTypes) {
       return rawType === 'subscriber' || rawType === 'publisher' ? rawType : 'publisher';
     }
-    if (TOTEMDIGITAL_COMPACT) return rawType === 'publisher' ? 'publisher' : 'subscriber';
+    if (isStudioMode()) return rawType === 'publisher' ? 'publisher' : 'subscriber';
     return rawType === 'publisher' ? 'publisher' : 'subscriber';
   })();
 
@@ -459,7 +459,7 @@ const Billing: React.FC = () => {
       const data = await billingControlApi.getDashboard({
         dueSoonDays: DUE_SOON_DAYS,
         publisherId:
-          TOTEMDIGITAL_COMPACT && user?.publisherId != null ? Number(user.publisherId) : undefined,
+          isStudioMode() && user?.publisherId != null ? Number(user.publisherId) : undefined,
       });
       setDashboard(data);
     } catch {
@@ -830,7 +830,7 @@ const Billing: React.FC = () => {
     const pidFromUser = user?.publisherId != null ? Number(user.publisherId) : NaN;
     const pidFromForm = Number.parseInt(String(newPublisherInvoice.publisherId).trim(), 10);
     const pid =
-      TOTEMDIGITAL_COMPACT && isPublisherUser && Number.isFinite(pidFromUser)
+      isStudioMode() && isPublisherUser && Number.isFinite(pidFromUser)
         ? pidFromUser
         : pidFromForm;
     const amt = parseCurrencyInputValue(newPublisherInvoice.amount);
@@ -967,11 +967,11 @@ const Billing: React.FC = () => {
         dashboard={dashboard}
         loading={loading}
         showPublisherKpis={
-          TOTEMDIGITAL_COMPACT
+          isStudioMode()
             ? billingType === 'publisher'
             : billingType === 'publisher' || canViewAllBillingTypes
         }
-        publisherLabel={TOTEMDIGITAL_COMPACT ? 'Exibidor (sistema)' : 'Publicadores'}
+        publisherLabel={isStudioMode() ? 'Exibidor (sistema)' : 'Publicadores'}
         onFilterInvoices={canViewAllBillingTypes || !isSubscriberUser ? applyInvoiceDueFilter : undefined}
         onFilterPendingInvoices={
           canViewAllBillingTypes || !isSubscriberUser ? applyInvoicePendingFilter : undefined
@@ -998,9 +998,9 @@ const Billing: React.FC = () => {
               }}
             >
               {!isSubscriberUser && <MenuItem value="subscriber">Anunciantes</MenuItem>}
-              {!isSubscriberUser && !(TOTEMDIGITAL_COMPACT && canViewAllBillingTypes) && (
+              {!isSubscriberUser && !(isStudioMode() && canViewAllBillingTypes) && (
                 <MenuItem value="publisher">
-                  {TOTEMDIGITAL_COMPACT ? 'Exibidor (sistema)' : 'Publicadores'}
+                  {isStudioMode() ? 'Exibidor (sistema)' : 'Publicadores'}
                 </MenuItem>
               )}
               {isSubscriberUser && <MenuItem value="subscriber">Anunciantes</MenuItem>}
@@ -1625,7 +1625,7 @@ const Billing: React.FC = () => {
             </Button>
             {canCreateModernInvoices && (
               <Button startIcon={<Add />} variant="contained" onClick={() => setCreatePublisherOpen(true)}>
-                {TOTEMDIGITAL_COMPACT ? 'Nova fatura (exibidor)' : 'Nova fatura (publicador)'}
+                {isStudioMode() ? 'Nova fatura (exibidor)' : 'Nova fatura (publicador)'}
               </Button>
             )}
           </Box>
@@ -1635,7 +1635,7 @@ const Billing: React.FC = () => {
               <TableHead>
                 <TableRow>
                   <TableCell>ID</TableCell>
-                  {!TOTEMDIGITAL_COMPACT && <TableCell>Publicador</TableCell>}
+                  {!isStudioMode() && <TableCell>Publicador</TableCell>}
                   <TableCell>Campanha</TableCell>
                   <TableCell>Tipo</TableCell>
                   <TableCell>Direção</TableCell>
@@ -1670,7 +1670,7 @@ const Billing: React.FC = () => {
                   return (
                   <TableRow key={billing.billing_id} sx={invoiceRowSx(dueLevel)}>
                     <TableCell>{billing.billing_id}</TableCell>
-                    {!TOTEMDIGITAL_COMPACT && (
+                    {!isStudioMode() && (
                       <TableCell>{billing.publisher_name || `Publicador #${billing.publisher_id}`}</TableCell>
                     )}
                     <TableCell>{billing.campaign_title || '-'}</TableCell>
@@ -1770,9 +1770,9 @@ const Billing: React.FC = () => {
                 })}
                 {publisherBillings.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={TOTEMDIGITAL_COMPACT ? 10 : 11} align="center">
+                    <TableCell colSpan={isStudioMode() ? 10 : 11} align="center">
                       <Typography variant="body2" color="text.secondary">
-                        {TOTEMDIGITAL_COMPACT
+                        {isStudioMode()
                           ? 'Nenhuma fatura do exibidor encontrada'
                           : 'Nenhuma fatura de publicador encontrada'}
                       </Typography>
@@ -1878,7 +1878,7 @@ const Billing: React.FC = () => {
         <Dialog open={createPublisherOpen} onClose={() => setCreatePublisherOpen(false)} maxWidth="sm" fullWidth>
           <DialogTitle>Nova fatura (publicador)</DialogTitle>
           <DialogContent>
-            {(!TOTEMDIGITAL_COMPACT || !isPublisherUser || user?.publisherId == null) && (
+            {(!isStudioMode() || !isPublisherUser || user?.publisherId == null) && (
               <TextField
                 fullWidth
                 margin="normal"
@@ -1886,13 +1886,13 @@ const Billing: React.FC = () => {
                 value={newPublisherInvoice.publisherId}
                 onChange={(e) => setNewPublisherInvoice({ ...newPublisherInvoice, publisherId: e.target.value })}
                 helperText={
-                  TOTEMDIGITAL_COMPACT && isPublisherUser && user?.publisherId == null
+                  isStudioMode() && isPublisherUser && user?.publisherId == null
                     ? 'O seu utilizador não tem publisherId; indique o ID do exibidor.'
                     : undefined
                 }
               />
             )}
-            {TOTEMDIGITAL_COMPACT && isPublisherUser && user?.publisherId != null && (
+            {isStudioMode() && isPublisherUser && user?.publisherId != null && (
               <Alert severity="info" sx={{ mt: 1, mb: 1 }}>
                 Publicador: #{user.publisherId} (mono compacto)
               </Alert>

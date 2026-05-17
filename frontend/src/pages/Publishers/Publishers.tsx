@@ -62,7 +62,6 @@ import {
   Link as LinkIcon,
   OpenInNew,
 } from '@mui/icons-material';
-import { TOTEMDIGITAL_COMPACT } from '../../config/featureFlags';
 import { 
   publisherApi, 
   Publisher, 
@@ -95,6 +94,7 @@ import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { BILLING_INTERVAL_OPTIONS, billingIntervalLabel } from '../../utils/billingIntervals';
 import { getLocalMenuItemSx, orderLocalsForSelect } from '../../utils/localOrdering';
 import { PublisherCard, PublisherForm, PublisherDetails } from './components';
+import { isStudioMode } from '../../config/studioMode';
 
 const getDefaultContractEndDate = (): string => `${new Date().getFullYear()}-12-31`;
 
@@ -1346,12 +1346,12 @@ const Publishers: React.FC = () => {
             📢 Manter Publicadores
           </Typography>
           <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
-            {TOTEMDIGITAL_COMPACT
+            {isStudioMode()
               ? 'No modo Compact existe um único publicador do sistema; os dados são apenas para consulta.'
               : 'Gerencie publicadores e suas informações'}
           </Typography>
         </Box>
-        {!TOTEMDIGITAL_COMPACT && (
+        {!isStudioMode() && (
           <Button
             variant="contained"
             startIcon={<Add />}
@@ -1429,14 +1429,14 @@ const Publishers: React.FC = () => {
               publisher={publisher}
               onView={() => handleViewDetails(publisher)}
               onEdit={
-                TOTEMDIGITAL_COMPACT
+                isStudioMode()
                   ? undefined
                   : () => {
                       setSelectedPublisher(publisher);
                       setEditDialogOpen(true);
                     }
               }
-              onDelete={TOTEMDIGITAL_COMPACT ? undefined : () => handleDeletePublisher(publisher.publisher_id)}
+              onDelete={isStudioMode() ? undefined : () => handleDeletePublisher(publisher.publisher_id)}
             />
           </Grid>
         ))}
@@ -1451,11 +1451,11 @@ const Publishers: React.FC = () => {
               Nenhum publicador encontrado
             </Typography>
             <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 3 }}>
-              {TOTEMDIGITAL_COMPACT
+              {isStudioMode()
                 ? 'No modo Compact o publicador do sistema é provisionado automaticamente.'
                 : 'Comece adicionando seus primeiros publicadores'}
             </Typography>
-            {!TOTEMDIGITAL_COMPACT && (
+            {!isStudioMode() && (
               <Button variant="contained" startIcon={<Add />} onClick={() => setCreateDialogOpen(true)}>
                 Adicionar Primeiro Publicador
               </Button>
@@ -3255,7 +3255,7 @@ const Publishers: React.FC = () => {
           setDetailsDialogOpen(false);
         }}
         onEdit={
-          TOTEMDIGITAL_COMPACT
+          isStudioMode()
             ? undefined
             : (publisher) => {
                 setSelectedPublisher(publisher);
