@@ -6,7 +6,12 @@
 import { getDatabase } from '../config/database';
 import { logError, logWarn } from '../utils/loggerHelper';
 import type { TenantScope } from '../utils/tenantScope';
+import { isMissingTableError } from '../utils/dbErrors';
 import { getAnalyticsCacheService } from './analyticsCacheService';
+
+/** Totens não têm coluna `location`; usar dados do local. */
+const sqlTotemLocation = (alias: string): string =>
+  `COALESCE(${alias}.name, ${alias}.address, ${alias}.city, 'Não informado')`;
 
 export interface AnalyticsFilters {
   subscriberId?: number;
@@ -91,6 +96,24 @@ export interface AnalyticsResponse {
       title: string;
       amount: number;
     }[];
+  };
+}
+
+export function emptyAnalyticsResponse(): AnalyticsResponse {
+  return {
+    totalViews: 0,
+    totalDuration: 0,
+    averageViewDuration: 0,
+    uniqueViewers: 0,
+    peakViewingTime: '00:00',
+    mostViewedContent: [],
+    viewingTrends: [],
+    deviceStats: [],
+    locationStats: [],
+    campaignPerformance: [],
+    totemPerformance: [],
+    qrCodeStats: [],
+    revenue: { total: 0, bySubscriber: [], byCampaign: [] },
   };
 }
 
@@ -390,7 +413,7 @@ export class AnalyticsService {
       SELECT 
         t.totem_id AS "totemId",
         t.name,
-        t.location,
+        ${sqlTotemLocation('l')} AS location,
         COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
         CASE 
           WHEN COUNT(el.log_id) > 0 THEN 
@@ -401,7 +424,7 @@ export class AnalyticsService {
       INNER JOIN locals l ON l.local_id = t.local_id AND l.publisher_id = ?
       LEFT JOIN execution_logs el ON el.totem_id = t.totem_id
       WHERE t.is_active = true
-      GROUP BY t.totem_id, t.name, t.location
+      GROUP BY t.totem_id, t.name, l.name, l.address, l.city
       ORDER BY views DESC
       LIMIT 5
     `,
@@ -597,7 +620,7 @@ export class AnalyticsService {
       SELECT 
         t.totem_id AS "totemId",
         t.name,
-        t.location,
+        ${sqlTotemLocation('loc')} AS location,
         COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
         CASE 
           WHEN COUNT(el.log_id) > 0 THEN 
@@ -606,8 +629,9 @@ export class AnalyticsService {
         END AS effectiveness
       FROM execution_logs el
       INNER JOIN totems t ON t.totem_id = el.totem_id
+      LEFT JOIN locals loc ON loc.local_id = t.local_id
       WHERE el.subscriber_id = ? AND el.event_type = 'play_end'
-      GROUP BY t.totem_id, t.name, t.location
+      GROUP BY t.totem_id, t.name, loc.name, loc.address, loc.city
       ORDER BY views DESC
       LIMIT 5
     `,
@@ -753,7 +777,7 @@ export class AnalyticsService {
       SELECT 
         t.totem_id AS "totemId",
         t.name,
-        t.location,
+        ${sqlTotemLocation('loc')} AS location,
         COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
         CASE 
           WHEN COUNT(el.log_id) > 0 THEN 
@@ -761,9 +785,10 @@ export class AnalyticsService {
           ELSE 0
         END AS effectiveness
       FROM totems t
+      LEFT JOIN locals loc ON loc.local_id = t.local_id
       LEFT JOIN execution_logs el ON el.totem_id = t.totem_id
       WHERE t.is_active = true
-      GROUP BY t.totem_id, t.name, t.location
+      GROUP BY t.totem_id, t.name, loc.name, loc.address, loc.city
       ORDER BY views DESC
       LIMIT 5
     `);
@@ -990,12 +1015,13 @@ export class AnalyticsService {
 
       const locationStatsRows = await this.db.findMany(`
         SELECT 
-          COALESCE(t.location, 'Não informado') AS location,
+          ${sqlTotemLocation('loc')} AS location,
           COUNT(*)::int AS views
         FROM execution_logs el
         LEFT JOIN totems t ON t.totem_id = el.totem_id
+        LEFT JOIN locals loc ON loc.local_id = t.local_id
         ${whereClause}
-        GROUP BY COALESCE(t.location, 'Não informado')
+        GROUP BY loc.name, loc.address, loc.city
         ORDER BY views DESC
       `, params);
 
@@ -1058,7 +1084,7 @@ export class AnalyticsService {
         SELECT 
           t.totem_id AS "totemId",
           COALESCE(t.name, CONCAT('Totem ', t.totem_id::text)) AS name,
-          COALESCE(t.location, 'Não informado') AS location,
+          ${sqlTotemLocation('loc')} AS location,
           COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
           COALESCE(SUM(CASE WHEN el.event_type = 'play_end' THEN (el.event_data->>'duration')::int ELSE 0 END), 0)::int AS duration,
           CASE 
@@ -1069,7 +1095,7 @@ export class AnalyticsService {
         FROM totems t
         INNER JOIN locals loc ON loc.local_id = t.local_id AND loc.publisher_id = ?
         LEFT JOIN execution_logs el ON el.totem_id = t.totem_id ${totemWhereClause}
-        GROUP BY t.totem_id, t.name, t.location
+        GROUP BY t.totem_id, t.name, loc.name, loc.address, loc.city
         ORDER BY views DESC
         LIMIT 10
       `,
@@ -1081,7 +1107,7 @@ export class AnalyticsService {
         SELECT 
           t.totem_id AS "totemId",
           COALESCE(t.name, CONCAT('Totem ', t.totem_id::text)) AS name,
-          COALESCE(t.location, 'Não informado') AS location,
+          ${sqlTotemLocation('loc')} AS location,
           COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
           COALESCE(SUM(CASE WHEN el.event_type = 'play_end' THEN (el.event_data->>'duration')::int ELSE 0 END), 0)::int AS duration,
           CASE 
@@ -1091,8 +1117,9 @@ export class AnalyticsService {
           END AS effectiveness
         FROM execution_logs el
         INNER JOIN totems t ON t.totem_id = el.totem_id
+        LEFT JOIN locals loc ON loc.local_id = t.local_id
         ${whereClause}
-        GROUP BY t.totem_id, t.name, t.location
+        GROUP BY t.totem_id, t.name, loc.name, loc.address, loc.city
         ORDER BY views DESC
         LIMIT 10
       `,
@@ -1104,7 +1131,7 @@ export class AnalyticsService {
         SELECT 
           t.totem_id AS "totemId",
           COALESCE(t.name, CONCAT('Totem ', t.totem_id::text)) AS name,
-          COALESCE(t.location, 'Não informado') AS location,
+          ${sqlTotemLocation('loc')} AS location,
           COUNT(CASE WHEN el.event_type = 'play_end' THEN 1 END)::int AS views,
           COALESCE(SUM(CASE WHEN el.event_type = 'play_end' THEN (el.event_data->>'duration')::int ELSE 0 END), 0)::int AS duration,
           CASE 
@@ -1113,8 +1140,9 @@ export class AnalyticsService {
             ELSE 0
           END AS effectiveness
         FROM totems t
+        LEFT JOIN locals loc ON loc.local_id = t.local_id
         LEFT JOIN execution_logs el ON el.totem_id = t.totem_id ${totemWhereClause}
-        GROUP BY t.totem_id, t.name, t.location
+        GROUP BY t.totem_id, t.name, loc.name, loc.address, loc.city
         ORDER BY views DESC
         LIMIT 10
       `,
@@ -1233,7 +1261,7 @@ export class AnalyticsService {
 
     } catch (error: any) {
       await logError('Erro ao buscar análise', error);
-      throw new Error('Erro interno do servidor');
+      throw error;
     }
   }
 
@@ -1272,12 +1300,13 @@ export class AnalyticsService {
         SELECT
           t.totem_id as id,
           t.name,
-          t.location,
+          ${sqlTotemLocation('loc')} as location,
           t.uin,
           t.is_active as isActive,
           t.last_heartbeat as lastHeartbeat,
           t.created_at as createdAt
         FROM totems t
+        LEFT JOIN locals loc ON loc.local_id = t.local_id
         WHERE t.totem_id = ?
       `, [totemId]);
 

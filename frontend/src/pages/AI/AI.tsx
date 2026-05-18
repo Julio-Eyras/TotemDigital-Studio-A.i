@@ -21,10 +21,11 @@ const AI: React.FC = () => {
     try {
       setLoading(true);
       const resp = await aiApi.getModels();
-      setModels(resp);
+      const list = Array.isArray(resp) ? resp : [];
+      setModels(list);
       // default provider first available
-      if (resp.length > 0) {
-        const first = resp[0];
+      if (list.length > 0) {
+        const first = list[0];
         const providerValue = first.provider;
         if (providerValue === 'ollama' || providerValue === 'openai' || providerValue === 'anthropic') {
           setProvider(providerValue);
@@ -96,7 +97,7 @@ const AI: React.FC = () => {
                     setModel(found?.models?.[0] || '');
                   }}
                 >
-                  {models.map((m) => (
+                  {(Array.isArray(models) ? models : []).map((m) => (
                     <MenuItem key={m.provider} value={m.provider}>{m.provider}</MenuItem>
                   ))}
                 </Select>

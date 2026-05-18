@@ -74,5 +74,7 @@ export function registerExtendedApiRoutes(app: Express): void {
   app.use('/api/dashboard-layouts', dashboardLayoutsRoutes);
   app.use('/api/backups', rateLimitHeavyOperations, backupsRoutes);
   app.use('/api/qrcodes', authMiddleware as any, blockClientDataAccess as any, qrcodesRoutes);
+  // Alias usado pelo frontend (GET /api/qr-codes)
+  app.use('/api/qr-codes', authMiddleware as any, blockClientDataAccess as any, qrcodesRoutes);
   app.use('/api/notifications', notificationsRoutes);
 }

@@ -22,6 +22,7 @@ describe('registerExtendedApiRoutes', () => {
         '/api/users',
         '/api/backups',
         '/api/qrcodes',
+        '/api/qr-codes',
         '/api/notifications',
       ])
     );

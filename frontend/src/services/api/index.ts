@@ -1473,7 +1473,7 @@ export const analyticsApi = {
     clientId?: number;
   }): Promise<AnalyticsData> => {
     const response = await api.get('/analytics/overview', { params });
-    const payload = response.data.data;
+    const payload = response.data?.data ?? {};
 
     return {
       totalViews: payload.totalViews || 0,
@@ -1623,7 +1623,17 @@ export const aiApi = {
 
   getModels: async (): Promise<AIModel[]> => {
     const response = await api.get('/ai/models');
-    return response.data.data;
+    const data = response.data?.data;
+    if (Array.isArray(data)) {
+      return data as AIModel[];
+    }
+    if (data && typeof data === 'object') {
+      return Object.entries(data as Record<string, string[]>).map(([provider, models]) => ({
+        provider,
+        models: Array.isArray(models) ? models : [],
+      }));
+    }
+    return [];
   },
 
   testConnection: async (provider: string) => {

@@ -4,7 +4,7 @@
  */
 
 import { Router } from 'express';
-import { AnalyticsService } from '../services/analyticsService';
+import { AnalyticsService, emptyAnalyticsResponse } from '../services/analyticsService';
 import { TotemService } from '../services/totemService';
 import { getCampaignService } from '../services/campaignService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
@@ -224,7 +224,7 @@ router.get('/overview', async (req: any, res) => {
 
   } catch (error: any) {
     if (isMissingTableError(error)) {
-      return res.json({ success: true, data: [] });
+      return res.json({ success: true, data: emptyAnalyticsResponse() });
     }
     return replyAnalyticsError(res, error, 'Erro ao buscar análise detalhada');
   }
