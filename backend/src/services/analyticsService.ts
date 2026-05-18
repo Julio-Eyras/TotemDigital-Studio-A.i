@@ -6,7 +6,6 @@
 import { getDatabase } from '../config/database';
 import { logError, logWarn } from '../utils/loggerHelper';
 import type { TenantScope } from '../utils/tenantScope';
-import { isMissingTableError } from '../utils/dbErrors';
 import { getAnalyticsCacheService } from './analyticsCacheService';
 
 /** Totens não têm coluna `location`; usar dados do local. */
