@@ -517,6 +517,12 @@ export class FinancialAdminService {
             contractId,
             invoiceNumber,
           });
+
+          if (financialConfig.notifyRevenueSharePayouts) {
+            await getFinancialNotificationService()
+              .sendPublisherRevenueSharePayoutEmail(billing.billingId)
+              .catch(() => undefined);
+          }
         } catch (e: any) {
           result.errors.push({
             contractId,
@@ -742,6 +748,10 @@ export class FinancialAdminService {
 
   async sendPublisherPaymentEmail(billingId: number) {
     return getFinancialNotificationService().sendPublisherPaymentEmail(billingId);
+  }
+
+  async sendPublisherRevenueSharePayoutEmail(billingId: number) {
+    return getFinancialNotificationService().sendPublisherRevenueSharePayoutEmail(billingId);
   }
 
   async createStripeCheckoutForPublisherBilling(

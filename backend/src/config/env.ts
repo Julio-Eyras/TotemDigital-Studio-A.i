@@ -330,6 +330,11 @@ export const financialConfig = {
   revenueShareSinceDays: getEnvNumber('FINANCIAL_REVENUE_SHARE_SINCE_DAYS', 90),
   /** Cron dedicado a repasses (vazio = só via emissão ou manual). Ex.: `0 4 * * *` */
   cronRevenueSharePayouts: getEnv('FINANCIAL_CRON_REVENUE_SHARE', '').trim(),
+  /** E-mail ao exibidor quando repasse (outgoing) é gerado ou pendente. */
+  notifyRevenueSharePayouts: getEnvBoolean(
+    'FINANCIAL_NOTIFY_REVENUE_SHARE_PAYOUT',
+    getEnvBoolean('TOTEMDIGITAL_COMPACT', false)
+  ),
 };
 
 /**

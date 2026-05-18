@@ -4237,6 +4237,19 @@ export const financialAdminApi = {
     return response.data.data || response.data;
   },
 
+  issueRevenueSharePayouts: async (payload?: {
+    publisherId?: number;
+    sinceDays?: number;
+  }): Promise<{
+    created: number;
+    skipped: number;
+    errors: Array<{ contractId: number; message: string }>;
+    invoices: Array<{ billingId: number; contractId: number; invoiceNumber: string }>;
+  }> => {
+    const response = await api.post('/financial-admin/issue-revenue-share-payouts', payload || {});
+    return response.data.data || response.data;
+  },
+
   recordPayment: async (
     billingId: number,
     payload?: {

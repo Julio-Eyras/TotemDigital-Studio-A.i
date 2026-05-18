@@ -197,7 +197,7 @@ jobs:
           NODE_ENV: test
           TOTEMDIGITAL_COMPACT: 'true'
         run: |
-          npm test -- --testPathPattern="installationPolicy|installationRuntime|startup|publisher-billing.compact|financial-admin.issue-invoices|financialBillingWorker|billingControlService|billingIntervals|registerExtendedApiRoutes|invoiceService|financialAdmin.(publisher|revenueShare|recordSubscriberPayment)|contract.validators"
+          npm test -- --testPathPattern="installationPolicy|installationRuntime|startup|publisher-billing.compact|financial-admin.issue-invoices|financial-admin.issue-revenue-share|financialNotificationService.revenueShare|financialBillingWorker|billingControlService|billingIntervals|registerExtendedApiRoutes|invoiceService|financialAdmin.(publisher|revenueShare|recordSubscriberPayment)|contract.validators"
 
       - name: Run frontend billingIntervals unit tests (Studio build profile)
         env:
@@ -269,4 +269,17 @@ jobs:
           DB_USER: postgres
           PGPASSWORD: postgres
         run: ./scripts/validate-studio-finance-smoke.sh
+
+      - name: Install backend dependencies (Studio DB integration)
+        working-directory: backend
+        run: npm ci
+
+      - name: Studio financial service integration (Postgres + v6)
+        working-directory: backend
+        env:
+          STUDIO_FINANCE_DB_TEST: '1'
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/smartsignage_validate
+          TOTEMDIGITAL_COMPACT: 'true'
+          NODE_ENV: test
+        run: npm test -- --testPathPattern=financial-admin.studio-db --forceExit
 

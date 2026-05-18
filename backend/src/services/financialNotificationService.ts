@@ -108,6 +108,85 @@ export class FinancialNotificationService {
     }
   }
 
+  /**
+   * Aviso de repasse ao exibidor (outgoing / revenue_share). Sem PIX — informativo para pagamento manual.
+   */
+  async sendPublisherRevenueSharePayoutEmail(
+    billingId: number
+  ): Promise<{ sent: boolean; reason?: string }> {
+    try {
+      const row = await this.db.findFirst(
+        `
+        SELECT
+          pb.billing_id,
+          pb.amount,
+          pb.currency,
+          pb.due_date,
+          pb.invoice_number,
+          pb.description,
+          pb.payment_status,
+          pb.direction,
+          pb.billing_type,
+          p.name AS publisher_name,
+          p.email AS publisher_email
+        FROM publisher_billing pb
+        JOIN publishers p ON p.publisher_id = pb.publisher_id
+        WHERE pb.billing_id = $1
+      `,
+        [billingId]
+      );
+
+      if (!row) return { sent: false, reason: 'Fatura não encontrada' };
+      if (row.direction !== 'outgoing') {
+        return { sent: false, reason: 'Apenas repasses (saída) podem usar este aviso' };
+      }
+      if (!row.publisher_email) return { sent: false, reason: 'Exibidor sem e-mail' };
+      if (row.payment_status === 'paid') {
+        return { sent: false, reason: 'Repasse já marcado como pago' };
+      }
+
+      const payUrl = this.billingUrl('publisher', billingId);
+      const dueStr = row.due_date ? new Date(row.due_date).toLocaleDateString('pt-BR') : '—';
+      const amountStr = Number(row.amount).toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: row.currency || 'BRL',
+      });
+      const waText = `Olá ${row.publisher_name}, repasse ${row.invoice_number || billingId}: ${amountStr}, previsto até ${dueStr}. Detalhes: ${payUrl}`;
+      const waLink = this.whatsappLink(waText);
+
+      const html = `
+        <p>Olá <strong>${row.publisher_name}</strong>,</p>
+        <p>Foi registado um <strong>repasse (revenue share)</strong> a pagar:</p>
+        <ul>
+          <li>Referência: <strong>${row.invoice_number || `#${billingId}`}</strong></li>
+          <li>Valor: <strong>${amountStr}</strong></li>
+          <li>Previsão de pagamento: <strong>${dueStr}</strong></li>
+          <li>Descrição: ${row.description || '—'}</li>
+        </ul>
+        <p><a href="${payUrl}">Ver repasses no painel de faturamento</a></p>
+        <p><em>Este repasse é pago pela plataforma ao exibidor (não é cobrança PIX ao exibidor).</em></p>
+        ${waLink ? `<p><a href="${waLink}">WhatsApp</a></p>` : ''}
+        <p>Atenciosamente,<br/>${financialConfig.pixMerchantName}</p>
+      `;
+
+      const result = await emailService.sendEmail({
+        to: row.publisher_email,
+        subject: `Repasse exibidor ${row.invoice_number || billingId} — ${amountStr}`,
+        html,
+        text: `Repasse ${amountStr}, previsão ${dueStr}. Painel: ${payUrl}`,
+      });
+
+      if (result.success) {
+        await logInfo('E-mail de repasse (exibidor) enviado', { billingId, to: row.publisher_email });
+        return { sent: true };
+      }
+      return { sent: false, reason: result.error || 'Falha no envio SMTP' };
+    } catch (error: any) {
+      await logError('Erro ao enviar e-mail de repasse', error, { billingId });
+      return { sent: false, reason: error.message };
+    }
+  }
+
   async sendPublisherPaymentEmail(billingId: number): Promise<{ sent: boolean; reason?: string }> {
     try {
       const row = await this.db.findFirst(
@@ -121,6 +200,7 @@ export class FinancialNotificationService {
           pb.description,
           pb.payment_status,
           pb.direction,
+          pb.billing_type,
           p.name AS publisher_name,
           p.email AS publisher_email
         FROM publisher_billing pb
@@ -131,8 +211,8 @@ export class FinancialNotificationService {
       );
 
       if (!row) return { sent: false, reason: 'Fatura não encontrada' };
-      if (row.direction !== 'incoming') {
-        return { sent: false, reason: 'Fatura de saída (repasse) não usa cobrança PIX' };
+      if (row.direction === 'outgoing') {
+        return this.sendPublisherRevenueSharePayoutEmail(billingId);
       }
       if (!row.publisher_email) return { sent: false, reason: 'Exibidor sem e-mail' };
       if (row.payment_status === 'paid') return { sent: false, reason: 'Fatura já paga' };
@@ -234,13 +314,35 @@ export class FinancialNotificationService {
       [days]
     );
 
+    const repasseRows = await this.db.findMany(
+      `
+      SELECT billing_id, 'repasse' AS scope
+      FROM publisher_billing pb
+      JOIN publishers p ON p.publisher_id = pb.publisher_id
+      WHERE pb.direction = 'outgoing'
+        AND pb.billing_type = 'revenue_share'
+        AND pb.payment_status = 'pending_payout'
+        AND p.email IS NOT NULL
+        AND pb.due_date IS NOT NULL
+        AND (
+          pb.due_date < CURRENT_DATE
+          OR pb.due_date <= CURRENT_DATE + ($1::int * INTERVAL '1 day')
+        )
+      ORDER BY pb.due_date ASC
+      LIMIT 25
+    `,
+      [days]
+    );
+
     let sent = 0;
     let skipped = 0;
-    for (const row of [...subRows, ...pubRows]) {
+    for (const row of [...subRows, ...pubRows, ...repasseRows]) {
       const r =
-        row.scope === 'publisher'
-          ? await this.sendPublisherPaymentEmail(Number(row.billing_id))
-          : await this.sendInvoicePaymentEmail(Number(row.billing_id));
+        row.scope === 'repasse'
+          ? await this.sendPublisherRevenueSharePayoutEmail(Number(row.billing_id))
+          : row.scope === 'publisher'
+            ? await this.sendPublisherPaymentEmail(Number(row.billing_id))
+            : await this.sendInvoicePaymentEmail(Number(row.billing_id));
       if (r.sent) sent++;
       else skipped++;
     }

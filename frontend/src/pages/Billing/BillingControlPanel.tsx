@@ -37,6 +37,8 @@ interface Props {
   onFilterInvoices?: (filter: 'overdue' | 'due_soon' | '') => void;
   onFilterPendingInvoices?: () => void;
   onFilterRevenueSharePayout?: () => void;
+  onGenerateRevenueSharePayouts?: () => void;
+  generatingRevenueShare?: boolean;
   showRevenueShareKpis?: boolean;
   contractsPath?: string;
   publisherContractsPath?: string;
@@ -84,6 +86,8 @@ const BillingControlPanel: React.FC<Props> = ({
   onFilterInvoices,
   onFilterPendingInvoices,
   onFilterRevenueSharePayout,
+  onGenerateRevenueSharePayouts,
+  generatingRevenueShare = false,
   showRevenueShareKpis = false,
   contractsPath = '/subscriber-contracts',
   publisherContractsPath = '/publisher-contracts',
@@ -189,6 +193,25 @@ const BillingControlPanel: React.FC<Props> = ({
                 icon={<AccountBalance />}
               />
             </Grid>
+            {dashboard.revenueShare.campaignsAwaitingPayout > 0 && onGenerateRevenueSharePayouts && (
+              <Grid item xs={12} sm={8} md={6}>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  fullWidth
+                  disabled={generatingRevenueShare}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onGenerateRevenueSharePayouts();
+                  }}
+                  sx={{ height: '100%', minHeight: 88 }}
+                >
+                  {generatingRevenueShare
+                    ? 'A gerar repasses…'
+                    : `Gerar repasses (${dashboard.revenueShare.campaignsAwaitingPayout} campanha(s))`}
+                </Button>
+              </Grid>
+            )}
           </Grid>
         </>
       )}

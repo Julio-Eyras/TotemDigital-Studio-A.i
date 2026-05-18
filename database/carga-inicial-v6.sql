@@ -106,12 +106,12 @@ WHERE setting_key = 'ui.combo.subscribers.status_filter';
 DELETE FROM system_settings WHERE setting_key = 'media.allowed_types';
 
 -- =============================================
--- USERS: admin + usuário publisher + usuário subscriber
--- OBS: username "totemdigital.admin" é placeholder dinâmico e será substituído no install
---      por SYSTEM_OWNER_ADMIN_USERNAME (scripts/install-smartsignage.sh).
+-- USERS: admin tenant (Studio/Pro) — sem publisher_id (chk_users_tenant_logic).
+-- O exibidor owner é publishers.is_system_owner; o backend resolve via resolveCompactOwnerPublisherId.
+-- OBS: username "totemdigital.admin" é placeholder dinâmico (install → SYSTEM_OWNER_ADMIN_USERNAME).
 -- =============================================
 INSERT INTO users (username, email, password_hash, first_name, last_name, name, phone, role, user_type, is_tenant_user, publisher_id, subscriber_id, is_active, email_verified) VALUES
-('totemdigital.admin', 'admin@smartsignage.local', '$2a$12$eenSYwwg9qOkcleFuH2lrOL5u3nAMN8MqQlsOQJh59mg16gcBu5A2', 'Admin', 'Sistema', 'Admin Sistema', NULL, 'admin', 'system_user', true, 1, NULL, true, true)
+('totemdigital.admin', 'admin@smartsignage.local', '$2a$12$eenSYwwg9qOkcleFuH2lrOL5u3nAMN8MqQlsOQJh59mg16gcBu5A2', 'Admin', 'Sistema', 'Admin Sistema', NULL, 'admin', 'system_user', true, NULL, NULL, true, true)
 
 ON CONFLICT (username) DO NOTHING;
 

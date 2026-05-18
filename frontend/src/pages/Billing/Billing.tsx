@@ -175,6 +175,7 @@ const Billing: React.FC = () => {
     amount?: number;
   }>({ open: false, mode: 'pay', billingScope: 'subscriber', billingId: null });
   const [issuingInvoices, setIssuingInvoices] = useState(false);
+  const [generatingRevenueShare, setGeneratingRevenueShare] = useState(false);
   const [issueInvoicesOpen, setIssueInvoicesOpen] = useState(false);
   const [issueInvoicesScope, setIssueInvoicesScope] = useState<IssueInvoicesScope>('all');
   const [stripeReturnHandled, setStripeReturnHandled] = useState(false);
@@ -797,6 +798,27 @@ const Billing: React.FC = () => {
     }
   };
 
+  const handleGenerateRevenueSharePayouts = async () => {
+    setGeneratingRevenueShare(true);
+    try {
+      const result = await financialAdminApi.issueRevenueSharePayouts({ sinceDays: 90 });
+      await Promise.all([
+        loadPublisherBillings(),
+        loadSubscriberBillings(),
+        loadDashboard(),
+      ]);
+      const repasseMsg = formatRevenueSharePayoutMessage(result);
+      showSuccess(repasseMsg || formatIssueInvoicesMessage(result));
+      if (result.created > 0) {
+        void applyPublisherRepasseFilter();
+      }
+    } catch (e: unknown) {
+      showError(pickApiErrorMessage(e, 'Erro ao gerar repasses'));
+    } finally {
+      setGeneratingRevenueShare(false);
+    }
+  };
+
   const openFinancialDialog = (mode: FinancialDialogMode, billing: SubscriberBillingItem) => {
     setFinancialDialog({
       open: true,
@@ -1031,6 +1053,10 @@ const Billing: React.FC = () => {
         onFilterRevenueSharePayout={
           isStudioMode() && canViewAllBillingTypes ? () => void applyPublisherRepasseFilter() : undefined
         }
+        onGenerateRevenueSharePayouts={
+          isStudioMode() && canViewAllBillingTypes ? () => void handleGenerateRevenueSharePayouts() : undefined
+        }
+        generatingRevenueShare={generatingRevenueShare}
         contractsPath="/subscriber-contracts"
         publisherContractsPath="/publisher-contracts"
         formatCurrency={(n) => formatCurrency(n)}
@@ -1800,15 +1826,26 @@ const Billing: React.FC = () => {
                       {billing.direction === 'outgoing' &&
                         billing.payment_status === 'pending_payout' &&
                         canCreateModernInvoices && (
-                          <Tooltip title="Marcar repasse como pago">
-                            <IconButton
-                              size="small"
-                              color="success"
-                              onClick={() => markPublisherPaid(billing.billing_id)}
-                            >
-                              <Payment />
-                            </IconButton>
-                          </Tooltip>
+                          <>
+                            <Tooltip title="Enviar aviso de repasse por e-mail">
+                              <IconButton
+                                size="small"
+                                color="info"
+                                onClick={() => sendPublisherPaymentEmail(billing.billing_id)}
+                              >
+                                <Email />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Marcar repasse como pago">
+                              <IconButton
+                                size="small"
+                                color="success"
+                                onClick={() => markPublisherPaid(billing.billing_id)}
+                              >
+                                <Payment />
+                              </IconButton>
+                            </Tooltip>
+                          </>
                         )}
                       {billing.direction === 'incoming' &&
                         (billing.payment_status === 'pending' || billing.payment_status === 'overdue') &&

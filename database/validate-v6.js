@@ -382,10 +382,13 @@ async function validateAndExecute() {
       `);
       if (adminPub.rows[0]?.publisher_id != null) {
         console.log(
-          `  ✅ Admin com publisher_id=${adminPub.rows[0].publisher_id} (${adminPub.rows[0].username})`
+          `  ⚠️  Admin tenant com publisher_id=${adminPub.rows[0].publisher_id} viola chk_users_tenant_logic — use NULL e is_system_owner no publisher`
         );
+        studioOk = false;
       } else if (profile === 'single_publisher') {
-        console.log('  ⚠️  Admin sem publisher_id — repasse exibidor pode falhar na UI');
+        console.log(
+          `  ✅ Admin tenant sem publisher_id (${adminPub.rows[0]?.username || '—'}) — owner via publishers.is_system_owner`
+        );
       }
     } catch (error) {
       console.log(`  ⚠️  Validação Studio: ${error.message}`);

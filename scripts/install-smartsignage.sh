@@ -540,15 +540,8 @@ BEGIN
         SELECT id INTO v_admin_id FROM users ORDER BY id ASC LIMIT 1;
     END IF;
 
-    -- Mono/Studio: dono/admin com publisher_id do exibidor owner (repasse/revenue share)
-    IF v_admin_id IS NOT NULL AND v_target_publisher_id IS NOT NULL THEN
-        UPDATE users
-        SET publisher_id = v_target_publisher_id,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = v_admin_id
-          AND role IN ('admin', 'owner_system', 'operador_faturamento')
-          AND (publisher_id IS NULL OR publisher_id IS DISTINCT FROM v_target_publisher_id);
-    END IF;
+    -- Admin tenant: publisher_id permanece NULL (chk_users_tenant_logic).
+    -- Studio resolve o exibidor owner via publishers.is_system_owner, não via users.publisher_id.
 
     -- Planos base
     INSERT INTO plans (name, slug, description, price_monthly, price_four_month, price_semester, price_yearly, currency, billing_interval, features, limits, is_active, is_popular, is_default, sort_order)
@@ -5897,6 +5890,7 @@ EOF
     if [[ "${INSTALL_TOTEMDIGITAL_COMPACT:-false}" == "true" ]]; then
         cat <<EOF
 FINANCIAL_AUTO_REVENUE_SHARE=true
+FINANCIAL_NOTIFY_REVENUE_SHARE_PAYOUT=true
 FINANCIAL_REVENUE_SHARE_SINCE_DAYS=90
 FINANCIAL_CRON_REVENUE_SHARE=0 4 * * *
 EOF
