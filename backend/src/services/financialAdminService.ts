@@ -426,7 +426,7 @@ export class FinancialAdminService {
           sb.billing_id,
           sb.campaign_id,
           sb.amount::numeric AS campaign_amount,
-          sb.paid_at,
+          sb.payment_date,
           cp.publisher_id,
           pc.contract_id,
           COALESCE(cp.revenue_share_percentage, pc.revenue_share_percentage) AS share_pct,
@@ -442,8 +442,8 @@ export class FinancialAdminService {
           AND (pc.start_date IS NULL OR pc.start_date <= CURRENT_DATE)
         WHERE sb.payment_status = 'paid'
           AND sb.campaign_id IS NOT NULL
-          AND sb.paid_at IS NOT NULL
-          AND sb.paid_at >= CURRENT_DATE - ($1::int * INTERVAL '1 day')
+          AND sb.payment_date IS NOT NULL
+          AND sb.payment_date >= CURRENT_DATE - ($1::int * INTERVAL '1 day')
           AND COALESCE(cp.revenue_share_percentage, pc.revenue_share_percentage, 0) > 0
           ${publisherFilter}
         ORDER BY sb.billing_id
@@ -506,7 +506,7 @@ export class FinancialAdminService {
             paymentStatus: 'pending_payout',
             metadata: {
               sourceSubscriberBillingId: sourceBillingId,
-              paidAt: row.paid_at,
+              paidAt: row.payment_date,
               invoiceNumber,
             },
           });
@@ -538,7 +538,15 @@ export class FinancialAdminService {
     }
   }
 
-  async recordSubscriberPayment(billingId: number, data: RecordPaymentRequest) {
+  async recordSubscriberPayment(
+    billingId: number,
+    data: RecordPaymentRequest & { triggerRevenueShare?: boolean }
+  ): Promise<{
+    billing: NonNullable<
+      Awaited<ReturnType<ReturnType<typeof getSubscriberBillingServiceInstance>['getBillingById']>>
+    >;
+    revenueSharePayout?: IssueInvoicesResult;
+  }> {
     const billing = await getSubscriberBillingServiceInstance().getBillingById(billingId);
     if (!billing) {
       throw new Error('Fatura não encontrada');
@@ -547,12 +555,56 @@ export class FinancialAdminService {
       throw new Error('Fatura já está paga');
     }
 
-    return getSubscriberBillingServiceInstance().updateBilling(billingId, {
+    const campaignId = billing.campaignId ?? null;
+
+    const updated = await getSubscriberBillingServiceInstance().updateBilling(billingId, {
       status: 'paid',
       paymentMethod: data.paymentMethod || 'pix',
       paymentReference: data.paymentReference,
       notes: data.notes,
     });
+
+    const shouldTrigger =
+      data.triggerRevenueShare ?? financialConfig.autoRevenueSharePayouts;
+    let revenueSharePayout: IssueInvoicesResult | undefined;
+
+    if (shouldTrigger && campaignId) {
+      try {
+        const publishers = await this.db.findMany(
+          `
+          SELECT DISTINCT cp.publisher_id
+          FROM campaign_publishers cp
+          WHERE cp.campaign_id = $1 AND cp.is_active = true
+        `,
+          [campaignId]
+        );
+        let merged: IssueInvoicesResult = {
+          created: 0,
+          skipped: 0,
+          errors: [],
+          invoices: [],
+        };
+        for (const row of publishers) {
+          const pid = Number(row.publisher_id);
+          if (!pid) continue;
+          const part = await this.issueRevenueSharePayouts({
+            publisherId: pid,
+            sinceDays: financialConfig.revenueShareSinceDays,
+          });
+          merged = this.mergeIssueResults(merged, part);
+        }
+        if (merged.created > 0 || merged.errors.length > 0) {
+          revenueSharePayout = merged;
+        }
+      } catch (error: any) {
+        await logError('Repasse revenue share após pagamento de campanha', error, {
+          billingId,
+          campaignId,
+        });
+      }
+    }
+
+    return { billing: updated, revenueSharePayout };
   }
 
   async getSubscriberPaymentQr(billingId: number): Promise<PaymentQrResponse> {

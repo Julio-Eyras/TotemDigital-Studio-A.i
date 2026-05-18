@@ -202,7 +202,7 @@ jobs:
       - name: Run frontend billingIntervals unit tests (Studio build profile)
         env:
           CI: true
-        run: npm test --prefix frontend -- --watchAll=false --testPathPattern="billingIntervals|billingIssuePayload|issueInvoicesDialog"
+        run: npm test --prefix frontend -- --watchAll=false --testPathPattern="billingIntervals|billingIssuePayload|issueInvoicesDialog|formatIssueInvoicesResult"
 
   validate-v6-studio:
     name: validate v6 schema (Studio seeds)

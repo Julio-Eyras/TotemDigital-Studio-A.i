@@ -4230,10 +4230,22 @@ export const financialAdminApi = {
       paymentMethod?: string;
       paymentReference?: string;
       notes?: string;
+      triggerRevenueShare?: boolean;
     }
-  ) => {
+  ): Promise<{
+    billing?: SubscriberBillingItem;
+    revenueSharePayout?: {
+      created: number;
+      skipped: number;
+      errors: Array<{ contractId: number; message: string }>;
+    };
+  }> => {
     const response = await api.post(`/financial-admin/subscriber-billing/${billingId}/record-payment`, payload || {});
-    return response.data.data || response.data;
+    const body = response.data;
+    return {
+      ...(body.data || body),
+      revenueSharePayout: body.revenueSharePayout,
+    };
   },
 
   getPaymentQr: async (billingId: number): Promise<{

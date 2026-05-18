@@ -95,12 +95,18 @@ router.post(
   body('paymentMethod').optional().isString(),
   body('paymentReference').optional().isString(),
   body('notes').optional().isString(),
+  body('triggerRevenueShare').optional().isBoolean(),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const billingId = parseInt(req.params.id, 10);
-      const updated = await getFinancialAdminService().recordSubscriberPayment(billingId, req.body);
-      return res.json({ success: true, data: updated, message: 'Pagamento registado' });
+      const result = await getFinancialAdminService().recordSubscriberPayment(billingId, req.body);
+      return res.json({
+        success: true,
+        data: result.billing,
+        revenueSharePayout: result.revenueSharePayout,
+        message: 'Pagamento registado',
+      });
     } catch (error: any) {
       return res.status(400).json({ success: false, message: error.message || 'Erro ao registar pagamento' });
     }

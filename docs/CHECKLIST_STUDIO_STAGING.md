@@ -156,6 +156,9 @@ cd database && node validate-v6.js
 # Smoke read-only pós-deploy (contratos, faturas, planos)
 ./scripts/validate-studio-finance-smoke.sh
 
+# Smoke HTTP (backend a correr; login ou TOKEN)
+BASE="http://SEU_HOST:3001/api" USER=admin PASS='...' ./scripts/validate-studio-finance-api.sh
+
 # Emissão manual (token admin): POST /api/financial-admin/issue-invoices
 # Corpo opcional: subscriberId, contractId, publisherId, publisherContractId, dueInDays
 

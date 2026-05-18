@@ -93,6 +93,10 @@ import {
 } from '../../utils/billingNavigation';
 import IssueInvoicesDialog from './IssueInvoicesDialog';
 import type { IssueInvoicesScope } from '../../utils/billingIssuePayload';
+import {
+  formatIssueInvoicesMessage,
+  formatRevenueSharePayoutMessage,
+} from '../../utils/formatIssueInvoicesResult';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -725,9 +729,10 @@ const Billing: React.FC = () => {
 
   const markSubscriberPaid = async (id: number) => {
     try {
-      await financialAdminApi.recordPayment(id, { paymentMethod: 'pix' });
-      await Promise.all([loadSubscriberBillings(), loadDashboard()]);
-      showSuccess('Pagamento registado');
+      const res = await financialAdminApi.recordPayment(id, { paymentMethod: 'pix' });
+      await Promise.all([loadSubscriberBillings(), loadPublisherBillings(), loadDashboard()]);
+      const repasseMsg = formatRevenueSharePayoutMessage(res.revenueSharePayout);
+      showSuccess(repasseMsg ? `Pagamento registado. ${repasseMsg}` : 'Pagamento registado');
     } catch (e: any) {
       showError(pickApiErrorMessage(e, 'Erro ao registar pagamento'));
     }
@@ -757,11 +762,7 @@ const Billing: React.FC = () => {
         loadDashboard(),
       ]);
       setIssueInvoicesOpen(false);
-      showSuccess(
-        `Emissão concluída: ${result.created} criada(s), ${result.skipped} já existente(s)${
-          result.errors.length ? `, ${result.errors.length} erro(s)` : ''
-        }.`
-      );
+      showSuccess(formatIssueInvoicesMessage(result));
     } catch (e: unknown) {
       showError(pickApiErrorMessage(e, 'Erro ao emitir faturas do período'));
     } finally {

@@ -67,6 +67,19 @@ FROM plans
 WHERE is_active = true
 ORDER BY plan_id
 LIMIT 10;
+
+\echo '--- Campanhas pagas elegíveis a repasse (últimos 90 dias) ---'
+SELECT COUNT(*)::int AS paid_campaign_invoices
+FROM subscriber_billing sb
+WHERE sb.payment_status = 'paid'
+  AND sb.campaign_id IS NOT NULL
+  AND sb.payment_date IS NOT NULL
+  AND sb.payment_date >= CURRENT_DATE - INTERVAL '90 days';
+
+\echo '--- Repasses revenue share já gerados ---'
+SELECT COUNT(*)::int AS revenue_share_payouts
+FROM publisher_billing
+WHERE billing_type = 'revenue_share' AND direction = 'outgoing';
 SQL
 
 echo
