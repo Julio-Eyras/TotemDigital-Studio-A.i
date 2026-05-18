@@ -348,7 +348,7 @@ const Billing: React.FC = () => {
             next.delete('type');
           } else {
             next.set('view', 'invoices');
-            if (billingType === 'subscriber' || compactBillingAdminOnly) {
+            if (billingType === 'subscriber') {
               next.set('type', 'subscriber');
             } else if (billingType === 'publisher') {
               next.set('type', 'publisher');
@@ -359,22 +359,8 @@ const Billing: React.FC = () => {
         { replace: true }
       );
     },
-    [billingType, compactBillingAdminOnly, setSearchParams]
+    [billingType, setSearchParams]
   );
-
-  /** Evita ?type=publisher no mono quando o ecrã é só administrativo de anunciantes. */
-  useEffect(() => {
-    if (!compactBillingAdminOnly) return;
-    if (rawType !== 'publisher') return;
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        next.set('type', 'subscriber');
-        return next;
-      },
-      { replace: true }
-    );
-  }, [compactBillingAdminOnly, rawType, setSearchParams]);
 
   useEffect(() => {
     const sessionId = searchParams.get('session_id');
@@ -1062,34 +1048,31 @@ const Billing: React.FC = () => {
         formatCurrency={(n) => formatCurrency(n)}
       />
 
-      {/* Filtro de tipo de billing (omitido no mono compacto para gestores: só anunciantes) */}
-      {!compactBillingAdminOnly && (
-        <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
-          <FormControl size="small" sx={{ minWidth: 200 }}>
-            <InputLabel>Tipo de Faturamento</InputLabel>
-            <Select
-              value={billingType}
-              label="Tipo de Faturamento"
-              onChange={(e) => {
-                const type = e.target.value;
-                setSearchParams({
-                  type,
-                  view: type === 'subscriber' || type === 'publisher' ? 'invoices' : 'plans',
-                });
-                setTabValue(type === 'subscriber' || type === 'publisher' ? 2 : 0);
-              }}
-            >
-              {!isSubscriberUser && <MenuItem value="subscriber">Anunciantes</MenuItem>}
-              {!isSubscriberUser && !(isStudioMode() && canViewAllBillingTypes) && (
-                <MenuItem value="publisher">
-                  {isStudioMode() ? 'Exibidor (sistema)' : 'Publicadores'}
-                </MenuItem>
-              )}
-              {isSubscriberUser && <MenuItem value="subscriber">Anunciantes</MenuItem>}
-            </Select>
-          </FormControl>
-        </Box>
-      )}
+      <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
+        <FormControl size="small" sx={{ minWidth: 200 }}>
+          <InputLabel>Tipo de Faturamento</InputLabel>
+          <Select
+            value={billingType}
+            label="Tipo de Faturamento"
+            onChange={(e) => {
+              const type = e.target.value;
+              setSearchParams({
+                type,
+                view: type === 'subscriber' || type === 'publisher' ? 'invoices' : 'plans',
+              });
+              setTabValue(type === 'subscriber' || type === 'publisher' ? 2 : 0);
+            }}
+          >
+            {!isSubscriberUser && <MenuItem value="subscriber">Anunciantes</MenuItem>}
+            {!isSubscriberUser && (
+              <MenuItem value="publisher">
+                {isStudioMode() ? 'Exibidor (sistema)' : 'Publicadores'}
+              </MenuItem>
+            )}
+            {isSubscriberUser && <MenuItem value="subscriber">Anunciantes</MenuItem>}
+          </Select>
+        </FormControl>
+      </Box>
 
       <Box sx={{ mb: 3 }}>
         <ResponsiveSectionNav
