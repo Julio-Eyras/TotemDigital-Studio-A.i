@@ -1,6 +1,8 @@
 import {
+  buildContractEndDate,
   getPlanAvailableIntervals,
   getStripePriceFieldsForPlan,
+  getMinContractEndDate,
   normalizeBillingInterval,
   resolveContractBillingInterval,
   validatePlanPriceConfiguration,
@@ -35,5 +37,11 @@ describe('billingIntervals (frontend)', () => {
   it('valida configuração mínima do plano', () => {
     expect(validatePlanPriceConfiguration({ price_monthly: 100 }, 'month').ok).toBe(true);
     expect(validatePlanPriceConfiguration({ price_monthly: 0 }, 'month').ok).toBe(false);
+  });
+
+  it('buildContractEndDate respeita mínimo do intervalo', () => {
+    const start = '2026-01-15';
+    expect(buildContractEndDate(start, 'month') >= getMinContractEndDate(start, 'month')).toBe(true);
+    expect(buildContractEndDate(start, 'year') >= getMinContractEndDate(start, 'year')).toBe(true);
   });
 });

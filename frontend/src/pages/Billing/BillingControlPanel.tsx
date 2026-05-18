@@ -181,7 +181,7 @@ const BillingControlPanel: React.FC<Props> = ({
               <KpiCard
                 title="Campanhas pagas sem repasse"
                 count={dashboard.revenueShare.campaignsAwaitingPayout}
-                color={dashboard.revenueShare.campaignsAwaitingPayout > 0 ? 'error' : 'default'}
+                color={dashboard.revenueShare.campaignsAwaitingPayout > 0 ? 'error' : 'primary'}
                 icon={<Warning />}
                 onClick={onFilterRevenueSharePayout}
               />

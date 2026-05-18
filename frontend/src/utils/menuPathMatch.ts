@@ -147,7 +147,12 @@ export function buildAutoOpenMenus(
     for (const item of list) {
       const key = menuKeyFromText(item.text);
       if (item.children?.length) {
-        if (menuItemOrChildActive(item, location)) {
+        if (
+          menuItemOrChildActive(
+            item as { path: string; children?: { path: string; children?: { path: string }[] }[] },
+            location
+          )
+        ) {
           state[key] = true;
         }
         visit(item.children as typeof list);

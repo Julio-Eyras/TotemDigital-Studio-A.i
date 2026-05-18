@@ -69,6 +69,7 @@ import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import {
   BILLING_INTERVAL_OPTIONS,
   billingIntervalLabel,
+  buildContractEndDate,
   clampContractEndDate,
   contractEndDateHelperText,
   normalizeBillingInterval,

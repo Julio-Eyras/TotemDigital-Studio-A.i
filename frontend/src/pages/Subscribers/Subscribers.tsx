@@ -123,6 +123,7 @@ import {
   getDefaultContractEndDate,
   getMinContractEndDate,
   getPlanAvailableIntervals,
+  getPlanDefaultBillingInterval,
   getPlanPriceForInterval,
   isContractEndDateValid,
   normalizeBillingInterval,

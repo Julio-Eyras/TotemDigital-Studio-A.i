@@ -159,6 +159,17 @@ export function clampContractEndDate(
   return candidate < min ? min : candidate;
 }
 
+/** Término padrão do contrato (1 ano ou mínimo do intervalo, o que for maior). */
+export function buildContractEndDate(
+  startDateYmd?: string,
+  billingInterval?: string | null
+): string {
+  const start =
+    startDateYmd?.trim() ||
+    formatYmd(new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
+  return clampContractEndDate(start, undefined, billingInterval ?? 'month');
+}
+
 export function isContractEndDateValid(
   startDateYmd: string,
   endDateYmd: string | null | undefined,

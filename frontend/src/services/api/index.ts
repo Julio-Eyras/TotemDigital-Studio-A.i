@@ -3335,7 +3335,6 @@ export interface Contract {
   revenue_share_rules?: any;
   minimum_payout_amount?: number;
   subscription_amount?: number;
-  billing_interval?: string;
   subscription_interval?: string;
 }
 
@@ -3370,7 +3369,6 @@ export interface CreateContractRequest {
   revenue_share_rules?: any;
   minimum_payout_amount?: number;
   subscription_amount?: number;
-  billing_interval?: string;
   subscription_interval?: string;
 }
 
@@ -3461,6 +3459,7 @@ export interface PublisherContract {
   revenue_share_rules?: any;
   minimum_payout_amount?: number;
   subscription_amount?: number;
+  billing_interval?: string;
   subscription_interval?: string;
   currency: string;
   payment_terms?: string;
@@ -3484,6 +3483,7 @@ export interface CreatePublisherContractRequest {
   revenue_share_rules?: any;
   minimum_payout_amount?: number;
   subscription_amount?: number;
+  billing_interval?: string;
   subscription_interval?: string;
   currency?: string;
   payment_terms?: string;
@@ -3502,6 +3502,7 @@ export interface UpdatePublisherContractRequest {
   revenue_share_rules?: any;
   minimum_payout_amount?: number;
   subscription_amount?: number;
+  billing_interval?: string;
   subscription_interval?: string;
   currency?: string;
   payment_terms?: string;

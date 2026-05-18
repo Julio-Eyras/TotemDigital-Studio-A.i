@@ -245,11 +245,7 @@ export const getMenuHierarchyByRole = (
       return filterHierarchicalMenu(getDefaultMenu(), role, userFlags);
     }
     const menu = getSystemAdminMenu(role);
-    const compactFullNav =
-      role === 'owner_system' ||
-      role === 'admin_sql' ||
-      role === 'admin' ||
-      role === 'operador_faturamento';
+    const compactFullNav = role === 'owner_system' || role === 'admin_sql' || role === 'admin';
     if (compactFullNav) return menu;
     return filterHierarchicalMenu(menu, role, userFlags);
   }

@@ -616,10 +616,10 @@ const Billing: React.FC = () => {
       },
       { replace: true }
     );
-    const next = { ...subscriberFilters, dueFilter: '' as const, status: 'pending', page: 1 };
+    const next = { ...subscriberFilters, status: 'pending', page: 1, dueFilter: '' as '' | 'overdue' | 'due_soon' };
     setSubscriberFilters(next);
     try {
-      const { subscriberId, limit, ...rest } = next;
+      const { subscriberId, limit, dueFilter: _df, ...rest } = next;
       const effLimit = subscriberId != null ? Math.max(Number(limit) || 20, 50) : limit;
       const response = await subscriberBillingApi.getAll({
         ...rest,
