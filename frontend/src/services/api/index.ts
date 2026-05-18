@@ -3954,6 +3954,9 @@ export interface SubscriberBillingItem {
   subscriber_name?: string;
   campaign_id?: number;
   campaign_title?: string;
+  contract_id?: number;
+  period_start?: string;
+  period_end?: string;
   billing_type: 'advertisement' | 'campaign' | 'media_upload' | 'exhibition_lot' | 'totem_quantity' | 'time_based' | 'custom';
   amount: number;
   currency: string;
@@ -4202,6 +4205,17 @@ export interface BillingControlDashboard {
     end_date: string | null;
     days_past_end: number;
   }>;
+  revenueShare: {
+    pendingPayoutCount: number;
+    pendingPayoutAmount: number;
+    revenueShareTotalCount: number;
+    campaignsAwaitingPayout: number;
+  };
+  publisherContracts: {
+    active: number;
+    subscriptionActive: number;
+    expiringSoon: number;
+  };
 }
 
 export const financialAdminApi = {

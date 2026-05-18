@@ -13,7 +13,7 @@ import {
   Chip,
   Button,
 } from '@mui/material';
-import { Warning, Error as ErrorIcon, CheckCircle, Schedule } from '@mui/icons-material';
+import { Warning, Error as ErrorIcon, CheckCircle, Schedule, AccountBalance } from '@mui/icons-material';
 import { BillingControlDashboard } from '../../services/api';
 import {
   contractEndAlertLevel,
@@ -36,7 +36,10 @@ interface Props {
   publisherLabel?: string;
   onFilterInvoices?: (filter: 'overdue' | 'due_soon' | '') => void;
   onFilterPendingInvoices?: () => void;
+  onFilterRevenueSharePayout?: () => void;
+  showRevenueShareKpis?: boolean;
   contractsPath?: string;
+  publisherContractsPath?: string;
   formatCurrency: (n: number) => string;
 }
 
@@ -80,7 +83,10 @@ const BillingControlPanel: React.FC<Props> = ({
   publisherLabel = 'Exibidor',
   onFilterInvoices,
   onFilterPendingInvoices,
+  onFilterRevenueSharePayout,
+  showRevenueShareKpis = false,
   contractsPath = '/subscriber-contracts',
+  publisherContractsPath = '/publisher-contracts',
   formatCurrency,
 }) => {
   if (loading && !dashboard) {
@@ -149,6 +155,83 @@ const BillingControlPanel: React.FC<Props> = ({
           />
         </Grid>
       </Grid>
+
+      {showRevenueShareKpis && dashboard.revenueShare && (
+        <>
+          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+            Repasse ao exibidor (revenue share)
+          </Typography>
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid item xs={6} sm={4} md={3}>
+              <KpiCard
+                title="Repasse pendente"
+                count={dashboard.revenueShare.pendingPayoutCount}
+                amount={dashboard.revenueShare.pendingPayoutAmount}
+                color="warning"
+                icon={<AccountBalance />}
+                onClick={onFilterRevenueSharePayout}
+                formatCurrency={formatCurrency}
+              />
+            </Grid>
+            <Grid item xs={6} sm={4} md={3}>
+              <KpiCard
+                title="Campanhas pagas sem repasse"
+                count={dashboard.revenueShare.campaignsAwaitingPayout}
+                color={dashboard.revenueShare.campaignsAwaitingPayout > 0 ? 'error' : 'default'}
+                icon={<Warning />}
+                onClick={onFilterRevenueSharePayout}
+              />
+            </Grid>
+            <Grid item xs={6} sm={4} md={3}>
+              <KpiCard
+                title="Total repasses (hist.)"
+                count={dashboard.revenueShare.revenueShareTotalCount}
+                icon={<AccountBalance />}
+              />
+            </Grid>
+          </Grid>
+        </>
+      )}
+
+      {showRevenueShareKpis && dashboard.publisherContracts && (
+        <>
+          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+            Contratos de exibidor
+          </Typography>
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid item xs={6} sm={4}>
+              <KpiCard title="Ativos" count={dashboard.publisherContracts.active} color="success" icon={<CheckCircle />} />
+            </Grid>
+            <Grid item xs={6} sm={4}>
+              <KpiCard
+                title="Assinatura ativa"
+                count={dashboard.publisherContracts.subscriptionActive}
+                icon={<Schedule />}
+              />
+            </Grid>
+            <Grid item xs={6} sm={4}>
+              <KpiCard
+                title="A vencer"
+                count={dashboard.publisherContracts.expiringSoon}
+                color="warning"
+                icon={<Warning />}
+              />
+            </Grid>
+            <Grid item xs={6} sm={4}>
+              <Button
+                component={RouterLink}
+                to={publisherContractsPath}
+                variant="outlined"
+                size="small"
+                fullWidth
+                sx={{ height: '100%', minHeight: 88 }}
+              >
+                Contratos exibidor
+              </Button>
+            </Grid>
+          </Grid>
+        </>
+      )}
 
       {showPublisherKpis && (
         <>

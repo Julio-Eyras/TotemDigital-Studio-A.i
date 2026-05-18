@@ -647,6 +647,33 @@ const Billing: React.FC = () => {
     }
   };
 
+  const applyPublisherRepasseFilter = useCallback(async () => {
+    setTabValue(2);
+    setSearchParams({ type: 'publisher', view: 'invoices' });
+    const next = {
+      ...publisherFilters,
+      billingType: 'revenue_share',
+      direction: 'outgoing',
+      paymentStatus: 'pending_payout',
+      dueFilter: '' as '' | 'overdue' | 'due_soon',
+      page: 1,
+    };
+    setPublisherFilters(next);
+    try {
+      const response = await publisherBillingApi.getAll({
+        page: 1,
+        limit: next.limit,
+        billingType: 'revenue_share',
+        direction: 'outgoing',
+        paymentStatus: 'pending_payout',
+      });
+      setPublisherBillings(response.billings || []);
+      setPublisherBillingTotal(response.total ?? 0);
+    } catch {
+      showError('Erro ao filtrar repasses');
+    }
+  }, [publisherFilters, setSearchParams]);
+
   const applyInvoiceDueFilter = async (filter: 'overdue' | 'due_soon' | '') => {
     if (billingType === 'subscriber') {
       syncSubscriberDueFilterToUrl(filter);
@@ -992,15 +1019,20 @@ const Billing: React.FC = () => {
         loading={loading}
         showPublisherKpis={
           isStudioMode()
-            ? billingType === 'publisher'
+            ? billingType === 'publisher' || canViewAllBillingTypes
             : billingType === 'publisher' || canViewAllBillingTypes
         }
+        showRevenueShareKpis={isStudioMode() && canViewAllBillingTypes}
         publisherLabel={isStudioMode() ? 'Exibidor (sistema)' : 'Publicadores'}
         onFilterInvoices={canViewAllBillingTypes || !isSubscriberUser ? applyInvoiceDueFilter : undefined}
         onFilterPendingInvoices={
           canViewAllBillingTypes || !isSubscriberUser ? applyInvoicePendingFilter : undefined
         }
+        onFilterRevenueSharePayout={
+          isStudioMode() && canViewAllBillingTypes ? () => void applyPublisherRepasseFilter() : undefined
+        }
         contractsPath="/subscriber-contracts"
+        publisherContractsPath="/publisher-contracts"
         formatCurrency={(n) => formatCurrency(n)}
       />
 
@@ -1393,6 +1425,8 @@ const Billing: React.FC = () => {
                   <TableCell>ID</TableCell>
                   <TableCell>Assinante</TableCell>
                   <TableCell>Campanha</TableCell>
+                  {canViewAllBillingTypes && <TableCell>Contrato</TableCell>}
+                  {canViewAllBillingTypes && <TableCell>Período</TableCell>}
                   <TableCell>Tipo</TableCell>
                   <TableCell>Valor</TableCell>
                   <TableCell>Status</TableCell>
@@ -1430,6 +1464,25 @@ const Billing: React.FC = () => {
                     <TableCell>{billing.billing_id}</TableCell>
                     <TableCell>{billing.subscriber_name || `Assinante #${billing.subscriber_id}`}</TableCell>
                     <TableCell>{billing.campaign_title || '-'}</TableCell>
+                    {canViewAllBillingTypes && (
+                      <TableCell>
+                        {billing.contract_id ? `#${billing.contract_id}` : '—'}
+                      </TableCell>
+                    )}
+                    {canViewAllBillingTypes && (
+                      <TableCell>
+                        {billing.period_start || billing.period_end
+                          ? [
+                              billing.period_start
+                                ? new Date(billing.period_start).toLocaleDateString('pt-BR')
+                                : '…',
+                              billing.period_end
+                                ? new Date(billing.period_end).toLocaleDateString('pt-BR')
+                                : '…',
+                            ].join(' – ')
+                          : '—'}
+                      </TableCell>
+                    )}
                     <TableCell>{billing.billing_type}</TableCell>
                     <TableCell>
                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: billing.currency || 'BRL' }).format(billing.amount)}
@@ -1744,6 +1797,19 @@ const Billing: React.FC = () => {
                       {billing.paid_at ? new Date(billing.paid_at).toLocaleDateString('pt-BR') : '-'}
                     </TableCell>
                     <TableCell align="right">
+                      {billing.direction === 'outgoing' &&
+                        billing.payment_status === 'pending_payout' &&
+                        canCreateModernInvoices && (
+                          <Tooltip title="Marcar repasse como pago">
+                            <IconButton
+                              size="small"
+                              color="success"
+                              onClick={() => markPublisherPaid(billing.billing_id)}
+                            >
+                              <Payment />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                       {billing.direction === 'incoming' &&
                         (billing.payment_status === 'pending' || billing.payment_status === 'overdue') &&
                         canPayPublisherInvoices && (

@@ -65,6 +65,9 @@ Use após `git pull` na branch `Smart-Signage-Studio-V3x`, aplicar schema/seeds 
 ## 7. Faturamento (UI)
 
 - [ ] **Faturamento** → Visão geral (`/billing` ou `?view=plans`) carrega KPIs/planos sem travar
+- [ ] Painel: KPIs **Repasse pendente** e **Campanhas pagas sem repasse**; clique filtra faturas exibidor `revenue_share` / `pending_payout`
+- [ ] Tabela anunciantes: colunas **Contrato** e **Período** (faturas por contrato recorrente)
+- [ ] Tabela exibidor: ação **Marcar repasse como pago** em linhas `outgoing` + `pending_payout`
 - [ ] **Anunciantes** (`?view=invoices&type=subscriber`) lista faturas com paginação
 - [ ] **Exibidores** (`type=publisher`) acessível para admin/owner (**não** bloqueado por guard antigo)
 - [ ] Seletor de tipo atualiza `view=` na URL; item de menu correto fica destacado
