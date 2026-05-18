@@ -2050,13 +2050,15 @@ const Billing: React.FC = () => {
         onClose={() =>
           setFinancialDialog({ open: false, mode: 'pay', billingScope: 'subscriber', billingId: null })
         }
-        onSuccess={() => {
+        onSuccess={(info) => {
           if (financialDialog.billingScope === 'publisher') {
-            loadPublisherBillings();
+            void loadPublisherBillings();
           } else {
-            loadSubscriberBillings();
+            void loadSubscriberBillings();
+            void loadPublisherBillings();
           }
-          loadDashboard();
+          void loadDashboard();
+          showSuccess(info.message);
         }}
       />
     </Box>

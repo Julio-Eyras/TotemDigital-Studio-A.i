@@ -197,7 +197,7 @@ jobs:
           NODE_ENV: test
           TOTEMDIGITAL_COMPACT: 'true'
         run: |
-          npm test -- --testPathPattern="installationPolicy|installationRuntime|startup|publisher-billing.compact|financial-admin.issue-invoices|financialBillingWorker|billingIntervals|registerExtendedApiRoutes|invoiceService|financialAdmin.(publisher|revenueShare)|contract.validators"
+          npm test -- --testPathPattern="installationPolicy|installationRuntime|startup|publisher-billing.compact|financial-admin.issue-invoices|financialBillingWorker|billingIntervals|registerExtendedApiRoutes|invoiceService|financialAdmin.(publisher|revenueShare|recordSubscriberPayment)|contract.validators"
 
       - name: Run frontend billingIntervals unit tests (Studio build profile)
         env:

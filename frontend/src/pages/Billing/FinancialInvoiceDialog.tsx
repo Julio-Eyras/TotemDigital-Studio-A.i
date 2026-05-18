@@ -18,6 +18,11 @@ import {
 import { QrCode2, Payment } from '@mui/icons-material';
 import { financialAdminApi } from '../../services/api';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { formatRevenueSharePayoutMessage } from '../../utils/formatIssueInvoicesResult';
+
+export interface FinancialPaymentSuccessInfo {
+  message: string;
+}
 
 export type FinancialDialogMode = 'pay' | 'qr';
 export type FinancialBillingScope = 'subscriber' | 'publisher';
@@ -29,7 +34,7 @@ interface Props {
   billingId: number | null;
   amount?: number;
   onClose: () => void;
-  onSuccess?: () => void;
+  onSuccess?: (info: FinancialPaymentSuccessInfo) => void;
 }
 
 const FinancialInvoiceDialog: React.FC<Props> = ({
@@ -90,15 +95,19 @@ const FinancialInvoiceDialog: React.FC<Props> = ({
           paymentMethod,
           paymentReference: paymentReference || undefined,
         });
+        onSuccess?.({ message: 'Pagamento registado' });
       } else {
-        await financialAdminApi.recordPayment(billingId, {
+        const res = await financialAdminApi.recordPayment(billingId, {
           amount,
           paymentMethod,
           paymentReference: paymentReference || undefined,
           notes: notes || undefined,
         });
+        const repasseMsg = formatRevenueSharePayoutMessage(res.revenueSharePayout);
+        onSuccess?.({
+          message: repasseMsg ? `Pagamento registado. ${repasseMsg}` : 'Pagamento registado',
+        });
       }
-      onSuccess?.();
       onClose();
     } catch (e: unknown) {
       setError(pickApiErrorMessage(e, 'Erro ao registar pagamento'));

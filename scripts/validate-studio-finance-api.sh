@@ -93,6 +93,24 @@ code="$(echo "$resp" | tail -n1)"
 [[ "$code" =~ ^2 ]] && log_ok "issue-invoices+repasse $code" || log_fail "issue-invoices+repasse $code"
 echo
 
+if [[ -n "${SUBSCRIBER_BILLING_ID:-}" ]]; then
+  echo "[6] POST /financial-admin/subscriber-billing/$SUBSCRIBER_BILLING_ID/record-payment"
+  resp="$(req POST "$BASE/financial-admin/subscriber-billing/$SUBSCRIBER_BILLING_ID/record-payment" '{"paymentMethod":"pix"}')"
+  code="$(echo "$resp" | tail -n1)"
+  body="$(echo "$resp" | sed '$d')"
+  if [[ "$code" =~ ^2 ]]; then
+    log_ok "record-payment $code"
+    if command -v jq >/dev/null 2>&1 && echo "$body" | jq -e '.revenueSharePayout' >/dev/null 2>&1; then
+      log_ok "resposta inclui revenueSharePayout"
+    fi
+  elif [[ "$code" -eq 400 ]]; then
+    log_ok "record-payment $code (fatura já paga ou inválida — OK em re-run)"
+  else
+    log_fail "record-payment $code"
+  fi
+  echo
+fi
+
 echo "== Resultado =="
 echo "PASS: $PASS_COUNT  FAIL: $FAIL_COUNT"
 [[ "$FAIL_COUNT" -gt 0 ]] && exit 2
