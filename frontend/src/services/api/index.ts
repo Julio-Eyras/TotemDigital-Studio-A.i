@@ -3,6 +3,32 @@ import { normalizeCampaignRecord } from '../../utils/campaignNormalize';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
+const PUBLIC_AUTH_PATHS = ['/login', '/subscriber-login', '/forgot-password', '/reset-password'];
+
+function requestUrl(config: { url?: string; baseURL?: string } | undefined): string {
+  return String(config?.url || '');
+}
+
+function isPublicBootstrapRequest(url: string): boolean {
+  return url.includes('/dashboard/ui-context') || url.includes('/health');
+}
+
+function isPublicAuthPage(): boolean {
+  if (typeof window === 'undefined') return false;
+  const path = window.location.pathname;
+  return PUBLIC_AUTH_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
+}
+
+function shouldSkipUnauthorizedRedirect(url: string): boolean {
+  return (
+    isPublicAuthPage() ||
+    isPublicBootstrapRequest(url) ||
+    url.includes('/auth/login') ||
+    url.includes('/auth/subscriber-login') ||
+    url.includes('/auth/refresh')
+  );
+}
+
 /**
  * Retorna a URL base do WebSocket (host:port sem protocolo).
  * Usa REACT_APP_API_URL quando definido (conexão direta ao backend), senão mesmo host da página (proxy reverso).
@@ -35,7 +61,8 @@ const api = axios.create({
 // Interceptor para adicionar token de autenticação
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  if (token) {
+  const url = requestUrl(config);
+  if (token && !isPublicBootstrapRequest(url)) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   // Se for FormData, remover Content-Type para axios adicionar boundary automaticamente
@@ -63,23 +90,11 @@ api.interceptors.response.use(
         error.message?.includes('Failed to fetch');
       
       if (isNetworkError) {
-        // Servidor reiniciou ou está offline - fazer logout e redirecionar
-        // Evitar logout em requisições de login
-        const reqUrl: string = String(originalRequest?.url || '');
-        const isAuthLoginRequest =
-          reqUrl.includes('/auth/login') ||
-          reqUrl.includes('/auth/subscriber-login') ||
-          reqUrl.includes('/auth/refresh');
-
-        if (!isAuthLoginRequest) {
+        const reqUrl = requestUrl(originalRequest);
+        if (!shouldSkipUnauthorizedRedirect(reqUrl)) {
           localStorage.removeItem('token');
           localStorage.removeItem('refreshToken');
-          // Forçar reload completo da página para limpar estado
-          if (window.location.pathname !== '/login') {
-            window.location.href = '/login';
-          } else {
-            window.location.reload();
-          }
+          window.location.href = '/login';
         }
         return Promise.reject(error);
       }
@@ -122,26 +137,14 @@ api.interceptors.response.use(
 
     // Tratamento de 401 (Não autorizado)
     if (error.response?.status === 401) {
-      // Evitar redirect/reload no fluxo de login (senão o usuário não vê a mensagem de credenciais inválidas)
-      const reqUrl: string = String(originalRequest?.url || '');
-      const isAuthLoginRequest =
-        reqUrl.includes('/auth/login') ||
-        reqUrl.includes('/auth/subscriber-login') ||
-        reqUrl.includes('/auth/refresh');
-
-      if (isAuthLoginRequest) {
+      const reqUrl = requestUrl(originalRequest);
+      if (shouldSkipUnauthorizedRedirect(reqUrl)) {
         return Promise.reject(error);
       }
 
-      // Fazer logout imediato e redirecionar para login
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
-      // Forçar reload completo da página para limpar estado
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
-      } else {
-        window.location.reload();
-      }
+      window.location.href = '/login';
       return Promise.reject(error);
     }
 

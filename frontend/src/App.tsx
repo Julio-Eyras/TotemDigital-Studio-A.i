@@ -112,12 +112,18 @@ const AppContent: React.FC = () => {
     const detected = installationCaps.subdomainTenancy ? detectSubdomainType() : 'main';
     setSubdomainType(detected);
     
-    // Check if user is authenticated
+    // Token em páginas públicas (ex.: login) não implica sessão válida — evita redirect com JWT expirado
     const token = localStorage.getItem('token');
     const user = localStorage.getItem('user');
-    
-    if (token && user) {
+    const path = window.location.pathname;
+    const onPublicAuthPage = ['/login', '/subscriber-login', '/forgot-password', '/reset-password'].some(
+      (p) => path === p || path.startsWith(`${p}/`)
+    );
+
+    if (token && user && !onPublicAuthPage) {
       setIsAuthenticated(true);
+    } else if (onPublicAuthPage) {
+      setIsAuthenticated(false);
     }
     
     setLoading(false);

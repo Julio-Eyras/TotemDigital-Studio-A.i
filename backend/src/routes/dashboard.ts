@@ -16,7 +16,35 @@ import { resolveInstallationCapabilities } from '../services/installationProfile
 
 const router = express.Router();
 
-// Middleware de autenticação para todas as rotas
+/**
+ * @route GET /api/dashboard/ui-context
+ * @desc Capabilities da instalação (público — tela de login e bootstrap da UI).
+ */
+router.get('/ui-context', async (_req: any, res: any) => {
+  try {
+    const { createDatabaseWrapper } = await import('../config/database-pg');
+    const db = createDatabaseWrapper();
+    const capabilities = await resolveInstallationCapabilities(db);
+    res.json({
+      disableDirectCampaignTotem: DISABLE_DIRECT_CAMPAIGN_TOTEM,
+      totemDigitalCompact: capabilities.totemDigitalCompact,
+      installationProfile: capabilities.profile,
+      directCampaignTotemHint: DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT,
+      capabilities,
+    });
+  } catch {
+    const capabilities = buildInstallationCapabilities();
+    res.json({
+      disableDirectCampaignTotem: DISABLE_DIRECT_CAMPAIGN_TOTEM,
+      totemDigitalCompact: capabilities.totemDigitalCompact,
+      installationProfile: capabilities.profile,
+      directCampaignTotemHint: DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT,
+      capabilities,
+    });
+  }
+});
+
+// Demais rotas do dashboard exigem autenticação
 router.use(authMiddleware);
 
 const validateRequest = (req: any, res: any, next: any) => {
@@ -102,34 +130,6 @@ router.get('/charts', async (req: any, res: any) => {
   } catch (error) {
     await logError('Erro ao obter dados dos gráficos do dashboard', error);
     res.status(500).json(errorResponse('Erro interno do servidor'));
-  }
-});
-
-/**
- * @route GET /api/dashboard/ui-context
- * @desc Sinalizadores de produto alinhados ao servidor (campanhas, modo compacto). Usado pela UI de campanhas.
- */
-router.get('/ui-context', async (_req: any, res: any) => {
-  try {
-    const { createDatabaseWrapper } = await import('../config/database-pg');
-    const db = createDatabaseWrapper();
-    const capabilities = await resolveInstallationCapabilities(db);
-    res.json({
-      disableDirectCampaignTotem: DISABLE_DIRECT_CAMPAIGN_TOTEM,
-      totemDigitalCompact: capabilities.totemDigitalCompact,
-      installationProfile: capabilities.profile,
-      directCampaignTotemHint: DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT,
-      capabilities,
-    });
-  } catch {
-    const capabilities = buildInstallationCapabilities();
-    res.json({
-      disableDirectCampaignTotem: DISABLE_DIRECT_CAMPAIGN_TOTEM,
-      totemDigitalCompact: capabilities.totemDigitalCompact,
-      installationProfile: capabilities.profile,
-      directCampaignTotemHint: DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT,
-      capabilities,
-    });
   }
 });
 

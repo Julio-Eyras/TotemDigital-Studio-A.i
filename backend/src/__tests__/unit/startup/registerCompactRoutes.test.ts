@@ -44,6 +44,10 @@ describe('registerCompactRoutes', () => {
     for (const path of excluded) {
       expect(registeredPaths).not.toContain(path);
     }
+
+    const dashboardMount = use.mock.calls.find((call) => call[0] === '/api/dashboard');
+    expect(dashboardMount).toBeDefined();
+    expect(dashboardMount?.[1]?.name).not.toBe('authMiddleware');
   });
 });
 

@@ -54,7 +54,8 @@ export function registerCompactRoutes(app: Express): void {
   app.use('/api/campaigns', blockClientDataAccess as any, campaignRoutes);
   app.use('/api/quick-publish', blockClientDataAccess as any, quickPublishRoutes);
   app.use('/api/settings', settingsRoutes);
-  app.use('/api/dashboard', authMiddleware as any, dashboardRoutes);
+  // ui-context é público (definido antes do auth no router); auth só nas demais rotas do dashboard
+  app.use('/api/dashboard', dashboardRoutes);
   app.use('/api/alerts', alertsRoutes);
   app.use('/api/logs', logsRoutes);
   app.use('/api/playlist-engine', playlistEngineRoutes);
