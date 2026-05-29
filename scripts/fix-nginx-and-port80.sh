@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # =============================================================================
-# SmartSignage Pro - Nginx e porta 80 (uso exclusivo desta aplicação)
-# Portas e serviços (80, 3000, 5432, 6379) são dedicados ao SmartSignage Pro.
-# Execute no servidor: bash scripts/fix-nginx-and-port80.sh
+# SmartSignage Pro - Nginx e porta 80 (uso exclusivo do PAINEL nesta porta)
+# AVISO: com layout dividido (site corporativo na :80 + painel na :8080) NÃO execute
+# este script — ele aponta a :80 para frontend/build/index.html e apaga o site corporativo.
+# Execute no servidor apenas em instalações legado (tudo na :80): bash scripts/fix-nginx-and-port80.sh
 # =============================================================================
 
 set -e

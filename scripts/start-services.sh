@@ -76,8 +76,15 @@ if command -v nginx &>/dev/null; then
         echo "Nginx está ativo."
     else
         echo "AVISO: Nginx não iniciou. Verifique: sudo nginx -t && sudo systemctl status nginx"
-        # Fallback: aplicar config mínima em conf.d (script de fix)
-        if [[ -f "$SCRIPT_DIR/fix-nginx-and-port80.sh" ]]; then
+        # Fallback: só em modo porta-80 exclusiva do painel (não com site corporativo na :80)
+        _ss_env=""
+        for _cand in /opt/smart-signage/.env "${INSTALL_DIR:-}/.env" "$SCRIPT_DIR/../.env"; do
+            [[ -f "$_cand" ]] && _ss_env="$_cand" && break
+        done
+        if [[ -n "$_ss_env" ]] && grep -qE '^SMARTSIGNAGE_NGINX_SPLIT=true' "$_ss_env" 2>/dev/null; then
+            echo "AVISO: layout dividido (site corporativo na :80). Não aplicar fix-nginx-and-port80."
+            echo "       Corrija Nginx: sudo nginx -t && sudo systemctl reload nginx"
+        elif [[ -f "$SCRIPT_DIR/fix-nginx-and-port80.sh" ]]; then
             echo "Tentando aplicar fix-nginx-and-port80.sh..."
             bash "$SCRIPT_DIR/fix-nginx-and-port80.sh" || true
         fi

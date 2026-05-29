@@ -1829,9 +1829,10 @@ parse_arguments() {
                 echo "  --public-host <IP|domínio>  Host público para Nginx e URLs (com --split ou env SMARTSIGNAGE_PUBLIC_HOST)"
                 echo "  --corporate-http-port <n>   Porta HTTP do site corporativo (padrão 80)"
                 echo "  --system-http-port <n>      Porta HTTP do painel/API/player (80 se um só vhost; com --split-corporate-system use tipicamente 8080)"
-                echo "  --corporate-web-root <dir>  Raiz estática do site corporativo (padrão /var/www/corporate-site; landing app.html)"
+                echo "  --corporate-web-root <dir>  Raiz estática do site corporativo (padrão /var/www/corporate-site; o instalador não altera index.html)"
                 echo "  Env (autom./--skip-menu): SMARTSIGNAGE_SPLIT_SITE, SMARTSIGNAGE_PUBLIC_HOST, SMARTSIGNAGE_CORPORATE_HTTP_PORT,"
-                echo "                            SMARTSIGNAGE_SYSTEM_HTTP_PORT, SMARTSIGNAGE_CORPORATE_WEB_ROOT, SMARTSIGNAGE_CORPORATE_LANDING_FILE (ex.: app.html),"
+                echo "                            SMARTSIGNAGE_SYSTEM_HTTP_PORT, SMARTSIGNAGE_CORPORATE_WEB_ROOT,"
+                echo "                            SMARTSIGNAGE_DEPLOY_CORPORATE_LANDING (opt-in: gera app.html com link ao painel),"
                 echo "                            SMARTSIGNAGE_LETSENCRYPT=true + SMARTSIGNAGE_DOMAIN_NAME (+ SMARTSIGNAGE_SSL_EMAIL opcional) para LE no layout dividido"
                 echo "  --reset-db           Apaga e recria o banco PostgreSQL se já existir (fluxo completo)"
                 echo "  --preserve-db        Preserva o banco de dados existente durante reinstalação"
@@ -6149,6 +6150,29 @@ is_valid_tcp_port() {
     [[ -n "${1:-}" ]] && [[ "$1" =~ ^[0-9]+$ ]] && (( $1 >= 1 && $1 <= 65535 ))
 }
 
+# Layout dividido ativo (site corporativo numa porta, painel noutra — ex.: 80 + 8080).
+is_split_corporate_layout() {
+    [[ "${SPLIT_CORPORATE_AND_SYSTEM:-false}" == "true" ]]
+}
+
+env_has_nginx_split() {
+    local envf="${1:-${INSTALL_DIR:-/opt/smart-signage}/.env}"
+    [[ -f "$envf" ]] && grep -qE '^SMARTSIGNAGE_NGINX_SPLIT=true' "$envf" 2>/dev/null
+}
+
+# Nunca usar fix-nginx-and-port80.sh quando a :80 é do site corporativo (substituiria index.html pelo React).
+run_fix_nginx_port80_if_allowed() {
+    if is_split_corporate_layout || env_has_nginx_split; then
+        warning "Layout dividido: não aplicar fix-nginx-and-port80 (a :80 é do site corporativo, não do painel)."
+        return 1
+    fi
+    local fix_script="${1:-${INSTALL_DIR:-}/scripts/fix-nginx-and-port80.sh}"
+    if [[ -f "$fix_script" ]]; then
+        log "Aplicando fix-nginx-and-port80.sh como fallback..."
+        bash "$fix_script" || true
+    fi
+}
+
 apply_split_layout_from_environment() {
     case "${SMARTSIGNAGE_SPLIT_SITE:-}" in
         1|true|TRUE|yes|YES|s|S) SPLIT_CORPORATE_AND_SYSTEM=true ;;
@@ -6196,6 +6220,17 @@ ask_public_host_and_split_layout() {
     [[ -z "$default_ip" ]] && default_ip=""
 
     if [[ "$SKIP_MENU" == "true" ]]; then
+        if [[ "$SPLIT_CORPORATE_AND_SYSTEM" != "true" ]]; then
+            case "${SMARTSIGNAGE_SINGLE_PORT:-}" in
+                1|true|TRUE|yes|YES) ;;
+                *)
+                    SPLIT_CORPORATE_AND_SYSTEM=true
+                    CORPORATE_HTTP_PORT="${SMARTSIGNAGE_CORPORATE_HTTP_PORT:-80}"
+                    SYSTEM_HTTP_PORT="${SMARTSIGNAGE_SYSTEM_HTTP_PORT:-8080}"
+                    log "Layout dividido por defeito (--skip-menu): site corporativo :${CORPORATE_HTTP_PORT}, Smart Signage :${SYSTEM_HTTP_PORT}."
+                    ;;
+            esac
+        fi
         if [[ "$SPLIT_CORPORATE_AND_SYSTEM" == "true" ]]; then
             if [[ "$CORPORATE_HTTP_PORT" == "$SYSTEM_HTTP_PORT" ]]; then
                 SYSTEM_HTTP_PORT="${SMARTSIGNAGE_SYSTEM_HTTP_PORT:-8080}"
@@ -6220,7 +6255,7 @@ ask_public_host_and_split_layout() {
     echo
     echo "Como deseja expor o tráfego HTTP?"
     echo -e "  ${GREEN}1)${NC} Tudo na mesma porta: painel, API e /player na porta 80."
-    echo -e "  ${GREEN}2)${NC} Site corporativo estático numa porta e o sistema noutra (padrão; ex.: site na 80, painel na 8080)."
+    echo -e "  ${GREEN}2)${NC} Site corporativo estático na :80 e o painel Smart Signage noutra porta (padrão; ex.: :8080)."
     echo
     read -p "Opção [2]: " _split_choice
     _split_choice=${_split_choice:-2}
@@ -6710,9 +6745,10 @@ verify_nginx_ws_config() {
     fi
 }
 
-# Landing HTML padrão do site corporativo (layout dividido). Grava app.html (atalho ao painel).
-# Só substitui se não existir app.html personalizado ou se ainda for o marcador smart-signage-default-corporate-landing-v1.
-# Remove index.html legado do instalador (gerações antigas) quando continha o mesmo marcador.
+# Landing opcional do site corporativo (layout dividido). Por defeito NÃO grava ficheiros:
+# a :80 serve apenas o index.html (e estáticos) colocados pelo cliente em CORPORATE_WEB_ROOT.
+# Atalho app.html → painel só com SMARTSIGNAGE_DEPLOY_CORPORATE_LANDING=true (opt-in).
+# Remove index.html/app.html legados do instalador (marcador smart-signage-default-corporate-landing-v1).
 # Uso: deploy_corporate_landing_html [dest_root] [url_painel]
 deploy_corporate_landing_html() {
     local dest_root="${1:-$CORPORATE_WEB_ROOT}"
@@ -6732,6 +6768,24 @@ deploy_corporate_landing_html() {
         warn "deploy_corporate_landing_html: raiz vazia."
         return 1
     fi
+
+    # Limpar artefactos legados do instalador (nunca tocar num index.html personalizado do cliente).
+    if [[ -f "$legacy_index" ]] && grep -q "$marker" "$legacy_index" 2>/dev/null; then
+        sudo rm -f "$legacy_index"
+        log "Site corporativo: removido $legacy_index legado do instalador."
+    fi
+    if [[ -f "$target" ]] && grep -q "$marker" "$target" 2>/dev/null; then
+        sudo rm -f "$target"
+        log "Site corporativo: removido atalho legado $(basename "$target") (sem link ao painel)."
+    fi
+
+    case "${SMARTSIGNAGE_DEPLOY_CORPORATE_LANDING:-${DEPLOY_CORPORATE_LANDING:-false}}" in
+        1|true|TRUE|yes|YES) ;;
+        *)
+            log "Site corporativo: mantém ficheiros existentes em $dest_root (sem gerar atalho ao painel)."
+            return 0
+            ;;
+    esac
     if [[ -z "$host_label" ]] || [[ "$host_label" == "_" ]]; then
         host_label="$(hostname -I 2>/dev/null | awk '{print $1}')"
         [[ -z "$host_label" ]] && host_label="127.0.0.1"
@@ -6779,12 +6833,6 @@ PY
 <!DOCTYPE html><html lang="pt"><head><meta charset="utf-8"/><title>${host_label}</title></head>
 <body><h1>${host_label}</h1><p><a href="${panel_url}">Painel Smart Signage</a></p><!-- ${marker} --></body></html>
 MINHTML
-    fi
-
-    # Migrar instaladores antigos: index.html com marcador deixa de ser usado (Nginx usa app.html)
-    if [[ -f "$legacy_index" ]] && grep -q "$marker" "$legacy_index" 2>/dev/null; then
-        sudo rm -f "$legacy_index"
-        log "Site corporativo: removido $legacy_index legado (substituído por $(basename "$target"))."
     fi
 
     if id www-data &>/dev/null; then
@@ -6869,9 +6917,9 @@ ${ssl_extra}
     ssl_protocols TLSv1.2 TLSv1.3;
 
     root ${CORPORATE_WEB_ROOT};
-    index ${CORPORATE_LANDING_FILE} index.html;
+    index index.html;
     location / {
-        try_files \$uri \$uri/ /${CORPORATE_LANDING_FILE};
+        try_files \$uri \$uri/ /index.html =404;
     }
 }
 
@@ -7118,11 +7166,11 @@ server {
     listen [::]:${CORPORATE_HTTP_PORT} default_server;
     server_name ${PUBLIC_HOST} _;
     root ${CORPORATE_WEB_ROOT};
-    index ${CORPORATE_LANDING_FILE} index.html;
+    index index.html;
     location ^~ /.well-known/acme-challenge/ {
         root /var/www/certbot;
     }
-    location / { try_files \$uri \$uri/ /${CORPORATE_LANDING_FILE}; }
+    location / { try_files \$uri \$uri/ /index.html =404; }
 }
 server {
     listen ${SYSTEM_HTTP_PORT};
@@ -7650,14 +7698,14 @@ server {
     server_name ${PUBLIC_HOST} _;
 
     root ${CORPORATE_WEB_ROOT};
-    index ${CORPORATE_LANDING_FILE} index.html;
+    index index.html;
 
     location ^~ /.well-known/acme-challenge/ {
         root /var/www/certbot;
     }
 
     location / {
-        try_files \$uri \$uri/ /${CORPORATE_LANDING_FILE};
+        try_files \$uri \$uri/ /index.html =404;
     }
 }
 
@@ -14027,8 +14075,7 @@ main() {
             sudo systemctl start nginx 2>/dev/null || true
             sleep 2
             if [[ -f "$INSTALL_DIR/scripts/fix-nginx-and-port80.sh" ]]; then
-                log "Aplicando fix-nginx-and-port80.sh como fallback..."
-                bash "$INSTALL_DIR/scripts/fix-nginx-and-port80.sh" 2>/dev/null || true
+                run_fix_nginx_port80_if_allowed "$INSTALL_DIR/scripts/fix-nginx-and-port80.sh"
             fi
             if ! (command -v ss &>/dev/null && ss -tlnp 2>/dev/null | grep -q ":3000 "); then
                 error "❌ Backend não está a escutar na porta 3000."
