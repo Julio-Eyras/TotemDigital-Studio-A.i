@@ -168,6 +168,11 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefix frontend
 
+      - name: Run frontend unit tests
+        env:
+          CI: true
+        run: npm test --prefix frontend -- --watchAll=false
+
       - name: Production build with REACT_APP_TOTEMDIGITAL_COMPACT (Studio)
         env:
           CI: true
@@ -197,12 +202,12 @@ jobs:
           NODE_ENV: test
           TOTEMDIGITAL_COMPACT: 'true'
         run: |
-          npm test -- --testPathPattern="installationPolicy|installationRuntime|startup|publisher-billing.compact|financial-admin.issue-invoices|financial-admin.issue-revenue-share|financialNotificationService.revenueShare|financialBillingWorker|billingControlService|billingIntervals|registerExtendedApiRoutes|invoiceService|financialAdmin.(publisher|revenueShare|recordSubscriberPayment)|contract.validators"
+          npm test -- --testPathPattern="installationPolicy|installationRuntime|startup|publisher-billing.compact|financial-admin.issue-invoices|financial-admin.issue-revenue-share|financialNotificationService.revenueShare|financialBillingWorker|billingControlService|billingIntervals|registerExtendedApiRoutes|invoiceService|financialAdmin.(publisher|revenueShare|recordSubscriberPayment)|contract.validators|otaUpdateService|ota-updates.auth"
 
       - name: Run frontend billingIntervals unit tests (Studio build profile)
         env:
           CI: true
-        run: npm test --prefix frontend -- --watchAll=false --testPathPattern="billingIntervals|billingIssuePayload|issueInvoicesDialog|formatIssueInvoicesResult"
+        run: npm test --prefix frontend -- --watchAll=false --testPathPattern="billingIntervals|billingIssuePayload|issueInvoicesDialog|formatIssueInvoicesResult|rolePermissions"
 
   validate-v6-studio:
     name: validate v6 schema (Studio seeds)

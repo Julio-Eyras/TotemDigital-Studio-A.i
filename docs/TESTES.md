@@ -51,7 +51,7 @@ Arquivos de teste: `frontend/src/**/*.test.ts` e `*.test.tsx`.
 |-----------------|-----------|
 | `__tests__/helpers/validatorRunner.ts` | Helper para rodar validadores express-validator em testes |
 | `__tests__/unit/validators/*.test.ts` | Validadores (common, contract, plan, campaign) |
-| `__tests__/unit/services/*.test.ts` | Serviços (auth, campaign, totem, contract) – estruturas e regras |
+| `__tests__/unit/services/*.test.ts` | Serviços (auth, campaign, totem, contract, otaUpdate) – estruturas e regras |
 | `__tests__/unit/utils/*.test.ts` | Utils (apiResponse, loggerHelper) |
 | `__tests__/setup.ts` | Setup Jest (env, mocks) |
 
@@ -60,6 +60,7 @@ Arquivos de teste: `frontend/src/**/*.test.ts` e `*.test.tsx`.
 | Arquivo | Descrição |
 |---------|-----------|
 | `src/utils/validation.test.ts` | Utilitários de validação (email, URL, required, number, etc.) |
+| `src/utils/rolePermissions.test.ts` | Permissões de rota (`canAccess`, flags, modo Studio) |
 | `src/pages/Publishers/components/PublisherCard.test.tsx` | Componente PublisherCard |
 | `src/setupTests.ts` | Setup Jest (jest-dom) |
 
