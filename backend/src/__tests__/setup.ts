@@ -17,7 +17,7 @@ process.env.REDIS_HOST = process.env.REDIS_HOST || 'localhost';
 process.env.REDIS_PORT = process.env.REDIS_PORT || '6379';
 process.env.EMAIL_ENABLED = 'false'; // Desabilitar email em testes por padrão
 
-// Timeout global para testes
+// Timeout padrão para unitários (integração usa setup.integration.ts)
 jest.setTimeout(10000);
 
 // Mock de console para reduzir output em testes

@@ -40,7 +40,7 @@ jest.mock('../../../utils/loggerHelper', () => ({
 }));
 
 describe('POST /api/financial-admin/issue-invoices', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     mockIssueContractInvoices.mockReset();
     mockIssueContractInvoices.mockResolvedValue({
       created: 0,
@@ -48,6 +48,7 @@ describe('POST /api/financial-admin/issue-invoices', () => {
       errors: [],
       invoices: [],
     });
+    jest.resetModules();
   });
 
   const buildApp = async () => {

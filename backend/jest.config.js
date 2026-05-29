@@ -1,53 +1,70 @@
 /**
  * Jest Configuration - Smart Signage v2.1
- * Configuração de testes automatizados
+ *
+ * Dois projetos: unit (paralelo) e integration (serial, timeout 30s).
  */
 
 module.exports = {
-  preset: 'ts-jest',
-  testEnvironment: 'node',
-  roots: ['<rootDir>/src'],
-  testMatch: [
-    '**/__tests__/**/*.test.ts',
-    '**/?(*.)+(spec|test).ts'
-  ],
-  transform: {
-    '^.+\\.ts$': 'ts-jest',
-  },
-  collectCoverageFrom: [
-    // A suite atual é majoritariamente unitária (validators/utils).
-    // Restringimos o escopo para cobertura representativa do que é testado hoje.
-    'src/validators/**/*.ts',
-    'src/utils/apiResponse.ts',
-    'src/utils/dbErrors.ts',
-    '!src/**/*.d.ts',
-    '!src/**/*.test.ts',
-    '!src/**/*.spec.ts',
-  ],
-  coverageDirectory: 'coverage',
-  coverageReporters: [
-    'text',
-    'lcov',
-    'html',
-    'json-summary'
-  ],
-  coverageThreshold: {
-    global: {
-      branches: 60,
-      functions: 60,
-      lines: 70,
-      statements: 70
-    }
-  },
-  moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/src/$1',
-  },
-  setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
-  testTimeout: 10000,
   verbose: true,
   forceExit: true,
-  clearMocks: true,
-  resetMocks: true,
-  restoreMocks: true,
+  projects: [
+    {
+      displayName: 'unit',
+      preset: 'ts-jest',
+      testEnvironment: 'node',
+      roots: ['<rootDir>/src'],
+      testMatch: ['<rootDir>/src/__tests__/unit/**/*.test.ts'],
+      transform: {
+        '^.+\\.ts$': 'ts-jest',
+      },
+      moduleNameMapper: {
+        '^@/(.*)$': '<rootDir>/src/$1',
+      },
+      setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
+      testTimeout: 10000,
+      clearMocks: true,
+      resetMocks: true,
+      restoreMocks: true,
+      collectCoverageFrom: [
+        'src/validators/**/*.ts',
+        'src/utils/apiResponse.ts',
+        'src/utils/dbErrors.ts',
+        '!src/**/*.d.ts',
+        '!src/**/*.test.ts',
+        '!src/**/*.spec.ts',
+      ],
+      coverageDirectory: 'coverage',
+      coverageReporters: ['text', 'lcov', 'html', 'json-summary'],
+      coverageThreshold: {
+        global: {
+          branches: 60,
+          functions: 60,
+          lines: 70,
+          statements: 70,
+        },
+      },
+    },
+    {
+      displayName: 'integration',
+      preset: 'ts-jest',
+      testEnvironment: 'node',
+      roots: ['<rootDir>/src'],
+      testMatch: ['<rootDir>/src/__tests__/integration/**/*.test.ts'],
+      transform: {
+        '^.+\\.ts$': 'ts-jest',
+      },
+      moduleNameMapper: {
+        '^@/(.*)$': '<rootDir>/src/$1',
+      },
+      setupFilesAfterEnv: [
+        '<rootDir>/src/__tests__/setup.ts',
+        '<rootDir>/src/__tests__/setup.integration.ts',
+      ],
+      testTimeout: 30000,
+      maxWorkers: 1,
+      clearMocks: true,
+      resetMocks: true,
+      restoreMocks: true,
+    },
+  ],
 };
-
