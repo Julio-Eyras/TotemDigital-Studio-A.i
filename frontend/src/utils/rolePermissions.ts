@@ -99,7 +99,7 @@ export const menuPermissions: MenuItemPermission[] = [
   { path: '/ai', roles: ['admin_sql', 'admin', 'gerente_marketing'], requiresClientAccess: true },
   
   // Admin Tools - admin_sql, operator, operador_tecnico
-  { path: '/admin-tools', roles: ['owner_system', 'admin_sql', 'operator', 'operador_tecnico'], requiredFlag: 'flag_smart_2' },
+  { path: '/admin-tools', roles: ['owner_system', 'admin_sql', 'admin', 'operator', 'operador_tecnico'], requiredFlag: 'flag_smart_2' },
   
   // Rede Visual - topologia publishers + subscribers + grafo (exibidores e anunciantes)
   { path: '/network-topology', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico', 'operator', 'publisher_user', 'subscriber_user'] },
@@ -112,7 +112,7 @@ export const menuPermissions: MenuItemPermission[] = [
   { path: '/playlist-mix', roles: ['owner_system', 'admin_sql', 'operator', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_2' },
   
   // OTA Updates - admin_sql, operator, operador_tecnico
-  { path: '/ota-updates', roles: ['owner_system', 'admin_sql', 'operator', 'operador_tecnico'], requiredFlag: 'flag_smart_1' },
+  { path: '/ota-updates', roles: ['owner_system', 'admin_sql', 'admin', 'operator', 'operador_tecnico'], requiredFlag: 'flag_smart_1' },
   
   // Tags - admin_sql, admin, gerente_marketing, editoracao
   { path: '/tags', roles: ['admin_sql', 'admin', 'gerente_marketing', 'editoracao'], requiresClientAccess: true },

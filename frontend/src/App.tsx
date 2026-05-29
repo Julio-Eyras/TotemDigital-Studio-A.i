@@ -698,6 +698,14 @@ const AppContent: React.FC = () => {
             }
           />
           <Route
+            path="/ota-updates/history"
+            element={
+              <ProtectedRoute>
+                <OTAUpdates />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/tags"
             element={
               <ProtectedRoute>
