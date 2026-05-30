@@ -288,3 +288,69 @@ jobs:
           NODE_ENV: test
         run: npm test -- --testPathPattern=financial-admin.studio-db --forceExit
 
+  e2e-mock:
+    name: e2e (Playwright mock — Studio UI)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend
+
+      - name: Install E2E dependencies and Chromium
+        run: npm run test:e2e:install
+
+      - name: Run Playwright E2E (API mockada)
+        env:
+          CI: true
+          E2E_MOCK_API: '1'
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-mock
+          path: e2e/playwright-report/
+          retention-days: 7
+
+  e2e-studio:
+    name: e2e (Playwright full stack)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend
+
+      - name: Install E2E dependencies and Chromium
+        run: npm run test:e2e:install
+
+      - name: Run Playwright E2E tests (full stack)
+        env:
+          CI: true
+          E2E_MOCK_API: '0'
+        run: npm run test:e2e:full
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 7
+

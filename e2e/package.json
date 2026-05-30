@@ -1,0 +1,22 @@
+{
+  "name": "smartsignage-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Testes E2E Playwright — Smart Signage Studio",
+  "scripts": {
+    "test": "cross-env E2E_MOCK_API=1 playwright test -c playwright.config.ts",
+    "test:full": "cross-env E2E_MOCK_API=0 playwright test -c playwright.full.config.ts",
+    "test:ui": "cross-env E2E_MOCK_API=1 playwright test -c playwright.config.ts --ui",
+    "test:headed": "cross-env E2E_MOCK_API=1 playwright test -c playwright.config.ts --headed",
+    "install:browsers": "playwright install chromium",
+    "prepare:db": "node scripts/prepare-db.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "@types/node": "^20.10.4",
+    "bcryptjs": "^2.4.3",
+    "cross-env": "^7.0.3",
+    "pg": "^8.11.3",
+    "typescript": "^5.3.3"
+  }
+}

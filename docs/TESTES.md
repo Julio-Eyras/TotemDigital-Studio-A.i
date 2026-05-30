@@ -6,6 +6,7 @@ Este documento descreve a estrutura de testes do projeto e como executá-los.
 
 - **Backend (Node/TypeScript):** Jest + ts-jest. Testes em `backend/src/__tests__/`.
 - **Frontend (React):** Jest via react-scripts + React Testing Library. Testes em `frontend/src/**/*.test.ts(x)`.
+- **E2E (browser):** Playwright em `e2e/tests/`. Sobe Postgres (Docker), backend e frontend automaticamente.
 
 ## Como rodar
 
@@ -20,7 +21,31 @@ npm run test:backend
 
 # Apenas frontend
 npm run test:frontend
+
+# E2E (Playwright — requer Docker Desktop)
+npm run test:e2e:install   # primeira vez
+npm run test:e2e           # mock (só frontend, API simulada)
+npm run test:e2e:full      # full stack (Docker + backend + frontend)
 ```
+
+### E2E (Playwright)
+
+**Modo mock** (padrão, sem Docker): simula API; valida UI e navegação.
+
+```bash
+npm run test:e2e:install
+npm run test:e2e
+```
+
+**Modo full** (Docker Desktop + Postgres na porta 5433):
+
+```bash
+npm run test:e2e:full
+```
+
+Credenciais (modo full): `totemdigital.admin` / `admin123`.
+
+Detalhes das suites: [e2e/README.md](../e2e/README.md).
 
 ### Backend
 

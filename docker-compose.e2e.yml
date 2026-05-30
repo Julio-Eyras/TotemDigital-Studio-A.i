@@ -1,0 +1,44 @@
+# Stack mínima para testes E2E (Postgres + schema v6 + seeds)
+# Uso: docker compose -f docker-compose.e2e.yml up -d
+
+services:
+  postgres-e2e:
+    image: postgres:15-alpine
+    container_name: smartsignage-postgres-e2e
+    environment:
+      POSTGRES_DB: smartsignage
+      POSTGRES_USER: smartsignage
+      POSTGRES_PASSWORD: smartsignage123
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_e2e_data:/var/lib/postgresql/data
+      - ./database/smartchannel-db-v2-refactored-apply-all.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./database/smartchannel-db-v2-refactored-part1-schema-setup.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part1-schema-setup.sql:ro
+      - ./database/smartchannel-db-v2-refactored-part2-tables-base.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part2-tables-base.sql:ro
+      - ./database/smartchannel-db-v2-refactored-part3-tables-dependent.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part3-tables-dependent.sql:ro
+      - ./database/smartchannel-db-v2-refactored-part4-billing-contracts.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part4-billing-contracts.sql:ro
+      - ./database/smartchannel-db-v2-refactored-part5-tables-relationships.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part5-tables-relationships.sql:ro
+      - ./database/smartchannel-db-v2-refactored-part6-tables-other.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part6-tables-other.sql:ro
+      - ./database/smartchannel-db-v2-refactored-part7-foreign-keys.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part7-foreign-keys.sql:ro
+      - ./database/smartchannel-db-v2-refactored-part8-indexes.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part8-indexes.sql:ro
+      - ./database/smartchannel-db-v2-refactored-part9-triggers-functions.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part9-triggers-functions.sql:ro
+      - ./database/smartchannel-db-v2-refactored-part10-views.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part10-views.sql:ro
+      - ./database/smartchannel-db-v2-refactored-part11-playlist-mix.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part11-playlist-mix.sql:ro
+      - ./database/smartchannel-db-v2-refactored-part12-playlist-mix-functions.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part12-playlist-mix-functions.sql:ro
+      - ./database/carga-inicial-v6.sql:/docker-entrypoint-initdb.d/02-seeds.sql:ro
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smartsignage -d smartsignage"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - e2e-network
+
+volumes:
+  postgres_e2e_data:
+
+networks:
+  e2e-network:
+    driver: bridge

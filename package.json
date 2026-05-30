@@ -10,6 +10,11 @@
     "test": "npm run test:backend && npm run test:frontend",
     "test:backend": "cd backend && node node_modules/jest/bin/jest.js --coverage=false",
     "test:frontend": "cd frontend && CI=true npm test -- --watchAll=false",
+    "test:e2e": "npm run test --prefix e2e",
+    "test:e2e:full": "npm run test:full --prefix e2e",
+    "test:e2e:install": "npm ci --prefix e2e && npm run install:browsers --prefix e2e",
+    "test:all": "npm test && npm run test:e2e",
+    "test:all:full": "npm test && npm run test:e2e:full",
     "lint": "echo 'Linting implementado'"
   },
   "keywords": [
