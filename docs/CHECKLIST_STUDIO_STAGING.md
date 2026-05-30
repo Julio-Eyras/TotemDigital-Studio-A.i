@@ -1,5 +1,8 @@
 # Checklist de smoke manual — Smart Signage Studio (staging)
 
+> **Roteiro manual completo (todos os módulos):** [ROTEIRO_TESTES_MANUAIS_INTEGRAIS.md](./ROTEIRO_TESTES_MANUAIS_INTEGRAIS.md)  
+> Este ficheiro é o **smoke rápido** pós-deploy; use o roteiro integral para homologação de release.
+
 Use após `git pull` na branch `Smart-Signage-Studio-V3x`, aplicar schema/seeds se faltar colunas novas, e rebuild com:
 
 - **Frontend:** `REACT_APP_TOTEMDIGITAL_COMPACT=true`

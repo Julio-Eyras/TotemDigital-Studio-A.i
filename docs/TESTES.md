@@ -7,6 +7,7 @@ Este documento descreve a estrutura de testes do projeto e como executá-los.
 - **Backend (Node/TypeScript):** Jest + ts-jest. Testes em `backend/src/__tests__/`.
 - **Frontend (React):** Jest via react-scripts + React Testing Library. Testes em `frontend/src/**/*.test.ts(x)`.
 - **E2E (browser):** Playwright em `e2e/tests/`. Sobe Postgres (Docker), backend e frontend automaticamente.
+- **Manual integral:** [ROTEIRO_TESTES_MANUAIS_INTEGRAIS.md](./ROTEIRO_TESTES_MANUAIS_INTEGRAIS.md) — homologação por blocos (P0/P1/P2).
 
 ## Como rodar
 
