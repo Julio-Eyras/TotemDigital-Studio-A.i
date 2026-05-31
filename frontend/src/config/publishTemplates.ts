@@ -197,6 +197,10 @@ export function findPublishPreset(value: QuickPublishPreset): PublishPresetConfi
   return PUBLISH_PRESETS.find((p) => p.value === value) ?? PUBLISH_PRESETS[2];
 }
 
+export function defaultSegmentForPreset(preset: QuickPublishPreset): string {
+  return FEATURED_TEMPLATES.find((t) => t.value === preset)?.segment ?? 'retail';
+}
+
 export function resolvePublishPreset(value: string | null): QuickPublishPreset {
   return PUBLISH_PRESETS.some((p) => p.value === value) ? (value as QuickPublishPreset) : 'ad';
 }

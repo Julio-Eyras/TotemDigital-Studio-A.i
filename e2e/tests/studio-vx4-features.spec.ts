@@ -22,6 +22,30 @@ test.describe('Studio Vx4 — templates e cardápio', () => {
   });
 });
 
+test.describe('Studio Vx5 — estúdio visual e templates admin', () => {
+  test('admin acede estúdio visual com abas de templates', async ({ adminPage }) => {
+    await adminPage.goto('/publish-board?preset=promotion&segment=retail');
+    await expect(adminPage).toHaveURL(/\/publish-board/);
+    await expect(adminPage.getByText(/Estúdio de publicação visual/i).first()).toBeVisible();
+    await expect(adminPage.getByRole('tab', { name: /Promoção|Cardápio Digital/i }).first()).toBeVisible();
+  });
+
+  test('admin vê estúdio do cardápio após escolher anunciante', async ({ adminPage }) => {
+    await adminPage.goto('/publish-board?preset=menu&segment=restaurant');
+    await adminPage.getByLabel(/Anunciante/i).click();
+    await adminPage.getByRole('option').first().click();
+    await expect(adminPage.getByText(/Gerar mídia e publicar/i).first()).toBeVisible({
+      timeout: 15_000,
+    });
+  });
+
+  test('admin acede templates de publicação', async ({ adminPage }) => {
+    await adminPage.goto('/publish-templates-admin');
+    await expect(adminPage).toHaveURL(/\/publish-templates-admin/);
+    await expect(adminPage.getByText(/Templates de publicação/i).first()).toBeVisible();
+  });
+});
+
 test.describe('Studio Vx4 — OTA histórico', () => {
   test('admin abre aba histórico OTA', async ({ adminPage }) => {
     await adminPage.goto('/ota-updates/history');

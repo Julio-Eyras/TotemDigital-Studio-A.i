@@ -25,7 +25,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { Add, Delete, Edit } from '@mui/icons-material';
+import { Add, Delete, Edit, Image } from '@mui/icons-material';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import {
@@ -35,6 +35,7 @@ import {
   subscriberApi,
   Subscriber,
 } from '../../services/api';
+import { defaultSegmentForPreset } from '../../config/publishTemplates';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 const MenuCatalog: React.FC = () => {
@@ -99,6 +100,10 @@ const MenuCatalog: React.FC = () => {
 
   const categoryName = (id: number | null) =>
     categories.find((c) => c.categoryId === id)?.name || '—';
+
+  const studioHref = subscriberId
+    ? `/publish-board?preset=menu&segment=${defaultSegmentForPreset('menu')}&subscriber=${subscriberId}`
+    : '/publish-board?preset=menu&segment=restaurant';
 
   const handleCreateProduct = async () => {
     if (!subscriberId || !newName.trim()) return;
@@ -166,8 +171,9 @@ const MenuCatalog: React.FC = () => {
     <Box>
       <PageHeader
         title="Cardápio por cliente"
-        subtitle="Cadastro de categorias e produtos por anunciante — use com o template Cardápio Digital na publicação rápida."
+        subtitle="Cadastro de categorias e produtos por anunciante. O layout visual fica no Estúdio de publicação."
         breadcrumbs={breadcrumbs}
+        loading={loading}
       />
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -175,9 +181,13 @@ const MenuCatalog: React.FC = () => {
         </Alert>
       )}
       <Alert severity="info" sx={{ mb: 2 }}>
-        Depois de cadastrar itens, publique com{' '}
+        Monte o quadro 9:16 e publique em{' '}
+        <Link component={RouterLink} to={studioHref}>
+          Estúdio visual → Cardápio Digital
+        </Link>
+        {' '}ou use{' '}
         <Link component={RouterLink} to="/quick-publish?preset=menu&segment=restaurant&orientation=portrait">
-          Publicação rápida → Cardápio
+          Publicação rápida
         </Link>
         .
       </Alert>
@@ -197,6 +207,17 @@ const MenuCatalog: React.FC = () => {
               ))}
             </Select>
           </FormControl>
+          {subscriberId && (
+            <Button
+              sx={{ mt: 2 }}
+              variant="contained"
+              startIcon={<Image />}
+              component={RouterLink}
+              to={studioHref}
+            >
+              Abrir estúdio visual do cardápio
+            </Button>
+          )}
         </CardContent>
       </Card>
 

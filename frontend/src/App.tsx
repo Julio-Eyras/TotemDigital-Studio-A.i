@@ -30,6 +30,8 @@ const Dashboard = React.lazy(() => import('./pages/Dashboard/Dashboard'));
 const Media = React.lazy(() => import('./pages/Media/Media'));
 const QuickPublish = React.lazy(() => import('./pages/QuickPublish/QuickPublish'));
 const MenuCatalog = React.lazy(() => import('./pages/MenuCatalog/MenuCatalog'));
+const PublishBoardStudio = React.lazy(() => import('./pages/PublishBoardStudio/PublishBoardStudio'));
+const PublishTemplatesAdmin = React.lazy(() => import('./pages/PublishTemplatesAdmin/PublishTemplatesAdmin'));
 const Vinhetas = React.lazy(() => import('./pages/Vinhetas/Vinhetas'));
 const Playlists = React.lazy(() => import('./pages/Playlists/Playlists'));
 const Players = React.lazy(() => import('./pages/Players/Players'));
@@ -369,6 +371,22 @@ const AppContent: React.FC = () => {
             element={
               <ProtectedRoute>
                 <MenuCatalog />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/publish-board"
+            element={
+              <ProtectedRoute>
+                <PublishBoardStudio />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/publish-templates-admin"
+            element={
+              <ProtectedRoute>
+                <PublishTemplatesAdmin />
               </ProtectedRoute>
             }
           />

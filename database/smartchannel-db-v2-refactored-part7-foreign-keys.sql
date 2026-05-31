@@ -1527,6 +1527,21 @@ BEGIN
     END IF;
 END $$;
 
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_publish_board_layouts_subscriber'
+        AND t.relname = 'publish_board_layouts'
+    ) THEN
+        ALTER TABLE publish_board_layouts
+            ADD CONSTRAINT fk_publish_board_layouts_subscriber
+            FOREIGN KEY (subscriber_id) REFERENCES subscribers(subscriber_id)
+            ON DELETE CASCADE;
+    END IF;
+END $$;
+
 -- =============================================
 -- FKs das tabelas SMARTDISPLAYFX
 -- =============================================

@@ -53,6 +53,8 @@ export const menuPermissions: MenuItemPermission[] = [
   { path: '/vinhetas', roles: ['admin_sql', 'admin', 'gerente_marketing', 'editoracao', 'visualizador'], requiresClientAccess: true },
   { path: '/quick-publish', roles: ['admin_sql', 'admin', 'gerente_marketing', 'editoracao'], requiresClientAccess: true },
   { path: '/menu-catalog', roles: ['admin_sql', 'admin', 'gerente_marketing', 'editoracao'], requiresClientAccess: true },
+  { path: '/publish-board', roles: ['admin_sql', 'admin', 'gerente_marketing', 'editoracao'], requiresClientAccess: true },
+  { path: '/publish-templates-admin', roles: ['owner_system', 'admin_sql', 'admin'], requiredFlag: 'flag_smart_1' },
   
   // Playlists - Todos exceto operator, editoracao e client
   { path: '/playlists', roles: ['admin_sql', 'admin', 'gerente_marketing', 'visualizador'], requiresClientAccess: true },

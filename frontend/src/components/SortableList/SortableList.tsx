@@ -28,10 +28,10 @@ import {
 import { DragIndicator, Delete } from '@mui/icons-material';
 
 interface SortableItemProps {
-  id: number;
+  id: string | number;
   label: string;
   secondary?: string;
-  onDelete?: (id: number) => void;
+  onDelete?: (id: string | number) => void;
 }
 
 function SortableItem({ id, label, secondary, onDelete }: SortableItemProps) {
@@ -86,9 +86,9 @@ function SortableItem({ id, label, secondary, onDelete }: SortableItemProps) {
 }
 
 interface SortableListProps {
-  items: Array<{ id: number; label: string; secondary?: string }>;
-  onReorder: (newOrder: number[]) => void;
-  onDelete?: (id: number) => void;
+  items: Array<{ id: string | number; label: string; secondary?: string }>;
+  onReorder: (newOrder: Array<string | number>) => void;
+  onDelete?: (id: string | number) => void;
   emptyMessage?: string;
 }
 

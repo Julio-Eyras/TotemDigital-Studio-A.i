@@ -181,6 +181,7 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
       path: '/quick-publish',
       children: [
         { text: 'Publicar em tela', icon: <Add />, path: '/quick-publish' },
+        { text: 'Estúdio visual', icon: <AutoAwesome />, path: '/publish-board' },
         { text: 'Cardápio por cliente', icon: <Storefront />, path: '/menu-catalog' },
         { text: 'Manutenção Anunciante', icon: <People />, path: '/subscribers' },
         { text: 'Manutenção de Contratos', icon: <Description />, path: '/subscriber-contracts' },
@@ -219,7 +220,10 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
           text: 'Configurações',
           icon: <Settings />,
           path: '/settings',
-          children: [{ text: 'OTA Update', icon: <CloudUpload />, path: '/ota-updates' }],
+          children: [
+            { text: 'OTA Update', icon: <CloudUpload />, path: '/ota-updates' },
+            { text: 'Templates publicação', icon: <AutoAwesome />, path: '/publish-templates-admin' },
+          ],
         },
       ],
     },
@@ -330,6 +334,7 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
       { text: 'Locais', icon: <LocationOn />, path: '/locals' },
       { text: 'Totens', icon: <Computer />, path: '/totems' },
       { text: 'Nova publicação', icon: <Add />, path: '/quick-publish' },
+      { text: 'Estúdio visual', icon: <AutoAwesome />, path: '/publish-board' },
       { text: 'Cardápio por cliente', icon: <Storefront />, path: '/menu-catalog' },
       { text: 'Anunciantes', icon: <People />, path: '/subscribers' },
       { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
@@ -394,6 +399,7 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
       path: '/subscribers',
       children: [
         { text: 'Publicar em Tela', icon: <Add />, path: '/quick-publish' },
+        { text: 'Estúdio visual', icon: <AutoAwesome />, path: '/publish-board' },
         { text: 'Cardápio por cliente', icon: <Storefront />, path: '/menu-catalog' },
         { text: 'Anunciantes', icon: <People />, path: '/subscribers' },
         { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },

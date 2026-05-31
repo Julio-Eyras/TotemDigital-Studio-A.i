@@ -129,6 +129,83 @@ router.patch(
   }
 );
 
+router.get(
+  '/board-layout',
+  param('subscriberId').isInt({ min: 1 }),
+  validate,
+  async (req, res) => {
+    try {
+      const subscriberId = Number(req.params.subscriberId);
+      const data = await getMenuCatalogService().getBoardLayout(subscriberId);
+      return res.json({ success: true, data });
+    } catch (error: any) {
+      await logError('Erro ao carregar layout do cardápio', error);
+      return res.status(500).json({ success: false, error: 'Erro ao carregar layout' });
+    }
+  }
+);
+
+router.put(
+  '/board-layout',
+  authorizeRole(['admin', 'admin_sql', 'gerente_marketing', 'editoracao']),
+  param('subscriberId').isInt({ min: 1 }),
+  body('boardTitle').optional().isString().trim().isLength({ min: 1, max: 120 }),
+  body('accentColor').optional().isString().isLength({ max: 32 }),
+  body('productOrder').optional().isArray(),
+  body('productOrder.*').optional().isInt({ min: 1 }),
+  body('showPrices').optional().isBoolean(),
+  validate,
+  async (req, res) => {
+    try {
+      const subscriberId = Number(req.params.subscriberId);
+      const current = await getMenuCatalogService().getBoardLayout(subscriberId);
+      const data = await getMenuCatalogService().saveBoardLayout({
+        subscriberId,
+        boardTitle: req.body.boardTitle ?? current.boardTitle,
+        accentColor: req.body.accentColor ?? current.accentColor,
+        productOrder: Array.isArray(req.body.productOrder)
+          ? req.body.productOrder.map(Number).filter((n: number) => n > 0)
+          : current.productOrder,
+        showPrices: req.body.showPrices ?? current.showPrices,
+      });
+      return res.json({ success: true, data });
+    } catch (error: any) {
+      await logError('Erro ao salvar layout do cardápio', error);
+      return res.status(500).json({ success: false, error: 'Erro ao salvar layout' });
+    }
+  }
+);
+
+router.post(
+  '/render-board',
+  authorizeRole(['admin', 'admin_sql', 'gerente_marketing', 'editoracao']),
+  param('subscriberId').isInt({ min: 1 }),
+  validate,
+  async (req: any, res) => {
+    try {
+      const subscriberId = Number(req.params.subscriberId);
+      const role = String(req.user?.role || '');
+      const isAdmin = ['admin', 'admin_sql', 'owner_system'].includes(role);
+      const data = await getMenuCatalogService().renderBoardToMedia(
+        subscriberId,
+        Number(req.user?.id || req.user?.userId || 0),
+        isAdmin
+      );
+      return res.status(201).json({
+        success: true,
+        message: 'Mídia do cardápio gerada com sucesso',
+        data,
+      });
+    } catch (error: any) {
+      await logError('Erro ao gerar mídia do cardápio', error);
+      return res.status(400).json({
+        success: false,
+        error: error.message || 'Erro ao gerar mídia do cardápio',
+      });
+    }
+  }
+);
+
 router.delete(
   '/products/:productId',
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing', 'editoracao']),

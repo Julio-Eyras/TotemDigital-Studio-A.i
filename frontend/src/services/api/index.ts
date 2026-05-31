@@ -2067,7 +2067,61 @@ export interface MenuProductDto {
   isActive: boolean;
 }
 
+export interface MenuBoardLayoutDto {
+  subscriberId: number;
+  boardTitle: string;
+  accentColor: string;
+  productOrder: number[];
+  showPrices: boolean;
+}
+
+export interface PublishBoardLayoutDto {
+  subscriberId: number;
+  preset: QuickPublishPreset;
+  boardTitle: string;
+  accentColor: string;
+  preferredOrientation: 'portrait' | 'landscape';
+  content: Record<string, string>;
+  blockOrder: string[];
+  productOrder: number[];
+  showPrices: boolean;
+}
+
+export const publishBoardApi = {
+  getLayout: async (subscriberId: number, preset: QuickPublishPreset) => {
+    const response = await api.get(`/subscribers/${subscriberId}/publish-board/${preset}/layout`);
+    return response.data as { success: boolean; data: PublishBoardLayoutDto };
+  },
+  saveLayout: async (
+    subscriberId: number,
+    preset: QuickPublishPreset,
+    payload: Partial<PublishBoardLayoutDto>
+  ) => {
+    const response = await api.put(`/subscribers/${subscriberId}/publish-board/${preset}/layout`, payload);
+    return response.data as { success: boolean; data: PublishBoardLayoutDto };
+  },
+  render: async (subscriberId: number, preset: QuickPublishPreset) => {
+    const response = await api.post(`/subscribers/${subscriberId}/publish-board/${preset}/render`);
+    return response.data as { success: boolean; data: { mediaId: number; name: string }; message?: string };
+  },
+};
+
 export const menuCatalogApi = {
+  getBoardLayout: async (subscriberId: number) => {
+    const response = await api.get(`/subscribers/${subscriberId}/menu-catalog/board-layout`);
+    return response.data as { success: boolean; data: MenuBoardLayoutDto };
+  },
+  saveBoardLayout: async (
+    subscriberId: number,
+    payload: Partial<MenuBoardLayoutDto>
+  ) => {
+    const response = await api.put(`/subscribers/${subscriberId}/menu-catalog/board-layout`, payload);
+    return response.data as { success: boolean; data: MenuBoardLayoutDto };
+  },
+  renderBoard: async (subscriberId: number) => {
+    const response = await api.post(`/subscribers/${subscriberId}/menu-catalog/render-board`);
+    return response.data as { success: boolean; data: { mediaId: number; name: string }; message?: string };
+  },
   listCategories: async (subscriberId: number) => {
     const response = await api.get(`/subscribers/${subscriberId}/menu-catalog/categories`);
     return response.data as { success: boolean; data: MenuCategoryDto[] };

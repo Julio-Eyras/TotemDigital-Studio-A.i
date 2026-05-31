@@ -1,4 +1,13 @@
 import { getDatabase } from '../config/database';
+import { getPublishBoardService } from './publishBoardService';
+
+export interface MenuBoardLayout {
+  subscriberId: number;
+  boardTitle: string;
+  accentColor: string;
+  productOrder: number[];
+  showPrices: boolean;
+}
 
 export interface MenuCategory {
   categoryId: number;
@@ -146,6 +155,46 @@ export class MenuCatalogService {
       WHERE product_id = $1 AND subscriber_id = $2
     `, [productId, subscriberId]);
     return (result.rowCount ?? 0) > 0;
+  }
+
+  async getBoardLayout(subscriberId: number): Promise<MenuBoardLayout> {
+    const layout = await getPublishBoardService().getLayout(subscriberId, 'menu');
+    return {
+      subscriberId: layout.subscriberId,
+      boardTitle: layout.boardTitle,
+      accentColor: layout.accentColor,
+      productOrder: layout.productOrder,
+      showPrices: layout.showPrices,
+    };
+  }
+
+  async saveBoardLayout(layout: MenuBoardLayout): Promise<MenuBoardLayout> {
+    const saved = await getPublishBoardService().saveLayout({
+      subscriberId: layout.subscriberId,
+      preset: 'menu',
+      boardTitle: layout.boardTitle,
+      accentColor: layout.accentColor,
+      preferredOrientation: 'portrait',
+      content: {},
+      blockOrder: [],
+      productOrder: layout.productOrder,
+      showPrices: layout.showPrices,
+    });
+    return {
+      subscriberId: saved.subscriberId,
+      boardTitle: saved.boardTitle,
+      accentColor: saved.accentColor,
+      productOrder: saved.productOrder,
+      showPrices: saved.showPrices,
+    };
+  }
+
+  async renderBoardToMedia(
+    subscriberId: number,
+    userId: number,
+    isAdmin: boolean
+  ): Promise<{ mediaId: number; name: string }> {
+    return getPublishBoardService().renderToMedia(subscriberId, 'menu', userId, isAdmin);
   }
 
   private mapCategory(row: any): MenuCategory {

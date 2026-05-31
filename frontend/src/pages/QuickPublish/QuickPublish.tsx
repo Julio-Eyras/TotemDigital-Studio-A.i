@@ -45,12 +45,20 @@ import {
   PUBLISH_SEGMENTS,
   buildTemplateDescription,
   buildTemplateTitle,
+  defaultSegmentForPreset,
   findPublishPreset,
   findPublishSegment,
   resolvePublishPreset,
 } from '../../config/publishTemplates';
 
 const STEPS = ['Cliente', 'Tela', 'Conteúdo', 'Publicar'];
+
+function parseIdListParam(value: string | null): number[] {
+  if (!value) return [];
+  return [...new Set(
+    value.split(',').map((part) => Number(part.trim())).filter((n) => Number.isInteger(n) && n > 0)
+  )];
+}
 
 function resolveSegment(value: string | null): string {
   return PUBLISH_SEGMENTS.some((item) => item.value === value) ? String(value) : PUBLISH_SEGMENTS[0].value;
@@ -185,6 +193,13 @@ const QuickPublish: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const sid = searchParams.get('subscriber');
+    if (sid && /^\d+$/.test(sid)) {
+      setSubscriberId(Number(sid));
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     setPortraitAfterUpload(preset === 'menu');
   }, [preset]);
 
@@ -245,14 +260,21 @@ const QuickPublish: React.FC = () => {
         setError(null);
         setContractId('');
         setTotemIds([]);
-        setMediaIds([]);
-        const [contractsResult] = await Promise.all([
+        const fromUrl = parseIdListParam(searchParams.get('mediaIds'));
+        const [contractsResult, approvedMedias] = await Promise.all([
           subscriberApi.getContracts(Number(subscriberId), { activeOnly: true }),
           loadApprovedMedias(Number(subscriberId)),
         ]);
         const activeContracts = Array.isArray(contractsResult) ? contractsResult : [];
         setContracts(activeContracts);
         setContractId(activeContracts[0]?.contract_id || '');
+        const validMedia = fromUrl.filter((id) =>
+          approvedMedias.some((m) => m.media_id === id)
+        );
+        setMediaIds(validMedia);
+        if (validMedia.length > 0) {
+          setSuccess('Mídia do cardápio carregada — selecione contrato e telas para publicar.');
+        }
       } catch (e) {
         setError(pickApiErrorMessage(e, 'Erro ao carregar dados do anunciante.'));
       } finally {
@@ -261,7 +283,7 @@ const QuickPublish: React.FC = () => {
     };
 
     loadSubscriberDetails();
-  }, [loadApprovedMedias, subscriberId]);
+  }, [loadApprovedMedias, searchParams, subscriberId]);
 
   useEffect(() => {
     if (!subscriberId || !contractId) {
@@ -647,30 +669,47 @@ const QuickPublish: React.FC = () => {
               </Grid>
             </Grid>
 
-            {preset === 'menu' && subscriberId && (
+            {subscriberId && (
               <Grid item xs={12}>
                 <Alert
-                  severity={menuProducts.length > 0 ? 'success' : 'warning'}
+                  severity={preset === 'menu' && menuProducts.length === 0 ? 'warning' : 'info'}
                   action={
                     <Button
                       size="small"
                       color="inherit"
                       component={RouterLink}
-                      to={`/menu-catalog?subscriber=${subscriberId}`}
+                      to={`/publish-board?preset=${preset}&segment=${segment || defaultSegmentForPreset(preset)}&subscriber=${subscriberId}`}
                     >
-                      Gerir cardápio
+                      Estúdio visual
                     </Button>
                   }
                 >
-                  {menuProducts.length > 0 ? (
-                    <>
-                      {menuProducts.length} produto(s) cadastrado(s) para este cliente.{' '}
-                      <Button size="small" onClick={appendMenuToDescription}>
-                        Incluir na descrição
-                      </Button>
-                    </>
+                  {preset === 'menu' ? (
+                    menuProducts.length > 0 ? (
+                      <>
+                        {menuProducts.length} produto(s) no cardápio.{' '}
+                        <Button size="small" component={RouterLink} to={`/menu-catalog?subscriber=${subscriberId}`}>
+                          Gerir produtos
+                        </Button>
+                        {' · '}
+                        <Button size="small" onClick={appendMenuToDescription}>
+                          Incluir na descrição
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        Cadastre produtos em{' '}
+                        <Button size="small" component={RouterLink} to={`/menu-catalog?subscriber=${subscriberId}`}>
+                          Cardápio por cliente
+                        </Button>
+                        {' '}ou monte o quadro no estúdio visual.
+                      </>
+                    )
                   ) : (
-                    <>Nenhum produto no cardápio deste cliente — cadastre em Cardápio por cliente.</>
+                    <>
+                      Monte o quadro ({selectedPreset.label}) com textos e preview, gere a mídia e volte aqui para
+                      publicar.
+                    </>
                   )}
                 </Alert>
               </Grid>

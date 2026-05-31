@@ -523,6 +523,25 @@ CREATE TABLE IF NOT EXISTS menu_products (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Layout do quadro de publicação por template (Studio Vx5 — todos os presets)
+CREATE TABLE IF NOT EXISTS publish_board_layouts (
+    subscriber_id INTEGER NOT NULL,
+    preset TEXT NOT NULL,
+    board_title TEXT NOT NULL DEFAULT 'Publicação',
+    accent_color TEXT DEFAULT '#1976d2',
+    preferred_orientation TEXT DEFAULT 'landscape',
+    content JSONB DEFAULT '{}'::jsonb,
+    block_order JSONB DEFAULT '[]'::jsonb,
+    product_order JSONB DEFAULT '[]'::jsonb,
+    show_prices BOOLEAN DEFAULT true,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (subscriber_id, preset),
+    CONSTRAINT chk_publish_board_preset
+        CHECK (preset IN ('menu', 'promotion', 'ad', 'announcement', 'institutional')),
+    CONSTRAINT chk_publish_board_orientation
+        CHECK (preferred_orientation IN ('portrait', 'landscape'))
+);
+
 -- =============================================
 -- SMARTDISPLAYFX
 -- =============================================

@@ -19,6 +19,7 @@ import emailRoutes from '../routes/email';
 import otaUpdatesRoutes from '../routes/ota-updates';
 import publishTemplatesRoutes from '../routes/publish-templates';
 import menuCatalogRoutes from '../routes/menu-catalog';
+import publishBoardRoutes from '../routes/publish-board';
 import tagsRoutes from '../routes/tags';
 import facialRecognitionRoutes from '../routes/facial-recognition';
 import networkRoutes from '../routes/network';
@@ -61,6 +62,7 @@ export function registerExtendedApiRoutes(app: Express): void {
   app.use('/api/ota-updates', otaUpdatesRoutes);
   app.use('/api/publish-templates', publishTemplatesRoutes);
   app.use('/api/subscribers/:subscriberId/menu-catalog', menuCatalogRoutes);
+  app.use('/api/subscribers/:subscriberId/publish-board', publishBoardRoutes);
   app.use('/api/tags', blockClientDataAccess as any, tagsRoutes);
   app.use('/api/facial-recognition', blockClientDataAccess as any, facialRecognitionRoutes);
   app.use('/api/network', networkRoutes);

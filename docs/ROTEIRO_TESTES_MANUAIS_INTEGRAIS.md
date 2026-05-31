@@ -401,6 +401,22 @@ BASE="http://SEU_HOST:3001/api" USER=totemdigital.admin PASS='...' \
 
 ---
 
+## Bloco Vx5 — estúdio visual (todos os templates) e publicação automática (P1)
+
+| # | Teste | Passos | Esperado |
+|---|--------|--------|----------|
+| V5-1 | Estúdio cardápio | `/publish-board?preset=menu` → anunciante → ordem produtos → preview 9:16 | Layout em `publish_board_layouts` (preset `menu`) |
+| V5-2 | Promoção do dia | Aba Promoção → textos (chamada, oferta, preço) → 16:9 → gerar mídia | PNG + Quick Publish com `mediaIds` |
+| V5-3 | Anúncio indoor | Aba Anúncio → headline/marca/CTA → gerar | Render landscape; mídia na biblioteca do tenant |
+| V5-4 | Comunicado | Aba Comunicado → título/mensagem/data → gerar | Blocos na ordem arrastada refletidas no PNG |
+| V5-5 | Institucional | Aba Institucional → linhas de destaque → salvar layout | `content` JSONB persistido |
+| V5-6 | Dashboard | Template em destaque (ex. Promoção do dia) | Abre `/publish-board` (não só Quick Publish) |
+| V5-7 | Cardápio CRUD | `/menu-catalog` só produtos/categorias | Link para estúdio visual; sem editor duplicado |
+| V5-8 | Admin templates | Configurações → Templates publicação | Dashboard reflete após reload |
+| V5-9 | API render | `POST .../publish-board/{preset}/render` (auth) | 201 + `mediaId` |
+
+---
+
 ## Bloco Vx4-C — refinamentos (P2)
 
 | # | Teste | Passos | Esperado |

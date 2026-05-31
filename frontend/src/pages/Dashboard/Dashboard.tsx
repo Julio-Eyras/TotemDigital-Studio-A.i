@@ -54,6 +54,7 @@ import {DASHBOARD_COMMERCIAL_FOCUS} from '../../config/featureFlags';
 import {
   FEATURED_TEMPLATES,
   FEATURED_SEGMENT_CHIPS,
+  defaultSegmentForPreset,
   findPublishPreset,
 } from '../../config/publishTemplates';
 import { TemplatePreviewStrip } from '../../components/Publish/TemplatePreviewStrip';
@@ -204,6 +205,18 @@ const Dashboard: React.FC = () => {
     if (orientation) params.set('orientation', orientation);
     const queryString = params.toString();
     navigate(queryString ? `/quick-publish?${queryString}` : '/quick-publish');
+  };
+  const openPublishBoard = (
+    presetValue: QuickPublishPreset,
+    segmentValue?: string,
+    orientation?: 'portrait' | 'landscape'
+  ) => {
+    const params = new URLSearchParams({
+      preset: presetValue,
+      segment: segmentValue || defaultSegmentForPreset(presetValue),
+    });
+    if (orientation) params.set('orientation', orientation);
+    navigate(`/publish-board?${params.toString()}`);
   };
   const openTotems = (status?: string) => {
     const params = new URLSearchParams();
@@ -449,7 +462,9 @@ const Dashboard: React.FC = () => {
                   <Grid item xs={12} sm={6} key={template.title}>
                     <Card
                       variant="outlined"
-                      onClick={() => openQuickPublish(template.value, template.segment, presetConfig.preferredOrientation)}
+                      onClick={() =>
+                        openPublishBoard(template.value, template.segment, presetConfig.preferredOrientation)
+                      }
                       sx={{
                         height: '100%',
                         cursor: 'pointer',
