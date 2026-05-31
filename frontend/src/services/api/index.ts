@@ -2016,6 +2016,29 @@ export const publishTemplatesApi = {
     const response = await api.get('/publish-templates/featured');
     return response.data;
   },
+  getAll: async (): Promise<{ success: boolean; data: PublishTemplateDto[] }> => {
+    const response = await api.get('/publish-templates');
+    return response.data;
+  },
+  update: async (
+    templateId: number,
+    payload: Partial<{
+      title: string;
+      description: string;
+      headline: string;
+      featured: boolean;
+      featuredSort: number;
+      recommendedDurationMs: number;
+      accentColor: string;
+      backgroundCss: string;
+      preferredOrientation: 'portrait' | 'landscape';
+      iconKey: string;
+      isActive: boolean;
+    }>
+  ) => {
+    const response = await api.patch(`/publish-templates/${templateId}`, payload);
+    return response.data;
+  },
 };
 
 // =============================================

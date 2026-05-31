@@ -395,6 +395,19 @@ BASE="http://SEU_HOST:3001/api" USER=totemdigital.admin PASS='...' \
 | V4-4 | OTA Player-AD | Totem Android heartbeat com versão &lt; pacote | Download via `/api/player/ota-download`; playback continua |
 | V4-5 | Alerta OTA dashboard | Totem com `update_available` | Card Alertas mostra link “Ver OTA” |
 | V4-6 | Cardápio tenant | `/menu-catalog` → escolher anunciante → criar produto | CRUD persiste em `menu_products` |
+| V4-7 | OTA histórico | `/ota-updates/history` ou aba Histórico | Pacotes completed/cancelled/paused listados |
+| V4-8 | Cardápio + publicação | Quick Publish preset menu → “Incluir na descrição” | Linhas de produtos na descrição da campanha |
+| V4-9 | Editar produto | Cardápio → Editar preço/categoria | PATCH persiste |
+
+---
+
+## Bloco Vx4-C — refinamentos (P2)
+
+| # | Teste | Passos | Esperado |
+|---|--------|--------|----------|
+| V4C-1 | Admin templates API | `PATCH /api/publish-templates/1` (admin) | Ordem/título no dashboard após reload |
+| V4C-2 | Menu navegação | Menu Anunciantes → Cardápio por cliente | Rota `/menu-catalog` |
+| V4C-3 | E2E Vx4 | `e2e/tests/studio-vx4-features.spec.ts` | Suite verde no CI mock |
 
 ---
 

@@ -3,7 +3,8 @@
  * Componente para gerenciar atualizações Over-The-Air
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -53,7 +54,11 @@ import { otaApi, OTAUpdate } from '../../services/api';
 import { useNotification } from '../../hooks/useNotification';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
+const HISTORY_STATUSES = new Set(['completed', 'cancelled', 'paused']);
+
 const OTAUpdates: React.FC = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { showSuccess, showError } = useNotification();
   const [updates, setUpdates] = useState<OTAUpdate[]>([]);
   const [loading, setLoading] = useState(false);
@@ -77,11 +82,31 @@ const OTAUpdates: React.FC = () => {
     file: null as File | null,
   });
 
+  const historyUpdates = useMemo(
+    () => updates.filter((u) => HISTORY_STATUSES.has(u.status)),
+    [updates]
+  );
+
+  useEffect(() => {
+    if (location.pathname.endsWith('/history')) {
+      setTabValue(2);
+    }
+  }, [location.pathname]);
+
   useEffect(() => {
     loadUpdates();
     loadStats();
     loadTotemStatuses();
   }, []);
+
+  const handleTabChange = (_: React.SyntheticEvent, value: number) => {
+    setTabValue(value);
+    if (value === 2) {
+      navigate('/ota-updates/history', { replace: true });
+    } else {
+      navigate('/ota-updates', { replace: true });
+    }
+  };
 
   const loadTotemStatuses = async () => {
     try {
@@ -318,12 +343,54 @@ const OTAUpdates: React.FC = () => {
         </Grid>
       )}
 
-      <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)} sx={{ mb: 2 }}>
+      <Tabs value={tabValue} onChange={handleTabChange} sx={{ mb: 2 }}>
         <Tab label="Pacotes Android" />
         <Tab label="Totens por versão" />
+        <Tab label="Histórico" />
       </Tabs>
 
-      {tabValue === 1 ? (
+      {tabValue === 2 ? (
+        <Card>
+          <CardContent>
+            {historyUpdates.length === 0 ? (
+              <Alert severity="info">Nenhum pacote concluído, pausado ou cancelado ainda.</Alert>
+            ) : (
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Versão</TableCell>
+                      <TableCell>Plataforma</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell>Obrigatória</TableCell>
+                      <TableCell>Criada</TableCell>
+                      <TableCell>Liberada</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {historyUpdates.map((update) => (
+                      <TableRow key={update.id}>
+                        <TableCell>{update.version}</TableCell>
+                        <TableCell>{update.platform}</TableCell>
+                        <TableCell>
+                          <Chip label={getStatusLabel(update.status)} size="small" color={getStatusColor(update.status) as any} />
+                        </TableCell>
+                        <TableCell>{update.isMandatory ? 'Sim' : 'Não'}</TableCell>
+                        <TableCell>{new Date(update.createdAt).toLocaleString('pt-BR')}</TableCell>
+                        <TableCell>
+                          {update.releasedAt
+                            ? new Date(update.releasedAt).toLocaleString('pt-BR')
+                            : '—'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </CardContent>
+        </Card>
+      ) : tabValue === 1 ? (
         <Card>
           <CardContent>
             <Table size="small">

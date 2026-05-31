@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -36,6 +36,8 @@ import {
   mediaApi,
   subscriberApi,
   Subscriber,
+  menuCatalogApi,
+  MenuProductDto,
 } from '../../services/api';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import {
@@ -122,6 +124,7 @@ const QuickPublish: React.FC = () => {
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [menuProducts, setMenuProducts] = useState<MenuProductDto[]>([]);
 
   const selectedSubscriber = useMemo(
     () => subscribers.find((subscriber) => subscriber.subscriber_id === subscriberId) || null,
@@ -289,6 +292,29 @@ const QuickPublish: React.FC = () => {
       setTitle(buildTemplateTitle(selectedPreset, selectedSubscriber, selectedSegment));
     }
   }, [selectedPreset.label, selectedSegment.value, selectedSubscriber, title]);
+
+  useEffect(() => {
+    if (preset !== 'menu' || !subscriberId) {
+      setMenuProducts([]);
+      return;
+    }
+    menuCatalogApi
+      .listProducts(Number(subscriberId))
+      .then((res) => setMenuProducts((res.data || []).filter((p) => p.isAvailable)))
+      .catch(() => setMenuProducts([]));
+  }, [preset, subscriberId]);
+
+  const appendMenuToDescription = useCallback(() => {
+    if (menuProducts.length === 0) return;
+    const lines = menuProducts
+      .slice(0, 12)
+      .map((p) => {
+        const price = p.price != null ? ` — R$ ${Number(p.price).toFixed(2)}` : '';
+        return `• ${p.name}${price}`;
+      });
+    const block = `\n\nItens do cardápio:\n${lines.join('\n')}`;
+    setDescription((prev) => (prev.includes('Itens do cardápio:') ? prev : `${prev}${block}`));
+  }, [menuProducts]);
 
   const setPublishParams = (nextPreset: QuickPublishPreset, nextSegment: string) => {
     setSearchParams({ preset: nextPreset, segment: nextSegment }, { replace: true });
@@ -620,6 +646,35 @@ const QuickPublish: React.FC = () => {
                 })}
               </Grid>
             </Grid>
+
+            {preset === 'menu' && subscriberId && (
+              <Grid item xs={12}>
+                <Alert
+                  severity={menuProducts.length > 0 ? 'success' : 'warning'}
+                  action={
+                    <Button
+                      size="small"
+                      color="inherit"
+                      component={RouterLink}
+                      to={`/menu-catalog?subscriber=${subscriberId}`}
+                    >
+                      Gerir cardápio
+                    </Button>
+                  }
+                >
+                  {menuProducts.length > 0 ? (
+                    <>
+                      {menuProducts.length} produto(s) cadastrado(s) para este cliente.{' '}
+                      <Button size="small" onClick={appendMenuToDescription}>
+                        Incluir na descrição
+                      </Button>
+                    </>
+                  ) : (
+                    <>Nenhum produto no cardápio deste cliente — cadastre em Cardápio por cliente.</>
+                  )}
+                </Alert>
+              </Grid>
+            )}
 
             <Grid item xs={12} md={7}>
               <Alert severity="info">

@@ -44,6 +44,60 @@ export class PublishTemplateService {
     return rows.map(this.mapRow);
   }
 
+  async updateTemplate(
+    templateId: number,
+    patch: Partial<{
+      title: string;
+      description: string;
+      headline: string;
+      featured: boolean;
+      featuredSort: number;
+      recommendedDurationMs: number;
+      accentColor: string;
+      backgroundCss: string;
+      preferredOrientation: string;
+      iconKey: string;
+      isActive: boolean;
+    }>
+  ): Promise<PublishTemplateRow | null> {
+    const existing = await this.db.findFirst(`
+      SELECT template_id FROM publish_templates WHERE template_id = $1
+    `, [templateId]);
+    if (!existing) return null;
+
+    const result = await this.db.executeRaw(`
+      UPDATE publish_templates SET
+        title = COALESCE($2, title),
+        description = COALESCE($3, description),
+        headline = COALESCE($4, headline),
+        featured = COALESCE($5, featured),
+        featured_sort = COALESCE($6, featured_sort),
+        recommended_duration_ms = COALESCE($7, recommended_duration_ms),
+        accent_color = COALESCE($8, accent_color),
+        background_css = COALESCE($9, background_css),
+        preferred_orientation = COALESCE($10, preferred_orientation),
+        icon_key = COALESCE($11, icon_key),
+        is_active = COALESCE($12, is_active),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE template_id = $1
+      RETURNING *
+    `, [
+      templateId,
+      patch.title ?? null,
+      patch.description ?? null,
+      patch.headline ?? null,
+      patch.featured ?? null,
+      patch.featuredSort ?? null,
+      patch.recommendedDurationMs ?? null,
+      patch.accentColor ?? null,
+      patch.backgroundCss ?? null,
+      patch.preferredOrientation ?? null,
+      patch.iconKey ?? null,
+      patch.isActive ?? null,
+    ]);
+    return this.mapRow(result.rows[0]);
+  }
+
   async listAll(): Promise<PublishTemplateRow[]> {
     const rows = await this.db.findMany(`
       SELECT *
