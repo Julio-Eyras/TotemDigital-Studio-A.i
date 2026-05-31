@@ -96,7 +96,13 @@ class MainActivity : AppCompatActivity() {
                 try {
                     val config = PlayerConfigLoader(this@MainActivity).load()
                     cacheManager.reloadStorageRootsIfNeeded()
-                    val apiClient = DispatcherApiClient(config.serverUrl, config.uin, config.deviceId)
+                    val appVersion = br.com.smartchannel.playerad.BuildConfig.VERSION_NAME
+                    val apiClient = DispatcherApiClient(config.serverUrl, config.uin, config.deviceId, appVersion)
+                    val otaCoordinator = br.com.smartchannel.playerad.ota.OtaUpdateCoordinator(
+                        this@MainActivity,
+                        apiClient,
+                        appVersion
+                    )
                     playerController = PlayerController(
                         this@MainActivity,
                         apiClient,
@@ -106,7 +112,8 @@ class MainActivity : AppCompatActivity() {
                         config.acceptImagesInPlaylist,
                         config.allowPlaybackAudio,
                         config.fallbackPropagandasPerVinheta,
-                        config.maxSecondsWithoutServerCheck
+                        config.maxSecondsWithoutServerCheck,
+                        otaCoordinator
                     )
                     PlayerAdLogger.i("WATCHDOG", "Loop do player iniciado")
                     playerController?.start()

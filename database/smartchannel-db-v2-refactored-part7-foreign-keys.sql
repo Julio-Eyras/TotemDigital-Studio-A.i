@@ -1448,7 +1448,7 @@ BEGIN
         ALTER TABLE totem_update_status
             ADD CONSTRAINT fk_totem_update_status_ota 
             FOREIGN KEY (ota_update_id) REFERENCES ota_updates(id) 
-            ON DELETE CASCADE;
+            ON DELETE SET NULL;
     END IF;
 END $$;
 
@@ -1464,6 +1464,66 @@ BEGIN
             ADD CONSTRAINT fk_totem_update_status_totem 
             FOREIGN KEY (totem_id) REFERENCES totems(totem_id) 
             ON DELETE CASCADE;
+    END IF;
+END $$;
+
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_menu_categories_subscriber'
+        AND t.relname = 'menu_categories'
+    ) THEN
+        ALTER TABLE menu_categories
+            ADD CONSTRAINT fk_menu_categories_subscriber
+            FOREIGN KEY (subscriber_id) REFERENCES subscribers(subscriber_id)
+            ON DELETE CASCADE;
+    END IF;
+END $$;
+
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_menu_products_subscriber'
+        AND t.relname = 'menu_products'
+    ) THEN
+        ALTER TABLE menu_products
+            ADD CONSTRAINT fk_menu_products_subscriber
+            FOREIGN KEY (subscriber_id) REFERENCES subscribers(subscriber_id)
+            ON DELETE CASCADE;
+    END IF;
+END $$;
+
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_menu_products_category'
+        AND t.relname = 'menu_products'
+    ) THEN
+        ALTER TABLE menu_products
+            ADD CONSTRAINT fk_menu_products_category
+            FOREIGN KEY (category_id) REFERENCES menu_categories(category_id)
+            ON DELETE SET NULL;
+    END IF;
+END $$;
+
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_menu_products_media'
+        AND t.relname = 'menu_products'
+    ) THEN
+        ALTER TABLE menu_products
+            ADD CONSTRAINT fk_menu_products_media
+            FOREIGN KEY (media_id) REFERENCES medias(media_id)
+            ON DELETE SET NULL;
     END IF;
 END $$;
 

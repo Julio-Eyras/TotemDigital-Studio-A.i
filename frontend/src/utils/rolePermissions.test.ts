@@ -41,13 +41,13 @@ describe('rolePermissions.canAccess', () => {
   });
 
   it('operator com flag_smart_1 acede OTA; sem flag nega', () => {
-    expect(canAccess('operator', '/ota-updates', withFlag('flag_smart_1'))).toBe(true);
+    expect(canAccess('operator', '/ota-updates', withFlag('flag_smart_1'))).toBe(false);
     expect(canAccess('operator', '/ota-updates', allFlagsFalse)).toBe(false);
   });
 
   it('operador_tecnico sem flag nega OTA', () => {
     expect(canAccess('operador_tecnico', '/ota-updates', allFlagsFalse)).toBe(false);
-    expect(canAccess('operador_tecnico', '/ota-updates', withFlag('flag_smart_1'))).toBe(true);
+    expect(canAccess('operador_tecnico', '/ota-updates', withFlag('flag_smart_1'))).toBe(false);
   });
 
   it('publisher_user não acede OTA fora do Studio', () => {

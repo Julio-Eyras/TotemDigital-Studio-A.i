@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import br.com.smartchannel.playerad.api.DispatcherApiClient
+import br.com.smartchannel.playerad.ota.OtaUpdateCoordinator
 import br.com.smartchannel.playerad.api.PlayerEventsClient
 import br.com.smartchannel.playerad.cache.MediaCacheManager
 import br.com.smartchannel.playerad.util.AppDirs
@@ -50,7 +51,8 @@ class PlayerController(
     /** Se false, [exoPlayer] permanece em volume 0 durante vídeo/áudio. */
     private val allowPlaybackAudio: Boolean = true,
     private val fallbackPropagandasPerVinheta: Int = 3,
-    private val maxSecondsWithoutServerCheck: Int = 60
+    private val maxSecondsWithoutServerCheck: Int = 60,
+    private val otaUpdateCoordinator: OtaUpdateCoordinator? = null
 ) {
     private var restartRequested = false
 
@@ -409,6 +411,7 @@ class PlayerController(
         val hb = apiClient.heartbeatWithCommands(buildHealthMetrics())
         var token = hb.token
         PlayerAdLogger.i("HEARTBEAT", "OK — sessão/token renovados; comandos=${hb.pendingCommands.size}")
+        otaUpdateCoordinator?.handleFromHeartbeat(hb.otaUpdate)
         if (hb.pendingCommands.isNotEmpty()) {
             token = processPendingCommands(hb.pendingCommands, token)
         }

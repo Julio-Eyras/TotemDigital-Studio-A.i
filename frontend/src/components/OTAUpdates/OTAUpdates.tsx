@@ -59,6 +59,7 @@ const OTAUpdates: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<any>(null);
   const [tabValue, setTabValue] = useState(0);
+  const [totemRows, setTotemRows] = useState<any[]>([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedUpdate, setSelectedUpdate] = useState<OTAUpdate | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -66,7 +67,7 @@ const OTAUpdates: React.FC = () => {
 
   const [formData, setFormData] = useState({
     version: '',
-    platform: 'all' as 'webos' | 'tizen' | 'android' | 'linux' | 'windows' | 'all',
+    platform: 'android' as 'webos' | 'tizen' | 'android' | 'linux' | 'windows' | 'all',
     description: '',
     changelog: '',
     isMandatory: false,
@@ -79,13 +80,23 @@ const OTAUpdates: React.FC = () => {
   useEffect(() => {
     loadUpdates();
     loadStats();
+    loadTotemStatuses();
   }, []);
+
+  const loadTotemStatuses = async () => {
+    try {
+      const response = await otaApi.getTotemStatuses();
+      setTotemRows(response.data || []);
+    } catch {
+      setTotemRows([]);
+    }
+  };
 
   const loadUpdates = async () => {
     try {
       setLoading(true);
-      const response = await otaApi.getAll();
-      setUpdates(response.data || []);
+      const response = await otaApi.getAll({ platform: 'android' });
+      setUpdates((response.data || []).filter((u) => u.platform === 'android' || u.platform === 'all'));
     } catch (error: any) {
       showError(pickApiErrorMessage(error, 'Erro ao carregar atualizações'));
     } finally {
@@ -188,7 +199,7 @@ const OTAUpdates: React.FC = () => {
   const resetForm = () => {
     setFormData({
       version: '',
-      platform: 'all',
+      platform: 'android',
       description: '',
       changelog: '',
       isMandatory: false,
@@ -307,7 +318,38 @@ const OTAUpdates: React.FC = () => {
         </Grid>
       )}
 
-      {/* Tabela de Atualizações */}
+      <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)} sx={{ mb: 2 }}>
+        <Tab label="Pacotes Android" />
+        <Tab label="Totens por versão" />
+      </Tabs>
+
+      {tabValue === 1 ? (
+        <Card>
+          <CardContent>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Totem</TableCell>
+                  <TableCell>Versão atual</TableCell>
+                  <TableCell>Disponível</TableCell>
+                  <TableCell>Status</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {totemRows.map((row) => (
+                  <TableRow key={row.totem_id}>
+                    <TableCell>{row.totem_name || row.identifier}</TableCell>
+                    <TableCell>{row.current_version}</TableCell>
+                    <TableCell>{row.available_version || '—'}</TableCell>
+                    <TableCell>{row.update_status}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      ) : (
+      /* Tabela de Atualizações */
       <Card>
         <CardContent>
           {loading ? (
@@ -405,6 +447,7 @@ const OTAUpdates: React.FC = () => {
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* Dialog: Nova Atualização */}
       <Dialog
@@ -432,10 +475,7 @@ const OTAUpdates: React.FC = () => {
                 label="Plataforma"
                 onChange={(e) => setFormData({ ...formData, platform: e.target.value as any })}
               >
-                <MenuItem value="all">Todas</MenuItem>
-                <MenuItem value="webos">webOS (LG)</MenuItem>
-                <MenuItem value="tizen">Tizen (Samsung)</MenuItem>
-                <MenuItem value="android">Android TV</MenuItem>
+                <MenuItem value="android">Android (Player-AD)</MenuItem>
                 <MenuItem value="linux">Linux (SBC)</MenuItem>
                 <MenuItem value="windows">Windows</MenuItem>
               </Select>

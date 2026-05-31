@@ -1533,6 +1533,104 @@ router.post('/exit-kiosk',
 );
 
 /**
+ * @route GET /api/player/ota-download/:id
+ * @desc Download APK OTA para Player-AD (uin + token na query)
+ */
+router.get('/ota-download/:id',
+  query('uin').isString().notEmpty(),
+  query('token').isString().notEmpty(),
+  validateRequest,
+  async (req: Request, res: Response) => {
+    try {
+      const uin = String(req.query.uin);
+      const token = String(req.query.token);
+      if (!validateTotemToken(uin, token)) {
+        const deviceTokenService = (await import('../services/deviceTokenService')).getDeviceTokenService();
+        const validDevice = await deviceTokenService.validateToken(uin, token, {});
+        if (!validDevice) {
+          return res.status(401).json({ error: 'Token inválido ou expirado' });
+        }
+      }
+
+      const updateId = parseInt(String(req.params.id), 10);
+      if (!Number.isFinite(updateId) || updateId < 1) {
+        return res.status(400).json({ error: 'ID inválido' });
+      }
+
+      const db = getDatabase();
+      const update = await db.findFirst(`
+        SELECT file_path, version, platform, checksum
+        FROM ota_updates
+        WHERE id = $1 AND status = 'active' AND platform IN ('android', 'all')
+      `, [updateId]);
+
+      if (!update || !fs.existsSync(update.file_path)) {
+        return res.status(404).json({ error: 'Atualização não encontrada' });
+      }
+
+      const fileName = `update_${update.version}_android${path.extname(update.file_path)}`;
+      res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      res.setHeader('X-Update-Checksum', update.checksum);
+      fs.createReadStream(update.file_path).pipe(res);
+      return;
+    } catch (err: any) {
+      await logError('Erro no download OTA do player', err);
+      return res.status(500).json({ error: 'Erro interno' });
+    }
+  }
+);
+
+/**
+ * @route POST /api/player/ota-status
+ * @desc Player-AD reporta progresso de atualização OTA Android
+ * @access Public (totem autenticado)
+ */
+router.post('/ota-status',
+  body('uin').isString().notEmpty(),
+  body('token').isString().notEmpty(),
+  body('currentVersion').isString().notEmpty(),
+  body('updateStatus').isIn(['up_to_date', 'update_available', 'downloading', 'installing', 'failed', 'rollback']),
+  body('availableVersion').optional({ nullable: true }).isString(),
+  body('error').optional({ nullable: true }).isString(),
+  validateRequest,
+  async (req: Request, res: Response) => {
+    try {
+      const { uin, token, currentVersion, updateStatus, availableVersion, error } = req.body;
+      if (!validateTotemToken(uin, token)) {
+        const deviceTokenService = (await import('../services/deviceTokenService')).getDeviceTokenService();
+        const validDevice = await deviceTokenService.validateToken(uin, token, {});
+        if (!validDevice) {
+          return res.status(401).json({ error: 'Token inválido ou expirado' });
+        }
+      }
+
+      const db = getDatabase();
+      const totem = await db.findFirst(`SELECT totem_id FROM totems WHERE uin = $1`, [uin]);
+      if (!totem?.totem_id) {
+        return res.status(404).json({ error: 'Totem não encontrado' });
+      }
+
+      const { getOTAUpdateService } = await import('../services/otaUpdateService');
+      await getOTAUpdateService().updateTotemStatus(totem.totem_id, {
+        totemId: totem.totem_id,
+        currentVersion,
+        availableVersion: availableVersion || undefined,
+        updateStatus,
+        lastCheck: new Date(),
+        lastUpdate: ['installing', 'up_to_date'].includes(updateStatus) ? new Date() : undefined,
+        error: error || undefined,
+      });
+
+      return res.json({ success: true });
+    } catch (err: any) {
+      await logError('Erro ao registrar status OTA do player', err);
+      return res.status(500).json({ error: 'Erro interno' });
+    }
+  }
+);
+
+/**
  * @route POST /api/player/command-result
  * @desc Reporta resultado de execução de comando remoto
  * @access Public (para totens autenticados)

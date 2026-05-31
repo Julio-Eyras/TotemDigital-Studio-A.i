@@ -52,6 +52,7 @@ export const menuPermissions: MenuItemPermission[] = [
   { path: '/media', roles: ['admin_sql', 'admin', 'gerente_marketing', 'editoracao', 'visualizador'], requiresClientAccess: true },
   { path: '/vinhetas', roles: ['admin_sql', 'admin', 'gerente_marketing', 'editoracao', 'visualizador'], requiresClientAccess: true },
   { path: '/quick-publish', roles: ['admin_sql', 'admin', 'gerente_marketing', 'editoracao'], requiresClientAccess: true },
+  { path: '/menu-catalog', roles: ['admin_sql', 'admin', 'gerente_marketing', 'editoracao'], requiresClientAccess: true },
   
   // Playlists - Todos exceto operator, editoracao e client
   { path: '/playlists', roles: ['admin_sql', 'admin', 'gerente_marketing', 'visualizador'], requiresClientAccess: true },
@@ -112,7 +113,7 @@ export const menuPermissions: MenuItemPermission[] = [
   { path: '/playlist-mix', roles: ['owner_system', 'admin_sql', 'operator', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_2' },
   
   // OTA Updates - admin_sql, operator, operador_tecnico
-  { path: '/ota-updates', roles: ['owner_system', 'admin_sql', 'admin', 'operator', 'operador_tecnico'], requiredFlag: 'flag_smart_1' },
+  { path: '/ota-updates', roles: ['owner_system', 'admin_sql', 'admin'], requiredFlag: 'flag_smart_1' },
   
   // Tags - admin_sql, admin, gerente_marketing, editoracao
   { path: '/tags', roles: ['admin_sql', 'admin', 'gerente_marketing', 'editoracao'], requiresClientAccess: true },
@@ -139,7 +140,7 @@ export const menuPermissions: MenuItemPermission[] = [
   { path: '/smart-tvs/by-totem', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico', 'publisher_user'], requiredFlag: 'flag_smart_0' },
   { path: '/smart-tvs/config', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_0' },
   { path: '/players/status', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_0' },
-  { path: '/ota-updates/history', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_1' },
+  { path: '/ota-updates/history', roles: ['owner_system', 'admin_sql', 'admin'], requiredFlag: 'flag_smart_1' },
   { path: '/subscriber-publisher-access/new', roles: ['admin_sql', 'admin'] },
   { path: '/plan-publisher-access/config', roles: ['admin_sql', 'admin'] },
   { path: '/publishers/details', roles: ['owner_system', 'admin_sql', 'admin', 'operador_comercial'] },

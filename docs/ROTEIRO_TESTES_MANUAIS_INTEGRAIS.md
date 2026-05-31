@@ -1,8 +1,8 @@
 # Roteiro de testes manuais integrais — Smart Signage Studio
 
 **Produto:** Smart Signage Studio (modo compacto / `TOTEMDIGITAL_COMPACT`)  
-**Branch de referência:** `Smart-Signage-Studio-V3x`  
-**Versão do roteiro:** 1.0 — 2026-05-29  
+**Branch de referência:** `Smart-Signage-Studio-Vx4` (Vx4: templates, OTA Player-AD, cardápio por tenant)  
+**Versão do roteiro:** 1.1 — 2026-05-28  
 
 Este documento é o roteiro **completo** de validação manual. Complementa (não substitui):
 
@@ -382,6 +382,19 @@ BASE="http://SEU_HOST:3001/api" USER=totemdigital.admin PASS='...' \
 | 11 | Admin avançado | | | |
 | 12 | Instalação limpa | | | |
 | 13 | Regressões | | | |
+
+---
+
+## Bloco Vx4 — itens novos (P1)
+
+| # | Teste | Passos | Esperado |
+|---|--------|--------|----------|
+| V4-1 | Templates em destaque | Dashboard → card com preview → abrir publicação rápida | Preset/segmento/orientação corretos; título pré-preenchido |
+| V4-2 | Templates API | `GET /api/publish-templates/featured` autenticado | Lista alinhada aos cards do dashboard |
+| V4-3 | OTA Android admin | Configurações → OTA (admin) → upload APK android → ativar | Pacote `active`; aba Totens mostra status |
+| V4-4 | OTA Player-AD | Totem Android heartbeat com versão &lt; pacote | Download via `/api/player/ota-download`; playback continua |
+| V4-5 | Alerta OTA dashboard | Totem com `update_available` | Card Alertas mostra link “Ver OTA” |
+| V4-6 | Cardápio tenant | `/menu-catalog` → escolher anunciante → criar produto | CRUD persiste em `menu_products` |
 
 ---
 

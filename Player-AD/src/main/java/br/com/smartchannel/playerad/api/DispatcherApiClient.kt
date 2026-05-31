@@ -20,7 +20,8 @@ import java.util.TimeZone
 class DispatcherApiClient(
     val baseUrl: String,
     val uin: String,
-    val deviceId: String
+    val deviceId: String,
+    val appVersion: String = "1.0.0"
  ) {
     data class PendingCommand(
         val id: String,
@@ -30,7 +31,8 @@ class DispatcherApiClient(
 
     data class HeartbeatResult(
         val token: String,
-        val pendingCommands: List<PendingCommand>
+        val pendingCommands: List<PendingCommand>,
+        val otaUpdate: JSONObject? = null
     )
 
     private var currentToken: String? = null
@@ -101,7 +103,8 @@ class DispatcherApiClient(
             put("deviceId", deviceId)
             put("status", "online")
             put("platform", "android")
-            put("version", "player-ad")
+            put("version", appVersion)
+            put("appVersion", appVersion)
             if (metrics != null) put("metrics", metrics)
         }.toString()
 
@@ -159,7 +162,36 @@ class DispatcherApiClient(
             }
         }
 
-        HeartbeatResult(newToken, pendingCommands)
+        val otaUpdate = payload.optJSONObject("otaUpdate")
+            ?: payload.optJSONObject("ota_update")
+
+        HeartbeatResult(newToken, pendingCommands, otaUpdate)
+    }
+
+    suspend fun reportOtaStatus(
+        currentVersion: String,
+        updateStatus: String,
+        availableVersion: String? = null,
+        error: String? = null
+    ) = withContext(Dispatchers.IO) {
+        var tkn = currentToken ?: getToken()
+        val url = URL("$baseUrl/api/player/ota-status")
+        val conn = openConnection(url, "POST").apply {
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json")
+        }
+        val body = JSONObject().apply {
+            put("uin", uin)
+            put("token", tkn)
+            put("currentVersion", currentVersion)
+            put("updateStatus", updateStatus)
+            if (!availableVersion.isNullOrBlank()) put("availableVersion", availableVersion)
+            if (!error.isNullOrBlank()) put("error", error)
+        }.toString()
+        conn.outputStream.use { it.write(body.toByteArray()) }
+        if (conn.responseCode !in 200..299) {
+            throw IOException("ota-status HTTP ${conn.responseCode}")
+        }
     }
 
     suspend fun heartbeat(): String = withContext(Dispatchers.IO) {

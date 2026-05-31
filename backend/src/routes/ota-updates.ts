@@ -220,7 +220,7 @@ router.post('/:id/pause',
  * @access Private (Admin, Manager)
  */
 router.get('/stats',
-  authorizeRole(['admin', 'admin_sql', 'operator']),
+  authorizeRole(['admin', 'admin_sql']),
   async (_req: AuthenticatedRequest, res: Response) => {
     try {
       const otaService = getOTAUpdateService();
@@ -236,6 +236,24 @@ router.get('/stats',
         success: false,
         error: 'Erro ao obter estatísticas de atualizações'
       });
+    }
+  }
+);
+
+/**
+ * @route GET /api/ota-updates/totems
+ * @desc Status OTA por totem (Player-AD Android)
+ */
+router.get('/totems',
+  authorizeRole(['admin', 'admin_sql']),
+  async (_req: AuthenticatedRequest, res: Response) => {
+    try {
+      const otaService = getOTAUpdateService();
+      const data = await otaService.listTotemStatuses();
+      return res.json({ success: true, data });
+    } catch (error: any) {
+      await logError('Erro ao listar totens OTA', error);
+      return res.status(500).json({ success: false, error: 'Erro ao listar totens' });
     }
   }
 );

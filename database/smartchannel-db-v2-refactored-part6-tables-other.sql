@@ -453,26 +453,74 @@ CREATE TABLE IF NOT EXISTS ota_updates (
         CHECK (rollout_percentage >= 0 AND rollout_percentage <= 100)
 );
 
+-- Estado agregado por totem (alinhado a otaUpdateService.updateTotemStatus)
 CREATE TABLE IF NOT EXISTS totem_update_status (
     id SERIAL PRIMARY KEY,
-    ota_update_id INTEGER NOT NULL, -- FK para ota_updates
-    totem_id INTEGER NOT NULL, -- FK para totems
-    
-    status TEXT NOT NULL DEFAULT 'pending', 
-        -- pending, downloaded, installed, failed, skipped
-    
-    downloaded_at TIMESTAMP,
-    installed_at TIMESTAMP,
+    totem_id INTEGER NOT NULL UNIQUE, -- FK para totems
+    current_version TEXT NOT NULL DEFAULT '1.0.0',
+    available_version TEXT,
+    update_status TEXT NOT NULL DEFAULT 'up_to_date',
+        -- up_to_date, update_available, downloading, installing, failed, rollback
+    last_check TIMESTAMP,
+    last_update TIMESTAMP,
     error_message TEXT,
+    ota_update_id INTEGER, -- pacote OTA em curso (opcional)
     is_active BOOLEAN DEFAULT true,
-    
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
-    CONSTRAINT chk_totem_update_status 
-        CHECK (status IN ('pending', 'downloaded', 'installed', 'failed', 'skipped')),
-    
-    UNIQUE(ota_update_id, totem_id)
+    CONSTRAINT chk_totem_update_status_state
+        CHECK (update_status IN ('up_to_date', 'update_available', 'downloading', 'installing', 'failed', 'rollback'))
+);
+
+-- Templates de publicação rápida (Studio — dashboard dinâmico)
+CREATE TABLE IF NOT EXISTS publish_templates (
+    template_id SERIAL PRIMARY KEY,
+    preset TEXT NOT NULL,
+    segment TEXT,
+    title TEXT NOT NULL,
+    description TEXT,
+    headline TEXT,
+    featured BOOLEAN DEFAULT false,
+    featured_sort INTEGER DEFAULT 0,
+    recommended_duration_ms INTEGER DEFAULT 10000,
+    accent_color TEXT,
+    background_css TEXT,
+    preferred_orientation TEXT DEFAULT 'landscape',
+    icon_key TEXT DEFAULT 'campaign',
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_publish_templates_preset
+        CHECK (preset IN ('menu', 'promotion', 'ad', 'announcement', 'institutional')),
+    CONSTRAINT chk_publish_templates_orientation
+        CHECK (preferred_orientation IN ('portrait', 'landscape'))
+);
+
+-- Cardápio digital por anunciante (tenant)
+CREATE TABLE IF NOT EXISTS menu_categories (
+    category_id SERIAL PRIMARY KEY,
+    subscriber_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    sort_order INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS menu_products (
+    product_id SERIAL PRIMARY KEY,
+    subscriber_id INTEGER NOT NULL,
+    category_id INTEGER,
+    name TEXT NOT NULL,
+    description TEXT,
+    price NUMERIC(12, 2),
+    currency TEXT DEFAULT 'BRL',
+    media_id INTEGER,
+    sort_order INTEGER DEFAULT 0,
+    is_available BOOLEAN DEFAULT true,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- =============================================

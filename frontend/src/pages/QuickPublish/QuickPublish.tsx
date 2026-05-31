@@ -38,175 +38,20 @@ import {
   Subscriber,
 } from '../../services/api';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
-
-interface PresetOption {
-  value: QuickPublishPreset;
-  label: string;
-  description: string;
-  headline: string;
-  badge: string;
-  accentColor: string;
-  background: string;
-  recommendedDurationMs: number;
-  titleSuffix: string;
-  descriptionTemplate: string;
-  bullets: string[];
-  premium?: boolean;
-}
-
-interface SegmentOption {
-  value: string;
-  label: string;
-  shortLabel: string;
-  description: string;
-  visualLanguage: string;
-  defaultPreset: QuickPublishPreset;
-  bullets: string[];
-}
-
-const PRESETS: PresetOption[] = [
-  {
-    value: 'menu',
-    label: 'Cardápio Digital',
-    description: 'Para cardápios, preços e ofertas do dia.',
-    headline: 'Cardápio pronto para vender',
-    badge: 'Restaurante',
-    accentColor: '#ff9800',
-    background: 'linear-gradient(135deg, #2b1400 0%, #7a3a00 100%)',
-    recommendedDurationMs: 12000,
-    titleSuffix: 'Cardápio do dia',
-    descriptionTemplate: 'Template de cardápio digital com foco em leitura rápida, preços claros e chamada para pedido.',
-    bullets: ['Preços e combos', 'Visual vertical 9:16', 'Ideal para balcão e salão'],
-    premium: true,
-  },
-  {
-    value: 'promotion',
-    label: 'Promoção',
-    description: 'Para ofertas rápidas e chamadas comerciais.',
-    headline: 'Oferta em destaque',
-    badge: 'Venda rápida',
-    accentColor: '#e91e63',
-    background: 'linear-gradient(135deg, #2a0010 0%, #b0003a 100%)',
-    recommendedDurationMs: 8000,
-    titleSuffix: 'Promoção especial',
-    descriptionTemplate: 'Template promocional para destacar oferta, preço e urgência de compra.',
-    bullets: ['Chamada forte', 'Preço em evidência', 'Campanhas curtas'],
-    premium: true,
-  },
-  {
-    value: 'ad',
-    label: 'Anúncio',
-    description: 'Para mídia indoor e anúncios em tela cheia.',
-    headline: 'Anúncio de impacto',
-    badge: 'Indoor mídia',
-    accentColor: '#1976d2',
-    background: 'linear-gradient(135deg, #001a33 0%, #0d47a1 100%)',
-    recommendedDurationMs: 10000,
-    titleSuffix: 'Anúncio em tela',
-    descriptionTemplate: 'Template padrão para anúncio em tela cheia com mídia principal e mensagem objetiva.',
-    bullets: ['Tela cheia', 'Marca em destaque', 'Uso geral'],
-  },
-  {
-    value: 'announcement',
-    label: 'Comunicado',
-    description: 'Para avisos, eventos e informações locais.',
-    headline: 'Aviso claro na tela',
-    badge: 'Comunicado',
-    accentColor: '#7b1fa2',
-    background: 'linear-gradient(135deg, #160021 0%, #6a1b9a 100%)',
-    recommendedDurationMs: 9000,
-    titleSuffix: 'Comunicado importante',
-    descriptionTemplate: 'Template para comunicação local com mensagem direta e leitura confortável à distância.',
-    bullets: ['Informação direta', 'Eventos e avisos', 'Boa legibilidade'],
-  },
-  {
-    value: 'institutional',
-    label: 'Institucional',
-    description: 'Para conteúdo fixo de marca ou ambiente.',
-    headline: 'Presença de marca',
-    badge: 'Marca',
-    accentColor: '#2e7d32',
-    background: 'linear-gradient(135deg, #001f12 0%, #1b5e20 100%)',
-    recommendedDurationMs: 15000,
-    titleSuffix: 'Institucional',
-    descriptionTemplate: 'Template institucional para reforçar marca, serviços e presença no ambiente.',
-    bullets: ['Marca e confiança', 'Conteúdo perene', 'Ambiente premium'],
-  },
-];
-
-const SEGMENTS: SegmentOption[] = [
-  {
-    value: 'restaurant',
-    label: 'Restaurante / Lancheria',
-    shortLabel: 'Restaurante',
-    description: 'Cardápios, combos, promoções e chamadas para pedido.',
-    visualLanguage: 'preços legíveis, fotos apetitosas, contraste forte e leitura rápida no balcão.',
-    defaultPreset: 'menu',
-    bullets: ['Cardápio', 'Combos', 'Preço em destaque'],
-  },
-  {
-    value: 'retail',
-    label: 'Loja / Varejo',
-    shortLabel: 'Varejo',
-    description: 'Ofertas, vitrines digitais e anúncios de produto.',
-    visualLanguage: 'mensagem direta, urgência comercial e destaque para produto ou marca.',
-    defaultPreset: 'promotion',
-    bullets: ['Oferta', 'Vitrine', 'Chamada rápida'],
-  },
-  {
-    value: 'church',
-    label: 'Igreja / Evento',
-    shortLabel: 'Evento',
-    description: 'Avisos, agenda, eventos e comunicação com a comunidade.',
-    visualLanguage: 'comunicados claros, clima acolhedor e boa leitura à distância.',
-    defaultPreset: 'announcement',
-    bullets: ['Avisos', 'Agenda', 'Comunidade'],
-  },
-  {
-    value: 'health',
-    label: 'Clínica / Saúde',
-    shortLabel: 'Clínica',
-    description: 'Orientações, serviços, campanhas preventivas e avisos de recepção.',
-    visualLanguage: 'tom confiável, visual limpo, informação objetiva e sensação de cuidado.',
-    defaultPreset: 'institutional',
-    bullets: ['Recepção', 'Orientações', 'Confiança'],
-  },
-  {
-    value: 'hotel',
-    label: 'Hotel / Recepção',
-    shortLabel: 'Hotel',
-    description: 'Boas-vindas, serviços, eventos internos e comunicação institucional.',
-    visualLanguage: 'aparência premium, mensagens elegantes e foco em experiência do visitante.',
-    defaultPreset: 'institutional',
-    bullets: ['Boas-vindas', 'Serviços', 'Premium'],
-  },
-  {
-    value: 'gym',
-    label: 'Academia',
-    shortLabel: 'Academia',
-    description: 'Planos, aulas, desafios, motivação e campanhas de retenção.',
-    visualLanguage: 'energia visual, ritmo forte, chamadas motivacionais e movimento.',
-    defaultPreset: 'ad',
-    bullets: ['Energia', 'Aulas', 'Planos'],
-  },
-];
+import {
+  PUBLISH_PRESETS,
+  PUBLISH_SEGMENTS,
+  buildTemplateDescription,
+  buildTemplateTitle,
+  findPublishPreset,
+  findPublishSegment,
+  resolvePublishPreset,
+} from '../../config/publishTemplates';
 
 const STEPS = ['Cliente', 'Tela', 'Conteúdo', 'Publicar'];
 
-function resolvePreset(value: string | null): QuickPublishPreset {
-  return PRESETS.some((item) => item.value === value) ? (value as QuickPublishPreset) : 'ad';
-}
-
-function findPresetOption(value: QuickPublishPreset): PresetOption {
-  return PRESETS.find((item) => item.value === value) || PRESETS[2];
-}
-
 function resolveSegment(value: string | null): string {
-  return SEGMENTS.some((item) => item.value === value) ? String(value) : SEGMENTS[0].value;
-}
-
-function findSegmentOption(value: string): SegmentOption {
-  return SEGMENTS.find((item) => item.value === value) || SEGMENTS[0];
+  return PUBLISH_SEGMENTS.some((item) => item.value === value) ? String(value) : PUBLISH_SEGMENTS[0].value;
 }
 
 function getSubscriberName(subscriber?: Subscriber | null): string {
@@ -236,27 +81,22 @@ function isApprovedMedia(media: MediaItem): boolean {
     && String(media.approvalStatus || '').toLowerCase() === 'approved';
 }
 
-function buildTemplateTitle(template: PresetOption, subscriber?: Subscriber | null, segment?: SegmentOption): string {
-  const subscriberName = getSubscriberName(subscriber);
-  return [template.titleSuffix, segment?.shortLabel, subscriberName].filter(Boolean).join(' - ');
-}
-
-function buildTemplateDescription(template: PresetOption, segment?: SegmentOption): string {
-  const segmentGuidance = segment
-    ? ` Segmento: ${segment.label}. Linguagem visual: ${segment.visualLanguage}`
-    : '';
-  return `${template.descriptionTemplate} Direção visual: ${template.headline}.${segmentGuidance}`;
-}
-
 const QuickPublish: React.FC = () => {
   const breadcrumbs = useBreadcrumbs();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialSegment = resolveSegment(searchParams.get('segment'));
-  const initialSegmentOption = findSegmentOption(initialSegment);
+  const initialSegmentOption = findPublishSegment(initialSegment);
   const initialPreset = searchParams.get('preset')
-    ? resolvePreset(searchParams.get('preset'))
+    ? resolvePublishPreset(searchParams.get('preset'))
     : initialSegmentOption.defaultPreset;
-  const initialPresetOption = findPresetOption(initialPreset);
+  const initialPresetOption = findPublishPreset(initialPreset);
+  const initialOrientation = searchParams.get('orientation');
+  const initialPortrait =
+    initialOrientation === 'portrait'
+      ? true
+      : initialOrientation === 'landscape'
+        ? false
+        : initialPresetOption.preferredOrientation === 'portrait';
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [totems, setTotems] = useState<Player[]>([]);
@@ -275,7 +115,7 @@ const QuickPublish: React.FC = () => {
   const uploadPreviewRevokeRef = useRef<(() => void) | null>(null);
   const [uploadName, setUploadName] = useState('');
   /** Após upload, encaixar imagem/vídeo em 9:16 (API `POST /api/media/:id/transform`). */
-  const [portraitAfterUpload, setPortraitAfterUpload] = useState(true);
+  const [portraitAfterUpload, setPortraitAfterUpload] = useState(initialPortrait);
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [loadingInitial, setLoadingInitial] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
@@ -289,12 +129,12 @@ const QuickPublish: React.FC = () => {
   );
 
   const selectedPreset = useMemo(
-    () => findPresetOption(preset),
+    () => findPublishPreset(preset),
     [preset]
   );
 
   const selectedSegment = useMemo(
-    () => findSegmentOption(segment),
+    () => findPublishSegment(segment),
     [segment]
   );
 
@@ -365,16 +205,20 @@ const QuickPublish: React.FC = () => {
 
   useEffect(() => {
     const urlSegment = resolveSegment(searchParams.get('segment'));
-    const segmentOption = findSegmentOption(urlSegment);
+    const segmentOption = findPublishSegment(urlSegment);
     const urlPreset = searchParams.get('preset')
-      ? resolvePreset(searchParams.get('preset'))
+      ? resolvePublishPreset(searchParams.get('preset'))
       : segmentOption.defaultPreset;
 
     if (urlPreset === preset && urlSegment === segment) {
       return;
     }
 
-    const template = findPresetOption(urlPreset);
+    const template = findPublishPreset(urlPreset);
+    const urlOrientation = searchParams.get('orientation');
+    if (urlOrientation === 'portrait') setPortraitAfterUpload(true);
+    else if (urlOrientation === 'landscape') setPortraitAfterUpload(false);
+    else setPortraitAfterUpload(template.preferredOrientation === 'portrait');
     setSegment(urlSegment);
     setPreset(template.value);
     setDurationMs(template.recommendedDurationMs);
@@ -450,19 +294,20 @@ const QuickPublish: React.FC = () => {
     setSearchParams({ preset: nextPreset, segment: nextSegment }, { replace: true });
   };
 
-  const handleSelectPreset = (template: PresetOption) => {
+  const handleSelectPreset = (template: typeof selectedPreset) => {
     setPreset(template.value);
     setDurationMs(template.recommendedDurationMs);
+    setPortraitAfterUpload(template.preferredOrientation === 'portrait');
     setTitle(buildTemplateTitle(template, selectedSubscriber, selectedSegment));
     setDescription(buildTemplateDescription(template, selectedSegment));
     setPublishParams(template.value, segment);
   };
 
   const handleSelectSegment = (nextSegment: string) => {
-    const segmentOption = findSegmentOption(nextSegment);
+    const segmentOption = findPublishSegment(nextSegment);
     const shouldUseSegmentPreset = !searchParams.get('preset') || preset === selectedSegment.defaultPreset;
     const nextPreset = shouldUseSegmentPreset ? segmentOption.defaultPreset : preset;
-    const template = findPresetOption(nextPreset);
+    const template = findPublishPreset(nextPreset);
 
     setSegment(nextSegment);
     setPreset(nextPreset);
@@ -706,7 +551,7 @@ const QuickPublish: React.FC = () => {
                   label="Segmento comercial"
                   onChange={(e) => handleSelectSegment(String(e.target.value))}
                 >
-                  {SEGMENTS.map((item) => (
+                  {PUBLISH_SEGMENTS.map((item) => (
                     <MenuItem key={item.value} value={item.value}>
                       <ListItemText primary={item.label} secondary={item.description} />
                     </MenuItem>
@@ -723,7 +568,7 @@ const QuickPublish: React.FC = () => {
                 Escolha o segmento e o modelo para preencher automaticamente título, descrição, linguagem visual e duração recomendada.
               </Typography>
               <Grid container spacing={2}>
-                {PRESETS.map((item) => {
+                {PUBLISH_PRESETS.map((item) => {
                   const selected = item.value === preset;
                   return (
                     <Grid item xs={12} sm={6} md={2.4} key={item.value}>

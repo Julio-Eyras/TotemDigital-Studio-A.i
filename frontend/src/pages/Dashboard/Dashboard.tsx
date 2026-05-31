@@ -45,12 +45,18 @@ import {
   StayCurrentLandscape,
   Payment,
 } from '@mui/icons-material';
-import { dashboardApi } from '../../services/api';
+import { dashboardApi, otaApi, publishTemplatesApi } from '../../services/api';
 import type { QuickPublishPreset } from '../../services/api';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { isStudioMode } from '../../config/studioMode';
 import {DASHBOARD_COMMERCIAL_FOCUS} from '../../config/featureFlags';
+import {
+  FEATURED_TEMPLATES,
+  FEATURED_SEGMENT_CHIPS,
+  findPublishPreset,
+} from '../../config/publishTemplates';
+import { TemplatePreviewStrip } from '../../components/Publish/TemplatePreviewStrip';
 
 interface AdvertiserOverviewStats {
   totalSubscribers: number;
@@ -98,53 +104,13 @@ const EMPTY_COMMERCIAL_OVERVIEW: CommercialOverviewStats = {
   pendingActivations: 0,
 };
 
-const FEATURED_TEMPLATES = [
-  {
-    value: 'menu' as QuickPublishPreset,
-    segment: 'restaurant',
-    title: 'Cardápio digital',
-    description: 'Ideal para restaurantes, lancherias e balcões.',
-    icon: <Storefront />,
-  },
-  {
-    value: 'promotion' as QuickPublishPreset,
-    segment: 'retail',
-    title: 'Promoção do dia',
-    description: 'Oferta direta para vender rápido na tela.',
-    icon: <Campaign />,
-  },
-  {
-    value: 'ad' as QuickPublishPreset,
-    segment: 'gym',
-    title: 'Anúncio indoor',
-    description: 'Conteúdo de impacto para TVs e totens.',
-    icon: <Tv />,
-  },
-  {
-    value: 'announcement' as QuickPublishPreset,
-    segment: 'church',
-    title: 'Comunicado',
-    description: 'Avisos, eventos e mensagens locais.',
-    icon: <AutoAwesome />,
-  },
-  {
-    value: 'institutional' as QuickPublishPreset,
-    segment: 'retail',
-    title: 'Institucional',
-    description: 'Marca, serviços e presença fixa no ambiente.',
-    icon: <Business />,
-  },
-];
-
-/** Alinhado aos segmentos do QuickPublish — preset por defeito do segmento. */
-const FEATURED_SEGMENT_CHIPS: { label: string; preset: QuickPublishPreset; segment: string }[] = [
-  { label: 'Restaurante', preset: 'menu', segment: 'restaurant' },
-  { label: 'Varejo', preset: 'promotion', segment: 'retail' },
-  { label: 'Igreja / evento', preset: 'announcement', segment: 'church' },
-  { label: 'Clínica', preset: 'institutional', segment: 'health' },
-  { label: 'Hotel', preset: 'institutional', segment: 'hotel' },
-  { label: 'Academia', preset: 'ad', segment: 'gym' },
-];
+const FEATURED_ICON_MAP = {
+  storefront: <Storefront />,
+  campaign: <Campaign />,
+  tv: <Tv />,
+  auto_awesome: <AutoAwesome />,
+  business: <Business />,
+} as const;
 
 function getCommercialOverview(stats: DashboardStats | null): CommercialOverviewStats {
   if (stats?.commercialOverview) {
@@ -177,6 +143,8 @@ const Dashboard: React.FC = () => {
   const [activities, setActivities] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [dataAsOf, setDataAsOf] = useState('');
+  const [featuredTemplates, setFeaturedTemplates] = useState(FEATURED_TEMPLATES);
+  const [otaPendingCount, setOtaPendingCount] = useState(0);
   const commercialOverview = getCommercialOverview(stats);
   const onlinePercentage = getOnlinePercentage(commercialOverview);
   const activeClients = stats?.advertiserOverview?.activeSubscribers || 0;
@@ -225,10 +193,15 @@ const Dashboard: React.FC = () => {
       color: commercialOverview.pendingActivations > 0 ? theme.palette.warning.main : theme.palette.success.main,
     },
   ];
-  const openQuickPublish = (presetValue?: QuickPublishPreset, segmentValue?: string) => {
+  const openQuickPublish = (
+    presetValue?: QuickPublishPreset,
+    segmentValue?: string,
+    orientation?: 'portrait' | 'landscape'
+  ) => {
     const params = new URLSearchParams();
     if (presetValue) params.set('preset', presetValue);
     if (segmentValue) params.set('segment', segmentValue);
+    if (orientation) params.set('orientation', orientation);
     const queryString = params.toString();
     navigate(queryString ? `/quick-publish?${queryString}` : '/quick-publish');
   };
@@ -241,6 +214,27 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     loadDashboardData();
+    publishTemplatesApi.getFeatured().then((res) => {
+      const rows = res.data || [];
+      if (rows.length > 0) {
+        setFeaturedTemplates(
+          rows.map((row) => ({
+            value: row.preset,
+            segment: row.segment || 'retail',
+            title: row.title,
+            description: row.description || '',
+            iconKey: (row.iconKey as keyof typeof FEATURED_ICON_MAP) || 'campaign',
+          }))
+        );
+      }
+    }).catch(() => undefined);
+    otaApi.getStats().then((res) => {
+      const pending =
+        (res.data?.totems?.updateAvailable || 0) +
+        (res.data?.totems?.downloading || 0) +
+        (res.data?.totems?.installing || 0);
+      setOtaPendingCount(pending);
+    }).catch(() => undefined);
   }, []);
 
   const loadDashboardData = async () => {
@@ -449,11 +443,13 @@ const Dashboard: React.FC = () => {
                 </Button>
               </Box>
               <Grid container spacing={2}>
-                {FEATURED_TEMPLATES.map((template) => (
+                {featuredTemplates.map((template) => {
+                  const presetConfig = findPublishPreset(template.value);
+                  return (
                   <Grid item xs={12} sm={6} key={template.title}>
                     <Card
                       variant="outlined"
-                      onClick={() => openQuickPublish(template.value, template.segment)}
+                      onClick={() => openQuickPublish(template.value, template.segment, presetConfig.preferredOrientation)}
                       sx={{
                         height: '100%',
                         cursor: 'pointer',
@@ -464,7 +460,9 @@ const Dashboard: React.FC = () => {
                         },
                       }}
                     >
-                      <CardContent sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+                      <CardContent>
+                        <TemplatePreviewStrip preset={presetConfig} />
+                        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
                         <Avatar
                           sx={{
                             bgcolor: alpha(theme.palette.primary.main, 0.1),
@@ -473,7 +471,7 @@ const Dashboard: React.FC = () => {
                             height: 36,
                           }}
                         >
-                          {template.icon}
+                          {FEATURED_ICON_MAP[template.iconKey]}
                         </Avatar>
                         <Box>
                           <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
@@ -486,10 +484,12 @@ const Dashboard: React.FC = () => {
                             Usar este template
                           </Typography>
                         </Box>
+                        </Box>
                       </CardContent>
                     </Card>
                   </Grid>
-                ))}
+                  );
+                })}
               </Grid>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 2 }} alignItems="stretch">
                 <Button
@@ -497,7 +497,7 @@ const Dashboard: React.FC = () => {
                   variant="text"
                   size="small"
                   startIcon={<StayCurrentPortrait />}
-                  onClick={() => openQuickPublish('menu', 'restaurant')}
+                  onClick={() => openQuickPublish('menu', 'restaurant', 'portrait')}
                   sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
                 >
                   Formato vertical 9:16 (ex.: cardápio em totem)
@@ -507,7 +507,7 @@ const Dashboard: React.FC = () => {
                   variant="text"
                   size="small"
                   startIcon={<StayCurrentLandscape />}
-                  onClick={() => openQuickPublish('ad', 'retail')}
+                  onClick={() => openQuickPublish('ad', 'retail', 'landscape')}
                   sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
                 >
                   Formato horizontal 16:9 (ex.: anúncio em TV)
@@ -581,6 +581,20 @@ const Dashboard: React.FC = () => {
                     secondary={`${commercialOverview.pendingActivations} tela(s) pendente(s)`}
                   />
                 </ListItem>
+                {otaPendingCount > 0 && (
+                  <>
+                    <Divider component="li" />
+                    <ListItem disableGutters>
+                      <ListItemText
+                        primary="Atualização OTA Android pendente"
+                        secondary={`${otaPendingCount} totem(ns) com pacote disponível ou em progresso`}
+                      />
+                      <Button size="small" onClick={() => navigate('/ota-updates')}>
+                        Ver OTA
+                      </Button>
+                    </ListItem>
+                  </>
+                )}
               </List>
             </CardContent>
           </Card>

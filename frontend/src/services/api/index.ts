@@ -1978,10 +1978,109 @@ export const otaApi = {
     return response.data;
   },
 
+  getTotemStatuses: async (): Promise<{ success: boolean; data: any[] }> => {
+    const response = await api.get('/ota-updates/totems');
+    return response.data;
+  },
+
   download: async (id: number): Promise<Blob> => {
     const response = await api.get(`/ota-updates/${id}/download`, {
       responseType: 'blob'
     });
+    return response.data;
+  },
+};
+
+// =============================================
+// PUBLISH TEMPLATES API (Vx4)
+// =============================================
+
+export interface PublishTemplateDto {
+  templateId: number;
+  preset: QuickPublishPreset;
+  segment: string | null;
+  title: string;
+  description: string | null;
+  headline: string | null;
+  featured: boolean;
+  featuredSort: number;
+  recommendedDurationMs: number;
+  accentColor: string | null;
+  backgroundCss: string | null;
+  preferredOrientation: 'portrait' | 'landscape';
+  iconKey: string;
+}
+
+export const publishTemplatesApi = {
+  getFeatured: async (): Promise<{ success: boolean; data: PublishTemplateDto[] }> => {
+    const response = await api.get('/publish-templates/featured');
+    return response.data;
+  },
+};
+
+// =============================================
+// MENU CATALOG API (Vx4 — por tenant)
+// =============================================
+
+export interface MenuCategoryDto {
+  categoryId: number;
+  subscriberId: number;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+export interface MenuProductDto {
+  productId: number;
+  subscriberId: number;
+  categoryId: number | null;
+  name: string;
+  description: string | null;
+  price: number | null;
+  currency: string;
+  mediaId: number | null;
+  sortOrder: number;
+  isAvailable: boolean;
+  isActive: boolean;
+}
+
+export const menuCatalogApi = {
+  listCategories: async (subscriberId: number) => {
+    const response = await api.get(`/subscribers/${subscriberId}/menu-catalog/categories`);
+    return response.data as { success: boolean; data: MenuCategoryDto[] };
+  },
+  listProducts: async (subscriberId: number, categoryId?: number) => {
+    const response = await api.get(`/subscribers/${subscriberId}/menu-catalog/products`, {
+      params: categoryId ? { categoryId } : undefined,
+    });
+    return response.data as { success: boolean; data: MenuProductDto[] };
+  },
+  createCategory: async (subscriberId: number, payload: { name: string; sortOrder?: number }) => {
+    const response = await api.post(`/subscribers/${subscriberId}/menu-catalog/categories`, payload);
+    return response.data;
+  },
+  createProduct: async (
+    subscriberId: number,
+    payload: {
+      name: string;
+      categoryId?: number;
+      description?: string;
+      price?: number;
+      currency?: string;
+      mediaId?: number;
+      sortOrder?: number;
+      isAvailable?: boolean;
+    }
+  ) => {
+    const response = await api.post(`/subscribers/${subscriberId}/menu-catalog/products`, payload);
+    return response.data;
+  },
+  updateProduct: async (subscriberId: number, productId: number, payload: Record<string, unknown>) => {
+    const response = await api.patch(`/subscribers/${subscriberId}/menu-catalog/products/${productId}`, payload);
+    return response.data;
+  },
+  deleteProduct: async (subscriberId: number, productId: number) => {
+    const response = await api.delete(`/subscribers/${subscriberId}/menu-catalog/products/${productId}`);
     return response.data;
   },
 };

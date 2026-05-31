@@ -330,8 +330,12 @@ CREATE INDEX IF NOT EXISTS idx_remote_commands_user ON remote_commands(user_id, 
 -- =============================================
 
 CREATE INDEX IF NOT EXISTS idx_ota_updates_platform_status ON ota_updates(platform, status);
-CREATE INDEX IF NOT EXISTS idx_totem_update_status_ota ON totem_update_status(ota_update_id);
-CREATE INDEX IF NOT EXISTS idx_totem_update_status_totem ON totem_update_status(totem_id, status);
+CREATE INDEX IF NOT EXISTS idx_totem_update_status_ota ON totem_update_status(ota_update_id) WHERE ota_update_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_totem_update_status_totem ON totem_update_status(totem_id);
+CREATE INDEX IF NOT EXISTS idx_totem_update_status_state ON totem_update_status(update_status);
+CREATE INDEX IF NOT EXISTS idx_publish_templates_featured ON publish_templates(featured, featured_sort) WHERE featured = true AND is_active = true;
+CREATE INDEX IF NOT EXISTS idx_menu_categories_subscriber ON menu_categories(subscriber_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_menu_products_subscriber ON menu_products(subscriber_id, category_id, sort_order);
 
 -- =============================================
 -- ÍNDICES DE SUBSCRIPTIONS

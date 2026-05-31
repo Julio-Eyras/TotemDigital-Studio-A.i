@@ -285,6 +285,34 @@ export class OTAUpdateService {
   }
 
   /**
+   * Lista status OTA por totem (painel admin)
+   */
+  async listTotemStatuses(limit = 200): Promise<any[]> {
+    try {
+      const rows = await this.db.findMany(`
+        SELECT
+          tus.totem_id,
+          tus.current_version,
+          tus.available_version,
+          tus.update_status,
+          tus.last_check,
+          tus.last_update,
+          tus.error_message,
+          t.identifier,
+          t.name AS totem_name
+        FROM totem_update_status tus
+        JOIN totems t ON t.totem_id = tus.totem_id
+        ORDER BY tus.updated_at DESC
+        LIMIT $1
+      `, [limit]);
+      return rows;
+    } catch (error: any) {
+      await logError('Erro ao listar status OTA por totem', error);
+      throw error;
+    }
+  }
+
+  /**
    * Obtém estatísticas de atualizações
    */
   async getUpdateStats(): Promise<any> {

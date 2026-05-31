@@ -605,6 +605,9 @@ class DispatcherRouter {
         });
       }
 
+      const { resolveOtaUpdateForHeartbeat } = await import('./otaHeartbeatHelper');
+      const otaUpdate = await resolveOtaUpdateForHeartbeat(totemId, request.body as Record<string, unknown>);
+
       return {
         success: true,
         data: {
@@ -616,6 +619,7 @@ class DispatcherRouter {
             data: cmd.command_data,
             priority: cmd.priority,
           })),
+          otaUpdate: otaUpdate || null,
         },
         statusCode: 200,
         duration: Date.now() - startTime,
