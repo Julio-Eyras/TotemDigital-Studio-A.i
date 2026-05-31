@@ -1,4 +1,6 @@
-import { Router } from 'express';
+import { Router, type Request } from 'express';
+
+type PublishBoardParams = { subscriberId: string; preset: string };
 import { body, param, validationResult } from 'express-validator';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
@@ -25,7 +27,7 @@ router.get(
   param('subscriberId').isInt({ min: 1 }),
   param('preset').isIn(PRESETS),
   validate,
-  async (req, res) => {
+  async (req: Request<PublishBoardParams>, res) => {
     try {
       const subscriberId = Number(req.params.subscriberId);
       const preset = String(req.params.preset);
@@ -51,7 +53,7 @@ router.put(
   body('productOrder').optional().isArray(),
   body('showPrices').optional().isBoolean(),
   validate,
-  async (req, res) => {
+  async (req: Request<PublishBoardParams>, res) => {
     try {
       const subscriberId = Number(req.params.subscriberId);
       const preset = String(req.params.preset);
@@ -83,7 +85,7 @@ router.post(
   param('subscriberId').isInt({ min: 1 }),
   param('preset').isIn(PRESETS),
   validate,
-  async (req: any, res) => {
+  async (req: Request<PublishBoardParams> & { user?: { id?: number; userId?: number; role?: string } }, res) => {
     try {
       const subscriberId = Number(req.params.subscriberId);
       const preset = String(req.params.preset);

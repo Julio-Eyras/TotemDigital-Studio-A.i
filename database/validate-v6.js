@@ -401,13 +401,123 @@ async function validateAndExecute() {
       console.log('\n  ✅ Perfil Studio: validações OK\n');
     }
 
+    console.log('🔍 Validando Studio Vx4/Vx5 (publicação rápida e estúdio visual)...\n');
+    let studioPublishOk = true;
+
+    const studioPublishTables = [
+      'publish_templates',
+      'menu_categories',
+      'menu_products',
+      'publish_board_layouts',
+    ];
+    for (const table of studioPublishTables) {
+      const exists = await pool.query(
+        `SELECT EXISTS (
+          SELECT FROM information_schema.tables
+          WHERE table_schema = 'public' AND table_name = $1
+        )`,
+        [table]
+      );
+      if (exists.rows[0].exists) {
+        console.log(`  ✅ Tabela ${table} existe`);
+      } else {
+        console.log(`  ❌ Tabela ${table} não encontrada — execute apply-schema-v2.sh`);
+        studioPublishOk = false;
+      }
+    }
+
+    const boardColumns = [
+      'subscriber_id',
+      'preset',
+      'board_title',
+      'accent_color',
+      'preferred_orientation',
+      'content',
+      'block_order',
+      'product_order',
+      'show_prices',
+    ];
+    for (const column of boardColumns) {
+      const result = await pool.query(
+        `SELECT EXISTS (
+          SELECT FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'publish_board_layouts'
+            AND column_name = $1
+        )`,
+        [column]
+      );
+      if (result.rows[0].exists) {
+        console.log(`  ✅ publish_board_layouts.${column}`);
+      } else {
+        console.log(`  ❌ publish_board_layouts.${column} ausente`);
+        studioPublishOk = false;
+      }
+    }
+
+    try {
+      const presetCheck = await pool.query(`
+        SELECT pg_get_constraintdef(oid) AS def
+        FROM pg_constraint
+        WHERE conname = 'chk_publish_board_preset'
+      `);
+      const def = presetCheck.rows[0]?.def || '';
+      const expectedPresets = ['menu', 'promotion', 'ad', 'announcement', 'institutional'];
+      const missingPreset = expectedPresets.filter((p) => !def.includes(p));
+      if (missingPreset.length === 0) {
+        console.log('  ✅ Constraint chk_publish_board_preset (5 presets)');
+      } else {
+        console.log(`  ❌ chk_publish_board_preset incompleta: faltam ${missingPreset.join(', ')}`);
+        studioPublishOk = false;
+      }
+    } catch (error) {
+      console.log(`  ⚠️  chk_publish_board_preset: ${error.message}`);
+      studioPublishOk = false;
+    }
+
+    try {
+      const fk = await pool.query(`
+        SELECT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'fk_publish_board_layouts_subscriber'
+        ) AS exists
+      `);
+      if (fk.rows[0].exists) {
+        console.log('  ✅ FK fk_publish_board_layouts_subscriber');
+      } else {
+        console.log('  ⚠️  FK fk_publish_board_layouts_subscriber ausente (part7 pode não ter sido aplicada)');
+      }
+    } catch (error) {
+      console.log(`  ⚠️  FK publish_board_layouts: ${error.message}`);
+    }
+
+    try {
+      const tpl = await pool.query(`SELECT COUNT(*)::int AS c FROM publish_templates`);
+      const count = tpl.rows[0].c;
+      if (count >= 5) {
+        console.log(`  ✅ publish_templates: ${count} registro(s) (seed Vx4)`);
+      } else if (count > 0) {
+        console.log(`  ⚠️  publish_templates: ${count} registro(s) — esperado ≥ 5 após seeds-publish-templates-vx4.sql`);
+      } else {
+        console.log('  ⚠️  publish_templates vazia — execute seeds Vx4 ou instalador com seeds');
+      }
+    } catch (error) {
+      console.log(`  ⚠️  publish_templates: ${error.message}`);
+    }
+
+    if (!studioPublishOk) {
+      console.log('\n⚠️  Studio Vx4/Vx5 incompleto — reaplique schema part6/part7 e seeds.\n');
+    } else {
+      console.log('\n  ✅ Studio Vx4/Vx5 (templates, cardápio, estúdio visual): schema OK\n');
+    }
+
     console.log('✅ Validação concluída com sucesso!');
     console.log('📊 O banco está pronto para testes integrados.\n');
 
     const strict =
       process.env.VALIDATE_V6_STRICT === '1' || process.env.VALIDATE_V6_STRICT === 'true';
-    if (strict && (!financialOk || !studioOk)) {
-      console.error('❌ VALIDATE_V6_STRICT: validação financeira ou Studio falhou.');
+    if (strict && (!financialOk || !studioOk || !studioPublishOk)) {
+      console.error('❌ VALIDATE_V6_STRICT: validação financeira, Studio ou Vx4/Vx5 falhou.');
       process.exit(1);
     }
 

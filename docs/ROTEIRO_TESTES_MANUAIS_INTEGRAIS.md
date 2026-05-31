@@ -1,8 +1,8 @@
 # Roteiro de testes manuais integrais — Smart Signage Studio
 
 **Produto:** Smart Signage Studio (modo compacto / `TOTEMDIGITAL_COMPACT`)  
-**Branch de referência:** `Smart-Signage-Studio-Vx4` (Vx4: templates, OTA Player-AD, cardápio por tenant)  
-**Versão do roteiro:** 1.1 — 2026-05-28  
+**Branch de referência:** `Smart-Signage-Studio-Vx5` (Vx4/Vx5: templates, OTA Player-AD, cardápio, estúdio visual `/publish-board`)  
+**Versão do roteiro:** 1.2 — 2026-05-31  
 
 Este documento é o roteiro **completo** de validação manual. Complementa (não substitui):
 
@@ -389,7 +389,7 @@ BASE="http://SEU_HOST:3001/api" USER=totemdigital.admin PASS='...' \
 
 | # | Teste | Passos | Esperado |
 |---|--------|--------|----------|
-| V4-1 | Templates em destaque | Dashboard → card com preview → abrir publicação rápida | Preset/segmento/orientação corretos; título pré-preenchido |
+| V4-1 | Templates em destaque | Dashboard → card com preview → clicar template | Abre `/publish-board?preset=…&segment=…`; abas e formato coerentes com o template |
 | V4-2 | Templates API | `GET /api/publish-templates/featured` autenticado | Lista alinhada aos cards do dashboard |
 | V4-3 | OTA Android admin | Configurações → OTA (admin) → upload APK android → ativar | Pacote `active`; aba Totens mostra status |
 | V4-4 | OTA Player-AD | Totem Android heartbeat com versão &lt; pacote | Download via `/api/player/ota-download`; playback continua |
@@ -423,7 +423,9 @@ BASE="http://SEU_HOST:3001/api" USER=totemdigital.admin PASS='...' \
 |---|--------|--------|----------|
 | V4C-1 | Admin templates API | `PATCH /api/publish-templates/1` (admin) | Ordem/título no dashboard após reload |
 | V4C-2 | Menu navegação | Menu Anunciantes → Cardápio por cliente | Rota `/menu-catalog` |
-| V4C-3 | E2E Vx4 | `e2e/tests/studio-vx4-features.spec.ts` | Suite verde no CI mock |
+| V4C-3 | E2E Studio | `e2e/tests/studio-vx4-features.spec.ts` | Dashboard, cardápio, estúdio (`/publish-board`), templates admin, OTA histórico |
+| V4C-4 | API publish-board | `backend/.../publish-board.test.ts` (Jest integração) | GET/PUT layout e POST render mockados passam |
+| V4C-5 | validate-v6 Vx5 | `VALIDATE_V6_SKIP_LOAD=1 node database/validate-v6.js` | Bloco “Studio Vx4/Vx5” com `publish_board_layouts` OK |
 
 ---
 
@@ -437,6 +439,7 @@ BASE="http://SEU_HOST:3001/api" USER=totemdigital.admin PASS='...' \
 | 7 | `e2e/tests/billing.spec.ts`, `validate-studio-finance-*` |
 | 3–7 | `backend` billing/financial `*.test.ts` |
 | 0 | `validate-v6.js`, CI `test.yml` |
+| V4–V5 | `studio-vx4-features.spec.ts`, `publish-board.test.ts` |
 
 ---
 
