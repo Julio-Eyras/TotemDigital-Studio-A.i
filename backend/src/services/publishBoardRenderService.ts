@@ -153,7 +153,7 @@ function buildSvg(input: PublishBoardRenderInput): string {
 
 export async function renderPublishBoardPng(input: PublishBoardRenderInput): Promise<Buffer> {
   const svg = buildSvg(input);
-  return sharp(Buffer.from(svg)).png().toBuffer();
+  return new sharp(Buffer.from(svg)).png().toBuffer();
 }
 
 /** @deprecated use renderPublishBoardPng */

@@ -1,4 +1,8 @@
-import { Router } from 'express';
+import { Router, type Request } from 'express';
+
+type MenuSubscriberParams = { subscriberId: string };
+type MenuProductParams = { subscriberId: string; productId: string };
+type MenuProductsQuery = { categoryId?: string };
 import { body, param, validationResult } from 'express-validator';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
@@ -22,7 +26,7 @@ router.get(
   '/categories',
   param('subscriberId').isInt({ min: 1 }),
   validate,
-  async (req, res) => {
+  async (req: Request<MenuSubscriberParams>, res) => {
     try {
       const subscriberId = Number(req.params.subscriberId);
       const data = await getMenuCatalogService().listCategories(subscriberId);
@@ -38,7 +42,7 @@ router.get(
   '/products',
   param('subscriberId').isInt({ min: 1 }),
   validate,
-  async (req, res) => {
+  async (req: Request<MenuSubscriberParams, unknown, unknown, MenuProductsQuery>, res) => {
     try {
       const subscriberId = Number(req.params.subscriberId);
       const categoryId = req.query.categoryId ? Number(req.query.categoryId) : undefined;
@@ -58,7 +62,7 @@ router.post(
   body('name').isString().trim().isLength({ min: 1, max: 120 }),
   body('sortOrder').optional().isInt({ min: 0 }),
   validate,
-  async (req, res) => {
+  async (req: Request<MenuSubscriberParams>, res) => {
     try {
       const subscriberId = Number(req.params.subscriberId);
       const data = await getMenuCatalogService().createCategory(
@@ -87,7 +91,7 @@ router.post(
   body('sortOrder').optional().isInt({ min: 0 }),
   body('isAvailable').optional().isBoolean(),
   validate,
-  async (req, res) => {
+  async (req: Request<MenuSubscriberParams>, res) => {
     try {
       const subscriberId = Number(req.params.subscriberId);
       const data = await getMenuCatalogService().createProduct({
@@ -115,7 +119,7 @@ router.patch(
   param('subscriberId').isInt({ min: 1 }),
   param('productId').isInt({ min: 1 }),
   validate,
-  async (req, res) => {
+  async (req: Request<MenuProductParams>, res) => {
     try {
       const subscriberId = Number(req.params.subscriberId);
       const productId = Number(req.params.productId);
@@ -133,7 +137,7 @@ router.get(
   '/board-layout',
   param('subscriberId').isInt({ min: 1 }),
   validate,
-  async (req, res) => {
+  async (req: Request<MenuSubscriberParams>, res) => {
     try {
       const subscriberId = Number(req.params.subscriberId);
       const data = await getMenuCatalogService().getBoardLayout(subscriberId);
@@ -155,7 +159,7 @@ router.put(
   body('productOrder.*').optional().isInt({ min: 1 }),
   body('showPrices').optional().isBoolean(),
   validate,
-  async (req, res) => {
+  async (req: Request<MenuSubscriberParams>, res) => {
     try {
       const subscriberId = Number(req.params.subscriberId);
       const current = await getMenuCatalogService().getBoardLayout(subscriberId);
@@ -181,7 +185,10 @@ router.post(
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing', 'editoracao']),
   param('subscriberId').isInt({ min: 1 }),
   validate,
-  async (req: any, res) => {
+  async (
+    req: Request<MenuSubscriberParams> & { user?: { id?: number; userId?: number; role?: string } },
+    res
+  ) => {
     try {
       const subscriberId = Number(req.params.subscriberId);
       const role = String(req.user?.role || '');
@@ -212,7 +219,7 @@ router.delete(
   param('subscriberId').isInt({ min: 1 }),
   param('productId').isInt({ min: 1 }),
   validate,
-  async (req, res) => {
+  async (req: Request<MenuProductParams>, res) => {
     try {
       const subscriberId = Number(req.params.subscriberId);
       const productId = Number(req.params.productId);
