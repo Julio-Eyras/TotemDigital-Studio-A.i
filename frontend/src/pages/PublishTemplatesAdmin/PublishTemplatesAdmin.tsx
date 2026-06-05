@@ -24,7 +24,9 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { Edit, Refresh, Save } from '@mui/icons-material';
+import { Add, ContentCopy, Edit, Refresh, Save } from '@mui/icons-material';
+import type { QuickPublishPreset } from '../../services/api';
+import { PUBLISH_PRESETS } from '../../config/publishTemplates';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { publishTemplatesApi, PublishTemplateDto } from '../../services/api';
@@ -41,6 +43,21 @@ const PublishTemplatesAdmin: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [editRow, setEditRow] = useState<PublishTemplateDto | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    preset: 'ad' as QuickPublishPreset,
+    title: '',
+    segment: 'retail',
+    description: '',
+    headline: '',
+    featured: false,
+    featuredSort: 0,
+    recommendedDurationMs: 10000,
+    accentColor: '#1976d2',
+    backgroundCss: '',
+    preferredOrientation: 'landscape' as 'portrait' | 'landscape',
+    iconKey: 'campaign',
+  });
   const [form, setForm] = useState({
     title: '',
     headline: '',
@@ -99,6 +116,45 @@ const PublishTemplatesAdmin: React.FC = () => {
     }
   };
 
+  const handleCreate = async () => {
+    if (!createForm.title.trim()) {
+      setError('Informe o título do template.');
+      return;
+    }
+    try {
+      await publishTemplatesApi.create(createForm);
+      setSuccess('Template criado.');
+      setCreateOpen(false);
+      setCreateForm({
+        preset: 'ad',
+        title: '',
+        segment: 'retail',
+        description: '',
+        headline: '',
+        featured: false,
+        featuredSort: 0,
+        recommendedDurationMs: 10000,
+        accentColor: '#1976d2',
+        backgroundCss: '',
+        preferredOrientation: 'landscape',
+        iconKey: 'campaign',
+      });
+      await load();
+    } catch (e) {
+      setError(pickApiErrorMessage(e, 'Erro ao criar template.'));
+    }
+  };
+
+  const handleDuplicate = async (row: PublishTemplateDto) => {
+    try {
+      await publishTemplatesApi.duplicate(row.templateId);
+      setSuccess('Template duplicado.');
+      await load();
+    } catch (e) {
+      setError(pickApiErrorMessage(e, 'Erro ao duplicar template.'));
+    }
+  };
+
   return (
     <Box>
       <PageHeader
@@ -106,6 +162,7 @@ const PublishTemplatesAdmin: React.FC = () => {
         subtitle="Administração dos modelos do dashboard e da publicação rápida (BD publish_templates)."
         breadcrumbs={breadcrumbs}
         actions={[
+          { label: 'Novo template', icon: <Add />, onClick: () => setCreateOpen(true), variant: 'contained' },
           { label: 'Recarregar', icon: <Refresh />, onClick: load, variant: 'outlined' },
         ]}
         loading={loading}
@@ -146,8 +203,15 @@ const PublishTemplatesAdmin: React.FC = () => {
                     <TableCell>{row.featured ? 'Sim' : 'Não'}</TableCell>
                     <TableCell>{row.featuredSort}</TableCell>
                     <TableCell align="right">
-                      <Button size="small" startIcon={<Edit />} onClick={() => openEdit(row)}>
+                      <Button size="small" startIcon={<Edit />} onClick={() => openEdit(row)} sx={{ mr: 0.5 }}>
                         Editar
+                      </Button>
+                      <Button
+                        size="small"
+                        startIcon={<ContentCopy />}
+                        onClick={() => handleDuplicate(row)}
+                      >
+                        Duplicar
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -157,6 +221,111 @@ const PublishTemplatesAdmin: React.FC = () => {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Novo template</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ pt: 1 }}>
+            <Grid item xs={12}>
+              <FormControl fullWidth>
+                <InputLabel>Preset</InputLabel>
+                <Select
+                  label="Preset"
+                  value={createForm.preset}
+                  onChange={(e) => {
+                    const preset = e.target.value as QuickPublishPreset;
+                    const cfg = findPublishPreset(preset);
+                    setCreateForm({
+                      ...createForm,
+                      preset,
+                      recommendedDurationMs: cfg.recommendedDurationMs,
+                      backgroundCss: cfg.background,
+                      preferredOrientation: cfg.preferredOrientation,
+                    });
+                  }}
+                >
+                  {PUBLISH_PRESETS.map((p) => (
+                    <MenuItem key={p.value} value={p.value}>
+                      {p.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Título"
+                value={createForm.title}
+                onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Segmento"
+                value={createForm.segment}
+                onChange={(e) => setCreateForm({ ...createForm, segment: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                multiline
+                minRows={2}
+                label="Descrição"
+                value={createForm.description}
+                onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Headline (preview)"
+                value={createForm.headline}
+                onChange={(e) => setCreateForm({ ...createForm, headline: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField
+                fullWidth
+                type="number"
+                label="Ordem destaque"
+                value={createForm.featuredSort}
+                onChange={(e) => setCreateForm({ ...createForm, featuredSort: Number(e.target.value) })}
+              />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField
+                fullWidth
+                type="number"
+                label="Duração (ms)"
+                value={createForm.recommendedDurationMs}
+                onChange={(e) =>
+                  setCreateForm({ ...createForm, recommendedDurationMs: Number(e.target.value) })
+                }
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={createForm.featured}
+                    onChange={(e) => setCreateForm({ ...createForm, featured: e.target.checked })}
+                  />
+                }
+                label="Exibir em destaque no dashboard"
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreateOpen(false)}>Cancelar</Button>
+          <Button variant="contained" startIcon={<Save />} onClick={handleCreate}>
+            Criar
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={Boolean(editRow)} onClose={() => setEditRow(null)} maxWidth="sm" fullWidth>
         <DialogTitle>Editar template #{editRow?.templateId}</DialogTitle>

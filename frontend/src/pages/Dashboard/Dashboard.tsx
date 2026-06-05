@@ -58,6 +58,7 @@ import {
   findPublishPreset,
 } from '../../config/publishTemplates';
 import { TemplatePreviewStrip } from '../../components/Publish/TemplatePreviewStrip';
+import { StudioOnboardingChecklist } from '../../components/Publish/StudioOnboardingChecklist';
 
 interface AdvertiserOverviewStats {
   totalSubscribers: number;
@@ -318,6 +319,8 @@ const Dashboard: React.FC = () => {
 
       {loading && <LinearProgress sx={{ mb: 3 }} />}
 
+      {dashboardCommercialFocus && <StudioOnboardingChecklist stats={stats} />}
+
       <Card
         sx={{
           mb: 3,
@@ -488,7 +491,7 @@ const Dashboard: React.FC = () => {
                         >
                           {FEATURED_ICON_MAP[template.iconKey]}
                         </Avatar>
-                        <Box>
+                        <Box sx={{ flex: 1 }}>
                           <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                             {template.title}
                           </Typography>
@@ -496,8 +499,19 @@ const Dashboard: React.FC = () => {
                             {template.description}
                           </Typography>
                           <Typography variant="caption" color="primary" sx={{ display: 'block', mt: 0.75, fontWeight: 600 }}>
-                            Usar este template
+                            Abrir no estúdio visual
                           </Typography>
+                          <Button
+                            size="small"
+                            variant="text"
+                            sx={{ mt: 0.5, p: 0, minWidth: 0, textTransform: 'none' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openQuickPublish(template.value, template.segment, presetConfig.preferredOrientation);
+                            }}
+                          >
+                            Publicar direto
+                          </Button>
                         </Box>
                         </Box>
                       </CardContent>
@@ -539,7 +553,7 @@ const Dashboard: React.FC = () => {
                     label={s.label}
                     variant="outlined"
                     size="small"
-                    onClick={() => openQuickPublish(s.preset, s.segment)}
+                    onClick={() => openPublishBoard(s.preset, s.segment)}
                     sx={{ cursor: 'pointer' }}
                   />
                 ))}
@@ -549,9 +563,58 @@ const Dashboard: React.FC = () => {
         </Grid>
 
         <Grid item xs={12} md={4}>
+          <Stack spacing={3} sx={{ height: '100%' }}>
+          <Card sx={{ flex: 1 }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+                <Avatar
+                  sx={{
+                    bgcolor: alpha(theme.palette.info.main, 0.12),
+                    color: theme.palette.info.main,
+                  }}
+                >
+                  <Campaign />
+                </Avatar>
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    No ar agora
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Campanhas e publicações recentes
+                  </Typography>
+                </Box>
+              </Box>
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">
+                    Campanhas ativas
+                  </Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                    {commercialOverview.activeCampaigns}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">
+                    Publicações (7 dias)
+                  </Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                    {commercialOverview.recentPublications}
+                  </Typography>
+                </Grid>
+              </Grid>
+              <Button
+                size="small"
+                variant="outlined"
+                sx={{ mt: 2 }}
+                onClick={() => navigate('/campaigns')}
+              >
+                Ver campanhas
+              </Button>
+            </CardContent>
+          </Card>
           <Card
             sx={{
-              height: '100%',
+              flex: 1,
               border: `1px solid ${alpha(hasCommercialAlerts ? theme.palette.warning.main : theme.palette.success.main, 0.35)}`,
             }}
           >
@@ -613,6 +676,7 @@ const Dashboard: React.FC = () => {
               </List>
             </CardContent>
           </Card>
+          </Stack>
         </Grid>
       </Grid>
 

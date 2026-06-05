@@ -17,6 +17,10 @@ jest.mock('../../../middleware/operatorProtection.middleware', () => ({
   blockClientDataAccess: (_req: any, _res: any, next: any) => next(),
 }));
 
+jest.mock('../../../middleware/subscriberParamAccess.middleware', () => ({
+  assertSubscriberParamAccess: (_req: any, _res: any, next: any) => next(),
+}));
+
 jest.mock('../../../utils/loggerHelper', () => ({
   logError: jest.fn().mockResolvedValue(undefined),
 }));

@@ -2223,6 +2223,18 @@ const Subscribers: React.FC = () => {
     setDetailsDialogOpen(true);
   };
 
+  const openSubscriberPublish = (subscriber: Subscriber) => {
+    navigate(`/quick-publish?subscriber=${subscriber.subscriber_id}`);
+  };
+
+  const openSubscriberStudio = (subscriber: Subscriber) => {
+    navigate(`/publish-board?subscriber=${subscriber.subscriber_id}`);
+  };
+
+  const openSubscriberMenuCatalog = (subscriber: Subscriber) => {
+    navigate(`/menu-catalog?subscriber=${subscriber.subscriber_id}`);
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('pt-BR');
   };
@@ -2360,6 +2372,9 @@ const Subscribers: React.FC = () => {
             <SubscriberCard
               subscriber={Subscriber}
               onView={() => handleViewDetails(Subscriber)}
+              onPublish={openSubscriberPublish}
+              onStudio={openSubscriberStudio}
+              onMenuCatalog={openSubscriberMenuCatalog}
               onEdit={async () => {
                 setSelectedSubscriber(Subscriber);
                 setEditDialogOpen(true);

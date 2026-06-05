@@ -9,6 +9,9 @@ import mediaRoutes from '../routes/media';
 import playlistRoutes from '../routes/playlists';
 import campaignRoutes from '../routes/campaigns';
 import quickPublishRoutes from '../routes/quick-publish';
+import publishTemplatesRoutes from '../routes/publish-templates';
+import menuCatalogRoutes from '../routes/menu-catalog';
+import publishBoardRoutes from '../routes/publish-board';
 import settingsRoutes from '../routes/settings';
 import dashboardRoutes from '../routes/dashboard';
 import healthRoutes from '../routes/health';
@@ -53,6 +56,19 @@ export function registerCompactRoutes(app: Express): void {
   app.use('/api/playlists', blockClientDataAccess as any, playlistRoutes);
   app.use('/api/campaigns', blockClientDataAccess as any, campaignRoutes);
   app.use('/api/quick-publish', blockClientDataAccess as any, quickPublishRoutes);
+  app.use('/api/publish-templates', authMiddleware as any, publishTemplatesRoutes);
+  app.use(
+    '/api/subscribers/:subscriberId/menu-catalog',
+    authMiddleware as any,
+    blockClientDataAccess as any,
+    menuCatalogRoutes
+  );
+  app.use(
+    '/api/subscribers/:subscriberId/publish-board',
+    authMiddleware as any,
+    blockClientDataAccess as any,
+    publishBoardRoutes
+  );
   app.use('/api/settings', settingsRoutes);
   // ui-context é público (definido antes do auth no router); auth só nas demais rotas do dashboard
   app.use('/api/dashboard', dashboardRoutes);

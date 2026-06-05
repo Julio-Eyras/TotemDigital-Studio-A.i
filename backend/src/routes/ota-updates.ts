@@ -215,6 +215,26 @@ router.post('/:id/pause',
 );
 
 /**
+ * @route POST /api/ota-updates/:id/cancel
+ * @desc Cancela uma atualização OTA
+ */
+router.post('/:id/cancel',
+  param('id').isInt({ min: 1 }),
+  validateRequest,
+  authorizeRole(['admin']),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const updateId = parseInt(req.params.id);
+      await getOTAUpdateService().cancelUpdate(updateId);
+      return res.json({ success: true, message: 'Atualização OTA cancelada com sucesso' });
+    } catch (error: any) {
+      await logError('Erro ao cancelar atualização OTA', error, { updateId: req.params.id });
+      return res.status(500).json({ success: false, error: error.message || 'Erro ao cancelar atualização OTA' });
+    }
+  }
+);
+
+/**
  * @route GET /api/ota-updates/stats
  * @desc Obtém estatísticas de atualizações
  * @access Private (Admin, Manager)

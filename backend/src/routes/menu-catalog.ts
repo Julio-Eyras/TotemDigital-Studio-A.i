@@ -1,9 +1,10 @@
 import { Router, type Request } from 'express';
-import { body, param, validationResult } from 'express-validator';
+import { body, param, query, validationResult } from 'express-validator';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { getMenuCatalogService } from '../services/menuCatalogService';
 import { logError } from '../utils/loggerHelper';
+import { assertSubscriberParamAccess } from '../middleware/subscriberParamAccess.middleware';
 
 type MenuSubscriberParams = { subscriberId: string };
 type MenuProductParams = { subscriberId: string; productId: string };
@@ -31,6 +32,7 @@ const router = Router({ mergeParams: true });
 
 router.use(authenticateToken);
 router.use(blockClientDataAccess);
+router.use(assertSubscriberParamAccess);
 
 const validate = (req: any, res: any, next: any) => {
   const errors = validationResult(req);
@@ -59,6 +61,7 @@ router.get(
 router.get(
   '/products',
   param('subscriberId').isInt({ min: 1 }),
+  query('categoryId').optional().isInt({ min: 1 }),
   validate,
   async (req, res) => {
     try {
@@ -112,6 +115,15 @@ router.post(
   async (req, res) => {
     try {
       const subscriberId = parseSubscriberId(req);
+      if (req.body.categoryId != null) {
+        const ok = await getMenuCatalogService().assertCategoryBelongsToSubscriber(
+          Number(req.body.categoryId),
+          subscriberId
+        );
+        if (!ok) {
+          return res.status(400).json({ success: false, error: 'Categoria inválida para este anunciante' });
+        }
+      }
       const data = await getMenuCatalogService().createProduct({
         subscriberId,
         categoryId: req.body.categoryId,
@@ -132,14 +144,76 @@ router.post(
 );
 
 router.patch(
+  '/categories/:categoryId',
+  authorizeRole(['admin', 'admin_sql', 'gerente_marketing', 'editoracao']),
+  param('subscriberId').isInt({ min: 1 }),
+  param('categoryId').isInt({ min: 1 }),
+  body('name').optional().isString().trim().isLength({ min: 1, max: 120 }),
+  body('sortOrder').optional().isInt({ min: 0 }),
+  validate,
+  async (req, res) => {
+    try {
+      const subscriberId = parseSubscriberId(req);
+      const categoryId = Number((req.params as MenuProductParams & { categoryId: string }).categoryId);
+      const data = await getMenuCatalogService().updateCategory(categoryId, subscriberId, {
+        name: req.body.name,
+        sortOrder: req.body.sortOrder,
+      });
+      if (!data) return res.status(404).json({ success: false, error: 'Categoria não encontrada' });
+      return res.json({ success: true, data });
+    } catch (error: any) {
+      await logError('Erro ao atualizar categoria do cardápio', error);
+      return res.status(500).json({ success: false, error: 'Erro ao atualizar categoria' });
+    }
+  }
+);
+
+router.delete(
+  '/categories/:categoryId',
+  authorizeRole(['admin', 'admin_sql', 'gerente_marketing', 'editoracao']),
+  param('subscriberId').isInt({ min: 1 }),
+  param('categoryId').isInt({ min: 1 }),
+  validate,
+  async (req, res) => {
+    try {
+      const subscriberId = parseSubscriberId(req);
+      const categoryId = Number((req.params as { categoryId: string }).categoryId);
+      const ok = await getMenuCatalogService().deleteCategory(categoryId, subscriberId);
+      if (!ok) return res.status(404).json({ success: false, error: 'Categoria não encontrada' });
+      return res.json({ success: true });
+    } catch (error: any) {
+      await logError('Erro ao remover categoria do cardápio', error);
+      return res.status(500).json({ success: false, error: 'Erro ao remover categoria' });
+    }
+  }
+);
+
+router.patch(
   '/products/:productId',
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing', 'editoracao']),
   param('subscriberId').isInt({ min: 1 }),
   param('productId').isInt({ min: 1 }),
+  body('name').optional().isString().trim().isLength({ min: 1, max: 160 }),
+  body('description').optional({ nullable: true }).isString().trim().isLength({ max: 500 }),
+  body('price').optional({ nullable: true }).isFloat({ min: 0 }),
+  body('categoryId').optional({ nullable: true }).isInt({ min: 1 }),
+  body('mediaId').optional({ nullable: true }).isInt({ min: 1 }),
+  body('sortOrder').optional().isInt({ min: 0 }),
+  body('isAvailable').optional().isBoolean(),
+  body('isActive').optional().isBoolean(),
   validate,
   async (req, res) => {
     try {
       const { subscriberId, productId } = parseProductIds(req);
+      if (req.body.categoryId != null) {
+        const ok = await getMenuCatalogService().assertCategoryBelongsToSubscriber(
+          Number(req.body.categoryId),
+          subscriberId
+        );
+        if (!ok) {
+          return res.status(400).json({ success: false, error: 'Categoria inválida para este anunciante' });
+        }
+      }
       const data = await getMenuCatalogService().updateProduct(productId, subscriberId, req.body);
       if (!data) return res.status(404).json({ success: false, error: 'Produto não encontrado' });
       return res.json({ success: true, data });

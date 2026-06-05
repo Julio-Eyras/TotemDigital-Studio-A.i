@@ -34,6 +34,71 @@ router.get('/', authenticateToken, async (_req, res) => {
   }
 });
 
+router.get(
+  '/:templateId',
+  authenticateToken,
+  param('templateId').isInt({ min: 1 }),
+  validate,
+  async (req, res) => {
+    try {
+      const templateId = Number(req.params.templateId);
+      const data = await getPublishTemplateService().getById(templateId);
+      if (!data) return res.status(404).json({ success: false, error: 'Template não encontrado' });
+      return res.json({ success: true, data });
+    } catch (error: any) {
+      await logError('Erro ao carregar template de publicação', error);
+      return res.status(500).json({ success: false, error: 'Erro ao carregar template' });
+    }
+  }
+);
+
+router.post(
+  '/',
+  authenticateToken,
+  authorizeRole(['admin', 'admin_sql']),
+  body('preset').isIn(['menu', 'promotion', 'ad', 'announcement', 'institutional']),
+  body('title').isString().trim().isLength({ min: 1, max: 160 }),
+  body('segment').optional({ nullable: true }).isString().trim().isLength({ max: 40 }),
+  body('description').optional({ nullable: true }).isString().trim().isLength({ max: 500 }),
+  body('headline').optional({ nullable: true }).isString().trim().isLength({ max: 120 }),
+  body('featured').optional().isBoolean(),
+  body('featuredSort').optional().isInt({ min: 0, max: 999 }),
+  body('recommendedDurationMs').optional().isInt({ min: 1000, max: 300000 }),
+  body('accentColor').optional({ nullable: true }).isString().isLength({ max: 32 }),
+  body('backgroundCss').optional({ nullable: true }).isString().isLength({ max: 500 }),
+  body('preferredOrientation').optional().isIn(['portrait', 'landscape']),
+  body('iconKey').optional().isString().isLength({ max: 40 }),
+  validate,
+  async (req, res) => {
+    try {
+      const data = await getPublishTemplateService().createTemplate(req.body);
+      return res.status(201).json({ success: true, data });
+    } catch (error: any) {
+      await logError('Erro ao criar template de publicação', error);
+      return res.status(500).json({ success: false, error: 'Erro ao criar template' });
+    }
+  }
+);
+
+router.post(
+  '/:templateId/duplicate',
+  authenticateToken,
+  authorizeRole(['admin', 'admin_sql']),
+  param('templateId').isInt({ min: 1 }),
+  validate,
+  async (req, res) => {
+    try {
+      const templateId = Number(req.params.templateId);
+      const data = await getPublishTemplateService().duplicateTemplate(templateId);
+      if (!data) return res.status(404).json({ success: false, error: 'Template não encontrado' });
+      return res.status(201).json({ success: true, data });
+    } catch (error: any) {
+      await logError('Erro ao duplicar template de publicação', error);
+      return res.status(500).json({ success: false, error: 'Erro ao duplicar template' });
+    }
+  }
+);
+
 router.patch(
   '/:templateId',
   authenticateToken,

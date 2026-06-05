@@ -30,6 +30,9 @@ import {
   QueueMusic,
   Campaign as CampaignIcon,
   Storage,
+  Add,
+  AutoAwesome,
+  Storefront,
 } from '@mui/icons-material';
 import { Subscriber } from '../../../services/api';
 import {
@@ -42,6 +45,9 @@ export interface SubscriberCardProps {
   onEdit?: (subscriber: Subscriber) => void;
   onDelete?: (subscriber: Subscriber) => void;
   onView?: (subscriber: Subscriber) => void;
+  onPublish?: (subscriber: Subscriber) => void;
+  onMenuCatalog?: (subscriber: Subscriber) => void;
+  onStudio?: (subscriber: Subscriber) => void;
 }
 
 const SubscriberCard: React.FC<SubscriberCardProps> = ({
@@ -49,6 +55,9 @@ const SubscriberCard: React.FC<SubscriberCardProps> = ({
   onEdit,
   onDelete,
   onView,
+  onPublish,
+  onMenuCatalog,
+  onStudio,
 }) => {
   const activeContracts = subscriber.active_contracts_count || 0;
   const mediaCount = subscriber.media_count || 0;
@@ -219,7 +228,28 @@ const SubscriberCard: React.FC<SubscriberCardProps> = ({
         </Stack>
       </CardContent>
 
-      <CardActions sx={{ justifyContent: 'flex-end', px: 2, pb: 2 }}>
+      <CardActions sx={{ justifyContent: 'flex-end', flexWrap: 'wrap', px: 2, pb: 2, gap: 0.5 }}>
+        {onPublish && (
+          <Tooltip title="Publicar em tela">
+            <IconButton size="small" color="primary" onClick={() => onPublish(subscriber)}>
+              <Add />
+            </IconButton>
+          </Tooltip>
+        )}
+        {onStudio && (
+          <Tooltip title="Estúdio visual">
+            <IconButton size="small" onClick={() => onStudio(subscriber)}>
+              <AutoAwesome />
+            </IconButton>
+          </Tooltip>
+        )}
+        {onMenuCatalog && (
+          <Tooltip title="Cardápio">
+            <IconButton size="small" onClick={() => onMenuCatalog(subscriber)}>
+              <Storefront />
+            </IconButton>
+          </Tooltip>
+        )}
         {onView && (
           <Tooltip title="Ver Detalhes">
             <IconButton size="small" onClick={() => onView(subscriber)}>

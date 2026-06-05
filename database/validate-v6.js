@@ -409,6 +409,8 @@ async function validateAndExecute() {
       'menu_categories',
       'menu_products',
       'publish_board_layouts',
+      'ota_updates',
+      'totem_update_status',
     ];
     for (const table of studioPublishTables) {
       const exists = await pool.query(

@@ -4,6 +4,7 @@ import { authenticateToken, authorizeRole } from '../middleware/auth.middleware'
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { getPublishBoardService } from '../services/publishBoardService';
 import { logError } from '../utils/loggerHelper';
+import { assertSubscriberParamAccess } from '../middleware/subscriberParamAccess.middleware';
 
 type PublishBoardParams = { subscriberId: string; preset: string };
 
@@ -21,6 +22,7 @@ const router = Router({ mergeParams: true });
 
 router.use(authenticateToken);
 router.use(blockClientDataAccess);
+router.use(assertSubscriberParamAccess);
 
 const validate = (req: any, res: any, next: any) => {
   const errors = validationResult(req);

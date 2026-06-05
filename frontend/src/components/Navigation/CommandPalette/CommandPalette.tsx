@@ -35,10 +35,14 @@ import {
   Payment,
   MonitorHeart,
   Shuffle,
+  AutoAwesome,
+  Storefront,
 } from '@mui/icons-material';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { isStudioMode } from '../../../config/studioMode';
-import {DASHBOARD_COMMERCIAL_FOCUS} from '../../../config/featureFlags';
+import { DASHBOARD_COMMERCIAL_FOCUS } from '../../../config/featureFlags';
+import { canAccess, UserFlags } from '../../../utils/rolePermissions';
+import { useAppSelector } from '../../../store/hooks';
 
 export interface CommandItem {
   id: string;
@@ -84,6 +88,33 @@ const defaultItems: CommandItem[] = [
     type: 'page',
     path: '/publishers',
     keywords: ['publishers', 'publicadores'],
+  },
+  {
+    id: 'quick-publish',
+    label: 'Publicar em Tela',
+    description: 'Fluxo rápido de publicação',
+    icon: <Add />,
+    type: 'page',
+    path: '/quick-publish',
+    keywords: ['publicar', 'publicacao', 'quick', 'tela'],
+  },
+  {
+    id: 'publish-board',
+    label: 'Estúdio visual',
+    description: 'Montar quadro e gerar mídia',
+    icon: <AutoAwesome />,
+    type: 'page',
+    path: '/publish-board',
+    keywords: ['estudio', 'visual', 'publish-board', 'quadro'],
+  },
+  {
+    id: 'menu-catalog',
+    label: 'Cardápio',
+    description: 'Cardápio por cliente',
+    icon: <Storefront />,
+    type: 'page',
+    path: '/menu-catalog',
+    keywords: ['cardapio', 'menu', 'catalogo', 'produtos'],
   },
   {
     id: 'campaigns',
@@ -216,6 +247,24 @@ const compactCommandItems: CommandItem[] = [
     keywords: ['publicar', 'publicacao', 'quick', 'nova'],
   },
   {
+    id: 'publish-board',
+    label: 'Estúdio visual',
+    description: 'Montar quadro e gerar mídia',
+    icon: <AutoAwesome />,
+    type: 'page',
+    path: '/publish-board',
+    keywords: ['estudio', 'visual', 'publish-board', 'quadro'],
+  },
+  {
+    id: 'menu-catalog',
+    label: 'Cardápio',
+    description: 'Cardápio por cliente',
+    icon: <Storefront />,
+    type: 'page',
+    path: '/menu-catalog',
+    keywords: ['cardapio', 'menu', 'catalogo', 'produtos'],
+  },
+  {
     id: 'subscribers',
     label: 'Anunciantes',
     description: 'Clientes e contas',
@@ -328,6 +377,24 @@ const commercialFocusProCommandItems: CommandItem[] = [
     keywords: ['publicar', 'publicacao', 'quick', 'nova', 'tela'],
   },
   {
+    id: 'publish-board',
+    label: 'Estúdio visual',
+    description: 'Montar quadro e gerar mídia',
+    icon: <AutoAwesome />,
+    type: 'page',
+    path: '/publish-board',
+    keywords: ['estudio', 'visual', 'publish-board', 'quadro'],
+  },
+  {
+    id: 'menu-catalog',
+    label: 'Cardápio',
+    description: 'Cardápio por cliente',
+    icon: <Storefront />,
+    type: 'page',
+    path: '/menu-catalog',
+    keywords: ['cardapio', 'menu', 'catalogo', 'produtos'],
+  },
+  {
     id: 'subscribers',
     label: 'Anunciantes',
     description: 'Gerenciar anunciantes',
@@ -392,25 +459,39 @@ const commercialFocusProCommandItems: CommandItem[] = [
   },
 ];
 
+function filterCommandsByAccess(
+  list: CommandItem[],
+  userRole?: string,
+  userFlags?: UserFlags | null
+): CommandItem[] {
+  if (!userRole) return list;
+  return list.filter((item) => {
+    if (!item.path) return true;
+    const pathKey = item.path.split('?')[0] || '/';
+    return canAccess(userRole, pathKey, userFlags);
+  });
+}
+
 const CommandPalette: React.FC<CommandPaletteProps> = ({
   open,
   onClose,
   items,
 }) => {
   const navigate = useNavigate();
+  const user = useAppSelector((state) => state.auth.user);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  const commandItems = useMemo(
-    () =>
+  const commandItems = useMemo(() => {
+    const base =
       items ??
       (isStudioMode()
         ? compactCommandItems
         : DASHBOARD_COMMERCIAL_FOCUS
           ? commercialFocusProCommandItems
-          : defaultItems),
-    [items]
-  );
+          : defaultItems);
+    return filterCommandsByAccess(base, user?.role, user?.flags);
+  }, [items, user?.role, user?.flags]);
 
   const filteredItems = useMemo(() => {
     if (!searchTerm.trim()) {

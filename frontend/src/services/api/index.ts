@@ -1531,6 +1531,8 @@ export interface QuickPublishResult {
   campaignId: number;
   publishedTotemIds: number[];
   regeneratedTotemIds: number[];
+  failedTotemIds?: number[];
+  partialRegeneration?: boolean;
   message: string;
 }
 
@@ -2020,6 +2022,31 @@ export const publishTemplatesApi = {
     const response = await api.get('/publish-templates');
     return response.data;
   },
+  getById: async (templateId: number): Promise<{ success: boolean; data: PublishTemplateDto }> => {
+    const response = await api.get(`/publish-templates/${templateId}`);
+    return response.data;
+  },
+  create: async (payload: {
+    preset: QuickPublishPreset;
+    title: string;
+    segment?: string | null;
+    description?: string | null;
+    headline?: string | null;
+    featured?: boolean;
+    featuredSort?: number;
+    recommendedDurationMs?: number;
+    accentColor?: string | null;
+    backgroundCss?: string | null;
+    preferredOrientation?: 'portrait' | 'landscape';
+    iconKey?: string;
+  }): Promise<{ success: boolean; data: PublishTemplateDto }> => {
+    const response = await api.post('/publish-templates', payload);
+    return response.data;
+  },
+  duplicate: async (templateId: number): Promise<{ success: boolean; data: PublishTemplateDto }> => {
+    const response = await api.post(`/publish-templates/${templateId}/duplicate`);
+    return response.data;
+  },
   update: async (
     templateId: number,
     payload: Partial<{
@@ -2158,6 +2185,23 @@ export const menuCatalogApi = {
   },
   deleteProduct: async (subscriberId: number, productId: number) => {
     const response = await api.delete(`/subscribers/${subscriberId}/menu-catalog/products/${productId}`);
+    return response.data;
+  },
+  updateCategory: async (
+    subscriberId: number,
+    categoryId: number,
+    payload: { name?: string; sortOrder?: number }
+  ) => {
+    const response = await api.patch(
+      `/subscribers/${subscriberId}/menu-catalog/categories/${categoryId}`,
+      payload
+    );
+    return response.data;
+  },
+  deleteCategory: async (subscriberId: number, categoryId: number) => {
+    const response = await api.delete(
+      `/subscribers/${subscriberId}/menu-catalog/categories/${categoryId}`
+    );
     return response.data;
   },
 };

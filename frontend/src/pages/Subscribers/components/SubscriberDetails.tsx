@@ -35,7 +35,11 @@ import {
   CheckCircle,
   Warning,
   Error as ErrorIcon,
+  Add,
+  AutoAwesome,
+  Storefront,
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import { Subscriber, Contract, subscriberApi } from '../../../services/api';
 import SubscriberStats from './SubscriberStats';
 import { loadPlanTopologyPreviewRows, countTopologyInRows, PlanTopologyPreviewRow } from '../planTopologyPreview';
@@ -78,6 +82,7 @@ const SubscriberDetails: React.FC<SubscriberDetailsProps> = ({
   onClose,
   onEdit,
 }) => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(0);
   const [stats, setStats] = useState<{
     locals: any[];
@@ -516,8 +521,42 @@ const SubscriberDetails: React.FC<SubscriberDetailsProps> = ({
           />
         )}
       </DialogContent>
-      <DialogActions>
-        {onEdit && (
+      <DialogActions sx={{ flexWrap: 'wrap', gap: 1 }}>
+        {subscriber && (
+          <>
+            <Button
+              size="small"
+              startIcon={<Add />}
+              onClick={() => {
+                navigate(`/quick-publish?subscriber=${subscriber.subscriber_id}`);
+                onClose();
+              }}
+            >
+              Publicar
+            </Button>
+            <Button
+              size="small"
+              startIcon={<AutoAwesome />}
+              onClick={() => {
+                navigate(`/publish-board?subscriber=${subscriber.subscriber_id}`);
+                onClose();
+              }}
+            >
+              Estúdio
+            </Button>
+            <Button
+              size="small"
+              startIcon={<Storefront />}
+              onClick={() => {
+                navigate(`/menu-catalog?subscriber=${subscriber.subscriber_id}`);
+                onClose();
+              }}
+            >
+              Cardápio
+            </Button>
+          </>
+        )}
+        {onEdit && subscriber && (
           <Button onClick={() => onEdit(subscriber)} variant="contained">
             Editar
           </Button>

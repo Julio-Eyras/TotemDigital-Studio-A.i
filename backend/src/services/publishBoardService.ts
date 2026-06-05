@@ -189,6 +189,15 @@ export class PublishBoardService {
       isAdmin
     );
 
+    await this.db.executeRaw(`
+      UPDATE medias
+      SET status = 'approved',
+          approval_status = 'approved',
+          approved_by = $2,
+          approved_at = CURRENT_TIMESTAMP
+      WHERE media_id = $1
+    `, [media.id, userId > 0 ? userId : null]);
+
     return { mediaId: media.id, name: media.name };
   }
 }

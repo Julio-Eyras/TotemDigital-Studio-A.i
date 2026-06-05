@@ -25,6 +25,8 @@ export interface QuickPublishResult {
   campaignId: number;
   publishedTotemIds: number[];
   regeneratedTotemIds: number[];
+  failedTotemIds?: number[];
+  partialRegeneration?: boolean;
   message: string;
 }
 
@@ -287,15 +289,22 @@ export class QuickPublishService {
         }
       }
 
+      const partialRegen = regeneratedTotemIds.length < totemIds.length;
+      const failedTotemIds = totemIds.filter((id) => !regeneratedTotemIds.includes(id));
+
       return {
-        success: true,
+        success: !partialRegen || regeneratedTotemIds.length > 0,
         playlistId: result.playlistId,
         campaignId: result.campaignId,
         publishedTotemIds: totemIds,
         regeneratedTotemIds,
-        message: publishNow
-          ? 'Conteúdo publicado com sucesso'
-          : 'Publicação criada como rascunho',
+        failedTotemIds: partialRegen ? failedTotemIds : [],
+        partialRegeneration: partialRegen,
+        message: partialRegen
+          ? `Publicação criada, mas ${failedTotemIds.length} tela(s) não atualizaram a playlist automaticamente`
+          : publishNow
+            ? 'Conteúdo publicado com sucesso'
+            : 'Publicação criada como rascunho',
       };
     } catch (error: any) {
       await logError('Erro na publicação rápida', error, { subscriberId, contractId, totemIds, mediaIds, preset });

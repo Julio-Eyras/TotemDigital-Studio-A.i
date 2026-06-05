@@ -8,6 +8,14 @@ test.describe('Studio Vx4 — templates e cardápio', () => {
     await expect(adminPage.getByText(/Cardápio digital|Promoção do dia/i).first()).toBeVisible();
   });
 
+  test('dashboard mostra checklist de onboarding ou conteúdo comercial', async ({ adminPage }) => {
+    await adminPage.goto('/dashboard');
+    await adminPage.waitForLoadState('networkidle');
+    const checklist = adminPage.getByText(/Primeiros passos|anunciante|publicação/i).first();
+    const templates = adminPage.getByText(/Templates em destaque/i).first();
+    await expect(checklist.or(templates)).toBeVisible();
+  });
+
   test('dashboard abre estúdio visual ao clicar template em destaque', async ({ adminPage }) => {
     await adminPage.goto('/dashboard');
     await adminPage.waitForLoadState('networkidle');

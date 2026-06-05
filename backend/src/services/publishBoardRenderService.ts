@@ -96,6 +96,11 @@ function buildSvg(input: PublishBoardRenderInput): string {
   } else if (input.preset === 'ad') {
     const keys = ['headline', 'brand', 'message', 'cta'];
     const lines = wrapContentLines(content, blockOrder, keys);
+    const logoUrl = String(content.logoUrl || '').trim();
+    if (logoUrl) {
+      bodyLines.push(textLine(80, y, logoUrl.slice(0, 60), portrait ? 22 : 24, 400, '#bbdefb'));
+      y += portrait ? 36 : 40;
+    }
     bodyLines.push(textLine(80, y, lines[0] || 'Anúncio', portrait ? 56 : 72, 800));
     y += portrait ? 90 : 100;
     if (lines[1]) {
@@ -124,6 +129,11 @@ function buildSvg(input: PublishBoardRenderInput): string {
   } else {
     const keys = ['headline', 'message', 'line1', 'line2', 'line3'];
     const lines = wrapContentLines(content, blockOrder, keys);
+    const logoUrl = String(content.logoUrl || '').trim();
+    if (logoUrl) {
+      bodyLines.push(textLine(80, y, logoUrl.slice(0, 60), portrait ? 22 : 24, 400, '#c8e6c9'));
+      y += portrait ? 36 : 40;
+    }
     bodyLines.push(textLine(80, y, lines[0] || 'Institucional', portrait ? 52 : 64, 800));
     y += portrait ? 80 : 90;
     if (lines[1]) {

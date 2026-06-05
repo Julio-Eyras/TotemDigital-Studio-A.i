@@ -730,7 +730,7 @@ router.get('/validate',
           description: otaUpdate.description,
           changelog: otaUpdate.changelog,
           isMandatory: otaUpdate.isMandatory,
-          downloadUrl: `/api/ota-updates/${otaUpdate.id}/download`
+          downloadUrl: `/api/player/ota-download/${otaUpdate.id}`
         } : null,
         token: newToken,
         expiresIn: 3600, // 1 hora

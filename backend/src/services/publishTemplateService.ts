@@ -98,6 +98,70 @@ export class PublishTemplateService {
     return this.mapRow(result.rows[0]);
   }
 
+  async getById(templateId: number): Promise<PublishTemplateRow | null> {
+    const row = await this.db.findFirst(`
+      SELECT * FROM publish_templates WHERE template_id = $1
+    `, [templateId]);
+    return row ? this.mapRow(row) : null;
+  }
+
+  async createTemplate(input: {
+    preset: string;
+    segment?: string | null;
+    title: string;
+    description?: string | null;
+    headline?: string | null;
+    featured?: boolean;
+    featuredSort?: number;
+    recommendedDurationMs?: number;
+    accentColor?: string | null;
+    backgroundCss?: string | null;
+    preferredOrientation?: string;
+    iconKey?: string;
+  }): Promise<PublishTemplateRow> {
+    const result = await this.db.executeRaw(`
+      INSERT INTO publish_templates (
+        preset, segment, title, description, headline, featured, featured_sort,
+        recommended_duration_ms, accent_color, background_css, preferred_orientation, icon_key
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING *
+    `, [
+      input.preset,
+      input.segment ?? null,
+      input.title,
+      input.description ?? null,
+      input.headline ?? null,
+      input.featured ?? false,
+      input.featuredSort ?? 100,
+      input.recommendedDurationMs ?? 10000,
+      input.accentColor ?? null,
+      input.backgroundCss ?? null,
+      input.preferredOrientation ?? 'landscape',
+      input.iconKey ?? 'campaign',
+    ]);
+    return this.mapRow(result.rows[0]);
+  }
+
+  async duplicateTemplate(templateId: number): Promise<PublishTemplateRow | null> {
+    const source = await this.getById(templateId);
+    if (!source) return null;
+    return this.createTemplate({
+      preset: source.preset,
+      segment: source.segment,
+      title: `${source.title} (cópia)`,
+      description: source.description,
+      headline: source.headline,
+      featured: false,
+      featuredSort: (source.featuredSort ?? 100) + 1,
+      recommendedDurationMs: source.recommendedDurationMs,
+      accentColor: source.accentColor,
+      backgroundCss: source.backgroundCss,
+      preferredOrientation: source.preferredOrientation,
+      iconKey: source.iconKey,
+    });
+  }
+
   async listAll(): Promise<PublishTemplateRow[]> {
     const rows = await this.db.findMany(`
       SELECT *

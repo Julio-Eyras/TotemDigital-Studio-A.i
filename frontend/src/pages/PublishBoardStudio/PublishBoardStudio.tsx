@@ -243,6 +243,22 @@ const PublishBoardStudio: React.FC = () => {
         })}
       </Tabs>
 
+      {!subscriberId && !loading && (
+        <Card>
+          <CardContent sx={{ textAlign: 'center', py: 6 }}>
+            <Typography variant="h6" sx={{ mb: 1 }}>
+              Selecione um anunciante
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Escolha o cliente acima para montar o quadro visual e gerar a mídia para publicação.
+            </Typography>
+            <Button component={RouterLink} to="/subscribers" variant="outlined">
+              Gerir anunciantes
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {subscriberId && layout && (
         <Grid container spacing={3}>
           <Grid item xs={12} md={4}>
@@ -388,7 +404,7 @@ const PublishBoardStudio: React.FC = () => {
                     onClick={handleRender}
                     disabled={rendering}
                   >
-                    Gerar mídia e publicar
+                    Gerar mídia e continuar publicação
                   </Button>
                 </Box>
               </CardContent>

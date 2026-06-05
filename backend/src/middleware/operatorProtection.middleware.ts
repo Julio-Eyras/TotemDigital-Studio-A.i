@@ -27,8 +27,30 @@ export const blockClientDataAccess = (
       'reports',
       'billing',
       'clients',
-      'analytics'
+      'analytics',
+      'subscribers',
     ];
+
+    const fullPath = String(req.originalUrl || req.baseUrl + req.path || req.path);
+    const clientDataPaths = [
+      '/menu-catalog',
+      '/publish-board',
+      '/quick-publish',
+    ];
+    if (clientDataPaths.some((segment) => fullPath.includes(segment))) {
+      logWarn('OPERATOR tentou acessar dados de cliente (rota aninhada)', {
+        userId: authReq.user.id,
+        username: authReq.user.username,
+        path: fullPath,
+        method: req.method,
+      });
+      res.status(403).json({
+        error: 'Acesso negado. Operadores não podem acessar dados de clientes.',
+        code: 'CLIENT_DATA_ACCESS_DENIED',
+        resource: 'subscribers',
+      });
+      return;
+    }
 
     // Extrair recurso da URL
     const pathParts = req.path.split('/').filter(p => p);

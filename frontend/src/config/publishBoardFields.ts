@@ -47,6 +47,7 @@ function buildDefaults(preset: QuickPublishPreset): Record<string, string> {
     line1: cfg.bullets[0] || '',
     line2: cfg.bullets[1] || '',
     line3: cfg.bullets[2] || '',
+    logoUrl: '',
   };
 }
 
@@ -92,9 +93,14 @@ export const PUBLISH_BOARD_PRESETS: PublishBoardPresetUi[] = [
     preset: 'ad',
     usesProductCatalog: false,
     defaultTitle: 'Anúncio indoor',
-    defaultBlockOrder: ['headline', 'brand', 'message', 'cta'],
+    defaultBlockOrder: ['logo', 'headline', 'brand', 'message', 'cta'],
     defaultContent: buildDefaults('ad'),
     blocks: [
+      {
+        id: 'logo',
+        label: 'Logo',
+        fields: [{ key: 'logoUrl', label: 'URL do logo (opcional)', placeholder: 'https://...' }],
+      },
       {
         id: 'headline',
         label: 'Impacto',
@@ -145,9 +151,14 @@ export const PUBLISH_BOARD_PRESETS: PublishBoardPresetUi[] = [
     preset: 'institutional',
     usesProductCatalog: false,
     defaultTitle: 'Institucional',
-    defaultBlockOrder: ['headline', 'message', 'line1', 'line2', 'line3'],
+    defaultBlockOrder: ['logo', 'headline', 'message', 'line1', 'line2', 'line3'],
     defaultContent: buildDefaults('institutional'),
     blocks: [
+      {
+        id: 'logo',
+        label: 'Logo',
+        fields: [{ key: 'logoUrl', label: 'URL do logo (opcional)', placeholder: 'https://...' }],
+      },
       {
         id: 'headline',
         label: 'Marca',

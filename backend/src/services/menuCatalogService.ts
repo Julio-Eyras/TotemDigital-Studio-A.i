@@ -60,6 +60,43 @@ export class MenuCatalogService {
     return rows.map(this.mapProduct);
   }
 
+  async updateCategory(
+    categoryId: number,
+    subscriberId: number,
+    patch: { name?: string; sortOrder?: number }
+  ): Promise<MenuCategory | null> {
+    const existing = await this.db.findFirst(`
+      SELECT category_id FROM menu_categories
+      WHERE category_id = $1 AND subscriber_id = $2 AND is_active = true
+    `, [categoryId, subscriberId]);
+    if (!existing) return null;
+    const result = await this.db.executeRaw(`
+      UPDATE menu_categories SET
+        name = COALESCE($3, name),
+        sort_order = COALESCE($4, sort_order),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE category_id = $1 AND subscriber_id = $2
+      RETURNING *
+    `, [categoryId, subscriberId, patch.name ?? null, patch.sortOrder ?? null]);
+    return this.mapCategory(result.rows[0]);
+  }
+
+  async deleteCategory(categoryId: number, subscriberId: number): Promise<boolean> {
+    const result = await this.db.executeRaw(`
+      UPDATE menu_categories SET is_active = false, updated_at = CURRENT_TIMESTAMP
+      WHERE category_id = $1 AND subscriber_id = $2
+    `, [categoryId, subscriberId]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async assertCategoryBelongsToSubscriber(categoryId: number, subscriberId: number): Promise<boolean> {
+    const row = await this.db.findFirst(`
+      SELECT category_id FROM menu_categories
+      WHERE category_id = $1 AND subscriber_id = $2 AND is_active = true
+    `, [categoryId, subscriberId]);
+    return Boolean(row);
+  }
+
   async createCategory(subscriberId: number, name: string, sortOrder = 0): Promise<MenuCategory> {
     const result = await this.db.executeRaw(`
       INSERT INTO menu_categories (subscriber_id, name, sort_order)
@@ -169,16 +206,17 @@ export class MenuCatalogService {
   }
 
   async saveBoardLayout(layout: MenuBoardLayout): Promise<MenuBoardLayout> {
+    const current = await getPublishBoardService().getLayout(layout.subscriberId, 'menu');
     const saved = await getPublishBoardService().saveLayout({
       subscriberId: layout.subscriberId,
       preset: 'menu',
-      boardTitle: layout.boardTitle,
-      accentColor: layout.accentColor,
-      preferredOrientation: 'portrait',
-      content: {},
-      blockOrder: [],
+      boardTitle: layout.boardTitle ?? current.boardTitle,
+      accentColor: layout.accentColor ?? current.accentColor,
+      preferredOrientation: current.preferredOrientation,
+      content: current.content,
+      blockOrder: current.blockOrder,
       productOrder: layout.productOrder,
-      showPrices: layout.showPrices,
+      showPrices: layout.showPrices ?? current.showPrices,
     });
     return {
       subscriberId: saved.subscriberId,

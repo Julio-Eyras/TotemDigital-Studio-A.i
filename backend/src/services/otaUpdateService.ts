@@ -7,6 +7,7 @@ import { getDatabase } from '../config/database';
 import { logInfo, logError } from '../utils/loggerHelper';
 import fs from 'fs';
 import crypto from 'crypto';
+import { compareSemver, isNewerVersion } from '../utils/semverCompare';
 
 export interface OTAUpdate {
   id: number;
@@ -174,6 +175,21 @@ export class OTAUpdateService {
     }
   }
 
+  /** Cancela uma atualização OTA (marca como cancelled). */
+  async cancelUpdate(updateId: number): Promise<void> {
+    try {
+      await this.db.executeRaw(`
+        UPDATE ota_updates
+        SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+      `, [updateId]);
+      await logInfo('Atualização OTA cancelada', { updateId });
+    } catch (error: any) {
+      await logError('Erro ao cancelar atualização OTA', error, { updateId });
+      throw error;
+    }
+  }
+
   /**
    * Obtém atualização disponível para um totem
    */
@@ -190,18 +206,19 @@ export class OTAUpdateService {
         return null;
       }
 
-      // Buscar atualização ativa para esta plataforma
-      const update = await this.db.findFirst(`
+      const candidates = await this.db.findMany(`
         SELECT *
         FROM ota_updates
         WHERE platform IN ($1, 'all')
           AND status = 'active'
-          AND version > $2
           AND (min_version IS NULL OR $2 >= min_version)
           AND (max_version IS NULL OR $2 <= max_version)
-        ORDER BY version DESC
-        LIMIT 1
+        ORDER BY id DESC
       `, [platform, currentVersion]);
+
+      const update = candidates
+        .filter((row: any) => isNewerVersion(String(row.version), currentVersion))
+        .sort((a: any, b: any) => compareSemver(String(b.version), String(a.version)))[0];
 
       if (!update) {
         return null;

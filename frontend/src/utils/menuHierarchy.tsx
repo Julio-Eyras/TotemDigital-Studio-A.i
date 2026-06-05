@@ -248,7 +248,7 @@ export const getMenuHierarchyByRole = (
       return filterHierarchicalMenu(getOperadorFaturamentoMenu(), role, userFlags);
     }
     if (role === 'gerente_marketing' || role === 'editoracao' || role === 'visualizador') {
-      return filterHierarchicalMenu(getDefaultMenu(), role, userFlags);
+      return filterHierarchicalMenu(getMarketingTeamMenu(), role, userFlags);
     }
     const menu = getSystemAdminMenu(role);
     const compactFullNav = role === 'owner_system' || role === 'admin_sql' || role === 'admin';
@@ -283,7 +283,7 @@ export const getMenuHierarchyByRole = (
     case 'gerente_marketing':
     case 'editoracao':
     case 'visualizador':
-      menu = getDefaultMenu(); // Usar menu padrão
+      menu = getMarketingTeamMenu();
       break;
     case 'publisher_user':
       menu = getPublisherUserMenu();
@@ -670,9 +670,25 @@ function getPublisherUserMenu(): HierarchicalMenuItem[] {
 /**
  * Menu: SUBSCRIBER_USER (portal/subdomínio subscriber)
  */
+function getMarketingTeamMenu(): HierarchicalMenuItem[] {
+  return [
+    { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+    { text: 'Publicar em tela', icon: <Add />, path: '/quick-publish' },
+    { text: 'Estúdio visual', icon: <AutoAwesome />, path: '/publish-board' },
+    { text: 'Cardápio', icon: <Storefront />, path: '/menu-catalog' },
+    { text: 'Mídia', icon: <VideoLibrary />, path: '/media' },
+    { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
+    { text: 'Anunciantes', icon: <People />, path: '/subscribers' },
+    { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },
+  ];
+}
+
 function getSubscriberUserMenu(): HierarchicalMenuItem[] {
   return [
     { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+    { text: 'Publicar', icon: <Add />, path: '/quick-publish' },
+    { text: 'Estúdio', icon: <AutoAwesome />, path: '/publish-board' },
+    { text: 'Cardápio', icon: <Storefront />, path: '/menu-catalog' },
     {
       text: 'Anunciantes',
       icon: <Business />,

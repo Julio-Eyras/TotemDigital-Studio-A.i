@@ -41,7 +41,6 @@ import {
 } from '../../services/api';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import {
-  PUBLISH_PRESETS,
   PUBLISH_SEGMENTS,
   buildTemplateDescription,
   buildTemplateTitle,
@@ -50,6 +49,7 @@ import {
   findPublishSegment,
   resolvePublishPreset,
 } from '../../config/publishTemplates';
+import { usePublishTemplatesFromApi } from '../../hooks/usePublishTemplatesFromApi';
 
 const STEPS = ['Cliente', 'Tela', 'Conteúdo', 'Publicar'];
 
@@ -93,6 +93,7 @@ function isApprovedMedia(media: MediaItem): boolean {
 
 const QuickPublish: React.FC = () => {
   const breadcrumbs = useBreadcrumbs();
+  const { presets: publishPresets, getPreset } = usePublishTemplatesFromApi();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialSegment = resolveSegment(searchParams.get('segment'));
   const initialSegmentOption = findPublishSegment(initialSegment);
@@ -132,6 +133,7 @@ const QuickPublish: React.FC = () => {
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [partialRegenWarning, setPartialRegenWarning] = useState<string | null>(null);
   const [menuProducts, setMenuProducts] = useState<MenuProductDto[]>([]);
 
   const selectedSubscriber = useMemo(
@@ -140,8 +142,8 @@ const QuickPublish: React.FC = () => {
   );
 
   const selectedPreset = useMemo(
-    () => findPublishPreset(preset),
-    [preset]
+    () => getPreset(preset),
+    [getPreset, preset]
   );
 
   const selectedSegment = useMemo(
@@ -311,7 +313,7 @@ const QuickPublish: React.FC = () => {
 
   useEffect(() => {
     if (!title.trim() && selectedSubscriber) {
-      setTitle(buildTemplateTitle(selectedPreset, selectedSubscriber, selectedSegment));
+      setTitle(buildTemplateTitle(selectedPreset, getSubscriberName(selectedSubscriber), selectedSegment));
     }
   }, [selectedPreset.label, selectedSegment.value, selectedSubscriber, title]);
 
@@ -346,7 +348,7 @@ const QuickPublish: React.FC = () => {
     setPreset(template.value);
     setDurationMs(template.recommendedDurationMs);
     setPortraitAfterUpload(template.preferredOrientation === 'portrait');
-    setTitle(buildTemplateTitle(template, selectedSubscriber, selectedSegment));
+    setTitle(buildTemplateTitle(template, getSubscriberName(selectedSubscriber), selectedSegment));
     setDescription(buildTemplateDescription(template, selectedSegment));
     setPublishParams(template.value, segment);
   };
@@ -360,7 +362,7 @@ const QuickPublish: React.FC = () => {
     setSegment(nextSegment);
     setPreset(nextPreset);
     setDurationMs(template.recommendedDurationMs);
-    setTitle(buildTemplateTitle(template, selectedSubscriber, segmentOption));
+    setTitle(buildTemplateTitle(template, getSubscriberName(selectedSubscriber), segmentOption));
     setDescription(buildTemplateDescription(template, segmentOption));
     setPublishParams(nextPreset, nextSegment);
   };
@@ -375,6 +377,7 @@ const QuickPublish: React.FC = () => {
       setPublishing(true);
       setError(null);
       setSuccess(null);
+      setPartialRegenWarning(null);
       const result = await quickPublishApi.publish({
         subscriberId: Number(subscriberId),
         contractId: Number(contractId),
@@ -390,6 +393,14 @@ const QuickPublish: React.FC = () => {
       setSuccess(
         `${result.message}. Campanha #${result.campaignId}, playlist #${result.playlistId}. Totens atualizados: ${result.regeneratedTotemIds.length}.`
       );
+      if (result.partialRegeneration) {
+        const failed = result.failedTotemIds?.length
+          ? ` Telas não atualizadas: ${result.failedTotemIds.join(', ')}.`
+          : '';
+        setPartialRegenWarning(
+          `A publicação foi criada, mas nem todas as telas atualizaram a playlist automaticamente.${failed}`
+        );
+      }
     } catch (e) {
       setError(pickApiErrorMessage(e, 'Erro ao publicar conteúdo.'));
     } finally {
@@ -520,6 +531,29 @@ const QuickPublish: React.FC = () => {
           {success}
         </Alert>
       )}
+      {partialRegenWarning && (
+        <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setPartialRegenWarning(null)}>
+          {partialRegenWarning}
+        </Alert>
+      )}
+
+      {!loadingInitial && subscribers.length === 0 && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Nenhum anunciante ativo encontrado.{' '}
+          <Button component={RouterLink} to="/subscribers" size="small" sx={{ ml: 0.5 }}>
+            Cadastrar anunciante
+          </Button>
+        </Alert>
+      )}
+
+      {subscriberId && !loadingDetails && contracts.length === 0 && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Este anunciante não possui contrato ativo.{' '}
+          <Button component={RouterLink} to="/subscriber-contracts" size="small" sx={{ ml: 0.5 }}>
+            Gerir contratos
+          </Button>
+        </Alert>
+      )}
 
       <Card sx={{ mb: 3 }}>
         <CardContent>
@@ -616,7 +650,7 @@ const QuickPublish: React.FC = () => {
                 Escolha o segmento e o modelo para preencher automaticamente título, descrição, linguagem visual e duração recomendada.
               </Typography>
               <Grid container spacing={2}>
-                {PUBLISH_PRESETS.map((item) => {
+                {publishPresets.map((item) => {
                   const selected = item.value === preset;
                   return (
                     <Grid item xs={12} sm={6} md={2.4} key={item.value}>
@@ -751,7 +785,7 @@ const QuickPublish: React.FC = () => {
                     sx={{ bgcolor: 'rgba(255,255,255,0.18)', color: '#fff', fontWeight: 700, mb: 2 }}
                   />
                   <Typography variant="h6" sx={{ fontWeight: 900 }}>
-                    {title.trim() || buildTemplateTitle(selectedPreset, selectedSubscriber, selectedSegment) || selectedPreset.headline}
+                    {title.trim() || buildTemplateTitle(selectedPreset, getSubscriberName(selectedSubscriber), selectedSegment) || selectedPreset.headline}
                   </Typography>
                   <Typography variant="body2" sx={{ mt: 1, color: 'rgba(255,255,255,0.82)' }}>
                     {selectedPreset.headline}
