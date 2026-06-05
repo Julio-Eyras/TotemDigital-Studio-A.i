@@ -1,13 +1,31 @@
 import { Router, type Request } from 'express';
-
-type MenuSubscriberParams = { subscriberId: string };
-type MenuProductParams = { subscriberId: string; productId: string };
-type MenuProductsQuery = { categoryId?: string };
 import { body, param, validationResult } from 'express-validator';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { getMenuCatalogService } from '../services/menuCatalogService';
 import { logError } from '../utils/loggerHelper';
+
+type MenuSubscriberParams = { subscriberId: string };
+type MenuProductParams = { subscriberId: string; productId: string };
+type MenuProductsQuery = { categoryId?: string };
+
+function parseSubscriberId(req: { params?: unknown }): number {
+  const { subscriberId } = (req.params ?? {}) as MenuSubscriberParams;
+  return Number(subscriberId);
+}
+
+function parseProductIds(req: { params?: unknown }): { subscriberId: number; productId: number } {
+  const params = (req.params ?? {}) as MenuProductParams;
+  return {
+    subscriberId: Number(params.subscriberId),
+    productId: Number(params.productId),
+  };
+}
+
+function parseCategoryFilter(req: { query?: unknown }): number | undefined {
+  const query = (req.query ?? {}) as MenuProductsQuery;
+  return query.categoryId ? Number(query.categoryId) : undefined;
+}
 
 const router = Router({ mergeParams: true });
 
@@ -26,9 +44,9 @@ router.get(
   '/categories',
   param('subscriberId').isInt({ min: 1 }),
   validate,
-  async (req: Request<MenuSubscriberParams>, res) => {
+  async (req, res) => {
     try {
-      const subscriberId = Number(req.params.subscriberId);
+      const subscriberId = parseSubscriberId(req);
       const data = await getMenuCatalogService().listCategories(subscriberId);
       return res.json({ success: true, data });
     } catch (error: any) {
@@ -42,10 +60,10 @@ router.get(
   '/products',
   param('subscriberId').isInt({ min: 1 }),
   validate,
-  async (req: Request<MenuSubscriberParams, unknown, unknown, MenuProductsQuery>, res) => {
+  async (req, res) => {
     try {
-      const subscriberId = Number(req.params.subscriberId);
-      const categoryId = req.query.categoryId ? Number(req.query.categoryId) : undefined;
+      const subscriberId = parseSubscriberId(req);
+      const categoryId = parseCategoryFilter(req);
       const data = await getMenuCatalogService().listProducts(subscriberId, categoryId);
       return res.json({ success: true, data });
     } catch (error: any) {
@@ -62,9 +80,9 @@ router.post(
   body('name').isString().trim().isLength({ min: 1, max: 120 }),
   body('sortOrder').optional().isInt({ min: 0 }),
   validate,
-  async (req: Request<MenuSubscriberParams>, res) => {
+  async (req, res) => {
     try {
-      const subscriberId = Number(req.params.subscriberId);
+      const subscriberId = parseSubscriberId(req);
       const data = await getMenuCatalogService().createCategory(
         subscriberId,
         req.body.name,
@@ -91,9 +109,9 @@ router.post(
   body('sortOrder').optional().isInt({ min: 0 }),
   body('isAvailable').optional().isBoolean(),
   validate,
-  async (req: Request<MenuSubscriberParams>, res) => {
+  async (req, res) => {
     try {
-      const subscriberId = Number(req.params.subscriberId);
+      const subscriberId = parseSubscriberId(req);
       const data = await getMenuCatalogService().createProduct({
         subscriberId,
         categoryId: req.body.categoryId,
@@ -119,10 +137,9 @@ router.patch(
   param('subscriberId').isInt({ min: 1 }),
   param('productId').isInt({ min: 1 }),
   validate,
-  async (req: Request<MenuProductParams>, res) => {
+  async (req, res) => {
     try {
-      const subscriberId = Number(req.params.subscriberId);
-      const productId = Number(req.params.productId);
+      const { subscriberId, productId } = parseProductIds(req);
       const data = await getMenuCatalogService().updateProduct(productId, subscriberId, req.body);
       if (!data) return res.status(404).json({ success: false, error: 'Produto não encontrado' });
       return res.json({ success: true, data });
@@ -137,9 +154,9 @@ router.get(
   '/board-layout',
   param('subscriberId').isInt({ min: 1 }),
   validate,
-  async (req: Request<MenuSubscriberParams>, res) => {
+  async (req, res) => {
     try {
-      const subscriberId = Number(req.params.subscriberId);
+      const subscriberId = parseSubscriberId(req);
       const data = await getMenuCatalogService().getBoardLayout(subscriberId);
       return res.json({ success: true, data });
     } catch (error: any) {
@@ -159,9 +176,9 @@ router.put(
   body('productOrder.*').optional().isInt({ min: 1 }),
   body('showPrices').optional().isBoolean(),
   validate,
-  async (req: Request<MenuSubscriberParams>, res) => {
+  async (req, res) => {
     try {
-      const subscriberId = Number(req.params.subscriberId);
+      const subscriberId = parseSubscriberId(req);
       const current = await getMenuCatalogService().getBoardLayout(subscriberId);
       const data = await getMenuCatalogService().saveBoardLayout({
         subscriberId,
@@ -185,12 +202,9 @@ router.post(
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing', 'editoracao']),
   param('subscriberId').isInt({ min: 1 }),
   validate,
-  async (
-    req: Request<MenuSubscriberParams> & { user?: { id?: number; userId?: number; role?: string } },
-    res
-  ) => {
+  async (req: Request & { user?: { id?: number; userId?: number; role?: string } }, res) => {
     try {
-      const subscriberId = Number(req.params.subscriberId);
+      const subscriberId = parseSubscriberId(req);
       const role = String(req.user?.role || '');
       const isAdmin = ['admin', 'admin_sql', 'owner_system'].includes(role);
       const data = await getMenuCatalogService().renderBoardToMedia(
@@ -219,10 +233,9 @@ router.delete(
   param('subscriberId').isInt({ min: 1 }),
   param('productId').isInt({ min: 1 }),
   validate,
-  async (req: Request<MenuProductParams>, res) => {
+  async (req, res) => {
     try {
-      const subscriberId = Number(req.params.subscriberId);
-      const productId = Number(req.params.productId);
+      const { subscriberId, productId } = parseProductIds(req);
       const ok = await getMenuCatalogService().deleteProduct(productId, subscriberId);
       if (!ok) return res.status(404).json({ success: false, error: 'Produto não encontrado' });
       return res.json({ success: true });

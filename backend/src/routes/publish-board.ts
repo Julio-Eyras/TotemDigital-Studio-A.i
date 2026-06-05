@@ -1,13 +1,21 @@
 import { Router, type Request } from 'express';
-
-type PublishBoardParams = { subscriberId: string; preset: string };
 import { body, param, validationResult } from 'express-validator';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { getPublishBoardService } from '../services/publishBoardService';
 import { logError } from '../utils/loggerHelper';
 
+type PublishBoardParams = { subscriberId: string; preset: string };
+
 const PRESETS = ['menu', 'promotion', 'ad', 'announcement', 'institutional'];
+
+function parsePublishBoardRoute(req: { params?: unknown }): { subscriberId: number; preset: string } {
+  const params = (req.params ?? {}) as PublishBoardParams;
+  return {
+    subscriberId: Number(params.subscriberId),
+    preset: String(params.preset),
+  };
+}
 
 const router = Router({ mergeParams: true });
 
@@ -27,10 +35,9 @@ router.get(
   param('subscriberId').isInt({ min: 1 }),
   param('preset').isIn(PRESETS),
   validate,
-  async (req: Request<PublishBoardParams>, res) => {
+  async (req, res) => {
     try {
-      const subscriberId = Number(req.params.subscriberId);
-      const preset = String(req.params.preset);
+      const { subscriberId, preset } = parsePublishBoardRoute(req);
       const data = await getPublishBoardService().getLayout(subscriberId, preset);
       return res.json({ success: true, data });
     } catch (error: any) {
@@ -53,10 +60,9 @@ router.put(
   body('productOrder').optional().isArray(),
   body('showPrices').optional().isBoolean(),
   validate,
-  async (req: Request<PublishBoardParams>, res) => {
+  async (req, res) => {
     try {
-      const subscriberId = Number(req.params.subscriberId);
-      const preset = String(req.params.preset);
+      const { subscriberId, preset } = parsePublishBoardRoute(req);
       const current = await getPublishBoardService().getLayout(subscriberId, preset);
       const data = await getPublishBoardService().saveLayout({
         subscriberId,
@@ -85,10 +91,9 @@ router.post(
   param('subscriberId').isInt({ min: 1 }),
   param('preset').isIn(PRESETS),
   validate,
-  async (req: Request<PublishBoardParams> & { user?: { id?: number; userId?: number; role?: string } }, res) => {
+  async (req: Request & { user?: { id?: number; userId?: number; role?: string } }, res) => {
     try {
-      const subscriberId = Number(req.params.subscriberId);
-      const preset = String(req.params.preset);
+      const { subscriberId, preset } = parsePublishBoardRoute(req);
       const role = String(req.user?.role || '');
       const isAdmin = ['admin', 'admin_sql', 'owner_system'].includes(role);
       const data = await getPublishBoardService().renderToMedia(
