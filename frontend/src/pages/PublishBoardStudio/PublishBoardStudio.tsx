@@ -261,8 +261,21 @@ const PublishBoardStudio: React.FC = () => {
 
       {subscriberId && layout && (
         <Grid container spacing={3}>
-          <Grid item xs={12} md={4}>
+          <Grid
+            item
+            xs={12}
+            lg={5}
+            sx={{
+              position: { lg: 'sticky' },
+              top: { lg: 16 },
+              alignSelf: 'flex-start',
+            }}
+          >
+            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+              Pré-visualização em tela cheia ({layout.preferredOrientation === 'portrait' ? '9:16' : '16:9'})
+            </Typography>
             <PublishBoardPreview
+              fullScreen
               preset={preset}
               layout={{ ...layout, productOrder, showPrices: layout.showPrices }}
               productLines={orderedProducts.map((p) => ({
@@ -272,7 +285,7 @@ const PublishBoardStudio: React.FC = () => {
               }))}
             />
           </Grid>
-          <Grid item xs={12} md={8}>
+          <Grid item xs={12} lg={7}>
             <Card>
               <CardContent>
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
