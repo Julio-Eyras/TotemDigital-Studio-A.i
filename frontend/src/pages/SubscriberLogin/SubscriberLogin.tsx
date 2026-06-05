@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -17,10 +17,15 @@ import { Visibility, VisibilityOff, Login as LoginIcon, Business } from '@mui/ic
 import { AppDispatch } from '../../store/store';
 import { authApi } from '../../services/api/authApi';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { enterAdminSessionViewport, leaveAdminSessionViewport } from '../../utils/appViewport';
 
 const SubscriberLogin: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    void leaveAdminSessionViewport();
+  }, []);
   
   const [formData, setFormData] = useState({
     email: '',
@@ -97,8 +102,7 @@ const SubscriberLogin: React.FC = () => {
           localStorage.setItem('refreshToken', response.data.refreshToken);
         }
         localStorage.setItem('user', JSON.stringify(response.data.user));
-        
-        // Redirecionar para dashboard de subscriber
+        await enterAdminSessionViewport();
         navigate('/subscriber/dashboard');
       } else {
         setError('Resposta inválida do servidor');

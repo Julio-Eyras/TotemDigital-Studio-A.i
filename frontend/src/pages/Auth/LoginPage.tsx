@@ -25,6 +25,7 @@ import { authApi } from '../../services/api';
 import { twoFactorApi } from '../../services/api/twoFactorApi';
 import { APP_DISPLAY_NAME } from '../../config/featureFlags';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { enterAdminSessionViewport, leaveAdminSessionViewport } from '../../utils/appViewport';
 
 interface LoginFormData {
   username: string;
@@ -50,6 +51,7 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
   useEffect(() => {
     document.title = APP_DISPLAY_NAME;
+    void leaveAdminSessionViewport();
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -91,6 +93,7 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       if (response.token && response.user) {
         localStorage.setItem('token', response.token);
         localStorage.setItem('user', JSON.stringify(response.user));
+        await enterAdminSessionViewport();
         onLoginSuccess(response.token, response.user);
       } else {
         setError('Resposta inválida do servidor');
@@ -156,7 +159,7 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       // Store token in localStorage
       localStorage.setItem('token', result.token);
       localStorage.setItem('user', JSON.stringify(result.user));
-      
+      await enterAdminSessionViewport();
       onLoginSuccess(result.token, result.user);
     } catch (error: any) {
       setError(pickApiErrorMessage(error, 'Código inválido. Tente novamente.'));

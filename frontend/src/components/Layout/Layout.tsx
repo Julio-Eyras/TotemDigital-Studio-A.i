@@ -64,8 +64,11 @@ import NotificationCenter from '../Notification/NotificationCenter';
 import { isStudioMode } from '../../config/studioMode';
 import {APP_DISPLAY_NAME} from '../../config/featureFlags';
 import { buildAutoOpenMenus, menuKeyFromText, menuPathMatches } from '../../utils/menuPathMatch';
+import { useAdminViewport } from '../../hooks/useAdminViewport';
+import { leaveAdminSessionViewport } from '../../utils/appViewport';
+import { ADMIN_DRAWER_WIDTH } from '../../config/adminLayout';
 
-const drawerWidth = 280;
+const drawerWidth = ADMIN_DRAWER_WIDTH;
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -83,6 +86,7 @@ interface OpenMenusState {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
+  useAdminViewport();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
@@ -255,6 +259,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     } catch {
       /* logout local mesmo se a API falhar */
     } finally {
+      await leaveAdminSessionViewport();
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       navigate('/login');
@@ -299,31 +304,31 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const drawer = (
     <Box>
       {/* Logo Section */}
-      <Box sx={{ p: 3, textAlign: 'center', borderBottom: `1px solid ${theme.palette.divider}` }}>
+      <Box sx={{ p: 1.5, textAlign: 'center', borderBottom: `1px solid ${theme.palette.divider}` }}>
         <Box
           component="img"
           src="/logo-smart-signage.png"
           alt="Smart Signage"
           sx={{
-            width: 72,
-            height: 72,
+            width: 52,
+            height: 52,
             mx: 'auto',
-            mb: 2,
+            mb: 1,
             objectFit: 'cover',
-            borderRadius: 2,
+            borderRadius: 1.5,
             border: `1px solid ${theme.palette.divider}`,
           }}
         />
-        <Typography variant="h6" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: theme.palette.primary.main, lineHeight: 1.2 }}>
           {compactOwnerDisplayName}
         </Typography>
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
           Sistema de Sinalização Digital
         </Typography>
       </Box>
 
       {/* Navigation Menu - Hierárquico */}
-      <List sx={{ px: 2, py: 1 }}>
+      <List sx={{ px: 1, py: 0.5 }}>
         {menuItems.map((item) => renderMenuItem(item))}
       </List>
 
@@ -373,7 +378,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <MenuIcon />
           </IconButton>
           
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
+          <Typography variant="subtitle1" noWrap component="div" sx={{ flexGrow: 1, fontWeight: 600 }}>
             {menuItems.find(item => item.path === location.pathname)?.text || 'Dashboard'}
           </Typography>
 
@@ -550,7 +555,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         sx={{
           flexGrow: 1,
           width: { md: `calc(100% - ${drawerWidth}px)` },
+          maxWidth: '100%',
           minHeight: '100vh',
+          overflowX: 'hidden',
           backgroundColor: theme.palette.background.default,
         }}
       >

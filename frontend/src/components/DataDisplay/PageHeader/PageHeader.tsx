@@ -86,8 +86,8 @@ const PageHeader: React.FC<PageHeaderProps> = ({
   return (
     <Box
       sx={{
-        marginBottom: 3,
-        paddingBottom: 2,
+        marginBottom: 2,
+        paddingBottom: 1.5,
         borderBottom: 1,
         borderColor: 'divider',
       }}
@@ -141,7 +141,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({
         }}
       >
         <Box>
-          <Typography variant="h4" component="h1" gutterBottom>
+          <Typography variant="h5" component="h1" gutterBottom sx={{ fontWeight: 600 }}>
             {title}
           </Typography>
           {subtitle && (

@@ -92,11 +92,14 @@ import {
   tabIndexFromBillingView,
 } from '../../utils/billingNavigation';
 import IssueInvoicesDialog from './IssueInvoicesDialog';
+import { ADMIN_PAGE_PADDING, ADMIN_PAGE_SX } from '../../config/adminLayout';
 import type { IssueInvoicesScope } from '../../utils/billingIssuePayload';
 import {
   formatIssueInvoicesMessage,
   formatRevenueSharePayoutMessage,
 } from '../../utils/formatIssueInvoicesResult';
+
+const BILLING_TABLE_CONTAINER_SX = { overflowX: 'auto', maxWidth: '100%' } as const;
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -108,7 +111,7 @@ function TabPanel(props: TabPanelProps) {
   const { children, value, index, ...other } = props;
   return (
     <div role="tabpanel" hidden={value !== index} id={`billing-tabpanel-${index}`} {...other}>
-      {value === index && <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>{children}</Box>}
+      {value === index && <Box sx={{ p: ADMIN_PAGE_PADDING }}>{children}</Box>}
     </div>
   );
 }
@@ -1007,7 +1010,7 @@ const Billing: React.FC = () => {
         : 'Planos, controlo financeiro e KPIs';
 
   return (
-    <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
+    <Box sx={ADMIN_PAGE_SX}>
       <PageHeader
         title="Faturamento e Cobrança"
         subtitle={billingSubtitle}
@@ -1049,7 +1052,7 @@ const Billing: React.FC = () => {
       />
 
       <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
-        <FormControl size="small" sx={{ minWidth: 200 }}>
+        <FormControl size="small" sx={{ minWidth: 140 }}>
           <InputLabel>Tipo de Faturamento</InputLabel>
           <Select
             value={billingType}
@@ -1180,8 +1183,8 @@ const Billing: React.FC = () => {
           </Button>
         </Box>
 
-        <TableContainer component={Paper}>
-          <Table>
+        <TableContainer component={Paper} sx={BILLING_TABLE_CONTAINER_SX}>
+          <Table size="small">
             <TableHead>
               <TableRow>
                 <TableCell>Plano</TableCell>
@@ -1299,7 +1302,7 @@ const Billing: React.FC = () => {
             </Alert>
           )}
           <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-            <FormControl size="small" sx={{ minWidth: 150 }}>
+            <FormControl size="small" sx={{ minWidth: 120 }}>
               <InputLabel>Status</InputLabel>
               <Select
                 value={subscriberFilters.status}
@@ -1322,7 +1325,7 @@ const Billing: React.FC = () => {
                 <MenuItem value="cancelled">Cancelado</MenuItem>
               </Select>
             </FormControl>
-            <FormControl size="small" sx={{ minWidth: 160 }}>
+            <FormControl size="small" sx={{ minWidth: 130 }}>
               <InputLabel>Vencimento</InputLabel>
               <Select
                 value={subscriberFilters.dueFilter}
@@ -1344,7 +1347,7 @@ const Billing: React.FC = () => {
                 <MenuItem value="due_soon">A vencer ({DUE_SOON_DAYS}d)</MenuItem>
               </Select>
             </FormControl>
-            <FormControl size="small" sx={{ minWidth: 200 }}>
+            <FormControl size="small" sx={{ minWidth: 140 }}>
               <InputLabel>Tipo</InputLabel>
               <Select
                 value={subscriberFilters.billingType}
@@ -1427,8 +1430,8 @@ const Billing: React.FC = () => {
             )}
           </Box>
 
-          <TableContainer component={Paper}>
-            <Table>
+          <TableContainer component={Paper} sx={BILLING_TABLE_CONTAINER_SX}>
+            <Table size="small">
               <TableHead>
                 <TableRow>
                   <TableCell>ID</TableCell>
@@ -1619,7 +1622,7 @@ const Billing: React.FC = () => {
       {billingType === 'publisher' && (
         <TabPanel value={tabValue} index={2}>
           <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-            <FormControl size="small" sx={{ minWidth: 150 }}>
+            <FormControl size="small" sx={{ minWidth: 120 }}>
               <InputLabel>Status</InputLabel>
               <Select
                 value={publisherFilters.paymentStatus}
@@ -1643,7 +1646,7 @@ const Billing: React.FC = () => {
                 <MenuItem value="cancelled">Cancelado</MenuItem>
               </Select>
             </FormControl>
-            <FormControl size="small" sx={{ minWidth: 160 }}>
+            <FormControl size="small" sx={{ minWidth: 130 }}>
               <InputLabel>Vencimento</InputLabel>
               <Select
                 value={publisherFilters.dueFilter}
@@ -1663,7 +1666,7 @@ const Billing: React.FC = () => {
                 <MenuItem value="due_soon">A vencer ({DUE_SOON_DAYS}d)</MenuItem>
               </Select>
             </FormControl>
-            <FormControl size="small" sx={{ minWidth: 150 }}>
+            <FormControl size="small" sx={{ minWidth: 120 }}>
               <InputLabel>Direção</InputLabel>
               <Select
                 value={publisherFilters.direction}
@@ -1678,7 +1681,7 @@ const Billing: React.FC = () => {
                 <MenuItem value="outgoing">Saída</MenuItem>
               </Select>
             </FormControl>
-            <FormControl size="small" sx={{ minWidth: 200 }}>
+            <FormControl size="small" sx={{ minWidth: 140 }}>
               <InputLabel>Tipo</InputLabel>
               <Select
                 value={publisherFilters.billingType}
@@ -1726,8 +1729,8 @@ const Billing: React.FC = () => {
             )}
           </Box>
 
-          <TableContainer component={Paper}>
-            <Table>
+          <TableContainer component={Paper} sx={BILLING_TABLE_CONTAINER_SX}>
+            <Table size="small">
               <TableHead>
                 <TableRow>
                   <TableCell>ID</TableCell>
