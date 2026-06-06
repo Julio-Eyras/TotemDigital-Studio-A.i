@@ -106,7 +106,7 @@ export class SubscriberBillingService {
     limit: number = 20,
     filters: {
       subscriberId?: number;
-      /** Quando definido, só linhas de assinantes com contrato ativo ligado a este publisher (ex.: publicador dono). */
+      /** Quando definido, só linhas de assinantes com contrato ativo ligado a este publisher_id (organização dona). */
       linkedPublisherId?: number;
       campaignId?: number;
       billingType?: string;

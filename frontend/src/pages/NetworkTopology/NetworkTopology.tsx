@@ -1,6 +1,6 @@
 /**
  * Network Topology - Dashboard visual da rede
- * Exibe hierarquia: Publishers → Locals → Totens → Smart TVs com mídias atreladas
+ * Exibe hierarquia: Organizações → Locais → Totens → Smart TVs com mídias atreladas
  */
 
 import React, { useState, useEffect } from 'react';
@@ -29,6 +29,7 @@ import {
   MenuItem,
   Paper,
 } from '@mui/material';
+import { getProductTerminology } from '../../config/productTerminology';
 import {
   Business,
   LocationOn,
@@ -69,6 +70,7 @@ const formatLastHeartbeat = (ts: string | undefined) => {
 type ViewMode = 'list' | 'graph';
 
 const NetworkTopology: React.FC = () => {
+  const orgTerms = getProductTerminology();
   const theme = useTheme();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -290,7 +292,7 @@ const NetworkTopology: React.FC = () => {
       )}
 
       {viewMode === 'list' && topology.length === 0 && !error && (
-        <Alert severity="info">Nenhum publicador encontrado.</Alert>
+        <Alert severity="info">Nenhuma {orgTerms.organization.toLowerCase()} encontrada.</Alert>
       )}
 
       {viewMode === 'list' && (

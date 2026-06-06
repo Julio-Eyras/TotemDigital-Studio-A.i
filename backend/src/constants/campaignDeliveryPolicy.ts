@@ -14,4 +14,4 @@ export function sqlTotemRegistryActive(alias: string): string {
 /** Mensagem curta para operadores quando a forma 2 (campaign_totems) está desligada no servidor. */
 export const DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT =
   'Neste servidor a associação direta campanha → totens (aba Totens) está desligada. ' +
-  'A entrega segue contrato/plano e publicadores (locais); confira plano, campaign_publishers e totens ativos no cadastro.';
+  'A entrega segue contrato/plano e organizações (locais); confira plano, campaign_publishers e totens ativos no cadastro.';

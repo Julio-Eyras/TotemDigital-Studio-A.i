@@ -237,7 +237,7 @@ export class InvoiceService {
   }
 
   /**
-   * Envia lembretes de faturas pendentes (anunciante + exibidor) via SMTP/PIX.
+   * Envia lembretes de faturas pendentes (anunciante + organização) via SMTP/PIX.
    * Delega a FinancialNotificationService — mesma lógica do FinancialBillingWorker.
    */
   async sendInvoiceNotifications(): Promise<number> {

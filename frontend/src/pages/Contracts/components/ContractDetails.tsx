@@ -43,6 +43,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { Contract, contractApi, Publisher } from '../../../services/api';
+import { getProductTerminology } from '../../../config/productTerminology';
 
 export interface ContractDetailsProps {
   open: boolean;
@@ -120,6 +121,7 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({
   onEdit,
   canViewSensitiveValues = false,
 }) => {
+  const orgTerms = getProductTerminology();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(0);
   const [publishers, setPublishers] = useState<any[]>([]);
@@ -171,7 +173,7 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({
         >
           <Tab label="Informações" />
           <Tab
-            label="Publicadores"
+            label={orgTerms.campaignOrganizationsTab}
             icon={
               publishers.length > 0 ? (
                 <Chip label={publishers.length} size="small" color="primary" />
@@ -287,7 +289,7 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({
                 )}
                 {contract.signed_by_publisher_at && (
                   <TableRow>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Assinado por Publicador em</TableCell>
+                    <TableCell sx={{ fontWeight: 'bold' }}>Assinado pela {orgTerms.organization.toLowerCase()} em</TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <CheckCircle fontSize="small" color="success" />
@@ -320,14 +322,14 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({
           </TableContainer>
         )}
 
-        {/* Aba Publicadores */}
+        {/* Aba Organizações */}
         {activeTab === 1 && (
           <Box>
             {loading ? (
               <LinearProgress />
             ) : publishers.length === 0 ? (
               <Alert severity="info">
-                Nenhum publicador associado a este contrato.
+                Nenhuma {orgTerms.organization.toLowerCase()} associada a este contrato.
               </Alert>
             ) : (
               <List>

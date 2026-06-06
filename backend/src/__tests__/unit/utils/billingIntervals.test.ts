@@ -79,7 +79,7 @@ describe('billingIntervals', () => {
     ).not.toThrow();
   });
 
-  it('resolve intervalo de contrato de exibidor (billing_interval ou legado)', () => {
+  it('resolve intervalo de contrato da organização (billing_interval ou legado)', () => {
     expect(
       resolvePublisherContractBillingInterval({ subscription_interval: 'quadrimestral' })
     ).toBe('four_month');

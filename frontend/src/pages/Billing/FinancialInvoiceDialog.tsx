@@ -19,6 +19,7 @@ import { QrCode2, Payment } from '@mui/icons-material';
 import { financialAdminApi } from '../../services/api';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { formatRevenueSharePayoutMessage } from '../../utils/formatIssueInvoicesResult';
+import { getProductTerminology } from '../../config/productTerminology';
 
 export interface FinancialPaymentSuccessInfo {
   message: string;
@@ -120,7 +121,10 @@ const FinancialInvoiceDialog: React.FC<Props> = ({
     if (qr?.copyPaste) navigator.clipboard.writeText(qr.copyPaste);
   };
 
-  const scopeLabel = billingScope === 'publisher' ? 'exibidor' : 'anunciante';
+  const scopeLabel =
+    billingScope === 'publisher'
+      ? getProductTerminology().billingPublisherLabel.toLowerCase()
+      : 'anunciante';
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>

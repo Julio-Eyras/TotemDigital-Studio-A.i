@@ -1,6 +1,6 @@
 /**
  * PublisherForm Component
- * Formulário reutilizável para criar/editar publishers
+ * Formulário reutilizável para criar/editar organizações (API publishers)
  */
 
 import React from 'react';
@@ -20,6 +20,7 @@ import {
   UpdatePublisherRequest,
   Publisher,
 } from '../../../services/api';
+import { getProductTerminology } from '../../../config/productTerminology';
 
 export interface PublisherFormProps {
   mode: 'create' | 'edit';
@@ -70,7 +71,7 @@ const PublisherForm: React.FC<PublisherFormProps> = ({
   return (
     <Box>
       <Typography variant="h6" sx={{ mb: 2 }}>
-        Dados do Publicador
+        Dados da {getProductTerminology().organization.toLowerCase()}
       </Typography>
 
       <Grid container spacing={2}>
@@ -215,7 +216,7 @@ const PublisherForm: React.FC<PublisherFormProps> = ({
 
       {mode === 'create' && (
         <Alert severity="info" sx={{ mt: 2 }}>
-          Tipo: Publicador - Este publicador pode criar locais, totens e receber revenue share por
+          Tipo: {getProductTerminology().organization} — pode criar locais, totens e receber repasse por
           exibir campanhas.
         </Alert>
       )}

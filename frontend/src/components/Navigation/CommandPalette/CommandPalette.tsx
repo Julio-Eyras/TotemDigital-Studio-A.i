@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { getProductTerminology, getPublishersPageTitle } from '../../../config/productTerminology';
 import {
   Dialog,
   DialogContent,
@@ -82,12 +83,12 @@ const defaultItems: CommandItem[] = [
   },
   {
     id: 'publishers',
-    label: 'Publishers',
-    description: 'Gerenciar publishers',
+    label: getPublishersPageTitle(),
+    description: 'Gerenciar organizações de exibição',
     icon: <Business />,
     type: 'page',
     path: '/publishers',
-    keywords: ['publishers', 'publicadores'],
+    keywords: ['publishers', 'organizacoes', 'organização', 'exibicao'],
   },
   {
     id: 'quick-publish',
@@ -172,12 +173,12 @@ const defaultItems: CommandItem[] = [
   },
   {
     id: 'billing-publishers',
-    label: 'Faturamento — Exibidores',
-    description: 'Faturas de publicadores',
+    label: `Faturamento — ${getProductTerminology().billingPublisherTab}`,
+    description: 'Faturas da organização',
     icon: <Payment />,
     type: 'page',
     path: '/billing?type=publisher&view=invoices',
-    keywords: ['publicadores', 'publisher', 'exibidor', 'faturas'],
+    keywords: ['organizacoes', 'publisher', 'organização', 'faturas'],
   },
   {
     id: 'dispatcher',
@@ -423,12 +424,12 @@ const commercialFocusProCommandItems: CommandItem[] = [
   },
   {
     id: 'publishers',
-    label: 'Publishers',
-    description: 'Gerenciar exibidores',
+    label: getPublishersPageTitle(),
+    description: 'Gerenciar organizações de exibição',
     icon: <Business />,
     type: 'page',
     path: '/publishers',
-    keywords: ['publishers', 'publicadores', 'exibidores'],
+    keywords: ['publishers', 'organizacoes', 'organização'],
   },
   {
     id: 'campaigns',

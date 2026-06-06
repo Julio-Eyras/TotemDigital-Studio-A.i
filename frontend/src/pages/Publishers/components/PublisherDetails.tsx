@@ -1,6 +1,6 @@
 /**
  * PublisherDetails Component
- * Componente para exibir detalhes completos de um publisher
+ * Componente para exibir detalhes completos de uma organização (publisher)
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -44,6 +44,7 @@ import {
   AttachMoney,
 } from '@mui/icons-material';
 import { Publisher, publisherApi, publisherContractApi } from '../../../services/api';
+import { getProductTerminology } from '../../../config/productTerminology';
 import {
   SUBSCRIBER_CONTRACT_STATUS_OPTIONS,
   normalizeSubscriberContractStatus,
@@ -73,7 +74,7 @@ const getClientTypeLabel = (clientType?: string) => {
     case 'subscriber':
       return 'Assinante';
     case 'publisher':
-      return 'Publicador';
+      return getProductTerminology().organization;
     case 'both':
       return 'Ambos';
     default:
@@ -163,7 +164,7 @@ const PublisherDetails: React.FC<PublisherDetailsProps> = ({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
-      <DialogTitle>Detalhes do Publicador - {publisher.name}</DialogTitle>
+      <DialogTitle>Detalhes da {getProductTerminology().organization.toLowerCase()} — {publisher.name}</DialogTitle>
       <DialogContent>
         <Tabs
           value={activeTab}
@@ -419,7 +420,7 @@ const PublisherDetails: React.FC<PublisherDetailsProps> = ({
             </Box>
 
             {!stats.contracts || stats.contracts.length === 0 ? (
-              <Alert severity="info">Nenhum contrato encontrado para este publicador.</Alert>
+              <Alert severity="info">Nenhum contrato encontrado para esta {getProductTerminology().organization.toLowerCase()}.</Alert>
             ) : (
               <List>
                 {filteredPublisherContracts.map((contract: any, idx: number) => (

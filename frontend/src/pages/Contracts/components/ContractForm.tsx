@@ -36,6 +36,7 @@ import {
   Plan,
   Publisher,
 } from '../../../services/api';
+import { getProductTerminology } from '../../../config/productTerminology';
 import {
   billingIntervalLabel,
   clampContractEndDate,
@@ -105,6 +106,7 @@ const ContractForm: React.FC<ContractFormProps> = ({
   onTabChange,
   showCreateBeforeSubscriberCheckbox = true,
 }) => {
+  const orgTerms = getProductTerminology();
   const theme = useTheme();
 
   const handleFieldChange = (field: string, value: any) => {
@@ -209,7 +211,7 @@ const ContractForm: React.FC<ContractFormProps> = ({
         >
           <Tab label="Informações" />
           <Tab
-            label="Publicadores"
+            label={orgTerms.campaignOrganizationsTab}
             disabled={!hasSubscriber}
             icon={selectedPublisherIds.length > 0 ? <Chip label={selectedPublisherIds.length} size="small" color="primary" /> : undefined}
             iconPosition="end"
@@ -243,7 +245,7 @@ const ContractForm: React.FC<ContractFormProps> = ({
                   <strong>⚠️ Contrato sem assinante vinculado</strong>
                   {(contract as any).publisher_id && (
                     <Typography component="div" variant="body2" sx={{ mt: 1 }}>
-                      <strong>Publicador vinculado:</strong> {(contract as any).publisher_name || `ID ${(contract as any).publisher_id}`}
+                      <strong>{orgTerms.organization} vinculada:</strong> {(contract as any).publisher_name || `ID ${(contract as any).publisher_id}`}
                       {(contract as any).publisher_id && (
                         <Typography component="span" variant="caption" sx={{ ml: 1 }}>
                           (Código: {(contract as any).publisher_id})
@@ -270,7 +272,7 @@ const ContractForm: React.FC<ContractFormProps> = ({
                 const nextId = e.target.value ? Number(e.target.value) : undefined;
                 handleFieldChange('subscriber_id', nextId);
                 if (!nextId && onTogglePublisher) {
-                  // Limpar seleção de publishers
+                  // Limpar seleção de organizações
                   selectedPublisherIds.forEach((id) => onTogglePublisher(id));
                 }
               }}
@@ -494,20 +496,20 @@ const ContractForm: React.FC<ContractFormProps> = ({
         </Box>
       )}
 
-      {/* Aba Publicadores */}
+      {/* Aba Organizações */}
       {activeTab === 1 && onTogglePublisher && (
         <Box>
           <Typography variant="h6" sx={{ mb: 2 }}>
-            Publicadores Associados {selectedPublisherIds.length > 0 && `(${selectedPublisherIds.length})`}
+            {orgTerms.organizationPlural} associadas {selectedPublisherIds.length > 0 && `(${selectedPublisherIds.length})`}
           </Typography>
 
           <Alert severity="info" sx={{ mb: 2 }}>
-            Selecione os publicadores que este contrato dará acesso ao assinante. Os publicadores selecionados serão associados ao contrato através de acessos.
+            Selecione as {orgTerms.organizationPlural.toLowerCase()} que este contrato dará acesso ao anunciante. As selecionadas serão associadas ao contrato através de acessos.
           </Alert>
 
           {publishers.length === 0 ? (
             <Alert severity="warning">
-              Nenhum publicador encontrado. Cadastre publicadores primeiro.
+              Nenhuma {orgTerms.organization.toLowerCase()} encontrada. Cadastre {orgTerms.organizationPlural.toLowerCase()} primeiro.
             </Alert>
           ) : (
             <List>

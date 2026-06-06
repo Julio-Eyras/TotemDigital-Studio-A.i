@@ -3791,7 +3791,7 @@ export const publisherContractApi = {
 
 export interface Local {
   local_id: number;
-  publisher_id: number; // Obrigatório: locais pertencem apenas a publishers
+  publisher_id: number; // Obrigatório: locais pertencem a uma organização (publisher_id)
   name: string;
   category_segment?: string;
   address?: string;
@@ -4102,7 +4102,7 @@ export const subscriberAccessApi = {
     return response.data.data || [];
   },
 
-  // Obter publishers acessíveis por um subscriber
+  // Obter organizações acessíveis por um anunciante (subscriber)
   getAccessiblePublishers: async (subscriberId: number): Promise<AccessiblePublisher[]> => {
     const response = await api.get(`/subscriber-access/${subscriberId}/publishers`);
     return response.data.data || [];

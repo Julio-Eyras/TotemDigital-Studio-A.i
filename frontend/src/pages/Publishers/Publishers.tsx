@@ -100,7 +100,11 @@ import {
 } from '../../utils/billingIntervals';
 import { getLocalMenuItemSx, orderLocalsForSelect } from '../../utils/localOrdering';
 import { PublisherCard, PublisherForm, PublisherDetails } from './components';
-import { isStudioMode } from '../../config/studioMode';
+import {
+  getProductTerminology,
+  getPublishersPageTitle,
+  isSingleOrganizationProfile,
+} from '../../config/productTerminology';
 
 const getDefaultContractStartDate = (): string => new Date().toISOString().split('T')[0];
 
@@ -133,6 +137,8 @@ const formatDateForAPI = (dateString: string | null | undefined): string | undef
 };
 
 const Publishers: React.FC = () => {
+  const terminology = getProductTerminology();
+  const singleOrg = isSingleOrganizationProfile();
   const theme = useTheme();
   const navigate = useNavigate();
   const [publishers, setPublishers] = useState<Publisher[]>([]);
@@ -209,7 +215,7 @@ const Publishers: React.FC = () => {
   const [editingSmartTvIndex, setEditingSmartTvIndex] = useState<number | null>(null);
   const [editingPublisherContractIndexCreate, setEditingPublisherContractIndexCreate] = useState<number | null>(null);
   
-  // Estados para edição de publicador (carregar dados existentes)
+  // Estados para edição da organização (carregar dados existentes)
   const [editLocals, setEditLocals] = useState<Local[]>([]);
   const [editTotems, setEditTotems] = useState<any[]>([]);
   const [editSmartTvs, setEditSmartTvs] = useState<any[]>([]);
@@ -330,7 +336,7 @@ const Publishers: React.FC = () => {
     }
   }, [editDialogOpen, selectedPublisher?.publisher_id]);
 
-  // Pré-preencher número do contrato na aba "Contratos do Publicador" quando o publicador está selecionado
+  // Pré-preencher número do contrato na aba de contratos quando a organização está selecionada
   useEffect(() => {
     if (!editDialogOpen || !selectedPublisher) return;
     setPublisherContractForm((prev) => {
@@ -364,7 +370,7 @@ const Publishers: React.FC = () => {
         publisherApi.getStats(publisherId),
       ]);
 
-      // Carregar contratos do publisher
+      // Carregar contratos da organização
       let publisherContracts: any[] = [];
       try {
         publisherContracts = await publisherContractApi.getByPublisher(publisherId);
@@ -409,18 +415,18 @@ const Publishers: React.FC = () => {
       setEditTotems(Array.isArray(totemsResponse) ? totemsResponse : []);
       setEditSmartTvs(Array.isArray(smartTvsResponse) ? smartTvsResponse : []);
       
-      // Carregar contratos do publisher
+      // Carregar contratos da organização
       await loadPublisherContracts(publisherId);
     } catch (error) {
-      setError(pickApiErrorMessage(error, 'Erro ao carregar dados do publicador'));
+      setError(pickApiErrorMessage(error, `Erro ao carregar dados da ${terminology.organization.toLowerCase()}`));
     }
   };
 
-  // Carregar contratos do publisher
+  // Carregar contratos da organização
   const loadPublisherContracts = async (publisherId: number) => {
     try {
       setLoadingEditContracts(true);
-      // Carregar apenas publisher contracts
+      // Carregar apenas publisher_contracts
       const publisherContracts = await publisherContractApi.getByPublisher(publisherId);
       const contracts = Array.isArray(publisherContracts) ? publisherContracts : [];
       // Normalizar valores numéricos (usar undefined em vez de null para compatibilidade com tipo)
@@ -444,7 +450,7 @@ const Publishers: React.FC = () => {
     }
   };
 
-  // Funções CRUD para Publisher Contracts
+  // Funções CRUD para contratos da organização
   const handleAddPublisherContract = async () => {
     if (!selectedPublisher || !publisherContractForm.contract_number || !publisherContractForm.title) {
       setError('Número do contrato e título são obrigatórios');
@@ -962,7 +968,7 @@ const Publishers: React.FC = () => {
   };
 
 
-  // NOVO: handleCreatePublisher modificado para criar publisher, locais e totens
+  // handleCreatePublisher: cria organização, locais e totens
   const handleCreatePublisher = async () => {
     // Variáveis de rollback em escopo da função (acessíveis no catch)
     let publisherId: number | null = null;
@@ -974,16 +980,16 @@ const Publishers: React.FC = () => {
       // Limpar erros anteriores
       setError(null);
 
-      // Validação: nome do publisher é obrigatório
+      // Validação: nome da organização é obrigatório
       if (!newPublisher.name || newPublisher.name.trim() === '') {
-        setError('Nome do Publicador é obrigatório. Por favor, preencha o campo "Nome da Empresa / Razão Social".');
+        setError(`Nome da ${terminology.organization.toLowerCase()} é obrigatório. Por favor, preencha o campo "Nome da Empresa / Razão Social".`);
         setCreateTab(0); // Ir para aba de Informações
         return;
       }
 
       // Validação: nome deve ter pelo menos 3 caracteres
       if (newPublisher.name.trim().length < 3) {
-        setError('O nome do Publicador deve ter pelo menos 3 caracteres.');
+        setError(`O nome da ${terminology.organization.toLowerCase()} deve ter pelo menos 3 caracteres.`);
         setCreateTab(0);
         return;
       }
@@ -1011,14 +1017,14 @@ const Publishers: React.FC = () => {
 
       // Validação: ao menos 1 local obrigatório
       if (tempLocals.length === 0) {
-        setError('É obrigatório cadastrar ao menos 1 local antes de criar o Publicador. Vá para a aba "Locais" e adicione pelo menos um local.');
+        setError(`É obrigatório cadastrar ao menos 1 local antes de criar a ${terminology.organization.toLowerCase()}. Vá para a aba "Locais" e adicione pelo menos um local.`);
         setCreateTab(1); // Ir para aba de Locais
         return;
       }
 
       // Validação: ao menos 1 totem obrigatório
       if (tempTotems.length === 0) {
-        setError('É obrigatório cadastrar ao menos 1 totem (player) antes de criar o Publicador. Vá para a aba "Totens" e adicione pelo menos um totem.');
+        setError(`É obrigatório cadastrar ao menos 1 totem (player) antes de criar a ${terminology.organization.toLowerCase()}. Vá para a aba "Totens" e adicione pelo menos um totem.`);
         setCreateTab(2); // Ir para aba de Totens
         return;
       }
@@ -1027,9 +1033,9 @@ const Publishers: React.FC = () => {
       // (declaradas no escopo da função para serem acessíveis no catch)
 
       // Validações extras antes de enviar payload aninhado
-      // Nome do publisher
+      // Nome da organização
       if (!newPublisher.name || newPublisher.name.trim().length < 3) {
-        setError('Nome do publicador obrigatório e deve ter pelo menos 3 caracteres.');
+        setError(`Nome da ${terminology.organization.toLowerCase()} obrigatório e deve ter pelo menos 3 caracteres.`);
         setCreateTab(0);
         return;
       }
@@ -1113,7 +1119,7 @@ const Publishers: React.FC = () => {
       publisherId = getPublisherIdFromRow(createdPublisher) ?? null;
 
       if (!publisherId) {
-        const errorMessage = 'Erro: Publicador criado mas não retornou ID válido';
+        const errorMessage = `Erro: ${terminology.organization} criada mas não retornou ID válido`;
         setError(errorMessage);
         return;
       }
@@ -1122,7 +1128,7 @@ const Publishers: React.FC = () => {
 
       // Contratos já foram criados pela procedure create_publisher_with_resources quando enviados no payload; não criar de novo via API.
 
-      // Recarregar lista de publishers
+      // Recarregar lista de organizações
       await loadPublishers();
 
       // Limpar estados
@@ -1245,7 +1251,7 @@ const Publishers: React.FC = () => {
             }
           }
 
-          // Remover Publisher criado
+          // Remover organização criada (rollback)
           if (publisherId) {
             try {
               await publisherApi.delete(publisherId);
@@ -1293,12 +1299,12 @@ const Publishers: React.FC = () => {
       setSelectedPublisher(null);
       loadPublishers();
     } catch (error: any) {
-      setError(pickApiErrorMessage(error, 'Erro ao atualizar publicador'));
+      setError(pickApiErrorMessage(error, `Erro ao atualizar ${terminology.organization.toLowerCase()}`));
     }
   };
 
   const handleDeletePublisher = async (id: number) => {
-    if (window.confirm('Tem certeza que deseja excluir este publicador?')) {
+    if (window.confirm(`Tem certeza que deseja excluir esta ${terminology.organization.toLowerCase()}?`)) {
       try {
         await publisherApi.delete(id);
         loadPublishers();
@@ -1320,7 +1326,7 @@ const Publishers: React.FC = () => {
   const getClientTypeLabel = (clientType?: string) => {
     switch (clientType) {
       case 'subscriber': return 'Assinante';
-      case 'publisher': return 'Publicador';
+      case 'publisher': return terminology.organization;
       case 'both': return 'Ambos';
       default: return 'N/A';
     }
@@ -1340,7 +1346,7 @@ const Publishers: React.FC = () => {
       <Box sx={{ p: 3 }}>
         <LinearProgress />
         <Typography variant="h6" sx={{ mt: 2, textAlign: 'center' }}>
-          Carregando publicadores...
+          Carregando {singleOrg ? 'organização…' : 'organizações…'}
         </Typography>
       </Box>
     );
@@ -1352,15 +1358,15 @@ const Publishers: React.FC = () => {
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
           <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-            📢 Manter Publicadores
+            {getPublishersPageTitle()}
           </Typography>
           <Typography variant="subtitle1" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
-            {isStudioMode()
-              ? 'No modo Compact existe um único publicador do sistema; os dados são apenas para consulta.'
-              : 'Gerencie publicadores e suas informações'}
+            {singleOrg
+              ? 'Edite os dados da sua organização de exibição (instalação única).'
+              : 'Gerencie organizações, unidades e estrutura de exibição.'}
           </Typography>
         </Box>
-        {!isStudioMode() && (
+        {!singleOrg && (
           <Button
             variant="contained"
             startIcon={<Add />}
@@ -1370,7 +1376,7 @@ const Publishers: React.FC = () => {
               '&:hover': { backgroundColor: theme.palette.primary.dark },
             }}
           >
-            Adicionar Publicador
+            Adicionar organização
           </Button>
         )}
       </Box>
@@ -1382,7 +1388,7 @@ const Publishers: React.FC = () => {
             <Grid item xs={12} md={4}>
               <TextField
                 fullWidth
-                placeholder="Buscar publicadores..."
+                placeholder={singleOrg ? 'Buscar organização…' : 'Buscar organizações…'}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyPress={(e) => {
@@ -1395,7 +1401,7 @@ const Publishers: React.FC = () => {
                 }}
               />
             </Grid>
-            {/* (Regra do sistema) Publisher NUNCA é Subscriber/ambos, então removemos filtro de tipo */}
+            {/* Regra do domínio: organização nunca é anunciante/ambos — sem filtro de tipo */}
             <Grid item xs={12} md={2}>
               <FormControl fullWidth>
                 <InputLabel>Status</InputLabel>
@@ -1430,22 +1436,18 @@ const Publishers: React.FC = () => {
         </Alert>
       )}
 
-      {/* Publishers Grid */}
+      {/* Grade de organizações */}
       <Grid container spacing={3}>
         {publishers.map((publisher) => (
           <Grid item xs={12} sm={6} md={4} lg={3} key={publisher.publisher_id}>
             <PublisherCard
               publisher={publisher}
               onView={() => handleViewDetails(publisher)}
-              onEdit={
-                isStudioMode()
-                  ? undefined
-                  : () => {
-                      setSelectedPublisher(publisher);
-                      setEditDialogOpen(true);
-                    }
-              }
-              onDelete={isStudioMode() ? undefined : () => handleDeletePublisher(publisher.publisher_id)}
+              onEdit={() => {
+                setSelectedPublisher(publisher);
+                setEditDialogOpen(true);
+              }}
+              onDelete={singleOrg ? undefined : () => handleDeletePublisher(publisher.publisher_id)}
             />
           </Grid>
         ))}
@@ -1457,16 +1459,16 @@ const Publishers: React.FC = () => {
           <CardContent>
             <Business sx={{ fontSize: 64, color: theme.palette.text.secondary, mb: 2 }} />
             <Typography variant="h6" sx={{ mb: 1 }}>
-              Nenhum publicador encontrado
+              Nenhuma organização encontrada
             </Typography>
             <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 3 }}>
-              {isStudioMode()
-                ? 'No modo Compact o publicador do sistema é provisionado automaticamente.'
-                : 'Comece adicionando seus primeiros publicadores'}
+              {singleOrg
+                ? 'A organização da instalação é provisionada automaticamente.'
+                : 'Comece cadastrando sua primeira organização.'}
             </Typography>
-            {!isStudioMode() && (
+            {!singleOrg && (
               <Button variant="contained" startIcon={<Add />} onClick={() => setCreateDialogOpen(true)}>
-                Adicionar Primeiro Publicador
+                Adicionar primeira organização
               </Button>
             )}
           </CardContent>
@@ -1486,7 +1488,7 @@ const Publishers: React.FC = () => {
         maxWidth="lg" 
         fullWidth
       >
-        <DialogTitle>Adicionar Publicador</DialogTitle>
+        <DialogTitle>Adicionar organização</DialogTitle>
         <DialogContent>
           <Tabs
             value={createTab}
@@ -1558,7 +1560,7 @@ const Publishers: React.FC = () => {
                 Locais {tempLocals.length > 0 && `(${tempLocals.length})`}
               </Typography>
               <Alert severity="warning" sx={{ mb: 2 }}>
-                É obrigatório cadastrar ao menos 1 local antes de criar o publicador.
+                É obrigatório cadastrar ao menos 1 local antes de criar a {terminology.organization.toLowerCase()}.
               </Alert>
               
               <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
@@ -2067,12 +2069,12 @@ const Publishers: React.FC = () => {
           {/* Aba Contratos */}
           {createTab === 4 && (
             <Box>
-              <Typography variant="h6" sx={{ mb: 2 }}>Contratos do Publicador</Typography>
+              <Typography variant="h6" sx={{ mb: 2 }}>{terminology.organizationContracts}</Typography>
               <Alert severity="info" sx={{ mb: 2 }}>
-                Os contratos são opcionais. Você pode adicionar contratos após criar o publicador ou durante a criação.
+                Os contratos são opcionais. Você pode adicionar contratos após criar a {terminology.organization.toLowerCase()} ou durante a criação.
               </Alert>
               
-              {/* Formulário para criar/editar Publisher Contract */}
+              {/* Formulário para criar/editar contrato da organização */}
               <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1, bgcolor: editingPublisherContractIndexCreate !== null ? alpha(theme.palette.primary.main, 0.05) : 'transparent' }}>
                 <Typography variant="subtitle2" sx={{ mb: 2 }}>
                   {editingPublisherContractIndexCreate !== null ? 'Editar Contrato de Publisher' : 'Adicionar Contrato de Publisher'}
@@ -2266,7 +2268,7 @@ const Publishers: React.FC = () => {
                 </Grid>
               </Box>
 
-              {/* Lista de Publisher Contracts temporários */}
+              {/* Lista de contratos da organização (rascunho) */}
               {tempPublisherContracts.length > 0 ? (
                 <List>
                   {tempPublisherContracts.map((contract, index) => (
@@ -2354,7 +2356,7 @@ const Publishers: React.FC = () => {
             onClick={handleCreatePublisher}
             disabled={tempLocals.length === 0 || tempTotems.length === 0}
           >
-            Criar Publicador
+            {`Criar ${terminology.organization}`}
           </Button>
         </DialogActions>
       </Dialog>
@@ -2375,7 +2377,7 @@ const Publishers: React.FC = () => {
         maxWidth="lg" 
         fullWidth
       >
-        <DialogTitle>Editar Publicador</DialogTitle>
+        <DialogTitle>Editar {terminology.organization.toLowerCase()}</DialogTitle>
         <DialogContent>
           <Tabs
             value={editTab}
@@ -2962,9 +2964,9 @@ const Publishers: React.FC = () => {
           {/* Aba Contratos */}
           {editTab === 4 && selectedPublisher && (
             <Box>
-              <Typography variant="h6" sx={{ mb: 2 }}>Contratos do Publicador</Typography>
+              <Typography variant="h6" sx={{ mb: 2 }}>{terminology.organizationContracts}</Typography>
               
-              {/* Formulário para criar/editar Publisher Contract */}
+              {/* Formulário para criar/editar contrato da organização */}
               <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1, bgcolor: editingPublisherContractIndex !== null ? alpha(theme.palette.primary.main, 0.05) : 'transparent' }}>
                 <Typography variant="subtitle2" sx={{ mb: 2 }}>
                   {editingPublisherContractIndex !== null ? 'Editar Contrato de Publisher' : 'Adicionar Contrato de Publisher'}
@@ -3187,7 +3189,7 @@ const Publishers: React.FC = () => {
                 </Grid>
               </Box>
 
-              {/* Lista de Publisher Contracts */}
+              {/* Lista de contratos da organização */}
               <Typography variant="subtitle1" sx={{ mb: 2, mt: 3 }}>Contratos de Publisher ({editPublisherContracts.length})</Typography>
               {loadingEditContracts ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
@@ -3316,14 +3318,10 @@ const Publishers: React.FC = () => {
         onClose={() => {
           setDetailsDialogOpen(false);
         }}
-        onEdit={
-          isStudioMode()
-            ? undefined
-            : (publisher) => {
-                setSelectedPublisher(publisher);
-                setEditDialogOpen(true);
-              }
-        }
+        onEdit={(publisher) => {
+          setSelectedPublisher(publisher);
+          setEditDialogOpen(true);
+        }}
       />
     </Box>
   );

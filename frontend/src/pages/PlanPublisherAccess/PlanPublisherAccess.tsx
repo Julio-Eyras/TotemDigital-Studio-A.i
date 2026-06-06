@@ -1,6 +1,6 @@
 /**
  * Plan Access Management Page - Smart Signage v2.1
- * Página com abas para gerenciar Planos (CRUD) e escopo de acesso (publisher/local)
+ * Página com abas para gerenciar Planos (CRUD) e escopo de acesso (organização/local na API)
  */
 
 import React, { useState, useEffect } from 'react';
@@ -74,6 +74,7 @@ import { getTotemIdFromRow, getTotemLocalIdFromRow, getTotemPublisherIdFromRow }
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { getLocalMenuItemSx, orderLocalsForSelect } from '../../utils/localOrdering';
 import { isStudioMode } from '../../config/studioMode';
+import { getProductTerminology } from '../../config/productTerminology';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -147,11 +148,16 @@ const normalizePositiveIntArray = (value: unknown): number[] => {
 const PlanPublisherAccessPage: React.FC = () => {
   const theme = useTheme();
   const isMobileNav = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
-  const publisherEntityLabel = isStudioMode() ? 'Local' : 'Publisher';
+  const productTerms = getProductTerminology();
+  const publisherEntityLabel = isStudioMode() ? 'Local' : productTerms.organization;
   const accessEntityLabel = isStudioMode() ? 'Local' : publisherEntityLabel;
-  const publishersOfPlanLabel = isStudioMode() ? 'Locais do Plano' : 'Publishers do Plano';
-  const maintenanceTabLabel = isStudioMode() ? 'Manutenção de Locais' : 'Manutenção de Publicadores';
-  const addPublisherLabel = isStudioMode() ? 'Adicionar Local ao Plano' : 'Adicionar Publisher ao Plano';
+  const publishersOfPlanLabel = isStudioMode() ? 'Locais do plano' : `${productTerms.organizationPlural} do plano`;
+  const maintenanceTabLabel = isStudioMode()
+    ? `Manutenção de ${productTerms.units.toLowerCase()}`
+    : `Manutenção de ${productTerms.organizationPlural.toLowerCase()}`;
+  const addPublisherLabel = isStudioMode()
+    ? 'Adicionar local ao plano'
+    : `Adicionar ${productTerms.organization.toLowerCase()} ao plano`;
   const [tabValue, setTabValue] = useState(0);
   
   // Estados comuns
@@ -166,7 +172,7 @@ const PlanPublisherAccessPage: React.FC = () => {
   const [planDialogOpen, setPlanDialogOpen] = useState(false);
   const [planEditMode, setPlanEditMode] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
-  const [planDialogTab, setPlanDialogTab] = useState(0); // Aba do dialog do plano (0: Dados, 1: Publishers)
+  const [planDialogTab, setPlanDialogTab] = useState(0); // Aba do dialog do plano (0: Dados, 1: Organizações)
   const [planPublishers, setPlanPublishers] = useState<PlanAssociationEntry[]>([]);
   const [selectedPublisherForPlan, setSelectedPublisherForPlan] = useState<string>('');
   /** Modo compact: seleção por local_id */
@@ -203,7 +209,7 @@ const PlanPublisherAccessPage: React.FC = () => {
   });
 
   // =============================================
-  // ABA 2: MANUTENÇÃO DE ACESSO (publisher/local)
+  // ABA 2: MANUTENÇÃO DE ACESSO (organização/local)
   // =============================================
   const [accessList, setAccessList] = useState<PlanPublisherAccess[]>([]);
   const [accessDialogOpen, setAccessDialogOpen] = useState(false);
@@ -516,7 +522,7 @@ const PlanPublisherAccessPage: React.FC = () => {
       if (!selectedLocal) return;
       const publisherId = selectedLocal.publisher_id;
       if (publisherId == null) {
-        setError('Local sem exibidor associado. Verifique o cadastro do local.');
+        setError(`Local sem ${productTerms.organization.toLowerCase()} associada. Verifique o cadastro do local.`);
         return;
       }
       const existingIndex = planPublishers.findIndex((p) => p.publisherId === publisherId);
@@ -531,7 +537,7 @@ const PlanPublisherAccessPage: React.FC = () => {
         [selectedLocal.local_id]: prev[selectedLocal.local_id] || totemsFromLocal,
       }));
       if (existingIndex >= 0) {
-        // Em compact (publisher owner único), trocar o local de referência evita bloqueio/confusão de "já atrelado".
+        // Em compact (organização única), trocar o local de referência evita bloqueio/confusão de "já atrelado".
         setPlanPublishers(planPublishers.map((entry, idx) => (
           idx === existingIndex
             ? { ...entry, displayLabel: nextLabel }
@@ -649,14 +655,14 @@ const PlanPublisherAccessPage: React.FC = () => {
         savedPlanId = getPlanId(createdPlan);
       }
 
-      // Salvar publishers do plano
+      // Salvar organizações do plano (plan_publisher_access)
       if (planPublishers.length > 0) {
-        // Primeiro, obter publishers existentes para remover os que não estão mais na lista
+        // Primeiro, obter organizações existentes para remover as que não estão mais na lista
         const existingAccess = await subscriberAccessApi.getPlanPublisherAccess({ planId: savedPlanId });
         const existingPublisherIds = existingAccess.map(a => a.publisher_id);
         const newPublisherIds = planPublishers.map(p => p.publisherId);
         
-        // Remover publishers que não estão mais na lista
+        // Remover organizações que não estão mais na lista
         for (const existingId of existingPublisherIds) {
           if (!newPublisherIds.includes(existingId)) {
             try {
@@ -666,7 +672,7 @@ const PlanPublisherAccessPage: React.FC = () => {
           }
         }
 
-        // Adicionar/atualizar publishers
+        // Adicionar/atualizar organizações
         for (const planPublisher of planPublishers) {
           try {
             const compactRestrictions = isStudioMode()
@@ -694,7 +700,7 @@ const PlanPublisherAccessPage: React.FC = () => {
           }
         }
       } else if (planEditMode) {
-        // Se está editando e não há publishers, remover todos
+        // Se está editando e não há organizações, remover todas
         const existingAccess = await subscriberAccessApi.getPlanPublisherAccess({ planId: savedPlanId });
         for (const access of existingAccess) {
           try {
@@ -727,7 +733,7 @@ const PlanPublisherAccessPage: React.FC = () => {
   };
 
   // =============================================
-  // FUNÇÕES ABA 2: MANUTENÇÃO DE ACESSO (publisher/local)
+  // FUNÇÕES ABA 2: MANUTENÇÃO DE ACESSO (organização/local)
   // =============================================
 
   const handleOpenAccessDialog = (access?: PlanPublisherAccess) => {
@@ -905,7 +911,7 @@ const PlanPublisherAccessPage: React.FC = () => {
     if (!selectedLocal) return;
     const publisherId = selectedLocal.publisher_id;
     if (publisherId == null) {
-      setError('Local sem exibidor associado. Verifique o cadastro do local.');
+      setError(`Local sem ${productTerms.organization.toLowerCase()} associada. Verifique o cadastro do local.`);
       return;
     }
 
@@ -962,11 +968,11 @@ const PlanPublisherAccessPage: React.FC = () => {
   return (
     <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 }, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
       <PageHeader
-        title={isStudioMode() ? 'Planos' : 'Planos e Publicadores'}
+        title={isStudioMode() ? productTerms.maintainPlansAndOrganizations : `Planos e ${productTerms.organizationPlural.toLowerCase()}`}
         subtitle={
           isStudioMode()
-            ? 'Gerencie planos e configure quais locais cada plano cobre no modo compacto'
-            : 'Gerencie planos e configure quais publishers cada plano permite acessar'
+            ? 'Gerencie planos e configure quais locais cada plano cobre'
+            : `Gerencie planos e configure quais ${productTerms.organizationPlural.toLowerCase()} cada plano permite acessar`
         }
         actions={[
           ...(tabValue === 0
@@ -1104,7 +1110,7 @@ const PlanPublisherAccessPage: React.FC = () => {
           </TableContainer>
         </TabPanel>
 
-        {/* ABA 2: MANUTENÇÃO DE PUBLISHERS */}
+        {/* ABA 2: MANUTENÇÃO DE ORGANIZAÇÕES */}
         <TabPanel value={tabValue} index={1}>
           <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Box sx={{ flex: 1, mr: 2 }}>
@@ -1567,7 +1573,7 @@ const PlanPublisherAccessPage: React.FC = () => {
             </Box>
           )}
 
-          {/* Aba 2: Publishers do Plano */}
+          {/* Aba 2: Organizações do plano */}
           {planDialogTab === 1 && (
             <Box sx={{ pt: 2 }}>
               <Typography variant="h6" sx={{ mb: 2 }}>
@@ -1585,7 +1591,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                 {isStudioMode() && (
                   <Alert severity="info" sx={{ mb: 2 }}>
                     Escopo de seleção por local na interface (transição). A persistência atual ainda usa vínculo por
-                    exibidor para manter compatibilidade.
+                    {productTerms.organization.toLowerCase()} para manter compatibilidade.
                   </Alert>
                 )}
                 {isStudioMode() && localsCatalog.length === 0 && !loading && (
@@ -1595,7 +1601,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                 )}
                 {isStudioMode() && localsCatalog.length > 0 && compactActiveLocalsWithPublisher.length === 0 && (
                   <Alert severity="info" sx={{ mb: 2 }}>
-                    Não há locais ativos com exibidor para seleção neste plano.
+                    Não há locais ativos com {productTerms.organization.toLowerCase()} para seleção neste plano.
                   </Alert>
                 )}
                 {isStudioMode() && compactLocalsWithoutTotems.length > 0 && (
@@ -1821,7 +1827,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                             <Box sx={{ mt: 0.5 }}>
                               {isStudioMode() && publisher?.name && (
                                 <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-                                  Exibidor: {publisher.name}
+                                  Organização: {publisher.name}
                                 </Typography>
                               )}
                               {isStudioMode() && (
@@ -1882,7 +1888,7 @@ const PlanPublisherAccessPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Dialog: Manutenção de entidade de acesso (publisher/totem) */}
+      {/* Dialog: Manutenção de entidade de acesso (organização/totem) */}
       <Dialog open={accessDialogOpen} onClose={handleCloseAccessDialog} maxWidth="md" fullWidth>
         <DialogTitle>
           {accessEditMode ? 'Editar Configuração' : 'Nova Configuração'}

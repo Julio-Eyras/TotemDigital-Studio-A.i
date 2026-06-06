@@ -68,7 +68,7 @@ router.get('/',
         return res.status(401).json({ success: false, error: 'Não autenticado' });
       }
       
-      // Subscriber portal: só as próprias faturas. Admin: opcional filtro. Publicador: só assinantes ligados ao publisher.
+      // Portal anunciante: só as próprias faturas. Admin: filtro opcional. Organização: assinantes ligados ao publisher_id.
       let finalSubscriberId: number | undefined;
       let linkedPublisherId: number | undefined;
 
@@ -95,7 +95,7 @@ router.get('/',
           return res.status(403).json({
             success: false,
             error: 'Acesso negado',
-            message: 'Publicador não identificado para listagem de faturas de anunciantes'
+            message: 'Organização não identificada para listagem de faturas de anunciantes'
           });
         }
         linkedPublisherId = pubId;

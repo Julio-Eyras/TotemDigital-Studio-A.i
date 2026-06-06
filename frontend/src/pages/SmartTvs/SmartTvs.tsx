@@ -101,7 +101,7 @@ const SmartTvs: React.FC = () => {
       // Filtrar totens por publisher se não for admin
       let filteredTotems = response.data || [];
       if (!isAdmin && userPublisherId) {
-        // Filtrar totens do publisher do usuário
+        // Filtrar totens da organização do usuário (publisher_id)
         // Nota: A API de totens precisa retornar publisher_id ou precisamos filtrar no frontend
         // Por enquanto, vamos carregar todos e filtrar depois se necessário
       }

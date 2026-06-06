@@ -216,7 +216,7 @@ router.post(
   }
 );
 
-/** --- Exibidor (publisher_billing incoming) --- */
+/** --- Organização (publisher_billing incoming) --- */
 
 router.post(
   '/publisher-billing/:id/record-payment',

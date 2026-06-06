@@ -82,7 +82,7 @@ const BillingControlPanel: React.FC<Props> = ({
   dashboard,
   loading,
   showPublisherKpis,
-  publisherLabel = 'Exibidor',
+  publisherLabel = 'Organização',
   onFilterInvoices,
   onFilterPendingInvoices,
   onFilterRevenueSharePayout,
@@ -163,7 +163,7 @@ const BillingControlPanel: React.FC<Props> = ({
       {showRevenueShareKpis && dashboard.revenueShare && (
         <>
           <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-            Repasse ao exibidor (revenue share)
+            Repasse à organização (revenue share)
           </Typography>
           <Grid container spacing={2} sx={{ mb: 3 }}>
             <Grid item xs={6} sm={4} md={3}>
@@ -219,7 +219,7 @@ const BillingControlPanel: React.FC<Props> = ({
       {showRevenueShareKpis && dashboard.publisherContracts && (
         <>
           <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-            Contratos de exibidor
+            Contratos da organização
           </Typography>
           <Grid container spacing={2} sx={{ mb: 3 }}>
             <Grid item xs={6} sm={4}>
@@ -249,7 +249,7 @@ const BillingControlPanel: React.FC<Props> = ({
                 fullWidth
                 sx={{ height: '100%', minHeight: 88 }}
               >
-                Contratos exibidor
+                Contratos da organização
               </Button>
             </Grid>
           </Grid>

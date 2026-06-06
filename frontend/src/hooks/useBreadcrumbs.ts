@@ -6,6 +6,7 @@
 import { useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BreadcrumbItem } from '../components/DataDisplay/PageHeader';
+import { getProductTerminology, getPublishersPageTitle } from '../config/productTerminology';
 
 export interface BreadcrumbConfig {
   path: string;
@@ -19,7 +20,8 @@ const breadcrumbConfig: BreadcrumbConfig[] = [
   { path: '/publish-board', label: 'Estúdio visual', parent: '/dashboard' },
   { path: '/menu-catalog', label: 'Cardápio', parent: '/dashboard' },
   { path: '/subscribers', label: 'Anunciantes', parent: '/dashboard' },
-  { path: '/publishers', label: 'Publishers', parent: '/dashboard' },
+  { path: '/publishers', label: '__publishers__', parent: '/dashboard' },
+  { path: '/locals', label: '__units__', parent: '/dashboard' },
   { path: '/campaigns', label: 'Campanhas', parent: '/dashboard' },
   { path: '/media', label: 'Mídias', parent: '/dashboard' },
   { path: '/playlists', label: 'Playlists', parent: '/dashboard' },
@@ -38,11 +40,19 @@ function billingBreadcrumbLabel(search: string): string {
   const view = params.get('view');
   if (view === 'subscriptions') return 'Faturamento — Assinaturas';
   if (view === 'invoices' || params.get('type') === 'subscriber') return 'Faturamento — Anunciantes';
-  if (params.get('type') === 'publisher') return 'Faturamento — Exibidores';
+  if (params.get('type') === 'publisher') {
+    return `Faturamento — ${getProductTerminology().billingPublisherTab}`;
+  }
   if (params.has('dueFilter') || params.get('subscriberId') || params.get('subscriber_id')) {
     return 'Faturamento — Anunciantes';
   }
   return 'Faturamento — Visão geral';
+}
+
+function resolveBreadcrumbLabel(path: string, raw: string): string {
+  if (raw === '__publishers__') return getPublishersPageTitle();
+  if (raw === '__units__') return getProductTerminology().units;
+  return raw;
 }
 
 export function useBreadcrumbs(customItems?: BreadcrumbItem[]): BreadcrumbItem[] {
@@ -70,7 +80,9 @@ export function useBreadcrumbs(customItems?: BreadcrumbItem[]): BreadcrumbItem[]
       const config = breadcrumbConfig.find((c) => c.path === currentPath);
       if (config) {
         const label =
-          currentPath === '/billing' ? billingBreadcrumbLabel(location.search) : config.label;
+          currentPath === '/billing'
+            ? billingBreadcrumbLabel(location.search)
+            : resolveBreadcrumbLabel(currentPath, config.label);
         items.push({
           label,
           path: currentPath + (currentPath === '/billing' ? location.search : ''),

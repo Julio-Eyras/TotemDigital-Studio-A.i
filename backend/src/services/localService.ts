@@ -311,7 +311,7 @@ export class LocalService {
       `, [name, targetPublisherId]);
 
       if (existingLocal) {
-        throw new Error('Local com este nome já existe para este publisher');
+        throw new Error('Local com este nome já existe para esta organização');
       }
 
       // Validar contract_id se fornecido (deve existir e estar ativo)
@@ -410,7 +410,7 @@ export class LocalService {
         `, [data.name, existingLocal.publisher_id, id]);
 
         if (localWithSameName) {
-          throw new Error('Local com este nome já existe para este publisher');
+          throw new Error('Local com este nome já existe para esta organização');
         }
       }
 

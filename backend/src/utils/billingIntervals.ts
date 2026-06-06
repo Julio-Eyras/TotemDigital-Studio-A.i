@@ -32,7 +32,7 @@ export function billingIntervalLabel(code?: string | null): string {
   return BILLING_INTERVAL_LABELS[n];
 }
 
-/** Intervalo canónico em contratos de exibidor (billing_interval ou legado subscription_interval). */
+/** Intervalo canónico em contratos da organização (billing_interval ou legado subscription_interval). */
 export function resolvePublisherContractBillingInterval(data: {
   billing_interval?: string | null;
   subscription_interval?: string | null;

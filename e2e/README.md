@@ -27,7 +27,7 @@ npm run test:e2e
 | `studio-navigation.spec.ts` | Rotas admin Studio (26 paths) |
 | `ota-regression.spec.ts` | OTA Update (regressão permissão admin) |
 | `content.spec.ts` | Mídia, campanhas, playlists, players |
-| `billing.spec.ts` | Faturamento, contratos exibidor |
+| `billing.spec.ts` | Faturamento, contratos da organização |
 | `settings-admin.spec.ts` | Settings, users, contracts |
 
 ## Modo full

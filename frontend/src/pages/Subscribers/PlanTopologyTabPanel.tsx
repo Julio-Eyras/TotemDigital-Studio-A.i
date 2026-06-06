@@ -21,6 +21,7 @@ import { Computer, Tv } from '@mui/icons-material';
 import { Local } from '../../services/api';
 import { getTotemIdFromRow, getTotemLocalIdFromRow } from '../../utils/totemRowIds';
 import type { PlanTopologyPreviewRow } from './planTopologyPreview';
+import { getProductTerminology } from '../../config/productTerminology';
 import { countTopologyInRows } from './planTopologyPreview';
 
 export type PlanTopologyUiVariant = 'create' | 'edit' | 'details';
@@ -77,6 +78,7 @@ export const PlanTopologyTabPanel: React.FC<PlanTopologyTabPanelProps> = ({
   contractCount,
   dense,
 }) => {
+  const orgTerms = getProductTerminology();
   const theme = useTheme();
   const { lc, tt, st } = countTopologyInRows(preview.rows);
 
@@ -96,7 +98,7 @@ export const PlanTopologyTabPanel: React.FC<PlanTopologyTabPanelProps> = ({
       )}
       <Alert severity="info" sx={{ mb: 2 }}>
         <strong>Somente visualização.</strong> O contrato associa um <strong>plano</strong>; os locais e totens em que o
-        anunciante pode veicular campanhas são os definidos por esse plano (publicadores autorizados e respectivos
+        anunciante pode veicular campanhas são os definidos por esse plano ({orgTerms.organizationPlural.toLowerCase()} autorizadas e respectivos
         locais/totens). Não é permitido alterar essa rede {variantAlertTail[variant]}.
       </Alert>
       {preview.loading && <LinearProgress sx={{ mb: 2 }} />}
@@ -144,8 +146,8 @@ export const PlanTopologyTabPanel: React.FC<PlanTopologyTabPanelProps> = ({
               </Typography>
               {row.planId && row.publishers.length === 0 && (
                 <Alert severity="info" sx={{ mt: 1 }}>
-                  Nenhum publicador permitido para este plano em <strong>Planos → acesso por publicador</strong>, ou todos
-                  estão bloqueados.
+                  Nenhuma {orgTerms.organization.toLowerCase()} permitida para este plano em <strong>Planos e {orgTerms.organizationPlural.toLowerCase()}</strong>, ou todas
+                  estão bloqueadas.
                 </Alert>
               )}
               {row.planId &&
@@ -157,7 +159,7 @@ export const PlanTopologyTabPanel: React.FC<PlanTopologyTabPanelProps> = ({
                     {mode === 'locals' &&
                       (pub.locals.length === 0 ? (
                         <Typography variant="body2" color="text.secondary">
-                          Nenhum local neste publicador.
+                          Nenhum local nesta {orgTerms.organization.toLowerCase()}.
                         </Typography>
                       ) : (
                         <TableContainer component={Paper} variant="outlined" sx={{ mt: 1 }}>
@@ -184,7 +186,7 @@ export const PlanTopologyTabPanel: React.FC<PlanTopologyTabPanelProps> = ({
                     {mode === 'totens' &&
                       (pub.totems.length === 0 ? (
                         <Typography variant="body2" color="text.secondary">
-                          Nenhum totem neste publicador.
+                          Nenhum totem nesta {orgTerms.organization.toLowerCase()}.
                         </Typography>
                       ) : (
                         <List dense sx={{ mt: 1 }}>
@@ -206,7 +208,7 @@ export const PlanTopologyTabPanel: React.FC<PlanTopologyTabPanelProps> = ({
                     {mode === 'smartTvs' &&
                       (pub.smartTvs.length === 0 ? (
                         <Typography variant="body2" color="text.secondary">
-                          Nenhuma Smart TV adicional registada neste publicador.
+                          Nenhuma Smart TV adicional registada nesta {orgTerms.organization.toLowerCase()}.
                         </Typography>
                       ) : (
                         <List dense sx={{ mt: 1 }}>
@@ -245,8 +247,8 @@ export const PlanTopologyTabPanel: React.FC<PlanTopologyTabPanelProps> = ({
         tt === 0 &&
         st === 0 && (
           <Alert severity="info">
-            O plano não devolveu locais ou totens para os publicadores permitidos. Confira cadastros de locais/totens e o
-            mapeamento plano ↔ publicador.
+            O plano não devolveu locais ou totens para as {orgTerms.organizationPlural.toLowerCase()} permitidas. Confira cadastros de locais/totens e o
+            mapeamento plano ↔ {orgTerms.organization.toLowerCase()}.
           </Alert>
         )}
     </Box>

@@ -48,6 +48,7 @@ import {
 } from '@mui/icons-material';
 import { playerApi, Player, CreatePlayerRequest, playlistApi, PlaylistItem } from '../../services/api';
 import { getTotemIdFromRow } from '../../utils/totemRowIds';
+import { getProductTerminology } from '../../config/productTerminology';
 
 const Players: React.FC = () => {
   const theme = useTheme();
@@ -238,7 +239,7 @@ const Players: React.FC = () => {
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
-                placeholder="Buscar exibidores..."
+                placeholder={`Buscar ${getProductTerminology().organizationPlural.toLowerCase()}...`}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 InputProps={{

@@ -173,7 +173,7 @@ export class QuickPublishService {
       `, [totemIds]);
       const publisherIds = [...new Set(totemRows.map((item: any) => Number(item.publisher_id)).filter(Boolean))];
       if (publisherIds.length === 0) {
-        throw new Error('Não foi possível identificar exibidores/publishers dos totens selecionados');
+        throw new Error('Não foi possível identificar as organizações (publishers) dos totens selecionados');
       }
 
       const result = await transaction(async (client) => {

@@ -60,6 +60,7 @@ import {
 } from './campaignHelpers';
 import { getTotemIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { getProductTerminology } from '../../config/productTerminology';
 
 export interface CampaignFullEditorDialogProps {
   open: boolean;
@@ -83,6 +84,8 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
   const userSubscriberId = user?.subscriberId;
 
   const compactMode = isStudioMode();
+  const orgTerms = getProductTerminology();
+  const orgLabel = (id: number, name?: string) => name || `${orgTerms.organization} #${id}`;
   const tabTotems = compactMode ? 1 : 2;
   const tabSmartTvs = 3;
   const tabMedias = compactMode ? 2 : 4;
@@ -551,7 +554,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
               ) : (
                 <>
                   <Step key="p"><StepLabel>Principal</StepLabel></Step>
-                  <Step key="pub"><StepLabel>Publicadores</StepLabel></Step>
+                  <Step key="pub"><StepLabel>{orgTerms.campaignOrganizationsTab}</StepLabel></Step>
                   <Step key="t"><StepLabel>Totens</StepLabel></Step>
                   <Step key="tv"><StepLabel>Smart TVs</StepLabel></Step>
                   <Step key="m"><StepLabel>Mídias</StepLabel></Step>
@@ -573,7 +576,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                 <Tab label="Totens" />
               ) : (
                 <>
-                  <Tab label="Publicadores" />
+                  <Tab label={orgTerms.campaignOrganizationsTab} />
                   <Tab label="Totens" />
                   <Tab label="Smart TVs" />
                 </>
@@ -647,7 +650,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                       ))}
                     </Select>
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                      Escolha um contrato ativo com plano. Os totens na aba Totens vêm do plano (publicadores e locais
+                      Escolha um contrato ativo com plano. Os totens na aba Totens vêm do plano ({orgTerms.organizationPlural.toLowerCase()} e locais
                       permitidos).
                     </Typography>
                   </FormControl>
@@ -725,7 +728,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
 
             {!compactMode && editTab === 1 && selectedCampaign && (
               <FormControl fullWidth margin="normal">
-                <InputLabel>Publicadores (onde a campanha será exibida)</InputLabel>
+                <InputLabel>{orgTerms.organizationPlural} (onde a campanha será exibida)</InputLabel>
                 <Autocomplete
                   multiple
                   options={(() => {
@@ -744,7 +747,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                       const fromAll = (publishers || []).find((p: any) => p.publisher_id === publisherId);
                       return {
                         publisher_id: publisherId,
-                        name: fromAll?.name || `Publicador #${publisherId}`,
+                        name: orgLabel(publisherId, fromAll?.name),
                         email: fromAll?.email,
                         __invalid: true,
                       };
@@ -758,7 +761,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                       return true;
                     });
                   })()}
-                  getOptionLabel={(option) => option.name || `Publicador #${option.publisher_id}`}
+                  getOptionLabel={(option) => orgLabel(option.publisher_id, option.name)}
                   isOptionEqualToValue={(option, value) => option.publisher_id === value.publisher_id}
                   getOptionDisabled={(option: any) => !isAdmin && option.__invalid === true}
                   value={(() => {
@@ -778,7 +781,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                               const fromAll = (publishers || []).find((p: any) => p.publisher_id === publisherId);
                               return {
                                 publisher_id: publisherId,
-                                name: fromAll?.name || `Publicador #${publisherId}`,
+                                name: orgLabel(publisherId, fromAll?.name),
                                 email: fromAll?.email,
                                 __invalid: true,
                               };
@@ -799,23 +802,23 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                     const invalidIds = !isAdmin ? selectedIds.filter((id) => !accessibleIds.includes(id)) : [];
                     const invalidLabels = invalidIds.map((publisherId) => {
                       const fromAll = (publishers || []).find((p: any) => p.publisher_id === publisherId);
-                      return `${fromAll?.name || `Publicador #${publisherId}`} (#${publisherId})`;
+                      return `${orgLabel(publisherId, fromAll?.name)} (#${publisherId})`;
                     });
 
                     return (
                       <TextField
                         {...params}
-                        label="Publicadores"
+                        label={orgTerms.campaignOrganizationsTab}
                         margin="normal"
                         error={hasInvalidPublishers}
                         helperText={
                           hasInvalidPublishers
-                            ? `Publicadores não acessíveis: ${invalidLabels.join(', ')}. Remova-os ou verifique seu contrato.`
+                            ? `${orgTerms.organizationPlural} não acessíveis: ${invalidLabels.join(', ')}. Remova-as ou verifique seu contrato.`
                             : isAdmin
-                              ? 'Selecione os publicadores onde a campanha será exibida'
+                              ? `Selecione as ${orgTerms.organizationPlural.toLowerCase()} onde a campanha será exibida`
                               : accessiblePublishers.length === 0
-                                ? 'Nenhum publicador acessível encontrado. Verifique o contrato e o plano do anunciante.'
-                                : 'Selecione os publicadores acessíveis onde a campanha será exibida'
+                                ? `Nenhuma ${orgTerms.organization.toLowerCase()} acessível encontrada. Verifique o contrato e o plano do anunciante.`
+                                : `Selecione as ${orgTerms.organizationPlural.toLowerCase()} acessíveis onde a campanha será exibida`
                         }
                       />
                     );
@@ -1095,18 +1098,18 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                             (selectedCampaign as any)?.contractId;
                           if (derivedTotems.length === 0) {
                             if (!compactMode) {
-                              return 'Nenhum totem nos publicadores selecionados. Selecione publicadores na aba Publicadores.';
+                              return `Nenhum totem nas ${orgTerms.organizationPlural.toLowerCase()} selecionadas. Selecione ${orgTerms.organizationPlural.toLowerCase()} na aba ${orgTerms.campaignOrganizationsTab}.`;
                             }
                             if (totemAutocompleteOptions.some((o: any) => o.__orphan)) {
                               return 'Totens guardados na campanha ainda não aparecem na lista do contrato (verifique plan_local_access / contrato ativo) ou aguarde o carregamento.';
                             }
                             return compactContractId
-                              ? 'Nenhum totem elegível: o contrato tem de estar ativo e no prazo; o plano tem de permitir o publicador de cada totem; e o plano tem de listar explicitamente cada local permitido (configuração «locais do plano» na base de dados). Se faltar a lista de locais do plano, não aparece nenhum totem.'
+                              ? `Nenhum totem elegível: o contrato tem de estar ativo e no prazo; o plano tem de permitir a ${orgTerms.organization.toLowerCase()} de cada totem; e o plano tem de listar explicitamente cada local permitido (configuração «locais do plano» na base de dados). Se faltar a lista de locais do plano, não aparece nenhum totem.`
                               : 'Nenhum totem listado. Escolha um contrato ativo com plano na aba Principal (campo Contrato).';
                           }
                           return compactMode
-                            ? 'Só aparecem totens dos locais explicitamente ligados ao plano do contrato (e cujo publicador o plano também permite).'
-                            : 'Selecione os totens onde a campanha será exibida. Se nenhum for selecionado, a campanha vale para todos os totens dos publicadores.';
+                            ? `Só aparecem totens dos locais explicitamente ligados ao plano do contrato (e cuja ${orgTerms.organization.toLowerCase()} o plano também permite).`
+                            : `Selecione os totens onde a campanha será exibida. Se nenhum for selecionado, a campanha vale para todos os totens das ${orgTerms.organizationPlural.toLowerCase()}.`;
                         })()}
                       />
                     )}
@@ -1114,7 +1117,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                     noOptionsText={
                       compactMode
                         ? 'Nenhum totem disponível.'
-                        : 'Nenhum totem nos publicadores selecionados. Selecione publicadores na aba Publicadores.'
+                        : `Nenhum totem nas ${orgTerms.organizationPlural.toLowerCase()} selecionadas. Selecione ${orgTerms.organizationPlural.toLowerCase()} na aba ${orgTerms.campaignOrganizationsTab}.`
                     }
                   />
                 )}
@@ -1124,7 +1127,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
             {!compactMode && editTab === tabSmartTvs && (
               <Box sx={{ mt: 2 }}>
                 <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>
-                  Smart TVs impactadas (derivado dos publicadores selecionados)
+                  Smart TVs impactadas (derivado das {orgTerms.organizationPlural.toLowerCase()} selecionadas)
                 </Typography>
                 {derivedDevicesLoading ? (
                   <LinearProgress />
@@ -1132,7 +1135,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                     {derivedSmartTvs.length === 0 ? (
                       <Typography variant="body2" color="text.secondary">
-                        Nenhuma Smart TV encontrada para os publicadores selecionados.
+                        Nenhuma Smart TV encontrada para as {orgTerms.organizationPlural.toLowerCase()} selecionadas.
                       </Typography>
                     ) : (
                       derivedSmartTvs.map((tv) => (
@@ -1166,7 +1169,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                     const invalidIds = !isAdmin ? selectedIds.filter((id) => !accessibleIds.includes(id)) : [];
                     const invalidLabels = invalidIds.map((publisherId) => {
                       const fromAll = (publishers || []).find((p: any) => p.publisher_id === publisherId);
-                      return `${fromAll?.name || `Publicador #${publisherId}`} (#${publisherId})`;
+                      return `${orgLabel(publisherId, fromAll?.name)} (#${publisherId})`;
                     });
                     return (
                       <>
@@ -1176,10 +1179,10 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                         </Typography>
                         {invalidLabels.length > 0 ? (
                           <Alert severity="warning">
-                            Publicadores bloqueados agora (não serão executados): {invalidLabels.join(', ')}
+                            {orgTerms.organizationPlural} bloqueadas agora (não serão executadas): {invalidLabels.join(', ')}
                           </Alert>
                         ) : (
-                          <Alert severity="success">Todos os publicadores selecionados estão válidos no momento.</Alert>
+                          <Alert severity="success">Todas as {orgTerms.organizationPlural.toLowerCase()} selecionadas estão válidas no momento.</Alert>
                         )}
                       </>
                     );

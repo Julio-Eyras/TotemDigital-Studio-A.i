@@ -296,7 +296,7 @@ const SubscriberDashboard: React.FC = () => {
         </Card>
       )}
 
-      {/* Publishers Acessíveis */}
+      {/* Organizações acessíveis */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>

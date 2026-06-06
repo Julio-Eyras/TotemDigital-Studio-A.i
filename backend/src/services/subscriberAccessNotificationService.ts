@@ -298,7 +298,7 @@ export class SubscriberAccessNotificationService {
                     ${access.contract_number ? `<p style="margin: 5px 0;"><strong>Contrato:</strong> ${access.contract_number}</p>` : ''}
                     ${access.plan_name ? `<p style="margin: 5px 0;"><strong>Plano:</strong> ${access.plan_name}</p>` : ''}
                   </div>
-                  <p><strong>O acesso expirou e precisa ser renovado para continuar usando este publisher.</strong></p>
+                  <p><strong>O acesso expirou e precisa ser renovado para continuar usando esta organização.</strong></p>
                   <p>Por favor, entre em contato imediatamente para renovar o acesso.</p>
                   <p style="color: #666; font-size: 12px; margin-top: 30px;">
                     Esta é uma mensagem automática do sistema Smart Signage.
@@ -315,7 +315,7 @@ Data de expiração: ${expiryDate}
 ${access.contract_number ? `Contrato: ${access.contract_number}` : ''}
 ${access.plan_name ? `Plano: ${access.plan_name}` : ''}
 
-O acesso expirou e precisa ser renovado para continuar usando este publisher.
+O acesso expirou e precisa ser renovado para continuar usando esta organização.
 Por favor, entre em contato imediatamente para renovar o acesso.
               `;
 

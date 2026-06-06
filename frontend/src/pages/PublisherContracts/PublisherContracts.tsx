@@ -3,8 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import Contracts from '../Contracts/Contracts';
 
 /**
- * Maintenance page: Publisher Contracts (publisher_contracts)
- * Wrapper around existing Contracts page, forcing publisher context.
+ * Manutenção: contratos da organização (publisher_contracts).
+ * Wrapper da página Contracts, forçando contexto publisher na API.
  */
 const PublisherContracts: React.FC = () => {
   const [params] = useSearchParams();

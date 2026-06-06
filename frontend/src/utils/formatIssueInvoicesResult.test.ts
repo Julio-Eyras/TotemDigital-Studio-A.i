@@ -10,7 +10,7 @@ describe('formatIssueInvoicesResult', () => {
   it('formata repasse quando houve criação', () => {
     expect(
       formatRevenueSharePayoutMessage({ created: 1, skipped: 0, errors: [] })
-    ).toContain('Repasse exibidor');
+    ).toContain('Repasse organização');
   });
 
   it('retorna null se repasse vazio', () => {

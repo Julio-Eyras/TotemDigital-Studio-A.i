@@ -1,5 +1,5 @@
 /**
- * Pré-visualização da rede do plano (publicadores → locais/totens/TVs), só leitura.
+ * Pré-visualização da rede do plano (organizações → locais/totens/TVs), só leitura.
  */
 
 import { Local, planApi, publisherApi, subscriberAccessApi } from '../../services/api';

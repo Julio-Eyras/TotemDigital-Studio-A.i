@@ -38,6 +38,7 @@ import {
 import { DISABLE_DIRECT_CAMPAIGN_TOTEM } from '../../../config/featureFlags';
 import { DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT_PT } from '../../../constants/campaignUiMessages';
 import { getTotemIdFromRow } from '../../../utils/totemRowIds';
+import { getProductTerminology } from '../../../config/productTerminology';
 
 export interface CampaignFormProps {
   mode: 'create' | 'edit';
@@ -77,6 +78,7 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
   isAdmin = false,
   onSubscriberChange,
 }) => {
+  const orgTerms = getProductTerminology();
   const theme = useTheme();
   const [activeTab, setActiveTab] = useState(0);
   const [serverUi, setServerUi] = useState<DashboardUiContext | null>(null);
@@ -154,7 +156,7 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
           sx={{ mb: 2 }}
         >
           <Tab label="Principal" />
-          <Tab label="Publicadores" />
+          <Tab label="Organizações" />
           <Tab label="Playlists" />
           <Tab label="Mídias" />
           <Tab label="Totens" />
@@ -271,7 +273,7 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
                       const value = e.target.value;
                       const newSubscriberId = value && value !== '' ? parseInt(String(value), 10) : undefined;
                       handleFieldChange('subscriberId', newSubscriberId);
-                      handleFieldChange('publisherIds', []); // Limpar publishers ao mudar subscriber
+                      handleFieldChange('publisherIds', []); // Limpar organizações ao mudar anunciante
                       
                       if (onSubscriberChange) {
                         await onSubscriberChange(newSubscriberId);
@@ -361,18 +363,18 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
         </>
       )}
 
-      {/* Aba Publicadores */}
+      {/* Aba Organizações */}
       {activeTab === 1 && mode === 'edit' && (
         <Box sx={{ mt: 2 }}>
           <Typography variant="h6" sx={{ mb: 2 }}>
-            Publicadores
+            Organizações
           </Typography>
           <FormControl fullWidth margin="normal">
-            <InputLabel>Publicadores (onde a campanha será exibida)</InputLabel>
+            <InputLabel>Organizações (onde a campanha será exibida)</InputLabel>
             <Autocomplete<PublisherOption, true>
               multiple
               options={getPublisherOptions()}
-              getOptionLabel={(option) => option.name || `Publicador #${option.publisher_id}`}
+              getOptionLabel={(option) => option.name || `Organização #${option.publisher_id}`}
               value={getPublisherOptions().filter(p => (data as any).publisherIds?.includes(p.publisher_id))}
               onChange={(_, newValue) => {
                 handleFieldChange('publisherIds', newValue.map(p => p.publisher_id));
@@ -380,14 +382,14 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
               renderInput={(params) => (
                 <TextField 
                   {...params} 
-                  label="Publicadores" 
+                  label="Organizações" 
                   margin="normal"
                   helperText={
-                    isAdmin 
-                      ? 'Selecione os publicadores onde a campanha será exibida'
+                    isAdmin
+                      ? `Selecione as ${orgTerms.organizationPlural.toLowerCase()} onde a campanha será exibida`
                       : !Array.isArray(accessiblePublishers) || accessiblePublishers.length === 0
-                      ? 'Nenhum publicador acessível encontrado. Verifique o contrato e o plano do anunciante.'
-                      : 'Selecione os publicadores acessíveis onde a campanha será exibida'
+                      ? `Nenhuma ${orgTerms.organization.toLowerCase()} acessível encontrada. Verifique o contrato e o plano do anunciante.`
+                      : `Selecione as ${orgTerms.organizationPlural.toLowerCase()} acessíveis onde a campanha será exibida`
                   }
                 />
               )}
@@ -397,15 +399,15 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
         </Box>
       )}
 
-      {/* Seleção de publicadores no modo create */}
+      {/* Seleção de organizações no modo create */}
       {mode === 'create' && subscriberId && (
         <Box sx={{ mt: 2 }}>
           <FormControl fullWidth margin="normal">
-            <InputLabel>Publicadores (onde a campanha será exibida)</InputLabel>
+            <InputLabel>Organizações (onde a campanha será exibida)</InputLabel>
             <Autocomplete<PublisherOption, true>
               multiple
               options={getPublisherOptions()}
-              getOptionLabel={(option) => option.name || `Publicador #${option.publisher_id}`}
+              getOptionLabel={(option) => option.name || `Organização #${option.publisher_id}`}
               value={getPublisherOptions().filter(p => (data as any).publisherIds?.includes(p.publisher_id))}
               onChange={(_, newValue) => {
                 handleFieldChange('publisherIds', newValue.map(p => p.publisher_id));
@@ -413,14 +415,14 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
               renderInput={(params) => (
                 <TextField 
                   {...params} 
-                  label="Publicadores" 
+                  label="Organizações" 
                   margin="normal"
                   helperText={
-                    isAdmin 
-                      ? 'Selecione os publicadores onde a campanha será exibida'
+                    isAdmin
+                      ? `Selecione as ${orgTerms.organizationPlural.toLowerCase()} onde a campanha será exibida`
                       : !Array.isArray(accessiblePublishers) || accessiblePublishers.length === 0
-                      ? 'Nenhum publicador acessível encontrado. Verifique o contrato e o plano do anunciante.'
-                      : 'Selecione os publicadores acessíveis onde a campanha será exibida'
+                      ? `Nenhuma ${orgTerms.organization.toLowerCase()} acessível encontrada. Verifique o contrato e o plano do anunciante.`
+                      : `Selecione as ${orgTerms.organizationPlural.toLowerCase()} acessíveis onde a campanha será exibida`
                   }
                 />
               )}

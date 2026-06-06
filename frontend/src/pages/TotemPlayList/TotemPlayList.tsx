@@ -53,6 +53,7 @@ import { Publisher } from '../../services/api';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 import { getForeignTotemIdFromRow, getPublisherIdFromRow, getTotemIdFromRow } from '../../utils/totemRowIds';
 import { isStudioMode } from '../../config/studioMode';
+import { getProductTerminology } from '../../config/productTerminology';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -70,6 +71,7 @@ function TabPanel(props: TabPanelProps) {
 }
 
 const TotemPlayListPage: React.FC = () => {
+  const orgTerms = getProductTerminology();
   const theme = useTheme();
   const isMobileNav = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
   const [tabValue, setTabValue] = useState(0);
@@ -254,12 +256,12 @@ const TotemPlayListPage: React.FC = () => {
             {!isStudioMode() && (
             <Grid item xs={12} sm={6} md={4}>
               <FormControl fullWidth>
-                <InputLabel id="totem-playlists-filter-publisher-label">Publicador</InputLabel>
+                <InputLabel id="totem-playlists-filter-publisher-label">{orgTerms.organization}</InputLabel>
                 <Select
                   id="totem-playlists-filter-publisher"
                   labelId="totem-playlists-filter-publisher-label"
                   value={filters.publisherId}
-                  label="Publicador"
+                  label={orgTerms.organization}
                   onChange={(e) => setFilters({ ...filters, publisherId: e.target.value })}
                   inputProps={{ name: 'publisherId' }}
                 >
@@ -270,7 +272,7 @@ const TotemPlayListPage: React.FC = () => {
                       if (publisherId === undefined || publisherId <= 0) return null;
                       return (
                         <MenuItem key={`publisher-${publisherId}`} value={String(publisherId)}>
-                          {pub?.name || `Publicador #${publisherId}`}
+                          {pub?.name || `${orgTerms.organization} #${publisherId}`}
                         </MenuItem>
                       );
                     })
@@ -329,7 +331,9 @@ const TotemPlayListPage: React.FC = () => {
                   No TotemDigital, a <strong>playlist consolidada</strong> do totem é criada quando há conteúdo para o motor processar: por exemplo <strong>campanha ativa</strong> com este totem associado (e mídias/playlists válidas), ou após usar <strong>Regenerar</strong> quando já existir dados para esse totem. Se ainda não configurou campanhas, comece em <strong>Campanhas</strong> ou associe mídias/playlists ao fluxo do totem. O dispatcher usa esta lista como fallback quando não há plano só de campanha.
                 </Typography>
               ) : (
-                <Typography variant="body2" component="span">Para as playlists aparecerem: contrato do assinante com plano que tenha acesso a este publisher; campanha ativa com este publisher em PUBLICADORES e com playlists ou mídias diretas; depois use &quot;Regenerar&quot; ou aguarde o totem solicitar o plano. Consulte docs/FLUXO_PLAYLIST_POR_TOTEM.md para o fluxo completo.</Typography>
+                <Typography variant="body2" component="span">
+                  {`Para as playlists aparecerem: contrato do anunciante com plano que tenha acesso a esta ${orgTerms.organization.toLowerCase()}; campanha ativa com esta ${orgTerms.organization.toLowerCase()} em ${orgTerms.campaignOrganizationsTab.toUpperCase()} e com playlists ou mídias diretas; depois use "Regenerar" ou aguarde o totem solicitar o plano. Consulte docs/FLUXO_PLAYLIST_POR_TOTEM.md para o fluxo completo.`}
+                </Typography>
               )}
             </Alert>
           ) : (

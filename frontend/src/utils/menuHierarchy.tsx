@@ -41,6 +41,7 @@ import { UserFlags } from '../store/slices/authSlice';
 import { DASHBOARD_COMMERCIAL_FOCUS } from '../config/featureFlags';
 import { getInstallationCapabilities } from '../config/installationCapabilities';
 import { isStudioMode } from '../config/studioMode';
+import { getProductTerminology, isSingleOrganizationProfile } from '../config/productTerminology';
 
 /** Pro com dashboard comercial: menos ruído técnico no menu (alinhado à Fase 5 do roadmap V3x). */
 const isCommercialProMenu = (): boolean => {
@@ -111,15 +112,67 @@ function filterHierarchicalMenu(
   return filtered;
 }
 
-/** Subitens de Faturamento e Cobrança (anunciantes + exibidor/repasse quando includePublisher). */
+function getDevicesMenuBlock(): HierarchicalMenuItem {
+  const t = getProductTerminology();
+  return {
+    text: t.devices,
+    icon: <Computer />,
+    path: '/totems',
+    children: [
+      { text: t.totems, icon: <Computer />, path: '/totems' },
+      { text: t.smartTvs, icon: <Tv />, path: '/smart-tvs' },
+    ],
+  };
+}
+
+/** Filhos do ramo Organizações (multi) ou itens planos em Administração (mono). */
+function getOrganizationNavChildren(includeProExtras = false): HierarchicalMenuItem[] {
+  const t = getProductTerminology();
+  const single = isSingleOrganizationProfile();
+  const children: HierarchicalMenuItem[] = [
+    {
+      text: single ? t.yourOrganization : t.organizationPlural,
+      icon: <Business />,
+      path: '/publishers',
+    },
+    { text: t.units, icon: <LocationOn />, path: '/locals' },
+    getDevicesMenuBlock(),
+    { text: t.organizationContracts, icon: <Description />, path: '/publisher-contracts' },
+  ];
+  if (includeProExtras && !single) {
+    children.push(
+      { text: t.totemPlaylists, icon: <QueueMusic />, path: '/totem-playlists' },
+      { text: t.networkTopology, icon: <Link />, path: '/network-topology' }
+    );
+  }
+  return children;
+}
+
+function getOrganizationTopLevelMenu(includeProExtras = false): HierarchicalMenuItem {
+  const t = getProductTerminology();
+  return {
+    text: t.organizationPlural,
+    icon: <Business />,
+    path: '/publishers',
+    children: getOrganizationNavChildren(includeProExtras),
+  };
+}
+
+/** Itens organizacionais planos (mono) para embutir em Administração. */
+function getOrganizationFlatAdminItems(): HierarchicalMenuItem[] {
+  return getOrganizationNavChildren(false);
+}
+
+/** Subitens de Faturamento e Cobrança (anunciantes + organização quando includePublisher). */
 function getBillingMenuChildren(includePublisher: boolean): HierarchicalMenuItem[] {
+  const t = getProductTerminology();
   const children: HierarchicalMenuItem[] = [
     { text: 'Visão geral', icon: <Payment />, path: '/billing?view=plans' },
     { text: 'Anunciantes', icon: <People />, path: '/billing?type=subscriber&view=invoices' },
   ];
   if (includePublisher) {
     children.push({
-      text: 'Exibidores',
+      text: t.billingPublisherTab,
       icon: <Business />,
       path: '/billing?type=publisher&view=invoices',
     });
@@ -148,8 +201,8 @@ function getDispatcherPlaylistMixChildren(): HierarchicalMenuItem[] {
 }
 
 /**
- * Menu lateral modo TotemDigital Compact (mono publicador): ordem e rótulos pedidos pelo produto.
- * Sem ramo "Exibidores"; locais, totens e Smart TVs ficam em Administração. Planos & Acessos: item único como no compacto original.
+ * Menu admin unificado — perfil mono (uma organização implícita).
+ * Organização, unidades e dispositivos sob Administração.
  */
 function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
   const dispatcherBlock: HierarchicalMenuItem = {
@@ -201,15 +254,8 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
           icon: <Assignment />,
           path: '/plan-publisher-access',
         },
-        { text: 'Locais', icon: <LocationOn />, path: '/locals' },
-        { text: 'Totens', icon: <Computer />, path: '/totems' },
-        { text: 'Smart TVs', icon: <Tv />, path: '/smart-tvs' },
+        ...getOrganizationFlatAdminItems(),
         getBillingMenuBlock(true),
-        {
-          text: 'Contratos (Exibidores)',
-          icon: <Description />,
-          path: '/publisher-contracts',
-        },
         { text: 'Manutenção Usuário', icon: <People />, path: '/users' },
         { text: 'Tags', icon: <Assignment />, path: '/tags' },
         { text: 'QR-Codes', icon: <QrCode />, path: '/qr-codes' },
@@ -314,8 +360,7 @@ export const getMenuHierarchyByRole = (
  * - Apenas estes perfis usarão o sistema
  * - Todas as opções devem estar sempre disponíveis
  *
- * Terminologia:
- * - "Exibidores" substitui "Veículos de Mídia" na interface
+ * Terminologia unificada: Organizações → Unidades (Locais) → Dispositivos (ver productTerminology.ts).
  */
 function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
   /** Mono: utilizador operacional (ex.: publisher_user) mantém menu curto; dono/admins/operador faturamento vê paridade com Pro. */
@@ -327,12 +372,14 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
       role === 'operador_faturamento');
 
   if (isStudioMode() && !ownerLikeInCompact) {
+    const t = getProductTerminology();
     return [
       { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
       { text: 'Planos', icon: <Assignment />, path: '/plan-publisher-access' },
-      getBillingMenuBlock(false),
-      { text: 'Locais', icon: <LocationOn />, path: '/locals' },
-      { text: 'Totens', icon: <Computer />, path: '/totems' },
+      getBillingMenuBlock(true),
+      { text: t.yourOrganization, icon: <Business />, path: '/publishers' },
+      { text: t.units, icon: <LocationOn />, path: '/locals' },
+      getDevicesMenuBlock(),
       { text: 'Nova publicação', icon: <Add />, path: '/quick-publish' },
       { text: 'Estúdio visual', icon: <AutoAwesome />, path: '/publish-board' },
       { text: 'Cardápio por cliente', icon: <Storefront />, path: '/menu-catalog' },
@@ -368,15 +415,7 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
     ],
   };
 
-  const exibidoresChildren: HierarchicalMenuItem[] = [
-    { text: 'Publicadores', icon: <Business />, path: '/publishers' },
-    { text: 'Locais', icon: <LocationOn />, path: '/locals' },
-    { text: 'Totens', icon: <Computer />, path: '/totems' },
-    { text: 'Smart TVs', icon: <Tv />, path: '/smart-tvs' },
-    { text: 'Playlists por Totem', icon: <QueueMusic />, path: '/totem-playlists' },
-    { text: 'Rede Visual', icon: <Link />, path: '/network-topology' },
-    { text: 'Contratos (Exibidores)', icon: <Description />, path: '/publisher-contracts' },
-  ];
+  const t = getProductTerminology();
 
   return [
     { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
@@ -384,13 +423,7 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
       ? [{ text: 'Nova publicação', icon: <Add />, path: '/quick-publish' } as HierarchicalMenuItem]
       : []),
 
-    // Exibidores (Publicadores + operação de displays)
-    {
-      text: 'Exibidores',
-      icon: <Tv />,
-      path: '/publishers',
-      children: exibidoresChildren,
-    },
+    getOrganizationTopLevelMenu(true),
 
     // Anunciantes (conteúdo + campanhas)
     {
@@ -421,7 +454,7 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
       children: [
         { text: 'Planos', icon: <Link />, path: '/plan-publisher-access' },
         { text: 'Planos Expirados', icon: <Warning />, path: '/plan-publisher-access/expired' },
-        { text: 'Acessos (Anunciante → Exibidor)', icon: <Link />, path: '/subscriber-publisher-access' },
+        { text: t.subscriberToOrgAccess, icon: <Link />, path: '/subscriber-publisher-access' },
       ],
     },
 
@@ -559,17 +592,17 @@ function getOperadorFaturamentoMenu(): HierarchicalMenuItem[] {
       children: [
         // Mantemos as 2 manutenções separadas, como acordado
         { text: 'Manutenção Contratos Anunciantes', icon: <Description />, path: '/subscriber-contracts', requiredFlag: 'flag_smart_5' },
-        { text: 'Manutenção Contratos Publicadores', icon: <Description />, path: '/publisher-contracts', requiredFlag: 'flag_smart_5' },
+        { text: getProductTerminology().organizationContractMaintenance, icon: <Description />, path: '/publisher-contracts', requiredFlag: 'flag_smart_5' },
         {
           text: 'Planos',
           icon: <Link />,
           path: '/plan-publisher-access',
           children: [
             { text: 'Criar Plano', icon: <Link />, path: '/plan-publisher-access/new' },
-            { text: 'Manter Planos e Publicadores', icon: <Link />, path: '/plan-publisher-access' },
+            { text: getProductTerminology().maintainPlansAndOrganizations, icon: <Link />, path: '/plan-publisher-access' },
             { text: 'Planos Expirados', icon: <Warning />, path: '/plan-publisher-access/expired' },
             { text: 'Planos Anunciantes', icon: <Link />, path: '/plan-publisher-access?type=subscriber' },
-            { text: 'Planos Publicadores', icon: <Link />, path: '/plan-publisher-access?type=publisher' },
+            { text: getProductTerminology().plansForOrganization, icon: <Link />, path: '/plan-publisher-access?type=publisher' },
           ],
         },
         getBillingMenuBlock(true),
@@ -591,16 +624,8 @@ function getOperadorComercialMenu(): HierarchicalMenuItem[] {
       path: '/admin',
       children: [
         {
-          text: '📢 Veículos de Mídia',
-          icon: <Business />,
-          path: '/publishers',
-          children: [
-            { text: 'Manutenção Veículo de Mídia', icon: <Business />, path: '/publishers' },
-            { text: 'Locais', icon: <LocationOn />, path: '/locals' },
-            { text: 'Totens', icon: <Tv />, path: '/totems' },
-            { text: 'Smart TVs', icon: <Tv />, path: '/smart-tvs' },
-            { text: 'Manutenção Contratos Publicadores', icon: <Description />, path: '/publisher-contracts' },
-          ],
+          ...getOrganizationTopLevelMenu(false),
+          children: getOrganizationNavChildren(false),
         },
         {
           text: 'Anunciantes',
@@ -617,10 +642,10 @@ function getOperadorComercialMenu(): HierarchicalMenuItem[] {
           path: '/plan-publisher-access',
           children: [
             { text: 'Criar Plano', icon: <Link />, path: '/plan-publisher-access/new' },
-            { text: 'Manter Planos e Publicadores', icon: <Link />, path: '/plan-publisher-access' },
+            { text: getProductTerminology().maintainPlansAndOrganizations, icon: <Link />, path: '/plan-publisher-access' },
             { text: 'Planos Expirados', icon: <Warning />, path: '/plan-publisher-access/expired' },
             { text: 'Planos Anunciantes', icon: <Link />, path: '/plan-publisher-access?type=subscriber' },
-            { text: 'Planos Publicadores', icon: <Link />, path: '/plan-publisher-access?type=publisher' },
+            { text: getProductTerminology().plansForOrganization, icon: <Link />, path: '/plan-publisher-access?type=publisher' },
           ],
         },
         getBillingMenuBlock(true),
@@ -643,17 +668,19 @@ function getOperadorComercialMenu(): HierarchicalMenuItem[] {
  * Menu: PUBLISHER_USER (portal/subdomínio publisher)
  */
 function getPublisherUserMenu(): HierarchicalMenuItem[] {
+  const t = getProductTerminology();
   return [
     { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+    { text: t.yourOrganization, icon: <Business />, path: '/publishers' },
+    { text: t.units, icon: <LocationOn />, path: '/locals' },
     {
-      text: '📢 Veículos de Mídia',
-      icon: <Business />,
-      path: '/locals',
+      text: t.devices,
+      icon: <Computer />,
+      path: '/totems',
       children: [
-        { text: 'Locais', icon: <LocationOn />, path: '/locals' },
-        { text: 'Totens', icon: <Tv />, path: '/totems' },
-        { text: 'Playlists de Totens', icon: <QueueMusic />, path: '/totem-playlists' },
-        { text: 'Smart TVs', icon: <Tv />, path: '/smart-tvs' },
+        { text: t.totems, icon: <Computer />, path: '/totems' },
+        { text: t.totemPlaylists, icon: <QueueMusic />, path: '/totem-playlists' },
+        { text: t.smartTvs, icon: <Tv />, path: '/smart-tvs' },
       ],
     },
     { text: 'Analytics', icon: <Analytics />, path: '/analytics' },

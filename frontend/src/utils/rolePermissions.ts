@@ -74,13 +74,13 @@ export const menuPermissions: MenuItemPermission[] = [
   // Smart TVs - Hierárquico: Totens → Smart TVs
   { path: '/smart-tvs', roles: ['owner_system', 'admin_sql', 'operator', 'admin', 'operador_tecnico', 'gerente_marketing', 'visualizador', 'publisher_user'], requiredFlag: 'flag_smart_0' },
   
-  // Locais - Publishers e admins
+  // Locais — organizações e admins
   { path: '/locals', roles: ['owner_system', 'admin_sql', 'admin', 'publisher_user'] },
   
   // Usuários - admin_sql, admin (próprio cliente)
   { path: '/users', roles: ['owner_system', 'admin_sql', 'admin'] },
   
-  // Publishers - admin_sql, admin, operador_comercial (visualização)
+  // Organizações — admin_sql, admin, operador_comercial (visualização)
   { path: '/publishers', roles: ['owner_system', 'admin_sql', 'admin', 'operador_comercial'] },
   
   // Subscribers - admin_sql, admin, operador_comercial; gerente_marketing edita campanhas no contexto do anunciante
@@ -95,7 +95,7 @@ export const menuPermissions: MenuItemPermission[] = [
   // QR Codes - admin_sql, admin, gerente_marketing
   { path: '/qr-codes', roles: ['admin_sql', 'admin', 'gerente_marketing'], requiresClientAccess: true },
   
-  // Faturamento — publicador vê faturas do próprio exibidor (API filtra por publisher_id)
+  // Faturamento — organização vê faturas próprias (API filtra por publisher_id)
   { path: '/billing', roles: ['owner_system', 'admin_sql', 'admin', 'operador_faturamento', 'publisher_user', 'subscriber_user'], requiresClientAccess: true, requiredFlag: 'flag_smart_3' },
   
   // IA - admin_sql, admin, gerente_marketing
@@ -104,7 +104,7 @@ export const menuPermissions: MenuItemPermission[] = [
   // Admin Tools - admin_sql, operator, operador_tecnico
   { path: '/admin-tools', roles: ['owner_system', 'admin_sql', 'admin', 'operator', 'operador_tecnico'], requiredFlag: 'flag_smart_2' },
   
-  // Rede Visual - topologia publishers + subscribers + grafo (exibidores e anunciantes)
+  // Rede Visual — topologia organizações + anunciantes + grafo (API: publishers/subscribers)
   { path: '/network-topology', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico', 'operator', 'publisher_user', 'subscriber_user'] },
   
   // Dispatcher-Totem - owner_system, admin_sql, admin, operador_tecnico
@@ -126,10 +126,10 @@ export const menuPermissions: MenuItemPermission[] = [
   // Configurações - disponível para perfis de operação do produto
   { path: '/settings', roles: ['owner_system', 'admin_sql', 'operator', 'admin', 'publisher_user', 'subscriber_user'] },
   
-  // Planos → Publishers - admin_sql, admin
+  // Planos → organizações — admin_sql, admin
   { path: '/plan-publisher-access', roles: ['admin_sql', 'admin'] },
   
-  // Subscriber → Publisher - admin_sql, admin
+  // Anunciante → organização — admin_sql, admin
   { path: '/subscriber-publisher-access', roles: ['admin_sql', 'admin'] },
   
   // Rotas de subitens (herdam permissões do path pai)
@@ -173,7 +173,7 @@ export function canAccess(
     return true;
   }
 
-  // Modo compacto mono: o publicador dono acede ao dispatcher/monitorização sem depender de flag_smart_2
+  // Modo compacto mono: a organização dona acede ao dispatcher/monitorização sem depender de flag_smart_2
   if (isStudioMode() && userRole === 'publisher_user') {
     if (
       pathForPermission === '/dispatcher-manager' ||

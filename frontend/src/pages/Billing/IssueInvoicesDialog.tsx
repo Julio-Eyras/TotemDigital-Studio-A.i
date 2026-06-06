@@ -34,6 +34,7 @@ import {
   IssueInvoicesScope,
 } from '../../utils/billingIssuePayload';
 import { isStudioMode } from '../../config/studioMode';
+import { getProductTerminology } from '../../config/productTerminology';
 
 const EMPTY_FORM: IssueInvoicesFormState = {
   scope: 'all',
@@ -183,7 +184,7 @@ const IssueInvoicesDialog: React.FC<IssueInvoicesDialogProps> = ({
           </Box>
         )}
         <Alert severity="info" sx={{ mb: 2 }}>
-          Contratos ativos elegíveis: anunciantes com plano; exibidores com assinatura (subscription/híbrido e valor
+          Contratos ativos elegíveis: anunciantes com plano; organizações com assinatura (subscription/híbrido e valor
           &gt; 0). Deixe em &quot;Todos&quot; para emitir em lote no escopo.
         </Alert>
         <FormControl fullWidth margin="normal" disabled={issuing}>
@@ -200,9 +201,9 @@ const IssueInvoicesDialog: React.FC<IssueInvoicesDialogProps> = ({
               })
             }
           >
-            <MenuItem value="all">Todos (anunciantes + exibidores)</MenuItem>
+            <MenuItem value="all">Todos (anunciantes + organizações)</MenuItem>
             <MenuItem value="subscriber">Só anunciantes</MenuItem>
-            <MenuItem value="publisher">Só exibidores</MenuItem>
+            <MenuItem value="publisher">Só organizações</MenuItem>
           </Select>
         </FormControl>
 
@@ -256,7 +257,7 @@ const IssueInvoicesDialog: React.FC<IssueInvoicesDialogProps> = ({
           <>
             {hidePublisherPicker && defaultPublisherId ? (
               <Alert severity="info" sx={{ mt: 1 }}>
-                Exibidor: #{defaultPublisherId}
+                {getProductTerminology().billingPublisherLabel}: #{defaultPublisherId}
                 {isStudioMode() ? ' (Smart Signage Studio)' : ''}
               </Alert>
             ) : (
@@ -273,7 +274,7 @@ const IssueInvoicesDialog: React.FC<IssueInvoicesDialogProps> = ({
                 }
                 disabled={issuing || loading || lockPublisherId}
                 renderInput={(params) => (
-                  <TextField {...params} label="Exibidor (opcional)" margin="normal" placeholder="Todos" />
+                  <TextField {...params} label={`${getProductTerminology().billingPublisherLabel} (opcional)`} margin="normal" placeholder="Todos" />
                 )}
                 isOptionEqualToValue={(a, b) => a.publisher_id === b.publisher_id}
               />
@@ -283,16 +284,16 @@ const IssueInvoicesDialog: React.FC<IssueInvoicesDialogProps> = ({
               margin="normal"
               disabled={issuing || loading || !form.publisherId}
             >
-              <InputLabel>Contrato exibidor (assinatura)</InputLabel>
+              <InputLabel>Contrato da organização (assinatura)</InputLabel>
               <Select
-                label="Contrato exibidor (assinatura)"
+                label="Contrato da organização (assinatura)"
                 value={form.publisherContractId}
                 onChange={(e) => setForm({ ...form, publisherContractId: e.target.value })}
               >
                 <MenuItem value="">
                   {form.publisherId
-                    ? 'Todos os contratos de assinatura deste exibidor'
-                    : 'Selecione um exibidor'}
+                    ? 'Todos os contratos de assinatura desta organização'
+                    : 'Selecione uma organização'}
                 </MenuItem>
                 {publisherContracts.map((c) => (
                   <MenuItem key={c.contract_id} value={String(c.contract_id)}>
@@ -308,7 +309,7 @@ const IssueInvoicesDialog: React.FC<IssueInvoicesDialogProps> = ({
               </Select>
               {form.publisherId && publisherContracts.length === 0 && !loading && (
                 <Alert severity="warning" sx={{ mt: 1 }}>
-                  Nenhum contrato ativo de assinatura com valor para este exibidor.
+                  Nenhum contrato ativo de assinatura com valor para esta organização.
                 </Alert>
               )}
             </FormControl>

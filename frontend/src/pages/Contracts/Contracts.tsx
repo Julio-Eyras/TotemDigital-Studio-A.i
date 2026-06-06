@@ -76,6 +76,7 @@ import {
 } from '../../utils/billingIntervals';
 import { ContractCard, ContractForm, ContractDetails } from './components';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
+import { getProductTerminology } from '../../config/productTerminology';
 
 type ContractsInitialType = 'subscriber' | 'publisher';
 
@@ -90,6 +91,7 @@ interface ContractsProps {
 }
 
 const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId, initialPublisherId }) => {
+  const orgTerms = getProductTerminology();
   const theme = useTheme();
   const isMobileNav = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
   const [searchParams] = useSearchParams();
@@ -162,10 +164,10 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
   const [contractPublishers, setContractPublishers] = useState<any[]>([]);
   const [loadingPublishers, setLoadingPublishers] = useState(false);
   
-  // Estados para seleção de publishers
+  // Estados para seleção de organizações (publisherIds)
   const [selectedPublisherIds, setSelectedPublisherIds] = useState<number[]>([]);
 
-  // Estados para formulário de Publisher Contract
+  // Estados para formulário de contrato da organização
   const [publisherContractForm, setPublisherContractForm] = useState<CreatePublisherContractRequest>({
     publisher_id: undefined,
     contract_number: '',
@@ -218,7 +220,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
     return Number.isNaN(num) ? 0 : num;
   }, []);
 
-  // Gera número de contrato padrão para publisher: PUB-<publisherId>.<NNNNNN> (próximo = último sequencial + 1)
+  // Gera número de contrato padrão da organização: PUB-<publisherId>.<NNNNNN>
   const generatePublisherContractNumber = useCallback(
     (publisherId: number): string => {
       const list = publisherContracts.filter((c) => c.publisher_id === publisherId);
@@ -246,7 +248,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
     if (effectiveType === 'subscriber') setMainTab(0);
   }, [effectiveType]);
 
-  // Prefill create forms when coming from a contextual entrypoint (subscriber/publisher detail)
+  // Pré-preencher formulários a partir de anunciante/organização (detalhe contextual)
   useEffect(() => {
     if (effectiveSubscriberId) {
       setContractForm((prev) => {
@@ -275,7 +277,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
     }
   }, [effectivePublisherId, generatePublisherContractNumber]);
 
-  // Open create dialog from contextual links (e.g., Subscriber/Publisher details)
+  // Abrir diálogo de criação a partir de links contextuais (anunciante/organização)
   useEffect(() => {
     const openCreate = searchParams.get('openCreate');
     if (openCreate !== '1') return;
@@ -312,7 +314,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
     }
   }, [contractTypeFilter, statusFilter, mainTab, searchTerm]);
 
-  // Carregar publishers do contrato quando editar
+  // Carregar organizações do contrato ao editar
   useEffect(() => {
     if (editDialogOpen && selectedContract) {
       loadPublishers();
@@ -385,23 +387,23 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
 
   const pageTitle = useMemo(() => {
     if (isSubscriberMaintenance) return '📄 Contratos do Anunciante';
-    if (isPublisherMaintenance) return '📄 Contratos do Publicador';
+    if (isPublisherMaintenance) return `📄 ${orgTerms.organizationContracts}`;
     return '📄 Contratos';
-  }, [isPublisherMaintenance, isSubscriberMaintenance]);
+  }, [isPublisherMaintenance, isSubscriberMaintenance, orgTerms.organizationContracts]);
 
   const pageSubtitle = useMemo(() => {
     if (isSubscriberMaintenance) return 'Gerencie contratos do Anunciante (Assinante)';
-    if (isPublisherMaintenance) return 'Gerencie contratos do Veículo de Mídia (Publicador)';
-    return 'Gerencie contratos de Assinantes e Publicadores';
-  }, [isPublisherMaintenance, isSubscriberMaintenance]);
+    if (isPublisherMaintenance) return `Gerencie contratos da ${orgTerms.organization.toLowerCase()}`;
+    return `Gerencie contratos de Anunciantes e ${orgTerms.organizationPlural}`;
+  }, [isPublisherMaintenance, isSubscriberMaintenance, orgTerms.organization, orgTerms.organizationPlural]);
 
   const createButtonLabel = useMemo(() => {
-    if (mainTab === 1) return 'Adicionar Contrato do Publicador';
+    if (mainTab === 1) return `Adicionar contrato da ${orgTerms.organization.toLowerCase()}`;
     return 'Adicionar Contrato do Anunciante';
-  }, [mainTab]);
+  }, [mainTab, orgTerms.organization]);
   const contractSections = [
     { label: 'Contratos do Anunciante', icon: Assignment },
-    { label: 'Contratos do Publicador', icon: Business },
+    { label: orgTerms.organizationContracts, icon: Business },
   ] as const;
 
   const handleOpenCreate = () => {
@@ -557,9 +559,9 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
     });
     setEditDialogOpen(true);
     setEditTab(0);
-    // Carregar publishers quando abrir dialog de edição
+    // Carregar organizações ao abrir diálogo de edição
     loadPublishers();
-    // Carregar publishers do contrato
+    // Carregar organizações do contrato
     loadContractPublishers(contract.contract_id);
   };
 
@@ -984,7 +986,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
         </Card>
       )}
 
-      {/* Publisher Contracts Grid */}
+      {/* Grade de contratos da organização */}
       {mainTab === 1 && (
         <Grid container spacing={3}>
           {publisherContracts.map((contract) => (
@@ -1038,7 +1040,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
                   />
                   <Typography variant="body2" sx={{ mb: 1 }}>
                     <Business sx={{ fontSize: 16, verticalAlign: 'middle', mr: 0.5 }} />
-                    Publicador #{contract.publisher_id}
+                    {orgTerms.organization} #{contract.publisher_id}
                   </Typography>
                   {contract.revenue_share_percentage && (
                     <Typography variant="body2" color="text.secondary">
@@ -1081,10 +1083,10 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
                 <CardContent sx={{ textAlign: 'center', py: 6 }}>
                   <Description sx={{ fontSize: 64, color: theme.palette.grey[300], mb: 2 }} />
                   <Typography variant="h6" color="text.secondary" gutterBottom>
-                    Nenhum contrato de publicador encontrado
+                    Nenhum contrato da {orgTerms.organization.toLowerCase()} encontrado
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                    Comece adicionando seus primeiros contratos de publicadores
+                    Comece adicionando os primeiros contratos das {orgTerms.organizationPlural.toLowerCase()}
                   </Typography>
                   <Button
                     variant="contained"
@@ -1093,7 +1095,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
                       handleOpenCreate();
                     }}
                   >
-                    Adicionar Primeiro Contrato Publicador
+                    {`Adicionar primeiro contrato da ${orgTerms.organization.toLowerCase()}`}
                   </Button>
                 </CardContent>
               </Card>
@@ -1211,7 +1213,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
         canViewSensitiveValues={canViewSensitiveValues}
       />
 
-      {/* Create Publisher Contract Dialog */}
+      {/* Diálogo: criar contrato da organização */}
       <Dialog
         open={createPublisherContractDialogOpen}
         onClose={() => {
@@ -1221,14 +1223,14 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>Adicionar Contrato Publicador</DialogTitle>
+        <DialogTitle>{`Adicionar contrato da ${orgTerms.organization.toLowerCase()}`}</DialogTitle>
         <DialogContent>
-          {/* Pré-contrato para publisher removido da UI */}
+          {/* Pré-contrato removido da UI */}
           <FormControl fullWidth margin="normal" required={!effectivePublisherId} disabled={!!effectivePublisherId}>
-            <InputLabel>{effectivePublisherId ? 'Publicador (fixo)' : 'Publicador *'}</InputLabel>
+            <InputLabel>{effectivePublisherId ? `${orgTerms.organization} (fixo)` : `${orgTerms.organization} *`}</InputLabel>
             <Select
               value={publisherContractForm.publisher_id || ''}
-              label={effectivePublisherId ? 'Publicador (fixo)' : 'Publicador *'}
+              label={effectivePublisherId ? `${orgTerms.organization} (fixo)` : `${orgTerms.organization} *`}
               onChange={(e) => {
                 const nextId = e.target.value ? Number(e.target.value) : undefined;
                 setPublisherContractForm((prev) => {
@@ -1444,7 +1446,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
         </DialogActions>
       </Dialog>
 
-      {/* Edit Publisher Contract Dialog */}
+      {/* Diálogo: editar contrato da organização */}
       <Dialog
         open={editPublisherContractDialogOpen}
         onClose={() => {
@@ -1454,14 +1456,14 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>Editar Contrato Publicador - {selectedPublisherContract?.title || ''}</DialogTitle>
+        <DialogTitle>{`Editar contrato da ${orgTerms.organization.toLowerCase()} — ${selectedPublisherContract?.title || ''}`}</DialogTitle>
         <DialogContent>
-          {/* Pré-contrato para publisher removido da UI */}
+          {/* Pré-contrato removido da UI */}
           <FormControl fullWidth margin="normal" required={!effectivePublisherId} disabled={!!effectivePublisherId}>
-            <InputLabel>{effectivePublisherId ? 'Publicador (fixo)' : 'Publicador *'}</InputLabel>
+            <InputLabel>{effectivePublisherId ? `${orgTerms.organization} (fixo)` : `${orgTerms.organization} *`}</InputLabel>
             <Select
               value={publisherContractForm.publisher_id || ''}
-              label={effectivePublisherId ? 'Publicador (fixo)' : 'Publicador *'}
+              label={effectivePublisherId ? `${orgTerms.organization} (fixo)` : `${orgTerms.organization} *`}
               onChange={(e) => {
                 const nextId = e.target.value ? Number(e.target.value) : undefined;
                 setPublisherContractForm({ ...publisherContractForm, publisher_id: nextId });

@@ -155,7 +155,7 @@ router.post('/',
       return res.status(201).json(newPublisher);
     } catch (error: any) {
       await logError('Erro ao criar publisher', error, { body: req.body });
-      const message = error?.message || 'Erro interno ao criar publicador';
+      const message = error?.message || 'Erro interno ao criar organização';
       const status = isDatabaseError(error) ? 500 : 400;
       return res.status(status).json({
         ...errorResponse('Erro ao criar publisher', message),

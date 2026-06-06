@@ -26,7 +26,7 @@ describe('buildIssueInvoicesPayload', () => {
     ).toEqual({ subscriberId: 2, contractId: 10, dueInDays: 15 });
   });
 
-  it('filtra exibidor e contrato', () => {
+  it('filtra organização (publisher) e contrato', () => {
     expect(
       buildIssueInvoicesPayload({
         ...base,

@@ -13,10 +13,10 @@ test.describe('Configurações e administração', () => {
     await expect(adminPage.getByText(/Usuários|Users/i).first()).toBeVisible();
   });
 
-  test('contratos — tabs anunciante e publicador', async ({ adminPage }) => {
+  test('contratos — tabs anunciante e organização', async ({ adminPage }) => {
     await adminPage.goto('/contracts');
     await adminPage.waitForLoadState('domcontentloaded');
-    await expect(adminPage.getByText(/Contrato|Anunciante|Publicador/i).first()).toBeVisible({
+    await expect(adminPage.getByText(/Contrato|Anunciante|Organização/i).first()).toBeVisible({
       timeout: 25_000,
     });
   });

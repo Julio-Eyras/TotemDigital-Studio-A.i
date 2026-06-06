@@ -109,7 +109,7 @@ export class FinancialNotificationService {
   }
 
   /**
-   * Aviso de repasse ao exibidor (outgoing / revenue_share). Sem PIX — informativo para pagamento manual.
+   * Aviso de repasse à organização (outgoing / revenue_share). Sem PIX — informativo para pagamento manual.
    */
   async sendPublisherRevenueSharePayoutEmail(
     billingId: number
@@ -140,7 +140,7 @@ export class FinancialNotificationService {
       if (row.direction !== 'outgoing') {
         return { sent: false, reason: 'Apenas repasses (saída) podem usar este aviso' };
       }
-      if (!row.publisher_email) return { sent: false, reason: 'Exibidor sem e-mail' };
+      if (!row.publisher_email) return { sent: false, reason: 'Organização sem e-mail' };
       if (row.payment_status === 'paid') {
         return { sent: false, reason: 'Repasse já marcado como pago' };
       }
@@ -164,20 +164,20 @@ export class FinancialNotificationService {
           <li>Descrição: ${row.description || '—'}</li>
         </ul>
         <p><a href="${payUrl}">Ver repasses no painel de faturamento</a></p>
-        <p><em>Este repasse é pago pela plataforma ao exibidor (não é cobrança PIX ao exibidor).</em></p>
+        <p><em>Este repasse é pago pela plataforma à organização (não é cobrança PIX à organização).</em></p>
         ${waLink ? `<p><a href="${waLink}">WhatsApp</a></p>` : ''}
         <p>Atenciosamente,<br/>${financialConfig.pixMerchantName}</p>
       `;
 
       const result = await emailService.sendEmail({
         to: row.publisher_email,
-        subject: `Repasse exibidor ${row.invoice_number || billingId} — ${amountStr}`,
+        subject: `Repasse organização ${row.invoice_number || billingId} — ${amountStr}`,
         html,
         text: `Repasse ${amountStr}, previsão ${dueStr}. Painel: ${payUrl}`,
       });
 
       if (result.success) {
-        await logInfo('E-mail de repasse (exibidor) enviado', { billingId, to: row.publisher_email });
+        await logInfo('E-mail de repasse (organização) enviado', { billingId, to: row.publisher_email });
         return { sent: true };
       }
       return { sent: false, reason: result.error || 'Falha no envio SMTP' };
@@ -214,7 +214,7 @@ export class FinancialNotificationService {
       if (row.direction === 'outgoing') {
         return this.sendPublisherRevenueSharePayoutEmail(billingId);
       }
-      if (!row.publisher_email) return { sent: false, reason: 'Exibidor sem e-mail' };
+      if (!row.publisher_email) return { sent: false, reason: 'Organização sem e-mail' };
       if (row.payment_status === 'paid') return { sent: false, reason: 'Fatura já paga' };
 
       let pixBlock = '<p><em>PIX: configure FINANCIAL_PIX_KEY no servidor.</em></p>';
@@ -244,7 +244,7 @@ export class FinancialNotificationService {
 
       const html = `
         <p>Olá <strong>${row.publisher_name}</strong>,</p>
-        <p>Cobrança <strong>${row.invoice_number || `#${billingId}`}</strong> (exibidor):</p>
+        <p>Cobrança <strong>${row.invoice_number || `#${billingId}`}</strong> (organização):</p>
         <ul>
           <li>Valor: <strong>${amountStr}</strong></li>
           <li>Vencimento: <strong>${dueStr}</strong></li>
@@ -258,23 +258,23 @@ export class FinancialNotificationService {
 
       const result = await emailService.sendEmail({
         to: row.publisher_email,
-        subject: `Fatura exibidor ${row.invoice_number || billingId} — venc. ${dueStr}`,
+        subject: `Fatura organização ${row.invoice_number || billingId} — venc. ${dueStr}`,
         html,
         text: `Fatura ${amountStr}, venc. ${dueStr}. ${payUrl}`,
       });
 
       if (result.success) {
-        await logInfo('E-mail de fatura (exibidor) enviado', { billingId, to: row.publisher_email });
+        await logInfo('E-mail de fatura (organização) enviado', { billingId, to: row.publisher_email });
         return { sent: true };
       }
       return { sent: false, reason: result.error || 'Falha no envio SMTP' };
     } catch (error: any) {
-      await logError('Erro ao enviar e-mail de fatura (exibidor)', error, { billingId });
+      await logError('Erro ao enviar e-mail de fatura (organização)', error, { billingId });
       return { sent: false, reason: error.message };
     }
   }
 
-  /** Lembretes para faturas pendentes (anunciantes + exibidor incoming). */
+  /** Lembretes para faturas pendentes (anunciantes + organização incoming). */
   async sendPendingInvoiceReminders(): Promise<{ sent: number; skipped: number }> {
     const days = financialConfig.dueSoonDays;
     const subRows = await this.db.findMany(

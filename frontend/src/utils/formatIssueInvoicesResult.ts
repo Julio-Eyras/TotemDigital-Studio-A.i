@@ -20,7 +20,7 @@ export function formatRevenueSharePayoutMessage(
 ): string | null {
   if (!repasse) return null;
   if (repasse.created === 0 && repasse.errors.length === 0) return null;
-  return `Repasse exibidor: ${repasse.created} criado(s), ${repasse.skipped} ignorado(s)${
+  return `Repasse organização: ${repasse.created} criado(s), ${repasse.skipped} ignorado(s)${
     repasse.errors.length ? `, ${repasse.errors.length} erro(s)` : ''
   }.`;
 }

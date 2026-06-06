@@ -1,7 +1,7 @@
 /**
  * Autorização explícita para escrita/gestão de faturamento (subscriber + publisher billing).
- * Inclui `owner_system` (dono do produto; no mono compacto alinha-se ao exibidor único),
- * papéis tenant de faturamento e, no modo compacto mono, o `publisher_user` operador do exibidor.
+ * Inclui `owner_system` (dono do produto; no mono compacto alinha-se à organização única),
+ * papéis tenant de faturamento e, no modo compacto mono, o `publisher_user` da organização.
  */
 
 import { Response, NextFunction } from 'express';
@@ -118,7 +118,7 @@ export const authorizeBillingManagementOrSubscriberSelf = async (
 };
 
 /**
- * Gestão de faturamento OU exibidor pagando fatura incoming própria (stripe-checkout).
+ * Gestão de faturamento OU organização pagando fatura incoming própria (stripe-checkout).
  */
 export const authorizeBillingManagementOrPublisherSelf = async (
   req: AuthenticatedRequest,
@@ -154,7 +154,7 @@ export const authorizeBillingManagementOrPublisherSelf = async (
     )) as { publisher_id: number; direction: string; payment_status: string } | null;
 
     if (!row || row.publisher_id !== publisherId) {
-      res.status(403).json({ error: 'Fatura não pertence a este exibidor.', code: 'FORBIDDEN' });
+      res.status(403).json({ error: 'Fatura não pertence a esta organização.', code: 'FORBIDDEN' });
       return;
     }
     if (row.direction !== 'incoming') {

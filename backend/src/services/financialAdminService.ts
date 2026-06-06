@@ -91,7 +91,7 @@ export class FinancialAdminService {
   }
 
   /**
-   * Emite faturas de anunciantes e exibidores (contratos ativos).
+   * Emite faturas de anunciantes e organizações (contratos ativos).
    */
   async issueContractInvoices(options?: {
     subscriberId?: number;
@@ -112,7 +112,7 @@ export class FinancialAdminService {
       });
       merged = this.mergeIssueResults(merged, repasse);
     }
-    await logInfo('Emissão financeira consolidada (anunciante + exibidor)', {
+    await logInfo('Emissão financeira consolidada (anunciante + organização)', {
       created: merged.created,
       skipped: merged.skipped,
       errors: merged.errors.length,
@@ -266,7 +266,7 @@ export class FinancialAdminService {
     }
   }
 
-  /** Faturas de assinatura de contratos de exibidor (publisher_contracts, direction incoming). */
+  /** Faturas de assinatura de contratos da organização (publisher_contracts, direction incoming). */
   async issuePublisherContractInvoices(options?: {
     publisherId?: number;
     publisherContractId?: number;
@@ -343,7 +343,7 @@ export class FinancialAdminService {
           if (!amount || amount <= 0) {
             result.errors.push({
               contractId,
-              message: 'Valor de assinatura do contrato de exibidor não definido',
+              message: 'Valor de assinatura do contrato da organização não definido',
             });
             continue;
           }
@@ -353,7 +353,7 @@ export class FinancialAdminService {
             contractId,
             period.label
           );
-          const description = `Assinatura ${period.label} — ${row.title || 'Contrato exibidor'}`;
+          const description = `Assinatura ${period.label} — ${row.title || 'Contrato da organização'}`;
 
           const billing = await billingService.createBilling({
             publisherId,
@@ -383,11 +383,11 @@ export class FinancialAdminService {
             invoiceNumber,
           });
         } catch (e: any) {
-          result.errors.push({ contractId, message: e?.message || 'Erro ao emitir fatura exibidor' });
+          result.errors.push({ contractId, message: e?.message || 'Erro ao emitir fatura da organização' });
         }
       }
 
-      await logInfo('Emissão de faturas por contrato (exibidor) concluída', {
+      await logInfo('Emissão de faturas por contrato (organização) concluída', {
         created: result.created,
         skipped: result.skipped,
         errors: result.errors.length,
@@ -395,14 +395,14 @@ export class FinancialAdminService {
 
       return result;
     } catch (error: any) {
-      await logError('Erro na emissão de faturas por contrato (exibidor)', error);
+      await logError('Erro na emissão de faturas por contrato (organização)', error);
       throw error;
     }
   }
 
   /**
-   * Gera repasses (outgoing) para exibidor com base em faturas de campanha já pagas pelo anunciante.
-   * Usa % de campaign_publishers ou do contrato de exibidor (revenue_share / hybrid).
+   * Gera repasses (outgoing) para a organização com base em faturas de campanha já pagas pelo anunciante.
+   * Usa % de campaign_publishers ou do contrato da organização (revenue_share / hybrid).
    */
   async issueRevenueSharePayouts(options?: {
     publisherId?: number;
@@ -694,7 +694,7 @@ export class FinancialAdminService {
     paymentStatus: string;
   }): void {
     if (billing.direction !== 'incoming') {
-      throw new Error('Apenas faturas de entrada (exibidor paga) aceitam pagamento PIX/Stripe');
+      throw new Error('Apenas faturas de entrada (organização paga) aceitam pagamento PIX/Stripe');
     }
     if (!['pending', 'overdue'].includes(billing.paymentStatus)) {
       throw new Error('Fatura não está pendente de pagamento');
@@ -769,7 +769,7 @@ export class FinancialAdminService {
     const session = await stripe.createOneTimePaymentSession({
       amount: Number(billing.amount),
       currency: billing.currency || 'BRL',
-      description: billing.description || `Fatura exibidor #${billingId}`,
+      description: billing.description || `Fatura organização #${billingId}`,
       successUrl: `${base}/billing?type=publisher&paid=${billingId}&session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${base}/billing?type=publisher&invoice=${billingId}`,
       metadata: {
@@ -819,7 +819,7 @@ export class FinancialAdminService {
 
     if (scope === 'publisher') {
       const billing = await getPublisherBillingServiceInstance().getBillingById(billingId);
-      if (!billing) throw new Error('Fatura de exibidor não encontrada');
+      if (!billing) throw new Error('Fatura da organização não encontrada');
       if (billing.paymentStatus === 'paid') {
         return { billingId, scope, alreadyPaid: true };
       }

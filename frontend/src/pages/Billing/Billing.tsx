@@ -85,6 +85,7 @@ import {
   getPlanPriceForInterval,
 } from '../../utils/billingIntervals';
 import { isStudioMode } from '../../config/studioMode';
+import { getProductTerminology } from '../../config/productTerminology';
 import {
   billingViewFromTabIndex,
   parseBillingView,
@@ -139,12 +140,12 @@ const Billing: React.FC = () => {
   /** QR PIX / Stripe: gestores ou anunciante na própria fatura */
   const canPaySubscriberInvoices = canCreateModernInvoices || isSubscriberUser;
 
-  /** Faturas incoming do exibidor: gestores ou publisher_user */
+  /** Faturas incoming da organização: gestores ou publisher_user */
   const canPayPublisherInvoices = canCreateModernInvoices || isPublisherUser;
 
   const DUE_SOON_DAYS = 30;
   const rawType = searchParams.get('type');
-  /** Escopo: anunciantes ou exibidor (sem legado "todos"). */
+  /** Escopo: anunciantes ou organização (sem legado "todos"). */
   const billingType = (() => {
     if (isSubscriberUser) return 'subscriber';
     if (isPublisherUser && !canViewAllBillingTypes) {
@@ -603,7 +604,7 @@ const Billing: React.FC = () => {
       setPublisherBillings(response.billings || []);
       setPublisherBillingTotal(response.total ?? response.billings?.length ?? 0);
     } catch (e) {
-      showError('Erro ao carregar faturas do exibidor');
+      showError(`Erro ao carregar faturas da ${getProductTerminology().billingPublisherLabel.toLowerCase()}`);
     }
   };
 
@@ -897,7 +898,7 @@ const Billing: React.FC = () => {
         : pidFromForm;
     const amt = parseCurrencyInputValue(newPublisherInvoice.amount);
     if (!Number.isFinite(pid) || pid < 1 || !amt) {
-      showError('Indique o publicador e um valor válidos (no mono, o utilizador deve ter publisherId).');
+      showError(`Indique a ${orgTerms.billingPublisherLabel.toLowerCase()} e um valor válidos (no mono, o utilizador deve ter publisherId).`);
       return;
     }
     try {
@@ -919,9 +920,9 @@ const Billing: React.FC = () => {
         description: '',
       });
       await loadPublisherBillings();
-      showSuccess('Fatura de publicador criada.');
+      showSuccess(`Fatura da ${orgTerms.billingPublisherLabel.toLowerCase()} criada.`);
     } catch (e: any) {
-      showError(pickApiErrorMessage(e, 'Erro ao criar fatura de publicador'));
+      showError(pickApiErrorMessage(e, `Erro ao criar fatura da ${orgTerms.billingPublisherLabel.toLowerCase()}`));
     }
   };
 
@@ -988,11 +989,12 @@ const Billing: React.FC = () => {
     }).format(amount);
   };
 
+  const orgTerms = getProductTerminology();
   const billingTabLabel =
     billingType === 'subscriber'
       ? 'Faturas Anunciantes'
       : billingType === 'publisher'
-      ? 'Faturas Publicadores'
+      ? `Faturas ${orgTerms.billingPublisherTab}`
       : 'Faturas';
   const BILLING_SECTIONS = [
     { label: 'Planos', icon: CreditCard },
@@ -1003,7 +1005,7 @@ const Billing: React.FC = () => {
   const billingSubtitle =
     billingView === 'invoices'
       ? billingType === 'publisher'
-        ? 'Lista de faturas de exibidores'
+        ? `Lista de faturas de ${orgTerms.billingPublisherTab.toLowerCase()}`
         : 'Lista de faturas de anunciantes'
       : billingView === 'subscriptions'
         ? 'Assinaturas ativas e histórico'
@@ -1025,6 +1027,14 @@ const Billing: React.FC = () => {
         </Alert>
       )}
 
+      {!isSubscriberUser && !isPublisherUser && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          <strong>Anunciantes</strong> — faturas dos clientes que contratam espaço publicitário.{' '}
+          <strong>{orgTerms.billingPublisherTab}</strong> — faturas da operação de exibição
+          (assinatura da plataforma, repasse revenue share e taxas da organização).
+        </Alert>
+      )}
+
       <BillingControlPanel
         dashboard={dashboard}
         loading={loading}
@@ -1034,7 +1044,7 @@ const Billing: React.FC = () => {
             : billingType === 'publisher' || canViewAllBillingTypes
         }
         showRevenueShareKpis={isStudioMode() && canViewAllBillingTypes}
-        publisherLabel={isStudioMode() ? 'Exibidor (sistema)' : 'Publicadores'}
+        publisherLabel={orgTerms.billingPublisherLabel}
         onFilterInvoices={canViewAllBillingTypes || !isSubscriberUser ? applyInvoiceDueFilter : undefined}
         onFilterPendingInvoices={
           canViewAllBillingTypes || !isSubscriberUser ? applyInvoicePendingFilter : undefined
@@ -1069,7 +1079,7 @@ const Billing: React.FC = () => {
             {!isSubscriberUser && <MenuItem value="subscriber">Anunciantes</MenuItem>}
             {!isSubscriberUser && (
               <MenuItem value="publisher">
-                {isStudioMode() ? 'Exibidor (sistema)' : 'Publicadores'}
+                {orgTerms.billingPublisherTab}
               </MenuItem>
             )}
             {isSubscriberUser && <MenuItem value="subscriber">Anunciantes</MenuItem>}
@@ -1723,7 +1733,7 @@ const Billing: React.FC = () => {
                   Emitir faturas do período
                 </Button>
                 <Button startIcon={<Add />} variant="contained" onClick={() => setCreatePublisherOpen(true)}>
-                  {isStudioMode() ? 'Nova fatura (exibidor)' : 'Nova fatura (publicador)'}
+                  {`Nova fatura (${orgTerms.billingPublisherLabel.toLowerCase()})`}
                 </Button>
               </>
             )}
@@ -1734,7 +1744,7 @@ const Billing: React.FC = () => {
               <TableHead>
                 <TableRow>
                   <TableCell>ID</TableCell>
-                  {!isStudioMode() && <TableCell>Publicador</TableCell>}
+                  {!isStudioMode() && <TableCell>{orgTerms.billingPublisherLabel}</TableCell>}
                   <TableCell>Campanha</TableCell>
                   <TableCell>Tipo</TableCell>
                   <TableCell>Direção</TableCell>
@@ -1770,7 +1780,7 @@ const Billing: React.FC = () => {
                   <TableRow key={billing.billing_id} sx={invoiceRowSx(dueLevel)}>
                     <TableCell>{billing.billing_id}</TableCell>
                     {!isStudioMode() && (
-                      <TableCell>{billing.publisher_name || `Publicador #${billing.publisher_id}`}</TableCell>
+                      <TableCell>{billing.publisher_name || `${orgTerms.billingPublisherLabel} #${billing.publisher_id}`}</TableCell>
                     )}
                     <TableCell>{billing.campaign_title || '-'}</TableCell>
                     <TableCell>{billing.billing_type}</TableCell>
@@ -1895,9 +1905,7 @@ const Billing: React.FC = () => {
                   <TableRow>
                     <TableCell colSpan={isStudioMode() ? 10 : 11} align="center">
                       <Typography variant="body2" color="text.secondary">
-                        {isStudioMode()
-                          ? 'Nenhuma fatura do exibidor encontrada'
-                          : 'Nenhuma fatura de publicador encontrada'}
+                        {`Nenhuma fatura da ${orgTerms.billingPublisherLabel.toLowerCase()} encontrada`}
                       </Typography>
                     </TableCell>
                   </TableRow>
@@ -2012,25 +2020,25 @@ const Billing: React.FC = () => {
 
       {canCreateModernInvoices && (
         <Dialog open={createPublisherOpen} onClose={() => setCreatePublisherOpen(false)} maxWidth="sm" fullWidth>
-          <DialogTitle>Nova fatura (publicador)</DialogTitle>
+          <DialogTitle>{`Nova fatura (${orgTerms.billingPublisherLabel.toLowerCase()})`}</DialogTitle>
           <DialogContent>
             {(!isStudioMode() || !isPublisherUser || user?.publisherId == null) && (
               <TextField
                 fullWidth
                 margin="normal"
-                label="ID do publicador"
+                label={`ID da ${orgTerms.billingPublisherLabel.toLowerCase()}`}
                 value={newPublisherInvoice.publisherId}
                 onChange={(e) => setNewPublisherInvoice({ ...newPublisherInvoice, publisherId: e.target.value })}
                 helperText={
                   isStudioMode() && isPublisherUser && user?.publisherId == null
-                    ? 'O seu utilizador não tem publisherId; indique o ID do exibidor.'
+                    ? `O seu utilizador não tem publisherId; indique o ID da ${orgTerms.billingPublisherLabel.toLowerCase()}.`
                     : undefined
                 }
               />
             )}
             {isStudioMode() && isPublisherUser && user?.publisherId != null && (
               <Alert severity="info" sx={{ mt: 1, mb: 1 }}>
-                Publicador: #{user.publisherId} (mono compacto)
+                {orgTerms.billingPublisherLabel}: #{user.publisherId}
               </Alert>
             )}
             <FormControl fullWidth margin="normal">
@@ -2063,7 +2071,7 @@ const Billing: React.FC = () => {
                   })
                 }
               >
-                <MenuItem value="incoming">Entrada (ex.: o exibidor paga)</MenuItem>
+                <MenuItem value="incoming">{`Entrada (ex.: a ${orgTerms.billingPublisherLabel.toLowerCase()} paga)`}</MenuItem>
                 <MenuItem value="outgoing">Saída (ex.: reparte / recebe)</MenuItem>
               </Select>
             </FormControl>

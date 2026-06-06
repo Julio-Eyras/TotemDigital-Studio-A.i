@@ -35,7 +35,7 @@ import {
 import { subscriberAccessApi } from '../../services/api';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
-import { isStudioMode } from '../../config/studioMode';
+import { getProductTerminology, isSingleOrganizationProfile } from '../../config/productTerminology';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -316,7 +316,7 @@ const AccessTable: React.FC<AccessTableProps> = ({ access, getDaysUntilExpiry, g
         <TableHead>
           <TableRow>
             <TableCell><strong>Anunciante</strong></TableCell>
-            <TableCell><strong>{isStudioMode() ? 'Escopo' : 'Publisher'}</strong></TableCell>
+            <TableCell><strong>{isSingleOrganizationProfile() ? 'Escopo' : getProductTerminology().organization}</strong></TableCell>
             <TableCell><strong>Tipo de Acesso</strong></TableCell>
             <TableCell><strong>Contrato</strong></TableCell>
             <TableCell><strong>Plano</strong></TableCell>
@@ -344,9 +344,11 @@ const AccessTable: React.FC<AccessTableProps> = ({ access, getDaysUntilExpiry, g
                 <TableCell>
                   <Box>
                     <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      {isStudioMode() ? 'Instalação principal' : (item.publisherName || `Publisher ${item.publisherId}`)}
+                      {isSingleOrganizationProfile()
+                        ? 'Sua organização'
+                        : (item.publisherName || `Organização ${item.publisherId}`)}
                     </Typography>
-                    {!isStudioMode() && (
+                    {!isSingleOrganizationProfile() && (
                       <Typography variant="caption" color="text.secondary">
                         ID: {item.publisherId}
                       </Typography>

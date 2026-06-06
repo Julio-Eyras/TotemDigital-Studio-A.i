@@ -1,6 +1,6 @@
 /**
  * PublisherCard Component
- * Card reutilizável para exibir informações de um publisher
+ * Card reutilizável para exibir informações de uma organização (publisher)
  */
 
 import React from 'react';
@@ -25,6 +25,7 @@ import {
   Visibility,
 } from '@mui/icons-material';
 import { Publisher } from '../../../services/api';
+import { getProductTerminology } from '../../../config/productTerminology';
 
 export interface PublisherCardProps {
   publisher: Publisher;
@@ -38,7 +39,7 @@ const getClientTypeLabel = (clientType?: string) => {
     case 'subscriber':
       return 'Assinante';
     case 'publisher':
-      return 'Publicador';
+      return getProductTerminology().organization;
     case 'both':
       return 'Ambos';
     default:

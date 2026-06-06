@@ -1,7 +1,8 @@
 /**
- * Rede visual HoloGraph: publishers, subscribers, agendamentos (D3 + adapter SmartSignage).
+ * Rede visual HoloGraph: organizações, anunciantes, agendamentos (API: publishers/subscribers).
  */
 import React, { useRef, useEffect, useState } from 'react';
+import { getProductTerminology } from '../../config/productTerminology';
 import * as d3 from 'd3';
 import { Box, CircularProgress, Alert, Typography, Button } from '@mui/material';
 import { networkTopologyApi } from '../../services/api';
@@ -328,7 +329,7 @@ export const HoloGraphNetwork: React.FC<HoloGraphNetworkProps> = ({
         }}
       >
         <Typography color="text.secondary" textAlign="center" sx={{ px: 2 }}>
-          Nenhum nó para exibir. Ajuste os filtros (dia/horário) ou verifique se há publicadores e assinantes cadastrados.
+          {`Nenhum nó para exibir. Ajuste os filtros (dia/horário) ou verifique se há ${getProductTerminology().organizationPlural.toLowerCase()} e anunciantes cadastrados.`}
         </Typography>
       </Box>
     );

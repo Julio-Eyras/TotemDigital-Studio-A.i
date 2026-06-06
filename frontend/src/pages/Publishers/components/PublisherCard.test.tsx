@@ -46,7 +46,7 @@ describe('PublisherCard', () => {
 
   it('deve exibir tipo de cliente quando informado', () => {
     renderWithTheme(<PublisherCard publisher={{ ...mockPublisher, client_type: 'publisher' }} />);
-    expect(screen.getByText('Publicador')).toBeInTheDocument();
+    expect(screen.getByText('Organização')).toBeInTheDocument();
   });
 
   it('deve chamar onView ao clicar em visualizar quando fornecido', () => {

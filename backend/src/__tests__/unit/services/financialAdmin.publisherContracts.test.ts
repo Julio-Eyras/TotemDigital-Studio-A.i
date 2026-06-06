@@ -34,7 +34,7 @@ describe('FinancialAdminService.issuePublisherContractInvoices', () => {
     delete (global as any).subscriberBillingServiceInstance;
   });
 
-  it('emite fatura incoming para contrato de exibidor com subscription_amount', async () => {
+  it('emite fatura incoming para contrato da organização com subscription_amount', async () => {
     findMany.mockResolvedValueOnce([
       {
         contract_id: 5,

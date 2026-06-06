@@ -303,7 +303,7 @@ async function validateAndExecute() {
       const subOverdue = overdueSub.rows[0].c;
       const pubOverdue = overduePub.rows[0].c;
       console.log(
-        `  ℹ️  Faturas overdue: anunciantes=${subOverdue}, exibidor=${pubOverdue}`
+        `  ℹ️  Faturas overdue: anunciantes=${subOverdue}, organização=${pubOverdue}`
       );
       if (process.env.VALIDATE_V6_SKIP_LOAD === 'true' || process.env.VALIDATE_V6_SKIP_LOAD === '1') {
         const subTotal = await pool.query(`SELECT COUNT(*)::int AS c FROM subscribers`);

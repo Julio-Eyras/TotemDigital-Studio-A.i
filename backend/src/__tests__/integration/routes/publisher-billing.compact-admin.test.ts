@@ -62,7 +62,7 @@ describe('publisher-billing modo compacto — gestor com revenue share', () => {
     mockGetBillingById.mockResolvedValue(minimalBilling);
   });
 
-  it('permite owner_system aceder faturamento de exibidor (sem guard legacy)', async () => {
+  it('permite owner_system aceder faturamento da organização (sem guard legacy)', async () => {
     const router = (await import('../../../routes/publisher-billing')).default;
     const app = express();
     app.use(express.json());

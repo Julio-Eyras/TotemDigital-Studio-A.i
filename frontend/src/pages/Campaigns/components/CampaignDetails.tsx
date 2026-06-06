@@ -60,6 +60,7 @@ import { isStudioMode } from '../../../config/studioMode';
 import {DISABLE_DIRECT_CAMPAIGN_TOTEM} from '../../../config/featureFlags';
 import { DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT_PT } from '../../../constants/campaignUiMessages';
 import { getTotemIdFromRow } from '../../../utils/totemRowIds';
+import { getProductTerminology } from '../../../config/productTerminology';
 
 export interface CampaignDetailsProps {
   open: boolean;
@@ -145,6 +146,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
   onEdit,
   onManageInSubscriber,
 }) => {
+  const orgTerms = getProductTerminology();
   const [activeTab, setActiveTab] = useState(0);
   const [playlists, setPlaylists] = useState<PlaylistItem[]>([]);
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
@@ -207,7 +209,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
         promises.push(Promise.resolve([]));
       }
 
-      // Publishers (Pro)
+      // Organizações (Pro — publisherIds)
       if (
         !isStudioMode() &&
         (campaign as any).publisherIds &&
@@ -332,7 +334,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
             }
             iconPosition="end"
           />
-          {!isStudioMode() && <Tab label="Publicadores" />}
+          {!isStudioMode() && <Tab label="Organizações" />}
           <Tab
             label="Totens"
             icon={
@@ -513,14 +515,14 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
           </Box>
         )}
 
-        {/* Aba Publicadores */}
+        {/* Aba Organizações */}
         {!isStudioMode() && activeTab === 3 && (
           <Box>
             <Typography variant="h6" sx={{ mb: 2 }}>
-              Publicadores ({(campaign as any).publisherIds?.length || 0})
+              {orgTerms.campaignOrganizationsTab} ({(campaign as any).publisherIds?.length || 0})
             </Typography>
             {!(campaign as any).publisherIds || (campaign as any).publisherIds.length === 0 ? (
-              <Alert severity="info">Nenhum publicador associado a esta campanha</Alert>
+              <Alert severity="info">Nenhuma organização associada a esta campanha</Alert>
             ) : publishers.length > 0 ? (
               <List>
                 {publishers.map((publisher) => (
@@ -537,7 +539,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
               </List>
             ) : (
               <Alert severity="warning">
-                Publicadores associados: {(campaign as any).publisherIds.join(', ')} (detalhes não disponíveis)
+                {orgTerms.organizationPlural} associadas: {(campaign as any).publisherIds.join(', ')} (detalhes não disponíveis)
               </Alert>
             )}
           </Box>
@@ -560,7 +562,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({
               <Alert severity="info">
                 {isStudioMode()
                   ? 'Nenhum totem associado explicitamente a esta campanha.'
-                  : 'Nenhum totem associado explicitamente. Totens impactados serão derivados dos publicadores selecionados na aba «Publicadores».'}
+                  : `Nenhum totem associado explicitamente. Totens impactados serão derivados das ${orgTerms.organizationPlural.toLowerCase()} selecionadas na aba «${orgTerms.campaignOrganizationsTab}».`}
               </Alert>
             ) : totems.length > 0 ? (
               <List>

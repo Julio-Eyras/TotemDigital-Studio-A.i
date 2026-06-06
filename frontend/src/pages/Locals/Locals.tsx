@@ -71,6 +71,7 @@ import { useAppSelector } from '../../store';
 import { getForeignTotemIdFromRow, getTotemIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { PageHeader } from '../../components/DataDisplay';
+import { getProductTerminology } from '../../config/productTerminology';
 import { isStudioMode } from '../../config/studioMode';
 
 const Locals: React.FC = () => {
@@ -93,7 +94,7 @@ const Locals: React.FC = () => {
       'gerente_marketing',
     ].includes(normalizedRole)
   );
-  /** Criar/apagar local: no modo compacto inclui usuário do exibidor (alinha com edição). Demais modos: só administrativo. */
+  /** Criar/apagar local: no modo compacto inclui publisher_user (organização). Demais modos: só administrativo. */
   const canManageLocals = useMemo(() => {
     if (isStudioMode()) {
       return isAdmin || ['operator', 'manager', 'publisher_user'].includes(normalizedRole);
@@ -217,7 +218,7 @@ const Locals: React.FC = () => {
         limit: 100,
       });
       
-      // Em modo compacto há publisher único; ordenar apenas por nome.
+      // Em modo compacto há uma organização (publisher_id único); ordenar apenas por nome.
       const sortedLocals = [...response.data].sort((a, b) => {
         if (isStudioMode()) {
           return (a.name || '').localeCompare(b.name || '');
@@ -255,7 +256,7 @@ const Locals: React.FC = () => {
   const handleCreateLocal = async () => {
     try {
       if (!isStudioMode() && !newLocal.publisher_id) {
-        setError('Selecione um publisher');
+        setError(`Selecione uma ${getProductTerminology().organization.toLowerCase()}`);
         return;
       }
       if (!toOptionalText(newLocal.name)) {
@@ -380,7 +381,7 @@ const Locals: React.FC = () => {
     setSmartTvDetailsAvailable(true);
     
     try {
-      // Carregar dados do Publisher
+      // Carregar dados da organização (publisher)
       if (!isStudioMode() && local.publisher_id) {
         try {
           const publisher = await publisherApi.getById(local.publisher_id);
@@ -422,7 +423,7 @@ const Locals: React.FC = () => {
         setSelectedSmartTvs([]);
       }
       
-      // Carregar Contratos do Publisher
+      // Carregar contratos da organização (publisher_contracts)
       if (local.publisher_id) {
         try {
           const contracts = await publisherContractApi.getByPublisher(local.publisher_id);
@@ -437,9 +438,9 @@ const Locals: React.FC = () => {
     }
   };
 
-  // Agrupar locais por Publisher
+  // Agrupar locais por organização (publisher_name)
   const groupedLocals = locals.reduce((acc, local) => {
-    const publisherName = local.publisher_name || 'Sem Publisher';
+    const publisherName = local.publisher_name || `Sem ${getProductTerminology().organization.toLowerCase()}`;
     if (!acc[publisherName]) {
       acc[publisherName] = [];
     }
@@ -465,11 +466,11 @@ const Locals: React.FC = () => {
   return (
     <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
       <PageHeader
-        title="Locais"
+        title={getProductTerminology().units}
         subtitle={
           isStudioMode()
             ? 'Gerencie os locais da instalação'
-            : 'Gerencie locais vinculados aos Veículos de Mídia (Publicadores)'
+            : `Gerencie locais vinculados às ${getProductTerminology().organizationPlural.toLowerCase()}`
         }
         actions={[
           ...(canManageLocals
@@ -517,10 +518,10 @@ const Locals: React.FC = () => {
             {showPublisherFilter && (
               <Grid item xs={12} md={3}>
                 <FormControl fullWidth>
-                  <InputLabel>Publicador</InputLabel>
+                  <InputLabel>{getProductTerminology().organization}</InputLabel>
                   <Select
                     value={publisherFilter || ''}
-                    label="Publicador"
+                    label={getProductTerminology().organization}
                     onChange={(e) => setPublisherFilter(e.target.value ? Number(e.target.value) : undefined)}
                   >
                     <MenuItem value="">Todos</MenuItem>
@@ -555,7 +556,7 @@ const Locals: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Listagem (modo compacto: lista plana; modo Pro: agrupada por Publisher) */}
+      {/* Listagem (modo compacto: lista plana; modo Pro: agrupada por organização) */}
       {localSections.map(([publisherName, publisherLocals]) => (
         <Box key={publisherName} sx={{ mb: 4 }}>
           {!isStudioMode() && (
@@ -674,15 +675,15 @@ const Locals: React.FC = () => {
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
             {canManageLocals && isStudioMode() && (
               <Alert severity="info">
-                No modo compacto, o local será vinculado ao publisher da instalação (owner).
+                No modo compacto, o local será vinculado à {getProductTerminology().organization.toLowerCase()} da instalação.
               </Alert>
             )}
             {isAdmin && !isStudioMode() && (
               <FormControl fullWidth>
-                <InputLabel>Publicador *</InputLabel>
+                <InputLabel>{getProductTerminology().organization} *</InputLabel>
                 <Select
                   value={newLocal.publisher_id || ''}
-                  label="Publicador *"
+                  label={`${getProductTerminology().organization} *`}
                   onChange={(e) => setNewLocal({ ...newLocal, publisher_id: Number(e.target.value) })}
                 >
                   {publishers.map((publisher) => (
@@ -801,14 +802,14 @@ const Locals: React.FC = () => {
                 allowScrollButtonsMobile
                 sx={{ mb: 2 }}
               >
-                {!isStudioMode() && <Tab label="Publicadores" icon={<Business />} iconPosition="start" />}
+                {!isStudioMode() && <Tab label={getProductTerminology().organizationPlural} icon={<Business />} iconPosition="start" />}
                 <Tab label="Local" icon={<Store />} iconPosition="start" />
                 <Tab label="Totens" icon={selectedTotems.length > 0 ? <Chip label={selectedTotems.length} size="small" color="primary" /> : <Computer />} iconPosition="end" />
                 <Tab label="Smart TVs" icon={selectedSmartTvs.length > 0 ? <Chip label={selectedSmartTvs.length} size="small" color="primary" /> : <Tv />} iconPosition="end" />
                 <Tab label="Contratos" icon={selectedContracts.length > 0 ? <Chip label={selectedContracts.length} size="small" color="primary" /> : <Assignment />} iconPosition="end" />
               </Tabs>
 
-              {/* Aba Publisher */}
+              {/* Aba Organização */}
               {!isStudioMode() && detailsTab === detailsTabIndex.publisher && selectedPublisher && (
                 <TableContainer component={Paper}>
                   <Table size="small">
@@ -1025,7 +1026,7 @@ const Locals: React.FC = () => {
                     <Alert severity="info">
                       {isStudioMode()
                         ? 'Nenhum contrato encontrado para esta instalação'
-                        : 'Nenhum contrato encontrado para este publisher'}
+                        : `Nenhum contrato encontrado para esta ${getProductTerminology().organization.toLowerCase()}`}
                     </Alert>
                   ) : (
                     <List>

@@ -1,6 +1,6 @@
 /**
  * Publisher Billing Routes - Smart Signage v2.1
- * Rotas para gerenciamento de billing de publishers (publicadores)
+ * Rotas para faturamento da organização (publisher_billing)
  * 
  * Publishers podem receber revenue share (outgoing) ou pagar subscription (incoming)
  */
@@ -80,7 +80,7 @@ router.get('/',
           return res.status(403).json({
             success: false,
             error: 'Acesso negado',
-            message: 'Publicador não identificado',
+            message: 'Organização não identificada',
           });
         }
         finalPublisherId = resolved;
@@ -254,7 +254,7 @@ router.post('/',
           return res.status(403).json({
             success: false,
             error: 'Acesso negado',
-            message: 'No modo compacto só pode registar faturas do exibidor dono (publisherId do token).',
+            message: 'No modo compacto só pode registar faturas da organização dona (publisherId do token).',
           });
         }
       }

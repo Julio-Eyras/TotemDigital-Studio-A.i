@@ -136,7 +136,7 @@ describe('contract.validators', () => {
         body: {
           contract_number: 'PC-002',
           contract_type: 'subscription',
-          title: 'Assinatura exibidor',
+          title: 'Assinatura organização',
           start_date: '2025-01-01T00:00:00.000Z',
           subscription_amount: 499.9,
           billing_interval: 'four_month',

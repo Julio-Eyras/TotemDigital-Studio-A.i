@@ -79,7 +79,7 @@ describe('BillingControlService.getDashboard revenueShare', () => {
     });
   });
 
-  it('inclui KPIs de repasse e contratos de exibidor', async () => {
+  it('inclui KPIs de repasse e contratos da organização', async () => {
     const { getBillingControlService } = require('../../../services/billingControlService');
     const dash = await getBillingControlService().getDashboard({ dueSoonDays: 30 });
 

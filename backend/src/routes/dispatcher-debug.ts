@@ -19,7 +19,7 @@ const DISPATCHER_DEBUG_ROLES = isStudioRuntime()
   ? (['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'publisher_user'] as const)
   : (['admin', 'admin_sql', 'owner_system', 'operador_tecnico'] as const);
 
-// Apenas admins e operadores técnicos podem aceder ao debug; em modo compacto também o publicador dono
+// Apenas admins e operadores técnicos podem aceder ao debug; em modo compacto também a organização dona
 router.use(authorizeRole([...DISPATCHER_DEBUG_ROLES]) as any);
 
 const validateRequest = (req: any, res: any, next: any) => {

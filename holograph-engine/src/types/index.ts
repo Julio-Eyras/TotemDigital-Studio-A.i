@@ -39,7 +39,7 @@ export const NODE_TYPE_COLORS: Record<string, string> = {
 }
 
 export const NODE_TYPE_LABELS: Record<string, string> = {
-  publisher: 'Publicador',
+  publisher: 'Organização',
   location: 'Local',
   totem: 'Totem',
   smarttv: 'Smart TV',

@@ -1639,7 +1639,7 @@ export class DispatcherTotemService {
         `, [candidate.subscriberId, totemId, timestamp]);
         
         if (!access) {
-          errors.push('Subscriber não tem acesso a este publisher');
+          errors.push('Anunciante não tem acesso a esta organização');
         }
         }
       }

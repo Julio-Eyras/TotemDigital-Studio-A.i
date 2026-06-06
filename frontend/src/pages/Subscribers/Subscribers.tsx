@@ -516,7 +516,7 @@ const Subscribers: React.FC = () => {
   const [editingItemDuration, setEditingItemDuration] = useState<number | null>(null);
   const [tempItemDuration, setTempItemDuration] = useState<{ [itemId: number]: number }>({});
   const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
-  /** Totens derivados da exposição da playlist (campanhas → publishers/locais/totens) */
+  /** Totens derivados da exposição da playlist (campanhas → organizações/locais/totens) */
   const [editPlaylistTotemLabels, setEditPlaylistTotemLabels] = useState<string[]>([]);
   
   // Estados para campanha (mídias e playlists associadas)
@@ -664,7 +664,7 @@ const Subscribers: React.FC = () => {
     }
   }, [createTab, createDialogOpen, editTab, editDialogOpen]);
 
-  /** Carrega rede (publishers → locais/totens/TVs) conforme planos nos contratos em rascunho. */
+  /** Carrega rede (organizações → locais/totens/TVs) conforme planos nos contratos em rascunho. */
   useEffect(() => {
     if (!createDialogOpen) {
       setCreateContractPlanPreview({ loading: false, error: null, rows: [] });
@@ -1968,7 +1968,7 @@ const Subscribers: React.FC = () => {
       // Contratos já foram criados pela procedure quando enviados no payload; não criar de novo via API.
 
       // NOTA: Subscribers não podem criar locais próprios
-      // Locais pertencem apenas a publishers
+      // Locais pertencem apenas a organizações (publisher_id)
       // Subscribers acessam locais através de planos e contratos
       const createdLocals: Local[] = [];
       // Removido: criação de locais para subscribers

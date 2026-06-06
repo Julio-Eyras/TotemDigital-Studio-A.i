@@ -1,6 +1,6 @@
 /**
  * Publisher Layout
- * Layout específico para usuários de publishers (publisher.sistema.com)
+ * Layout do portal da organização (publisher_user; subdomínio publisher.*)
  * Menu hierárquico: Locais → Totens → Smart TVs
  */
 

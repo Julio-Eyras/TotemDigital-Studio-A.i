@@ -59,7 +59,7 @@ export const swaggerDocumentation = {
     { name: 'Billing', description: 'Faturamento e assinaturas' },
     { name: 'Reports', description: 'Geração de relatórios' },
     { name: 'PlaylistMix', description: 'Mixagem inteligente de playlists para totens' },
-    { name: 'Publishers', description: 'Publicadores (criação com ou sem recursos/contratos)' },
+    { name: 'Publishers', description: 'Organizações — API /publishers (criação com ou sem recursos/contratos)' },
     { name: 'Subscribers', description: 'Anunciantes (criação com ou sem contratos)' }
   ],
   paths: {

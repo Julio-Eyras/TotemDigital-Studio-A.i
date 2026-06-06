@@ -8,7 +8,7 @@ test.describe('Faturamento Studio', () => {
     await expect(adminPage.locator('#root')).toBeVisible();
   });
 
-  test('contratos de exibidor acessíveis', async ({ adminPage }) => {
+  test('contratos da organização acessíveis', async ({ adminPage }) => {
     await adminPage.goto('/publisher-contracts');
     await adminPage.waitForLoadState('domcontentloaded');
     await expect(adminPage).toHaveURL(/\/publisher-contracts/);

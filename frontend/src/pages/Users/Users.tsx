@@ -51,14 +51,16 @@ import { userApi, User, CreateUserRequest, UserFlags, publisherApi, Publisher, s
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { isStudioMode } from '../../config/studioMode';
+import { getProductTerminology } from '../../config/productTerminology';
 
 const USER_TYPE_LABEL_PT: Record<string, string> = {
-  publisher_user: 'Usuário do exibidor',
+  publisher_user: 'Usuário da organização',
   subscriber_user: 'Anunciante',
   system_user: 'Sistema',
 };
 
 const Users: React.FC = () => {
+  const orgTerms = getProductTerminology();
   const theme = useTheme();
   const formatUserTypeDisplay = (userType?: string | null) =>
     userType ? USER_TYPE_LABEL_PT[userType] || userType.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()) : 'N/A';
@@ -302,7 +304,7 @@ const Users: React.FC = () => {
                   <MenuItem value="editoracao">Edição</MenuItem>
                   <MenuItem value="visualizador">Visualizador</MenuItem>
                   <MenuItem value="user">Usuário</MenuItem>
-                  <MenuItem value="publisher_user">Usuário do exibidor</MenuItem>
+                  <MenuItem value="publisher_user">Usuário da organização</MenuItem>
                   <MenuItem value="subscriber_user">Anunciante</MenuItem>
                 </Select>
               </FormControl>
@@ -317,7 +319,7 @@ const Users: React.FC = () => {
                 >
                   <MenuItem value="all">Todos</MenuItem>
                   <MenuItem value="system_user">Sistema</MenuItem>
-                  <MenuItem value="publisher_user">Usuário do exibidor</MenuItem>
+                  <MenuItem value="publisher_user">Usuário da organização</MenuItem>
                   <MenuItem value="subscriber_user">Anunciante</MenuItem>
                 </Select>
               </FormControl>
@@ -353,7 +355,7 @@ const Users: React.FC = () => {
                 <TableCell>Email</TableCell>
                 <TableCell>Função</TableCell>
                 <TableCell>Tipo</TableCell>
-                <TableCell>{isStudioMode() ? 'Escopo' : 'Publicador / Anunciante'}</TableCell>
+                <TableCell>{isStudioMode() ? 'Escopo' : `${orgTerms.organization} / Anunciante`}</TableCell>
                 <TableCell>Último Login</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell align="right">Ações</TableCell>
@@ -414,7 +416,7 @@ const Users: React.FC = () => {
                           label={
                             isStudioMode()
                               ? 'Instalação principal'
-                              : `Publicador #${user.publisher_id}`
+                              : `${orgTerms.organization} #${user.publisher_id}`
                           }
                           size="small"
                           color="primary"
@@ -568,7 +570,7 @@ const Users: React.FC = () => {
               <MenuItem value="editoracao">Edição</MenuItem>
               <MenuItem value="visualizador">Visualizador</MenuItem>
               <MenuItem value="user">Usuário</MenuItem>
-              <MenuItem value="publisher_user">Usuário do exibidor</MenuItem>
+              <MenuItem value="publisher_user">Usuário da organização</MenuItem>
               <MenuItem value="subscriber_user">Anunciante</MenuItem>
             </Select>
           </FormControl>
@@ -589,13 +591,13 @@ const Users: React.FC = () => {
               label="Tipo de Usuário"
             >
               <MenuItem value="system_user">Sistema</MenuItem>
-              <MenuItem value="publisher_user">Usuário do exibidor</MenuItem>
+              <MenuItem value="publisher_user">Usuário da organização</MenuItem>
               <MenuItem value="subscriber_user">Anunciante</MenuItem>
             </Select>
           </FormControl>
           {newUser.userType === 'publisher_user' && (
             <FormControl fullWidth margin="normal">
-              <InputLabel>Publicador</InputLabel>
+              <InputLabel>{orgTerms.organization}</InputLabel>
               <Select
                 value={newUser.publisherId || ''}
                 onChange={(e) => {
@@ -605,9 +607,9 @@ const Users: React.FC = () => {
                     publisherId: value && value !== '' ? parseInt(String(value), 10) : undefined 
                   });
                 }}
-                label="Publicador"
+                label={orgTerms.organization}
               >
-                <MenuItem value="">Selecione um publicador</MenuItem>
+                <MenuItem value="">Selecione uma {orgTerms.organization.toLowerCase()}</MenuItem>
                 {publishers.map((publisher) => (
                   <MenuItem key={publisher.publisher_id} value={publisher.publisher_id}>
                     {publisher.name}
@@ -709,7 +711,7 @@ const Users: React.FC = () => {
               <MenuItem value="editoracao">Edição</MenuItem>
               <MenuItem value="visualizador">Visualizador</MenuItem>
               <MenuItem value="user">Usuário</MenuItem>
-              <MenuItem value="publisher_user">Usuário do exibidor</MenuItem>
+              <MenuItem value="publisher_user">Usuário da organização</MenuItem>
               <MenuItem value="subscriber_user">Anunciante</MenuItem>
               {/* Removido: publisher_subscriber não existe no domínio */}
             </Select>
@@ -733,14 +735,14 @@ const Users: React.FC = () => {
               label="Tipo de Usuário"
             >
               <MenuItem value="system_user">Sistema</MenuItem>
-              <MenuItem value="publisher_user">Usuário do exibidor</MenuItem>
+              <MenuItem value="publisher_user">Usuário da organização</MenuItem>
               <MenuItem value="subscriber_user">Anunciante</MenuItem>
               {/* Removido: publisher_subscriber não existe no domínio */}
             </Select>
           </FormControl>
           {selectedUser?.user_type === 'publisher_user' && (
             <FormControl fullWidth margin="normal">
-              <InputLabel>Publicador</InputLabel>
+              <InputLabel>{orgTerms.organization}</InputLabel>
               <Select
                 value={selectedUser?.publisher_id || ''}
                 onChange={(e) => {
@@ -750,9 +752,9 @@ const Users: React.FC = () => {
                     publisher_id: value && value !== '' ? parseInt(String(value), 10) : undefined 
                   });
                 }}
-                label="Publicador"
+                label={orgTerms.organization}
               >
-                <MenuItem value="">Selecione um publicador</MenuItem>
+                <MenuItem value="">Selecione uma {orgTerms.organization.toLowerCase()}</MenuItem>
                 {publishers.map((publisher) => (
                   <MenuItem key={publisher.publisher_id} value={publisher.publisher_id}>
                     {publisher.name}

@@ -40,7 +40,7 @@ describe('FinancialNotificationService.sendPublisherRevenueSharePayoutEmail', ()
       payment_status: 'pending_payout',
       direction: 'outgoing',
       billing_type: 'revenue_share',
-      publisher_name: 'Exibidor A',
+      publisher_name: 'Organização A',
       publisher_email: 'pub@example.com',
     });
 
@@ -51,7 +51,7 @@ describe('FinancialNotificationService.sendPublisherRevenueSharePayoutEmail', ()
     expect(sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: 'pub@example.com',
-        subject: expect.stringContaining('Repasse exibidor'),
+        subject: expect.stringContaining('Repasse organização'),
       })
     );
   });
@@ -67,7 +67,7 @@ describe('FinancialNotificationService.sendPublisherRevenueSharePayoutEmail', ()
       payment_status: 'pending_payout',
       direction: 'outgoing',
       billing_type: 'revenue_share',
-      publisher_name: 'Exibidor B',
+      publisher_name: 'Organização B',
       publisher_email: 'b@example.com',
     });
 

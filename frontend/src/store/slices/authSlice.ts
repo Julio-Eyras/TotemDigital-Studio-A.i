@@ -27,7 +27,7 @@ export interface User {
   user_type?: 'system_user' | 'subscriber_user' | 'publisher_user'; // NOVO: Tipo de usuário para detecção automática
   subscriberId?: number; // NOVO: ID do subscriber (anunciante)
   clientId?: number; // DEPRECATED: Usar subscriberId - mantido para compatibilidade
-  publisherId?: number; // NOVO: ID do publisher (publicador)
+  publisherId?: number; // ID da organização na API (publisher_id)
   subscriberName?: string; // NOVO: Nome do subscriber
   flags?: UserFlags; // NOVO: Flags de permissão do usuário
   createdAt: string;

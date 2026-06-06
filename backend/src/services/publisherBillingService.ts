@@ -1,6 +1,6 @@
 /**
  * Publisher Billing Service - Smart Signage v2.1
- * Serviço de faturamento para publishers (publicadores)
+ * Serviço de faturamento da organização (API publisher_billing)
  * 
  * Publishers podem:
  * - RECEBER revenue share (% por exibir anúncios) - direction: 'outgoing'
@@ -404,7 +404,7 @@ export class PublisherBillingService {
         `, [data.subscriptionId, data.publisherId]);
 
         if (!subscription) {
-          throw new Error('Assinatura não encontrada ou não pertence a este publisher');
+          throw new Error('Assinatura não encontrada ou não pertence a esta organização');
         }
       }
 

@@ -59,7 +59,7 @@ export class PublisherService {
   }
 
   /**
-   * Listar publishers (publicadores) com paginação e filtros
+   * Listar organizações (API publishers) com paginação e filtros
    */
   async getAllPublishers(params: {
     page?: number;
@@ -217,7 +217,7 @@ export class PublisherService {
   }
 
   /**
-   * Criar novo publisher (publicador)
+   * Criar nova organização (API publisher)
    * contract_id é opcional - pode ser criado sem contrato inicial
    */
   async createPublisher(data: CreatePublisherRequest): Promise<Publisher> {

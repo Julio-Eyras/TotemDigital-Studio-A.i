@@ -22,7 +22,7 @@ const validateRequest = (req: express.Request, res: Response, next: express.Next
 
 /**
  * @route GET /api/billing-control/dashboard
- * @desc KPIs de faturas (anunciantes + exibidor) e resumo de contratos
+ * @desc KPIs de faturas (anunciantes + organização) e resumo de contratos
  */
 router.get(
   '/dashboard',
