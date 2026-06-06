@@ -12,6 +12,33 @@ export interface UserRoleOptionGroup {
   roles: UserRoleOption[];
 }
 
+export const APP_USER_ROLES = [
+  'owner_system',
+  'admin_sql',
+  'admin',
+  'operador_tecnico',
+  'operador_faturamento',
+  'operador_comercial',
+  'gerente_marketing',
+  'editoracao',
+  'visualizador',
+  'user',
+  'publisher_user',
+  'subscriber_user',
+] as const;
+
+export type AppUserRole = (typeof APP_USER_ROLES)[number];
+
+export function normalizeAppRole(role: string | null | undefined): AppUserRole {
+  const normalized = String(role ?? 'user')
+    .trim()
+    .toLowerCase();
+  if ((APP_USER_ROLES as readonly string[]).includes(normalized)) {
+    return normalized as AppUserRole;
+  }
+  return 'user';
+}
+
 const SYSTEM_ROLE_OPTIONS: UserRoleOption[] = [
   { value: 'owner_system', label: 'Owner System' },
   { value: 'admin_sql', label: 'Admin SQL' },
@@ -94,12 +121,13 @@ export function isSystemScopedRole(role: string): boolean {
 
 /** Alinha userType e vínculos ao mudar a função no formulário de criação. */
 export function applyRoleToCreateUser(user: CreateUserRequest, role: string): CreateUserRequest {
-  const userType = userTypeForRole(role);
+  const normalizedRole = normalizeAppRole(role);
+  const userType = userTypeForRole(normalizedRole);
 
   if (userType === 'publisher_user') {
     return {
       ...user,
-      role: role as CreateUserRequest['role'],
+      role: normalizedRole,
       userType,
       subscriberId: undefined,
       isTenantUser: false,
@@ -109,7 +137,7 @@ export function applyRoleToCreateUser(user: CreateUserRequest, role: string): Cr
   if (userType === 'subscriber_user') {
     return {
       ...user,
-      role: role as CreateUserRequest['role'],
+      role: normalizedRole,
       userType,
       publisherId: undefined,
       isTenantUser: false,
@@ -118,7 +146,7 @@ export function applyRoleToCreateUser(user: CreateUserRequest, role: string): Cr
 
   return {
     ...user,
-    role: role as CreateUserRequest['role'],
+    role: normalizedRole,
     userType: 'system_user',
     publisherId: undefined,
     subscriberId: undefined,
@@ -135,12 +163,13 @@ export function applyRoleToUserRecord<
     is_tenant_user?: boolean;
   },
 >(user: T, role: string): T {
-  const userType = userTypeForRole(role);
+  const normalizedRole = normalizeAppRole(role);
+  const userType = userTypeForRole(normalizedRole);
 
   if (userType === 'publisher_user') {
     return {
       ...user,
-      role,
+      role: normalizedRole,
       user_type: userType,
       subscriber_id: undefined,
       is_tenant_user: false,
@@ -150,7 +179,7 @@ export function applyRoleToUserRecord<
   if (userType === 'subscriber_user') {
     return {
       ...user,
-      role,
+      role: normalizedRole,
       user_type: userType,
       publisher_id: undefined,
       is_tenant_user: false,
@@ -159,7 +188,7 @@ export function applyRoleToUserRecord<
 
   return {
     ...user,
-    role,
+    role: normalizedRole,
     user_type: 'system_user',
     publisher_id: undefined,
     subscriber_id: undefined,
@@ -168,14 +197,54 @@ export function applyRoleToUserRecord<
 }
 
 /** Payload limpo para POST /api/users (evita email vazio e campos incoerentes). */
+export function sanitizeUpdateUserPayload(user: {
+  username?: string;
+  email?: string | null;
+  name?: string;
+  role: string;
+  publisher_id?: number | null;
+  subscriber_id?: number | null;
+  is_active?: boolean;
+  is_tenant_user?: boolean;
+  isTenantUser?: boolean;
+}): {
+  username: string;
+  email?: string;
+  name: string;
+  role: AppUserRole;
+  userType: AppUserType;
+  publisherId?: number;
+  subscriberId?: number;
+  isTenantUser: boolean;
+  isActive: boolean;
+} {
+  const role = normalizeAppRole(user.role);
+  const email = user.email?.trim();
+  const isTenant =
+    isSystemScopedRole(role) &&
+    Boolean(user.isTenantUser ?? user.is_tenant_user ?? true);
+
+  return {
+    username: (user.username ?? '').trim(),
+    name: (user.name ?? '').trim(),
+    email: email ? email : undefined,
+    role: role as CreateUserRequest['role'],
+    userType: userTypeForRole(role),
+    publisherId: isPublisherScopedRole(role) ? user.publisher_id ?? undefined : undefined,
+    subscriberId: isSubscriberScopedRole(role) ? user.subscriber_id ?? undefined : undefined,
+    isTenantUser: isTenant,
+    isActive: user.is_active ?? true,
+  };
+}
+
 export function sanitizeCreateUserPayload(user: CreateUserRequest): CreateUserRequest {
-  const role = user.role;
+  const role = normalizeAppRole(user.role);
   const email = user.email?.trim();
   return {
     username: user.username.trim(),
     name: user.name.trim(),
     password: user.password,
-    role,
+    role: role as CreateUserRequest['role'],
     userType: userTypeForRole(role),
     email: email ? email : undefined,
     publisherId: isPublisherScopedRole(role) ? user.publisherId : undefined,

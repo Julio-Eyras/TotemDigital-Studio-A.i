@@ -540,21 +540,21 @@ export class UserService {
         updateParams.push(subscriberId);
       }
 
-      if (userType) {
-        updateFields.push(`user_type = $${paramIndex++}`);
-        updateParams.push(userType);
-      }
-
       if (isTenantUser !== undefined) {
         updateFields.push(`is_tenant_user = $${paramIndex++}`);
         updateParams.push(isTenantUser);
 
-        // Se isTenantUser = true, publisher_id/subscriber_id devem ser NULL e user_type deve ser system_user
         if (isTenantUser === true) {
           updateFields.push(`publisher_id = NULL`);
           updateFields.push(`subscriber_id = NULL`);
           updateFields.push(`user_type = 'system_user'`);
+        } else if (userType) {
+          updateFields.push(`user_type = $${paramIndex++}`);
+          updateParams.push(userType);
         }
+      } else if (userType) {
+        updateFields.push(`user_type = $${paramIndex++}`);
+        updateParams.push(userType);
       }
 
       // (Regra do domínio) Não existe user "both".

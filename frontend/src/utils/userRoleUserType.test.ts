@@ -2,7 +2,9 @@ import {
   applyRoleToCreateUser,
   getRoleLabel,
   getUserRoleOptionGroups,
+  normalizeAppRole,
   sanitizeCreateUserPayload,
+  sanitizeUpdateUserPayload,
   userTypeForRole,
   validateCreateUserPayload,
 } from './userRoleUserType';
@@ -70,6 +72,27 @@ describe('sanitizeCreateUserPayload', () => {
     });
     expect(payload.email).toBeUndefined();
     expect(payload.userType).toBe('system_user');
+  });
+});
+
+describe('normalizeAppRole', () => {
+  it('normaliza role em maiúsculas', () => {
+    expect(normalizeAppRole('USER')).toBe('user');
+    expect(normalizeAppRole('ADMIN')).toBe('admin');
+  });
+});
+
+describe('sanitizeUpdateUserPayload', () => {
+  it('marca tenant para funções de sistema', () => {
+    const payload = sanitizeUpdateUserPayload({
+      username: 'julio',
+      name: 'Julio',
+      role: 'user',
+      is_tenant_user: true,
+      is_active: true,
+    });
+    expect(payload.userType).toBe('system_user');
+    expect(payload.isTenantUser).toBe(true);
   });
 });
 

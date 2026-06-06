@@ -25,7 +25,6 @@ import {
   Alert,
   Switch,
   FormControlLabel,
-  FormHelperText,
   Table,
   TableBody,
   TableCell,
@@ -61,12 +60,19 @@ import {
   isPublisherScopedRole,
   isSubscriberScopedRole,
   isSystemScopedRole,
-  getRoleLabel,
+  normalizeAppRole,
   sanitizeCreateUserPayload,
+  sanitizeUpdateUserPayload,
   userTypeForRole,
   validateCreateUserPayload,
 } from '../../utils/userRoleUserType';
-import UserRoleSelectItems from '../../components/Users/UserRoleSelectItems';
+import UserRolePicker, { UserRoleFilterSelect } from '../../components/Users/UserRolePicker';
+
+const userDialogProps = {
+  disableEnforceFocus: true,
+  fullWidth: true,
+  maxWidth: 'sm' as const,
+};
 
 const USER_TYPE_LABEL_PT: Record<string, string> = {
   publisher_user: 'Usuário da organização',
@@ -96,11 +102,6 @@ const Users: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
 
-  const roleSelectMenuProps = {
-    disablePortal: true,
-    autoFocusItem: false,
-    PaperProps: { sx: { maxHeight: 360 } },
-  } as const;
   const [newUser, setNewUser] = useState<CreateUserRequest>({
     username: '',
     email: '',
@@ -183,33 +184,25 @@ const Users: React.FC = () => {
   const handleEditUser = async () => {
     if (!selectedUser) return;
 
-    const syncedUserType = userTypeForRole(selectedUser.role);
-    if (isPublisherScopedRole(selectedUser.role) && !selectedUser.publisher_id) {
-      setError('Selecione uma organização para usuários da organização.');
+    const payload = sanitizeUpdateUserPayload(selectedUser);
+    if (isPublisherScopedRole(payload.role) && !payload.publisherId) {
+      setDialogError('Selecione uma organização para usuários da organização.');
       return;
     }
-    if (isSubscriberScopedRole(selectedUser.role) && !selectedUser.subscriber_id) {
-      setError('Selecione um anunciante para usuários anunciantes.');
+    if (isSubscriberScopedRole(payload.role) && !payload.subscriberId) {
+      setDialogError('Selecione um anunciante para usuários anunciantes.');
       return;
     }
 
     try {
-      await userApi.update(selectedUser.user_id, {
-        username: selectedUser.username,
-        email: selectedUser.email,
-        name: selectedUser.name,
-        role: selectedUser.role,
-        userType: syncedUserType,
-        publisherId: selectedUser.publisher_id,
-        subscriberId: selectedUser.subscriber_id,
-        isTenantUser: (selectedUser as any).isTenantUser ?? (selectedUser as any).is_tenant_user,
-        isActive: selectedUser.is_active,
-      });
+      setDialogError(null);
+      await userApi.update(selectedUser.user_id, payload);
       setEditDialogOpen(false);
+      setDialogError(null);
       setSelectedUser(null);
       loadUsers();
     } catch (error) {
-      setError(pickApiErrorMessage(error, 'Erro ao atualizar usuário'));
+      setDialogError(pickApiErrorMessage(error, 'Erro ao atualizar usuário'));
     }
   };
 
@@ -330,17 +323,12 @@ const Users: React.FC = () => {
               />
             </Grid>
             <Grid item xs={12} md={3}>
-              <FormControl fullWidth>
-                <InputLabel>Função</InputLabel>
-                <Select
-                  value={roleFilter}
-                  onChange={(e) => setRoleFilter(e.target.value)}
-                  label="Função"
-                  MenuProps={{ autoFocusItem: false }}
-                >
-                  <UserRoleSelectItems organizationLabel={orgTerms.organization} includeAll />
-                </Select>
-              </FormControl>
+              <UserRoleFilterSelect
+                value={roleFilter}
+                onChange={setRoleFilter}
+                organizationLabel={orgTerms.organization}
+                includeAll
+              />
             </Grid>
             <Grid item xs={12} md={2}>
               <FormControl fullWidth>
@@ -498,7 +486,8 @@ const Users: React.FC = () => {
                       <IconButton 
                         size="small" 
                         onClick={() => {
-                          setSelectedUser(user);
+                          setDialogError(null);
+                          setSelectedUser({ ...user, role: normalizeAppRole(user.role) });
                           setEditDialogOpen(true);
                         }}
                       >
@@ -550,11 +539,10 @@ const Users: React.FC = () => {
           setCreateDialogOpen(false);
           setDialogError(null);
         }}
-        maxWidth="sm"
-        fullWidth
+        {...userDialogProps}
       >
         <DialogTitle>Adicionar Usuário</DialogTitle>
-        <DialogContent>
+        <DialogContent sx={{ overflow: 'visible' }}>
           {dialogError && (
             <Alert severity="error" sx={{ mt: 1, mb: 1 }} onClose={() => setDialogError(null)}>
               {dialogError}
@@ -593,24 +581,14 @@ const Users: React.FC = () => {
             margin="normal"
             required
           />
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Função</InputLabel>
-            <Select
-              value={newUser.role}
-              onChange={(e) => {
-                setDialogError(null);
-                setNewUser(applyRoleToCreateUser(newUser, String(e.target.value)));
-              }}
-              label="Função"
-              renderValue={(value) => getRoleLabel(String(value), orgTerms.organization)}
-              MenuProps={roleSelectMenuProps}
-            >
-              <UserRoleSelectItems organizationLabel={orgTerms.organization} />
-            </Select>
-            <FormHelperText>
-              A função define o tipo de acesso. Usuários de sistema não vinculam organização nem anunciante.
-            </FormHelperText>
-          </FormControl>
+          <UserRolePicker
+            value={newUser.role}
+            onChange={(role) => {
+              setDialogError(null);
+              setNewUser(applyRoleToCreateUser(newUser, role));
+            }}
+            organizationLabel={orgTerms.organization}
+          />
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 1 }}>
             Tipo de usuário: <strong>{formatUserTypeDisplay(userTypeForRole(newUser.role))}</strong>
           </Typography>
@@ -680,9 +658,21 @@ const Users: React.FC = () => {
       </Dialog>
 
       {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={editDialogOpen}
+        onClose={() => {
+          setEditDialogOpen(false);
+          setDialogError(null);
+        }}
+        {...userDialogProps}
+      >
         <DialogTitle>Editar Usuário</DialogTitle>
-        <DialogContent>
+        <DialogContent sx={{ overflow: 'visible' }}>
+          {dialogError && (
+            <Alert severity="error" sx={{ mt: 1, mb: 1 }} onClose={() => setDialogError(null)}>
+              {dialogError}
+            </Alert>
+          )}
           <TextField
             fullWidth
             label="Nome de Usuário"
@@ -707,24 +697,14 @@ const Users: React.FC = () => {
             onChange={(e) => setSelectedUser({ ...selectedUser!, email: e.target.value })}
             margin="normal"
           />
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Função</InputLabel>
-            <Select
-              value={selectedUser?.role || 'user'}
-              onChange={(e) => {
-                setDialogError(null);
-                setSelectedUser(applyRoleToUserRecord(selectedUser!, String(e.target.value)));
-              }}
-              label="Função"
-              renderValue={(value) => getRoleLabel(String(value), orgTerms.organization)}
-              MenuProps={roleSelectMenuProps}
-            >
-              <UserRoleSelectItems organizationLabel={orgTerms.organization} />
-            </Select>
-            <FormHelperText>
-              A função define o tipo de acesso. Usuários de sistema não vinculam organização nem anunciante.
-            </FormHelperText>
-          </FormControl>
+          <UserRolePicker
+            value={selectedUser?.role || 'user'}
+            onChange={(role) => {
+              setDialogError(null);
+              setSelectedUser(applyRoleToUserRecord(selectedUser!, role));
+            }}
+            organizationLabel={orgTerms.organization}
+          />
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 1 }}>
             Tipo de usuário:{' '}
             <strong>{formatUserTypeDisplay(userTypeForRole(selectedUser?.role || 'user'))}</strong>
