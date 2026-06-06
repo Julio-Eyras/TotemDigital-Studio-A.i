@@ -86,11 +86,11 @@ const SubscriberLogin: React.FC = () => {
       return;
     }
 
-    void enterAdminSessionViewport();
-
     try {
       setIsLoading(true);
       setError(null);
+
+      await enterAdminSessionViewport();
 
       const response = await authApi.subscriberLogin({
         email: formData.email,

@@ -12,6 +12,10 @@ export async function requestAppFullscreen(): Promise<boolean> {
     return false;
   }
 
+  if (typeof document === 'undefined' || document.visibilityState === 'hidden') {
+    return false;
+  }
+
   const el = document.documentElement;
   const legacy = el as HTMLElement & {
     webkitRequestFullscreen?: () => Promise<void> | void;

@@ -72,12 +72,12 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       return;
     }
 
-    void enterAdminSessionViewport();
-
     try {
       setLoading(true);
       setError(null);
-      
+
+      await enterAdminSessionViewport();
+
       const response = await authApi.login({
         username: formData.username,
         password: formData.password,
@@ -151,12 +151,12 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       return;
     }
 
-    void enterAdminSessionViewport();
-
     try {
       setLoading(true);
       setError(null);
-      
+
+      await enterAdminSessionViewport();
+
       const result = await twoFactorApi.verify(pendingUser.id, twoFactorCode);
 
       // Store token in localStorage

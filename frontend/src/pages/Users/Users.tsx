@@ -53,6 +53,16 @@ import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { isStudioMode } from '../../config/studioMode';
 import { getProductTerminology } from '../../config/productTerminology';
 import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import {
+  applyRoleToCreateUser,
+  applyRoleToUserRecord,
+  isPublisherScopedRole,
+  isSubscriberScopedRole,
+  isSystemScopedRole,
+  userTypeForRole,
+  validateCreateUserPayload,
+} from '../../utils/userRoleUserType';
 
 const USER_TYPE_LABEL_PT: Record<string, string> = {
   publisher_user: 'Usuário da organização',
@@ -131,35 +141,55 @@ const Users: React.FC = () => {
   };
 
   const handleCreateUser = async () => {
+    const validationError = validateCreateUserPayload(newUser);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     try {
-      await userApi.create(newUser);
+      const payload: CreateUserRequest = {
+        ...newUser,
+        userType: userTypeForRole(newUser.role),
+      };
+      await userApi.create(payload);
       setCreateDialogOpen(false);
-      setNewUser({ 
-        username: '', 
-        email: '', 
-        password: '', 
-        name: '', 
+      setNewUser({
+        username: '',
+        email: '',
+        password: '',
+        name: '',
         role: 'user',
         userType: 'system_user',
-        isTenantUser: false,
+        isTenantUser: true,
         flags: undefined,
       });
       loadUsers();
     } catch (error) {
-      setError('Erro ao criar usuário');
+      setError(pickApiErrorMessage(error, 'Erro ao criar usuário'));
     }
   };
 
   const handleEditUser = async () => {
     if (!selectedUser) return;
-    
+
+    const syncedUserType = userTypeForRole(selectedUser.role);
+    if (isPublisherScopedRole(selectedUser.role) && !selectedUser.publisher_id) {
+      setError('Selecione uma organização para usuários da organização.');
+      return;
+    }
+    if (isSubscriberScopedRole(selectedUser.role) && !selectedUser.subscriber_id) {
+      setError('Selecione um anunciante para usuários anunciantes.');
+      return;
+    }
+
     try {
       await userApi.update(selectedUser.user_id, {
         username: selectedUser.username,
         email: selectedUser.email,
         name: selectedUser.name,
         role: selectedUser.role,
-        userType: selectedUser.user_type,
+        userType: syncedUserType,
         publisherId: selectedUser.publisher_id,
         subscriberId: selectedUser.subscriber_id,
         isTenantUser: (selectedUser as any).isTenantUser ?? (selectedUser as any).is_tenant_user,
@@ -169,7 +199,7 @@ const Users: React.FC = () => {
       setSelectedUser(null);
       loadUsers();
     } catch (error) {
-      setError('Erro ao atualizar usuário');
+      setError(pickApiErrorMessage(error, 'Erro ao atualizar usuário'));
     }
   };
 
@@ -553,11 +583,7 @@ const Users: React.FC = () => {
             <Select
               value={newUser.role}
               onChange={(e) => {
-                const value = e.target.value as any;
-                setNewUser({ 
-                  ...newUser, 
-                  role: value
-                });
+                setNewUser(applyRoleToCreateUser(newUser, e.target.value));
               }}
               label="Função"
             >
@@ -575,28 +601,10 @@ const Users: React.FC = () => {
               <MenuItem value="subscriber_user">Anunciante</MenuItem>
             </Select>
           </FormControl>
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Tipo de Usuário</InputLabel>
-            <Select
-              value={newUser.userType || 'system_user'}
-              onChange={(e) => {
-                const value = e.target.value as any;
-                setNewUser({ 
-                  ...newUser, 
-                  userType: value,
-                  publisherId: undefined,
-                  subscriberId: undefined,
-                  isTenantUser: value === 'system_user',
-                });
-              }}
-              label="Tipo de Usuário"
-            >
-              <MenuItem value="system_user">Sistema</MenuItem>
-              <MenuItem value="publisher_user">Usuário da organização</MenuItem>
-              <MenuItem value="subscriber_user">Anunciante</MenuItem>
-            </Select>
-          </FormControl>
-          {newUser.userType === 'publisher_user' && (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            Tipo de usuário: {formatUserTypeDisplay(userTypeForRole(newUser.role))}
+          </Typography>
+          {isPublisherScopedRole(newUser.role) && (
             <FormControl fullWidth margin="normal">
               <InputLabel {...selectLabelShrinkProps}>{orgTerms.organization}</InputLabel>
               <Select
@@ -619,7 +627,7 @@ const Users: React.FC = () => {
               </Select>
             </FormControl>
           )}
-          {newUser.userType === 'subscriber_user' && (
+          {isSubscriberScopedRole(newUser.role) && (
             <FormControl fullWidth margin="normal">
               <InputLabel {...selectLabelShrinkProps}>Anunciante</InputLabel>
               <Select
@@ -642,7 +650,7 @@ const Users: React.FC = () => {
               </Select>
             </FormControl>
           )}
-          {newUser.userType === 'system_user' && (
+          {isSystemScopedRole(newUser.role) && (
             <FormControlLabel
               control={
                 <Switch
@@ -694,11 +702,7 @@ const Users: React.FC = () => {
             <Select
               value={selectedUser?.role || 'user'}
               onChange={(e) => {
-                const value = e.target.value as any;
-                setSelectedUser({ 
-                  ...selectedUser!, 
-                  role: value
-                });
+                setSelectedUser(applyRoleToUserRecord(selectedUser!, e.target.value));
               }}
               label="Função"
             >
@@ -717,31 +721,11 @@ const Users: React.FC = () => {
               {/* Removido: publisher_subscriber não existe no domínio */}
             </Select>
           </FormControl>
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Tipo de Usuário</InputLabel>
-            <Select
-              value={selectedUser?.user_type || 'system_user'}
-              onChange={(e) => {
-                const value = e.target.value as any;
-                setSelectedUser({ 
-                  ...selectedUser!, 
-                  user_type: value,
-                  publisher_id: value !== 'publisher_user' ? undefined : selectedUser?.publisher_id,
-                  subscriber_id: value !== 'subscriber_user' ? undefined : selectedUser?.subscriber_id,
-                  is_tenant_user: value === 'system_user'
-                    ? (((selectedUser as any)?.isTenantUser ?? (selectedUser as any)?.is_tenant_user) || false)
-                    : false,
-                });
-              }}
-              label="Tipo de Usuário"
-            >
-              <MenuItem value="system_user">Sistema</MenuItem>
-              <MenuItem value="publisher_user">Usuário da organização</MenuItem>
-              <MenuItem value="subscriber_user">Anunciante</MenuItem>
-              {/* Removido: publisher_subscriber não existe no domínio */}
-            </Select>
-          </FormControl>
-          {selectedUser?.user_type === 'publisher_user' && (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            Tipo de usuário:{' '}
+            {formatUserTypeDisplay(userTypeForRole(selectedUser?.role || 'user'))}
+          </Typography>
+          {isPublisherScopedRole(selectedUser?.role || '') && (
             <FormControl fullWidth margin="normal">
               <InputLabel {...selectLabelShrinkProps}>{orgTerms.organization}</InputLabel>
               <Select
@@ -764,7 +748,7 @@ const Users: React.FC = () => {
               </Select>
             </FormControl>
           )}
-          {selectedUser?.user_type === 'subscriber_user' && (
+          {isSubscriberScopedRole(selectedUser?.role || '') && (
             <FormControl fullWidth margin="normal">
               <InputLabel {...selectLabelShrinkProps}>Anunciante</InputLabel>
               <Select
@@ -787,7 +771,7 @@ const Users: React.FC = () => {
               </Select>
             </FormControl>
           )}
-          {selectedUser?.user_type === 'system_user' && (
+          {isSystemScopedRole(selectedUser?.role || '') && (
             <FormControlLabel
               control={
                 <Switch
