@@ -62,6 +62,12 @@ import { getTotemIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { getProductTerminology } from '../../config/productTerminology';
 import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
+import {
+  CAMPAIGN_START_DATE_MIN_HELPER,
+  clampCampaignStartYmd,
+  getMinCampaignStartYmd,
+  resolveCampaignStartYmd,
+} from '../../utils/campaignStartDate';
 
 export interface CampaignFullEditorDialogProps {
   open: boolean;
@@ -288,7 +294,10 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
         setError(null);
         const full = await campaignApi.getById(campaignId);
         if (cancelled) return;
-        setSelectedCampaign(full);
+        setSelectedCampaign({
+          ...full,
+          start_date: resolveCampaignStartYmd(full),
+        });
         const subscriberId = full.subscriber_id || (full as any).subscriberId;
         if (subscriberId != null && Number.isFinite(Number(subscriberId))) {
           await Promise.all([loadMediaItems(Number(subscriberId)), loadPlaylists(Number(subscriberId))]);
@@ -467,7 +476,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
         ),
         status: selectedCampaign.status || 'draft',
         subscriberId: selectedCampaign.subscriber_id || (selectedCampaign as any).subscriberId,
-        start_date: selectedCampaign.start_date || (selectedCampaign as any).startDate,
+        start_date: resolveCampaignStartYmd(selectedCampaign),
         end_date: selectedCampaign.end_date || (selectedCampaign as any).endDate,
         isActive:
           selectedCampaign.is_active !== undefined
@@ -699,15 +708,20 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                     fullWidth
                     label="Data de Início"
                     type="date"
-                    value={toDateInputValue(selectedCampaign?.start_date || (selectedCampaign as any)?.startDate)}
-                    onChange={(e) =>
+                    value={resolveCampaignStartYmd(selectedCampaign)}
+                    onChange={(e) => {
+                      if (!selectedCampaign) return;
+                      const minYmd = getMinCampaignStartYmd(selectedCampaign);
                       setSelectedCampaign({
-                        ...selectedCampaign!,
-                        start_date: e.target.value,
-                      })
-                    }
+                        ...selectedCampaign,
+                        start_date: clampCampaignStartYmd(e.target.value, minYmd),
+                      });
+                    }}
+                    inputProps={{
+                      min: selectedCampaign ? getMinCampaignStartYmd(selectedCampaign) : undefined,
+                    }}
                     InputLabelProps={{ shrink: true }}
-                    helperText="Período de validade da campanha (início)"
+                    helperText={CAMPAIGN_START_DATE_MIN_HELPER}
                   />
                   <TextField
                     fullWidth

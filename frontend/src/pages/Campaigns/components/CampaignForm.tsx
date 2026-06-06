@@ -40,6 +40,13 @@ import { DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT_PT } from '../../../constants/campa
 import { getTotemIdFromRow } from '../../../utils/totemRowIds';
 import { getProductTerminology } from '../../../config/productTerminology';
 import { selectLabelShrinkProps } from '../../../utils/muiSelectLabel';
+import {
+  CAMPAIGN_START_DATE_MIN_HELPER,
+  clampCampaignStartYmd,
+  getMinCampaignStartYmd,
+  getTodayYmd,
+  resolveCampaignStartYmd,
+} from '../../../utils/campaignStartDate';
 
 export interface CampaignFormProps {
   mode: 'create' | 'edit';
@@ -301,11 +308,20 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
                 fullWidth
                 label="Data de Início"
                 type="date"
-                value={toDateInputValue(getFieldValue('start_date'))}
-                onChange={(e) => handleFieldChange('start_date', e.target.value)}
+                value={resolveCampaignStartYmd(
+                  mode === 'edit' ? campaign : null,
+                  getFieldValue('start_date') || getTodayYmd()
+                )}
+                onChange={(e) => {
+                  const minYmd = getMinCampaignStartYmd(mode === 'edit' ? campaign : null);
+                  handleFieldChange('start_date', clampCampaignStartYmd(e.target.value, minYmd));
+                }}
+                inputProps={{
+                  min: getMinCampaignStartYmd(mode === 'edit' ? campaign : null),
+                }}
                 margin="normal"
                 InputLabelProps={{ shrink: true }}
-                helperText="Período de validade da campanha (início)"
+                helperText={CAMPAIGN_START_DATE_MIN_HELPER}
               />
             </Grid>
 

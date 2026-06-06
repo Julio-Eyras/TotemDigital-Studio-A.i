@@ -132,6 +132,13 @@ import {
 import { PlanTopologyPreviewRow, loadPlanTopologyPreviewRows, countTopologyInRows } from './planTopologyPreview';
 import { PlanTopologyTabPanel } from './PlanTopologyTabPanel';
 import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
+import {
+  CAMPAIGN_START_DATE_MIN_HELPER,
+  clampCampaignStartYmd,
+  getMinCampaignStartYmd,
+  getTodayYmd,
+  resolveCampaignStartYmd,
+} from '../../utils/campaignStartDate';
 
 const compareByDisplayName = (a?: string, b?: string) =>
   String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
@@ -505,7 +512,7 @@ const Subscribers: React.FC = () => {
     contractId: undefined,
     status: 'draft',
     isActive: true,
-    start_date: undefined,
+    start_date: getTodayYmd(),
     end_date: undefined,
   });
   
@@ -1710,9 +1717,9 @@ const Subscribers: React.FC = () => {
           contractId: editCampaignForm.contractId !== undefined && editCampaignForm.contractId !== null ? Number(editCampaignForm.contractId) : undefined,
           mediaIds: campaignMedias.map(m => m.media_id),
           playlistIds: campaignPlaylists.map(p => p.playlist_id),
-          start_date: editCampaignForm.start_date?.trim()
-            ? formatDateForAPI(editCampaignForm.start_date)
-            : undefined,
+          start_date: formatDateForAPI(
+            resolveCampaignStartYmd(campaign, editCampaignForm.start_date)
+          ),
           end_date: editCampaignForm.end_date?.trim()
             ? formatDateForAPI(editCampaignForm.end_date)
             : undefined,
@@ -1734,9 +1741,9 @@ const Subscribers: React.FC = () => {
           playlistIds: campaignPlaylists.map(p => p.playlist_id),
           status: editCampaignForm.status ?? 'draft',
           isActive: editCampaignForm.isActive ?? true,
-          start_date: editCampaignForm.start_date?.trim()
-            ? formatDateForAPI(editCampaignForm.start_date)
-            : undefined,
+          start_date: formatDateForAPI(
+            resolveCampaignStartYmd(null, editCampaignForm.start_date || getTodayYmd())
+          ),
           end_date: editCampaignForm.end_date?.trim()
             ? formatDateForAPI(editCampaignForm.end_date)
             : undefined,
@@ -1755,7 +1762,7 @@ const Subscribers: React.FC = () => {
         contractId: undefined,
         status: 'draft',
         isActive: true,
-        start_date: undefined,
+        start_date: getTodayYmd(),
         end_date: undefined,
       });
     } catch (error: any) {
@@ -1796,8 +1803,7 @@ const Subscribers: React.FC = () => {
           : (campaign as any).isActive !== undefined
             ? (campaign as any).isActive
             : prev.isActive ?? true,
-      start_date:
-        formatDateForInput(campaign.start_date ?? (campaign as any).startDate) || undefined,
+      start_date: resolveCampaignStartYmd(campaign),
       end_date: formatDateForInput(campaign.end_date ?? (campaign as any).endDate) || undefined,
     }));
     setCampaignFullEditorId(Number(campaignId));
@@ -4528,15 +4534,34 @@ const Subscribers: React.FC = () => {
                           label="Data de Início"
                           type="date"
                           size="small"
-                          value={editCampaignForm.start_date ?? ''}
-                          onChange={(e) =>
+                          value={
+                            resolveCampaignStartYmd(
+                              editingEditCampaignIndex !== null
+                                ? editCampaigns[editingEditCampaignIndex]
+                                : null,
+                              editCampaignForm.start_date || getTodayYmd()
+                            )
+                          }
+                          onChange={(e) => {
+                            const minYmd =
+                              editingEditCampaignIndex !== null &&
+                              editCampaigns[editingEditCampaignIndex]
+                                ? getMinCampaignStartYmd(editCampaigns[editingEditCampaignIndex])
+                                : getTodayYmd();
                             setEditCampaignForm({
                               ...editCampaignForm,
-                              start_date: e.target.value || undefined,
-                            })
-                          }
+                              start_date: clampCampaignStartYmd(e.target.value, minYmd),
+                            });
+                          }}
+                          inputProps={{
+                            min:
+                              editingEditCampaignIndex !== null &&
+                              editCampaigns[editingEditCampaignIndex]
+                                ? getMinCampaignStartYmd(editCampaigns[editingEditCampaignIndex])
+                                : getTodayYmd(),
+                          }}
                           InputLabelProps={{ shrink: true }}
-                          helperText="Período de validade da campanha (início)"
+                          helperText={CAMPAIGN_START_DATE_MIN_HELPER}
                         />
                       </Grid>
                       <Grid item xs={6}>
@@ -4726,7 +4751,7 @@ const Subscribers: React.FC = () => {
                             contractId: undefined,
                             status: 'draft',
                             isActive: true,
-                            start_date: undefined,
+                            start_date: getTodayYmd(),
                             end_date: undefined,
                           });
                           setCampaignMedias([]);
@@ -4842,7 +4867,7 @@ const Subscribers: React.FC = () => {
               contractId: undefined,
               status: 'draft',
               isActive: true,
-              start_date: undefined,
+              start_date: getTodayYmd(),
               end_date: undefined,
             });
             setPlaylistItems([]);

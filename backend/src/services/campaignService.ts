@@ -12,6 +12,30 @@ import { getSubscriberAccessServiceInstance } from './subscriberAccessService';
 import { getSubscriberService } from './subscriberService';
 import type { PoolClient } from 'pg';
 
+const CAMPAIGN_START_BEFORE_CREATED_MSG =
+  'Data de início não pode ser anterior à data de criação da campanha.';
+
+function dateToYmd(value: string | Date): string {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    const match = trimmed.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) return match[1];
+  }
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function assertCampaignStartNotBeforeYmd(startYmd: string, minYmd: string): void {
+  if (!startYmd || !minYmd) return;
+  if (startYmd < minYmd) {
+    throw new Error(CAMPAIGN_START_BEFORE_CREATED_MSG);
+  }
+}
+
 export interface CreateCampaignRequest {
   subscriberId: number; // subscriber_id explícito
   contractId?: number; // ⭐ NOVO: Contrato vinculado (opcional, mas recomendado para execução)
@@ -905,6 +929,13 @@ export class CampaignService {
       throw new Error('title é obrigatório');
     }
 
+    const createdMinYmd = dateToYmd(new Date());
+    let resolvedStartDate = startDate ? dateToYmd(startDate) : createdMinYmd;
+    if (!resolvedStartDate) {
+      resolvedStartDate = createdMinYmd;
+    }
+    assertCampaignStartNotBeforeYmd(resolvedStartDate, createdMinYmd);
+
     // Verificar se subscriber existe
     const subscriber = await this.db.findFirst(`
       SELECT subscriber_id FROM subscribers WHERE subscriber_id = $1 AND COALESCE(is_active, true) = true
@@ -1021,7 +1052,7 @@ export class CampaignService {
         description,
         campaignType,
         priority,
-        startDate,
+        startDate: resolvedStartDate,
         endDate,
         status,
         isActive
@@ -1045,7 +1076,7 @@ export class CampaignService {
         campaignType,
         priority,
         commercialTier,
-        startDate || null,
+        resolvedStartDate,
         endDate || null,
         startTime || null,
         endTime || null,
@@ -1211,6 +1242,11 @@ export class CampaignService {
       }
 
       if (data.startDate !== undefined) {
+        const createdYmd = dateToYmd(existingCampaign.createdAt);
+        const nextStartYmd = data.startDate ? dateToYmd(data.startDate) : '';
+        if (nextStartYmd) {
+          assertCampaignStartNotBeforeYmd(nextStartYmd, createdYmd);
+        }
         updates.push(`start_date = $${paramIndex}`);
         params.push(data.startDate);
         paramIndex++;
