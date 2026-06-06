@@ -39,6 +39,7 @@ import { smartTvApi, SmartTv, CreateSmartTvRequest, UpdateSmartTvRequest, totemA
 import { useAppSelector } from '../../store';
 import { getForeignTotemIdFromRow, getTotemIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
 
 const SmartTvs: React.FC = () => {
   const theme = useTheme();
@@ -321,7 +322,7 @@ const SmartTvs: React.FC = () => {
             </Grid>
             <Grid item xs={12} md={3}>
               <FormControl fullWidth>
-                <InputLabel id="smart-tvs-filter-totem-label">Totem</InputLabel>
+                <InputLabel {...selectLabelShrinkProps} id="smart-tvs-filter-totem-label">Totem</InputLabel>
                 <Select
                   id="smart-tvs-filter-totem"
                   labelId="smart-tvs-filter-totem-label"

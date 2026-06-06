@@ -23,6 +23,7 @@ import {
   PlaylistItem,
   Subscriber,
 } from '../../../services/api';
+import { selectLabelShrinkProps } from '../../../utils/muiSelectLabel';
 
 export interface PlaylistFormProps {
   mode: 'create' | 'edit';
@@ -85,7 +86,7 @@ const PlaylistForm: React.FC<PlaylistFormProps> = ({
         {mode === 'create' && canSelectSubscriber && (
           <Grid item xs={12}>
             <FormControl fullWidth margin="normal">
-              <InputLabel>Anunciante</InputLabel>
+              <InputLabel {...selectLabelShrinkProps}>Anunciante</InputLabel>
               <Select
                 value={getFieldValue('subscriberId') || ''}
                 onChange={(e) => {

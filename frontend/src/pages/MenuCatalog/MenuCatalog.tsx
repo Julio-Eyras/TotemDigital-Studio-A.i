@@ -37,6 +37,7 @@ import {
 } from '../../services/api';
 import { defaultSegmentForPreset } from '../../config/publishTemplates';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
 
 const MenuCatalog: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -267,7 +268,7 @@ const MenuCatalog: React.FC = () => {
                   sx={{ mb: 1 }}
                 />
                 <FormControl fullWidth size="small" sx={{ mb: 1 }}>
-                  <InputLabel>Categoria</InputLabel>
+                  <InputLabel {...selectLabelShrinkProps}>Categoria</InputLabel>
                   <Select
                     label="Categoria"
                     value={newCategoryId === '' ? '' : String(newCategoryId)}
@@ -350,7 +351,7 @@ const MenuCatalog: React.FC = () => {
           <TextField label="Nome" value={editName} onChange={(e) => setEditName(e.target.value)} fullWidth />
           <TextField label="Preço (R$)" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} fullWidth />
           <FormControl fullWidth size="small">
-            <InputLabel>Categoria</InputLabel>
+            <InputLabel {...selectLabelShrinkProps}>Categoria</InputLabel>
             <Select
               label="Categoria"
               value={editCategoryId === '' ? '' : String(editCategoryId)}

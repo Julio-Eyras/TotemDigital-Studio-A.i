@@ -35,6 +35,7 @@ import {
 } from '../../utils/billingIssuePayload';
 import { isStudioMode } from '../../config/studioMode';
 import { getProductTerminology } from '../../config/productTerminology';
+import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
 
 const EMPTY_FORM: IssueInvoicesFormState = {
   scope: 'all',
@@ -231,7 +232,7 @@ const IssueInvoicesDialog: React.FC<IssueInvoicesDialogProps> = ({
               margin="normal"
               disabled={issuing || loading || !form.subscriberId}
             >
-              <InputLabel>Contrato anunciante</InputLabel>
+              <InputLabel {...selectLabelShrinkProps}>Contrato anunciante</InputLabel>
               <Select
                 label="Contrato anunciante"
                 value={form.contractId}
@@ -284,7 +285,7 @@ const IssueInvoicesDialog: React.FC<IssueInvoicesDialogProps> = ({
               margin="normal"
               disabled={issuing || loading || !form.publisherId}
             >
-              <InputLabel>Contrato da organização (assinatura)</InputLabel>
+              <InputLabel {...selectLabelShrinkProps}>Contrato da organização (assinatura)</InputLabel>
               <Select
                 label="Contrato da organização (assinatura)"
                 value={form.publisherContractId}

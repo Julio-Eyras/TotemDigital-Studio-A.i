@@ -39,6 +39,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
+import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
 
 const AIContextDashboard: React.FC = () => {
   const theme = useTheme();
@@ -155,7 +156,7 @@ const AIContextDashboard: React.FC = () => {
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <FormControl fullWidth>
-            <InputLabel>Selecionar Totem</InputLabel>
+            <InputLabel {...selectLabelShrinkProps}>Selecionar Totem</InputLabel>
             <Select
               value={selectedTotemId}
               onChange={(e) => setSelectedTotemId(e.target.value as number | '')}

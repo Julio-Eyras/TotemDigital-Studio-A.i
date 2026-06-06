@@ -52,6 +52,7 @@ import {
   ExportScheduleRecord,
 } from '../../../services/api';
 import { pickApiErrorMessage } from '../../../utils/apiErrorMessage';
+import { selectLabelShrinkProps } from '../../../utils/muiSelectLabel';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -683,7 +684,7 @@ const CronSQL: React.FC = () => {
             <Grid container spacing={2}>
               <Grid item xs={12} md={4} lg={3}>
                 <FormControl fullWidth size="small">
-                  <InputLabel>Provider</InputLabel>
+                  <InputLabel {...selectLabelShrinkProps}>Provider</InputLabel>
                   <Select
                     value={queryFilters.provider}
                     label="Provider"

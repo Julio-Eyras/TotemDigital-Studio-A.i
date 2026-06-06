@@ -75,6 +75,7 @@ import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { getLocalMenuItemSx, orderLocalsForSelect } from '../../utils/localOrdering';
 import { isStudioMode } from '../../config/studioMode';
 import { getProductTerminology } from '../../config/productTerminology';
+import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -1117,7 +1118,7 @@ const PlanPublisherAccessPage: React.FC = () => {
               <Grid container spacing={2}>
                 <Grid item xs={12} md={5}>
                   <FormControl fullWidth>
-                    <InputLabel>Filtrar por Plano</InputLabel>
+                    <InputLabel {...selectLabelShrinkProps}>Filtrar por Plano</InputLabel>
                     <Select
                       value={accessFilters.planId}
                       onChange={(e) => setAccessFilters({ ...accessFilters, planId: e.target.value })}
@@ -1135,7 +1136,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                 {!isStudioMode() && (
                   <Grid item xs={12} md={5}>
                     <FormControl fullWidth>
-                      <InputLabel>{`Filtrar por ${publisherEntityLabel}`}</InputLabel>
+                      <InputLabel {...selectLabelShrinkProps}>{`Filtrar por ${publisherEntityLabel}`}</InputLabel>
                       <Select
                         value={accessFilters.publisherId}
                         onChange={(e) => setAccessFilters({ ...accessFilters, publisherId: e.target.value })}
@@ -1626,7 +1627,7 @@ const PlanPublisherAccessPage: React.FC = () => {
                 <Grid container spacing={2} alignItems="center">
                   <Grid item xs={12} md={8}>
                     <FormControl fullWidth>
-                      <InputLabel>{publisherEntityLabel}</InputLabel>
+                      <InputLabel {...selectLabelShrinkProps}>{publisherEntityLabel}</InputLabel>
                       {isStudioMode() ? (
                         <Select
                           value={selectedLocalIdForPlan}
@@ -1896,7 +1897,7 @@ const PlanPublisherAccessPage: React.FC = () => {
         <DialogContent>
           <Box sx={{ pt: 2 }}>
             <FormControl fullWidth margin="normal">
-              <InputLabel>Plano *</InputLabel>
+              <InputLabel {...selectLabelShrinkProps}>Plano *</InputLabel>
               <Select
                 value={accessFormData.planId}
                 onChange={(e) => setAccessFormData({ ...accessFormData, planId: e.target.value })}
@@ -1913,7 +1914,7 @@ const PlanPublisherAccessPage: React.FC = () => {
             </FormControl>
 
             <FormControl fullWidth margin="normal">
-              <InputLabel>{`${accessEntityLabel} *`}</InputLabel>
+              <InputLabel {...selectLabelShrinkProps}>{`${accessEntityLabel} *`}</InputLabel>
               {isStudioMode() ? (
                 <Select
                   value={accessSelectedLocalId}

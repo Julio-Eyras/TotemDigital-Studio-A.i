@@ -69,6 +69,7 @@ import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { getTotemIdFromRow } from '../../utils/totemRowIds';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 import { format } from 'date-fns';
+import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
 
 /** Índices alinhados a `tabValue` (0..4). Uma única fonte para abas desktop e drawer mobile. */
 const DISPATCHER_SECTIONS = [
@@ -614,7 +615,7 @@ const DispatcherManager: React.FC = () => {
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} md={4}>
               <FormControl fullWidth>
-                <InputLabel>Totem</InputLabel>
+                <InputLabel {...selectLabelShrinkProps}>Totem</InputLabel>
                 <Select
                   value={selectedTotemId || ''}
                   onChange={(e) => setSelectedTotemId(e.target.value as number)}

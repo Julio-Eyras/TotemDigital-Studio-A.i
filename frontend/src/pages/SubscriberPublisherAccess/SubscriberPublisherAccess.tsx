@@ -48,6 +48,7 @@ import { planApi, Plan } from '../../services/api';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { getProductTerminology } from '../../config/productTerminology';
+import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -231,7 +232,7 @@ const SubscriberPublisherAccessPage: React.FC = () => {
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} md={3}>
               <FormControl fullWidth>
-                <InputLabel>Anunciante</InputLabel>
+                <InputLabel {...selectLabelShrinkProps}>Anunciante</InputLabel>
                 <Select
                   value={filters.subscriberId}
                   onChange={(e) => setFilters({ ...filters, subscriberId: e.target.value })}
@@ -248,7 +249,7 @@ const SubscriberPublisherAccessPage: React.FC = () => {
             </Grid>
             <Grid item xs={12} md={3}>
               <FormControl fullWidth>
-                <InputLabel>{getProductTerminology().organization}</InputLabel>
+                <InputLabel {...selectLabelShrinkProps}>{getProductTerminology().organization}</InputLabel>
                 <Select
                   value={filters.publisherId}
                   onChange={(e) => setFilters({ ...filters, publisherId: e.target.value })}
@@ -265,7 +266,7 @@ const SubscriberPublisherAccessPage: React.FC = () => {
             </Grid>
             <Grid item xs={12} md={2}>
               <FormControl fullWidth>
-                <InputLabel>Status</InputLabel>
+                <InputLabel {...selectLabelShrinkProps}>Status</InputLabel>
                 <Select
                   value={filters.isActive === undefined ? '' : filters.isActive ? 'active' : 'inactive'}
                   onChange={(e) => {
@@ -285,7 +286,7 @@ const SubscriberPublisherAccessPage: React.FC = () => {
             </Grid>
             <Grid item xs={12} md={2}>
               <FormControl fullWidth>
-                <InputLabel>Plano</InputLabel>
+                <InputLabel {...selectLabelShrinkProps}>Plano</InputLabel>
                 <Select
                   value={filters.planId}
                   onChange={(e) => setFilters({ ...filters, planId: e.target.value })}
@@ -458,7 +459,7 @@ const SubscriberPublisherAccessPage: React.FC = () => {
         <DialogContent>
           <Box sx={{ pt: 2 }}>
             <FormControl fullWidth margin="normal">
-              <InputLabel>Anunciante *</InputLabel>
+              <InputLabel {...selectLabelShrinkProps}>Anunciante *</InputLabel>
               <Select
                 value={grantFormData.subscriberId}
                 onChange={(e) => setGrantFormData({ ...grantFormData, subscriberId: e.target.value })}
@@ -474,7 +475,7 @@ const SubscriberPublisherAccessPage: React.FC = () => {
             </FormControl>
 
             <FormControl fullWidth margin="normal">
-              <InputLabel>{getProductTerminology().organization} *</InputLabel>
+              <InputLabel {...selectLabelShrinkProps}>{getProductTerminology().organization} *</InputLabel>
               <Select
                 value={grantFormData.publisherId}
                 onChange={(e) => setGrantFormData({ ...grantFormData, publisherId: e.target.value })}

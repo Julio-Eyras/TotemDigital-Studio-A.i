@@ -73,6 +73,7 @@ import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { PageHeader } from '../../components/DataDisplay';
 import { getProductTerminology } from '../../config/productTerminology';
 import { isStudioMode } from '../../config/studioMode';
+import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
 
 const Locals: React.FC = () => {
   const theme = useTheme();
@@ -518,7 +519,7 @@ const Locals: React.FC = () => {
             {showPublisherFilter && (
               <Grid item xs={12} md={3}>
                 <FormControl fullWidth>
-                  <InputLabel>{getProductTerminology().organization}</InputLabel>
+                  <InputLabel {...selectLabelShrinkProps}>{getProductTerminology().organization}</InputLabel>
                   <Select
                     value={publisherFilter || ''}
                     label={getProductTerminology().organization}

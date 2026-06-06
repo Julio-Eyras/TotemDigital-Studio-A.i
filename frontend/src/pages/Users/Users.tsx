@@ -52,6 +52,7 @@ import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { isStudioMode } from '../../config/studioMode';
 import { getProductTerminology } from '../../config/productTerminology';
+import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
 
 const USER_TYPE_LABEL_PT: Record<string, string> = {
   publisher_user: 'Usuário da organização',
@@ -597,7 +598,7 @@ const Users: React.FC = () => {
           </FormControl>
           {newUser.userType === 'publisher_user' && (
             <FormControl fullWidth margin="normal">
-              <InputLabel>{orgTerms.organization}</InputLabel>
+              <InputLabel {...selectLabelShrinkProps}>{orgTerms.organization}</InputLabel>
               <Select
                 value={newUser.publisherId || ''}
                 onChange={(e) => {
@@ -620,7 +621,7 @@ const Users: React.FC = () => {
           )}
           {newUser.userType === 'subscriber_user' && (
             <FormControl fullWidth margin="normal">
-              <InputLabel>Anunciante</InputLabel>
+              <InputLabel {...selectLabelShrinkProps}>Anunciante</InputLabel>
               <Select
                 value={newUser.subscriberId || ''}
                 onChange={(e) => {
@@ -742,7 +743,7 @@ const Users: React.FC = () => {
           </FormControl>
           {selectedUser?.user_type === 'publisher_user' && (
             <FormControl fullWidth margin="normal">
-              <InputLabel>{orgTerms.organization}</InputLabel>
+              <InputLabel {...selectLabelShrinkProps}>{orgTerms.organization}</InputLabel>
               <Select
                 value={selectedUser?.publisher_id || ''}
                 onChange={(e) => {
@@ -765,7 +766,7 @@ const Users: React.FC = () => {
           )}
           {selectedUser?.user_type === 'subscriber_user' && (
             <FormControl fullWidth margin="normal">
-              <InputLabel>Anunciante</InputLabel>
+              <InputLabel {...selectLabelShrinkProps}>Anunciante</InputLabel>
               <Select
                 value={selectedUser?.subscriber_id || ''}
                 onChange={(e) => {

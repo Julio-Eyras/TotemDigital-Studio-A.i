@@ -61,6 +61,7 @@ import {
 import { getTotemIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { getProductTerminology } from '../../config/productTerminology';
+import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
 
 export interface CampaignFullEditorDialogProps {
   open: boolean;
@@ -619,7 +620,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                 />
                 {compactMode && (
                   <FormControl fullWidth margin="normal">
-                    <InputLabel>Contrato (define o plano e os totens elegíveis)</InputLabel>
+                    <InputLabel {...selectLabelShrinkProps}>Contrato (define o plano e os totens elegíveis)</InputLabel>
                     <Select
                       label="Contrato (define o plano e os totens elegíveis)"
                       value={(() => {

@@ -39,6 +39,7 @@ import {
 import { totemApi, getWebSocketUrl } from '../../services/api';
 import { useNotification } from '../../hooks/useNotification';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
 
 interface TotemLogsViewerProps {
   totemId: number;
@@ -268,7 +269,7 @@ const TotemLogsViewer: React.FC<TotemLogsViewerProps> = ({
         <Paper sx={{ p: 2, mb: 2 }}>
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
             <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>Nível</InputLabel>
+              <InputLabel {...selectLabelShrinkProps}>Nível</InputLabel>
               <Select
                 value={filters.level}
                 label="Nível"

@@ -83,6 +83,7 @@ import {
   REVENUE_SHARE_PERCENT_LABEL,
   formatRevenueSharePercent,
 } from '../../utils/contractTypeLabels';
+import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
 
 type ContractsInitialType = 'subscriber' | 'publisher';
 
@@ -1219,7 +1220,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
         <DialogContent>
           {/* Pré-contrato removido da UI */}
           <FormControl fullWidth margin="normal" required={!effectivePublisherId} disabled={!!effectivePublisherId}>
-            <InputLabel>{effectivePublisherId ? `${orgTerms.organization} (fixo)` : `${orgTerms.organization} *`}</InputLabel>
+            <InputLabel {...selectLabelShrinkProps}>{effectivePublisherId ? `${orgTerms.organization} (fixo)` : `${orgTerms.organization} *`}</InputLabel>
             <Select
               value={publisherContractForm.publisher_id || ''}
               label={effectivePublisherId ? `${orgTerms.organization} (fixo)` : `${orgTerms.organization} *`}
@@ -1453,7 +1454,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
         <DialogContent>
           {/* Pré-contrato removido da UI */}
           <FormControl fullWidth margin="normal" required={!effectivePublisherId} disabled={!!effectivePublisherId}>
-            <InputLabel>{effectivePublisherId ? `${orgTerms.organization} (fixo)` : `${orgTerms.organization} *`}</InputLabel>
+            <InputLabel {...selectLabelShrinkProps}>{effectivePublisherId ? `${orgTerms.organization} (fixo)` : `${orgTerms.organization} *`}</InputLabel>
             <Select
               value={publisherContractForm.publisher_id || ''}
               label={effectivePublisherId ? `${orgTerms.organization} (fixo)` : `${orgTerms.organization} *`}

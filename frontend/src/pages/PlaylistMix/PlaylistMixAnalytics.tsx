@@ -43,6 +43,7 @@ import {
 import { getMixAnalytics, MixAnalytics } from '../../services/api/playlistMixApi';
 import { totemApi, Player } from '../../services/api';
 import { getTotemIdFromRow } from '../../utils/totemRowIds';
+import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
 
 const PlaylistMixAnalytics: React.FC = () => {
   const theme = useTheme();
@@ -121,7 +122,7 @@ const PlaylistMixAnalytics: React.FC = () => {
           <Grid container spacing={2}>
             <Grid item xs={12} md={4}>
               <FormControl fullWidth>
-                <InputLabel>Totem</InputLabel>
+                <InputLabel {...selectLabelShrinkProps}>Totem</InputLabel>
                 <Select
                   value={filters.totemId || ''}
                   onChange={(e) => setFilters({ ...filters, totemId: e.target.value ? Number(e.target.value) : undefined })}

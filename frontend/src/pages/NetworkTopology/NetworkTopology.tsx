@@ -49,6 +49,7 @@ import HoloGraphNetwork from '../../components/HoloGraphNetwork/HoloGraphNetwork
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { NODE_TYPE_LABELS } from '@shared/holograph-adapter';
 import type { GraphNode } from '@shared/holograph-adapter';
+import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
 
 function totemRegistryActive(tot: any): boolean {
   if (tot?.is_active === false) return false;
@@ -188,7 +189,7 @@ const NetworkTopology: React.FC = () => {
         <Box sx={{ mb: 2 }}>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2, mb: 1.5 }}>
             <FormControl size="small" sx={{ minWidth: 160 }}>
-              <InputLabel>Dia da semana</InputLabel>
+              <InputLabel {...selectLabelShrinkProps}>Dia da semana</InputLabel>
               <Select
                 value={graphFilterDay}
                 label="Dia da semana"
@@ -209,7 +210,7 @@ const NetworkTopology: React.FC = () => {
               </Select>
             </FormControl>
             <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>Horário</InputLabel>
+              <InputLabel {...selectLabelShrinkProps}>Horário</InputLabel>
               <Select
                 value={graphFilterTime}
                 label="Horário"

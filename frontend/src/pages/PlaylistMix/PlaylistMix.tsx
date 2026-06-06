@@ -51,9 +51,12 @@ import {
   MixHistory,
   MixRule,
 } from '../../services/api/playlistMixApi';
+import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
+import { getProductTerminology } from '../../config/productTerminology';
 
 const PlaylistMix: React.FC = () => {
   const theme = useTheme();
+  const orgTerms = getProductTerminology();
   const [totems, setTotems] = useState<Player[]>([]);
   const [selectedTotemId, setSelectedTotemId] = useState<number | ''>('');
 
@@ -282,7 +285,7 @@ const PlaylistMix: React.FC = () => {
             Playlist Mixer por Totem
           </Typography>
           <Typography variant="subtitle1" color="text.secondary">
-            Visualize e gere a mixagem de campanhas, playlists e mídias para cada totem do publisher.
+            {`Visualize e gere a mixagem de campanhas, playlists e mídias para cada totem da ${orgTerms.organization.toLowerCase()}.`}
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1 }}>
@@ -325,7 +328,7 @@ const PlaylistMix: React.FC = () => {
             <CardContent>
               {loadingTotems && <LinearProgress sx={{ mb: 2 }} />}
               <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-                <InputLabel id="totem-select-label">Totem</InputLabel>
+                <InputLabel {...selectLabelShrinkProps} id="totem-select-label">Totem</InputLabel>
                 <Select
                   labelId="totem-select-label"
                   label="Totem"

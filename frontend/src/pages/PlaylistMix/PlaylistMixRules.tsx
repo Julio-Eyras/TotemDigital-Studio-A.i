@@ -47,6 +47,7 @@ import { useAppSelector } from '../../store/hooks';
 import { getForeignTotemIdFromRow, getTotemIdFromRow, getTotemPublisherIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { isStudioMode } from '../../config/studioMode';
+import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
 
 const isAdminLikeRole = (role?: string) =>
   ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial'].includes(
@@ -422,7 +423,7 @@ const PlaylistMixRules: React.FC = () => {
           {loadingScopeTotems && <LinearProgress sx={{ my: 1 }} />}
 
           <FormControl fullWidth margin="normal" disabled={loadingScopeTotems} error={Boolean(scopeTotemsError)}>
-            <InputLabel id="mix-rule-totem-scope-label">Escopo (totem)</InputLabel>
+            <InputLabel {...selectLabelShrinkProps} id="mix-rule-totem-scope-label">Escopo (totem)</InputLabel>
             <Select
               labelId="mix-rule-totem-scope-label"
               label="Escopo (totem)"

@@ -39,6 +39,7 @@ import { DISABLE_DIRECT_CAMPAIGN_TOTEM } from '../../../config/featureFlags';
 import { DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT_PT } from '../../../constants/campaignUiMessages';
 import { getTotemIdFromRow } from '../../../utils/totemRowIds';
 import { getProductTerminology } from '../../../config/productTerminology';
+import { selectLabelShrinkProps } from '../../../utils/muiSelectLabel';
 
 export interface CampaignFormProps {
   mode: 'create' | 'edit';
@@ -266,7 +267,7 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
             {mode === 'create' && (
               <Grid item xs={12} md={6}>
                 <FormControl fullWidth margin="normal">
-                  <InputLabel>Anunciante</InputLabel>
+                  <InputLabel {...selectLabelShrinkProps}>Anunciante</InputLabel>
                   <Select
                     value={subscriberId || ''}
                     onChange={async (e) => {

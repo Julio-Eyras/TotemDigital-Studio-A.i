@@ -99,6 +99,7 @@ import {
   formatIssueInvoicesMessage,
   formatRevenueSharePayoutMessage,
 } from '../../utils/formatIssueInvoicesResult';
+import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
 
 const BILLING_TABLE_CONTAINER_SX = { overflowX: 'auto', maxWidth: '100%' } as const;
 
@@ -1313,7 +1314,7 @@ const Billing: React.FC = () => {
           )}
           <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
             <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>Status</InputLabel>
+              <InputLabel {...selectLabelShrinkProps}>Status</InputLabel>
               <Select
                 value={subscriberFilters.status}
                 label="Status"
@@ -1336,7 +1337,7 @@ const Billing: React.FC = () => {
               </Select>
             </FormControl>
             <FormControl size="small" sx={{ minWidth: 130 }}>
-              <InputLabel>Vencimento</InputLabel>
+              <InputLabel {...selectLabelShrinkProps}>Vencimento</InputLabel>
               <Select
                 value={subscriberFilters.dueFilter}
                 label="Vencimento"
@@ -1358,7 +1359,7 @@ const Billing: React.FC = () => {
               </Select>
             </FormControl>
             <FormControl size="small" sx={{ minWidth: 140 }}>
-              <InputLabel>Tipo</InputLabel>
+              <InputLabel {...selectLabelShrinkProps}>Tipo</InputLabel>
               <Select
                 value={subscriberFilters.billingType}
                 label="Tipo"
@@ -1633,7 +1634,7 @@ const Billing: React.FC = () => {
         <TabPanel value={tabValue} index={2}>
           <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
             <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>Status</InputLabel>
+              <InputLabel {...selectLabelShrinkProps}>Status</InputLabel>
               <Select
                 value={publisherFilters.paymentStatus}
                 label="Status"
@@ -1657,7 +1658,7 @@ const Billing: React.FC = () => {
               </Select>
             </FormControl>
             <FormControl size="small" sx={{ minWidth: 130 }}>
-              <InputLabel>Vencimento</InputLabel>
+              <InputLabel {...selectLabelShrinkProps}>Vencimento</InputLabel>
               <Select
                 value={publisherFilters.dueFilter}
                 label="Vencimento"
@@ -1677,7 +1678,7 @@ const Billing: React.FC = () => {
               </Select>
             </FormControl>
             <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>Direção</InputLabel>
+              <InputLabel {...selectLabelShrinkProps}>Direção</InputLabel>
               <Select
                 value={publisherFilters.direction}
                 label="Direção"
@@ -1692,7 +1693,7 @@ const Billing: React.FC = () => {
               </Select>
             </FormControl>
             <FormControl size="small" sx={{ minWidth: 140 }}>
-              <InputLabel>Tipo</InputLabel>
+              <InputLabel {...selectLabelShrinkProps}>Tipo</InputLabel>
               <Select
                 value={publisherFilters.billingType}
                 label="Tipo"

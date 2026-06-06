@@ -54,6 +54,7 @@ import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionN
 import { getForeignTotemIdFromRow, getPublisherIdFromRow, getTotemIdFromRow } from '../../utils/totemRowIds';
 import { isStudioMode } from '../../config/studioMode';
 import { getProductTerminology } from '../../config/productTerminology';
+import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -256,7 +257,7 @@ const TotemPlayListPage: React.FC = () => {
             {!isStudioMode() && (
             <Grid item xs={12} sm={6} md={4}>
               <FormControl fullWidth>
-                <InputLabel id="totem-playlists-filter-publisher-label">{orgTerms.organization}</InputLabel>
+                <InputLabel {...selectLabelShrinkProps} id="totem-playlists-filter-publisher-label">{orgTerms.organization}</InputLabel>
                 <Select
                   id="totem-playlists-filter-publisher"
                   labelId="totem-playlists-filter-publisher-label"
@@ -283,7 +284,7 @@ const TotemPlayListPage: React.FC = () => {
             )}
             <Grid item xs={12} sm={6} md={4}>
               <FormControl fullWidth>
-                <InputLabel id="totem-playlists-filter-totem-label">Totem</InputLabel>
+                <InputLabel {...selectLabelShrinkProps} id="totem-playlists-filter-totem-label">Totem</InputLabel>
                 <Select
                   id="totem-playlists-filter-totem"
                   labelId="totem-playlists-filter-totem-label"

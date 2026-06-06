@@ -131,6 +131,7 @@ import {
 } from '../../utils/billingIntervals';
 import { PlanTopologyPreviewRow, loadPlanTopologyPreviewRows, countTopologyInRows } from './planTopologyPreview';
 import { PlanTopologyTabPanel } from './PlanTopologyTabPanel';
+import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
 
 const compareByDisplayName = (a?: string, b?: string) =>
   String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
@@ -2510,7 +2511,7 @@ const Subscribers: React.FC = () => {
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={6}>
                     <FormControl fullWidth size="small">
-                      <InputLabel>Plano</InputLabel>
+                      <InputLabel {...selectLabelShrinkProps}>Plano</InputLabel>
                       <Select
                         sx={sxSelectChosenGreen(!!subscriberContractForm.plan_id)}
                         value={subscriberContractForm.plan_id || ''}
@@ -3107,7 +3108,7 @@ const Subscribers: React.FC = () => {
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={6}>
                     <FormControl fullWidth size="small">
-                      <InputLabel>Plano</InputLabel>
+                      <InputLabel {...selectLabelShrinkProps}>Plano</InputLabel>
                       <Select
                         sx={sxSelectChosenGreen(!!subscriberContractFormEdit.plan_id)}
                         value={subscriberContractFormEdit.plan_id || ''}
@@ -4426,7 +4427,7 @@ const Subscribers: React.FC = () => {
                   </Grid>
                   <Grid item xs={12} md={6}>
                     <FormControl fullWidth size="small">
-                      <InputLabel>Contrato</InputLabel>
+                      <InputLabel {...selectLabelShrinkProps}>Contrato</InputLabel>
                       <Select
                         sx={sxSelectChosenGreen(editCampaignForm.contractId != null)}
                         value={editCampaignForm.contractId != null ? String(editCampaignForm.contractId) : ''}

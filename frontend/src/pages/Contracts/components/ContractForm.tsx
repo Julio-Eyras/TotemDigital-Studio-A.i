@@ -48,6 +48,7 @@ import {
   normalizeBillingInterval,
   resolveContractBillingInterval,
 } from '../../../utils/billingIntervals';
+import { selectLabelShrinkProps } from '../../../utils/muiSelectLabel';
 
 export interface ContractFormProps {
   mode: 'create' | 'edit';
@@ -264,7 +265,7 @@ const ContractForm: React.FC<ContractFormProps> = ({
             required={!effectiveSubscriberId}
             disabled={mode === 'edit' || !!effectiveSubscriberId}
           >
-            <InputLabel>{effectiveSubscriberId ? 'Assinante (fixo)' : 'Assinante *'}</InputLabel>
+            <InputLabel {...selectLabelShrinkProps}>{effectiveSubscriberId ? 'Assinante (fixo)' : 'Assinante *'}</InputLabel>
               <Select
               value={getFieldValue('subscriber_id') || ''}
               label={effectiveSubscriberId ? 'Assinante (fixo)' : 'Assinante *'}
@@ -349,7 +350,7 @@ const ContractForm: React.FC<ContractFormProps> = ({
           <Grid container spacing={2}>
             <Grid item xs={12} md={6}>
               <FormControl fullWidth margin="normal">
-                <InputLabel>Plano</InputLabel>
+                <InputLabel {...selectLabelShrinkProps}>Plano</InputLabel>
                 <Select
                   value={getFieldValue('plan_id') || ''}
                   label="Plano"
