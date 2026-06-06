@@ -25,6 +25,30 @@ const SYSTEM_ROLE_OPTIONS: UserRoleOption[] = [
   { value: 'user', label: 'Usuário' },
 ];
 
+const ROLE_HEADER_SX = {
+  opacity: '1 !important',
+  fontWeight: 600,
+  fontSize: '0.75rem',
+  color: 'text.secondary',
+  cursor: 'default',
+  py: 0.75,
+  '&.Mui-disabled': { opacity: '1 !important' },
+} as const;
+
+/** Cabeçalho visual de grupo (não selecionável) para Select. */
+export function roleGroupHeaderSx() {
+  return ROLE_HEADER_SX;
+}
+
+/** Rótulo legível da função no campo fechado do Select. */
+export function getRoleLabel(role: string, organizationLabel = 'organização'): string {
+  for (const group of getUserRoleOptionGroups(organizationLabel)) {
+    const match = group.roles.find((r) => r.value === role);
+    if (match) return match.label;
+  }
+  return role;
+}
+
 /** Grupos do dropdown de função (criar/editar/filtrar). */
 export function getUserRoleOptionGroups(organizationLabel = 'organização'): UserRoleOptionGroup[] {
   const org = organizationLabel.toLowerCase();
@@ -140,6 +164,24 @@ export function applyRoleToUserRecord<
     publisher_id: undefined,
     subscriber_id: undefined,
     is_tenant_user: true,
+  };
+}
+
+/** Payload limpo para POST /api/users (evita email vazio e campos incoerentes). */
+export function sanitizeCreateUserPayload(user: CreateUserRequest): CreateUserRequest {
+  const role = user.role;
+  const email = user.email?.trim();
+  return {
+    username: user.username.trim(),
+    name: user.name.trim(),
+    password: user.password,
+    role,
+    userType: userTypeForRole(role),
+    email: email ? email : undefined,
+    publisherId: isPublisherScopedRole(role) ? user.publisherId : undefined,
+    subscriberId: isSubscriberScopedRole(role) ? user.subscriberId : undefined,
+    isTenantUser: isSystemScopedRole(role) ? user.isTenantUser ?? true : false,
+    flags: user.flags,
   };
 }
 

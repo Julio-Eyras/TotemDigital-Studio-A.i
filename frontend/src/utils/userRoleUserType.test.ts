@@ -1,6 +1,8 @@
 import {
   applyRoleToCreateUser,
+  getRoleLabel,
   getUserRoleOptionGroups,
+  sanitizeCreateUserPayload,
   userTypeForRole,
   validateCreateUserPayload,
 } from './userRoleUserType';
@@ -56,6 +58,24 @@ describe('applyRoleToCreateUser', () => {
     );
     expect(next.userType).toBe('publisher_user');
     expect(next.publisherId).toBe(2);
+  });
+});
+
+describe('sanitizeCreateUserPayload', () => {
+  it('remove email vazio para evitar 400 do validador', () => {
+    const payload = sanitizeCreateUserPayload({
+      ...baseUser(),
+      email: '   ',
+      role: 'owner_system',
+    });
+    expect(payload.email).toBeUndefined();
+    expect(payload.userType).toBe('system_user');
+  });
+});
+
+describe('getRoleLabel', () => {
+  it('resolve rótulo da função selecionada', () => {
+    expect(getRoleLabel('operador_faturamento')).toBe('Operador Faturamento');
   });
 });
 

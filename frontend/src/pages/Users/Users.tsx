@@ -61,6 +61,8 @@ import {
   isPublisherScopedRole,
   isSubscriberScopedRole,
   isSystemScopedRole,
+  getRoleLabel,
+  sanitizeCreateUserPayload,
   userTypeForRole,
   validateCreateUserPayload,
 } from '../../utils/userRoleUserType';
@@ -92,6 +94,13 @@ const Users: React.FC = () => {
   const [roleFilter, setRoleFilter] = useState('all');
   const [userTypeFilter, setUserTypeFilter] = useState('all');
   const [error, setError] = useState<string | null>(null);
+  const [dialogError, setDialogError] = useState<string | null>(null);
+
+  const roleSelectMenuProps = {
+    disablePortal: true,
+    autoFocusItem: false,
+    PaperProps: { sx: { maxHeight: 360 } },
+  } as const;
   const [newUser, setNewUser] = useState<CreateUserRequest>({
     username: '',
     email: '',
@@ -143,19 +152,18 @@ const Users: React.FC = () => {
   };
 
   const handleCreateUser = async () => {
-    const validationError = validateCreateUserPayload(newUser);
+    const payload = sanitizeCreateUserPayload(newUser);
+    const validationError = validateCreateUserPayload(payload);
     if (validationError) {
-      setError(validationError);
+      setDialogError(validationError);
       return;
     }
 
     try {
-      const payload: CreateUserRequest = {
-        ...newUser,
-        userType: userTypeForRole(newUser.role),
-      };
+      setDialogError(null);
       await userApi.create(payload);
       setCreateDialogOpen(false);
+      setDialogError(null);
       setNewUser({
         username: '',
         email: '',
@@ -168,7 +176,7 @@ const Users: React.FC = () => {
       });
       loadUsers();
     } catch (error) {
-      setError(pickApiErrorMessage(error, 'Erro ao criar usuário'));
+      setDialogError(pickApiErrorMessage(error, 'Erro ao criar usuário'));
     }
   };
 
@@ -295,7 +303,10 @@ const Users: React.FC = () => {
           {
             label: 'Criar Usuário',
             icon: <Add />,
-            onClick: () => setCreateDialogOpen(true),
+            onClick: () => {
+              setDialogError(null);
+              setCreateDialogOpen(true);
+            },
             variant: 'contained',
           },
         ]}
@@ -533,9 +544,22 @@ const Users: React.FC = () => {
       )}
 
       {/* Create Dialog */}
-      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={createDialogOpen}
+        onClose={() => {
+          setCreateDialogOpen(false);
+          setDialogError(null);
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>Adicionar Usuário</DialogTitle>
         <DialogContent>
+          {dialogError && (
+            <Alert severity="error" sx={{ mt: 1, mb: 1 }} onClose={() => setDialogError(null)}>
+              {dialogError}
+            </Alert>
+          )}
           <TextField
             fullWidth
             label="Nome de Usuário"
@@ -574,10 +598,12 @@ const Users: React.FC = () => {
             <Select
               value={newUser.role}
               onChange={(e) => {
-                setNewUser(applyRoleToCreateUser(newUser, e.target.value));
+                setDialogError(null);
+                setNewUser(applyRoleToCreateUser(newUser, String(e.target.value)));
               }}
               label="Função"
-              MenuProps={{ autoFocusItem: false }}
+              renderValue={(value) => getRoleLabel(String(value), orgTerms.organization)}
+              MenuProps={roleSelectMenuProps}
             >
               <UserRoleSelectItems organizationLabel={orgTerms.organization} />
             </Select>
@@ -686,10 +712,12 @@ const Users: React.FC = () => {
             <Select
               value={selectedUser?.role || 'user'}
               onChange={(e) => {
-                setSelectedUser(applyRoleToUserRecord(selectedUser!, e.target.value));
+                setDialogError(null);
+                setSelectedUser(applyRoleToUserRecord(selectedUser!, String(e.target.value)));
               }}
               label="Função"
-              MenuProps={{ autoFocusItem: false }}
+              renderValue={(value) => getRoleLabel(String(value), orgTerms.organization)}
+              MenuProps={roleSelectMenuProps}
             >
               <UserRoleSelectItems organizationLabel={orgTerms.organization} />
             </Select>

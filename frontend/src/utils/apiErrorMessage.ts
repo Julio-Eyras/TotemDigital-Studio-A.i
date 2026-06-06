@@ -6,7 +6,14 @@ export function pickApiErrorMessage(err: unknown, fallback: string): string {
   const d = e?.response?.data;
   if (typeof d === 'string' && d.trim()) return d.trim();
   if (d && typeof d === 'object' && d !== null) {
-    const o = d as { error?: string; message?: string };
+    const o = d as {
+      error?: string;
+      message?: string;
+      details?: Array<{ msg?: string; message?: string }>;
+    };
+    const detailMsg = o.details?.find((item) => item?.msg || item?.message);
+    if (detailMsg?.msg) return detailMsg.msg;
+    if (detailMsg?.message) return detailMsg.message;
     if (typeof o.error === 'string' && o.error.trim()) return o.error.trim();
     if (typeof o.message === 'string' && o.message.trim()) return o.message.trim();
   }
