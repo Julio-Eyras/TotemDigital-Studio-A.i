@@ -2,6 +2,53 @@ import type { CreateUserRequest } from '../services/api';
 
 export type AppUserType = 'system_user' | 'publisher_user' | 'subscriber_user';
 
+export interface UserRoleOption {
+  value: string;
+  label: string;
+}
+
+export interface UserRoleOptionGroup {
+  title: string;
+  roles: UserRoleOption[];
+}
+
+const SYSTEM_ROLE_OPTIONS: UserRoleOption[] = [
+  { value: 'owner_system', label: 'Owner System' },
+  { value: 'admin_sql', label: 'Admin SQL' },
+  { value: 'admin', label: 'Administrador' },
+  { value: 'operador_tecnico', label: 'Operador Técnico' },
+  { value: 'operador_faturamento', label: 'Operador Faturamento' },
+  { value: 'operador_comercial', label: 'Operador Comercial' },
+  { value: 'gerente_marketing', label: 'Gerente Marketing' },
+  { value: 'editoracao', label: 'Edição' },
+  { value: 'visualizador', label: 'Visualizador' },
+  { value: 'user', label: 'Usuário' },
+];
+
+/** Grupos do dropdown de função (criar/editar/filtrar). */
+export function getUserRoleOptionGroups(organizationLabel = 'organização'): UserRoleOptionGroup[] {
+  const org = organizationLabel.toLowerCase();
+  return [
+    {
+      title: 'Sistema — acesso global à plataforma',
+      roles: SYSTEM_ROLE_OPTIONS,
+    },
+    {
+      title: `Organização — portal da ${org}`,
+      roles: [
+        {
+          value: 'publisher_user',
+          label: `Usuário do portal (${organizationLabel})`,
+        },
+      ],
+    },
+    {
+      title: 'Anunciante — portal do anunciante',
+      roles: [{ value: 'subscriber_user', label: 'Usuário do portal (anunciante)' }],
+    },
+  ];
+}
+
 /** Tipo de usuário exigido pelo backend para cada função (role). */
 export function userTypeForRole(role: string): AppUserType {
   if (role === 'publisher_user') return 'publisher_user';

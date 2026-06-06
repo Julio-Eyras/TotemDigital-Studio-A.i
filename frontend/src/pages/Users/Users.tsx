@@ -25,6 +25,7 @@ import {
   Alert,
   Switch,
   FormControlLabel,
+  FormHelperText,
   Table,
   TableBody,
   TableCell,
@@ -63,6 +64,7 @@ import {
   userTypeForRole,
   validateCreateUserPayload,
 } from '../../utils/userRoleUserType';
+import UserRoleSelectItems from '../../components/Users/UserRoleSelectItems';
 
 const USER_TYPE_LABEL_PT: Record<string, string> = {
   publisher_user: 'Usuário da organização',
@@ -323,20 +325,9 @@ const Users: React.FC = () => {
                   value={roleFilter}
                   onChange={(e) => setRoleFilter(e.target.value)}
                   label="Função"
+                  MenuProps={{ autoFocusItem: false }}
                 >
-                  <MenuItem value="all">Todas</MenuItem>
-                  <MenuItem value="owner_system">Owner System</MenuItem>
-                  <MenuItem value="admin_sql">Admin SQL</MenuItem>
-                  <MenuItem value="admin">Administrador</MenuItem>
-                  <MenuItem value="operador_tecnico">Operador Técnico</MenuItem>
-                  <MenuItem value="operador_faturamento">Operador Faturamento</MenuItem>
-                  <MenuItem value="operador_comercial">Operador Comercial</MenuItem>
-                  <MenuItem value="gerente_marketing">Gerente Marketing</MenuItem>
-                  <MenuItem value="editoracao">Edição</MenuItem>
-                  <MenuItem value="visualizador">Visualizador</MenuItem>
-                  <MenuItem value="user">Usuário</MenuItem>
-                  <MenuItem value="publisher_user">Usuário da organização</MenuItem>
-                  <MenuItem value="subscriber_user">Anunciante</MenuItem>
+                  <UserRoleSelectItems organizationLabel={orgTerms.organization} includeAll />
                 </Select>
               </FormControl>
             </Grid>
@@ -586,23 +577,16 @@ const Users: React.FC = () => {
                 setNewUser(applyRoleToCreateUser(newUser, e.target.value));
               }}
               label="Função"
+              MenuProps={{ autoFocusItem: false }}
             >
-              <MenuItem value="owner_system">Owner System</MenuItem>
-              <MenuItem value="admin_sql">Admin SQL</MenuItem>
-              <MenuItem value="admin">Administrador</MenuItem>
-              <MenuItem value="operador_tecnico">Operador Técnico</MenuItem>
-              <MenuItem value="operador_faturamento">Operador Faturamento</MenuItem>
-              <MenuItem value="operador_comercial">Operador Comercial</MenuItem>
-              <MenuItem value="gerente_marketing">Gerente Marketing</MenuItem>
-              <MenuItem value="editoracao">Edição</MenuItem>
-              <MenuItem value="visualizador">Visualizador</MenuItem>
-              <MenuItem value="user">Usuário</MenuItem>
-              <MenuItem value="publisher_user">Usuário da organização</MenuItem>
-              <MenuItem value="subscriber_user">Anunciante</MenuItem>
+              <UserRoleSelectItems organizationLabel={orgTerms.organization} />
             </Select>
+            <FormHelperText>
+              A função define o tipo de acesso. Usuários de sistema não vinculam organização nem anunciante.
+            </FormHelperText>
           </FormControl>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            Tipo de usuário: {formatUserTypeDisplay(userTypeForRole(newUser.role))}
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 1 }}>
+            Tipo de usuário: <strong>{formatUserTypeDisplay(userTypeForRole(newUser.role))}</strong>
           </Typography>
           {isPublisherScopedRole(newUser.role) && (
             <FormControl fullWidth margin="normal">
@@ -705,25 +689,17 @@ const Users: React.FC = () => {
                 setSelectedUser(applyRoleToUserRecord(selectedUser!, e.target.value));
               }}
               label="Função"
+              MenuProps={{ autoFocusItem: false }}
             >
-              <MenuItem value="owner_system">Owner System</MenuItem>
-              <MenuItem value="admin_sql">Admin SQL</MenuItem>
-              <MenuItem value="admin">Administrador</MenuItem>
-              <MenuItem value="operador_tecnico">Operador Técnico</MenuItem>
-              <MenuItem value="operador_faturamento">Operador Faturamento</MenuItem>
-              <MenuItem value="operador_comercial">Operador Comercial</MenuItem>
-              <MenuItem value="gerente_marketing">Gerente Marketing</MenuItem>
-              <MenuItem value="editoracao">Edição</MenuItem>
-              <MenuItem value="visualizador">Visualizador</MenuItem>
-              <MenuItem value="user">Usuário</MenuItem>
-              <MenuItem value="publisher_user">Usuário da organização</MenuItem>
-              <MenuItem value="subscriber_user">Anunciante</MenuItem>
-              {/* Removido: publisher_subscriber não existe no domínio */}
+              <UserRoleSelectItems organizationLabel={orgTerms.organization} />
             </Select>
+            <FormHelperText>
+              A função define o tipo de acesso. Usuários de sistema não vinculam organização nem anunciante.
+            </FormHelperText>
           </FormControl>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 1 }}>
             Tipo de usuário:{' '}
-            {formatUserTypeDisplay(userTypeForRole(selectedUser?.role || 'user'))}
+            <strong>{formatUserTypeDisplay(userTypeForRole(selectedUser?.role || 'user'))}</strong>
           </Typography>
           {isPublisherScopedRole(selectedUser?.role || '') && (
             <FormControl fullWidth margin="normal">

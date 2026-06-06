@@ -1,5 +1,6 @@
 import {
   applyRoleToCreateUser,
+  getUserRoleOptionGroups,
   userTypeForRole,
   validateCreateUserPayload,
 } from './userRoleUserType';
@@ -13,6 +14,16 @@ const baseUser = (): CreateUserRequest => ({
   role: 'user',
   userType: 'system_user',
   isTenantUser: true,
+});
+
+describe('getUserRoleOptionGroups', () => {
+  it('agrupa funções em Sistema, Organização e Anunciante', () => {
+    const groups = getUserRoleOptionGroups('Organização');
+    expect(groups).toHaveLength(3);
+    expect(groups[0].title).toMatch(/Sistema/i);
+    expect(groups[1].roles[0].value).toBe('publisher_user');
+    expect(groups[2].roles[0].value).toBe('subscriber_user');
+  });
 });
 
 describe('userTypeForRole', () => {
