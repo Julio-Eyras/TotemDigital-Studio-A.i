@@ -21,6 +21,7 @@ import {
   DueAlertLevel,
 } from '../../utils/billingDueStatus';
 import { Link as RouterLink } from 'react-router-dom';
+import type { BillingPanelScope } from '../../utils/billingPanelScope';
 
 const levelColor = (level: DueAlertLevel): 'error' | 'warning' | 'success' | 'default' => {
   if (level === 'error') return 'error';
@@ -32,7 +33,7 @@ const levelColor = (level: DueAlertLevel): 'error' | 'warning' | 'success' | 'de
 interface Props {
   dashboard: BillingControlDashboard | null;
   loading: boolean;
-  showPublisherKpis: boolean;
+  scope?: BillingPanelScope;
   publisherLabel?: string;
   onFilterInvoices?: (filter: 'overdue' | 'due_soon' | '') => void;
   onFilterPendingInvoices?: () => void;
@@ -81,7 +82,7 @@ const KpiCard: React.FC<{
 const BillingControlPanel: React.FC<Props> = ({
   dashboard,
   loading,
-  showPublisherKpis,
+  scope = 'overview',
   publisherLabel = 'Organização',
   onFilterInvoices,
   onFilterPendingInvoices,
@@ -106,12 +107,28 @@ const BillingControlPanel: React.FC<Props> = ({
   const pub = dashboard.publisherBilling;
   const dueDays = dashboard.dueSoonDays;
 
+  const showSubscriberInvoices = scope === 'overview' || scope === 'subscriber-invoices';
+  const showSubscriberContracts = scope === 'overview';
+  const showPublisherInvoices = scope === 'overview' || scope === 'publisher-invoices';
+  const showPublisherContracts = scope === 'overview' || scope === 'publisher-invoices';
+  const showRevenueShare =
+    (scope === 'overview' || scope === 'publisher-invoices') && showRevenueShareKpis;
+
+  const panelTitle =
+    scope === 'subscriber-invoices'
+      ? 'Faturas de anunciantes'
+      : scope === 'publisher-invoices'
+        ? `Faturas da ${publisherLabel.toLowerCase()}`
+        : 'Controlo de faturamento';
+
   return (
     <Box sx={{ mb: 4 }}>
       <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-        Controlo de faturamento
+        {panelTitle}
       </Typography>
 
+      {showSubscriberInvoices && (
+        <>
       <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
         Faturas — anunciantes
       </Typography>
@@ -159,8 +176,10 @@ const BillingControlPanel: React.FC<Props> = ({
           />
         </Grid>
       </Grid>
+        </>
+      )}
 
-      {showRevenueShareKpis && dashboard.revenueShare && (
+      {showRevenueShare && dashboard.revenueShare && (
         <>
           <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
             Repasse à organização (revenue share)
@@ -216,7 +235,7 @@ const BillingControlPanel: React.FC<Props> = ({
         </>
       )}
 
-      {showRevenueShareKpis && dashboard.publisherContracts && (
+      {showPublisherContracts && dashboard.publisherContracts && (
         <>
           <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
             Contratos da organização
@@ -256,7 +275,7 @@ const BillingControlPanel: React.FC<Props> = ({
         </>
       )}
 
-      {showPublisherKpis && (
+      {showPublisherInvoices && (
         <>
           <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
             Faturas — {publisherLabel}
@@ -283,6 +302,8 @@ const BillingControlPanel: React.FC<Props> = ({
         </>
       )}
 
+      {showSubscriberContracts && (
+        <>
       <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
         Contratos de anunciantes
       </Typography>
@@ -314,8 +335,10 @@ const BillingControlPanel: React.FC<Props> = ({
           </Button>
         </Grid>
       </Grid>
+        </>
+      )}
 
-      {sub.byType && sub.byType.length > 0 && (
+      {showSubscriberInvoices && sub.byType && sub.byType.length > 0 && (
         <>
           <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, mt: 2 }}>
             Consumo por tipo (anunciantes)
@@ -341,7 +364,8 @@ const BillingControlPanel: React.FC<Props> = ({
         </>
       )}
 
-      {(dashboard.contractsExpiringSoon.length > 0 || dashboard.contractsExpired.length > 0) && (
+      {showSubscriberContracts &&
+        (dashboard.contractsExpiringSoon.length > 0 || dashboard.contractsExpired.length > 0) && (
         <Grid container spacing={2}>
           {dashboard.contractsExpiringSoon.length > 0 && (
             <Grid item xs={12} md={6}>

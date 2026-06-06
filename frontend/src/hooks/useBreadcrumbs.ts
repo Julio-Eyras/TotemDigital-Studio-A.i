@@ -28,6 +28,8 @@ const breadcrumbConfig: BreadcrumbConfig[] = [
   { path: '/totems', label: 'Totens', parent: '/dashboard' },
   { path: '/users', label: 'Usuários', parent: '/dashboard' },
   { path: '/billing', label: 'Faturamento e Cobrança', parent: '/dashboard' },
+  { path: '/subscriber-contracts', label: 'Contratos de anunciantes', parent: '/billing' },
+  { path: '/publisher-contracts', label: '__org_contracts__', parent: '/billing' },
   { path: '/dispatcher-manager', label: 'Dispatcher', parent: '/dashboard' },
   { path: '/playlist-mix', label: 'Playlist Mix', parent: '/dashboard' },
   { path: '/reports', label: 'Relatórios', parent: '/dashboard' },
@@ -38,20 +40,25 @@ const breadcrumbConfig: BreadcrumbConfig[] = [
 function billingBreadcrumbLabel(search: string): string {
   const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
   const view = params.get('view');
-  if (view === 'subscriptions') return 'Faturamento — Assinaturas';
-  if (view === 'invoices' || params.get('type') === 'subscriber') return 'Faturamento — Anunciantes';
+  const t = getProductTerminology();
+  if (view === 'subscriptions') return 'Assinaturas';
+  if (view === 'invoices' && params.get('type') === 'subscriber') return 'Faturas de anunciantes';
+  if (view === 'invoices' && params.get('type') === 'publisher') {
+    return `Faturas da ${t.organization.toLowerCase()}`;
+  }
   if (params.get('type') === 'publisher') {
-    return `Faturamento — ${getProductTerminology().billingPublisherTab}`;
+    return `Faturas da ${t.organization.toLowerCase()}`;
   }
   if (params.has('dueFilter') || params.get('subscriberId') || params.get('subscriber_id')) {
-    return 'Faturamento — Anunciantes';
+    return 'Faturas de anunciantes';
   }
-  return 'Faturamento — Visão geral';
+  return 'Visão geral';
 }
 
 function resolveBreadcrumbLabel(path: string, raw: string): string {
   if (raw === '__publishers__') return getPublishersPageTitle();
   if (raw === '__units__') return getProductTerminology().units;
+  if (raw === '__org_contracts__') return getProductTerminology().organizationContracts;
   return raw;
 }
 

@@ -14,15 +14,12 @@ describe('menuPathMatches', () => {
     expect(menuPathMatches('/billing', loc('/billing', '?subscriberId=5'))).toBe(false);
   });
 
-  it('destaca Anunciantes com type=subscriber', () => {
+  it('destaca Faturas de anunciantes com type=subscriber', () => {
     expect(
       menuPathMatches(
         '/billing?type=subscriber&view=invoices',
         loc('/billing', '?type=subscriber&view=invoices')
       )
-    ).toBe(true);
-    expect(
-      menuPathMatches('/billing?type=subscriber', loc('/billing', '?type=subscriber'))
     ).toBe(true);
     expect(
       menuPathMatches(
@@ -33,6 +30,13 @@ describe('menuPathMatches', () => {
     expect(
       menuPathMatches('/billing?view=plans', loc('/billing', '?type=subscriber&view=invoices'))
     ).toBe(false);
+  });
+
+  it('destaca Contratos de anunciantes mesmo com query na rota', () => {
+    expect(
+      menuPathMatches('/subscriber-contracts', loc('/subscriber-contracts', '?subscriberId=5'))
+    ).toBe(true);
+    expect(menuPathMatches('/publisher-contracts', loc('/publisher-contracts'))).toBe(true);
   });
 
   it('destaca Timeline no dispatcher', () => {
@@ -56,13 +60,13 @@ describe('buildAutoOpenMenus', () => {
             text: 'Faturamento e Cobrança',
             path: '/billing',
             children: [
-              { text: 'Anunciantes', path: '/billing?type=subscriber&view=invoices' },
+              { text: 'Faturas de anunciantes', path: '/billing?type=subscriber&view=invoices' },
             ],
           },
         ],
       },
     ];
-    const open = buildAutoOpenMenus(items, loc('/billing', '?type=subscriber'));
+    const open = buildAutoOpenMenus(items, loc('/billing', '?type=subscriber&view=invoices'));
     expect(open[menuKeyFromText('Admin')]).toBe(true);
     expect(open[menuKeyFromText('Faturamento e Cobrança')]).toBe(true);
   });

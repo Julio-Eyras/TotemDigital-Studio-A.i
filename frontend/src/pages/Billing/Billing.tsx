@@ -100,6 +100,7 @@ import {
   formatRevenueSharePayoutMessage,
 } from '../../utils/formatIssueInvoicesResult';
 import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
+import { resolveBillingPanelScope } from '../../utils/billingPanelScope';
 
 const BILLING_TABLE_CONTAINER_SX = { overflowX: 'auto', maxWidth: '100%' } as const;
 
@@ -158,6 +159,11 @@ const Billing: React.FC = () => {
 
   const billingView = useMemo(() => parseBillingView(searchParams), [searchParams.toString()]);
   const loadInvoices = shouldLoadBillingInvoices(searchParams, billingType);
+  const panelScope = useMemo(
+    () => resolveBillingPanelScope(billingView, billingType),
+    [billingView, billingType]
+  );
+  const isFocusedInvoiceView = panelScope !== 'overview';
 
   const [tabValue, setTabValue] = useState(0);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -991,6 +997,12 @@ const Billing: React.FC = () => {
   };
 
   const orgTerms = getProductTerminology();
+  const billingPageTitle =
+    panelScope === 'subscriber-invoices'
+      ? 'Faturas de anunciantes'
+      : panelScope === 'publisher-invoices'
+        ? `Faturas da ${orgTerms.organization.toLowerCase()}`
+        : 'Faturamento e Cobrança';
   const billingTabLabel =
     billingType === 'subscriber'
       ? 'Faturas Anunciantes'
@@ -1015,7 +1027,7 @@ const Billing: React.FC = () => {
   return (
     <Box sx={ADMIN_PAGE_SX}>
       <PageHeader
-        title="Faturamento e Cobrança"
+        title={billingPageTitle}
         subtitle={billingSubtitle}
         breadcrumbs={breadcrumbs}
         onRefresh={loadAll}
@@ -1028,7 +1040,7 @@ const Billing: React.FC = () => {
         </Alert>
       )}
 
-      {!isSubscriberUser && !isPublisherUser && (
+      {!isFocusedInvoiceView && !isSubscriberUser && !isPublisherUser && (
         <Alert severity="info" sx={{ mb: 2 }}>
           <strong>Anunciantes</strong> — faturas dos clientes que contratam espaço publicitário.{' '}
           <strong>{orgTerms.billingPublisherTab}</strong> — faturas da operação de exibição
@@ -1036,14 +1048,11 @@ const Billing: React.FC = () => {
         </Alert>
       )}
 
+      {(billingView === 'plans' || billingView === 'invoices') && (
       <BillingControlPanel
         dashboard={dashboard}
         loading={loading}
-        showPublisherKpis={
-          isStudioMode()
-            ? billingType === 'publisher' || canViewAllBillingTypes
-            : billingType === 'publisher' || canViewAllBillingTypes
-        }
+        scope={panelScope}
         showRevenueShareKpis={isStudioMode() && canViewAllBillingTypes}
         publisherLabel={orgTerms.billingPublisherLabel}
         onFilterInvoices={canViewAllBillingTypes || !isSubscriberUser ? applyInvoiceDueFilter : undefined}
@@ -1061,7 +1070,9 @@ const Billing: React.FC = () => {
         publisherContractsPath="/publisher-contracts"
         formatCurrency={(n) => formatCurrency(n)}
       />
+      )}
 
+      {!isFocusedInvoiceView && canViewAllBillingTypes && !isSubscriberUser && !isPublisherUser && (
       <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
         <FormControl size="small" sx={{ minWidth: 140 }}>
           <InputLabel>Tipo de Faturamento</InputLabel>
@@ -1077,17 +1088,14 @@ const Billing: React.FC = () => {
               setTabValue(type === 'subscriber' || type === 'publisher' ? 2 : 0);
             }}
           >
-            {!isSubscriberUser && <MenuItem value="subscriber">Anunciantes</MenuItem>}
-            {!isSubscriberUser && (
-              <MenuItem value="publisher">
-                {orgTerms.billingPublisherTab}
-              </MenuItem>
-            )}
-            {isSubscriberUser && <MenuItem value="subscriber">Anunciantes</MenuItem>}
+            <MenuItem value="subscriber">Anunciantes</MenuItem>
+            <MenuItem value="publisher">{orgTerms.billingPublisherTab}</MenuItem>
           </Select>
         </FormControl>
       </Box>
+      )}
 
+      {!isFocusedInvoiceView && (
       <Box sx={{ mb: 3 }}>
         <ResponsiveSectionNav
           sections={BILLING_SECTIONS}
@@ -1097,6 +1105,7 @@ const Billing: React.FC = () => {
           idPrefix="billing"
         />
       </Box>
+      )}
 
       {/* TAB: PLANOS */}
       <TabPanel value={tabValue} index={0}>

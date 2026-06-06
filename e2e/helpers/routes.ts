@@ -29,7 +29,7 @@ export const STUDIO_ADMIN_ROUTES: StudioRouteSpec[] = [
   { path: '/smart-tvs', heading: /Smart TV|Televis/i, allowDashboardRedirect: true },
   { path: '/admin-tools', heading: /Admin Tools|Logs de Registro/i, allowDashboardRedirect: true },
   { path: '/publisher-contracts', heading: /Contrato|Organização/i },
-  { path: '/subscriber-contracts', heading: /Contrato|Anunciante|Assinante/i },
+  { path: '/subscriber-contracts', heading: /Contratos de anunciantes|Contrato|Anunciante/i },
   { path: '/smart-playlist', heading: /Smart Playlist|Playlist/i },
   { path: '/tags', heading: /Tag|Etiqueta/i, allowDashboardRedirect: true },
   { path: '/ai', heading: /IA|Inteligência|Assistente/i, allowDashboardRedirect: true },

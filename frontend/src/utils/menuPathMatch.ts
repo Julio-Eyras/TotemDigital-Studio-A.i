@@ -44,6 +44,10 @@ function pathnameSpecialMatch(
   locParams: URLSearchParams,
   menuHasSearch: boolean
 ): boolean | null {
+  if (menuPathname === '/subscriber-contracts' || menuPathname === '/publisher-contracts') {
+    return true;
+  }
+
   if (menuPathname === '/billing') {
     if (!menuHasSearch) {
       return billingOverviewLocation(locParams);

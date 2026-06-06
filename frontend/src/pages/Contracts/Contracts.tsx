@@ -393,13 +393,13 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
   };
 
   const pageTitle = useMemo(() => {
-    if (isSubscriberMaintenance) return '📄 Contratos do Anunciante';
-    if (isPublisherMaintenance) return `📄 ${orgTerms.organizationContracts}`;
+    if (isSubscriberMaintenance) return 'Contratos de anunciantes';
+    if (isPublisherMaintenance) return orgTerms.organizationContracts;
     return '📄 Contratos';
   }, [isPublisherMaintenance, isSubscriberMaintenance, orgTerms.organizationContracts]);
 
   const pageSubtitle = useMemo(() => {
-    if (isSubscriberMaintenance) return 'Gerencie contratos do Anunciante (Assinante)';
+    if (isSubscriberMaintenance) return 'Gerencie contratos de anunciantes';
     if (isPublisherMaintenance) return `Gerencie contratos da ${orgTerms.organization.toLowerCase()}`;
     return `Gerencie contratos de Anunciantes e ${orgTerms.organizationPlural}`;
   }, [isPublisherMaintenance, isSubscriberMaintenance, orgTerms.organization, orgTerms.organizationPlural]);

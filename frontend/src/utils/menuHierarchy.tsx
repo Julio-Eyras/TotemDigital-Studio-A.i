@@ -28,6 +28,7 @@ import {
   AutoAwesome,
   Analytics,
   Description,
+  Receipt,
   Assignment,
   MonitorHeart,
   ViewTimeline,
@@ -163,21 +164,38 @@ function getOrganizationFlatAdminItems(): HierarchicalMenuItem[] {
   return getOrganizationNavChildren(false);
 }
 
-/** Subitens de Faturamento e Cobrança (anunciantes + organização quando includePublisher). */
+/** Subitens de Faturamento e Cobrança — contratos e faturas separados (Opção C). */
 function getBillingMenuChildren(includePublisher: boolean): HierarchicalMenuItem[] {
   const t = getProductTerminology();
   const children: HierarchicalMenuItem[] = [
     { text: 'Visão geral', icon: <Payment />, path: '/billing?view=plans' },
-    { text: 'Anunciantes', icon: <People />, path: '/billing?type=subscriber&view=invoices' },
+    { text: 'Contratos de anunciantes', icon: <Description />, path: '/subscriber-contracts' },
+    { text: 'Faturas de anunciantes', icon: <Receipt />, path: '/billing?type=subscriber&view=invoices' },
   ];
   if (includePublisher) {
-    children.push({
-      text: t.billingPublisherTab,
-      icon: <Business />,
-      path: '/billing?type=publisher&view=invoices',
-    });
+    children.push(
+      {
+        text: t.organizationContracts,
+        icon: <Description />,
+        path: '/publisher-contracts',
+      },
+      {
+        text: `Faturas da ${t.organization.toLowerCase()}`,
+        icon: <Receipt />,
+        path: '/billing?type=publisher&view=invoices',
+      }
+    );
   }
   return children;
+}
+
+/** Faturamento no portal da organização (sem itens de anunciante). */
+function getPublisherBillingMenuChildren(): HierarchicalMenuItem[] {
+  const t = getProductTerminology();
+  return [
+    { text: t.organizationContracts, icon: <Description />, path: '/publisher-contracts' },
+    { text: `Faturas da ${t.organization.toLowerCase()}`, icon: <Receipt />, path: '/billing?type=publisher&view=invoices' },
+  ];
 }
 
 function getBillingMenuBlock(includePublisher: boolean): HierarchicalMenuItem {
@@ -687,8 +705,9 @@ function getPublisherUserMenu(): HierarchicalMenuItem[] {
     {
       text: 'Faturamento e Cobrança',
       icon: <Payment />,
-      path: '/billing?type=publisher',
+      path: '/billing?type=publisher&view=invoices',
       requiredFlag: 'flag_smart_3',
+      children: getPublisherBillingMenuChildren(),
     },
     { text: 'Configurações', icon: <Settings />, path: '/settings' },
   ];
@@ -729,7 +748,14 @@ function getSubscriberUserMenu(): HierarchicalMenuItem[] {
       ],
     },
     { text: 'Analytics', icon: <Analytics />, path: '/analytics' },
-    { text: 'Faturamento e Cobrança', icon: <Payment />, path: '/billing' },
+    {
+      text: 'Faturamento e Cobrança',
+      icon: <Payment />,
+      path: '/billing?type=subscriber&view=invoices',
+      children: [
+        { text: 'Faturas de anunciantes', icon: <Receipt />, path: '/billing?type=subscriber&view=invoices' },
+      ],
+    },
     { text: 'Configurações', icon: <Settings />, path: '/settings' },
   ];
 }
