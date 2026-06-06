@@ -15,7 +15,6 @@ import { InstallationCapabilitiesProvider, useInstallationCapabilities } from '.
 import { canAccess } from './utils/rolePermissions';
 import { setTheme, setDarkTone } from './store/slices/uiSlice';
 import { isStudioMode } from './config/studioMode';
-import { enterAdminSessionViewport } from './utils/appViewport';
 
 // Pages
 import LoginPage from './pages/Auth/LoginPage';
@@ -133,9 +132,8 @@ const AppContent: React.FC = () => {
     setLoading(false);
   }, [installationCaps.subdomainTenancy]);
 
-  const handleLoginSuccess = (token: string, user: any) => {
+  const handleLoginSuccess = (_token: string, _user: any) => {
     setIsAuthenticated(true);
-    void enterAdminSessionViewport();
   };
 
   /**

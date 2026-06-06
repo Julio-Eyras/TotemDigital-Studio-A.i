@@ -3,53 +3,42 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 
-// Suprimir erro conhecido de extensões do navegador
-// Este erro ocorre quando extensões do Chrome/Edge interceptam mensagens
+function isBenignConsoleNoise(message: string): boolean {
+  return (
+    message.includes('A listener indicated an asynchronous response') ||
+    message.includes('message channel closed') ||
+    message.includes('Extension context invalidated') ||
+    (message.includes('requestFullscreen') && message.includes('user gesture')) ||
+    message.includes('Blocked aria-hidden') ||
+    message.includes('aria-hidden on an element')
+  );
+}
+
+// Ruído conhecido: extensões do navegador e avisos de acessibilidade do MUI Modal.
 if (typeof window !== 'undefined') {
   const originalError = console.error;
-  console.error = (...args: any[]) => {
-    const errorMessage = args[0]?.toString() || '';
-    // Suprimir erro específico de extensões do navegador
-    if (
-      errorMessage.includes('A listener indicated an asynchronous response') ||
-      errorMessage.includes('message channel closed')
-    ) {
-      // Silenciar este erro específico (causado por extensões do navegador)
+  console.error = (...args: unknown[]) => {
+    const errorMessage = args.map((arg) => String(arg)).join(' ');
+    if (isBenignConsoleNoise(errorMessage)) {
       return;
     }
-    // Suprimir aviso de aria-hidden do Material-UI (aviso de acessibilidade, não crítico)
-    if (
-      errorMessage.includes('Blocked aria-hidden') ||
-      errorMessage.includes('aria-hidden on an element')
-    ) {
-      // Silenciar aviso de acessibilidade do Material-UI
-      return;
-    }
-    // Manter outros erros
     originalError.apply(console, args);
   };
 
-  // Também capturar erros não tratados relacionados a extensões
   window.addEventListener('error', (event) => {
-    const errorMessage = event.message || '';
-    if (
-      errorMessage.includes('A listener indicated an asynchronous response') ||
-      errorMessage.includes('message channel closed')
-    ) {
+    if (isBenignConsoleNoise(event.message || '')) {
       event.preventDefault();
-      return false;
     }
   });
 
-  // Capturar promessas rejeitadas relacionadas a extensões
   window.addEventListener('unhandledrejection', (event) => {
-    const errorMessage = event.reason?.message || event.reason?.toString() || '';
-    if (
-      errorMessage.includes('A listener indicated an asynchronous response') ||
-      errorMessage.includes('message channel closed')
-    ) {
+    const reason = event.reason;
+    const errorMessage =
+      (reason instanceof Error ? reason.message : '') ||
+      (typeof reason === 'string' ? reason : '') ||
+      String(reason ?? '');
+    if (isBenignConsoleNoise(errorMessage)) {
       event.preventDefault();
-      return false;
     }
   });
 }
@@ -63,4 +52,3 @@ root.render(
     <App />
   </React.StrictMode>
 );
-

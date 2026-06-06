@@ -1,5 +1,16 @@
+function hasUserActivation(): boolean {
+  const nav = navigator as Navigator & { userActivation?: { isActive: boolean } };
+  if (nav.userActivation) {
+    return nav.userActivation.isActive;
+  }
+  return true;
+}
+
 export async function requestAppFullscreen(): Promise<boolean> {
   if (document.fullscreenElement) return true;
+  if (!hasUserActivation()) {
+    return false;
+  }
 
   const el = document.documentElement;
   const legacy = el as HTMLElement & {

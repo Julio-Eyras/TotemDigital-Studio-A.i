@@ -50,7 +50,6 @@ import {
   menuKeyFromText,
   menuPathMatches,
 } from '../../utils/menuPathMatch';
-import { useAdminViewport } from '../../hooks/useAdminViewport';
 import { leaveAdminSessionViewport } from '../../utils/appViewport';
 import { ADMIN_DRAWER_WIDTH } from '../../config/adminLayout';
 
@@ -63,7 +62,6 @@ interface PublisherLayoutProps {
 type MenuItem = HierarchicalMenuItem;
 
 const PublisherLayout: React.FC<PublisherLayoutProps> = ({ children }) => {
-  useAdminViewport();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();

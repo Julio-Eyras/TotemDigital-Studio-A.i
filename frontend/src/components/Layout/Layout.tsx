@@ -64,7 +64,6 @@ import NotificationCenter from '../Notification/NotificationCenter';
 import { isStudioMode } from '../../config/studioMode';
 import {APP_DISPLAY_NAME} from '../../config/featureFlags';
 import { buildAutoOpenMenus, menuKeyFromText, menuPathMatches } from '../../utils/menuPathMatch';
-import { useAdminViewport } from '../../hooks/useAdminViewport';
 import { leaveAdminSessionViewport } from '../../utils/appViewport';
 import { ADMIN_DRAWER_WIDTH } from '../../config/adminLayout';
 
@@ -86,7 +85,6 @@ interface OpenMenusState {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  useAdminViewport();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();

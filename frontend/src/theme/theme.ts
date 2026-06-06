@@ -255,6 +255,16 @@ export const createAppTheme = (mode: 'light' | 'dark' = 'light', darkTone: DarkT
         },
       },
       MuiDialog: {
+        defaultProps: {
+          TransitionProps: {
+            onExiting: () => {
+              const active = document.activeElement;
+              if (active instanceof HTMLElement && active.closest('.MuiDialog-root')) {
+                active.blur();
+              }
+            },
+          },
+        },
         styleOverrides: {
           paper: {
             borderRadius: designTokens.borderRadius.lg,

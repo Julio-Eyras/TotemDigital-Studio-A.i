@@ -86,6 +86,8 @@ const SubscriberLogin: React.FC = () => {
       return;
     }
 
+    void enterAdminSessionViewport();
+
     try {
       setIsLoading(true);
       setError(null);
@@ -102,7 +104,6 @@ const SubscriberLogin: React.FC = () => {
           localStorage.setItem('refreshToken', response.data.refreshToken);
         }
         localStorage.setItem('user', JSON.stringify(response.data.user));
-        await enterAdminSessionViewport();
         navigate('/subscriber/dashboard');
       } else {
         setError('Resposta inválida do servidor');

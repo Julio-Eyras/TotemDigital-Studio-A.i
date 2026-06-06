@@ -72,6 +72,8 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       return;
     }
 
+    void enterAdminSessionViewport();
+
     try {
       setLoading(true);
       setError(null);
@@ -93,7 +95,6 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       if (response.token && response.user) {
         localStorage.setItem('token', response.token);
         localStorage.setItem('user', JSON.stringify(response.user));
-        await enterAdminSessionViewport();
         onLoginSuccess(response.token, response.user);
       } else {
         setError('Resposta inválida do servidor');
@@ -150,6 +151,8 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       return;
     }
 
+    void enterAdminSessionViewport();
+
     try {
       setLoading(true);
       setError(null);
@@ -159,7 +162,6 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       // Store token in localStorage
       localStorage.setItem('token', result.token);
       localStorage.setItem('user', JSON.stringify(result.user));
-      await enterAdminSessionViewport();
       onLoginSuccess(result.token, result.user);
     } catch (error: any) {
       setError(pickApiErrorMessage(error, 'Código inválido. Tente novamente.'));
