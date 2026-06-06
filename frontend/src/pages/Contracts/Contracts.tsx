@@ -77,6 +77,12 @@ import {
 import { ContractCard, ContractForm, ContractDetails } from './components';
 import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
 import { getProductTerminology } from '../../config/productTerminology';
+import {
+  getContractTypeLabel,
+  PUBLISHER_CONTRACT_TYPE_OPTIONS,
+  REVENUE_SHARE_PERCENT_LABEL,
+  formatRevenueSharePercent,
+} from '../../utils/contractTypeLabels';
 
 type ContractsInitialType = 'subscriber' | 'publisher';
 
@@ -613,17 +619,6 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
     }
   };
 
-  const getContractTypeLabel = (type: string) => {
-    switch (type) {
-      case 'advertising': return 'Publicidade';
-      case 'subscription': return 'Assinatura';
-      case 'partnership': return 'Parceria';
-      case 'revenue_share': return 'Revenue Share';
-      case 'hybrid': return 'Híbrido';
-      default: return type;
-    }
-  };
-
   const handleTogglePublisher = (publisherId: number) => {
     setSelectedPublisherIds((prev) => {
       if (prev.includes(publisherId)) {
@@ -844,20 +839,17 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
                   inputProps={{ name: 'contractTypeFilter' }}
                 >
                   <MenuItem value="all">Todos</MenuItem>
-                  {mainTab === 1 ? (
-                    <>
-                      <MenuItem value="revenue_share">Revenue Share</MenuItem>
-                      <MenuItem value="subscription">Assinatura</MenuItem>
-                      <MenuItem value="partnership">Parceria</MenuItem>
-                      <MenuItem value="hybrid">Híbrido</MenuItem>
-                    </>
-                  ) : (
-                    <>
-                      <MenuItem value="advertising">Publicidade</MenuItem>
-                      <MenuItem value="subscription">Assinatura</MenuItem>
-                      <MenuItem value="partnership">Parceria</MenuItem>
-                    </>
-                  )}
+                  {mainTab === 1
+                    ? PUBLISHER_CONTRACT_TYPE_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </MenuItem>
+                      ))
+                    : (['advertising', 'subscription', 'partnership'] as const).map((value) => (
+                        <MenuItem key={value} value={value}>
+                          {getContractTypeLabel(value)}
+                        </MenuItem>
+                      ))}
                 </Select>
               </FormControl>
             </Grid>
@@ -1044,7 +1036,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
                   </Typography>
                   {contract.revenue_share_percentage && (
                     <Typography variant="body2" color="text.secondary">
-                      Revenue Share: {contract.revenue_share_percentage}%
+                      {formatRevenueSharePercent(contract.revenue_share_percentage)}
                     </Typography>
                   )}
                   {contract.subscription_amount && (
@@ -1280,10 +1272,11 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
               label="Tipo de Contrato *"
               onChange={(e) => setPublisherContractForm({ ...publisherContractForm, contract_type: e.target.value as any })}
             >
-              <MenuItem value="revenue_share">Revenue Share</MenuItem>
-              <MenuItem value="subscription">Assinatura</MenuItem>
-              <MenuItem value="partnership">Parceria</MenuItem>
-              <MenuItem value="hybrid">Híbrido</MenuItem>
+              {PUBLISHER_CONTRACT_TYPE_OPTIONS.map((opt) => (
+                <MenuItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </MenuItem>
+              ))}
             </Select>
           </FormControl>
 
@@ -1355,7 +1348,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
             <>
               <TextField
                 fullWidth
-                label="Percentual de Revenue Share (%)"
+                label={REVENUE_SHARE_PERCENT_LABEL}
                 type="number"
                 value={publisherContractForm.revenue_share_percentage || ''}
                 onChange={(e) => setPublisherContractForm({ ...publisherContractForm, revenue_share_percentage: e.target.value ? Number(e.target.value) : undefined })}
@@ -1504,10 +1497,11 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
               label="Tipo de Contrato *"
               onChange={(e) => setPublisherContractForm({ ...publisherContractForm, contract_type: e.target.value as any })}
             >
-              <MenuItem value="revenue_share">Revenue Share</MenuItem>
-              <MenuItem value="subscription">Assinatura</MenuItem>
-              <MenuItem value="partnership">Parceria</MenuItem>
-              <MenuItem value="hybrid">Híbrido</MenuItem>
+              {PUBLISHER_CONTRACT_TYPE_OPTIONS.map((opt) => (
+                <MenuItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </MenuItem>
+              ))}
             </Select>
           </FormControl>
 
@@ -1579,7 +1573,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
             <>
               <TextField
                 fullWidth
-                label="Percentual de Revenue Share (%)"
+                label={REVENUE_SHARE_PERCENT_LABEL}
                 type="number"
                 value={publisherContractForm.revenue_share_percentage || ''}
                 onChange={(e) => setPublisherContractForm({ ...publisherContractForm, revenue_share_percentage: e.target.value ? Number(e.target.value) : undefined })}

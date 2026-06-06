@@ -29,6 +29,7 @@ import {
   AttachMoney,
 } from '@mui/icons-material';
 import { Contract } from '../../../services/api';
+import { getContractTypeLabel } from '../../../utils/contractTypeLabels';
 
 export interface ContractCardProps {
   contract: Contract;
@@ -73,23 +74,6 @@ const getStatusLabel = (status: string) => {
       return 'Cancelado';
     default:
       return status;
-  }
-};
-
-const getContractTypeLabel = (type: string) => {
-  switch (type) {
-    case 'advertising':
-      return 'Publicidade';
-    case 'subscription':
-      return 'Assinatura';
-    case 'partnership':
-      return 'Parceria';
-    case 'revenue_share':
-      return 'Revenue Share';
-    case 'hybrid':
-      return 'Híbrido';
-    default:
-      return type;
   }
 };
 

@@ -44,6 +44,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { Contract, contractApi, Publisher } from '../../../services/api';
 import { getProductTerminology } from '../../../config/productTerminology';
+import { getContractTypeLabel } from '../../../utils/contractTypeLabels';
 
 export interface ContractDetailsProps {
   open: boolean;
@@ -94,23 +95,6 @@ const getStatusLabel = (status: string) => {
       return 'Cancelado';
     default:
       return status;
-  }
-};
-
-const getContractTypeLabel = (type: string) => {
-  switch (type) {
-    case 'advertising':
-      return 'Publicidade';
-    case 'subscription':
-      return 'Assinatura';
-    case 'partnership':
-      return 'Parceria';
-    case 'revenue_share':
-      return 'Revenue Share';
-    case 'hybrid':
-      return 'Híbrido';
-    default:
-      return type;
   }
 };
 

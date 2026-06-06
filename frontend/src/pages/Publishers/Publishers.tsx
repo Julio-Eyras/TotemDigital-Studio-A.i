@@ -105,6 +105,12 @@ import {
   getPublishersPageTitle,
   isSingleOrganizationProfile,
 } from '../../config/productTerminology';
+import {
+  PUBLISHER_CONTRACT_TYPE_OPTIONS,
+  REVENUE_SHARE_PERCENT_LABEL,
+  formatRevenueSharePercent,
+  getContractTypeLabel,
+} from '../../utils/contractTypeLabels';
 
 const getDefaultContractStartDate = (): string => new Date().toISOString().split('T')[0];
 
@@ -2077,7 +2083,9 @@ const Publishers: React.FC = () => {
               {/* Formulário para criar/editar contrato da organização */}
               <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1, bgcolor: editingPublisherContractIndexCreate !== null ? alpha(theme.palette.primary.main, 0.05) : 'transparent' }}>
                 <Typography variant="subtitle2" sx={{ mb: 2 }}>
-                  {editingPublisherContractIndexCreate !== null ? 'Editar Contrato de Publisher' : 'Adicionar Contrato de Publisher'}
+                  {editingPublisherContractIndexCreate !== null
+                    ? `Editar contrato da ${terminology.organization.toLowerCase()}`
+                    : `Adicionar contrato da ${terminology.organization.toLowerCase()}`}
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={6}>
@@ -2099,10 +2107,11 @@ const Publishers: React.FC = () => {
                         label="Tipo de Contrato *"
                         onChange={(e) => setPublisherContractForm({ ...publisherContractForm, contract_type: e.target.value as any })}
                       >
-                        <MenuItem value="revenue_share">Revenue Share</MenuItem>
-                        <MenuItem value="subscription">Subscription</MenuItem>
-                        <MenuItem value="partnership">Partnership</MenuItem>
-                        <MenuItem value="hybrid">Hybrid</MenuItem>
+                        {PUBLISHER_CONTRACT_TYPE_OPTIONS.map((opt) => (
+                          <MenuItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </MenuItem>
+                        ))}
                       </Select>
                     </FormControl>
                   </Grid>
@@ -2969,7 +2978,9 @@ const Publishers: React.FC = () => {
               {/* Formulário para criar/editar contrato da organização */}
               <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1, bgcolor: editingPublisherContractIndex !== null ? alpha(theme.palette.primary.main, 0.05) : 'transparent' }}>
                 <Typography variant="subtitle2" sx={{ mb: 2 }}>
-                  {editingPublisherContractIndex !== null ? 'Editar Contrato de Publisher' : 'Adicionar Contrato de Publisher'}
+                  {editingPublisherContractIndex !== null
+                    ? `Editar contrato da ${terminology.organization.toLowerCase()}`
+                    : `Adicionar contrato da ${terminology.organization.toLowerCase()}`}
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid item xs={12} md={6}>
@@ -2991,10 +3002,11 @@ const Publishers: React.FC = () => {
                         label="Tipo de Contrato *"
                         onChange={(e) => setPublisherContractForm({ ...publisherContractForm, contract_type: e.target.value as any })}
                       >
-                        <MenuItem value="revenue_share">Revenue Share</MenuItem>
-                        <MenuItem value="subscription">Subscription</MenuItem>
-                        <MenuItem value="partnership">Partnership</MenuItem>
-                        <MenuItem value="hybrid">Hybrid</MenuItem>
+                        {PUBLISHER_CONTRACT_TYPE_OPTIONS.map((opt) => (
+                          <MenuItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </MenuItem>
+                        ))}
                       </Select>
                     </FormControl>
                   </Grid>
@@ -3069,7 +3081,7 @@ const Publishers: React.FC = () => {
                       <Grid item xs={12} md={6}>
                         <TextField
                           fullWidth
-                          label="Percentual de Revenue Share (%)"
+                          label={REVENUE_SHARE_PERCENT_LABEL}
                           type="number"
                           value={publisherContractForm.revenue_share_percentage || ''}
                           onChange={(e) => setPublisherContractForm({ ...publisherContractForm, revenue_share_percentage: e.target.value ? parseFloat(e.target.value) : undefined })}
@@ -3190,14 +3202,16 @@ const Publishers: React.FC = () => {
               </Box>
 
               {/* Lista de contratos da organização */}
-              <Typography variant="subtitle1" sx={{ mb: 2, mt: 3 }}>Contratos de Publisher ({editPublisherContracts.length})</Typography>
+              <Typography variant="subtitle1" sx={{ mb: 2, mt: 3 }}>
+                {terminology.organizationContracts} ({editPublisherContracts.length})
+              </Typography>
               {loadingEditContracts ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                   <CircularProgress />
                 </Box>
               ) : editPublisherContracts.length === 0 ? (
                 <Alert severity="info" sx={{ mb: 2 }}>
-                  Nenhum contrato de publisher encontrado. Crie um contrato usando o formulário acima.
+                  {`Nenhum contrato da ${terminology.organization.toLowerCase()} encontrado. Crie um contrato usando o formulário acima.`}
                 </Alert>
               ) : (
                 <List sx={{ mb: 3 }}>
@@ -3260,7 +3274,7 @@ const Publishers: React.FC = () => {
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <Assignment fontSize="small" color="action" />
                             <Typography variant="caption" color="text.secondary">
-                              Tipo: {contract.contract_type}
+                              Tipo: {getContractTypeLabel(contract.contract_type)}
                             </Typography>
                           </Box>
                         )}
@@ -3272,7 +3286,7 @@ const Publishers: React.FC = () => {
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <AttachMoney fontSize="small" color="action" />
                             <Typography variant="caption" color="text.secondary">
-                              Revenue Share: {Number(contract.revenue_share_percentage || 0)}%
+                              {formatRevenueSharePercent(contract.revenue_share_percentage)}
                             </Typography>
                           </Box>
                         )}

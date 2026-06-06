@@ -34,6 +34,10 @@ import {
   MenuItem,
 } from '@mui/material';
 import {
+  getContractTypeLabel,
+  formatRevenueSharePercent,
+} from '../../../utils/contractTypeLabels';
+import {
   Store,
   Computer,
   Tv,
@@ -485,7 +489,7 @@ const PublisherDetails: React.FC<PublisherDetailsProps> = ({
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                           <Assignment fontSize="small" color="action" />
                           <Typography variant="caption" color="text.secondary">
-                            Tipo: {contract.contract_type}
+                            Tipo: {getContractTypeLabel(contract.contract_type)}
                           </Typography>
                         </Box>
                       )}
@@ -497,7 +501,7 @@ const PublisherDetails: React.FC<PublisherDetailsProps> = ({
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <AttachMoney fontSize="small" color="action" />
                             <Typography variant="caption" color="text.secondary">
-                              Revenue Share: {Number(contract.revenue_share_percentage || 0)}%
+                              {formatRevenueSharePercent(contract.revenue_share_percentage)}
                             </Typography>
                           </Box>
                         )}
