@@ -26,7 +26,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { AutoAwesome, CheckCircle, CloudUpload, FlashOn, Refresh, Send } from '@mui/icons-material';
+import { AutoAwesome, CheckCircle, CloudUpload, FlashOn, PlayCircleOutline, Refresh, Send } from '@mui/icons-material';
 import { CreatePublishPanel } from '../../components/Publish/CreatePublishPanel';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
@@ -100,6 +100,30 @@ function isApprovedMedia(media: MediaItem): boolean {
   return !approval || approval === 'approved';
 }
 
+function isProtectedThumbnailUrl(url?: string | null): boolean {
+  if (!url) return false;
+  return /\/api\/media\/\d+\/thumbnail(\?|$)/.test(url);
+}
+
+function normalizePublicAssetUrl(raw?: string | null): string | undefined {
+  const v = typeof raw === 'string' ? raw.trim() : '';
+  if (!v) return undefined;
+  if (v.startsWith('/assets/')) return v;
+  if (v.startsWith('/uploads/')) return v;
+  if (v.startsWith('/opt/smart-signage/public/assets/')) {
+    return v.replace('/opt/smart-signage/public/assets/', '/assets/');
+  }
+  if (v.includes('/public/assets/')) {
+    const parts = v.split('/public/assets/');
+    if (parts.length > 1) return `/assets/${parts[1]}`.replace(/\/+/g, '/');
+  }
+  if (v.includes('/assets/')) {
+    const parts = v.split('/assets/');
+    if (parts.length > 1) return `/assets/${parts[1]}`.replace(/\/+/g, '/');
+  }
+  return undefined;
+}
+
 const QuickPublish: React.FC = () => {
   const breadcrumbs = useBreadcrumbs();
   const { presets: publishPresets, getPreset } = usePublishTemplatesFromApi();
@@ -136,6 +160,9 @@ const QuickPublish: React.FC = () => {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null);
   const uploadPreviewRevokeRef = useRef<(() => void) | null>(null);
+  const selectedMediaPreviewUrlsRef = useRef<Map<number, string>>(new Map());
+  const [selectedMediaPreviewTick, setSelectedMediaPreviewTick] = useState(0);
+  const [loadingSelectedMediaPreview, setLoadingSelectedMediaPreview] = useState(false);
   const [uploadName, setUploadName] = useState('');
   /** Após upload, encaixar imagem/vídeo em 9:16 (API `POST /api/media/:id/transform`). */
   const [portraitAfterUpload, setPortraitAfterUpload] = useState(initialPortrait);
@@ -171,16 +198,31 @@ const QuickPublish: React.FC = () => {
     return 3;
   }, [contractId, safeMediaIds.length, subscriberId, title, totemIds.length]);
 
-  const selectedMediaNames = useMemo(
+  const selectedMedias = useMemo(
     () =>
-      medias
-        .filter((media) => {
-          const id = resolveMediaId(media);
-          return id != null && safeMediaIds.includes(id);
-        })
-        .map((media) => media.name),
+      medias.filter((media) => {
+        const id = resolveMediaId(media);
+        return id != null && safeMediaIds.includes(id);
+      }),
     [safeMediaIds, medias]
   );
+
+  const selectedMediaNames = useMemo(
+    () => selectedMedias.map((media) => media.name),
+    [selectedMedias]
+  );
+
+  const getSelectedMediaPreviewSrc = useCallback((media: MediaItem): string | undefined => {
+    const id = resolveMediaId(media);
+    if (id && selectedMediaPreviewUrlsRef.current.has(id)) {
+      return selectedMediaPreviewUrlsRef.current.get(id);
+    }
+    const publicPath = normalizePublicAssetUrl(media.file_path);
+    if (publicPath) return publicPath;
+    const url = media.previewUrl || media.thumbnailUrl;
+    if (url && !isProtectedThumbnailUrl(url)) return url;
+    return undefined;
+  }, [selectedMediaPreviewTick]);
 
   const selectedTotemNames = useMemo(
     () => totems.filter((totem) => totemIds.includes(totem.totem_id)).map(getTotemLabel),
@@ -235,6 +277,66 @@ const QuickPublish: React.FC = () => {
   useEffect(() => {
     setPortraitAfterUpload(preset === 'menu');
   }, [preset]);
+
+  useEffect(() => {
+    return () => {
+      selectedMediaPreviewUrlsRef.current.forEach((url) => {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          /* noop */
+        }
+      });
+      selectedMediaPreviewUrlsRef.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token || selectedMedias.length === 0) {
+      setLoadingSelectedMediaPreview(false);
+      return;
+    }
+
+    let cancelled = false;
+    const toFetch = selectedMedias
+      .map((media) => ({
+        id: resolveMediaId(media),
+        needsBlob:
+          !normalizePublicAssetUrl(media.file_path)
+          && isProtectedThumbnailUrl(media.thumbnailUrl || media.previewUrl),
+      }))
+      .filter((item): item is { id: number; needsBlob: boolean } => item.id != null && item.needsBlob)
+      .filter((item) => !selectedMediaPreviewUrlsRef.current.has(item.id));
+
+    if (toFetch.length === 0) {
+      setLoadingSelectedMediaPreview(false);
+      return;
+    }
+
+    setLoadingSelectedMediaPreview(true);
+    (async () => {
+      for (const { id } of toFetch) {
+        try {
+          const blob = await mediaApi.getThumbnailBlob(id);
+          const objectUrl = URL.createObjectURL(blob);
+          if (cancelled) {
+            URL.revokeObjectURL(objectUrl);
+            continue;
+          }
+          selectedMediaPreviewUrlsRef.current.set(id, objectUrl);
+          setSelectedMediaPreviewTick((v) => v + 1);
+        } catch {
+          /* thumbnail opcional */
+        }
+      }
+      if (!cancelled) setLoadingSelectedMediaPreview(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedMedias]);
 
   useEffect(() => {
     uploadPreviewRevokeRef.current?.();
@@ -512,6 +614,11 @@ const QuickPublish: React.FC = () => {
 
       const approvedMedias = await loadApprovedMedias(Number(subscriberId));
       const resolvedId = resolveMediaId(workingMedia) ?? mediaId;
+      const normalizedWorking = { ...workingMedia, media_id: resolvedId, id: resolvedId };
+      setMedias((prev) => {
+        if (prev.some((item) => resolveMediaId(item) === resolvedId)) return prev;
+        return [...prev, normalizedWorking as MediaItem];
+      });
       if (isApprovedMedia(workingMedia)) {
         setMediaIds((prev) => sanitizeMediaIdList([...prev, resolvedId]));
         setSuccess(
@@ -986,6 +1093,99 @@ const QuickPublish: React.FC = () => {
                 </Typography>
               )}
             </Grid>
+
+            {safeMediaIds.length > 0 && (
+              <Grid item xs={12}>
+                <Card variant="outlined" sx={{ borderColor: 'success.light' }}>
+                  <CardContent>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+                      Pré-visualização da mídia selecionada
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      Confira o conteúdo que será publicado nas telas escolhidas.
+                    </Typography>
+                    {loadingSelectedMediaPreview && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                        <CircularProgress size={18} />
+                        <Typography variant="caption" color="text.secondary">
+                          Carregando pré-visualização...
+                        </Typography>
+                      </Box>
+                    )}
+                    <Grid container spacing={2}>
+                      {selectedMedias.map((media) => {
+                        const mediaId = resolveMediaId(media);
+                        const previewSrc = getSelectedMediaPreviewSrc(media);
+                        const mediaType = String(media.media_type || '').toLowerCase();
+                        const isVideo = mediaType === 'video';
+                        return (
+                          <Grid item xs={12} sm={6} md={4} key={mediaId ?? media.name}>
+                            <Box
+                              sx={{
+                                border: '1px solid',
+                                borderColor: 'divider',
+                                borderRadius: 1,
+                                overflow: 'hidden',
+                                bgcolor: 'action.hover',
+                              }}
+                            >
+                              <Box
+                                sx={{
+                                  position: 'relative',
+                                  minHeight: 180,
+                                  maxHeight: 280,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                }}
+                              >
+                                {previewSrc && isVideo ? (
+                                  <>
+                                    <Box
+                                      component="img"
+                                      src={previewSrc}
+                                      alt={media.name}
+                                      sx={{ width: '100%', maxHeight: 280, objectFit: 'contain' }}
+                                    />
+                                    <PlayCircleOutline
+                                      sx={{
+                                        position: 'absolute',
+                                        fontSize: 48,
+                                        color: 'rgba(255,255,255,0.92)',
+                                        filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.45))',
+                                      }}
+                                    />
+                                  </>
+                                ) : previewSrc ? (
+                                  <Box
+                                    component="img"
+                                    src={previewSrc}
+                                    alt={media.name}
+                                    sx={{ width: '100%', maxHeight: 280, objectFit: 'contain' }}
+                                  />
+                                ) : (
+                                  <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: 'center' }}>
+                                    Pré-visualização indisponível para {getMediaLabel(media)}.
+                                  </Typography>
+                                )}
+                              </Box>
+                              <Box sx={{ px: 1.5, py: 1, borderTop: '1px solid', borderColor: 'divider' }}>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                  {media.name}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {getMediaLabel(media)}
+                                </Typography>
+                              </Box>
+                            </Box>
+                          </Grid>
+                        );
+                      })}
+                    </Grid>
+                  </CardContent>
+                </Card>
+              </Grid>
+            )}
 
             <Grid item xs={12} md={4}>
               <TextField
