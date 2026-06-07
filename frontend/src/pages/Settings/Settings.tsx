@@ -42,7 +42,7 @@ import {
 } from '@mui/icons-material';
 import { settingsApi, SystemSetting, logsApi, LogRotationConfig, LogFileInfo, DiskSpaceInfo, RotationStatus, authApi } from '../../services/api';
 import TwoFactor from './TwoFactor';
-import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
+import ResponsiveSectionNav from '../../components/Navigation/ResponsiveSectionNav';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { Link as RouterLink } from 'react-router-dom';
 import { useAppSelector } from '../../store';

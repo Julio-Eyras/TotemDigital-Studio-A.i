@@ -75,7 +75,7 @@ import { planApi, Plan, subscriptionApi, Subscription } from '../../services/api
 import { useNotification } from '../../hooks/useNotification';
 import { useSearchParams } from 'react-router-dom';
 import { useAppSelector } from '../../store';
-import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
+import ResponsiveSectionNav from '../../components/Navigation/ResponsiveSectionNav';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';

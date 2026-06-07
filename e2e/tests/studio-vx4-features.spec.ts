@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/auth.fixture';
+import { selectFirstSubscriber } from '../helpers/quick-publish';
 
 test.describe('Studio Vx4 — templates e cardápio', () => {
   test('dashboard mostra templates em destaque com preview', async ({ adminPage }) => {
@@ -56,8 +57,7 @@ test.describe('Studio Vx5 — modo Criar e templates admin', () => {
 
   test('modo Criar promoção mostra campos de oferta após escolher anunciante', async ({ adminPage }) => {
     await adminPage.goto('/quick-publish?mode=create&preset=promotion&segment=retail');
-    await adminPage.getByLabel(/Anunciante/i).click();
-    await adminPage.getByRole('option').first().click();
+    await selectFirstSubscriber(adminPage);
     await expect(adminPage.getByLabel(/Chamada principal|Título do quadro/i).first()).toBeVisible({
       timeout: 15_000,
     });
@@ -66,8 +66,7 @@ test.describe('Studio Vx5 — modo Criar e templates admin', () => {
 
   test('admin vê cardápio no modo Criar após escolher anunciante', async ({ adminPage }) => {
     await adminPage.goto('/quick-publish?mode=create&preset=menu&segment=restaurant');
-    await adminPage.getByLabel(/Anunciante/i).click();
-    await adminPage.getByRole('option').first().click();
+    await selectFirstSubscriber(adminPage);
     await expect(adminPage.getByRole('button', { name: /Gerar animação HTML/i })).toBeVisible({
       timeout: 15_000,
     });

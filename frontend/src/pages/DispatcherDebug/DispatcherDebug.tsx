@@ -57,7 +57,7 @@ import {
   QueryBuilder,
 } from '@mui/icons-material';
 import { dispatcherDebugApi, RedisStatus, QueryLog, DispatcherMessage, DebugStats } from '../../services/api';
-import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
+import ResponsiveSectionNav from '../../components/Navigation/ResponsiveSectionNav';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { format } from 'date-fns';
 

@@ -75,7 +75,7 @@ import {
   normalizeBillingInterval,
 } from '../../utils/billingIntervals';
 import { ContractCard, ContractForm, ContractDetails } from './components';
-import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
+import ResponsiveSectionNav from '../../components/Navigation/ResponsiveSectionNav';
 import { getProductTerminology } from '../../config/productTerminology';
 import {
   getContractTypeLabel,

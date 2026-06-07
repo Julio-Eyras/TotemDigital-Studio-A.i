@@ -58,7 +58,7 @@ import {
 } from 'recharts';
 import { smartDisplayFxApi, SmartDisplayFxLog, FxAnalyticsOverview, FxPerformanceMetrics } from '../../services/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
+import ResponsiveSectionNav from '../../components/Navigation/ResponsiveSectionNav';
 import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
 
 interface TabPanelProps {

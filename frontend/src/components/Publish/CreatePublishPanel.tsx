@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
@@ -77,6 +77,7 @@ export const CreatePublishPanel: React.FC<CreatePublishPanelProps> = ({
   const [success, setSuccess] = useState<string | null>(null);
   const [premiumMsg, setPremiumMsg] = useState<string | null>(null);
   const [aiAssist, setAiAssist] = useState<{ available: boolean; message: string } | null>(null);
+  const renderInFlightRef = useRef(false);
 
   const presetUi = useMemo(() => findPublishBoardPresetUi(preset), [preset]);
   const presetConfig = useMemo(() => findPublishPreset(preset), [preset]);
@@ -202,7 +203,8 @@ export const CreatePublishPanel: React.FC<CreatePublishPanelProps> = ({
   };
 
   const handleRenderHtml = async () => {
-    if (!layout || !layoutPayload) return;
+    if (!layout || !layoutPayload || renderInFlightRef.current || rendering) return;
+    renderInFlightRef.current = true;
     try {
       setRendering(true);
       setError(null);
@@ -216,12 +218,14 @@ export const CreatePublishPanel: React.FC<CreatePublishPanelProps> = ({
     } catch (e) {
       setError(pickApiErrorMessage(e, 'Erro ao gerar animação HTML.'));
     } finally {
+      renderInFlightRef.current = false;
       setRendering(false);
     }
   };
 
   const handleRenderPng = async () => {
-    if (!layout || !layoutPayload) return;
+    if (!layout || !layoutPayload || renderInFlightRef.current || rendering) return;
+    renderInFlightRef.current = true;
     try {
       setRendering(true);
       await publishBoardApi.saveLayout(subscriberId, preset, layoutPayload);
@@ -233,6 +237,7 @@ export const CreatePublishPanel: React.FC<CreatePublishPanelProps> = ({
     } catch (e) {
       setError(pickApiErrorMessage(e, 'Erro ao gerar PNG.'));
     } finally {
+      renderInFlightRef.current = false;
       setRendering(false);
     }
   };

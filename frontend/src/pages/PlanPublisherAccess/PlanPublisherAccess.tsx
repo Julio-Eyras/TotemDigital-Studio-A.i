@@ -69,7 +69,7 @@ import {
   getStripePriceFieldsForPlan,
   validatePlanPriceConfiguration,
 } from '../../utils/billingIntervals';
-import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
+import ResponsiveSectionNav from '../../components/Navigation/ResponsiveSectionNav';
 import { getTotemIdFromRow, getTotemLocalIdFromRow, getTotemPublisherIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { getLocalMenuItemSx, orderLocalsForSelect } from '../../utils/localOrdering';

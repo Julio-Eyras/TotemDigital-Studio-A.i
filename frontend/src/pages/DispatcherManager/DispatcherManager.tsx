@@ -67,7 +67,7 @@ import {
 import { dispatcherTotemApi, totemApi, DispatchPlan, playlistApi } from '../../services/api';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { getTotemIdFromRow } from '../../utils/totemRowIds';
-import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
+import ResponsiveSectionNav from '../../components/Navigation/ResponsiveSectionNav';
 import { format } from 'date-fns';
 import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
 

@@ -50,7 +50,7 @@ import {
 import { totemPlaylistApi, TotemPlaylist, TotemPlaylistListItem, TotemPlaylistItem } from '../../services/api';
 import { totemApi, Player } from '../../services/api';
 import { Publisher } from '../../services/api';
-import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
+import ResponsiveSectionNav from '../../components/Navigation/ResponsiveSectionNav';
 import { getForeignTotemIdFromRow, getPublisherIdFromRow, getTotemIdFromRow } from '../../utils/totemRowIds';
 import { isStudioMode } from '../../config/studioMode';
 import { getProductTerminology } from '../../config/productTerminology';

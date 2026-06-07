@@ -110,6 +110,8 @@ Use após `git pull` na branch `Smart-Signage-Studio-V3x`, aplicar schema/seeds 
 
 ## 11. Publicar em Tela (Opção C — Rápido / Criar)
 
+**Implementado no código (homologar em campo):** anti-duplo-clique em Publicar/Gerar HTML; flags `ai_text_assist` / `ai_video` nos planos (seeds + instalador); E2E mock com rotas publish-board; player já suporta `media_type: html`.
+
 - [ ] **Rápido** (`/quick-publish?mode=quick`): upload MP4/imagem → mídia aprovada → publicar em totem
 - [ ] **Criar** (`?mode=create`): aba Criar → preset Promoção ou Cardápio → preview animado (HTML offline, sem CDN)
 - [ ] **Gerar animação HTML** → mídia `html` selecionada → **Publicar agora** (playlist/campanha automáticas, não expostas na UI)

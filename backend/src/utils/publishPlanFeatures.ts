@@ -21,12 +21,20 @@ export async function subscriberHasPremiumAiVideo(subscriberId: number): Promise
   const plans = await getSubscriberService().getActivePlans(subscriberId);
   for (const plan of plans) {
     const slug = String(plan.slug || '').toLowerCase();
-    if (slug.includes('premium') || slug.includes('pro-plus') || slug.includes('enterprise')) {
+    if (
+      slug.includes('premium')
+      || slug.includes('pro-plus')
+      || slug.includes('enterprise')
+      || slug === 'gold'
+    ) {
       return true;
     }
     const features = parseFeatures(plan.features);
     if (features.ai_video === true || features.ai_video_generation === true) {
       return true;
+    }
+    if (features.ai_video === false) {
+      continue;
     }
   }
   return false;

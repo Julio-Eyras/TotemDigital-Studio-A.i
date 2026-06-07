@@ -33,7 +33,7 @@ import {
   Business,
 } from '@mui/icons-material';
 import { subscriberAccessApi } from '../../services/api';
-import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
+import ResponsiveSectionNav from '../../components/Navigation/ResponsiveSectionNav';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { getProductTerminology, isSingleOrganizationProfile } from '../../config/productTerminology';
 

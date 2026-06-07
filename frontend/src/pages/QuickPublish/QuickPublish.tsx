@@ -143,6 +143,7 @@ const QuickPublish: React.FC = () => {
   const [loadingInitial, setLoadingInitial] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const publishInFlightRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [partialRegenWarning, setPartialRegenWarning] = useState<string | null>(null);
@@ -403,12 +404,15 @@ const QuickPublish: React.FC = () => {
   };
 
   const handlePublish = async () => {
+    if (publishInFlightRef.current || publishing) return;
+
     const publishMediaIds = sanitizeMediaIdList(mediaIds);
     if (!subscriberId || !contractId || totemIds.length === 0 || publishMediaIds.length === 0 || !title.trim()) {
       setError('Preencha cliente, contrato, tela, mídia válida e título antes de publicar.');
       return;
     }
 
+    publishInFlightRef.current = true;
     try {
       setPublishing(true);
       setError(null);
@@ -440,6 +444,7 @@ const QuickPublish: React.FC = () => {
     } catch (e) {
       setError(pickApiErrorMessage(e, 'Erro ao publicar conteúdo.'));
     } finally {
+      publishInFlightRef.current = false;
       setPublishing(false);
     }
   };
@@ -753,6 +758,14 @@ const QuickPublish: React.FC = () => {
                 })}
               </Grid>
             </Grid>
+            )}
+
+            {publishMode === 'create' && !subscriberId && (
+              <Grid item xs={12}>
+                <Alert severity="info">
+                  Selecione um anunciante acima para montar a animação HTML e publicar na tela.
+                </Alert>
+              </Grid>
             )}
 
             {publishMode === 'create' && subscriberId && (

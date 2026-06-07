@@ -193,3 +193,37 @@ ON CONFLICT (publisher_id, contract_number) DO NOTHING;
 UPDATE medias SET file_path = REPLACE(file_path, '/client-', '/subscriber-') WHERE file_path LIKE '%/client-%';
 UPDATE medias SET thumbnail_url = REPLACE(thumbnail_url, '/client-', '/subscriber-') WHERE thumbnail_url LIKE '%/client-%';
 UPDATE medias SET preview_url = REPLACE(preview_url, '/client-', '/subscriber-') WHERE preview_url LIKE '%/client-%';
+
+-- =============================================
+-- Features Publicar em Tela (IA textos no plano base; vídeo IA só Premium/Gold)
+-- Idempotente: não sobrescreve flags já definidas manualmente.
+-- =============================================
+UPDATE plans
+SET features = COALESCE(features, '{}'::jsonb) || '{"ai_text_assist": true}'::jsonb,
+    updated_at = CURRENT_TIMESTAMP
+WHERE to_regclass('plans') IS NOT NULL
+  AND NOT (COALESCE(features, '{}'::jsonb) ? 'ai_text_assist');
+
+UPDATE plans
+SET features = features || '{"ai_video": true}'::jsonb,
+    updated_at = CURRENT_TIMESTAMP
+WHERE to_regclass('plans') IS NOT NULL
+  AND (
+    slug ILIKE '%premium%'
+    OR slug ILIKE '%enterprise%'
+    OR slug ILIKE '%pro-plus%'
+    OR slug = 'gold'
+  )
+  AND NOT (COALESCE(features, '{}'::jsonb) ? 'ai_video');
+
+UPDATE plans
+SET features = features || '{"ai_video": false}'::jsonb,
+    updated_at = CURRENT_TIMESTAMP
+WHERE to_regclass('plans') IS NOT NULL
+  AND NOT (
+    slug ILIKE '%premium%'
+    OR slug ILIKE '%enterprise%'
+    OR slug ILIKE '%pro-plus%'
+    OR slug = 'gold'
+  )
+  AND NOT (COALESCE(features, '{}'::jsonb) ? 'ai_video');

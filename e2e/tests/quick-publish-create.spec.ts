@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/auth.fixture';
+import { selectFirstSubscriber } from '../helpers/quick-publish';
 
 test.describe('Publicar em Tela — Opção C (Rápido / Criar)', () => {
   test('exibe abas Rápido e Criar', async ({ adminPage }) => {
@@ -15,8 +16,10 @@ test.describe('Publicar em Tela — Opção C (Rápido / Criar)', () => {
 
   test('modo Criar mostra painel de animação HTML', async ({ adminPage }) => {
     await adminPage.goto('/quick-publish?mode=create&preset=promotion&segment=retail');
-    await adminPage.getByRole('tab', { name: /Criar/i }).click();
-    await expect(adminPage.getByText(/Pré-visualização animada/i).first()).toBeVisible();
+    await selectFirstSubscriber(adminPage);
+    await expect(adminPage.getByText(/Pré-visualização animada/i).first()).toBeVisible({
+      timeout: 15_000,
+    });
     await expect(adminPage.getByRole('button', { name: /Gerar animação HTML/i })).toBeVisible();
   });
 
@@ -28,8 +31,7 @@ test.describe('Publicar em Tela — Opção C (Rápido / Criar)', () => {
 
   test('modo Criar promoção exibe campos após escolher anunciante', async ({ adminPage }) => {
     await adminPage.goto('/quick-publish?mode=create&preset=promotion&segment=retail');
-    await adminPage.getByLabel(/Anunciante/i).click();
-    await adminPage.getByRole('option').first().click();
+    await selectFirstSubscriber(adminPage);
     await expect(adminPage.getByLabel(/Chamada principal|Título do quadro/i).first()).toBeVisible({
       timeout: 15_000,
     });

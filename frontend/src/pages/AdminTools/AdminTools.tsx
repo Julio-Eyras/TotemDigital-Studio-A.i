@@ -19,7 +19,7 @@ import RequestTracking from './components/RequestTracking';
 import TotemDetails from './components/TotemDetails';
 import SystemInfo from './components/SystemInfo';
 import CronSQL from './components/CronSQL';
-import ResponsiveSectionNav from '../../components/navigation/ResponsiveSectionNav';
+import ResponsiveSectionNav from '../../components/Navigation/ResponsiveSectionNav';
 
 interface TabPanelProps {
   children?: React.ReactNode;

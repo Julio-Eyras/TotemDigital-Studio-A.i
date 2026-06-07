@@ -546,9 +546,9 @@ BEGIN
     -- Planos base
     INSERT INTO plans (name, slug, description, price_monthly, price_four_month, price_semester, price_yearly, currency, billing_interval, features, limits, is_active, is_popular, is_default, sort_order)
     VALUES
-      ('Plano Bronze', 'bronze', 'Plano Bronze demo dinâmico', 129.00, 516.00, 774.00, 1290.00, 'BRL', 'month', '{"tier":"bronze"}'::jsonb, '${demo_json_bronze}'::jsonb, true, false, true, 1),
-      ('Plano Silver', 'silver', 'Plano Silver demo dinâmico', 199.00, 796.00, 1194.00, 1990.00, 'BRL', 'month', '{"tier":"silver"}'::jsonb, '${demo_json_silver}'::jsonb, true, true, false, 2),
-      ('Plano Gold', 'gold', 'Plano Gold demo dinâmico', 299.00, 1196.00, 1794.00, 2990.00, 'BRL', 'month', '{"tier":"gold"}'::jsonb, '${demo_json_gold}'::jsonb, true, false, false, 3)
+      ('Plano Bronze', 'bronze', 'Plano Bronze demo dinâmico', 129.00, 516.00, 774.00, 1290.00, 'BRL', 'month', '{"tier":"bronze","ai_text_assist":true,"ai_video":false}'::jsonb, '${demo_json_bronze}'::jsonb, true, false, true, 1),
+      ('Plano Silver', 'silver', 'Plano Silver demo dinâmico', 199.00, 796.00, 1194.00, 1990.00, 'BRL', 'month', '{"tier":"silver","ai_text_assist":true,"ai_video":false}'::jsonb, '${demo_json_silver}'::jsonb, true, true, false, 2),
+      ('Plano Gold', 'gold', 'Plano Gold demo dinâmico', 299.00, 1196.00, 1794.00, 2990.00, 'BRL', 'month', '{"tier":"gold","ai_text_assist":true,"ai_video":true}'::jsonb, '${demo_json_gold}'::jsonb, true, false, false, 3)
     ON CONFLICT (slug) DO UPDATE
       SET name = EXCLUDED.name,
           description = EXCLUDED.description,
