@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { normalizeCampaignRecord } from '../../utils/campaignNormalize';
+import { normalizeMediaItem } from '../../utils/mediaId';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
@@ -1076,8 +1077,8 @@ export const mediaApi = {
 
     // Não definir Content-Type manualmente - axios detecta FormData e adiciona boundary automaticamente
     const response = await api.post('/media/upload', formData);
-    // Backend retorna { success: true, data: media } ou apenas media diretamente
-    return response.data.data || response.data;
+    const raw = response.data.data || response.data;
+    return normalizeMediaItem(raw) as MediaItem;
   },
 
   update: async (id: number, data: UpdateMediaRequest): Promise<MediaItem> => {
@@ -1090,7 +1091,8 @@ export const mediaApi = {
       rotationDegrees: data.rotationDegrees,
       fit: data.fit || '9:16',
     });
-    return response.data.data || response.data;
+    const raw = response.data.data || response.data;
+    return normalizeMediaItem(raw) as MediaItem;
   },
 
   delete: async (id: number): Promise<void> => {

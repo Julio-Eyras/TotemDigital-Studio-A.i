@@ -26,9 +26,25 @@ const validateRequest = (req: any, res: any, next: any) => {
  * @route POST /api/quick-publish
  * @desc Publicação rápida V3x: cria playlist/campanha/vínculos a partir de mídias existentes.
  */
+function sanitizeIdList(raw: unknown): number[] {
+  if (!Array.isArray(raw)) return [];
+  return [...new Set(
+    raw.map((item) => Number(item)).filter((n) => Number.isInteger(n) && n > 0)
+  )];
+}
+
 router.post(
   '/',
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing', 'editoracao']),
+  (req: any, _res: any, next: any) => {
+    if (Array.isArray(req.body?.totemIds)) {
+      req.body.totemIds = sanitizeIdList(req.body.totemIds);
+    }
+    if (Array.isArray(req.body?.mediaIds)) {
+      req.body.mediaIds = sanitizeIdList(req.body.mediaIds);
+    }
+    return next();
+  },
   body('subscriberId').isInt({ min: 1 }).withMessage('subscriberId inválido'),
   body('contractId').isInt({ min: 1 }).withMessage('contractId inválido'),
   body('totemIds').isArray({ min: 1 }).withMessage('Selecione ao menos um totem'),

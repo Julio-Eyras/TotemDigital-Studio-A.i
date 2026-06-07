@@ -41,6 +41,7 @@ import {
   Subscriber,
 } from '../../services/api';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { resolveMediaId, sanitizeMediaIdList } from '../../utils/mediaId';
 import {
   PUBLISH_SEGMENTS,
   buildTemplateDescription,
@@ -93,8 +94,10 @@ function getMediaLabel(media: MediaItem): string {
 }
 
 function isApprovedMedia(media: MediaItem): boolean {
-  return String(media.status || '').toLowerCase() === 'approved'
-    && String(media.approvalStatus || '').toLowerCase() === 'approved';
+  const status = String(media.status || '').toLowerCase();
+  if (status !== 'approved') return false;
+  const approval = String(media.approvalStatus || '').toLowerCase();
+  return !approval || approval === 'approved';
 }
 
 const QuickPublish: React.FC = () => {
@@ -158,16 +161,24 @@ const QuickPublish: React.FC = () => {
     [segment]
   );
 
+  const safeMediaIds = useMemo(() => sanitizeMediaIdList(mediaIds), [mediaIds]);
+
   const activeStep = useMemo(() => {
     if (!subscriberId || !contractId) return 0;
     if (totemIds.length === 0) return 1;
-    if (mediaIds.length === 0 || !title.trim()) return 2;
+    if (safeMediaIds.length === 0 || !title.trim()) return 2;
     return 3;
-  }, [contractId, mediaIds.length, subscriberId, title, totemIds.length]);
+  }, [contractId, safeMediaIds.length, subscriberId, title, totemIds.length]);
 
   const selectedMediaNames = useMemo(
-    () => medias.filter((media) => mediaIds.includes(media.media_id)).map((media) => media.name),
-    [mediaIds, medias]
+    () =>
+      medias
+        .filter((media) => {
+          const id = resolveMediaId(media);
+          return id != null && safeMediaIds.includes(id);
+        })
+        .map((media) => media.name),
+    [safeMediaIds, medias]
   );
 
   const selectedTotemNames = useMemo(
@@ -175,7 +186,9 @@ const QuickPublish: React.FC = () => {
     [totemIds, totems]
   );
 
-  const canPublish = Boolean(subscriberId && contractId && totemIds.length > 0 && mediaIds.length > 0 && title.trim());
+  const canPublish = Boolean(
+    subscriberId && contractId && totemIds.length > 0 && safeMediaIds.length > 0 && title.trim()
+  );
 
   const loadApprovedMedias = useCallback(async (targetSubscriberId: number) => {
     const mediaResult = await mediaApi.getAll({ subscriberId: targetSubscriberId, limit: 1000 });
@@ -200,6 +213,16 @@ const QuickPublish: React.FC = () => {
   useEffect(() => {
     loadSubscribers();
   }, []);
+
+  useEffect(() => {
+    const cleaned = sanitizeMediaIdList(mediaIds);
+    const dirty =
+      cleaned.length !== mediaIds.length ||
+      cleaned.some((id, i) => id !== Number(mediaIds[i]));
+    if (dirty) {
+      setMediaIds(cleaned);
+    }
+  }, [mediaIds]);
 
   useEffect(() => {
     const sid = searchParams.get('subscriber');
@@ -347,9 +370,10 @@ const QuickPublish: React.FC = () => {
   const handleCreateMediaGenerated = useCallback(
     async (mediaId: number) => {
       if (!subscriberId) return;
-      const approvedMedias = await loadApprovedMedias(Number(subscriberId));
-      const valid = approvedMedias.some((m) => m.media_id === mediaId);
-      setMediaIds(valid ? [mediaId] : [mediaId]);
+      const id = Number(mediaId);
+      if (!Number.isInteger(id) || id <= 0) return;
+      await loadApprovedMedias(Number(subscriberId));
+      setMediaIds([id]);
       setSuccess('Conteúdo gerado — revise as telas e publique abaixo.');
     },
     [loadApprovedMedias, subscriberId]
@@ -379,8 +403,9 @@ const QuickPublish: React.FC = () => {
   };
 
   const handlePublish = async () => {
-    if (!canPublish) {
-      setError('Preencha cliente, contrato, tela, mídia e título antes de publicar.');
+    const publishMediaIds = sanitizeMediaIdList(mediaIds);
+    if (!subscriberId || !contractId || totemIds.length === 0 || publishMediaIds.length === 0 || !title.trim()) {
+      setError('Preencha cliente, contrato, tela, mídia válida e título antes de publicar.');
       return;
     }
 
@@ -393,7 +418,7 @@ const QuickPublish: React.FC = () => {
         subscriberId: Number(subscriberId),
         contractId: Number(contractId),
         totemIds,
-        mediaIds,
+        mediaIds: publishMediaIds,
         preset,
         title: title.trim(),
         description: description.trim() || undefined,
@@ -453,7 +478,11 @@ const QuickPublish: React.FC = () => {
         subscriberId: Number(subscriberId),
       });
 
-      const mediaId = Number(uploaded.media_id ?? (uploaded as { id?: number }).id ?? 0);
+      const mediaId = resolveMediaId(uploaded);
+      if (!mediaId) {
+        setError('Upload concluído, mas o servidor não retornou o ID da mídia. Atualize a lista e selecione manualmente.');
+        return;
+      }
       let workingMedia: MediaItem = uploaded;
       let portraitWarning: string | null = null;
 
@@ -477,9 +506,9 @@ const QuickPublish: React.FC = () => {
       }
 
       const approvedMedias = await loadApprovedMedias(Number(subscriberId));
+      const resolvedId = resolveMediaId(workingMedia) ?? mediaId;
       if (isApprovedMedia(workingMedia)) {
-        const uploadedId = workingMedia.media_id;
-        setMediaIds((prev) => [...new Set([...prev, uploadedId])]);
+        setMediaIds((prev) => sanitizeMediaIdList([...prev, resolvedId]));
         setSuccess(
           portraitWarning
             ? `Mídia enviada e selecionada. Aviso 9:16: ${portraitWarning}`
@@ -488,9 +517,12 @@ const QuickPublish: React.FC = () => {
               : 'Mídia enviada e selecionada para publicação.'
         );
       } else {
-        const foundUploaded = approvedMedias.find((media) => media.media_id === workingMedia.media_id);
+        const foundUploaded = approvedMedias.find(
+          (media) => resolveMediaId(media) === resolvedId
+        );
         if (foundUploaded) {
-          setMediaIds((prev) => [...new Set([...prev, foundUploaded.media_id])]);
+          const foundId = resolveMediaId(foundUploaded);
+          if (foundId) setMediaIds((prev) => sanitizeMediaIdList([...prev, foundId]));
           setSuccess(
             portraitWarning
               ? `Mídia enviada e selecionada. Aviso 9:16: ${portraitWarning}`
@@ -914,7 +946,7 @@ const QuickPublish: React.FC = () => {
                 <InputLabel>Mídias aprovadas</InputLabel>
                 <Select
                   multiple
-                  value={mediaIds.map(String)}
+                  value={safeMediaIds.map(String)}
                   label="Mídias aprovadas"
                   onChange={(e) => {
                     const value = e.target.value;
@@ -923,12 +955,16 @@ const QuickPublish: React.FC = () => {
                   }}
                   renderValue={() => selectedMediaNames.join(', ')}
                 >
-                  {medias.map((media) => (
-                    <MenuItem key={media.media_id} value={String(media.media_id)}>
-                      <Checkbox checked={mediaIds.includes(media.media_id)} />
+                  {medias.map((media) => {
+                    const mid = resolveMediaId(media);
+                    if (!mid) return null;
+                    return (
+                    <MenuItem key={mid} value={String(mid)}>
+                      <Checkbox checked={safeMediaIds.includes(resolveMediaId(media) ?? -1)} />
                       <ListItemText primary={getMediaLabel(media)} secondary={media.subscriberName} />
                     </MenuItem>
-                  ))}
+                    );
+                  })}
                 </Select>
               </FormControl>
               {subscriberId && medias.length === 0 && !loadingDetails && (
@@ -1001,7 +1037,7 @@ const QuickPublish: React.FC = () => {
             </Grid>
             <Grid item xs={12} sm={6} md={2.4}>
               <Typography variant="caption" color="text.secondary">Mídias</Typography>
-              <Typography variant="body2">{mediaIds.length}</Typography>
+              <Typography variant="body2">{safeMediaIds.length}</Typography>
             </Grid>
           </Grid>
           <Divider sx={{ my: 2 }} />
