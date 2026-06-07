@@ -5,6 +5,7 @@ import { blockClientDataAccess } from '../middleware/operatorProtection.middlewa
 import { getPublishBoardService } from '../services/publishBoardService';
 import { getPublishBriefAiService } from '../services/publishBriefAiService';
 import { getPublishVideoAiQueueService } from '../services/publishVideoAiQueueService';
+import { getAIServiceInstance } from '../utils/globalInstances';
 import { logError } from '../utils/loggerHelper';
 import { assertSubscriberParamAccess } from '../middleware/subscriberParamAccess.middleware';
 
@@ -33,6 +34,37 @@ const validate = (req: any, res: any, next: any) => {
   }
   return next();
 };
+
+router.get('/ai-assist-status', async (_req, res) => {
+  try {
+    const status = await getAIServiceInstance().checkAIStatus();
+    const available = status.enabled && status.status === 'online';
+    return res.json({
+      success: true,
+      data: {
+        available,
+        enabled: status.enabled,
+        provider: status.provider,
+        status: status.status,
+        message: available
+          ? `Assistente de textos ativo (${status.provider}).`
+          : status.message || 'Configure AI_PROVIDER e credenciais no servidor para usar sugestões de texto.',
+      },
+    });
+  } catch (error: any) {
+    await logError('Erro ao verificar status da IA para publicação', error);
+    return res.json({
+      success: true,
+      data: {
+        available: false,
+        enabled: false,
+        provider: 'none',
+        status: 'offline',
+        message: 'Assistente de textos indisponível. Configure AI_PROVIDER no servidor.',
+      },
+    });
+  }
+});
 
 router.get(
   '/:preset/layout',

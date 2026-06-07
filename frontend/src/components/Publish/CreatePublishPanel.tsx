@@ -76,6 +76,7 @@ export const CreatePublishPanel: React.FC<CreatePublishPanelProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [premiumMsg, setPremiumMsg] = useState<string | null>(null);
+  const [aiAssist, setAiAssist] = useState<{ available: boolean; message: string } | null>(null);
 
   const presetUi = useMemo(() => findPublishBoardPresetUi(preset), [preset]);
   const presetConfig = useMemo(() => findPublishPreset(preset), [preset]);
@@ -114,6 +115,18 @@ export const CreatePublishPanel: React.FC<CreatePublishPanelProps> = ({
   useEffect(() => {
     loadLayout();
   }, [loadLayout]);
+
+  useEffect(() => {
+    publishBoardApi
+      .getAiAssistStatus(subscriberId)
+      .then((res) => setAiAssist({ available: res.data.available, message: res.data.message }))
+      .catch(() =>
+        setAiAssist({
+          available: false,
+          message: 'Assistente de textos indisponível. Configure AI_PROVIDER no servidor.',
+        })
+      );
+  }, [subscriberId]);
 
   const orderedProducts = productOrder
     .map((id) => menuProducts.find((p) => p.productId === id))
@@ -269,6 +282,16 @@ export const CreatePublishPanel: React.FC<CreatePublishPanelProps> = ({
           {premiumMsg}
         </Alert>
       )}
+      {aiAssist && !aiAssist.available && preset !== 'menu' && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          {aiAssist.message}
+        </Alert>
+      )}
+      {aiAssist?.available && preset !== 'menu' && (
+        <Alert severity="success" sx={{ mb: 2 }}>
+          {aiAssist.message}
+        </Alert>
+      )}
 
       <Grid container spacing={2} sx={{ mb: 2 }}>
         <Grid item xs={12} md={6}>
@@ -303,7 +326,7 @@ export const CreatePublishPanel: React.FC<CreatePublishPanelProps> = ({
       <Grid container spacing={3}>
         <Grid item xs={12} lg={5}>
           <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-            Pré-visualização animada (HTML ao vivo)
+            Pré-visualização animada (HTML offline — sem CDN)
           </Typography>
           <Box
             sx={{
@@ -399,7 +422,12 @@ export const CreatePublishPanel: React.FC<CreatePublishPanelProps> = ({
                   size="small"
                   startIcon={suggesting ? <CircularProgress size={16} /> : <AutoAwesome />}
                   onClick={handleSuggestCopy}
-                  disabled={disabled || suggesting || preset === 'menu'}
+                  disabled={disabled || suggesting || preset === 'menu' || aiAssist?.available === false}
+                  title={
+                    aiAssist?.available === false
+                      ? aiAssist.message
+                      : 'Gera headline, CTA e mensagens com base no segmento'
+                  }
                 >
                   Sugerir textos com IA
                 </Button>

@@ -16,12 +16,12 @@ test.describe('Studio Vx4 — templates e cardápio', () => {
     await expect(checklist.or(templates)).toBeVisible();
   });
 
-  test('dashboard abre estúdio visual ao clicar template em destaque', async ({ adminPage }) => {
+  test('dashboard abre modo Criar ao clicar template em destaque', async ({ adminPage }) => {
     await adminPage.goto('/dashboard');
     await adminPage.waitForLoadState('networkidle');
     await adminPage.getByText(/Promoção do dia/i).first().click();
-    await expect(adminPage).toHaveURL(/\/publish-board\?.*preset=promotion/);
-    await expect(adminPage.getByText(/Estúdio de publicação visual/i).first()).toBeVisible();
+    await expect(adminPage).toHaveURL(/\/quick-publish\?.*mode=create.*preset=promotion/);
+    await expect(adminPage.getByRole('tab', { name: /Criar/i })).toBeVisible();
   });
 
   test('admin acede cardápio por cliente', async ({ adminPage }) => {
@@ -31,31 +31,31 @@ test.describe('Studio Vx4 — templates e cardápio', () => {
     await expect(adminPage.getByLabel(/Anunciante/i)).toBeVisible();
   });
 
-  test('quick publish preset menu mostra dica de cardápio', async ({ adminPage }) => {
-    await adminPage.goto('/quick-publish?preset=menu&segment=restaurant&orientation=portrait');
+  test('quick publish modo rápido preset menu mostra templates', async ({ adminPage }) => {
+    await adminPage.goto('/quick-publish?mode=quick&preset=menu&segment=restaurant&orientation=portrait');
     await expect(adminPage.getByText(/Template visual inteligente/i).first()).toBeVisible();
     await expect(adminPage.getByText(/Cardápio Digital/i).first()).toBeVisible();
   });
 });
 
-test.describe('Studio Vx5 — estúdio visual e templates admin', () => {
-  test('admin acede estúdio visual com abas de templates', async ({ adminPage }) => {
-    await adminPage.goto('/publish-board?preset=promotion&segment=retail');
-    await expect(adminPage).toHaveURL(/\/publish-board/);
-    await expect(adminPage.getByText(/Estúdio de publicação visual/i).first()).toBeVisible();
+test.describe('Studio Vx5 — modo Criar e templates admin', () => {
+  test('admin acede modo Criar com abas de templates', async ({ adminPage }) => {
+    await adminPage.goto('/quick-publish?mode=create&preset=promotion&segment=retail');
+    await expect(adminPage).toHaveURL(/mode=create/);
+    await expect(adminPage.getByRole('tab', { name: /Criar/i })).toBeVisible();
     await expect(adminPage.getByRole('tab', { name: /Promoção|Cardápio Digital/i }).first()).toBeVisible();
   });
 
-  test('estúdio exibe abas Comunicado e Institucional', async ({ adminPage }) => {
-    await adminPage.goto('/publish-board?preset=announcement&segment=church');
+  test('modo Criar exibe abas Comunicado e Institucional', async ({ adminPage }) => {
+    await adminPage.goto('/quick-publish?mode=create&preset=announcement&segment=church');
     await expect(adminPage.getByRole('tab', { name: /Comunicado/i })).toBeVisible();
     await adminPage.getByRole('tab', { name: /Institucional/i }).click();
     await expect(adminPage).toHaveURL(/preset=institutional/);
     await expect(adminPage.getByText(/Institucional/i).first()).toBeVisible();
   });
 
-  test('estúdio promoção mostra campos de oferta após escolher anunciante', async ({ adminPage }) => {
-    await adminPage.goto('/publish-board?preset=promotion&segment=retail');
+  test('modo Criar promoção mostra campos de oferta após escolher anunciante', async ({ adminPage }) => {
+    await adminPage.goto('/quick-publish?mode=create&preset=promotion&segment=retail');
     await adminPage.getByLabel(/Anunciante/i).click();
     await adminPage.getByRole('option').first().click();
     await expect(adminPage.getByLabel(/Chamada principal|Título do quadro/i).first()).toBeVisible({
@@ -64,11 +64,11 @@ test.describe('Studio Vx5 — estúdio visual e templates admin', () => {
     await expect(adminPage.getByLabel(/Texto da oferta|Preço em destaque/i).first()).toBeVisible();
   });
 
-  test('admin vê estúdio do cardápio após escolher anunciante', async ({ adminPage }) => {
-    await adminPage.goto('/publish-board?preset=menu&segment=restaurant');
+  test('admin vê cardápio no modo Criar após escolher anunciante', async ({ adminPage }) => {
+    await adminPage.goto('/quick-publish?mode=create&preset=menu&segment=restaurant');
     await adminPage.getByLabel(/Anunciante/i).click();
     await adminPage.getByRole('option').first().click();
-    await expect(adminPage.getByText(/Gerar mídia e publicar/i).first()).toBeVisible({
+    await expect(adminPage.getByRole('button', { name: /Gerar animação HTML/i })).toBeVisible({
       timeout: 15_000,
     });
   });

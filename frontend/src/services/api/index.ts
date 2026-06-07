@@ -2114,7 +2114,19 @@ export interface PublishBoardLayoutDto {
   showPrices: boolean;
 }
 
+export interface PublishAiAssistStatus {
+  available: boolean;
+  enabled: boolean;
+  provider: string;
+  status: string;
+  message: string;
+}
+
 export const publishBoardApi = {
+  getAiAssistStatus: async (subscriberId: number) => {
+    const response = await api.get(`/subscribers/${subscriberId}/publish-board/ai-assist-status`);
+    return response.data as { success: boolean; data: PublishAiAssistStatus };
+  },
   getLayout: async (subscriberId: number, preset: QuickPublishPreset) => {
     const response = await api.get(`/subscribers/${subscriberId}/publish-board/${preset}/layout`);
     return response.data as { success: boolean; data: PublishBoardLayoutDto };

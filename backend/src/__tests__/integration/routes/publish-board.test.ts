@@ -4,6 +4,10 @@ import request from 'supertest';
 const mockGetLayout = jest.fn();
 const mockSaveLayout = jest.fn();
 const mockRenderToMedia = jest.fn();
+const mockPreviewHtml = jest.fn();
+const mockRenderToMediaHtml = jest.fn();
+const mockSuggestCopy = jest.fn();
+const mockCheckAIStatus = jest.fn();
 
 jest.mock('../../../middleware/auth.middleware', () => ({
   authenticateToken: (req: any, _res: any, next: any) => {
@@ -30,6 +34,20 @@ jest.mock('../../../services/publishBoardService', () => ({
     getLayout: (...args: unknown[]) => mockGetLayout(...args),
     saveLayout: (...args: unknown[]) => mockSaveLayout(...args),
     renderToMedia: (...args: unknown[]) => mockRenderToMedia(...args),
+    previewHtml: (...args: unknown[]) => mockPreviewHtml(...args),
+    renderToMediaHtml: (...args: unknown[]) => mockRenderToMediaHtml(...args),
+  }),
+}));
+
+jest.mock('../../../services/publishBriefAiService', () => ({
+  getPublishBriefAiService: () => ({
+    suggestCopy: (...args: unknown[]) => mockSuggestCopy(...args),
+  }),
+}));
+
+jest.mock('../../../utils/globalInstances', () => ({
+  getAIServiceInstance: () => ({
+    checkAIStatus: (...args: unknown[]) => mockCheckAIStatus(...args),
   }),
 }));
 
@@ -59,6 +77,15 @@ describe('publish-board routes', () => {
     }));
     mockSaveLayout.mockImplementation(async (layout: unknown) => layout);
     mockRenderToMedia.mockResolvedValue({ mediaId: 42, name: 'Promoção do dia — Promoção' });
+    mockPreviewHtml.mockResolvedValue('<!DOCTYPE html><html><body>preview</body></html>');
+    mockRenderToMediaHtml.mockResolvedValue({ mediaId: 99, name: 'Promo — HTML', mediaType: 'html' });
+    mockSuggestCopy.mockResolvedValue({ content: { headline: 'Nova chamada' }, summary: 'Tom urgente' });
+    mockCheckAIStatus.mockResolvedValue({
+      enabled: true,
+      provider: 'ollama',
+      status: 'online',
+      message: 'OK',
+    });
   });
 
   describe('GET /:preset/layout', () => {
@@ -96,6 +123,55 @@ describe('publish-board routes', () => {
       const saved = mockSaveLayout.mock.calls[0][0] as { preset: string; boardTitle: string };
       expect(saved.preset).toBe('ad');
       expect(saved.boardTitle).toBe('Anúncio indoor');
+    });
+  });
+
+  describe('GET /ai-assist-status', () => {
+    it('retorna disponibilidade do assistente de textos', async () => {
+      const res = await request(app).get(
+        `/api/subscribers/${subscriberId}/publish-board/ai-assist-status`
+      );
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.available).toBe(true);
+      expect(mockCheckAIStatus).toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /:preset/preview-html', () => {
+    it('retorna HTML de pré-visualização', async () => {
+      const res = await request(app)
+        .post(`/api/subscribers/${subscriberId}/publish-board/promotion/preview-html`)
+        .send({ boardTitle: 'Promo' });
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.html).toContain('preview');
+      expect(mockSaveLayout).toHaveBeenCalled();
+      expect(mockPreviewHtml).toHaveBeenCalledWith(subscriberId, 'promotion');
+    });
+  });
+
+  describe('POST /:preset/render-html', () => {
+    it('gera mídia HTML animada', async () => {
+      const res = await request(app).post(
+        `/api/subscribers/${subscriberId}/publish-board/ad/render-html`
+      );
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.mediaId).toBe(99);
+      expect(res.body.data.mediaType).toBe('html');
+    });
+  });
+
+  describe('POST /:preset/suggest-copy', () => {
+    it('sugere textos via IA', async () => {
+      const res = await request(app)
+        .post(`/api/subscribers/${subscriberId}/publish-board/promotion/suggest-copy`)
+        .send({ segment: 'retail', content: { headline: 'Oferta' } });
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.content.headline).toBe('Nova chamada');
+      expect(mockSuggestCopy).toHaveBeenCalled();
     });
   });
 

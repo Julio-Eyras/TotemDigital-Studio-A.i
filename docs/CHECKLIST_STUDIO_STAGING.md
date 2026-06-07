@@ -108,7 +108,19 @@ Use após `git pull` na branch `Smart-Signage-Studio-V3x`, aplicar schema/seeds 
 
 ---
 
-## 11. Operação diária
+## 11. Publicar em Tela (Opção C — Rápido / Criar)
+
+- [ ] **Rápido** (`/quick-publish?mode=quick`): upload MP4/imagem → mídia aprovada → publicar em totem
+- [ ] **Criar** (`?mode=create`): aba Criar → preset Promoção ou Cardápio → preview animado (HTML offline, sem CDN)
+- [ ] **Gerar animação HTML** → mídia `html` selecionada → **Publicar agora** (playlist/campanha automáticas, não expostas na UI)
+- [ ] Cardápio: alterar preço em **Cardápio por cliente** → tela reflete em até ~60s (API `/api/publish-board/public-menu/:subscriberId`)
+- [ ] **Sugerir textos com IA**: botão ativo só com `AI_PROVIDER` configurado; aviso claro se indisponível
+- [ ] **Vídeo IA (Premium)**: plano base mostra mensagem informativa (fila stub)
+- [ ] `/publish-board` redireciona para `?mode=create`
+
+---
+
+## 12. Operação diária
 
 - [ ] Criar campanha, associar totens, dispatcher responde
 - [ ] Playlist Mix: criar/editar mix e verificar que o worker processa (log ou comportamento no player)
@@ -116,7 +128,7 @@ Use após `git pull` na branch `Smart-Signage-Studio-V3x`, aplicar schema/seeds 
 
 ---
 
-## 12. Instalação nova (opcional — VM limpa)
+## 13. Instalação nova (opcional — VM limpa)
 
 - [ ] Instalador: Enter na pergunta HTTP → **opção 2** (site 80, painel 8080) por defeito
 - [ ] Pós-install: login sem credenciais na UI; admin ligado ao publisher owner
