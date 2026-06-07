@@ -103,8 +103,8 @@ const MenuCatalog: React.FC = () => {
     categories.find((c) => c.categoryId === id)?.name || '—';
 
   const studioHref = subscriberId
-    ? `/publish-board?preset=menu&segment=${defaultSegmentForPreset('menu')}&subscriber=${subscriberId}`
-    : '/publish-board?preset=menu&segment=restaurant';
+    ? `/quick-publish?mode=create&preset=menu&segment=${defaultSegmentForPreset('menu')}&subscriber=${subscriberId}`
+    : '/quick-publish?mode=create&preset=menu&segment=restaurant';
 
   const handleCreateProduct = async () => {
     if (!subscriberId || !newName.trim()) return;
@@ -184,7 +184,7 @@ const MenuCatalog: React.FC = () => {
       <Alert severity="info" sx={{ mb: 2 }}>
         Monte o quadro 9:16 e publique em{' '}
         <Link component={RouterLink} to={studioHref}>
-          Estúdio visual → Cardápio Digital
+          Criar → Cardápio Digital (HTML ao vivo)
         </Link>
         {' '}ou use{' '}
         <Link component={RouterLink} to="/quick-publish?preset=menu&segment=restaurant&orientation=portrait">

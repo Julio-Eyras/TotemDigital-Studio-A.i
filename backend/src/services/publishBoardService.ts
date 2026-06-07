@@ -2,6 +2,7 @@ import { getDatabase } from '../config/database';
 import { getMediaService } from './mediaService';
 import { getMenuCatalogService } from './menuCatalogService';
 import { renderPublishBoardPng, PublishBoardPresetType } from './publishBoardRenderService';
+import { renderPublishBoardHtml } from './publishBoardHtmlRenderService';
 import { findPublishPreset } from '../config/publishBoardDefaults';
 
 export interface PublishBoardLayout {
@@ -118,6 +119,121 @@ export class PublishBoardService {
     return this.getLayout(layout.subscriberId, preset);
   }
 
+  private async buildMenuLines(
+    subscriberId: number,
+    layout: PublishBoardLayout
+  ): Promise<{ name: string; price: number | null; description?: string | null }[]> {
+    const menuService = getMenuCatalogService();
+    const categories = await menuService.listCategories(subscriberId);
+    const products = (await menuService.listProducts(subscriberId)).filter((p) => p.isAvailable);
+    const categoryMap = new Map(categories.map((c) => [c.categoryId, c.name]));
+    const byId = new Map(products.map((p) => [p.productId, p]));
+    const orderedIds =
+      layout.productOrder.length > 0
+        ? layout.productOrder.filter((id) => byId.has(id))
+        : products.map((p) => p.productId);
+    const missing = products.map((p) => p.productId).filter((id) => !orderedIds.includes(id));
+    return [...orderedIds, ...missing].map((id) => {
+      const p = byId.get(id)!;
+      return {
+        name: p.name,
+        price: p.price,
+        description: p.description,
+        categoryName: p.categoryId ? categoryMap.get(p.categoryId) : null,
+      };
+    });
+  }
+
+  async previewHtml(subscriberId: number, presetInput: string): Promise<string> {
+    const preset = normalizePreset(presetInput);
+    const layout = await this.getLayout(subscriberId, preset);
+    let menuLines: { name: string; price: number | null; description?: string | null }[] | undefined;
+    if (preset === 'menu') {
+      menuLines = await this.buildMenuLines(subscriberId, layout);
+    }
+    return renderPublishBoardHtml({
+      preset,
+      boardTitle: layout.boardTitle,
+      accentColor: layout.accentColor,
+      orientation: layout.preferredOrientation,
+      showPrices: layout.showPrices,
+      content: layout.content,
+      blockOrder: layout.blockOrder,
+      menuLines,
+      subscriberId,
+      productOrder: layout.productOrder,
+    });
+  }
+
+  async renderToMediaHtml(
+    subscriberId: number,
+    presetInput: string,
+    userId: number,
+    isAdmin: boolean
+  ): Promise<{ mediaId: number; name: string; mediaType: string }> {
+    const preset = normalizePreset(presetInput);
+    const layout = await this.getLayout(subscriberId, preset);
+    const presetMeta = findPublishPreset(preset);
+
+    let menuLines: { name: string; price: number | null; description?: string | null }[] | undefined;
+
+    if (preset === 'menu') {
+      menuLines = await this.buildMenuLines(subscriberId, layout);
+      if (!menuLines.length) {
+        throw new Error('Cadastre ao menos um produto disponível no cardápio');
+      }
+    } else {
+      const hasText = Object.values(layout.content).some((v) => String(v).trim());
+      if (!hasText) {
+        throw new Error('Preencha ao menos um campo de texto do template antes de gerar a animação');
+      }
+    }
+
+    const html = renderPublishBoardHtml({
+      preset,
+      boardTitle: layout.boardTitle,
+      accentColor: layout.accentColor,
+      orientation: layout.preferredOrientation,
+      showPrices: layout.showPrices,
+      content: layout.content,
+      blockOrder: layout.blockOrder,
+      menuLines,
+      subscriberId,
+      productOrder: layout.productOrder,
+    });
+
+    const htmlBuffer = Buffer.from(html, 'utf-8');
+    const media = await getMediaService().createMedia(
+      {
+        name: `${layout.boardTitle} — ${presetMeta.label} (HTML)`,
+        description: `Animação HTML ao vivo (${presetMeta.label}) — Publicar em Tela`,
+        tags: ['publish-board', preset, 'html-live', 'auto-generated'],
+        file: {
+          buffer: htmlBuffer,
+          originalname: `board-${preset}-${subscriberId}-${Date.now()}.html`,
+          mimetype: 'text/html',
+          size: htmlBuffer.length,
+        },
+        subscriberId,
+        createdBy: userId,
+      },
+      subscriberId,
+      isAdmin
+    );
+
+    await this.db.executeRaw(`
+      UPDATE medias
+      SET status = 'approved',
+          approval_status = 'approved',
+          approved_by = $2,
+          approved_at = CURRENT_TIMESTAMP,
+          media_type = 'html'
+      WHERE media_id = $1
+    `, [media.id, userId > 0 ? userId : null]);
+
+    return { mediaId: media.id, name: media.name, mediaType: 'html' };
+  }
+
   async renderToMedia(
     subscriberId: number,
     presetInput: string,
@@ -131,25 +247,7 @@ export class PublishBoardService {
     let menuLines: { name: string; price: number | null; description?: string | null }[] | undefined;
 
     if (preset === 'menu') {
-      const menuService = getMenuCatalogService();
-      const categories = await menuService.listCategories(subscriberId);
-      const products = (await menuService.listProducts(subscriberId)).filter((p) => p.isAvailable);
-      const categoryMap = new Map(categories.map((c) => [c.categoryId, c.name]));
-      const byId = new Map(products.map((p) => [p.productId, p]));
-      const orderedIds =
-        layout.productOrder.length > 0
-          ? layout.productOrder.filter((id) => byId.has(id))
-          : products.map((p) => p.productId);
-      const missing = products.map((p) => p.productId).filter((id) => !orderedIds.includes(id));
-      menuLines = [...orderedIds, ...missing].map((id) => {
-        const p = byId.get(id)!;
-        return {
-          name: p.name,
-          price: p.price,
-          description: p.description,
-          categoryName: p.categoryId ? categoryMap.get(p.categoryId) : null,
-        };
-      });
+      menuLines = await this.buildMenuLines(subscriberId, layout);
       if (!menuLines.length) {
         throw new Error('Cadastre ao menos um produto disponível no cardápio');
       }

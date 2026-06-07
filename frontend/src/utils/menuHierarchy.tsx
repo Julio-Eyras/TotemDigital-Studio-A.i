@@ -252,7 +252,7 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
       path: '/quick-publish',
       children: [
         { text: 'Publicar em tela', icon: <Add />, path: '/quick-publish' },
-        { text: 'Estúdio visual', icon: <AutoAwesome />, path: '/publish-board' },
+        { text: 'Criar conteúdo', icon: <AutoAwesome />, path: '/quick-publish?mode=create' },
         { text: 'Cardápio por cliente', icon: <Storefront />, path: '/menu-catalog' },
         { text: 'Manutenção Anunciante', icon: <People />, path: '/subscribers' },
         { text: 'Manutenção de Contratos', icon: <Description />, path: '/subscriber-contracts' },
@@ -399,7 +399,7 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
       { text: t.units, icon: <LocationOn />, path: '/locals' },
       getDevicesMenuBlock(),
       { text: 'Nova publicação', icon: <Add />, path: '/quick-publish' },
-      { text: 'Estúdio visual', icon: <AutoAwesome />, path: '/publish-board' },
+      { text: 'Criar conteúdo', icon: <AutoAwesome />, path: '/quick-publish?mode=create' },
       { text: 'Cardápio por cliente', icon: <Storefront />, path: '/menu-catalog' },
       { text: 'Anunciantes', icon: <People />, path: '/subscribers' },
       { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
@@ -450,7 +450,7 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
       path: '/subscribers',
       children: [
         { text: 'Publicar em Tela', icon: <Add />, path: '/quick-publish' },
-        { text: 'Estúdio visual', icon: <AutoAwesome />, path: '/publish-board' },
+        { text: 'Criar conteúdo', icon: <AutoAwesome />, path: '/quick-publish?mode=create' },
         { text: 'Cardápio por cliente', icon: <Storefront />, path: '/menu-catalog' },
         { text: 'Anunciantes', icon: <People />, path: '/subscribers' },
         { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
@@ -720,7 +720,7 @@ function getMarketingTeamMenu(): HierarchicalMenuItem[] {
   return [
     { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
     { text: 'Publicar em tela', icon: <Add />, path: '/quick-publish' },
-    { text: 'Estúdio visual', icon: <AutoAwesome />, path: '/publish-board' },
+    { text: 'Criar conteúdo', icon: <AutoAwesome />, path: '/quick-publish?mode=create' },
     { text: 'Cardápio', icon: <Storefront />, path: '/menu-catalog' },
     { text: 'Mídia', icon: <VideoLibrary />, path: '/media' },
     { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
@@ -733,7 +733,7 @@ function getSubscriberUserMenu(): HierarchicalMenuItem[] {
   return [
     { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
     { text: 'Publicar', icon: <Add />, path: '/quick-publish' },
-    { text: 'Estúdio', icon: <AutoAwesome />, path: '/publish-board' },
+    { text: 'Criar', icon: <AutoAwesome />, path: '/quick-publish?mode=create' },
     { text: 'Cardápio', icon: <Storefront />, path: '/menu-catalog' },
     {
       text: 'Anunciantes',

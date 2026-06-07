@@ -538,7 +538,7 @@ const SubscriberDetails: React.FC<SubscriberDetailsProps> = ({
               size="small"
               startIcon={<AutoAwesome />}
               onClick={() => {
-                navigate(`/publish-board?subscriber=${subscriber.subscriber_id}`);
+                navigate(`/quick-publish?mode=create&subscriber=${subscriber.subscriber_id}`);
                 onClose();
               }}
             >

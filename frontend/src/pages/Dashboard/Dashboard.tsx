@@ -217,7 +217,8 @@ const Dashboard: React.FC = () => {
       segment: segmentValue || defaultSegmentForPreset(presetValue),
     });
     if (orientation) params.set('orientation', orientation);
-    navigate(`/publish-board?${params.toString()}`);
+    params.set('mode', 'create');
+    navigate(`/quick-publish?${params.toString()}`);
   };
   const openTotems = (status?: string) => {
     const params = new URLSearchParams();

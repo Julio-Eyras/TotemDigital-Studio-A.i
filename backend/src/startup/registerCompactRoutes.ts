@@ -12,6 +12,7 @@ import quickPublishRoutes from '../routes/quick-publish';
 import publishTemplatesRoutes from '../routes/publish-templates';
 import menuCatalogRoutes from '../routes/menu-catalog';
 import publishBoardRoutes from '../routes/publish-board';
+import publishBoardPublicRoutes from '../routes/publish-board-public';
 import settingsRoutes from '../routes/settings';
 import dashboardRoutes from '../routes/dashboard';
 import healthRoutes from '../routes/health';
@@ -63,6 +64,7 @@ export function registerCompactRoutes(app: Express): void {
     blockClientDataAccess as any,
     menuCatalogRoutes
   );
+  app.use('/api/publish-board', publishBoardPublicRoutes);
   app.use(
     '/api/subscribers/:subscriberId/publish-board',
     authMiddleware as any,

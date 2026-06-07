@@ -2235,7 +2235,7 @@ const Subscribers: React.FC = () => {
   };
 
   const openSubscriberStudio = (subscriber: Subscriber) => {
-    navigate(`/publish-board?subscriber=${subscriber.subscriber_id}`);
+    navigate(`/quick-publish?mode=create&subscriber=${subscriber.subscriber_id}`);
   };
 
   const openSubscriberMenuCatalog = (subscriber: Subscriber) => {

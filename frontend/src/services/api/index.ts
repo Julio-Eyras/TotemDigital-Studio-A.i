@@ -2131,6 +2131,51 @@ export const publishBoardApi = {
     const response = await api.post(`/subscribers/${subscriberId}/publish-board/${preset}/render`);
     return response.data as { success: boolean; data: { mediaId: number; name: string }; message?: string };
   },
+  renderHtml: async (subscriberId: number, preset: QuickPublishPreset) => {
+    const response = await api.post(`/subscribers/${subscriberId}/publish-board/${preset}/render-html`);
+    return response.data as {
+      success: boolean;
+      data: { mediaId: number; name: string; mediaType: string };
+      message?: string;
+    };
+  },
+  previewHtml: async (
+    subscriberId: number,
+    preset: QuickPublishPreset,
+    payload: Partial<PublishBoardLayoutDto>
+  ) => {
+    const response = await api.post(`/subscribers/${subscriberId}/publish-board/${preset}/preview-html`, payload);
+    return response.data as { success: boolean; data: { html: string } };
+  },
+  suggestCopy: async (
+    subscriberId: number,
+    preset: QuickPublishPreset,
+    payload: {
+      segment?: string;
+      segmentLabel?: string;
+      visualLanguage?: string;
+      boardTitle?: string;
+      content?: Record<string, string>;
+    }
+  ) => {
+    const response = await api.post(`/subscribers/${subscriberId}/publish-board/${preset}/suggest-copy`, payload);
+    return response.data as {
+      success: boolean;
+      data: { content: Record<string, string>; summary?: string };
+    };
+  },
+  queueVideoAi: async (
+    subscriberId: number,
+    preset: QuickPublishPreset,
+    payload?: { briefSummary?: string }
+  ) => {
+    const response = await api.post(`/subscribers/${subscriberId}/publish-board/${preset}/queue-video-ai`, payload || {});
+    return response.data as {
+      success: boolean;
+      message?: string;
+      data: { jobId: string; status: string; premiumRequired?: boolean };
+    };
+  },
 };
 
 export const menuCatalogApi = {

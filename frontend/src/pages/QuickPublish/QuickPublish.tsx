@@ -21,10 +21,13 @@ import {
   Step,
   StepLabel,
   Stepper,
+  Tab,
+  Tabs,
   TextField,
   Typography,
 } from '@mui/material';
-import { CheckCircle, CloudUpload, Refresh, Send } from '@mui/icons-material';
+import { AutoAwesome, CheckCircle, CloudUpload, FlashOn, Refresh, Send } from '@mui/icons-material';
+import { CreatePublishPanel } from '../../components/Publish/CreatePublishPanel';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import {
@@ -36,15 +39,12 @@ import {
   mediaApi,
   subscriberApi,
   Subscriber,
-  menuCatalogApi,
-  MenuProductDto,
 } from '../../services/api';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import {
   PUBLISH_SEGMENTS,
   buildTemplateDescription,
   buildTemplateTitle,
-  defaultSegmentForPreset,
   findPublishPreset,
   findPublishSegment,
   resolvePublishPreset,
@@ -52,6 +52,12 @@ import {
 import { usePublishTemplatesFromApi } from '../../hooks/usePublishTemplatesFromApi';
 
 const STEPS = ['Cliente', 'Tela', 'Conteúdo', 'Publicar'];
+
+type PublishMode = 'quick' | 'create';
+
+function resolvePublishMode(value: string | null): PublishMode {
+  return value === 'create' ? 'create' : 'quick';
+}
 
 function parseIdListParam(value: string | null): number[] {
   if (!value) return [];
@@ -95,6 +101,9 @@ const QuickPublish: React.FC = () => {
   const breadcrumbs = useBreadcrumbs();
   const { presets: publishPresets, getPreset } = usePublishTemplatesFromApi();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [publishMode, setPublishMode] = useState<PublishMode>(
+    resolvePublishMode(searchParams.get('mode'))
+  );
   const initialSegment = resolveSegment(searchParams.get('segment'));
   const initialSegmentOption = findPublishSegment(initialSegment);
   const initialPreset = searchParams.get('preset')
@@ -134,8 +143,6 @@ const QuickPublish: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [partialRegenWarning, setPartialRegenWarning] = useState<string | null>(null);
-  const [menuProducts, setMenuProducts] = useState<MenuProductDto[]>([]);
-
   const selectedSubscriber = useMemo(
     () => subscribers.find((subscriber) => subscriber.subscriber_id === subscriberId) || null,
     [subscriberId, subscribers]
@@ -317,32 +324,36 @@ const QuickPublish: React.FC = () => {
     }
   }, [selectedPreset.label, selectedSegment.value, selectedSubscriber, title]);
 
-  useEffect(() => {
-    if (preset !== 'menu' || !subscriberId) {
-      setMenuProducts([]);
-      return;
-    }
-    menuCatalogApi
-      .listProducts(Number(subscriberId))
-      .then((res) => setMenuProducts((res.data || []).filter((p) => p.isAvailable)))
-      .catch(() => setMenuProducts([]));
-  }, [preset, subscriberId]);
-
-  const appendMenuToDescription = useCallback(() => {
-    if (menuProducts.length === 0) return;
-    const lines = menuProducts
-      .slice(0, 12)
-      .map((p) => {
-        const price = p.price != null ? ` — R$ ${Number(p.price).toFixed(2)}` : '';
-        return `• ${p.name}${price}`;
-      });
-    const block = `\n\nItens do cardápio:\n${lines.join('\n')}`;
-    setDescription((prev) => (prev.includes('Itens do cardápio:') ? prev : `${prev}${block}`));
-  }, [menuProducts]);
-
-  const setPublishParams = (nextPreset: QuickPublishPreset, nextSegment: string) => {
-    setSearchParams({ preset: nextPreset, segment: nextSegment }, { replace: true });
+  const setPublishParams = (nextPreset: QuickPublishPreset, nextSegment: string, mode = publishMode) => {
+    const next: Record<string, string> = { preset: nextPreset, segment: nextSegment, mode };
+    if (subscriberId) next.subscriber = String(subscriberId);
+    setSearchParams(next, { replace: true });
   };
+
+  const handleModeChange = (_: React.SyntheticEvent, next: PublishMode) => {
+    setPublishMode(next);
+    const nextParams: Record<string, string> = { mode: next };
+    if (preset) nextParams.preset = preset;
+    if (segment) nextParams.segment = segment;
+    if (subscriberId) nextParams.subscriber = String(subscriberId);
+    setSearchParams(nextParams, { replace: true });
+  };
+
+  useEffect(() => {
+    const urlMode = resolvePublishMode(searchParams.get('mode'));
+    if (urlMode !== publishMode) setPublishMode(urlMode);
+  }, [searchParams, publishMode]);
+
+  const handleCreateMediaGenerated = useCallback(
+    async (mediaId: number) => {
+      if (!subscriberId) return;
+      const approvedMedias = await loadApprovedMedias(Number(subscriberId));
+      const valid = approvedMedias.some((m) => m.media_id === mediaId);
+      setMediaIds(valid ? [mediaId] : [mediaId]);
+      setSuccess('Conteúdo gerado — revise as telas e publique abaixo.');
+    },
+    [loadApprovedMedias, subscriberId]
+  );
 
   const handleSelectPreset = (template: typeof selectedPreset) => {
     setPreset(template.value);
@@ -391,7 +402,7 @@ const QuickPublish: React.FC = () => {
       });
 
       setSuccess(
-        `${result.message}. Campanha #${result.campaignId}, playlist #${result.playlistId}. Totens atualizados: ${result.regeneratedTotemIds.length}.`
+        result.message || 'Conteúdo publicado com sucesso nas telas selecionadas.'
       );
       if (result.partialRegeneration) {
         const failed = result.failedTotemIds?.length
@@ -508,7 +519,7 @@ const QuickPublish: React.FC = () => {
     <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
       <PageHeader
         title="Publicar em Tela"
-        subtitle="Fluxo rápido V3x para publicar mídia em TVs, totens e cardápios digitais."
+        subtitle="Modo Rápido: envie arquivo pronto. Modo Criar: monte animação HTML com textos e IA."
         breadcrumbs={breadcrumbs}
         actions={[
           {
@@ -554,6 +565,11 @@ const QuickPublish: React.FC = () => {
           </Button>
         </Alert>
       )}
+
+      <Tabs value={publishMode} onChange={handleModeChange} sx={{ mb: 2 }}>
+        <Tab icon={<FlashOn />} iconPosition="start" label="Rápido" value="quick" />
+        <Tab icon={<AutoAwesome />} iconPosition="start" label="Criar" value="create" />
+      </Tabs>
 
       <Card sx={{ mb: 3 }}>
         <CardContent>
@@ -625,6 +641,7 @@ const QuickPublish: React.FC = () => {
               </FormControl>
             </Grid>
 
+            {publishMode === 'quick' && (
             <Grid item xs={12} md={6}>
               <FormControl fullWidth size="small" disabled={publishing}>
                 <InputLabel>Segmento comercial</InputLabel>
@@ -641,7 +658,9 @@ const QuickPublish: React.FC = () => {
                 </Select>
               </FormControl>
             </Grid>
+            )}
 
+            {publishMode === 'quick' && (
             <Grid item xs={12}>
               <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
                 Template visual inteligente
@@ -702,53 +721,30 @@ const QuickPublish: React.FC = () => {
                 })}
               </Grid>
             </Grid>
+            )}
 
-            {subscriberId && (
+            {publishMode === 'create' && subscriberId && (
               <Grid item xs={12}>
-                <Alert
-                  severity={preset === 'menu' && menuProducts.length === 0 ? 'warning' : 'info'}
-                  action={
-                    <Button
-                      size="small"
-                      color="inherit"
-                      component={RouterLink}
-                      to={`/publish-board?preset=${preset}&segment=${segment || defaultSegmentForPreset(preset)}&subscriber=${subscriberId}`}
-                    >
-                      Estúdio visual
-                    </Button>
-                  }
-                >
-                  {preset === 'menu' ? (
-                    menuProducts.length > 0 ? (
-                      <>
-                        {menuProducts.length} produto(s) no cardápio.{' '}
-                        <Button size="small" component={RouterLink} to={`/menu-catalog?subscriber=${subscriberId}`}>
-                          Gerir produtos
-                        </Button>
-                        {' · '}
-                        <Button size="small" onClick={appendMenuToDescription}>
-                          Incluir na descrição
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        Cadastre produtos em{' '}
-                        <Button size="small" component={RouterLink} to={`/menu-catalog?subscriber=${subscriberId}`}>
-                          Cardápio por cliente
-                        </Button>
-                        {' '}ou monte o quadro no estúdio visual.
-                      </>
-                    )
-                  ) : (
-                    <>
-                      Monte o quadro ({selectedPreset.label}) com textos e preview, gere a mídia e volte aqui para
-                      publicar.
-                    </>
-                  )}
-                </Alert>
+                <CreatePublishPanel
+                  subscriberId={Number(subscriberId)}
+                  segment={segment}
+                  preset={preset}
+                  onPresetChange={(next) => {
+                    const tpl = findPublishPreset(next);
+                    setPreset(next);
+                    setDurationMs(tpl.recommendedDurationMs);
+                    setPublishParams(next, segment, 'create');
+                  }}
+                  onSegmentChange={handleSelectSegment}
+                  onMediaGenerated={handleCreateMediaGenerated}
+                  onTitleSuggestion={(t) => setTitle(t)}
+                  disabled={publishing}
+                />
               </Grid>
             )}
 
+            {publishMode === 'quick' && (
+            <>
             <Grid item xs={12} md={7}>
               <Alert severity="info">
                 <Typography variant="body2">
@@ -910,6 +906,8 @@ const QuickPublish: React.FC = () => {
                 </CardContent>
               </Card>
             </Grid>
+            </>
+            )}
 
             <Grid item xs={12} md={8}>
               <FormControl fullWidth size="small" disabled={!subscriberId || loadingDetails || publishing}>

@@ -237,7 +237,7 @@ const SubscriberCard: React.FC<SubscriberCardProps> = ({
           </Tooltip>
         )}
         {onStudio && (
-          <Tooltip title="Estúdio visual">
+          <Tooltip title="Criar conteúdo">
             <IconButton size="small" onClick={() => onStudio(subscriber)}>
               <AutoAwesome />
             </IconButton>

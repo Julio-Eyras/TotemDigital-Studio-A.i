@@ -1251,6 +1251,7 @@ export class MediaService {
     if (mimetype.startsWith('image/')) return 'image';
     if (mimetype.startsWith('video/')) return 'video';
     if (mimetype.startsWith('audio/')) return 'audio';
+    if (mimetype === 'text/html' || mimetype === 'application/xhtml+xml') return 'html';
     return 'other';
   }
 
