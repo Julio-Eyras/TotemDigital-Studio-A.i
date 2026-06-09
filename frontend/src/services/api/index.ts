@@ -2190,6 +2190,46 @@ export const publishBoardApi = {
       data: { jobId: string; status: string; premiumRequired?: boolean };
     };
   },
+  autoPublish: async (
+    subscriberId: number,
+    preset: QuickPublishPreset,
+    payload: {
+      contractId: number;
+      totemIds: number[];
+      title?: string;
+      description?: string;
+      durationMs?: number;
+      publishNow?: boolean;
+      useAi?: boolean;
+      segment?: string;
+      segmentLabel?: string;
+      visualLanguage?: string;
+      boardTitle?: string;
+      accentColor?: string;
+      preferredOrientation?: 'portrait' | 'landscape';
+      content?: Record<string, string>;
+      blockOrder?: string[];
+      productOrder?: number[];
+      showPrices?: boolean;
+    }
+  ) => {
+    const response = await api.post(
+      `/subscribers/${subscriberId}/publish-board/${preset}/auto-publish`,
+      payload
+    );
+    return response.data as {
+      success: boolean;
+      message?: string;
+      data: {
+        mediaId: number;
+        mediaName: string;
+        mediaType: string;
+        aiApplied: boolean;
+        aiWarning?: string;
+        publish: { message?: string; partialRegeneration?: boolean; failedTotemIds?: number[] };
+      };
+    };
+  },
 };
 
 export const menuCatalogApi = {

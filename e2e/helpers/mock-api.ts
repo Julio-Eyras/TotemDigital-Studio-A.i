@@ -343,6 +343,26 @@ async function fulfillApi(route: import('@playwright/test').Route): Promise<void
     );
   }
 
+  const autoPublishMatch = path.match(/^\/api\/subscribers\/(\d+)\/publish-board\/([a-z]+)\/auto-publish$/);
+  if (autoPublishMatch && method === 'POST') {
+    return route.fulfill(
+      json(
+        {
+          success: true,
+          message: 'Propaganda gerada e publicada (mock E2E).',
+          data: {
+            mediaId: 102,
+            mediaName: 'Auto HTML E2E',
+            mediaType: 'html',
+            aiApplied: false,
+            publish: { message: 'Publicado (mock)' },
+          },
+        },
+        201
+      )
+    );
+  }
+
   const menuCategoriesMatch = path.match(/^\/api\/subscribers\/(\d+)\/menu-catalog\/categories$/);
   if (menuCategoriesMatch && method === 'GET') {
     return route.fulfill(json({ success: true, data: [] }));

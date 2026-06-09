@@ -20,7 +20,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { AutoAwesome, Image, PlayCircleOutline, Save, Stars } from '@mui/icons-material';
+import { AutoAwesome, Image, PlayCircleOutline, Save, Send, Stars } from '@mui/icons-material';
 import { SortableList } from '../SortableList/SortableList';
 import { PublishBoardPreview } from './PublishBoardPreview';
 import {
@@ -43,6 +43,14 @@ import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 const PRESET_TABS: QuickPublishPreset[] = ['menu', 'promotion', 'ad', 'announcement', 'institutional'];
 
+export interface AutoPublishContext {
+  contractId: number;
+  totemIds: number[];
+  title: string;
+  description?: string;
+  durationMs: number;
+}
+
 export interface CreatePublishPanelProps {
   subscriberId: number;
   segment: string;
@@ -52,6 +60,9 @@ export interface CreatePublishPanelProps {
   onMediaGenerated: (mediaId: number) => void;
   onTitleSuggestion?: (title: string) => void;
   disabled?: boolean;
+  autoPublishReady?: boolean;
+  autoPublishContext?: AutoPublishContext | null;
+  onAutoPublished?: (payload: { mediaId: number; message: string }) => void;
 }
 
 export const CreatePublishPanel: React.FC<CreatePublishPanelProps> = ({
@@ -63,6 +74,9 @@ export const CreatePublishPanel: React.FC<CreatePublishPanelProps> = ({
   onMediaGenerated,
   onTitleSuggestion,
   disabled = false,
+  autoPublishReady = false,
+  autoPublishContext = null,
+  onAutoPublished,
 }) => {
   const [layout, setLayout] = useState<PublishBoardLayoutDto | null>(null);
   const [menuProducts, setMenuProducts] = useState<MenuProductDto[]>([]);
@@ -78,6 +92,9 @@ export const CreatePublishPanel: React.FC<CreatePublishPanelProps> = ({
   const [premiumMsg, setPremiumMsg] = useState<string | null>(null);
   const [aiAssist, setAiAssist] = useState<{ available: boolean; message: string } | null>(null);
   const renderInFlightRef = useRef(false);
+  const autoPublishInFlightRef = useRef(false);
+  const [autoPublishing, setAutoPublishing] = useState(false);
+  const [useAiForAutoPublish, setUseAiForAutoPublish] = useState(false);
 
   const presetUi = useMemo(() => findPublishBoardPresetUi(preset), [preset]);
   const presetConfig = useMemo(() => findPublishPreset(preset), [preset]);
@@ -220,6 +237,48 @@ export const CreatePublishPanel: React.FC<CreatePublishPanelProps> = ({
     } finally {
       renderInFlightRef.current = false;
       setRendering(false);
+    }
+  };
+
+  const handleAutoPublish = async () => {
+    if (
+      !layout
+      || !layoutPayload
+      || !autoPublishContext
+      || !autoPublishReady
+      || autoPublishInFlightRef.current
+      || autoPublishing
+    ) {
+      return;
+    }
+    autoPublishInFlightRef.current = true;
+    try {
+      setAutoPublishing(true);
+      setError(null);
+      setSuccess(null);
+      const res = await publishBoardApi.autoPublish(subscriberId, preset, {
+        contractId: autoPublishContext.contractId,
+        totemIds: autoPublishContext.totemIds,
+        title: autoPublishContext.title,
+        description: autoPublishContext.description,
+        durationMs: autoPublishContext.durationMs,
+        publishNow: true,
+        useAi: useAiForAutoPublish,
+        segment,
+        segmentLabel: segmentConfig.shortLabel,
+        visualLanguage: segmentConfig.visualLanguage,
+        ...layoutPayload,
+      });
+      const mediaId = res.data?.mediaId;
+      if (!mediaId) throw new Error('Mídia não retornada pelo servidor');
+      onMediaGenerated(mediaId);
+      onAutoPublished?.({ mediaId, message: res.message || 'Propaganda gerada e publicada.' });
+      setSuccess(res.message || 'Propaganda gerada e publicada nas telas selecionadas.');
+    } catch (e) {
+      setError(pickApiErrorMessage(e, 'Erro ao gerar e publicar propaganda.'));
+    } finally {
+      autoPublishInFlightRef.current = false;
+      setAutoPublishing(false);
     }
   };
 
@@ -516,6 +575,20 @@ export const CreatePublishPanel: React.FC<CreatePublishPanelProps> = ({
                 </>
               )}
 
+              {preset !== 'menu' && aiAssist?.available && (
+                <FormControlLabel
+                  sx={{ mb: 1 }}
+                  control={
+                    <Checkbox
+                      checked={useAiForAutoPublish}
+                      disabled={disabled || autoPublishing}
+                      onChange={(e) => setUseAiForAutoPublish(e.target.checked)}
+                    />
+                  }
+                  label="Usar IA nos textos ao gerar e publicar"
+                />
+              )}
+
               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 2 }}>
                 <Button variant="outlined" startIcon={<Save />} onClick={handleSave} disabled={disabled || saving}>
                   Salvar rascunho
@@ -524,19 +597,38 @@ export const CreatePublishPanel: React.FC<CreatePublishPanelProps> = ({
                   variant="contained"
                   startIcon={rendering ? <CircularProgress size={18} color="inherit" /> : <PlayCircleOutline />}
                   onClick={handleRenderHtml}
-                  disabled={disabled || rendering}
+                  disabled={disabled || rendering || autoPublishing}
                 >
                   Gerar animação HTML
+                </Button>
+                <Button
+                  variant="contained"
+                  color="secondary"
+                  startIcon={autoPublishing ? <CircularProgress size={18} color="inherit" /> : <Send />}
+                  onClick={handleAutoPublish}
+                  disabled={disabled || autoPublishing || rendering || !autoPublishReady || !autoPublishContext}
+                  title={
+                    autoPublishReady
+                      ? 'Gera HTML e publica nas telas selecionadas'
+                      : 'Preencha contrato, telas e título na página antes de publicar'
+                  }
+                >
+                  {autoPublishing ? 'Publicando...' : 'Gerar e publicar agora'}
                 </Button>
                 <Button
                   variant="text"
                   startIcon={<Image />}
                   onClick={handleRenderPng}
-                  disabled={disabled || rendering}
+                  disabled={disabled || rendering || autoPublishing}
                 >
                   PNG (fallback)
                 </Button>
               </Box>
+              {!autoPublishReady && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                  Para publicar automaticamente, selecione contrato, ao menos uma tela e o título da publicação acima.
+                </Typography>
+              )}
             </CardContent>
           </Card>
         </Grid>

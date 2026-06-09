@@ -51,6 +51,14 @@ jest.mock('../../../utils/globalInstances', () => ({
   }),
 }));
 
+const mockAutoPublishRun = jest.fn();
+
+jest.mock('../../../services/autoPublishOrchestratorService', () => ({
+  getAutoPublishOrchestratorService: () => ({
+    run: (...args: unknown[]) => mockAutoPublishRun(...args),
+  }),
+}));
+
 import publishBoardRoutes from '../../../routes/publish-board';
 
 describe('publish-board routes', () => {
@@ -172,6 +180,48 @@ describe('publish-board routes', () => {
       expect(res.body.success).toBe(true);
       expect(res.body.data.content.headline).toBe('Nova chamada');
       expect(mockSuggestCopy).toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /:preset/auto-publish', () => {
+    beforeEach(() => {
+      mockAutoPublishRun.mockResolvedValue({
+        mediaId: 77,
+        mediaName: 'Promo — HTML',
+        mediaType: 'html',
+        aiApplied: false,
+        publish: { success: true, message: 'Publicado' },
+        message: 'Propaganda gerada e publicada. Publicado',
+      });
+    });
+
+    it('orquestra gerar HTML e publicar', async () => {
+      const res = await request(app)
+        .post(`/api/subscribers/${subscriberId}/publish-board/promotion/auto-publish`)
+        .send({
+          contractId: 1,
+          totemIds: [3],
+          title: 'Promo auto',
+          content: { headline: 'Oferta' },
+        });
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.mediaId).toBe(77);
+      expect(mockAutoPublishRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subscriberId: 1,
+          contractId: 1,
+          totemIds: [3],
+          preset: 'promotion',
+        })
+      );
+    });
+
+    it('rejeita sem contrato', async () => {
+      const res = await request(app)
+        .post(`/api/subscribers/${subscriberId}/publish-board/promotion/auto-publish`)
+        .send({ totemIds: [3] });
+      expect(res.status).toBe(400);
     });
   });
 

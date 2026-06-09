@@ -37,4 +37,12 @@ test.describe('Publicar em Tela — Opção C (Rápido / Criar)', () => {
     });
     await expect(adminPage.getByRole('button', { name: /Gerar animação HTML/i })).toBeVisible();
   });
+
+  test('modo Criar exibe botão Gerar e publicar agora', async ({ adminPage }) => {
+    await adminPage.goto('/quick-publish?mode=create&preset=promotion&segment=retail');
+    await selectFirstSubscriber(adminPage);
+    await expect(adminPage.getByRole('button', { name: /Gerar e publicar agora/i })).toBeVisible({
+      timeout: 15_000,
+    });
+  });
 });

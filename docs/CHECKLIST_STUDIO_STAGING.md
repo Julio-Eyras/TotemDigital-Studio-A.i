@@ -110,11 +110,12 @@ Use após `git pull` na branch `Smart-Signage-Studio-V3x`, aplicar schema/seeds 
 
 ## 11. Publicar em Tela (Opção C — Rápido / Criar)
 
-**Implementado no código (homologar em campo):** anti-duplo-clique em Publicar/Gerar HTML; flags `ai_text_assist` / `ai_video` nos planos (seeds + instalador); E2E mock com rotas publish-board; player já suporta `media_type: html`.
+**Implementado no código (homologar em campo):** anti-duplo-clique em Publicar/Gerar HTML; flags `ai_text_assist` / `ai_video` nos planos (seeds + instalador); E2E mock com rotas publish-board; player já suporta `media_type: html`; **Gerar e publicar agora** (Onda A — `POST .../publish-board/:preset/auto-publish`).
 
 - [ ] **Rápido** (`/quick-publish?mode=quick`): upload MP4/imagem → mídia aprovada → publicar em totem
 - [ ] **Criar** (`?mode=create`): aba Criar → preset Promoção ou Cardápio → preview animado (HTML offline, sem CDN)
 - [ ] **Gerar animação HTML** → mídia `html` selecionada → **Publicar agora** (playlist/campanha automáticas, não expostas na UI)
+- [ ] **Gerar e publicar agora** (modo Criar): um clique → HTML + publicação nas telas (opcional: checkbox IA textos)
 - [ ] Cardápio: alterar preço em **Cardápio por cliente** → tela reflete em até ~60s (API `/api/publish-board/public-menu/:subscriberId`)
 - [ ] **Sugerir textos com IA**: botão ativo só com `AI_PROVIDER` configurado; aviso claro se indisponível
 - [ ] **Vídeo IA (Premium)**: plano base mostra mensagem informativa (fila stub)

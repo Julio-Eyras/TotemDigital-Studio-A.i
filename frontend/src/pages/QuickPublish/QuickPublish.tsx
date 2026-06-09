@@ -233,6 +233,22 @@ const QuickPublish: React.FC = () => {
     subscriberId && contractId && totemIds.length > 0 && safeMediaIds.length > 0 && title.trim()
   );
 
+  const autoPublishReady = useMemo(
+    () => Boolean(subscriberId && contractId && totemIds.length > 0 && title.trim()),
+    [contractId, subscriberId, title, totemIds.length]
+  );
+
+  const autoPublishContext = useMemo(() => {
+    if (!subscriberId || !contractId || totemIds.length === 0) return null;
+    return {
+      contractId: Number(contractId),
+      totemIds,
+      title: title.trim(),
+      description: description.trim() || undefined,
+      durationMs,
+    };
+  }, [contractId, description, durationMs, subscriberId, title, totemIds]);
+
   const loadApprovedMedias = useCallback(async (targetSubscriberId: number) => {
     const mediaResult = await mediaApi.getAll({ subscriberId: targetSubscriberId, limit: 1000 });
     const approvedMedias = (mediaResult.data || []).filter(isApprovedMedia);
@@ -890,7 +906,17 @@ const QuickPublish: React.FC = () => {
                   onSegmentChange={handleSelectSegment}
                   onMediaGenerated={handleCreateMediaGenerated}
                   onTitleSuggestion={(t) => setTitle(t)}
-                  disabled={publishing}
+                  disabled={publishing || loadingDetails}
+                  autoPublishReady={autoPublishReady}
+                  autoPublishContext={autoPublishContext}
+                  onAutoPublished={async ({ mediaId, message }) => {
+                    if (!subscriberId) return;
+                    await loadApprovedMedias(Number(subscriberId));
+                    setMediaIds([mediaId]);
+                    setSuccess(message);
+                    setPartialRegenWarning(null);
+                    setError(null);
+                  }}
                 />
               </Grid>
             )}

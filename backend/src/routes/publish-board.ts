@@ -5,6 +5,7 @@ import { blockClientDataAccess } from '../middleware/operatorProtection.middlewa
 import { getPublishBoardService } from '../services/publishBoardService';
 import { getPublishBriefAiService } from '../services/publishBriefAiService';
 import { getPublishVideoAiQueueService } from '../services/publishVideoAiQueueService';
+import { getAutoPublishOrchestratorService } from '../services/autoPublishOrchestratorService';
 import { getAIServiceInstance } from '../utils/globalInstances';
 import { logError } from '../utils/loggerHelper';
 import { assertSubscriberParamAccess } from '../middleware/subscriberParamAccess.middleware';
@@ -254,6 +255,79 @@ router.post(
         success: false,
         error: error.message || 'Erro ao sugerir textos',
       });
+    }
+  }
+);
+
+router.post(
+  '/:preset/auto-publish',
+  authorizeRole(['admin', 'admin_sql', 'gerente_marketing', 'editoracao']),
+  param('subscriberId').isInt({ min: 1 }),
+  param('preset').isIn(PRESETS),
+  body('contractId').isInt({ min: 1 }),
+  body('totemIds').isArray({ min: 1 }),
+  body('totemIds.*').isInt({ min: 1 }),
+  body('title').optional().isString().trim().isLength({ min: 1, max: 160 }),
+  body('description').optional({ nullable: true }).isString().trim().isLength({ max: 500 }),
+  body('durationMs').optional().isInt({ min: 1000, max: 300000 }),
+  body('publishNow').optional().isBoolean(),
+  body('useAi').optional().isBoolean(),
+  body('segment').optional().isString(),
+  body('segmentLabel').optional().isString(),
+  body('visualLanguage').optional().isString(),
+  body('boardTitle').optional().isString().trim().isLength({ min: 1, max: 120 }),
+  body('accentColor').optional().isString().isLength({ max: 32 }),
+  body('preferredOrientation').optional().isIn(['portrait', 'landscape']),
+  body('content').optional().isObject(),
+  body('blockOrder').optional().isArray(),
+  body('productOrder').optional().isArray(),
+  body('showPrices').optional().isBoolean(),
+  validate,
+  async (req: Request & { user?: { id?: number; userId?: number; role?: string } }, res) => {
+    try {
+      const { subscriberId, preset } = parsePublishBoardRoute(req);
+      const role = String(req.user?.role || '');
+      const isAdmin = ['admin', 'admin_sql', 'owner_system'].includes(role);
+      const userId = Number(req.user?.id || req.user?.userId || 0);
+
+      const result = await getAutoPublishOrchestratorService().run({
+        subscriberId,
+        contractId: Number(req.body.contractId),
+        totemIds: req.body.totemIds,
+        preset: preset as any,
+        userId,
+        isAdmin,
+        layout: {
+          boardTitle: req.body.boardTitle,
+          accentColor: req.body.accentColor,
+          preferredOrientation: req.body.preferredOrientation,
+          content: req.body.content,
+          blockOrder: req.body.blockOrder,
+          productOrder: Array.isArray(req.body.productOrder)
+            ? req.body.productOrder.map(Number).filter((n: number) => n > 0)
+            : undefined,
+          showPrices: req.body.showPrices,
+        },
+        segment: req.body.segment,
+        segmentLabel: req.body.segmentLabel,
+        visualLanguage: req.body.visualLanguage,
+        useAi: req.body.useAi === true,
+        title: req.body.title,
+        description: req.body.description,
+        durationMs: req.body.durationMs,
+        publishNow: req.body.publishNow,
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: result.message,
+        data: result,
+      });
+    } catch (error: any) {
+      await logError('Erro no auto-publish orquestrado', error);
+      const message = error?.message || 'Erro ao gerar e publicar propaganda';
+      const status = message.includes('Acesso negado') ? 403 : 400;
+      return res.status(status).json({ success: false, error: message, message });
     }
   }
 );
