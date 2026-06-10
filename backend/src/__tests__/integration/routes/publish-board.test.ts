@@ -52,10 +52,19 @@ jest.mock('../../../utils/globalInstances', () => ({
 }));
 
 const mockAutoPublishRun = jest.fn();
+const mockVideoAiEnqueue = jest.fn();
+const mockVideoAiGetStatus = jest.fn();
 
 jest.mock('../../../services/autoPublishOrchestratorService', () => ({
   getAutoPublishOrchestratorService: () => ({
     run: (...args: unknown[]) => mockAutoPublishRun(...args),
+  }),
+}));
+
+jest.mock('../../../services/publishVideoAiQueueService', () => ({
+  getPublishVideoAiQueueService: () => ({
+    enqueue: (...args: unknown[]) => mockVideoAiEnqueue(...args),
+    getStatus: (...args: unknown[]) => mockVideoAiGetStatus(...args),
   }),
 }));
 
@@ -222,6 +231,77 @@ describe('publish-board routes', () => {
         .post(`/api/subscribers/${subscriberId}/publish-board/promotion/auto-publish`)
         .send({ totemIds: [3] });
       expect(res.status).toBe(400);
+    });
+  });
+
+  describe('POST /:preset/queue-video-ai', () => {
+    it('retorna 403 quando Premium é obrigatório', async () => {
+      mockVideoAiEnqueue.mockResolvedValueOnce({
+        jobId: '',
+        status: 'failed',
+        message: 'Premium',
+        premiumRequired: true,
+      });
+      const res = await request(app)
+        .post(`/api/subscribers/${subscriberId}/publish-board/promotion/queue-video-ai`)
+        .send({ briefSummary: 'Oferta' });
+      expect(res.status).toBe(403);
+      expect(res.body.data.premiumRequired).toBe(true);
+    });
+
+    it('retorna 201 com mediaId quando vídeo IA conclui', async () => {
+      mockVideoAiEnqueue.mockResolvedValueOnce({
+        jobId: 'vai-1-99',
+        status: 'completed',
+        message: 'Vídeo importado',
+        mediaId: 88,
+        mediaName: 'Vídeo IA — promotion',
+        provider: 'http',
+      });
+      const res = await request(app)
+        .post(`/api/subscribers/${subscriberId}/publish-board/ad/queue-video-ai`)
+        .send({});
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.mediaId).toBe(88);
+    });
+
+    it('retorna 202 quando job fica na fila informativa', async () => {
+      mockVideoAiEnqueue.mockResolvedValueOnce({
+        jobId: 'vai-1-100',
+        status: 'queued',
+        message: 'Configure provedor',
+        provider: 'none',
+      });
+      const res = await request(app)
+        .post(`/api/subscribers/${subscriberId}/publish-board/menu/queue-video-ai`)
+        .send({});
+      expect(res.status).toBe(202);
+      expect(res.body.data.status).toBe('queued');
+    });
+  });
+
+  describe('GET /video-ai-jobs/:jobId', () => {
+    it('consulta status do job', async () => {
+      mockVideoAiGetStatus.mockResolvedValueOnce({
+        jobId: 'vai-1-99',
+        status: 'completed',
+        message: 'OK',
+        mediaId: 88,
+      });
+      const res = await request(app).get(
+        `/api/subscribers/${subscriberId}/publish-board/video-ai-jobs/vai-1-99`
+      );
+      expect(res.status).toBe(200);
+      expect(res.body.data.mediaId).toBe(88);
+    });
+
+    it('retorna 404 quando job não existe', async () => {
+      mockVideoAiGetStatus.mockResolvedValueOnce(null);
+      const res = await request(app).get(
+        `/api/subscribers/${subscriberId}/publish-board/video-ai-jobs/inexistente`
+      );
+      expect(res.status).toBe(404);
     });
   });
 

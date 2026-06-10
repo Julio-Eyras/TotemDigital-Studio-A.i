@@ -24,7 +24,11 @@ router.get(
     try {
       const subscriberId = Number(req.params?.subscriberId);
       const menuService = getMenuCatalogService();
-      const products = (await menuService.listProducts(subscriberId))
+      const [products, revision] = await Promise.all([
+        menuService.listProducts(subscriberId),
+        menuService.getCatalogRevision(subscriberId),
+      ]);
+      const data = products
         .filter((p) => p.isAvailable)
         .map((p) => ({
           productId: p.productId,
@@ -33,7 +37,16 @@ router.get(
           description: p.description,
           isAvailable: p.isAvailable,
         }));
-      return res.json({ success: true, data: products });
+      res.setHeader('Cache-Control', 'no-cache, max-age=0');
+      return res.json({
+        success: true,
+        data,
+        meta: {
+          catalogRevision: revision.revision,
+          refreshSeconds: menuService.getLiveRefreshSeconds(),
+          productCount: revision.productCount,
+        },
+      });
     } catch (error: any) {
       await logError('Erro ao carregar cardápio público', error);
       return res.status(500).json({ success: false, error: 'Erro ao carregar cardápio' });

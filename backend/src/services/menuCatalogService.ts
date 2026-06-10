@@ -1,5 +1,6 @@
 import { getDatabase } from '../config/database';
 import { getPublishBoardService } from './publishBoardService';
+import { getMenuCatalogTriggerService } from './menuCatalogTriggerService';
 
 export interface MenuBoardLayout {
   subscriberId: number;
@@ -135,7 +136,9 @@ export class MenuCatalogService {
       input.sortOrder ?? 0,
       input.isAvailable !== false,
     ]);
-    return this.mapProduct(result.rows[0]);
+    const product = this.mapProduct(result.rows[0]);
+    await getMenuCatalogTriggerService().notifyCatalogChanged(input.subscriberId, 'product_created', product.productId);
+    return product;
   }
 
   async updateProduct(
@@ -183,7 +186,9 @@ export class MenuCatalogService {
       patch.isAvailable ?? null,
       patch.isActive ?? null,
     ]);
-    return this.mapProduct(result.rows[0]);
+    const product = this.mapProduct(result.rows[0]);
+    await getMenuCatalogTriggerService().notifyCatalogChanged(subscriberId, 'product_updated', productId);
+    return product;
   }
 
   async deleteProduct(productId: number, subscriberId: number): Promise<boolean> {
@@ -191,7 +196,19 @@ export class MenuCatalogService {
       UPDATE menu_products SET is_active = false, updated_at = CURRENT_TIMESTAMP
       WHERE product_id = $1 AND subscriber_id = $2
     `, [productId, subscriberId]);
-    return (result.rowCount ?? 0) > 0;
+    const ok = (result.rowCount ?? 0) > 0;
+    if (ok) {
+      await getMenuCatalogTriggerService().notifyCatalogChanged(subscriberId, 'product_deleted', productId);
+    }
+    return ok;
+  }
+
+  async getCatalogRevision(subscriberId: number) {
+    return getMenuCatalogTriggerService().getCatalogRevision(subscriberId);
+  }
+
+  getLiveRefreshSeconds(): number {
+    return getMenuCatalogTriggerService().getLiveRefreshSeconds();
   }
 
   async getBoardLayout(subscriberId: number): Promise<MenuBoardLayout> {

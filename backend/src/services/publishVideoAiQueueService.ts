@@ -1,10 +1,8 @@
 /**
- * Fila stub para geração de vídeo por IA (Premium).
- * Registra pedido e retorna status pendente até integração com provedor externo.
+ * Fila de geração de vídeo por IA (Premium) — delega ao processador Onda C.
  */
 
-import { getDatabase } from '../config/database';
-import { subscriberHasPremiumAiVideo } from '../utils/publishPlanFeatures';
+import { getPublishVideoAiProcessorService } from './aiVideo/publishVideoAiProcessorService';
 import type { PublishBoardPresetType } from './publishBoardRenderService';
 
 export interface VideoAiQueueRequest {
@@ -19,48 +17,41 @@ export interface VideoAiQueueResult {
   status: 'queued' | 'processing' | 'completed' | 'failed';
   message: string;
   premiumRequired?: boolean;
+  mediaId?: number;
+  mediaName?: string;
+  provider?: string;
 }
 
 export class PublishVideoAiQueueService {
-  private get db() {
-    return getDatabase();
-  }
-
   async enqueue(input: VideoAiQueueRequest): Promise<VideoAiQueueResult> {
-    const isPremium = await subscriberHasPremiumAiVideo(input.subscriberId);
-    if (!isPremium) {
-      return {
-        jobId: '',
-        status: 'failed',
-        message: 'Geração de vídeo por IA disponível apenas no plano Premium.',
-        premiumRequired: true,
-      };
-    }
-
-    const jobId = `vai-${input.subscriberId}-${Date.now()}`;
-    const metadata = {
-      jobId,
+    const result = await getPublishVideoAiProcessorService().run({
       subscriberId: input.subscriberId,
       preset: input.preset,
-      briefSummary: input.briefSummary || null,
-      status: 'queued',
-      createdAt: new Date().toISOString(),
-    };
-
-    try {
-      await this.db.executeRaw(`
-        INSERT INTO audit_logs (user_id, action, entity, entity_id, metadata, timestamp)
-        VALUES ($1, 'publish_video_ai_queued', 'subscriber', $2, $3::jsonb, CURRENT_TIMESTAMP)
-      `, [input.userId || null, input.subscriberId, JSON.stringify(metadata)]);
-    } catch {
-      /* audit opcional */
-    }
+      briefSummary: input.briefSummary,
+      userId: input.userId,
+    });
 
     return {
-      jobId,
-      status: 'queued',
-      message:
-        'Pedido de vídeo IA registrado. A integração com o provedor de vídeo será concluída em etapa Premium; use animação HTML ao vivo no plano base.',
+      jobId: result.jobId,
+      status: result.status,
+      message: result.message,
+      premiumRequired: result.premiumRequired,
+      mediaId: result.mediaId,
+      mediaName: result.mediaName,
+      provider: result.provider,
+    };
+  }
+
+  async getStatus(jobId: string, subscriberId: number): Promise<VideoAiQueueResult | null> {
+    const result = await getPublishVideoAiProcessorService().getJobStatus(jobId, subscriberId);
+    if (!result) return null;
+    return {
+      jobId: result.jobId,
+      status: result.status,
+      message: result.message,
+      mediaId: result.mediaId,
+      mediaName: result.mediaName,
+      provider: result.provider,
     };
   }
 }

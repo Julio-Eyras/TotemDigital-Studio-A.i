@@ -56,7 +56,8 @@ describe('publishBoardHtmlRenderService', () => {
     });
     expect(html).toContain("public-menu/'+SUBSCRIBER_ID");
     expect(html).toContain('SUBSCRIBER_ID=3');
-    expect(html).toContain('setInterval(refresh,60000)');
+    expect(html).toContain('catalogRevision');
+    expect(html).toContain('schedule(BASE_MS)');
     expect(html).toContain('Hambúrguer');
   });
 });

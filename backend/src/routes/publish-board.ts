@@ -348,9 +348,16 @@ router.post(
         briefSummary: req.body.briefSummary,
         userId: Number(req.user?.id || req.user?.userId || 0),
       });
-      const status = data.premiumRequired ? 403 : 202;
-      return res.status(status).json({
-        success: !data.premiumRequired,
+      if (data.premiumRequired) {
+        return res.status(403).json({
+          success: false,
+          message: data.message,
+          data,
+        });
+      }
+      const httpStatus = data.status === 'completed' ? 201 : data.status === 'failed' ? 400 : 202;
+      return res.status(httpStatus).json({
+        success: data.status === 'completed' || data.status === 'queued',
         message: data.message,
         data,
       });
@@ -360,6 +367,28 @@ router.post(
         success: false,
         error: error.message || 'Erro ao enfileirar vídeo IA',
       });
+    }
+  }
+);
+
+router.get(
+  '/video-ai-jobs/:jobId',
+  authorizeRole(['admin', 'admin_sql', 'gerente_marketing', 'editoracao']),
+  param('subscriberId').isInt({ min: 1 }),
+  param('jobId').isString().trim().isLength({ min: 3, max: 80 }),
+  validate,
+  async (req, res) => {
+    try {
+      const subscriberId = Number(req.params?.subscriberId);
+      const jobId = String(req.params?.jobId);
+      const data = await getPublishVideoAiQueueService().getStatus(jobId, subscriberId);
+      if (!data) {
+        return res.status(404).json({ success: false, error: 'Job de vídeo IA não encontrado' });
+      }
+      return res.json({ success: true, data });
+    } catch (error: any) {
+      await logError('Erro ao consultar job de vídeo IA', error);
+      return res.status(500).json({ success: false, error: 'Erro ao consultar job de vídeo IA' });
     }
   }
 );

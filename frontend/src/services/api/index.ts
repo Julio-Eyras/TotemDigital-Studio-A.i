@@ -2187,7 +2187,27 @@ export const publishBoardApi = {
     return response.data as {
       success: boolean;
       message?: string;
-      data: { jobId: string; status: string; premiumRequired?: boolean };
+      data: {
+        jobId: string;
+        status: 'queued' | 'processing' | 'completed' | 'failed';
+        premiumRequired?: boolean;
+        mediaId?: number;
+        mediaName?: string;
+        provider?: string;
+      };
+    };
+  },
+  getVideoAiJob: async (subscriberId: number, jobId: string) => {
+    const response = await api.get(`/subscribers/${subscriberId}/publish-board/video-ai-jobs/${jobId}`);
+    return response.data as {
+      success: boolean;
+      data: {
+        jobId: string;
+        status: string;
+        message?: string;
+        mediaId?: number;
+        mediaName?: string;
+      };
     };
   },
   autoPublish: async (

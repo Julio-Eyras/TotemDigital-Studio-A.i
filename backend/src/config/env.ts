@@ -202,6 +202,13 @@ export const messagingConfig = {
 /**
  * Configuração de IA
  */
+export const aiVideoConfig = {
+  provider: getEnv('AI_VIDEO_PROVIDER', 'none'),
+  apiUrl: getEnv('AI_VIDEO_API_URL', ''),
+  apiKey: getEnv('AI_VIDEO_API_KEY', ''),
+  timeoutMs: getEnvNumber('AI_VIDEO_TIMEOUT_MS', 120000),
+};
+
 export const aiConfig = {
   provider: getEnv('AI_PROVIDER', 'ollama'),
   model: getEnv('AI_MODEL', 'llama3.2:3b'),

@@ -5,6 +5,7 @@ import {
   wrapHtmlDocument,
   offlineCycleScript,
 } from './publishBoardHtmlRuntime';
+import { getMenuCatalogTriggerService } from './menuCatalogTriggerService';
 
 function pad(portrait: boolean, portraitVal: string, landscapeVal: string): string {
   return portrait ? portraitVal : landscapeVal;
@@ -153,11 +154,14 @@ function buildMenuHtml(
   <div class="header anim-in" style="animation-delay:.05s">${title}</div>
   <div class="list" id="list"></div>
 </div>`;
+  const refreshSeconds = getMenuCatalogTriggerService().getLiveRefreshSeconds();
   const script = `(function(){
   var SUBSCRIBER_ID=${subscriberId};
   var SHOW_PRICES=${showPrices ? 'true' : 'false'};
   var PRODUCT_ORDER=${JSON.stringify(productOrder)};
   var INITIAL=${initialJson};
+  var LAST_REV=null;
+  var BASE_MS=${refreshSeconds * 1000};
   function fmtPrice(p){if(p==null||isNaN(p))return '';return 'R$ '+Number(p).toFixed(2).replace('.',',');}
   function renderProducts(products){
     var list=document.getElementById('list');list.innerHTML='';
@@ -177,8 +181,19 @@ function buildMenuHtml(
     });
   }
   function normalizeProducts(raw){return (raw||[]).map(function(p){return {productId:p.productId||p.product_id,name:p.name,price:p.price,description:p.description,isAvailable:p.isAvailable!==false&&p.is_available!==false};});}
-  function refresh(){fetch('/api/publish-board/public-menu/'+SUBSCRIBER_ID).then(function(r){return r.json();}).then(function(j){if(j&&j.success&&Array.isArray(j.data))renderProducts(normalizeProducts(j.data));}).catch(function(){renderProducts(INITIAL);});}
-  renderProducts(INITIAL);setInterval(refresh,60000);
+  function schedule(ms){setTimeout(refresh,ms);}
+  function refresh(){
+    fetch('/api/publish-board/public-menu/'+SUBSCRIBER_ID).then(function(r){return r.json();}).then(function(j){
+      if(!j||!j.success){schedule(BASE_MS);return;}
+      var rev=j.meta&&j.meta.catalogRevision;
+      var wait=((j.meta&&j.meta.refreshSeconds)||${refreshSeconds})*1000;
+      if(Array.isArray(j.data))renderProducts(normalizeProducts(j.data));
+      if(rev&&LAST_REV!==null&&rev!==LAST_REV){LAST_REV=rev;schedule(2000);return;}
+      LAST_REV=rev||LAST_REV;
+      schedule(wait);
+    }).catch(function(){renderProducts(INITIAL);schedule(BASE_MS);});
+  }
+  renderProducts(INITIAL);schedule(BASE_MS);
 })();`;
   return wrapHtmlDocument(title, w, h, css, body, script);
 }

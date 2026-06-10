@@ -309,9 +309,14 @@ export const CreatePublishPanel: React.FC<CreatePublishPanelProps> = ({
       });
       if (res.data?.premiumRequired) {
         setPremiumMsg(res.message || 'Vídeo IA disponível apenas no plano Premium.');
-      } else {
-        setSuccess(res.message || 'Pedido de vídeo IA registrado.');
+        return;
       }
+      if (res.data?.status === 'completed' && res.data.mediaId) {
+        onMediaGenerated(res.data.mediaId);
+        setSuccess(res.message || 'Vídeo IA gerado e selecionado para publicação.');
+        return;
+      }
+      setSuccess(res.message || 'Pedido de vídeo IA registrado.');
     } catch (e) {
       setError(pickApiErrorMessage(e, 'Erro ao solicitar vídeo IA.'));
     }

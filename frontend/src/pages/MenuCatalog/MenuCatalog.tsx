@@ -57,6 +57,10 @@ const MenuCatalog: React.FC = () => {
   const [editPrice, setEditPrice] = useState('');
   const [editCategoryId, setEditCategoryId] = useState<number | ''>('');
   const [editAvailable, setEditAvailable] = useState(true);
+  const [catalogNotice, setCatalogNotice] = useState<string | null>(null);
+
+  const LIVE_MENU_HINT =
+    'Alteração salva. Telas com cardápio HTML ao vivo atualizam preços automaticamente (sem republicar campanha).';
 
   const loadSubscribers = useCallback(async () => {
     const res = await subscriberApi.getAll({ limit: 500, active_only: true });
@@ -118,6 +122,7 @@ const MenuCatalog: React.FC = () => {
       setNewPrice('');
       setNewCategoryId('');
       await loadCatalog(Number(subscriberId));
+      setCatalogNotice(LIVE_MENU_HINT);
     } catch (e) {
       setError(pickApiErrorMessage(e, 'Erro ao criar produto.'));
     }
@@ -153,6 +158,7 @@ const MenuCatalog: React.FC = () => {
       });
       setEditProduct(null);
       await loadCatalog(Number(subscriberId));
+      setCatalogNotice(LIVE_MENU_HINT);
     } catch (e) {
       setError(pickApiErrorMessage(e, 'Erro ao atualizar produto.'));
     }
@@ -163,6 +169,7 @@ const MenuCatalog: React.FC = () => {
     try {
       await menuCatalogApi.deleteProduct(Number(subscriberId), productId);
       await loadCatalog(Number(subscriberId));
+      setCatalogNotice(LIVE_MENU_HINT);
     } catch (e) {
       setError(pickApiErrorMessage(e, 'Erro ao remover produto.'));
     }
@@ -179,6 +186,11 @@ const MenuCatalog: React.FC = () => {
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
+        </Alert>
+      )}
+      {catalogNotice && (
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setCatalogNotice(null)}>
+          {catalogNotice}
         </Alert>
       )}
       <Alert severity="info" sx={{ mb: 2 }}>
