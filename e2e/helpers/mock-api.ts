@@ -92,6 +92,42 @@ const mockTotem = {
   is_active: true,
 };
 
+type MockMenuProduct = {
+  productId: number;
+  name: string;
+  price: number;
+  description: string | null;
+  isAvailable: boolean;
+  categoryId: number | null;
+};
+
+let mockMenuCatalogRevision = '2026-05-28T12:00:00Z';
+let mockMenuProducts: MockMenuProduct[] = [
+  {
+    productId: 1,
+    name: 'Café expresso',
+    price: 6.5,
+    description: 'Tradicional',
+    isAvailable: true,
+    categoryId: null,
+  },
+];
+
+/** Reinicia estado mutável do cardápio (Onda B E2E). */
+export function resetMockMenuCatalog(): void {
+  mockMenuCatalogRevision = '2026-05-28T12:00:00Z';
+  mockMenuProducts = [
+    {
+      productId: 1,
+      name: 'Café expresso',
+      price: 6.5,
+      description: 'Tradicional',
+      isAvailable: true,
+      categoryId: null,
+    },
+  ];
+}
+
 const publishBoardLayouts: Record<string, Record<string, unknown>> = {
   promotion: {
     subscriberId: 1,
@@ -343,6 +379,65 @@ async function fulfillApi(route: import('@playwright/test').Route): Promise<void
     );
   }
 
+  const publicMenuMatch = path.match(/^\/api\/publish-board\/public-menu\/(\d+)$/);
+  if (publicMenuMatch && method === 'GET') {
+    const available = mockMenuProducts.filter((p) => p.isAvailable);
+    return route.fulfill(
+      json({
+        success: true,
+        data: available.map((p) => ({
+          productId: p.productId,
+          name: p.name,
+          price: p.price,
+          description: p.description,
+          isAvailable: p.isAvailable,
+        })),
+        meta: {
+          catalogRevision: mockMenuCatalogRevision,
+          refreshSeconds: 30,
+          productCount: mockMenuProducts.length,
+        },
+      })
+    );
+  }
+
+  const queueVideoAiMatch = path.match(/^\/api\/subscribers\/(\d+)\/publish-board\/([a-z]+)\/queue-video-ai$/);
+  if (queueVideoAiMatch && method === 'POST') {
+    return route.fulfill(
+      json(
+        {
+          success: true,
+          message: 'Vídeo IA gerado e selecionado (mock E2E).',
+          data: {
+            jobId: 'vai-1-e2e',
+            status: 'completed',
+            mediaId: 201,
+            mediaName: 'Vídeo IA — E2E',
+            provider: 'http',
+          },
+        },
+        201
+      )
+    );
+  }
+
+  const videoAiJobMatch = path.match(/^\/api\/subscribers\/(\d+)\/publish-board\/video-ai-jobs\/([^/]+)$/);
+  if (videoAiJobMatch && method === 'GET') {
+    const jobId = videoAiJobMatch[2];
+    return route.fulfill(
+      json({
+        success: true,
+        data: {
+          jobId,
+          status: 'completed',
+          message: 'OK (mock E2E)',
+          mediaId: 201,
+          mediaName: 'Vídeo IA — E2E',
+        },
+      })
+    );
+  }
+
   const autoPublishMatch = path.match(/^\/api\/subscribers\/(\d+)\/publish-board\/([a-z]+)\/auto-publish$/);
   if (autoPublishMatch && method === 'POST') {
     return route.fulfill(
@@ -368,22 +463,64 @@ async function fulfillApi(route: import('@playwright/test').Route): Promise<void
     return route.fulfill(json({ success: true, data: [] }));
   }
 
+  const menuProductPatchMatch = path.match(/^\/api\/subscribers\/(\d+)\/menu-catalog\/products\/(\d+)$/);
+  if (menuProductPatchMatch && (method === 'PATCH' || method === 'PUT')) {
+    const productId = Number(menuProductPatchMatch[2]);
+    const body = (route.request().postDataJSON() || {}) as Record<string, unknown>;
+    mockMenuProducts = mockMenuProducts.map((p) =>
+      p.productId === productId
+        ? {
+            ...p,
+            name: typeof body.name === 'string' ? body.name : p.name,
+            price: body.price != null ? Number(body.price) : p.price,
+            isAvailable: typeof body.isAvailable === 'boolean' ? body.isAvailable : p.isAvailable,
+            categoryId: body.categoryId != null ? Number(body.categoryId) : p.categoryId,
+          }
+        : p
+    );
+    mockMenuCatalogRevision = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const updated = mockMenuProducts.find((p) => p.productId === productId);
+    return route.fulfill(json({ success: true, data: updated }));
+  }
+
+  if (menuProductPatchMatch && method === 'DELETE') {
+    const productId = Number(menuProductPatchMatch[2]);
+    mockMenuProducts = mockMenuProducts.filter((p) => p.productId !== productId);
+    mockMenuCatalogRevision = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+    return route.fulfill(json({ success: true }));
+  }
+
   const menuProductsMatch = path.match(/^\/api\/subscribers\/(\d+)\/menu-catalog\/products$/);
   if (menuProductsMatch && method === 'GET') {
     return route.fulfill(
       json({
         success: true,
-        data: [
-          {
-            productId: 1,
-            name: 'Café expresso',
-            price: 6.5,
-            description: 'Tradicional',
-            isAvailable: true,
-          },
-        ],
+        data: mockMenuProducts.map((p) => ({
+          productId: p.productId,
+          name: p.name,
+          price: p.price,
+          description: p.description,
+          isAvailable: p.isAvailable,
+          categoryId: p.categoryId,
+        })),
       })
     );
+  }
+
+  if (menuProductsMatch && method === 'POST') {
+    const body = (route.request().postDataJSON() || {}) as Record<string, unknown>;
+    const nextId = Math.max(0, ...mockMenuProducts.map((p) => p.productId)) + 1;
+    const created: MockMenuProduct = {
+      productId: nextId,
+      name: String(body.name || 'Produto'),
+      price: body.price != null ? Number(body.price) : 0,
+      description: null,
+      isAvailable: true,
+      categoryId: body.categoryId != null ? Number(body.categoryId) : null,
+    };
+    mockMenuProducts.push(created);
+    mockMenuCatalogRevision = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+    return route.fulfill(json({ success: true, data: created }, 201));
   }
 
   if (path === '/api/quick-publish' && method === 'POST') {
