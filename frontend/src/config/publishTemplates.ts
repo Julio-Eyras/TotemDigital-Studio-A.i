@@ -51,7 +51,7 @@ export const PUBLISH_PRESETS: PublishPresetConfig[] = [
     badge: 'Restaurante',
     accentColor: '#ff9800',
     background: 'linear-gradient(135deg, #2b1400 0%, #7a3a00 100%)',
-    recommendedDurationMs: 12000,
+    recommendedDurationMs: 60000,
     titleSuffix: 'Cardápio do dia',
     descriptionTemplate:
       'Template de cardápio digital com foco em leitura rápida, preços claros e chamada para pedido.',

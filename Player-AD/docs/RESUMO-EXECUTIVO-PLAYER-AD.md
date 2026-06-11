@@ -10,7 +10,7 @@ O `Player-AD` é um player Android TV para exibição de campanhas de mídia com
 
 - Recebe plano de mídia online (`heartbeat` + `dispatch`).
 - Faz cache local de conteúdo para reduzir dependência de rede.
-- Reproduz vídeo e imagem em loop contínuo.
+- Reproduz vídeo, imagem e **HTML** (WebView — cardápio ao vivo e animações Publicar em Tela) em loop contínuo.
 - Opera em fallback offline com:
   - último plano persistido;
   - playlist local de `propagandas` e `vinhetas`.

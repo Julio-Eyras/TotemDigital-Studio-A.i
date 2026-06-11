@@ -171,6 +171,8 @@ def main():
     )
     commits = [
         ["Commit", "Conteúdo"],
+        ["386628f", "Testes E2E Ondas B/C + unitários publishVideoAiProcessor"],
+        ["bb1d53c", "PDF e script de procedimentos de homologação Vx5"],
         ["c669af0", "Ondas B e C — cardápio ao vivo (catalogRevision) e vídeo IA Premium (adapter HTTP)"],
         ["68202d5", "Onda A — Gerar e publicar agora (auto-publish orchestrator)"],
         ["9b7e22d", "Preview da mídia selecionada após upload"],
@@ -241,7 +243,7 @@ def main():
     )
     order = [
         ["P", "Passo", "Depende de", "Desbloqueia"],
-        ["P0", "Deploy c669af0 no staging (pull, rebuild, restart)", "—", "Tudo"],
+        ["P0", "Deploy 386628f no staging (scripts/deploy-staging-vx5.sh)", "—", "Tudo"],
         ["P1", "Homologação manual §11 (Rápido → Criar → auto-publish)", "P0", "Confiança para release"],
         ["P2", "Configurar env (MENU_LIVE, AI_PROVIDER, AI_VIDEO_*)", "P0", "Testes reais B e C"],
         ["P3", "Cardápio ao vivo no totem físico", "P1 + P2", "Valor de negócio Onda B"],
@@ -266,42 +268,81 @@ def main():
 
     story.append(PageBreak())
 
-    # --- 5. Procedimento deploy ---
-    story.append(Paragraph("5. Procedimento P0 — Deploy no staging", styles["h1"]))
+    # --- 5. Procedimento deploy SSH ---
+    story.append(Paragraph("5. Procedimento P0 — Deploy SSH no staging", styles["h1"]))
+    story.append(Paragraph("<b>Referência rápida</b>", styles["body"]))
+    ref = [
+        ["Item", "Valor"],
+        ["Host staging", "217.216.91.135 (ajustar se mudou)"],
+        ["Painel", "http://217.216.91.135:8080"],
+        ["Branch", "Smart-Signage-Studio-Vx5"],
+        ["Commit mínimo", "386628f ou posterior"],
+        ["INSTALL_DIR típico", "/opt/smart-signage ou ~/TotemDigital"],
+        ["Script automatizado", "scripts/deploy-staging-vx5.sh"],
+    ]
+    story.append(table(ref, [4 * cm, 11.5 * cm]))
+
+    story.append(Paragraph("5.1 Script automatizado (recomendado)", styles["h2"]))
+    story.append(
+        Paragraph(
+            "No servidor, após SSH, execute a partir do diretório da instalação:",
+            styles["body"],
+        )
+    )
+    auto_deploy = """ssh usuario@217.216.91.135
+cd /opt/smart-signage
+bash scripts/deploy-staging-vx5.sh
+# Opções: --no-pull | --no-build | --dir /caminho | --branch NOME"""
+    story.append(Paragraph(auto_deploy.replace("\n", "<br/>"), styles["mono"]))
+    story.append(
+        Paragraph(
+            "O script faz: backup .env → git pull → build (install-smartsignage --backfront-build) "
+            "→ rsync frontend → restart smart-signage → reload nginx → smoke GET /health.",
+            styles["body"],
+        )
+    )
+
+    story.append(Paragraph("5.2 Passo a passo manual (se preferir)", styles["h2"]))
     story.append(Paragraph("<b>Pré-requisitos</b>", styles["body"]))
     for item in [
-        "Acesso SSH ao servidor de staging (ex.: 217.216.91.135).",
+        "Acesso SSH ao servidor de staging.",
         "Postgres com schema v6 e seed aplicados.",
-        "Node/npm disponíveis no servidor.",
+        "Node/npm e rsync disponíveis.",
+        "Serviço systemd smart-signage e nginx configurados.",
     ]:
         story.append(Paragraph(f"• {item}", styles["bullet"]))
 
-    story.append(Paragraph("<b>Comandos (ajustar caminhos conforme instalação)</b>", styles["body"]))
-    deploy_cmds = """cd /caminho/TotemDigital
-git fetch origin
-git checkout Smart-Signage-Studio-Vx5
+    deploy_cmds = """export INSTALL_DIR=/opt/smart-signage
+cd "$INSTALL_DIR"
+cp .env .env.backup.$(date +%Y%m%d-%H%M%S)
+git fetch origin && git checkout Smart-Signage-Studio-Vx5
 git pull origin Smart-Signage-Studio-Vx5
 git log -1 --oneline
-# Confirmar commit c669af0 ou posterior
 
-cd backend && npm ci && npm run build
-cd ../frontend && npm ci
-# Frontend Studio:
-export REACT_APP_TOTEMDIGITAL_COMPACT=true
-npm run build
+bash scripts/deploy-backfront-build.sh
+# ou: bash scripts/install-smartsignage.sh --backfront-build
+# + rsync frontend/build → /opt/smart-signage/frontend/build
 
-# Reiniciar serviços (systemd, pm2 ou script local)
-sudo systemctl restart smartsignage-backend smartsignage-frontend
-# ou: pm2 restart all"""
+sudo systemctl restart smart-signage
+sudo systemctl reload nginx
+curl -s http://127.0.0.1:3001/health"""
     story.append(Paragraph(deploy_cmds.replace("\n", "<br/>"), styles["mono"]))
 
-    story.append(Paragraph("<b>Verificação pós-deploy</b>", styles["body"]))
+    story.append(Paragraph("5.3 Verificação pós-deploy", styles["h2"]))
     for item in [
         "GET /health → studioMode: true.",
-        "Login admin funciona; menu sem credenciais expostas.",
-        "Logs: Smart Signage Studio + single_publisher.",
+        "Painel http://HOST:8080 com Ctrl+Shift+R (sem cache).",
+        "Login admin; logs: Smart Signage Studio + single_publisher.",
+        "journalctl -u smart-signage -n 80 se houver erro.",
     ]:
         story.append(Paragraph(f"• {item}", styles["bullet"]))
+
+    story.append(Paragraph("5.4 Rollback", styles["h2"]))
+    rollback = """cd "$INSTALL_DIR"
+git log -5 --oneline
+git checkout <commit-anterior>
+bash scripts/deploy-staging-vx5.sh --no-pull"""
+    story.append(Paragraph(rollback.replace("\n", "<br/>"), styles["mono"]))
 
     # --- 6. Env vars ---
     story.append(Paragraph("6. Procedimento P2 — Variáveis de ambiente", styles["h1"]))
@@ -460,16 +501,28 @@ AI_VIDEO_TIMEOUT_MS=120000"""
         story.append(Paragraph(f"• {item}", styles["bullet"]))
 
     # --- 11. Comandos úteis ---
-    story.append(Paragraph("11. Comandos úteis (validação local)", styles["h1"]))
-    cmds = """# Testes backend Ondas A/B/C
+    story.append(Paragraph("11. Comandos úteis", styles["h1"]))
+    story.append(Paragraph("<b>Deploy staging (servidor Linux)</b>", styles["body"]))
+    story.append(
+        Paragraph(
+            "bash scripts/deploy-staging-vx5.sh<br/>"
+            "INSTALL_DIR=/opt/smart-signage bash scripts/deploy-staging-vx5.sh --no-build",
+            styles["mono"],
+        )
+    )
+    story.append(Paragraph("<b>Validação local (dev)</b>", styles["body"]))
+    cmds = """# Testes backend Ondas A/B/C (32 testes)
 cd backend
-npm test -- --testPathPattern="publish-board|publishBoardHtml|httpAiVideo|menuCatalogTrigger"
+npm test -- --testPathPattern="publish-board|publishBoardHtml|httpAiVideo|menuCatalogTrigger|publishVideoAiProcessor"
+
+# E2E (10 testes publish)
+cd e2e && npm test -- tests/publish-ondas-bc.spec.ts tests/quick-publish-create.spec.ts
+
+# Regenerar este PDF
+python scripts/generate-homologacao-procedimentos-pdf.py
 
 # Validar seed v6
-cd database && node validate-v6.js
-
-# E2E (com mocks)
-cd e2e && npx playwright test quick-publish-create.spec.ts"""
+cd database && node validate-v6.js"""
     story.append(Paragraph(cmds.replace("\n", "<br/>"), styles["mono"]))
 
     story.append(Spacer(1, 0.5 * cm))

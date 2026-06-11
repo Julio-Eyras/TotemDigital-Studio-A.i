@@ -515,7 +515,8 @@ export const CreatePublishPanel: React.FC<CreatePublishPanelProps> = ({
               {preset === 'menu' ? (
                 <>
                   <Alert severity="info" sx={{ mb: 2 }}>
-                    Preços atualizam na tela automaticamente (cardápio dinâmico). Gerencie em{' '}
+                    Preços atualizam na tela automaticamente (cardápio dinâmico; Player-AD 1.5+ com
+                    WebView). Exposição recomendada: 60s ou mais. Gerencie em{' '}
                     <Link component={RouterLink} to={`/menu-catalog?subscriber=${subscriberId}`}>
                       Cardápio por cliente
                     </Link>

@@ -11,11 +11,14 @@ import br.com.smartchannel.playerad.cache.MediaCacheManager
 import br.com.smartchannel.playerad.util.AppDirs
 import br.com.smartchannel.playerad.util.PlayerAdLogger
 import android.content.Intent
+import android.view.View
+import android.webkit.WebView
 import android.widget.ImageView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.PlaybackException
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.Dispatchers
@@ -46,7 +49,9 @@ class PlayerController(
     private val apiClient: DispatcherApiClient,
     private val cacheManager: MediaCacheManager,
     private val exoPlayer: ExoPlayer,
+    private val playerView: PlayerView,
     private val imageView: ImageView,
+    private val htmlWebView: WebView,
     private val acceptImagesInPlaylist: Boolean = true,
     /** Se false, [exoPlayer] permanece em volume 0 durante vídeo/áudio. */
     private val allowPlaybackAudio: Boolean = true,
@@ -59,6 +64,9 @@ class PlayerController(
     private enum class PlanSource { ONLINE, PERSISTED, FALLBACK_LOCAL }
 
     private val DEFAULT_IMAGE_DURATION_SECONDS = 20L
+    /** Cardápio HTML ao vivo: poll default 30s — exposição mínima 60s. */
+    private val DEFAULT_HTML_DURATION_SECONDS = 60L
+    private val MIN_HTML_DURATION_SECONDS = 30L
     private val persistedDispatchFile: File
         get() = File(AppDirs.root(context), "last-dispatch-plan.json")
     private val currentPlanSourceFile: File
@@ -90,6 +98,7 @@ class PlayerController(
      * Obtém token, faz dispatch e começa o loop de playback.
      */
     suspend fun start() {
+        HtmlWebViewPlayback.configure(htmlWebView)
         eventsClient = PlayerEventsClient(
             baseUrl = apiClient.baseUrl.trimEnd('/'),
             uin = apiClient.uin,
@@ -645,7 +654,8 @@ class PlayerController(
         // Fallback local (file://) não usa cache/metadata
         val isFileUrl = item.url.startsWith("file://")
         val mediaTypeLower = item.mediaType?.lowercase() ?: "video"
-        val isVideo = mediaTypeLower == "video"
+        val isVideo = mediaTypeLower == "video" || mediaTypeLower == "audio"
+        val isHtml = HtmlWebViewPlayback.isHtmlMediaType(item.mediaType, item.url)
 
         val meta = if (!isFileUrl) cacheManager.getMetadata(item.mediaId) else null
         val file = meta?.fileName?.let { File(propagandasDir, it) }
@@ -654,6 +664,10 @@ class PlayerController(
                 meta?.valid == true &&
                 file != null &&
                 file.exists()
+
+        if (isHtml) {
+            return playHtmlItem(plan, item, t, isFileUrl, hasValidCache, file, today)
+        }
 
         // Para imagens, não usamos ExoPlayer: mostramos em ImageView.
         if (!isVideo) {
@@ -667,7 +681,9 @@ class PlayerController(
                 delay(1L)
                 return t
             }
-            imageView.visibility = android.view.View.VISIBLE
+            hideHtmlLayer()
+            imageView.visibility = View.VISIBLE
+            playerView.visibility = View.GONE
             exoPlayer.stop()
             // Exposição só conta se > 0; vídeo não passa por este ramo (duração real no ExoPlayer).
             val exposureSec = item.duration?.takeIf { it > 0L }
@@ -732,8 +748,11 @@ class PlayerController(
             return t
         }
 
-        // Vídeos: garantir que ImageView está escondido e usar ExoPlayer com duração natural.
-        imageView.visibility = android.view.View.GONE
+        // Vídeos: garantir que ImageView/HTML estão escondidos e usar ExoPlayer com duração natural.
+        hideHtmlLayer()
+        imageView.visibility = View.GONE
+        imageView.setImageDrawable(null)
+        playerView.visibility = View.VISIBLE
         applyPlaybackVolumePolicy()
 
         PlayerAdLogger.logPlaybackStart(
@@ -804,6 +823,90 @@ class PlayerController(
         return t
     }
 
+    private suspend fun playHtmlItem(
+        plan: DispatchPlan,
+        item: DispatchMediaItem,
+        token: String,
+        isFileUrl: Boolean,
+        hasValidCache: Boolean,
+        file: File?,
+        today: String
+    ): String {
+        var t = token
+        hideImageLayer()
+        exoPlayer.stop()
+        playerView.visibility = View.GONE
+
+        val exposureSec = item.duration?.takeIf { it > 0L }
+        val durationSeconds = when {
+            exposureSec != null && exposureSec >= MIN_HTML_DURATION_SECONDS -> exposureSec
+            exposureSec != null -> DEFAULT_HTML_DURATION_SECONDS
+            else -> DEFAULT_HTML_DURATION_SECONDS
+        }
+        val durationMs = durationSeconds * 1000L
+
+        PlayerAdLogger.logPlaybackStart(
+            "html",
+            item.mediaId,
+            plan.playlistName,
+            plan.playlistId
+        )
+
+        try {
+            t = eventsClient.sendEvent(
+                token = t,
+                eventType = "html_display",
+                mediaId = item.mediaId,
+                playlistId = plan.playlistId,
+                campaignId = plan.campaignId,
+                durationSeconds = null,
+                completed = null,
+                metadata = emptyMap()
+            )
+        } catch (_: Exception) { }
+
+        val resolvedHttpUrl = apiClient.resolveUrl(item.url)
+        val cachedFile = when {
+            isFileUrl -> {
+                val path = Uri.parse(item.url).path
+                if (path != null) File(path) else null
+            }
+            hasValidCache && file != null -> {
+                cacheManager.onPlayFromCache(item.mediaId, today)
+                file
+            }
+            else -> null
+        }
+
+        htmlWebView.visibility = View.VISIBLE
+        HtmlWebViewPlayback.load(
+            webView = htmlWebView,
+            serverBaseUrl = apiClient.baseUrl,
+            httpUrl = resolvedHttpUrl,
+            cachedHtmlFile = cachedFile
+        )
+
+        delay(durationMs)
+        HtmlWebViewPlayback.stop(htmlWebView)
+        PlayerAdLogger.logPlaybackEnd("html", item.mediaId, durationSeconds)
+        return t
+    }
+
+    private fun hideHtmlLayer() {
+        HtmlWebViewPlayback.stop(htmlWebView)
+    }
+
+    private fun hideImageLayer() {
+        imageView.visibility = View.GONE
+        imageView.setImageDrawable(null)
+    }
+
+    private fun fallbackDurationForMediaType(mediaType: String): Long? = when (mediaType) {
+        "image" -> DEFAULT_IMAGE_DURATION_SECONDS
+        "html" -> DEFAULT_HTML_DURATION_SECONDS
+        else -> null
+    }
+
     /**
      * Constrói um DispatchPlan sintético de fallback usando arquivos locais:
      * - Usa arquivos em propagandas/ e vinhetas/
@@ -825,7 +928,7 @@ class PlayerController(
         for (k in 0 until propagandasPerVinheta) {
             val file = propagandas[k % propagandas.size]
             val mediaType = guessFallbackMediaType(file.name)
-            val durationSeconds = if (mediaType == "image") DEFAULT_IMAGE_DURATION_SECONDS else null
+            val durationSeconds = fallbackDurationForMediaType(mediaType)
             items += DispatchMediaItem(
                 mediaId = 0L,
                 url = file.toURI().toString(),
@@ -838,7 +941,7 @@ class PlayerController(
         run {
             val file = vinhetas[0 % vinhetas.size]
             val mediaType = guessFallbackMediaType(file.name)
-            val durationSeconds = if (mediaType == "image") DEFAULT_IMAGE_DURATION_SECONDS else null
+            val durationSeconds = fallbackDurationForMediaType(mediaType)
             items += DispatchMediaItem(
                 mediaId = 0L,
                 url = file.toURI().toString(),
@@ -870,6 +973,7 @@ class PlayerController(
     private fun guessFallbackMediaType(fileName: String): String {
         val lower = fileName.lowercase()
         return when {
+            lower.endsWith(".html") || lower.endsWith(".htm") -> "html"
             lower.endsWith(".mp4") || lower.endsWith(".webm") || lower.endsWith(".mov") -> "video"
             lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png") -> "image"
             else -> "video"
@@ -877,11 +981,13 @@ class PlayerController(
     }
 
     private fun guessExtension(mediaType: String?, url: String): String {
+        if (HtmlWebViewPlayback.isHtmlMediaType(mediaType, url)) return "html"
         mediaType?.let {
             if (it.startsWith("video/")) return "mp4"
             if (it.startsWith("image/")) return "jpg"
         }
         return when {
+            url.contains(".html", ignoreCase = true) -> "html"
             url.contains(".mp4", ignoreCase = true) -> "mp4"
             url.contains(".webm", ignoreCase = true) -> "webm"
             url.contains(".jpg", ignoreCase = true) || url.contains(".jpeg", ignoreCase = true) -> "jpg"

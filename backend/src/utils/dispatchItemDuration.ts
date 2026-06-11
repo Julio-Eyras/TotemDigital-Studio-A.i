@@ -7,11 +7,17 @@
  */
 
 export const DEFAULT_IMAGE_DISPLAY_SECONDS = 10;
+export const DEFAULT_HTML_DISPLAY_SECONDS = 60;
 export const DEFAULT_MEDIA_FALLBACK_SECONDS = 10;
 
 function isVideoOrAudio(mediaType: string | null | undefined): boolean {
   const t = String(mediaType || '').toLowerCase();
   return t === 'video' || t === 'audio';
+}
+
+function isHtmlMedia(mediaType: string | null | undefined): boolean {
+  const t = String(mediaType || '').toLowerCase();
+  return t === 'html' || t === 'web' || t === 'widget' || t === 'iframe';
 }
 
 function positiveIntOrNull(v: unknown): number | null {
@@ -28,6 +34,12 @@ export function resolveDispatchItemDurationSeconds(params: {
 }): number {
   if (isVideoOrAudio(params.mediaType)) {
     return positiveIntOrNull(params.mediaDurationSeconds) ?? DEFAULT_MEDIA_FALLBACK_SECONDS;
+  }
+
+  if (isHtmlMedia(params.mediaType)) {
+    const fromPlaylist = positiveIntOrNull(params.displaySeconds);
+    if (fromPlaylist != null && fromPlaylist >= 30) return fromPlaylist;
+    return DEFAULT_HTML_DISPLAY_SECONDS;
   }
 
   return positiveIntOrNull(params.displaySeconds) ?? DEFAULT_IMAGE_DISPLAY_SECONDS;

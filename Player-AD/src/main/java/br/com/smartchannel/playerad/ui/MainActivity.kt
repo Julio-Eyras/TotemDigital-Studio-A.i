@@ -22,6 +22,7 @@ import br.com.smartchannel.playerad.cache.MediaCacheManager
 import br.com.smartchannel.playerad.config.PlayerConfigLoader
 import br.com.smartchannel.playerad.playback.PlayerController
 import br.com.smartchannel.playerad.util.PlayerAdLogger
+import android.webkit.WebView
 import android.widget.ImageView
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
@@ -45,6 +46,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var exoPlayer: ExoPlayer
     private lateinit var playerView: PlayerView
     private lateinit var imageView: ImageView
+    private lateinit var htmlWebView: WebView
 
     private var playbackJob: Job? = null
     private var playerController: PlayerController? = null
@@ -108,7 +110,9 @@ class MainActivity : AppCompatActivity() {
                         apiClient,
                         cacheManager,
                         exoPlayer,
+                        playerView,
                         imageView,
+                        htmlWebView,
                         config.acceptImagesInPlaylist,
                         config.allowPlaybackAudio,
                         config.fallbackPropagandasPerVinheta,
@@ -155,6 +159,7 @@ class MainActivity : AppCompatActivity() {
 
         playerView = findViewById(R.id.playerView)
         imageView = findViewById(R.id.imageView)
+        htmlWebView = findViewById(R.id.htmlWebView)
 
         cacheManager = (application as PlayerAdApplication).mediaCacheManager
 

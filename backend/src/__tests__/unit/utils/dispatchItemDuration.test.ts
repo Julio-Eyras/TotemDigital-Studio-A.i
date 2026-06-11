@@ -1,6 +1,7 @@
 import {
   resolveDispatchItemDurationSeconds,
   DEFAULT_IMAGE_DISPLAY_SECONDS,
+  DEFAULT_HTML_DISPLAY_SECONDS,
   DEFAULT_MEDIA_FALLBACK_SECONDS,
 } from '../../../utils/dispatchItemDuration';
 
@@ -43,6 +44,30 @@ describe('resolveDispatchItemDurationSeconds', () => {
         mediaDurationSeconds: 3600,
       })
     ).toBe(8);
+  });
+
+  it('html usa 60s por padrão para permitir poll do cardápio ao vivo', () => {
+    expect(
+      resolveDispatchItemDurationSeconds({
+        displaySeconds: 0,
+        mediaType: 'html',
+        mediaDurationSeconds: null,
+      })
+    ).toBe(DEFAULT_HTML_DISPLAY_SECONDS);
+    expect(
+      resolveDispatchItemDurationSeconds({
+        displaySeconds: 12,
+        mediaType: 'html',
+        mediaDurationSeconds: null,
+      })
+    ).toBe(DEFAULT_HTML_DISPLAY_SECONDS);
+    expect(
+      resolveDispatchItemDurationSeconds({
+        displaySeconds: 90,
+        mediaType: 'html',
+        mediaDurationSeconds: null,
+      })
+    ).toBe(90);
   });
 
   it('imagem com display_seconds 0 ou null usa default (ignora duration_seconds)', () => {
