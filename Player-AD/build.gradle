@@ -55,6 +55,10 @@ android {
         jvmTarget = '11'
     }
 
+    buildFeatures {
+        buildConfig true
+    }
+
     // Garantir compatibilidade com TV
     packagingOptions {
         resources {
