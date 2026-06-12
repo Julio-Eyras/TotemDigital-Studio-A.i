@@ -9,6 +9,18 @@ describe('businessDate (America/Sao_Paulo)', () => {
     expect(dateToYmd('2026-06-12T01:12:00.000Z')).toBe('2026-06-11');
   });
 
+  it('preserva DATE Postgres serializado como meia-noite UTC', () => {
+    expect(dateToYmd('2026-06-12T00:00:00.000Z')).toBe('2026-06-12');
+  });
+
+  it('start_date no mesmo dia civil da criação não falha na comparação', () => {
+    const createdYmd = dateToYmd('2026-06-12T15:02:00.000Z');
+    const startYmd = dateToYmd('2026-06-12T00:00:00.000Z');
+    expect(createdYmd).toBe('2026-06-12');
+    expect(startYmd).toBe('2026-06-12');
+    expect(startYmd >= createdYmd).toBe(true);
+  });
+
   it('start_date anterior a created_at no mesmo dia civil não falha na comparação', () => {
     const createdYmd = dateToYmd('2026-06-12T01:12:00.000Z');
     const startYmd = dateToYmd('2026-06-11');

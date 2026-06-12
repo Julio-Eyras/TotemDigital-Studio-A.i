@@ -70,6 +70,7 @@ import {
   getMinCampaignStartYmd,
   resolveCampaignStartYmdForSave,
 } from '../../utils/campaignStartDate';
+import { formatDateForApi } from '../../utils/businessDate';
 
 export interface CampaignFullEditorDialogProps {
   open: boolean;
@@ -479,8 +480,11 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
         ),
         status: selectedCampaign.status || 'draft',
         subscriberId: selectedCampaign.subscriber_id || (selectedCampaign as any).subscriberId,
-        start_date: resolveCampaignStartYmdForSave(selectedCampaign),
-        end_date: selectedCampaign.end_date || (selectedCampaign as any).endDate,
+        start_date: formatDateForApi(resolveCampaignStartYmdForSave(selectedCampaign)),
+        end_date: (() => {
+          const endYmd = getCampaignEndYmdForDisplay(selectedCampaign);
+          return endYmd ? formatDateForApi(endYmd) : undefined;
+        })(),
         isActive:
           selectedCampaign.is_active !== undefined
             ? selectedCampaign.is_active

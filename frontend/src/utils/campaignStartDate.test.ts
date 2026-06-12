@@ -13,6 +13,20 @@ describe('campaignStartDate (America/Sao_Paulo)', () => {
     expect(getCampaignStartYmdForDisplay({ start_date: '2026-06-11' })).toBe('2026-06-11');
   });
 
+  it('preserva start_date DATE em meia-noite UTC (node-pg)', () => {
+    expect(getCampaignStartYmdForDisplay({ start_date: '2026-06-12T00:00:00.000Z' })).toBe(
+      '2026-06-12'
+    );
+  });
+
+  it('permite salvar início no mesmo dia da criação com DATE meia-noite UTC', () => {
+    const campaign = {
+      created_at: '2026-06-12T18:02:00.000Z',
+      start_date: '2026-06-12T00:00:00.000Z',
+    };
+    expect(resolveCampaignStartYmdForSave(campaign)).toBe('2026-06-12');
+  });
+
   it('converte created_at UTC para dia civil no Brasil', () => {
     // 12/06 01:12 UTC = 11/06 22:12 em São Paulo (UTC-3)
     const createdAt = '2026-06-12T01:12:00.000Z';

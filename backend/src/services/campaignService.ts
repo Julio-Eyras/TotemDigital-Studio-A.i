@@ -1235,13 +1235,14 @@ export class CampaignService {
           assertCampaignStartNotBeforeYmd(nextStartYmd, createdYmd);
         }
         updates.push(`start_date = $${paramIndex}`);
-        params.push(data.startDate);
+        params.push(nextStartYmd || null);
         paramIndex++;
       }
 
       if (data.endDate !== undefined) {
+        const nextEndYmd = data.endDate ? dateToYmd(data.endDate) : '';
         updates.push(`end_date = $${paramIndex}`);
-        params.push(data.endDate);
+        params.push(nextEndYmd || null);
         paramIndex++;
       }
 

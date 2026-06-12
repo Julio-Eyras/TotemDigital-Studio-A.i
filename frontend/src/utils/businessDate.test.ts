@@ -15,6 +15,11 @@ describe('businessDate (frontend, America/Sao_Paulo)', () => {
     expect(dateToYmd('2026-06-12T01:12:00.000Z')).toBe('2026-06-11');
   });
 
+  it('preserva DATE Postgres serializado como meia-noite UTC', () => {
+    expect(dateToYmd('2026-06-12T00:00:00.000Z')).toBe('2026-06-12');
+    expect(formatDateForInput('2026-06-12T00:00:00.000Z')).toBe('2026-06-12');
+  });
+
   it('formatDateForInput espelha dateToYmd', () => {
     expect(formatDateForInput('2026-06-11')).toBe('2026-06-11');
   });
