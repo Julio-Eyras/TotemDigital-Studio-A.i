@@ -30,7 +30,7 @@ class PlayerConfigLoader(private val context: Context) {
 
         // 3) defaults seguros (substituir depois via config real)
         return PlayerConfig(
-            serverUrl = "http://217.216.91.135",
+            serverUrl = "http://217.216.91.135:8080",
             uin = "DEMO-UIN-001",
             deviceId = "DEMO-UIN-001",
             acceptImagesInPlaylist = true,

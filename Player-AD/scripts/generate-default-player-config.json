@@ -1,5 +1,5 @@
 {
-  "serverUrl": "http://217.216.91.135",
+  "serverUrl": "http://217.216.91.135:8080",
   "uin": "DEMO-UIN-001",
   "deviceId": "DEMO-UIN-001",
   "kioskMode": "strong",

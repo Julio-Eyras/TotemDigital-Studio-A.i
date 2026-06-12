@@ -39,7 +39,7 @@
             android:inputType="textUri"
             android:textColor="#FFFFFF"
             android:textColorHint="#777777"
-            android:hint="http://217.216.91.135"/>
+            android:hint="http://217.216.91.135:8080"/>
 
         <TextView
             android:layout_width="match_parent"
