@@ -194,6 +194,9 @@ if ($configToPush -and (Test-Path $configToPush) -and -not $NoConfigPush) {
     Write-Host "`n>> adb push config -> /sdcard/smartsignage/player-config.json" -ForegroundColor Yellow
     adb shell mkdir -p /sdcard/smartsignage 2>$null
     adb push $configToPush /sdcard/smartsignage/player-config.json
+    $pushedConfig = adb shell cat /sdcard/smartsignage/player-config.json 2>&1 | Out-String
+    Write-Host "Config enviada para /sdcard/smartsignage/player-config.json" -ForegroundColor Green
+    Write-Host $pushedConfig.TrimEnd() -ForegroundColor Gray
 }
 
 Write-Host "`nVersao instalada:" -ForegroundColor Cyan
