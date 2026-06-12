@@ -30,9 +30,9 @@ class PlayerConfigLoader(private val context: Context) {
 
         // 3) defaults seguros (substituir depois via config real)
         return PlayerConfig(
-            serverUrl = "http://192.168.1.110",
-            uin = "tot001",
-            deviceId = "android-tv-tot001",
+            serverUrl = "http://217.216.91.135",
+            uin = "DEMO-UIN-001",
+            deviceId = "DEMO-UIN-001",
             acceptImagesInPlaylist = true,
             allowPlaybackAudio = true,
             fallbackPropagandasPerVinheta = 3,

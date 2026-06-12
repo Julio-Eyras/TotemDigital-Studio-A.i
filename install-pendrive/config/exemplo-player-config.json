@@ -1,7 +1,7 @@
 {
-  "serverUrl": "http://192.168.1.110",
-  "uin": "tot001",
-  "deviceId": "android-tv-tot001",
+  "serverUrl": "http://217.216.91.135",
+  "uin": "DEMO-UIN-001",
+  "deviceId": "DEMO-UIN-001",
   "kioskMode": "strong",
   "screenOrientation": "portrait",
   "fallbackPropagandasPerVinheta": 3

@@ -39,7 +39,7 @@
             android:inputType="textUri"
             android:textColor="#FFFFFF"
             android:textColorHint="#777777"
-            android:hint="http://192.168.1.110"/>
+            android:hint="http://217.216.91.135"/>
 
         <TextView
             android:layout_width="match_parent"
@@ -55,7 +55,7 @@
             android:inputType="text"
             android:textColor="#FFFFFF"
             android:textColorHint="#777777"
-            android:hint="tot001"/>
+            android:hint="DEMO-UIN-001"/>
 
         <TextView
             android:layout_width="match_parent"
@@ -71,7 +71,7 @@
             android:inputType="text"
             android:textColor="#FFFFFF"
             android:textColorHint="#777777"
-            android:hint="android-tv-tot001"/>
+            android:hint="DEMO-UIN-001"/>
 
         <TextView
             android:layout_width="match_parent"
