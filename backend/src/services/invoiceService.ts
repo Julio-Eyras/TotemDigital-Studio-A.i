@@ -14,6 +14,7 @@ import {
   normalizeBillingInterval,
   resolveInvoicePeriodBounds,
 } from '../utils/billingIntervals';
+import { dateToYmd } from '../utils/businessDate';
 
 export class InvoiceService {
   private get db() {
@@ -151,7 +152,7 @@ export class InvoiceService {
               amount,
               currency: plan.currency || 'BRL',
               description: `Assinatura ${plan.name} — ${billingIntervalLabel(interval)} (${period.label})`,
-              dueDate: dueDate.toISOString().split('T')[0],
+              dueDate: dateToYmd(dueDate),
               paymentStatus: 'pending',
               direction: 'incoming',
               metadata: {

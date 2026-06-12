@@ -43,10 +43,11 @@ import { selectLabelShrinkProps } from '../../../utils/muiSelectLabel';
 import {
   CAMPAIGN_START_DATE_MIN_HELPER,
   clampCampaignStartYmd,
+  getCampaignStartYmdForDisplay,
   getMinCampaignStartYmd,
   getTodayYmd,
-  resolveCampaignStartYmd,
 } from '../../../utils/campaignStartDate';
+import { formatDateForInput } from '../../../utils/businessDate';
 
 export interface CampaignFormProps {
   mode: 'create' | 'edit';
@@ -136,13 +137,6 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
   const getHelperText = (field: string, defaultText?: string): string => {
     if (errors[field]) return errors[field];
     return defaultText || '';
-  };
-
-  const toDateInputValue = (date?: string | Date): string => {
-    if (!date) return '';
-    const d = typeof date === 'string' ? new Date(date) : date;
-    if (isNaN(d.getTime())) return '';
-    return d.toISOString().split('T')[0];
   };
 
   const subscriberId = (data as any).subscriberId || (data as any).clientId || campaign?.subscriber_id;
@@ -308,10 +302,12 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
                 fullWidth
                 label="Data de Início"
                 type="date"
-                value={resolveCampaignStartYmd(
-                  mode === 'edit' ? campaign : null,
-                  getFieldValue('start_date') || getTodayYmd()
-                )}
+                value={
+                  getCampaignStartYmdForDisplay(
+                    mode === 'edit' ? campaign : null,
+                    getFieldValue('start_date') || (mode === 'create' ? getTodayYmd() : '')
+                  ) || getMinCampaignStartYmd(mode === 'edit' ? campaign : null)
+                }
                 onChange={(e) => {
                   const minYmd = getMinCampaignStartYmd(mode === 'edit' ? campaign : null);
                   handleFieldChange('start_date', clampCampaignStartYmd(e.target.value, minYmd));
@@ -330,7 +326,7 @@ const CampaignForm: React.FC<CampaignFormProps> = ({
                 fullWidth
                 label="Data de Término"
                 type="date"
-                value={toDateInputValue(getFieldValue('end_date'))}
+                value={formatDateForInput(getFieldValue('end_date'))}
                 onChange={(e) => handleFieldChange('end_date', e.target.value)}
                 margin="normal"
                 InputLabelProps={{ shrink: true }}

@@ -122,6 +122,49 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:textColor="#FFFFFF"
+            android:text="Kiosk forte (bloqueio HOME/recents)"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#BDBDBD"
+            android:textSize="12sp"
+            android:text="Ligado: lock task + teclas de sistema bloqueadas. Desligado: só fullscreen imersivo. Nesta tela de debug o kiosk fica sempre relaxado."/>
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/switchStrongKiosk"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:checked="true"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:textColor="#FFFFFF"
+            android:text="Orientação da tela"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#BDBDBD"
+            android:textSize="12sp"
+            android:text="Portrait 9:16 para totem vertical. O instalador ADB também fixa rotação no SO."/>
+
+        <Spinner
+            android:id="@+id/spinnerScreenOrientation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:textColor="#FFFFFF"
             android:text="Máx. segundos sem verificar servidor"/>
 
         <TextView

@@ -133,11 +133,19 @@ import { PlanTopologyPreviewRow, loadPlanTopologyPreviewRows, countTopologyInRow
 import { PlanTopologyTabPanel } from './PlanTopologyTabPanel';
 import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
 import {
+  formatDateForApi as formatDateForAPI,
+  formatDateForInput,
+  getDefaultContractStartDate,
+} from '../../utils/businessDate';
+import {
   CAMPAIGN_START_DATE_MIN_HELPER,
   clampCampaignStartYmd,
+  getCampaignEndYmdForDisplay,
+  getCampaignStartYmdForDisplay,
   getMinCampaignStartYmd,
   getTodayYmd,
-  resolveCampaignStartYmd,
+  resolveCampaignStartYmdForSave,
+  toDateOnlyYmd,
 } from '../../utils/campaignStartDate';
 
 const compareByDisplayName = (a?: string, b?: string) =>
@@ -198,40 +206,13 @@ const Subscribers: React.FC = () => {
         } as const)
       : undefined;
 
-  // Datas padrão para contratos: início = hoje, vencimento = 31/12 do ano corrente
-  const getDefaultContractStartDate = (): string => new Date().toISOString().split('T')[0];
+  // Datas de contrato: calendário America/Sao_Paulo (businessDate)
   const buildContractEndDateForStart = (startYmd?: string, billingInterval?: string, currentEnd?: string) => {
     const start = startYmd || getDefaultContractStartDate();
     const interval = normalizeBillingInterval(billingInterval || 'month');
     return clampContractEndDate(start, currentEnd || getDefaultContractEndDate(start), interval);
   };
 
-  // Função helper para formatar datas ISO para input type="date" (yyyy-MM-dd)
-  const formatDateForInput = (dateString: string | null | undefined): string => {
-    if (!dateString) return '';
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return '';
-      return date.toISOString().split('T')[0];
-    } catch {
-      return '';
-    }
-  };
-
-  // Função helper para formatar datas do input (yyyy-MM-dd) para API (ISO string)
-  const formatDateForAPI = (dateString: string | null | undefined): string | undefined => {
-    if (!dateString || dateString.trim() === '') return undefined;
-    try {
-      // Se já está no formato yyyy-MM-dd, adicionar hora para criar ISO válido
-      const date = dateString.includes('T') 
-        ? new Date(dateString) 
-        : new Date(dateString + 'T00:00:00.000Z');
-      if (isNaN(date.getTime())) return undefined;
-      return date.toISOString();
-    } catch {
-      return undefined;
-    }
-  };
   const [Subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -1718,7 +1699,7 @@ const Subscribers: React.FC = () => {
           mediaIds: campaignMedias.map(m => m.media_id),
           playlistIds: campaignPlaylists.map(p => p.playlist_id),
           start_date: formatDateForAPI(
-            resolveCampaignStartYmd(campaign, editCampaignForm.start_date)
+            resolveCampaignStartYmdForSave(campaign, editCampaignForm.start_date)
           ),
           end_date: editCampaignForm.end_date?.trim()
             ? formatDateForAPI(editCampaignForm.end_date)
@@ -1742,7 +1723,7 @@ const Subscribers: React.FC = () => {
           status: editCampaignForm.status ?? 'draft',
           isActive: editCampaignForm.isActive ?? true,
           start_date: formatDateForAPI(
-            resolveCampaignStartYmd(null, editCampaignForm.start_date || getTodayYmd())
+            resolveCampaignStartYmdForSave(null, editCampaignForm.start_date || getTodayYmd())
           ),
           end_date: editCampaignForm.end_date?.trim()
             ? formatDateForAPI(editCampaignForm.end_date)
@@ -1803,8 +1784,8 @@ const Subscribers: React.FC = () => {
           : (campaign as any).isActive !== undefined
             ? (campaign as any).isActive
             : prev.isActive ?? true,
-      start_date: resolveCampaignStartYmd(campaign),
-      end_date: formatDateForInput(campaign.end_date ?? (campaign as any).endDate) || undefined,
+      start_date: getCampaignStartYmdForDisplay(campaign) || getMinCampaignStartYmd(campaign),
+      end_date: toDateOnlyYmd(campaign.end_date ?? (campaign as any).endDate) || undefined,
     }));
     setCampaignFullEditorId(Number(campaignId));
     setCampaignFullEditorOpen(true);
@@ -4535,12 +4516,16 @@ const Subscribers: React.FC = () => {
                           type="date"
                           size="small"
                           value={
-                            resolveCampaignStartYmd(
+                            getCampaignStartYmdForDisplay(
                               editingEditCampaignIndex !== null
                                 ? editCampaigns[editingEditCampaignIndex]
                                 : null,
-                              editCampaignForm.start_date || getTodayYmd()
-                            )
+                              editCampaignForm.start_date || (editingEditCampaignIndex === null ? getTodayYmd() : '')
+                            ) ||
+                            (editingEditCampaignIndex !== null &&
+                            editCampaigns[editingEditCampaignIndex]
+                              ? getMinCampaignStartYmd(editCampaigns[editingEditCampaignIndex])
+                              : getTodayYmd())
                           }
                           onChange={(e) => {
                             const minYmd =
@@ -4570,7 +4555,7 @@ const Subscribers: React.FC = () => {
                           label="Data de Fim"
                           type="date"
                           size="small"
-                          value={editCampaignForm.end_date ?? ''}
+                          value={toDateOnlyYmd(editCampaignForm.end_date) || ''}
                           onChange={(e) =>
                             setEditCampaignForm({
                               ...editCampaignForm,

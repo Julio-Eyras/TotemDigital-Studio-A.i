@@ -1,40 +1,30 @@
-/** Regras de data de início da campanha: nunca anterior à data de criação. */
+/** Regras de data de início da campanha — calendário America/Sao_Paulo. */
+
+import { dateToYmd, todayYmd } from './businessDate';
+
+export const CAMPAIGN_BUSINESS_TZ = 'America/Sao_Paulo';
 
 export const CAMPAIGN_START_DATE_MIN_HELPER =
-  'A data de início não pode ser anterior à data de criação da campanha.';
+  'A data de início não pode ser anterior à data de criação da campanha (fuso Brasil).';
 
-export function getTodayYmd(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+export function toDateOnlyYmd(dateValue?: string | Date | null): string {
+  return dateToYmd(dateValue);
 }
 
+/** @deprecated use toDateOnlyYmd ou dateToYmd */
 export function toDateInputYmd(dateValue?: string | Date | null): string {
-  if (!dateValue) return '';
-  try {
-    if (dateValue instanceof Date) {
-      if (Number.isNaN(dateValue.getTime())) return '';
-      const y = dateValue.getFullYear();
-      const m = String(dateValue.getMonth() + 1).padStart(2, '0');
-      const day = String(dateValue.getDate()).padStart(2, '0');
-      return `${y}-${m}-${day}`;
-    }
-    const s = typeof dateValue === 'string' ? dateValue.trim() : '';
-    if (!s) return '';
-    const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
-    return m ? m[1] : '';
-  } catch {
-    return '';
-  }
+  return toDateOnlyYmd(dateValue);
+}
+
+export function getTodayYmd(): string {
+  return todayYmd();
 }
 
 export function getCampaignCreatedYmd(
   campaign?: { created_at?: string; createdAt?: string } | null
 ): string {
   const raw = campaign?.created_at ?? campaign?.createdAt;
-  return toDateInputYmd(raw) || getTodayYmd();
+  return toDateOnlyYmd(raw) || getTodayYmd();
 }
 
 export function getMinCampaignStartYmd(
@@ -48,7 +38,32 @@ export function clampCampaignStartYmd(startYmd: string, minYmd: string): string 
   return startYmd < minYmd ? minYmd : startYmd;
 }
 
-export function resolveCampaignStartYmd(
+/** Valor gravado / digitado para exibição (sem clamp). */
+export function getCampaignStartYmdForDisplay(
+  campaign?: { start_date?: string; startDate?: string } | null,
+  explicitStart?: string | null
+): string {
+  const raw =
+    explicitStart ??
+    campaign?.start_date ??
+    (campaign as { startDate?: string } | undefined)?.startDate;
+  return toDateOnlyYmd(raw);
+}
+
+/** Data de fim para exibição (sem clamp). */
+export function getCampaignEndYmdForDisplay(
+  campaign?: { end_date?: string; endDate?: string } | null,
+  explicitEnd?: string | null
+): string {
+  const raw =
+    explicitEnd ??
+    campaign?.end_date ??
+    (campaign as { endDate?: string } | undefined)?.endDate;
+  return toDateOnlyYmd(raw);
+}
+
+/** Normaliza antes de gravar (respeita mínimo = data de criação no fuso Brasil). */
+export function resolveCampaignStartYmdForSave(
   campaign?: {
     created_at?: string;
     createdAt?: string;
@@ -58,11 +73,28 @@ export function resolveCampaignStartYmd(
   explicitStart?: string | null
 ): string {
   const min = getMinCampaignStartYmd(campaign ?? undefined);
-  const raw =
-    explicitStart ??
-    campaign?.start_date ??
-    (campaign as { startDate?: string } | undefined)?.startDate;
-  const ymd = toDateInputYmd(raw);
-  if (!ymd) return min;
+  const ymd = getCampaignStartYmdForDisplay(campaign, explicitStart) || min;
   return clampCampaignStartYmd(ymd, min);
+}
+
+/** Alias legado — usar resolveCampaignStartYmdForSave ao persistir. */
+export function resolveCampaignStartYmd(
+  campaign?: {
+    created_at?: string;
+    createdAt?: string;
+    start_date?: string;
+    startDate?: string;
+  } | null,
+  explicitStart?: string | null
+): string {
+  return resolveCampaignStartYmdForSave(campaign, explicitStart);
+}
+
+export function isCampaignStartBeforeCreated(
+  startYmd: string,
+  campaign?: { created_at?: string; createdAt?: string } | null
+): boolean {
+  if (!startYmd) return false;
+  const min = getMinCampaignStartYmd(campaign ?? undefined);
+  return startYmd < min;
 }

@@ -38,7 +38,9 @@ class PlayerConfigLoader(private val context: Context) {
             fallbackPropagandasPerVinheta = 3,
             maxSecondsWithoutServerCheck = 60,
             storageMode = PlayerStorageMode.AUTO,
-            storagePathOverride = null
+            storagePathOverride = null,
+            kioskMode = KioskMode.STRONG,
+            screenOrientation = ScreenOrientationMode.PORTRAIT
         )
     }
 
@@ -60,6 +62,8 @@ class PlayerConfigLoader(private val context: Context) {
                 val maxSeconds = maxSecondsRaw.coerceAtLeast(10)
                 val storageMode = parseStorageMode(json.optString("storage", ""))
                 val pathOverride = json.optString("storagePathOverride", "").trim().takeIf { it.isNotBlank() }
+                val kioskMode = parseKioskMode(json.optString("kioskMode", ""))
+                val screenOrientation = parseScreenOrientation(json.optString("screenOrientation", ""))
                 PlayerConfig(
                     serverUrl = serverUrl,
                     uin = uin,
@@ -69,7 +73,9 @@ class PlayerConfigLoader(private val context: Context) {
                     fallbackPropagandasPerVinheta = fallbackRatio,
                     maxSecondsWithoutServerCheck = maxSeconds,
                     storageMode = storageMode,
-                    storagePathOverride = pathOverride
+                    storagePathOverride = pathOverride,
+                    kioskMode = kioskMode,
+                    screenOrientation = screenOrientation
                 )
             }
         } catch (_: Exception) {
@@ -78,6 +84,36 @@ class PlayerConfigLoader(private val context: Context) {
     }
 
     companion object {
+        fun parseKioskMode(raw: String?): KioskMode {
+            if (raw.isNullOrBlank()) return KioskMode.STRONG
+            return when (raw.trim().lowercase()) {
+                "immersive", "fullscreen", "soft" -> KioskMode.IMMERSIVE
+                "strong", "lock", "hard" -> KioskMode.STRONG
+                else -> KioskMode.STRONG
+            }
+        }
+
+        fun kioskModeToJsonValue(mode: KioskMode): String = when (mode) {
+            KioskMode.IMMERSIVE -> "immersive"
+            KioskMode.STRONG -> "strong"
+        }
+
+        fun parseScreenOrientation(raw: String?): ScreenOrientationMode {
+            if (raw.isNullOrBlank()) return ScreenOrientationMode.PORTRAIT
+            return when (raw.trim().lowercase()) {
+                "landscape", "horizontal" -> ScreenOrientationMode.LANDSCAPE
+                "reverse_portrait", "reverseportrait", "portrait_reverse" -> ScreenOrientationMode.REVERSE_PORTRAIT
+                "portrait", "vertical", "9x16" -> ScreenOrientationMode.PORTRAIT
+                else -> ScreenOrientationMode.PORTRAIT
+            }
+        }
+
+        fun screenOrientationToJsonValue(mode: ScreenOrientationMode): String = when (mode) {
+            ScreenOrientationMode.PORTRAIT -> "portrait"
+            ScreenOrientationMode.LANDSCAPE -> "landscape"
+            ScreenOrientationMode.REVERSE_PORTRAIT -> "reverse_portrait"
+        }
+
         fun parseStorageMode(raw: String?): PlayerStorageMode {
             if (raw.isNullOrBlank()) return PlayerStorageMode.AUTO
             return when (raw.trim().lowercase()) {

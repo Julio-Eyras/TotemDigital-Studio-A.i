@@ -26,6 +26,13 @@ data class PlayerConfig(
     /**
      * Obrigatório quando [storageMode] é [PlayerStorageMode.PATH_OVERRIDE]: diretório absoluto com escrita.
      */
-    val storagePathOverride: String? = null
+    val storagePathOverride: String? = null,
+    /**
+     * Kiosk na tela principal: [KioskMode.IMMERSIVE] (só fullscreen) ou [KioskMode.STRONG] (lock task + teclas).
+     * Na tela de debug (8 toques) o kiosk é sempre relaxado.
+     */
+    val kioskMode: KioskMode = KioskMode.STRONG,
+    /** Orientação da tela principal e do debug (default portrait 9:16). */
+    val screenOrientation: ScreenOrientationMode = ScreenOrientationMode.PORTRAIT
 )
 

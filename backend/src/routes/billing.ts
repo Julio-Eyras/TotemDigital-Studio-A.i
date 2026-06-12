@@ -8,6 +8,7 @@ import { BillingService } from '../services/billingService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { logError } from '../utils/loggerHelper';
+import { dateToYmd } from '../utils/businessDate';
 
 const router = Router();
 
@@ -563,7 +564,7 @@ router.get('/export', authorizeRole(['admin', 'admin_sql', 'operador_faturamento
         b.amount ?? '',
         b.currency || 'BRL',
         b.status || '',
-        b.dueDate ? new Date(b.dueDate).toISOString().split('T')[0] : '',
+        b.dueDate ? dateToYmd(b.dueDate) : '',
         (b.description || '').replace(/\n/g, ' ')
       ].map(escapeCsv).join(','));
       const csvContent = '\uFEFF' + headers.join(',') + '\n' + rows;

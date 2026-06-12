@@ -9,6 +9,7 @@ import { getAnalyticsCacheService } from './analyticsCacheService';
 import { logError } from '../utils/loggerHelper';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
+import { dateToYmd } from '../utils/businessDate';
 
 export interface FxAnalyticsOverview {
   totalExecutions: number;
@@ -317,7 +318,7 @@ export class FxAnalyticsService {
     `, queryParams);
 
     const trends = trendsResult.map((row: Record<string, unknown>) => ({
-      date: (row.date as Date).toISOString().split('T')[0],
+      date: dateToYmd(row.date as Date),
       executions: row.executions as number,
       avg_fps: parseFloat((row.avg_fps as string) || '0'),
       success_rate: parseFloat((row.success_rate as string) || '0')

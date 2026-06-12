@@ -10,6 +10,7 @@ import {
   resolveContractAmountFromPlan,
   resolveContractBillingInterval,
 } from '../utils/billingIntervals';
+import { todayYmd } from '../utils/businessDate';
 
 export interface Contract {
   contract_id: number;
@@ -148,7 +149,7 @@ export class ContractService {
 
       if (activeOnly) {
         whereClause += ` AND sc.status = 'active'`;
-        const now = new Date().toISOString().split('T')[0];
+        const now = todayYmd();
         whereClause += ` AND sc.start_date <= $${queryParams.length + 1}`;
         queryParams.push(now);
         whereClause += ` AND (sc.end_date IS NULL OR sc.end_date >= $${queryParams.length + 1})`;

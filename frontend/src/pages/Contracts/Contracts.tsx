@@ -84,6 +84,12 @@ import {
   formatRevenueSharePercent,
 } from '../../utils/contractTypeLabels';
 import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
+import {
+  formatDateForApi as formatDateForAPI,
+  formatDateForInput,
+  getDefaultContractStartDate,
+  todayYmd,
+} from '../../utils/businessDate';
 
 type ContractsInitialType = 'subscriber' | 'publisher';
 
@@ -105,9 +111,7 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Datas padrão para contratos: início = hoje, vencimento = 31/12 do ano corrente
-  const getDefaultContractStartDate = (): string => new Date().toISOString().split('T')[0];
-  const getDefaultContractEndDate = (): string => `${new Date().getFullYear()}-12-31`;
+  const getDefaultContractEndDate = (): string => `${todayYmd().slice(0, 4)}-12-31`;
 
   const isSubscriberMaintenance = location.pathname.startsWith('/subscriber-contracts');
   const isPublisherMaintenance = location.pathname.startsWith('/publisher-contracts');
@@ -511,37 +515,6 @@ const Contracts: React.FC<ContractsProps> = ({ initialType, initialSubscriberId,
       loadContracts();
     } catch (error: any) {
       setError(pickApiErrorMessage(error, 'Erro ao excluir contrato'));
-    }
-  };
-
-  // Função helper para converter data ISO para formato yyyy-MM-dd
-  const formatDateForInput = (dateString: string | null | undefined): string => {
-    if (!dateString) return '';
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return '';
-      return date.toISOString().split('T')[0];
-    } catch {
-      return '';
-    }
-  };
-
-  // Função helper para converter data yyyy-MM-dd para ISO
-  const formatDateForAPI = (dateString: string | null | undefined): string | undefined => {
-    if (!dateString || dateString.trim() === '') return undefined;
-    try {
-      // Se já está no formato ISO completo (com T), usar diretamente
-      if (dateString.includes('T')) {
-        const date = new Date(dateString);
-        if (isNaN(date.getTime())) return undefined;
-        return date.toISOString();
-      }
-      // Se está no formato yyyy-MM-dd, adicionar hora para criar ISO válido
-      const date = new Date(dateString + 'T00:00:00.000Z');
-      if (isNaN(date.getTime())) return undefined;
-      return date.toISOString();
-    } catch {
-      return undefined;
     }
   };
 

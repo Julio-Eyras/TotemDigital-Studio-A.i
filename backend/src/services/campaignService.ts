@@ -11,23 +11,10 @@ import { getCacheService } from './cacheService';
 import { getSubscriberAccessServiceInstance } from './subscriberAccessService';
 import { getSubscriberService } from './subscriberService';
 import type { PoolClient } from 'pg';
+import { dateToYmd, todayYmd } from '../utils/businessDate';
 
 const CAMPAIGN_START_BEFORE_CREATED_MSG =
   'Data de início não pode ser anterior à data de criação da campanha.';
-
-function dateToYmd(value: string | Date): string {
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    const match = trimmed.match(/^(\d{4}-\d{2}-\d{2})/);
-    if (match) return match[1];
-  }
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '';
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
 
 function assertCampaignStartNotBeforeYmd(startYmd: string, minYmd: string): void {
   if (!startYmd || !minYmd) return;
@@ -929,7 +916,7 @@ export class CampaignService {
       throw new Error('title é obrigatório');
     }
 
-    const createdMinYmd = dateToYmd(new Date());
+    const createdMinYmd = todayYmd();
     let resolvedStartDate = startDate ? dateToYmd(startDate) : createdMinYmd;
     if (!resolvedStartDate) {
       resolvedStartDate = createdMinYmd;

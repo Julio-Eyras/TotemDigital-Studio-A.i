@@ -8,6 +8,7 @@ import { transaction } from '../config/database-pg';
 import { AuditService } from './auditService';
 import { logError } from '../utils/loggerHelper';
 import type { PoolClient } from 'pg';
+import { addCalendarDaysYmd } from '../utils/businessDate';
 
 export interface CreateBillingRequest {
   clientId: number;
@@ -385,7 +386,7 @@ export class BillingService {
         const finalDescription = description || `Fatura ${billingType} - R$ ${amount.toFixed(2)}`;
 
         // Gerar data de vencimento padrão se não fornecida (30 dias a partir de hoje)
-        const finalDueDate = dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const finalDueDate = dueDate || addCalendarDaysYmd(new Date(), 30);
 
         // Verificar se cliente existe
         const clientResult = await client.query(`

@@ -49,6 +49,10 @@ import {
   resolveContractBillingInterval,
 } from '../../../utils/billingIntervals';
 import { selectLabelShrinkProps } from '../../../utils/muiSelectLabel';
+import {
+  formatDateForInput,
+  getDefaultContractStartDate,
+} from '../../../utils/businessDate';
 
 export interface ContractFormProps {
   mode: 'create' | 'edit';
@@ -67,20 +71,6 @@ export interface ContractFormProps {
   onTabChange?: (tab: number) => void;
   showCreateBeforeSubscriberCheckbox?: boolean;
 }
-
-// Função helper para converter data ISO para formato yyyy-MM-dd
-const formatDateForInput = (dateString: string | null | undefined): string => {
-  if (!dateString) return '';
-  try {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return '';
-    return date.toISOString().split('T')[0];
-  } catch {
-    return '';
-  }
-};
-
-const getDefaultContractStartDate = (): string => new Date().toISOString().split('T')[0];
 
 const parseCurrencyInputValue = (raw: string): number | undefined => {
   const normalized = raw.replace(',', '.').trim();

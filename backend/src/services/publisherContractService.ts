@@ -5,6 +5,7 @@ import {
   resolvePublisherContractBillingInterval,
 } from '../utils/billingIntervals';
 import { logError } from '../utils/loggerHelper';
+import { todayYmd } from '../utils/businessDate';
 
 export interface PublisherContract {
   contract_id: number;
@@ -143,7 +144,7 @@ export class PublisherContractService {
 
       if (activeOnly) {
         whereClause += ` AND pc.status = 'active'`;
-        const now = new Date().toISOString().split('T')[0];
+        const now = todayYmd();
         whereClause += ` AND pc.start_date <= $${queryParams.length + 1}`;
         queryParams.push(now);
         whereClause += ` AND (pc.end_date IS NULL OR pc.end_date >= $${queryParams.length + 1})`;

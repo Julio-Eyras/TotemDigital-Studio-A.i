@@ -41,6 +41,8 @@ class DebugConfigActivity : AppCompatActivity() {
     private lateinit var editDeviceId: EditText
     private lateinit var switchAcceptImages: SwitchCompat
     private lateinit var switchAllowPlaybackAudio: SwitchCompat
+    private lateinit var switchStrongKiosk: SwitchCompat
+    private lateinit var spinnerScreenOrientation: Spinner
     private lateinit var editMaxSecondsWithoutServerCheck: EditText
     private lateinit var spinnerStorage: Spinner
     private lateinit var editStoragePath: EditText
@@ -78,6 +80,8 @@ class DebugConfigActivity : AppCompatActivity() {
         editDeviceId = findViewById(R.id.editDeviceId)
         switchAcceptImages = findViewById(R.id.switchAcceptImages)
         switchAllowPlaybackAudio = findViewById(R.id.switchAllowPlaybackAudio)
+        switchStrongKiosk = findViewById(R.id.switchStrongKiosk)
+        spinnerScreenOrientation = findViewById(R.id.spinnerScreenOrientation)
         editMaxSecondsWithoutServerCheck = findViewById(R.id.editMaxSecondsWithoutServerCheck)
         spinnerStorage = findViewById(R.id.spinnerStorage)
         editStoragePath = findViewById(R.id.editStoragePath)
@@ -115,7 +119,18 @@ class DebugConfigActivity : AppCompatActivity() {
         editDeviceId.setText(current.deviceId)
         switchAcceptImages.isChecked = current.acceptImagesInPlaylist
         switchAllowPlaybackAudio.isChecked = current.allowPlaybackAudio
+        switchStrongKiosk.isChecked = current.kioskMode == br.com.smartchannel.playerad.config.KioskMode.STRONG
         editMaxSecondsWithoutServerCheck.setText(current.maxSecondsWithoutServerCheck.toString())
+
+        val orientations = resources.getStringArray(R.array.player_screen_orientations)
+        val orientAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, orientations)
+        orientAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinnerScreenOrientation.adapter = orientAdapter
+        val orientKey = PlayerConfigLoader.screenOrientationToJsonValue(current.screenOrientation)
+        val orientSel = orientations.indexOf(orientKey).let { if (it >= 0) it else 0 }
+        spinnerScreenOrientation.setSelection(orientSel)
+
+        KioskController.applyDebug(this, current.screenOrientation)
 
         val storageModes = resources.getStringArray(R.array.player_storage_modes)
         val spinAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, storageModes)
@@ -292,6 +307,13 @@ class DebugConfigActivity : AppCompatActivity() {
         val maxSecondsRaw = editMaxSecondsWithoutServerCheck.text?.toString()?.trim().orEmpty()
         val maxSeconds = maxSecondsRaw.toIntOrNull()?.coerceAtLeast(10)
             ?: loaded.maxSecondsWithoutServerCheck.coerceAtLeast(10)
+        val kioskMode = if (switchStrongKiosk.isChecked) {
+            br.com.smartchannel.playerad.config.KioskMode.STRONG
+        } else {
+            br.com.smartchannel.playerad.config.KioskMode.IMMERSIVE
+        }
+        val orientRaw = spinnerScreenOrientation.selectedItem as? String
+        val screenOrientation = PlayerConfigLoader.parseScreenOrientation(orientRaw)
         return PlayerConfig(
             serverUrl = serverUrl,
             uin = uin,
@@ -301,7 +323,9 @@ class DebugConfigActivity : AppCompatActivity() {
             fallbackPropagandasPerVinheta = loaded.fallbackPropagandasPerVinheta,
             maxSecondsWithoutServerCheck = maxSeconds,
             storageMode = storageMode,
-            storagePathOverride = pathOverride.takeIf { it.isNotBlank() }
+            storagePathOverride = pathOverride.takeIf { it.isNotBlank() },
+            kioskMode = kioskMode,
+            screenOrientation = screenOrientation
         )
     }
 
@@ -579,6 +603,8 @@ class DebugConfigActivity : AppCompatActivity() {
             if (cfg.storageMode == PlayerStorageMode.PATH_OVERRIDE && !cfg.storagePathOverride.isNullOrBlank()) {
                 put("storagePathOverride", cfg.storagePathOverride)
             }
+            put("kioskMode", PlayerConfigLoader.kioskModeToJsonValue(cfg.kioskMode))
+            put("screenOrientation", PlayerConfigLoader.screenOrientationToJsonValue(cfg.screenOrientation))
         }
         val internal = File(filesDir, "player-config.json")
         internal.writeText(json.toString(), Charsets.UTF_8)

@@ -111,36 +111,14 @@ import {
   formatRevenueSharePercent,
   getContractTypeLabel,
 } from '../../utils/contractTypeLabels';
-
-const getDefaultContractStartDate = (): string => new Date().toISOString().split('T')[0];
+import {
+  formatDateForApi as formatDateForAPI,
+  formatDateForInput,
+  getDefaultContractStartDate,
+} from '../../utils/businessDate';
 
 const buildPublisherContractEnd = (startYmd: string, interval?: string | null) =>
   clampContractEndDate(startYmd, undefined, normalizeBillingInterval(interval ?? 'month'));
-
-// Formatar data ISO para input type="date" (yyyy-MM-dd)
-const formatDateForInput = (dateString: string | null | undefined): string => {
-  if (!dateString) return '';
-  try {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return '';
-    return date.toISOString().split('T')[0];
-  } catch {
-    return '';
-  }
-};
-
-// Formatar data do input (yyyy-MM-dd) para API (ISO string)
-const formatDateForAPI = (dateString: string | null | undefined): string | undefined => {
-  if (!dateString || String(dateString).trim() === '') return undefined;
-  try {
-    const str = String(dateString);
-    const date = str.includes('T') ? new Date(str) : new Date(str + 'T00:00:00.000Z');
-    if (isNaN(date.getTime())) return undefined;
-    return date.toISOString();
-  } catch {
-    return undefined;
-  }
-};
 
 const Publishers: React.FC = () => {
   const terminology = getProductTerminology();
@@ -491,7 +469,7 @@ const Publishers: React.FC = () => {
         contract_type: 'revenue_share',
         title: '',
         description: '',
-        start_date: new Date().toISOString().split('T')[0],
+        start_date: getDefaultContractStartDate(),
         end_date: buildPublisherContractEnd(getDefaultContractStartDate()),
         currency: 'BRL',
         status: 'draft',
@@ -2242,7 +2220,7 @@ const Publishers: React.FC = () => {
                           contract_type: 'revenue_share',
                           title: '',
                           description: '',
-                          start_date: new Date().toISOString().split('T')[0],
+                          start_date: getDefaultContractStartDate(),
                           end_date: buildPublisherContractEnd(getDefaultContractStartDate()),
                           currency: 'BRL',
                           status: 'draft',
@@ -2262,7 +2240,7 @@ const Publishers: React.FC = () => {
                             contract_type: 'revenue_share',
                             title: '',
                             description: '',
-                            start_date: new Date().toISOString().split('T')[0],
+                            start_date: getDefaultContractStartDate(),
                             end_date: buildPublisherContractEnd(getDefaultContractStartDate()),
                             currency: 'BRL',
                             status: 'draft',
@@ -2326,7 +2304,7 @@ const Publishers: React.FC = () => {
                                   contract_type: 'revenue_share',
                                   title: '',
                                   description: '',
-                                  start_date: new Date().toISOString().split('T')[0],
+                                  start_date: getDefaultContractStartDate(),
                                   end_date: buildPublisherContractEnd(getDefaultContractStartDate()),
                                   currency: 'BRL',
                                   status: 'draft',
@@ -3186,7 +3164,7 @@ const Publishers: React.FC = () => {
                             contract_type: 'revenue_share',
                             title: '',
                             description: '',
-                            start_date: new Date().toISOString().split('T')[0],
+                            start_date: getDefaultContractStartDate(),
                             end_date: buildPublisherContractEnd(getDefaultContractStartDate()),
                             currency: 'BRL',
                             status: 'draft',

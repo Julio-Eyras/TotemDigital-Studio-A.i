@@ -1,6 +1,8 @@
 /**
  * Intervalos de cobrança (plano + contrato) — espelho do backend.
  */
+import { todayYmd } from './businessDate';
+
 export const BILLING_INTERVAL_CODES = ['month', 'four_month', 'semester', 'year'] as const;
 export type BillingIntervalCode = (typeof BILLING_INTERVAL_CODES)[number];
 
@@ -164,9 +166,7 @@ export function buildContractEndDate(
   startDateYmd?: string,
   billingInterval?: string | null
 ): string {
-  const start =
-    startDateYmd?.trim() ||
-    formatYmd(new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
+  const start = startDateYmd?.trim() || todayYmd();
   return clampContractEndDate(start, undefined, billingInterval ?? 'month');
 }
 

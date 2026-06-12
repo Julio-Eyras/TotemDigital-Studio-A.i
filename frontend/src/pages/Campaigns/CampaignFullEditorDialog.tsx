@@ -65,8 +65,10 @@ import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
 import {
   CAMPAIGN_START_DATE_MIN_HELPER,
   clampCampaignStartYmd,
+  getCampaignEndYmdForDisplay,
+  getCampaignStartYmdForDisplay,
   getMinCampaignStartYmd,
-  resolveCampaignStartYmd,
+  resolveCampaignStartYmdForSave,
 } from '../../utils/campaignStartDate';
 
 export interface CampaignFullEditorDialogProps {
@@ -296,7 +298,8 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
         if (cancelled) return;
         setSelectedCampaign({
           ...full,
-          start_date: resolveCampaignStartYmd(full),
+          start_date: getCampaignStartYmdForDisplay(full) || undefined,
+          end_date: getCampaignEndYmdForDisplay(full) || undefined,
         });
         const subscriberId = full.subscriber_id || (full as any).subscriberId;
         if (subscriberId != null && Number.isFinite(Number(subscriberId))) {
@@ -476,7 +479,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
         ),
         status: selectedCampaign.status || 'draft',
         subscriberId: selectedCampaign.subscriber_id || (selectedCampaign as any).subscriberId,
-        start_date: resolveCampaignStartYmd(selectedCampaign),
+        start_date: resolveCampaignStartYmdForSave(selectedCampaign),
         end_date: selectedCampaign.end_date || (selectedCampaign as any).endDate,
         isActive:
           selectedCampaign.is_active !== undefined
@@ -512,21 +515,6 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
       onClose();
     } catch (error: any) {
       setError(pickApiErrorMessage(error, 'Erro ao atualizar campanha'));
-    }
-  };
-
-  const toDateInputValue = (dateValue?: any) => {
-    if (!dateValue) return '';
-    try {
-      if (dateValue instanceof Date) {
-        return dateValue.toISOString().slice(0, 10);
-      }
-      const s = typeof dateValue === 'string' ? dateValue.trim() : '';
-      if (!s) return '';
-      const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
-      return m ? m[1] : '';
-    } catch {
-      return '';
     }
   };
 
@@ -708,7 +696,10 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                     fullWidth
                     label="Data de Início"
                     type="date"
-                    value={resolveCampaignStartYmd(selectedCampaign)}
+                    value={
+                      getCampaignStartYmdForDisplay(selectedCampaign) ||
+                      getMinCampaignStartYmd(selectedCampaign)
+                    }
                     onChange={(e) => {
                       if (!selectedCampaign) return;
                       const minYmd = getMinCampaignStartYmd(selectedCampaign);
@@ -727,7 +718,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                     fullWidth
                     label="Data de Fim"
                     type="date"
-                    value={toDateInputValue(selectedCampaign?.end_date || (selectedCampaign as any)?.endDate)}
+                    value={getCampaignEndYmdForDisplay(selectedCampaign)}
                     onChange={(e) =>
                       setSelectedCampaign({
                         ...selectedCampaign!,

@@ -6,15 +6,11 @@ import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
-import android.view.View
 import android.view.MotionEvent
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import br.com.smartchannel.playerad.PlayerAdApplication
 import br.com.smartchannel.playerad.R
 import br.com.smartchannel.playerad.api.DispatcherApiClient
@@ -54,6 +50,7 @@ class MainActivity : AppCompatActivity() {
 
     private var devTapCount: Int = 0
     private var lastDevTapAtMs: Long = 0L
+    private var kioskConfig: br.com.smartchannel.playerad.config.PlayerConfig? = null
 
     private val prefs by lazy {
         getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
@@ -83,6 +80,7 @@ class MainActivity : AppCompatActivity() {
             exoPlayer.stop()
         } catch (_: Exception) { }
 
+        KioskController.releaseLockTask(this)
         val intent = Intent(this, DebugConfigActivity::class.java).apply {
             putExtra(DebugConfigActivity.EXTRA_REASON, reason)
         }
@@ -155,7 +153,11 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         setContentView(R.layout.activity_main)
-        enterImmersiveMode()
+
+        kioskConfig = PlayerConfigLoader(this).load()
+        if (!devUiOpen) {
+            KioskController.applyPlayback(this, kioskConfig!!)
+        }
 
         playerView = findViewById(R.id.playerView)
         imageView = findViewById(R.id.imageView)
@@ -188,10 +190,19 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (!devUiOpen) {
+            val cfg = PlayerConfigLoader(this).load()
+            kioskConfig = cfg
+            KioskController.applyPlayback(this, cfg)
+        }
+    }
+
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) {
-            enterImmersiveMode()
+        if (hasFocus && !devUiOpen) {
+            kioskConfig?.let { KioskController.applyPlayback(this, it) }
         }
     }
 
@@ -203,6 +214,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        val cfg = kioskConfig ?: PlayerConfigLoader(this).load().also { kioskConfig = it }
+        if (KioskController.shouldBlockSystemKey(cfg.kioskMode, keyCode)) {
+            return true
+        }
         val isPrimaryClick =
             keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER
         if (isPrimaryClick) {
@@ -210,28 +225,6 @@ class MainActivity : AppCompatActivity() {
             return true
         }
         return super.onKeyDown(keyCode, event)
-    }
-
-    private fun enterImmersiveMode() {
-        try {
-            val controller: WindowInsetsControllerCompat = WindowCompat.getInsetsController(
-                window,
-                window.decorView
-            )
-            controller.hide(WindowInsetsCompat.Type.systemBars())
-            controller.systemBarsBehavior =
-                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        } catch (e: Exception) {
-            Log.w("Player-AD", "Immersive (WindowInsets) falhou; usando flags legadas: ${e.message}")
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility =
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-                    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                    View.SYSTEM_UI_FLAG_FULLSCREEN or
-                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-        }
     }
 
     /** Compatível com API 28+ ([PackageInfo.longVersionCode]) sem usar [PackageInfo.versionCode] deprecado. */

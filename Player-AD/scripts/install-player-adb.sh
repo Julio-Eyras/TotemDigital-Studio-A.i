@@ -59,6 +59,14 @@ if [[ -n "$CONFIG_JSON_PATH" ]]; then
   adb push "$CONFIG_JSON_PATH" "/sdcard/smartsignage/player-config.json"
 fi
 
+KIOSK_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/configure-android-kiosk.sh"
+if [[ -x "$KIOSK_SCRIPT" ]]; then
+  echo "Provisionando kiosk Android (portrait + launcher)..."
+  bash "$KIOSK_SCRIPT" --rotation "${USER_ROTATION:-1}"
+elif [[ -f "$KIOSK_SCRIPT" ]]; then
+  bash "$KIOSK_SCRIPT" --rotation "${USER_ROTATION:-1}"
+fi
+
 echo "✅ Instalação concluída."
 echo "Abrir o app: SmartSignage Player-AD (ou reiniciar a TV)."
 

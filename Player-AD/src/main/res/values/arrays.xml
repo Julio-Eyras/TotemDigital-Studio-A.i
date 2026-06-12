@@ -8,4 +8,9 @@
         <item>removable_preferred</item>
         <item>path_override</item>
     </string-array>
+    <string-array name="player_screen_orientations">
+        <item>portrait</item>
+        <item>landscape</item>
+        <item>reverse_portrait</item>
+    </string-array>
 </resources>

@@ -13,6 +13,7 @@ import {
   normalizeBillingInterval,
   resolveInvoicePeriodBounds,
 } from '../utils/billingIntervals';
+import { addCalendarDaysYmd } from '../utils/businessDate';
 import { StripeService } from './stripeService';
 import { getFinancialNotificationService } from './financialNotificationService';
 function getSubscriberBillingServiceInstance() {
@@ -64,9 +65,7 @@ export class FinancialAdminService {
   }
 
   private computeDueDate(daysFromNow = 7): string {
-    const d = new Date();
-    d.setDate(d.getDate() + daysFromNow);
-    return d.toISOString().split('T')[0];
+    return addCalendarDaysYmd(new Date(), daysFromNow);
   }
 
   private invoiceNumberFor(contractId: number, subscriberId: number, periodLabel: string): string {

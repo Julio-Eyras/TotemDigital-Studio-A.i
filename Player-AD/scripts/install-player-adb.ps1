@@ -24,7 +24,9 @@ param(
     [switch] $NoCopyToPendrive,
     [switch] $NoConfigPush,
     [string] $ConfigJson = "",
-    [switch] $NoLaunch
+    [switch] $NoLaunch,
+    [switch] $NoKioskSetup,
+    [int] $UserRotation = 1
 )
 
 $ErrorActionPreference = 'Stop'
@@ -69,6 +71,41 @@ function Resolve-JavaHome {
         return $jbr
     }
     return $null
+}
+
+function Invoke-AndroidKioskSetup {
+    param([int] $Rotation = 1)
+    $mainActivity = "$PackageId/.ui.MainActivity"
+    Write-Host "`n>> Provisionamento kiosk Android (portrait + home + immersive)" -ForegroundColor Yellow
+
+    $steps = @(
+        @{ Label = 'accelerometer_rotation=0'; Cmd = "settings put system accelerometer_rotation 0" },
+        @{ Label = "user_rotation=$Rotation"; Cmd = "settings put system user_rotation $Rotation" },
+        @{ Label = 'policy_control immersive.full'; Cmd = 'settings put global policy_control immersive.full=*' },
+        @{ Label = 'stay_on_while_plugged_in'; Cmd = 'settings put global stay_on_while_plugged_in 3' }
+    )
+    foreach ($s in $steps) {
+        $out = adb shell $s.Cmd 2>&1 | Out-String
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "  OK $($s.Label)" -ForegroundColor Gray
+        } else {
+            Write-Host "  AVISO $($s.Label): $($out.Trim())" -ForegroundColor DarkYellow
+        }
+    }
+
+    $homeOut = adb shell "cmd package set-home-activity $mainActivity" 2>&1 | Out-String
+    if ($homeOut -match 'Success|success') {
+        Write-Host "  OK launcher padrao: $mainActivity" -ForegroundColor Gray
+    } else {
+        Write-Host "  AVISO launcher: $($homeOut.Trim())" -ForegroundColor DarkYellow
+    }
+
+    $lockOut = adb shell "dpm set-lock-task-packages $PackageId $PackageId" 2>&1 | Out-String
+    if ($LASTEXITCODE -eq 0 -and $lockOut -notmatch 'Error|error|not allowed') {
+        Write-Host "  OK lock-task whitelist (device owner)" -ForegroundColor Gray
+    } else {
+        Write-Host "  AVISO lock-task: normal sem device owner" -ForegroundColor DarkYellow
+    }
 }
 
 function Invoke-AdbInstall {
@@ -161,6 +198,10 @@ if ($configToPush -and (Test-Path $configToPush) -and -not $NoConfigPush) {
 
 Write-Host "`nVersao instalada:" -ForegroundColor Cyan
 adb shell dumpsys package $PackageId 2>&1 | Select-String -Pattern 'versionCode|versionName'
+
+if (-not $NoKioskSetup) {
+    Invoke-AndroidKioskSetup -Rotation $UserRotation
+}
 
 if (-not $NoLaunch) {
     Write-Host "`n>> A iniciar MainActivity..." -ForegroundColor Yellow
