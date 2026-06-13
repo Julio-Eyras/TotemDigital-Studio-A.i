@@ -43,6 +43,8 @@ $DefaultConfigCandidates = @(
     (Join-Path $RepoRoot 'install-pendrive\config\exemplo-player-config.json')
 )
 
+. (Join-Path $ScriptDir 'android-box-diagnostics.ps1')
+
 function Test-CommandExists([string] $Name) {
     return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
 }
@@ -106,6 +108,8 @@ function Invoke-AndroidKioskSetup {
     } else {
         Write-Host "  AVISO lock-task: normal sem device owner" -ForegroundColor DarkYellow
     }
+
+    Assert-AndroidPortraitAfterKiosk -ExpectedUserRotation $Rotation | Out-Null
 }
 
 function Invoke-AdbInstall {
@@ -131,6 +135,9 @@ if (-not $devices) {
 
 Write-Host "Dispositivo(s):" -ForegroundColor Gray
 adb devices -l
+
+$preDiag = Get-AndroidBoxDiagnostics
+Write-AndroidBoxDiagnosticsSummary -Diagnostics $preDiag -Title 'Diagnostico pre-instalacao'
 
 if (-not $SkipBuild) {
     $javaHome = Resolve-JavaHome
@@ -204,6 +211,8 @@ adb shell dumpsys package $PackageId 2>&1 | Select-String -Pattern 'versionCode|
 
 if (-not $NoKioskSetup) {
     Invoke-AndroidKioskSetup -Rotation $UserRotation
+    $postDiag = Get-AndroidBoxDiagnostics -ExpectedUserRotation $UserRotation
+    Write-AndroidBoxDiagnosticsSummary -Diagnostics $postDiag -Title 'Diagnostico pos-provisionamento'
 }
 
 if (-not $NoLaunch) {

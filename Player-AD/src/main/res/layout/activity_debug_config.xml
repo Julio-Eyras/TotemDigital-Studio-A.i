@@ -163,6 +163,31 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textColor="#FFFFFF"
+            android:text="Provisionamento do sistema (ADB)"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#BDBDBD"
+            android:textSize="12sp"
+            android:text="Somente leitura. Portrait no SO e launcher exigem install-player-adb.ps1 no PC com depuração USB."/>
+
+        <TextView
+            android:id="@+id/textSystemProvisioning"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="#9E9E9E"
+            android:textSize="11sp"
+            android:fontFamily="monospace"
+            android:text="A carregar..."/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:textColor="#FFFFFF"
             android:text="Máx. segundos sem verificar servidor"/>

@@ -20,9 +20,10 @@ import br.com.smartchannel.playerad.api.DispatcherApiClient
 import br.com.smartchannel.playerad.config.PlayerConfig
 import br.com.smartchannel.playerad.config.PlayerConfigLoader
 import br.com.smartchannel.playerad.config.PlayerStorageMode
+import br.com.smartchannel.playerad.util.AppDirs
+import br.com.smartchannel.playerad.util.DeviceProvisioningDiagnostics
 import br.com.smartchannel.playerad.util.LocalNetworkAddresses
 import br.com.smartchannel.playerad.util.PlayerAdLogger
-import br.com.smartchannel.playerad.util.AppDirs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -64,6 +65,7 @@ class DebugConfigActivity : AppCompatActivity() {
     private lateinit var btnClearOperationalLog: Button
     private lateinit var textOperationalLog: TextView
     private lateinit var textOfflineState: TextView
+    private lateinit var textSystemProvisioning: TextView
 
     private var lastHeartbeatToken: String? = null
     private var lastDispatchPlan: JSONObject? = null
@@ -103,6 +105,7 @@ class DebugConfigActivity : AppCompatActivity() {
         btnClearOperationalLog = findViewById(R.id.btnClearOperationalLog)
         textOperationalLog = findViewById(R.id.textOperationalLog)
         textOfflineState = findViewById(R.id.textOfflineState)
+        textSystemProvisioning = findViewById(R.id.textSystemProvisioning)
 
         bindLocalIps()
 
@@ -176,12 +179,24 @@ class DebugConfigActivity : AppCompatActivity() {
 
         refreshOfflineState()
         refreshOperationalLog()
+        refreshSystemProvisioning()
     }
 
     override fun onResume() {
         super.onResume()
         refreshOfflineState()
         refreshOperationalLog()
+        refreshSystemProvisioning()
+    }
+
+    private fun refreshSystemProvisioning() {
+        lifecycleScope.launch {
+            val text = withContext(Dispatchers.IO) {
+                val report = DeviceProvisioningDiagnostics.scan(this@DebugConfigActivity)
+                DeviceProvisioningDiagnostics.formatDebugText(report)
+            }
+            textSystemProvisioning.text = text
+        }
     }
 
     private fun refreshOperationalLog() {
