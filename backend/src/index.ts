@@ -639,6 +639,9 @@ if (fs.existsSync(frontendBuildPath) && fs.existsSync(frontendIndexPath)) {
     if (apiPathPrefixes.some(prefix => p === prefix || p.startsWith(prefix + '/'))) return next();
     // Verificar se arquivo existe antes de tentar servir
     if (fs.existsSync(frontendIndexPath)) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       res.sendFile(frontendIndexPath, (err) => {
         if (err) {
           logError(`Erro ao servir index.html: ${err.message}`, err as Error, { path: req.path }).catch(() => {});
