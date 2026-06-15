@@ -109,7 +109,7 @@ function Invoke-AndroidKioskSetup {
         Write-Host "  AVISO launcher: $($homeOut.Trim())" -ForegroundColor DarkYellow
     }
 
-    $lockOut = adb shell "dpm set-lock-task-packages $PackageId $PackageId" 2>&1 | Out-String
+    $lockOut = cmd /c "adb shell dpm set-lock-task-packages $PackageId $PackageId 2>&1"
     if ($LASTEXITCODE -eq 0 -and $lockOut -notmatch 'Error|error|not allowed') {
         Write-Host "  OK lock-task whitelist (device owner)" -ForegroundColor Gray
     } else {
@@ -181,7 +181,10 @@ if (-not $SkipBuild) {
     }
     $env:JAVA_HOME = $javaHome
     Write-Host "JAVA_HOME: $javaHome" -ForegroundColor Gray
-    $javaVer = & (Join-Path $javaHome 'bin\java.exe') -version 2>&1 | Out-String
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $javaVer = & (Join-Path $javaHome 'bin\java.exe') -version 2>&1 | ForEach-Object { "$_" } | Out-String
+    $ErrorActionPreference = $prevEap
     Write-Host $javaVer.TrimEnd() -ForegroundColor Gray
 
     Push-Location $PlayerRoot
