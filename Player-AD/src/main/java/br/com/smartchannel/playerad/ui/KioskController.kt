@@ -3,6 +3,7 @@ package br.com.smartchannel.playerad.ui
 import android.app.Activity
 import android.app.ActivityManager
 import android.content.Context
+import android.content.pm.ActivityInfo
 import android.os.Build
 import android.util.Log
 import android.view.KeyEvent
@@ -11,11 +12,13 @@ import android.view.WindowManager
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import br.com.smartchannel.playerad.R
 import br.com.smartchannel.playerad.config.KioskMode
 import br.com.smartchannel.playerad.config.PlayerConfig
 import br.com.smartchannel.playerad.config.PlayerConfigLoader
 import br.com.smartchannel.playerad.config.ScreenOrientationMode
 import br.com.smartchannel.playerad.util.PlayerAdLogger
+import br.com.smartchannel.playerad.util.ViewDisplayRotation
 
 /**
  * Aplica kiosk (imersivo ou forte) e orientação conforme [PlayerConfig].
@@ -47,21 +50,43 @@ object KioskController {
         PlayerAdLogger.i("KIOSK", "Debug: kiosk relaxado (barras visíveis, sem lock task)")
     }
 
-    /** App + rotação do SO (user_rotation) quando su/Settings permitirem. */
+    /** Rotação do SO, Activity ou fallback visual (TV boxes que ignoram user_rotation). */
     fun applyDisplayRotation(activity: Activity, displayRotation: Int) {
         val normalized = ((displayRotation % 4) + 4) % 4
         val mode = PlayerConfigLoader.displayRotationToMode(normalized)
-        applyOrientation(activity, mode)
         val result = br.com.smartchannel.playerad.util.SystemDisplayRotation.apply(activity, normalized)
-        if (result.rotationApplied) {
+        val root = activity.findViewById<View>(R.id.root)
+
+        if (result.displayEffective) {
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_USER
+            ViewDisplayRotation.apply(activity, root, normalized, enabled = false)
             PlayerAdLogger.i(
                 "KIOSK",
-                "Rotação SO user_rotation=${result.userRotation} (${PlayerConfigLoader.displayRotationLabel(normalized)})"
+                "Rotação SO efetiva user_rotation=${result.userRotation} (${PlayerConfigLoader.displayRotationLabel(normalized)})"
             )
-        } else {
-            PlayerAdLogger.w(
+            return
+        }
+
+        applyOrientation(activity, mode)
+        val configOk = ViewDisplayRotation.isConfigurationOrientationMatch(
+            normalized,
+            activity.resources.configuration.orientation
+        )
+        val useViewFallback = !configOk
+        ViewDisplayRotation.apply(activity, root, normalized, enabled = useViewFallback)
+
+        when {
+            useViewFallback -> PlayerAdLogger.w(
                 "KIOSK",
-                "Rotação só no app (SO não alterado); use ADB ou root para user_rotation"
+                "user_rotation gravado=${result.settingsWritten} mas display não girou; fallback visual ${PlayerConfigLoader.displayRotationLabel(normalized)}"
+            )
+            result.settingsWritten -> PlayerAdLogger.i(
+                "KIOSK",
+                "Orientação Activity ${mode.name} (settings user_rotation=${result.userRotation} sem efeito no framebuffer)"
+            )
+            else -> PlayerAdLogger.w(
+                "KIOSK",
+                "Orientação Activity ${mode.name}; SO não alterado — autorize SU ou use ADB"
             )
         }
     }

@@ -63,8 +63,12 @@ class PlayerConfigLoader(private val context: Context) {
                 val storageMode = parseStorageMode(json.optString("storage", ""))
                 val pathOverride = json.optString("storagePathOverride", "").trim().takeIf { it.isNotBlank() }
                 val kioskMode = parseKioskMode(json.optString("kioskMode", ""))
-                val screenOrientation = resolveScreenOrientation(json)
-                val displayRotation = displayRotationFromMode(screenOrientation)
+                val displayRotation = if (json.has("displayRotation")) {
+                    json.optInt("displayRotation", 0).coerceIn(0, 3)
+                } else {
+                    displayRotationFromMode(parseScreenOrientation(json.optString("screenOrientation", "")))
+                }
+                val screenOrientation = displayRotationToMode(displayRotation)
                 PlayerConfig(
                     serverUrl = serverUrl,
                     uin = uin,

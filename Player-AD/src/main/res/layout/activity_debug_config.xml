@@ -16,14 +16,59 @@
             android:layout_height="wrap_content"
             android:textColor="#FFFFFF"
             android:textStyle="bold"
-            android:text="Modo desenvolvimento"/>
+            android:text="Configuração do Player"/>
+
+        <LinearLayout
+            android:id="@+id/panelSuSetup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="#1E2A1E"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/su_section_title"
+                android:textColor="#A5D6A7"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="3dp"
+                android:text="@string/su_section_hint"
+                android:textColor="#C8E6C9"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/textSuStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/su_status_pending"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btnRequestSu"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/su_btn_request" />
+        </LinearLayout>
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:textColor="#BDBDBD"
-            android:text="Preencha e teste antes de aplicar. O botão 'Aplicar e iniciar' só libera após heartbeat OK."/>
+            android:text="Preencha e teste antes de aplicar. «Aplicar e iniciar» exige heartbeat OK e SU autorizado (quando aplicável)."/>
 
         <TextView
             android:layout_width="match_parent"

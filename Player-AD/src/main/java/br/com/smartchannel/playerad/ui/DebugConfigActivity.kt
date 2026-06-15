@@ -24,7 +24,10 @@ import br.com.smartchannel.playerad.util.AppDirs
 import br.com.smartchannel.playerad.util.DeviceProvisioningDiagnostics
 import br.com.smartchannel.playerad.util.LocalNetworkAddresses
 import br.com.smartchannel.playerad.util.PlayerAdLogger
+import br.com.smartchannel.playerad.util.PlayerAdPrefs
+import br.com.smartchannel.playerad.util.SuAccessHelper
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -68,6 +71,9 @@ class DebugConfigActivity : AppCompatActivity() {
     private lateinit var textOperationalLog: TextView
     private lateinit var textOfflineState: TextView
     private lateinit var textSystemProvisioning: TextView
+    private lateinit var panelSuSetup: android.view.View
+    private lateinit var textSuStatus: TextView
+    private lateinit var btnRequestSu: Button
 
     private var lastHeartbeatToken: String? = null
     private var lastDispatchPlan: JSONObject? = null
@@ -76,10 +82,20 @@ class DebugConfigActivity : AppCompatActivity() {
     private var dispatchOk: Boolean = false
     private var currentDisplayRotation: Int = 0
     private var suppressSpinnerOrientationCallback: Boolean = false
+    private var requireSu: Boolean = false
+    private var onboarding: Boolean = false
+    private var suGranted: Boolean = false
+    private var suRequestInProgress: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_debug_config)
+
+        KioskController.applyDebug(this, 0)
+
+        requireSu = intent.getBooleanExtra(EXTRA_REQUIRE_SU, SuAccessHelper.requiresSuGate())
+        onboarding = intent.getBooleanExtra(EXTRA_ONBOARDING, false)
+        suGranted = PlayerAdPrefs.isSuGranted(this)
 
         editServerUrl = findViewById(R.id.editServerUrl)
         editUin = findViewById(R.id.editUin)
@@ -112,15 +128,22 @@ class DebugConfigActivity : AppCompatActivity() {
         textOperationalLog = findViewById(R.id.textOperationalLog)
         textOfflineState = findViewById(R.id.textOfflineState)
         textSystemProvisioning = findViewById(R.id.textSystemProvisioning)
+        panelSuSetup = findViewById(R.id.panelSuSetup)
+        textSuStatus = findViewById(R.id.textSuStatus)
+        btnRequestSu = findViewById(R.id.btnRequestSu)
 
         bindLocalIps()
 
         val reason = intent.getStringExtra(EXTRA_REASON) ?: "manual"
-        textReason.text = "Modo desenvolvimento aberto: $reason"
-        if (reason == "first_run") {
-            textReason.append("\n\nPré-cadastre a tela no painel (Totens), depois use «Vincular código ao hardware» — apenas API; sem SQL no servidor.")
+        textReason.text = if (onboarding) {
+            "Configuração inicial do Player"
+        } else {
+            "Modo desenvolvimento: $reason"
         }
-        PlayerAdLogger.i("DEBUG_UI", "Ecrã de configuração/debug aberto: $reason")
+        if (reason == "first_run" || onboarding) {
+            textReason.append("\n\n1) Autorize root (SU)  2) Vincule o código  3) Aplique e inicie o player.")
+        }
+        PlayerAdLogger.i("DEBUG_UI", "Ecrã de configuração aberto: $reason onboarding=$onboarding requireSu=$requireSu")
 
         val current = PlayerConfigLoader(this).load()
         editServerUrl.setText(current.serverUrl)
@@ -180,21 +203,63 @@ class DebugConfigActivity : AppCompatActivity() {
         }
 
         btnApplyAndStart.setOnClickListener {
+            if (requireSu && !suGranted) {
+                setStatus(getString(R.string.su_required_before_start))
+                return@setOnClickListener
+            }
             val cfg = readConfigOrNull()
             if (cfg == null) {
                 setStatus("Configuração inválida. Preencha serverUrl, uin e deviceId. Se storage=path_override, preencha o caminho absoluto.")
                 return@setOnClickListener
             }
 
-            // A ideia aqui é "debug antes de alterar": só salvamos quando o usuário confirma.
-            saveConfigInternal(cfg)
+            lifecycleScope.launch {
+                if (requireSu && !SuAccessHelper.isSuAuthorized(SuAccessHelper.FIRST_PROBE_TIMEOUT_MS)) {
+                    suGranted = false
+                    PlayerAdPrefs.setSuGranted(this@DebugConfigActivity, false)
+                    refreshSuUi()
+                    setStatus(getString(R.string.su_required_before_start))
+                    return@launch
+                }
+                if (requireSu) {
+                    PlayerAdPrefs.setSuGranted(this@DebugConfigActivity, true)
+                }
+                saveConfigInternal(cfg)
+                if (onboarding) {
+                    markSetupComplete()
+                    launchPlayerAndFinish()
+                } else {
+                    setResult(Activity.RESULT_OK)
+                    finish()
+                }
+            }
+        }
+
+        btnStartWithoutSave.setOnClickListener {
+            if (onboarding) return@setOnClickListener
+            if (requireSu && !suGranted) {
+                setStatus(getString(R.string.su_required_before_start))
+                return@setOnClickListener
+            }
             setResult(Activity.RESULT_OK)
             finish()
         }
 
-        btnStartWithoutSave.setOnClickListener {
-            setResult(Activity.RESULT_OK)
-            finish()
+        btnRequestSu.setOnClickListener { requestSuAuthorization() }
+
+        if (requireSu) {
+            panelSuSetup.visibility = android.view.View.VISIBLE
+            refreshSuUi()
+        } else {
+            panelSuSetup.visibility = android.view.View.GONE
+        }
+
+        btnStartWithoutSave.visibility = if (onboarding) android.view.View.GONE else android.view.View.VISIBLE
+
+        if (onboarding) {
+            onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() { }
+            })
         }
 
         btnRefreshOperationalLog.setOnClickListener { refreshOperationalLog() }
@@ -352,7 +417,7 @@ class DebugConfigActivity : AppCompatActivity() {
         }
         val orientRaw = spinnerScreenOrientation.selectedItem as? String
         val screenOrientation = PlayerConfigLoader.parseScreenOrientation(orientRaw)
-        val displayRotation = PlayerConfigLoader.displayRotationFromMode(screenOrientation)
+        val displayRotation = currentDisplayRotation.coerceIn(0, 3)
         return PlayerConfig(
             serverUrl = serverUrl,
             uin = uin,
@@ -391,27 +456,98 @@ class DebugConfigActivity : AppCompatActivity() {
             screenOrientation = mode
         )
         saveConfigInternal(merged)
-        val soResult = br.com.smartchannel.playerad.util.SystemDisplayRotation.apply(this, rotation)
-        val soNote = if (soResult.rotationApplied) {
-            " (SO user_rotation=${soResult.userRotation})"
-        } else {
-            " (SO: sem permissão — só app)"
+        if (suGranted || !requireSu) {
+            val soResult = br.com.smartchannel.playerad.util.SystemDisplayRotation.apply(this, rotation)
+        val soNote = when {
+            soResult.displayEffective -> " (SO efetivo user_rotation=${soResult.userRotation})"
+            soResult.settingsWritten -> " (settings OK, display sem efeito — fallback visual)"
+            else -> " (SO: sem permissão)"
         }
         PlayerAdLogger.i(
             "DEBUG_UI",
             "Orientação gravada: ${PlayerConfigLoader.displayRotationLabel(rotation)}$soNote"
         )
         appendStatus("✔ Orientação gravada: ${PlayerConfigLoader.displayRotationLabel(rotation)}$soNote")
+        } else {
+            appendStatus("✔ Orientação gravada no app (autorize SU para aplicar no sistema)")
+        }
+    }
+
+    private fun requestSuAuthorization() {
+        if (!requireSu || suRequestInProgress) return
+        suRequestInProgress = true
+        btnRequestSu.isEnabled = false
+        btnRequestSu.text = getString(R.string.su_btn_waiting)
+        textSuStatus.text = getString(R.string.su_status_pending)
+        PlayerAdLogger.i("SU", "Operador solicitou autorização root na tela de configuração")
+
+        lifecycleScope.launch {
+            val granted = SuAccessHelper.isSuAuthorized(SuAccessHelper.FIRST_PROBE_TIMEOUT_MS)
+            suGranted = granted
+            suRequestInProgress = false
+            if (granted) {
+                PlayerAdPrefs.setSuGranted(this@DebugConfigActivity, true)
+                PlayerAdLogger.i("SU", "Autorização root confirmada na configuração")
+            } else {
+                PlayerAdPrefs.setSuGranted(this@DebugConfigActivity, false)
+                PlayerAdLogger.w("SU", "Autorização root não concedida na configuração")
+            }
+            refreshSuUi()
+            updateApplyButtonState()
+        }
+    }
+
+    private fun refreshSuUi() {
+        if (!requireSu) return
+        textSuStatus.text = when {
+            suGranted -> getString(R.string.su_status_granted)
+            suRequestInProgress -> getString(R.string.su_status_pending)
+            else -> getString(R.string.su_status_denied)
+        }
+        btnRequestSu.isEnabled = !suRequestInProgress
+        btnRequestSu.text = if (suRequestInProgress) {
+            getString(R.string.su_btn_waiting)
+        } else {
+            getString(R.string.su_btn_request)
+        }
+    }
+
+    private fun markSetupComplete() {
+        val versionCode = try {
+            val info = packageManager.getPackageInfo(packageName, 0)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                info.longVersionCode.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
+            } else {
+                @Suppress("DEPRECATION")
+                info.versionCode
+            }
+        } catch (_: Exception) {
+            -1
+        }
+        PlayerAdPrefs.prefs(this).edit()
+            .putBoolean(PlayerAdPrefs.KEY_DEV_FIRST_RUN_DONE, true)
+            .putInt(PlayerAdPrefs.KEY_DEV_LAST_VERSION_CODE, versionCode)
+            .apply()
+    }
+
+    private fun launchPlayerAndFinish() {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        }
+        startActivity(intent)
+        finish()
+    }
+
+    private fun updateApplyButtonState() {
+        val suOk = !requireSu || suGranted
+        btnApplyAndStart.isEnabled = heartbeatOk && suOk
+        btnApplyAndStart.alpha = if (heartbeatOk && suOk) 1f else 0.5f
     }
 
     private fun setHeartbeatAndDispatchState(heartbeatOk: Boolean, dispatchOk: Boolean) {
         this.heartbeatOk = heartbeatOk
         this.dispatchOk = dispatchOk
-
-        // Liberar "Aplicar e iniciar" apenas quando pelo menos o heartbeat funciona.
-        // (A busca do dispatch é opcional para não travar desenvolvimento offline.)
-        btnApplyAndStart.isEnabled = this.heartbeatOk
-        btnApplyAndStart.alpha = if (this.heartbeatOk) 1f else 0.5f
+        updateApplyButtonState()
     }
 
     private fun setStatus(msg: String) {
@@ -698,6 +834,8 @@ class DebugConfigActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_REASON = "reason"
+        const val EXTRA_ONBOARDING = "onboarding"
+        const val EXTRA_REQUIRE_SU = "require_su"
     }
 }
 

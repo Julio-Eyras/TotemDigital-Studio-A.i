@@ -4,8 +4,9 @@ import java.io.File
 
 /**
  * Verifica presença e autorização do binário `su` antes de aplicar kiosk/rotação do SO.
- * O diálogo do gerenciador root (Magisk/SuperSU) só aparece na primeira vez por app,
- * se o operador marcar "Sempre permitir".
+ *
+ * Importante: cada chamada a [probeSuRoot] pode reabrir o diálogo do gerenciador root na TV box.
+ * Use intervalos longos entre tentativas e nunca faça probe no Application.onCreate.
  */
 object SuAccessHelper {
 
@@ -42,7 +43,7 @@ object SuAccessHelper {
             waiter.start()
             waiter.join(timeoutMs)
             if (waiter.isAlive) {
-                proc.destroy()
+                // Não destruir o processo imediatamente — o operador pode estar no diálogo do SU.
                 return false
             }
             output.toString().contains("uid=0")
@@ -58,5 +59,11 @@ object SuAccessHelper {
         "/vendor/bin/su"
     )
 
-    private const val DEFAULT_PROBE_TIMEOUT_MS = 8_000L
+    const val DEFAULT_PROBE_TIMEOUT_MS = 8_000L
+    /** Primeira janela: tempo para ler a mensagem e mover o cursor até Permitir. */
+    const val FIRST_PROBE_TIMEOUT_MS = 120_000L
+    /** Entre tentativas: evita reabrir o diálogo SU a cada poucos segundos. */
+    const val RETRY_PROBE_TIMEOUT_MS = 45_000L
+    const val RETRY_INTERVAL_MS = 50_000L
+    const val MAX_PROBE_ATTEMPTS = 8
 }

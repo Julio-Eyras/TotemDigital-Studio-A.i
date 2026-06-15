@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">SmartSignage Player-AD</string>
-    <string name="su_wait_title">Autorização Superusuário (SU)</string>
-    <string name="su_wait_message">Autorize o acesso root na janela do Android.\n\nO player só inicia depois da autorização. Marque &quot;Sempre permitir&quot; — normalmente só é pedido uma vez.</string>
-    <string name="su_wait_hint">Aguardando autorização…</string>
+    <string name="su_section_title">1. Autorização root (SU) — obrigatório</string>
+    <string name="su_section_hint">Toque no botão abaixo. O diálogo do Android aparecerá por cima desta tela — use o controle para selecionar Permitir.\n\nAlguns firmwares voltam a perguntar em ~15 min sem opção permanente; isso é do sistema.</string>
+    <string name="su_status_pending">Status: pendente — autorize na janela do Android</string>
+    <string name="su_status_granted">Status: autorizado ✓</string>
+    <string name="su_status_denied">Status: não autorizado — tente novamente</string>
+    <string name="su_btn_request">Solicitar autorização SU</string>
+    <string name="su_btn_waiting">Aguardando (não feche o diálogo do sistema)…</string>
+    <string name="su_required_before_start">Autorize o acesso root (SU) antes de iniciar o player.</string>
 </resources>
 

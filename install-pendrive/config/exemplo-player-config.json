@@ -3,6 +3,7 @@
   "uin": "DEMO-UIN-001",
   "deviceId": "DEMO-UIN-001",
   "kioskMode": "strong",
+  "displayRotation": 0,
   "screenOrientation": "portrait",
   "fallbackPropagandasPerVinheta": 3
 }
