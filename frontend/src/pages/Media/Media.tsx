@@ -47,8 +47,9 @@ import {
   Refresh,
   CropPortrait,
 } from '@mui/icons-material';
-import { mediaApi, MediaItem, CreateMediaRequest, clientApi, Client, subscriberApi, Subscriber } from '../../services/api';
+import { mediaApi, MediaItem, CreateMediaRequest, clientApi, Client, subscriberApi, Subscriber, MediaInUseConflictPayload, parseMediaInUseConflict } from '../../services/api';
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
+import MediaDeleteConflictDialog from '../../components/MediaDeleteConflictDialog/MediaDeleteConflictDialog';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
@@ -84,6 +85,10 @@ const Media: React.FC = () => {
   const [videoHover, setVideoHover] = useState<{ id: number | null; url: string | null }>({ id: null, url: null });
   const hoverVideoRef = useRef<HTMLVideoElement | null>(null);
   const [processingFitId, setProcessingFitId] = useState<number | null>(null);
+  const [mediaDeleteConflict, setMediaDeleteConflict] = useState<MediaInUseConflictPayload | null>(null);
+  const [mediaDeleteConflictOpen, setMediaDeleteConflictOpen] = useState(false);
+  const [mediaDeleteLoading, setMediaDeleteLoading] = useState(false);
+  const [pendingMediaDeleteId, setPendingMediaDeleteId] = useState<number | null>(null);
 
   /** TotemDigital compacto: inferir subscriber para upload quando não há lista /api/subscribers */
   const uploadFallbackSubscriberId = useMemo(() => {
@@ -327,13 +332,57 @@ const Media: React.FC = () => {
   };
 
   const handleDeleteMedia = async (id: number) => {
-    if (window.confirm('Tem certeza que deseja excluir esta mídia?')) {
-      try {
-        await mediaApi.delete(id);
-        loadMediaItems();
-      } catch (error) {
-        setError(pickApiErrorMessage(error, 'Erro ao excluir mídia'));
+    if (!window.confirm('Tem certeza que deseja excluir esta mídia?')) return;
+    try {
+      setMediaDeleteLoading(true);
+      setError(null);
+      await mediaApi.delete(id);
+      loadMediaItems();
+    } catch (error) {
+      const conflict = parseMediaInUseConflict(error);
+      if (conflict) {
+        setPendingMediaDeleteId(id);
+        setMediaDeleteConflict(conflict);
+        setMediaDeleteConflictOpen(true);
+        return;
       }
+      setError(pickApiErrorMessage(error, 'Erro ao excluir mídia'));
+    } finally {
+      setMediaDeleteLoading(false);
+    }
+  };
+
+  const handleForceDeleteMedia = async () => {
+    if (pendingMediaDeleteId == null) return;
+    try {
+      setMediaDeleteLoading(true);
+      setError(null);
+      const result = await mediaApi.delete(pendingMediaDeleteId, { forceDetach: true });
+      setMediaDeleteConflictOpen(false);
+      setMediaDeleteConflict(null);
+      setPendingMediaDeleteId(null);
+      loadMediaItems();
+      const offlineNote =
+        typeof result === 'object' && result && 'offlineTotemWarning' in result
+          ? (result as { offlineTotemWarning?: string }).offlineTotemWarning
+          : '';
+      window.dispatchEvent(
+        new CustomEvent('showNotification', {
+          detail: {
+            type: 'success',
+            title: 'Mídia excluída',
+            message:
+              (typeof result === 'object' && result && 'message' in result
+                ? String((result as { message?: string }).message)
+                : 'Mídia removida com sucesso') + (offlineNote ? `\n\n${offlineNote}` : ''),
+            duration: offlineNote ? 20000 : 8000,
+          },
+        })
+      );
+    } catch (error) {
+      setError(pickApiErrorMessage(error, 'Erro ao excluir mídia'));
+    } finally {
+      setMediaDeleteLoading(false);
     }
   };
 
@@ -1023,6 +1072,19 @@ const Media: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      <MediaDeleteConflictDialog
+        open={mediaDeleteConflictOpen}
+        conflict={mediaDeleteConflict}
+        mediaLabel={mediaDeleteConflict?.mediaName}
+        loading={mediaDeleteLoading}
+        onClose={() => {
+          if (mediaDeleteLoading) return;
+          setMediaDeleteConflictOpen(false);
+          setMediaDeleteConflict(null);
+          setPendingMediaDeleteId(null);
+        }}
+        onConfirmForceDelete={handleForceDeleteMedia}
+      />
     </Box>
   );
 };

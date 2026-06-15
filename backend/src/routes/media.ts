@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { getMediaService } from '../services/mediaService';
+import { getMediaService, MediaInUseError, type ForceDeleteMediaResult } from '../services/mediaService';
 import { StorageService } from '../services/storageService';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
@@ -695,31 +695,41 @@ router.delete('/:id',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const mediaId = parseInt(req.params.id);
-      
-      // Determinar se é admin
+      const forceDetach =
+        req.query.forceDetach === 'true' ||
+        req.query.forceDetach === '1' ||
+        (req.body && (req.body as any).forceDetach === true);
+
       const isAdmin = req.user?.role === 'admin' || req.user?.userType === 'system_user';
-      
-      // Obter subscriberId do request
       const requestSubscriberId = req.subscriberId || req.user?.subscriberId || req.user?.clientId;
-      
-      // Usar ID do usuário autenticado
       const userId = req.user?.id || req.user?.userId;
       if (!userId) {
         return res.status(401).json({ error: 'Usuário não autenticado' });
       }
-      
-      await getMediaService().deleteMedia(mediaId, userId, requestSubscriberId, isAdmin);
+
+      const result = await getMediaService().deleteMedia(
+        mediaId,
+        userId,
+        requestSubscriberId,
+        isAdmin,
+        { forceDetach: Boolean(forceDetach) }
+      );
+
+      if (result && typeof result === 'object' && 'detached' in result) {
+        return res.json(result as ForceDeleteMediaResult);
+      }
+
       return res.json({ message: 'Arquivo de mídia deletado com sucesso' });
     } catch (error: any) {
+      if (error instanceof MediaInUseError) {
+        return res.status(409).json(error.payload);
+      }
       const msg = error.message || '';
       if (msg.includes('Acesso negado')) {
         return res.status(403).json({ error: msg });
       }
       if (msg.includes('não encontrada') || msg.includes('não encontrado')) {
         return res.status(404).json({ error: msg });
-      }
-      if (msg.includes('Não é possível remover')) {
-        return res.status(400).json({ error: msg });
       }
       return res.status(500).json({ error: msg || 'Erro ao deletar arquivo de mídia' });
     }

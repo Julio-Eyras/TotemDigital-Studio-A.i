@@ -18,6 +18,15 @@ import { getCacheService } from './cacheService';
 import { logError, logWarn } from '../utils/loggerHelper';
 import { normalizeDownloadUrl, generateThumbnailUrl } from '../utils/pathHelper';
 import { isStudioRuntime } from '../config/installationRuntime';
+import {
+  getMediaDeletionService,
+  MediaInUseError,
+  type ForceDeleteMediaResult,
+  type MediaInUseConflictPayload,
+} from './mediaDeletionService';
+
+export type { ForceDeleteMediaResult, MediaInUseConflictPayload };
+export { MediaInUseError };
 
 const execFileAsync = promisify(execFile);
 
@@ -1072,52 +1081,49 @@ export class MediaService {
     mediaId: number, 
     deletedBy: number,
     requestSubscriberId?: number,
-    isAdmin: boolean = false
-  ): Promise<void> {
+    isAdmin: boolean = false,
+    options?: { forceDetach?: boolean }
+  ): Promise<ForceDeleteMediaResult | void> {
     try {
-      // Verificar se mídia existe e validar ownership
       const media = await this.getMediaById(mediaId, requestSubscriberId, isAdmin);
       if (!media) {
         throw new Error('Mídia não encontrada');
       }
 
-      // Validar ownership (exceto para admin)
       if (!isAdmin && requestSubscriberId && media.subscriberId !== requestSubscriberId) {
         throw new Error('Acesso negado: mídia não pertence a este subscriber');
       }
 
-      // Verificar se está sendo usada em playlists, campanhas ou totem playlists
-      const [playlistUsage, campaignUsage, totemUsage] = await Promise.all([
-        this.db.findFirst(`SELECT COUNT(*) as count FROM playlist_items WHERE media_id = $1`, [mediaId]),
-        this.db.findFirst(`SELECT COUNT(*) as count FROM campaign_medias WHERE media_id = $1`, [mediaId]),
-        this.db.findFirst(`SELECT COUNT(*) as count FROM totem_playlist_items WHERE media_id = $1`, [mediaId])
-      ]);
+      const deletionService = getMediaDeletionService();
+      const usage = await deletionService.getMediaUsage(mediaId);
+      const inUse = deletionService.hasUsage(usage);
 
-      const inPlaylist = playlistUsage && parseInt(String(playlistUsage.count), 10) > 0;
-      const inCampaign = campaignUsage && parseInt(String(campaignUsage.count), 10) > 0;
-      const inTotem = totemUsage && parseInt(String(totemUsage.count), 10) > 0;
-      if (inPlaylist) {
-        throw new Error('Não é possível remover mídia que está sendo usada em playlists');
-      }
-      if (inCampaign) {
-        throw new Error('Não é possível remover mídia que está sendo usada em campanhas');
-      }
-      if (inTotem) {
-        throw new Error('Não é possível remover mídia que está sendo usada em playlists de totem');
+      if (inUse && !options?.forceDetach) {
+        throw new MediaInUseError(
+          deletionService.buildConflictPayload(mediaId, media.name, usage)
+        );
       }
 
-      // Remover arquivo físico (filePath pode vir como filePath ou file_path do banco)
+      if (inUse && options?.forceDetach) {
+        return deletionService.forceDetachAndDelete({
+          mediaId,
+          mediaName: media.name,
+          filePath: media.filePath || (media as any).file_path,
+          subscriberId: media.subscriberId,
+          deletedBy,
+        });
+      }
+
+      // Sem referências — exclusão simples
       const filePathToDelete = media.filePath || (media as any).file_path;
       if (filePathToDelete) {
         await this.getStorageService().deleteMediaFile(filePathToDelete);
       }
 
-      // Remover do banco
       await this.db.executeRaw(`
         DELETE FROM medias WHERE media_id = $1
       `, [mediaId]);
 
-      // Log de auditoria
       await this.getAuditService().log('media', 'deleted', deletedBy, {
         mediaId,
         name: media.name,
@@ -1125,11 +1131,13 @@ export class MediaService {
         subscriberId: media.subscriberId
       });
 
-      // Invalidar cache
       await getCacheService().invalidateEntity('media', mediaId).catch(() => {});
       await getCacheService().invalidateEntity('subscriber', media.subscriberId).catch(() => {});
 
     } catch (error: any) {
+      if (error instanceof MediaInUseError) {
+        throw error;
+      }
       await logError('Erro ao remover mídia', error, { mediaId });
       throw error;
     }

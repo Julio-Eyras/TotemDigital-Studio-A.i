@@ -80,6 +80,8 @@ import {
   UpdateSubscriberRequest,
   mediaApi,
   MediaItem,
+  MediaInUseConflictPayload,
+  parseMediaInUseConflict,
   CreateMediaRequest,
   UpdateMediaRequest,
   playlistApi,
@@ -107,6 +109,7 @@ import {
   SubscriberBillingItem,
 } from '../../services/api';
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
+import MediaDeleteConflictDialog from '../../components/MediaDeleteConflictDialog/MediaDeleteConflictDialog';
 import { SortableList } from '../../components/SortableList/SortableList';
 import { SubscriberCard, SubscriberDetails, SubscriberForm } from './components';
 import { PageHeader } from '../../components/DataDisplay';
@@ -459,6 +462,10 @@ const Subscribers: React.FC = () => {
   const [editCampaigns, setEditCampaigns] = useState<Campaign[]>([]);
   const [editingEditMediaIndex, setEditingEditMediaIndex] = useState<number | null>(null);
   const [processingMediaFitId, setProcessingMediaFitId] = useState<number | null>(null);
+  const [mediaDeleteConflict, setMediaDeleteConflict] = useState<MediaInUseConflictPayload | null>(null);
+  const [mediaDeleteConflictOpen, setMediaDeleteConflictOpen] = useState(false);
+  const [mediaDeleteLoading, setMediaDeleteLoading] = useState(false);
+  const [pendingMediaDeleteIndex, setPendingMediaDeleteIndex] = useState<number | null>(null);
   const [mediaThumbVersion, setMediaThumbVersion] = useState(0);
   const activeOnlyFilter = useMemo(() => {
     const selectedOption = subscriberStatusOptions.find((option) => option.value === statusFilterValue);
@@ -1441,13 +1448,61 @@ const Subscribers: React.FC = () => {
 
   const handleDeleteMedia = async (index: number) => {
     if (!selectedSubscriber || !window.confirm('Tem certeza que deseja excluir esta mídia?')) return;
-    
+
+    const media = editMedias[index];
     try {
-      const media = editMedias[index];
+      setMediaDeleteLoading(true);
+      setError(null);
       await mediaApi.delete(media.media_id);
       await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
     } catch (error: any) {
+      const conflict = parseMediaInUseConflict(error);
+      if (conflict) {
+        setPendingMediaDeleteIndex(index);
+        setMediaDeleteConflict(conflict);
+        setMediaDeleteConflictOpen(true);
+        return;
+      }
       setError(pickApiErrorMessage(error, 'Erro ao excluir mídia'));
+    } finally {
+      setMediaDeleteLoading(false);
+    }
+  };
+
+  const handleForceDeleteMedia = async () => {
+    if (!selectedSubscriber || pendingMediaDeleteIndex == null) return;
+    const media = editMedias[pendingMediaDeleteIndex];
+    if (!media) return;
+
+    try {
+      setMediaDeleteLoading(true);
+      setError(null);
+      const result = await mediaApi.delete(media.media_id, { forceDetach: true });
+      setMediaDeleteConflictOpen(false);
+      setMediaDeleteConflict(null);
+      setPendingMediaDeleteIndex(null);
+      await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
+      const offlineNote =
+        typeof result === 'object' && result && 'offlineTotemWarning' in result
+          ? (result as { offlineTotemWarning?: string }).offlineTotemWarning
+          : '';
+      window.dispatchEvent(
+        new CustomEvent('showNotification', {
+          detail: {
+            type: 'success',
+            title: 'Mídia excluída',
+            message:
+              (typeof result === 'object' && result && 'message' in result
+                ? String((result as { message?: string }).message)
+                : 'Mídia removida com sucesso') + (offlineNote ? `\n\n${offlineNote}` : ''),
+            duration: offlineNote ? 20000 : 8000,
+          },
+        })
+      );
+    } catch (error: any) {
+      setError(pickApiErrorMessage(error, 'Erro ao excluir mídia'));
+    } finally {
+      setMediaDeleteLoading(false);
     }
   };
 
@@ -4849,6 +4904,21 @@ const Subscribers: React.FC = () => {
             await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
           }
         }}
+      />
+      <MediaDeleteConflictDialog
+        open={mediaDeleteConflictOpen}
+        conflict={mediaDeleteConflict}
+        mediaLabel={
+          pendingMediaDeleteIndex != null ? editMedias[pendingMediaDeleteIndex]?.name : mediaDeleteConflict?.mediaName
+        }
+        loading={mediaDeleteLoading}
+        onClose={() => {
+          if (mediaDeleteLoading) return;
+          setMediaDeleteConflictOpen(false);
+          setMediaDeleteConflict(null);
+          setPendingMediaDeleteIndex(null);
+        }}
+        onConfirmForceDelete={handleForceDeleteMedia}
       />
     </Box>
   );

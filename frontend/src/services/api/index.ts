@@ -163,6 +163,11 @@ api.interceptors.response.use(
       window.dispatchEvent(payloadErrorEvent);
     }
 
+    // 409 — mídia em uso: modal dedicado trata (sem toast genérico)
+    if (error.response?.status === 409 && (error.response.data as { usage?: unknown })?.usage) {
+      return Promise.reject(error);
+    }
+
     // Tratamento de 400 (Bad Request) - Validação
     if (error.response?.status === 400) {
       const validationMessage = error.response.data?.message || error.response.data?.error || 'Erro de validação';
@@ -831,6 +836,66 @@ export const playlistApi = {
 // MEDIA API
 // =============================================
 
+export interface MediaUsageDetailPlaylist {
+  id: number;
+  name: string;
+}
+
+export interface MediaUsageDetailCampaign {
+  id: number;
+  title: string;
+}
+
+export interface MediaUsageDetailTotem {
+  totemId: number;
+  identifier: string;
+  campaignTitle?: string | null;
+  online?: boolean;
+}
+
+export interface MediaInUseConflictPayload {
+  error: string;
+  mediaId: number;
+  mediaName: string;
+  usage: {
+    playlists: string[];
+    campaigns: string[];
+    totemPlaylists: string[];
+    playlistDetails: MediaUsageDetailPlaylist[];
+    campaignDetails: MediaUsageDetailCampaign[];
+    totemPlaylistDetails: MediaUsageDetailTotem[];
+  };
+  canForceDelete: boolean;
+  forceDeleteHint: string;
+  offlineTotemWarning: string;
+}
+
+export interface ForceDeleteMediaResult {
+  message: string;
+  mediaId: number;
+  mediaName: string;
+  detached?: {
+    playlistItemsRemoved: number;
+    campaignMediasRemoved: number;
+    totemPlaylistItemsRemoved: number;
+    playlistsDeleted: MediaUsageDetailPlaylist[];
+    campaignsReordered: number[];
+    playlistsReordered: number[];
+  };
+  totemsNotified?: Array<{ totemId: number; identifier: string; online: boolean; commandQueued: boolean }>;
+  offlineTotemWarning?: string;
+}
+
+export function parseMediaInUseConflict(err: unknown): MediaInUseConflictPayload | null {
+  const e = err as { response?: { status?: number; data?: unknown } };
+  if (e?.response?.status !== 409) return null;
+  const d = e.response.data;
+  if (!d || typeof d !== 'object') return null;
+  const o = d as MediaInUseConflictPayload;
+  if (!o.usage || typeof o.error !== 'string') return null;
+  return o;
+}
+
 export interface MediaItem {
   // IDs
   media_id: number;
@@ -1095,8 +1160,11 @@ export const mediaApi = {
     return normalizeMediaItem(raw) as MediaItem;
   },
 
-  delete: async (id: number): Promise<void> => {
-    await api.delete(`/media/${id}`);
+  delete: async (id: number, options?: { forceDetach?: boolean }): Promise<ForceDeleteMediaResult | { message: string }> => {
+    const response = await api.delete(`/media/${id}`, {
+      params: options?.forceDetach ? { forceDetach: 'true' } : undefined,
+    });
+    return response.data;
   },
 
   /**
