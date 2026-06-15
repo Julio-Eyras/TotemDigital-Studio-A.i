@@ -30,5 +30,47 @@
         android:background="#000000"
         android:visibility="gone" />
 
+    <LinearLayout
+        android:id="@+id/panelSuWait"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#E6000000"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="32dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="@string/su_wait_title"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:gravity="center"
+            android:lineSpacingExtra="4dp"
+            android:maxWidth="520dp"
+            android:text="@string/su_wait_message"
+            android:textColor="#DDDDDD"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/textSuWaitStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:gravity="center"
+            android:text="@string/su_wait_hint"
+            android:textColor="#88CCFF"
+            android:textSize="14sp" />
+
+    </LinearLayout>
+
 </FrameLayout>
 

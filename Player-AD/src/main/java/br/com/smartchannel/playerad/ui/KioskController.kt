@@ -102,7 +102,7 @@ object KioskController {
         }
     }
 
-    private fun showSystemBars(activity: Activity) {
+    fun showSystemBars(activity: Activity) {
         try {
             val controller = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
             controller.show(WindowInsetsCompat.Type.systemBars())

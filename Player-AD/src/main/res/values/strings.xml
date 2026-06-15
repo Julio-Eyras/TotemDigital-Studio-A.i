@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">SmartSignage Player-AD</string>
+    <string name="su_wait_title">Autorização Superusuário (SU)</string>
+    <string name="su_wait_message">Autorize o acesso root na janela do Android.\n\nO player só inicia depois da autorização. Marque &quot;Sempre permitir&quot; — normalmente só é pedido uma vez.</string>
+    <string name="su_wait_hint">Aguardando autorização…</string>
 </resources>
 

@@ -7,6 +7,8 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.View
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.activity.OnBackPressedCallback
@@ -18,6 +20,7 @@ import br.com.smartchannel.playerad.cache.MediaCacheManager
 import br.com.smartchannel.playerad.config.PlayerConfigLoader
 import br.com.smartchannel.playerad.playback.PlayerController
 import br.com.smartchannel.playerad.util.PlayerAdLogger
+import br.com.smartchannel.playerad.util.SuAccessHelper
 import android.webkit.WebView
 import android.widget.ImageView
 import androidx.media3.exoplayer.ExoPlayer
@@ -51,6 +54,9 @@ class MainActivity : AppCompatActivity() {
     private var devTapCount: Int = 0
     private var lastDevTapAtMs: Long = 0L
     private var kioskConfig: br.com.smartchannel.playerad.config.PlayerConfig? = null
+    private var suGateComplete: Boolean = false
+    private var suWaitJob: Job? = null
+    private var panelSuWait: View? = null
 
     private val prefs by lazy {
         getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
@@ -149,37 +155,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        setContentView(R.layout.activity_main)
-
+    private fun completeStartup() {
         kioskConfig = PlayerConfigLoader(this).load()
         if (!devUiOpen) {
             KioskController.applyPlayback(this, kioskConfig!!)
         }
 
-        playerView = findViewById(R.id.playerView)
-        imageView = findViewById(R.id.imageView)
-        htmlWebView = findViewById(R.id.htmlWebView)
-
-        cacheManager = (application as PlayerAdApplication).mediaCacheManager
-
-        // Inicializar ExoPlayer
-        exoPlayer = ExoPlayer.Builder(this).build()
-        playerView.player = exoPlayer
-
-        // Carregar configuração do player (serverUrl, uin, deviceId)
-        val firstRun = !prefs.getBoolean(KEY_DEV_FIRST_RUN_DONE, false) ||
-            prefs.getInt(KEY_DEV_LAST_VERSION_CODE, -1) != currentVersionCode()
-        if (firstRun) {
-            openDebug("first_run")
-            return
-        }
-
-        startPlayer()
-
-        // Kiosk: desabilita BACK usando o dispatcher (evita override de método deprecated).
         onBackPressedDispatcher.addCallback(
             this,
             object : OnBackPressedCallback(true) {
@@ -188,22 +169,94 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         )
+
+        val firstRun = !prefs.getBoolean(KEY_DEV_FIRST_RUN_DONE, false) ||
+            prefs.getInt(KEY_DEV_LAST_VERSION_CODE, -1) != currentVersionCode()
+        if (firstRun) {
+            openDebug("first_run")
+            return
+        }
+
+        startPlayer()
+    }
+
+    private fun startSuAuthorizationWait() {
+        panelSuWait?.visibility = View.VISIBLE
+        KioskController.showSystemBars(this)
+        window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        PlayerAdLogger.i("SU", "Aguardando autorização root antes do kiosk/player")
+
+        suWaitJob?.cancel()
+        suWaitJob = lifecycleScope.launch {
+            val firstProbeMs = 15_000L
+            val retryProbeMs = 4_000L
+            var attempt = 0
+            while (isActive && attempt < SU_WAIT_MAX_ATTEMPTS) {
+                val timeout = if (attempt == 0) firstProbeMs else retryProbeMs
+                if (SuAccessHelper.isSuAuthorized(timeout)) {
+                    prefs.edit().putBoolean(KEY_SU_GRANTED, true).apply()
+                    panelSuWait?.visibility = View.GONE
+                    suGateComplete = true
+                    PlayerAdLogger.i("SU", "Autorização root confirmada; iniciando player")
+                    completeStartup()
+                    return@launch
+                }
+                attempt++
+                panelSuWait?.findViewById<TextView>(R.id.textSuWaitStatus)?.text =
+                    getString(R.string.su_wait_hint) + " ($attempt)"
+                delay(SU_WAIT_POLL_DELAY_MS)
+            }
+
+            PlayerAdLogger.w("SU", "Timeout aguardando SU; iniciando sem garantia de rotação do SO")
+            panelSuWait?.visibility = View.GONE
+            suGateComplete = true
+            completeStartup()
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        setContentView(R.layout.activity_main)
+
+        panelSuWait = findViewById(R.id.panelSuWait)
+        playerView = findViewById(R.id.playerView)
+        imageView = findViewById(R.id.imageView)
+        htmlWebView = findViewById(R.id.htmlWebView)
+
+        cacheManager = (application as PlayerAdApplication).mediaCacheManager
+
+        exoPlayer = ExoPlayer.Builder(this).build()
+        playerView.player = exoPlayer
+
+        val needsSuGate = SuAccessHelper.requiresSuGate()
+        val suAlreadyGranted = prefs.getBoolean(KEY_SU_GRANTED, false) &&
+            SuAccessHelper.isSuAuthorized(2_000L)
+
+        if (needsSuGate && !suAlreadyGranted) {
+            startSuAuthorizationWait()
+            return
+        }
+
+        suGateComplete = true
+        if (needsSuGate) {
+            prefs.edit().putBoolean(KEY_SU_GRANTED, true).apply()
+        }
+        completeStartup()
     }
 
     override fun onResume() {
         super.onResume()
-        if (!devUiOpen) {
-            val cfg = PlayerConfigLoader(this).load()
-            kioskConfig = cfg
-            KioskController.applyPlayback(this, cfg)
-        }
+        if (!suGateComplete || devUiOpen) return
+        val cfg = PlayerConfigLoader(this).load()
+        kioskConfig = cfg
+        KioskController.applyPlayback(this, cfg)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus && !devUiOpen) {
-            kioskConfig?.let { KioskController.applyPlayback(this, it) }
-        }
+        if (!suGateComplete || !hasFocus || devUiOpen) return
+        kioskConfig?.let { KioskController.applyPlayback(this, it) }
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
@@ -244,6 +297,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        suWaitJob?.cancel()
+        suWaitJob = null
         playbackJob?.cancel()
         playbackJob = null
         try {
@@ -255,8 +310,11 @@ class MainActivity : AppCompatActivity() {
         private const val PREFS_NAME = "playerad_prefs"
         private const val KEY_DEV_FIRST_RUN_DONE = "dev_first_run_done"
         private const val KEY_DEV_LAST_VERSION_CODE = "dev_last_version_code"
+        private const val KEY_SU_GRANTED = "su_granted"
         private const val DEV_TAPS_REQUIRED = 8
         private const val WATCHDOG_RESTART_DELAY_MS = 10_000L
+        private const val SU_WAIT_POLL_DELAY_MS = 1_500L
+        private const val SU_WAIT_MAX_ATTEMPTS = 40
     }
 }
 
