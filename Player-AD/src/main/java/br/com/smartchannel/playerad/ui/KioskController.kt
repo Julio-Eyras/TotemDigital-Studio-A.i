@@ -13,6 +13,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import br.com.smartchannel.playerad.config.KioskMode
 import br.com.smartchannel.playerad.config.PlayerConfig
+import br.com.smartchannel.playerad.config.PlayerConfigLoader
 import br.com.smartchannel.playerad.config.ScreenOrientationMode
 import br.com.smartchannel.playerad.util.PlayerAdLogger
 
@@ -23,7 +24,7 @@ import br.com.smartchannel.playerad.util.PlayerAdLogger
 object KioskController {
 
     fun applyPlayback(activity: Activity, config: PlayerConfig) {
-        applyOrientation(activity, config.screenOrientation)
+        applyDisplayRotation(activity, config.displayRotation)
         activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         when (config.kioskMode) {
             KioskMode.IMMERSIVE -> {
@@ -39,11 +40,30 @@ object KioskController {
         }
     }
 
-    fun applyDebug(activity: Activity, orientation: ScreenOrientationMode = ScreenOrientationMode.PORTRAIT) {
-        applyOrientation(activity, orientation)
+    fun applyDebug(activity: Activity, displayRotation: Int = 0) {
+        applyDisplayRotation(activity, displayRotation)
         releaseLockTask(activity)
         showSystemBars(activity)
         PlayerAdLogger.i("KIOSK", "Debug: kiosk relaxado (barras visíveis, sem lock task)")
+    }
+
+    /** App + rotação do SO (user_rotation) quando su/Settings permitirem. */
+    fun applyDisplayRotation(activity: Activity, displayRotation: Int) {
+        val normalized = ((displayRotation % 4) + 4) % 4
+        val mode = PlayerConfigLoader.displayRotationToMode(normalized)
+        applyOrientation(activity, mode)
+        val result = br.com.smartchannel.playerad.util.SystemDisplayRotation.apply(activity, normalized)
+        if (result.rotationApplied) {
+            PlayerAdLogger.i(
+                "KIOSK",
+                "Rotação SO user_rotation=${result.userRotation} (${PlayerConfigLoader.displayRotationLabel(normalized)})"
+            )
+        } else {
+            PlayerAdLogger.w(
+                "KIOSK",
+                "Rotação só no app (SO não alterado); use ADB ou root para user_rotation"
+            )
+        }
     }
 
     fun applyOrientation(activity: Activity, orientation: ScreenOrientationMode) {

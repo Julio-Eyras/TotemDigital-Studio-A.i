@@ -111,6 +111,15 @@ class PlayerConfigLoader(private val context: Context) {
             }
         }
 
+        fun displayRotationToUserRotation(displayRotation: Int): Int = when ((displayRotation % 4 + 4) % 4) {
+            // Painel TV landscape nativo: portrait = user_rotation 1, landscape = 0, etc.
+            0 -> 1
+            1 -> 0
+            2 -> 3
+            3 -> 2
+            else -> 1
+        }
+
         fun displayRotationToMode(rotation: Int): ScreenOrientationMode = when ((rotation % 4 + 4) % 4) {
             1 -> ScreenOrientationMode.LANDSCAPE
             2 -> ScreenOrientationMode.REVERSE_PORTRAIT

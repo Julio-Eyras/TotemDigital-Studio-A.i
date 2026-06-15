@@ -377,7 +377,7 @@ class DebugConfigActivity : AppCompatActivity() {
         suppressSpinnerOrientationCallback = true
         spinnerScreenOrientation.setSelection(normalized)
         suppressSpinnerOrientationCallback = false
-        KioskController.applyDebug(this, mode)
+        KioskController.applyDebug(this, normalized)
         if (persist) {
             persistOrientationConfig(normalized, mode)
         }
@@ -391,11 +391,17 @@ class DebugConfigActivity : AppCompatActivity() {
             screenOrientation = mode
         )
         saveConfigInternal(merged)
+        val soResult = br.com.smartchannel.playerad.util.SystemDisplayRotation.apply(this, rotation)
+        val soNote = if (soResult.rotationApplied) {
+            " (SO user_rotation=${soResult.userRotation})"
+        } else {
+            " (SO: sem permissão — só app)"
+        }
         PlayerAdLogger.i(
             "DEBUG_UI",
-            "Orientação gravada: ${PlayerConfigLoader.displayRotationLabel(rotation)}"
+            "Orientação gravada: ${PlayerConfigLoader.displayRotationLabel(rotation)}$soNote"
         )
-        appendStatus("✔ Orientação gravada: ${PlayerConfigLoader.displayRotationLabel(rotation)}")
+        appendStatus("✔ Orientação gravada: ${PlayerConfigLoader.displayRotationLabel(rotation)}$soNote")
     }
 
     private fun setHeartbeatAndDispatchState(heartbeatOk: Boolean, dispatchOk: Boolean) {

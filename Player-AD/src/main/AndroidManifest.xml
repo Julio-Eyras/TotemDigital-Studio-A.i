@@ -22,7 +22,7 @@
             android:name=".ui.MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
-            android:screenOrientation="portrait"
+            android:screenOrientation="fullUser"
             android:lockTaskMode="if_whitelisted"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|uiMode"
             android:resizeableActivity="false">
@@ -43,7 +43,7 @@
         <activity
             android:name=".ui.DebugConfigActivity"
             android:exported="false"
-            android:screenOrientation="portrait"
+            android:screenOrientation="fullUser"
             android:resizeableActivity="false"
             android:theme="@style/Theme.PlayerAD" />
 
