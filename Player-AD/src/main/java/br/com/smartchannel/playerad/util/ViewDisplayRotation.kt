@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.res.Configuration
 import android.view.View
 import android.view.ViewGroup
+import br.com.smartchannel.playerad.util.PlayerAdLogger
 
 /**
  * Fallback quando `user_rotation` não altera o framebuffer (TV_BOX_3 / Android 14).
@@ -23,32 +24,39 @@ object ViewDisplayRotation {
             return
         }
 
-        val metrics = activity.resources.displayMetrics
-        val w = metrics.widthPixels.toFloat()
-        val h = metrics.heightPixels.toFloat()
+        target.post {
+            val metrics = activity.resources.displayMetrics
+            val w = metrics.widthPixels.toFloat()
+            val h = metrics.heightPixels.toFloat()
+            if (w <= 0f || h <= 0f) return@post
 
-        target.pivotX = w / 2f
-        target.pivotY = h / 2f
+            target.pivotX = w / 2f
+            target.pivotY = h / 2f
 
-        when (normalized) {
-            0 -> {
-                target.rotation = 90f
-                target.translationX = (h - w) / 2f
-                target.translationY = (w - h) / 2f
-                resizeRoot(target, h.toInt(), w.toInt())
+            when (normalized) {
+                0 -> {
+                    target.rotation = 90f
+                    target.translationX = (h - w) / 2f
+                    target.translationY = (w - h) / 2f
+                    resizeRoot(target, h.toInt(), w.toInt())
+                }
+                2 -> {
+                    target.rotation = 180f
+                    target.translationX = 0f
+                    target.translationY = 0f
+                    resizeRoot(target, w.toInt(), h.toInt())
+                }
+                else -> {
+                    target.rotation = 270f
+                    target.translationX = (h - w) / 2f
+                    target.translationY = (w - h) / 2f
+                    resizeRoot(target, h.toInt(), w.toInt())
+                }
             }
-            2 -> {
-                target.rotation = 180f
-                target.translationX = 0f
-                target.translationY = 0f
-                resizeRoot(target, w.toInt(), h.toInt())
-            }
-            else -> {
-                target.rotation = 270f
-                target.translationX = (h - w) / 2f
-                target.translationY = (w - h) / 2f
-                resizeRoot(target, h.toInt(), w.toInt())
-            }
+            PlayerAdLogger.i(
+                "KIOSK",
+                "Fallback visual aplicado: ${normalized * 90}° (${w.toInt()}x${h.toInt()} → portrait)"
+            )
         }
     }
 

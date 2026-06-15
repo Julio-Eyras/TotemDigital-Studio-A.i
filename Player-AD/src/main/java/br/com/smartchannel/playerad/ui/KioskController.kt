@@ -41,6 +41,10 @@ object KioskController {
                 PlayerAdLogger.i("KIOSK", "Modo forte (lock task + imersivo)")
             }
         }
+        // Reaplica fallback visual após kiosk (layout/immersive podem resetar transform).
+        activity.window.decorView.post {
+            applyDisplayRotation(activity, config.displayRotation)
+        }
     }
 
     fun applyDebug(activity: Activity, displayRotation: Int = 0) {
@@ -68,11 +72,7 @@ object KioskController {
         }
 
         applyOrientation(activity, mode)
-        val configOk = ViewDisplayRotation.isConfigurationOrientationMatch(
-            normalized,
-            activity.resources.configuration.orientation
-        )
-        val useViewFallback = !configOk
+        val useViewFallback = !result.displayEffective && normalized != 1
         ViewDisplayRotation.apply(activity, root, normalized, enabled = useViewFallback)
 
         when {

@@ -112,6 +112,34 @@ function Invoke-AndroidKioskSetup {
     Assert-AndroidPortraitAfterKiosk -ExpectedUserRotation $Rotation | Out-Null
 }
 
+function Grant-SuperSuPlayerAd {
+    $suPkg = 'eu.chainfire.supersu'
+    $suPath = adb shell "pm path $suPkg" 2>&1 | Out-String
+    if ($suPath -notmatch 'package:') {
+        Write-Host "  AVISO SuperSU nao encontrado; configure root manualmente" -ForegroundColor DarkYellow
+        return
+    }
+    $prefs = adb shell "su -c 'cat /data/data/$suPkg/shared_prefs/eu.chainfire.supersu_preferences.xml 2>/dev/null'" 2>&1 | Out-String
+    if ($prefs -match 'config_br.com.smartchannel.playerad_access">grant' -or $prefs -match 'config_br.com.smartchannel.playerad_access''>grant') {
+        Write-Host "  OK SuperSU: Player-AD com acesso permanente (grant)" -ForegroundColor Green
+    } else {
+        Write-Host "  AVISO SuperSU: no app SuperSU defina Player-AD como Permitir (sempre)" -ForegroundColor Yellow
+        Write-Host "    SuperSU > Configuracoes > Acesso padrao: Permitir" -ForegroundColor DarkYellow
+    }
+}
+
+function Sync-PlayerConfigToApp {
+    param([string] $SdPath = '/sdcard/smartsignage/player-config.json')
+    $internal = "/data/data/$PackageId/files/player-config.json"
+    adb shell "su -c 'mkdir -p /data/data/$PackageId/files && cp $SdPath $internal && chmod 660 $internal'" 2>&1 | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  OK config interna (filesDir) sincronizada com SD" -ForegroundColor Gray
+        adb shell "su -c 'cat $internal'" 2>&1 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
+    } else {
+        Write-Host "  AVISO: nao foi possivel copiar config para filesDir (app usa SD como fallback)" -ForegroundColor DarkYellow
+    }
+}
+
 function Invoke-AdbInstall {
     param([string] $Apk)
     $output = (& adb install -r -d -g $Apk 2>&1 | ForEach-Object { "$_" }) -join "`n"
@@ -204,7 +232,10 @@ if ($configToPush -and (Test-Path $configToPush) -and -not $NoConfigPush) {
     $pushedConfig = adb shell cat /sdcard/smartsignage/player-config.json 2>&1 | Out-String
     Write-Host "Config enviada para /sdcard/smartsignage/player-config.json" -ForegroundColor Green
     Write-Host $pushedConfig.TrimEnd() -ForegroundColor Gray
+    Sync-PlayerConfigToApp
 }
+
+Grant-SuperSuPlayerAd
 
 Write-Host "`nVersao instalada:" -ForegroundColor Cyan
 adb shell dumpsys package $PackageId 2>&1 | Select-String -Pattern 'versionCode|versionName'
