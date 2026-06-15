@@ -32,7 +32,12 @@ data class PlayerConfig(
      * Na tela de debug (8 toques) o kiosk é sempre relaxado.
      */
     val kioskMode: KioskMode = KioskMode.STRONG,
-    /** Orientação da tela principal e do debug (default portrait 9:16). */
+    /**
+     * Rotação da exibição do app em passos de 90° (0–3).
+     * 0=0° portrait, 1=90° landscape, 2=180° reverse portrait, 3=270° reverse landscape.
+     */
+    val displayRotation: Int = 0,
+    /** Orientação da tela principal e do debug (derivada de [displayRotation]). */
     val screenOrientation: ScreenOrientationMode = ScreenOrientationMode.PORTRAIT
 )
 

@@ -12,5 +12,6 @@
         <item>portrait</item>
         <item>landscape</item>
         <item>reverse_portrait</item>
+        <item>reverse_landscape</item>
     </string-array>
 </resources>

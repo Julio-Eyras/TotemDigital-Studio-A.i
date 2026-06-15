@@ -161,6 +161,30 @@
             android:layout_marginTop="8dp"/>
 
         <TextView
+            android:id="@+id/textOrientationDegrees"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="#BDBDBD"
+            android:textSize="13sp"
+            android:text="0° — retrato (portrait)"/>
+
+        <Button
+            android:id="@+id/btnRotateScreen"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Girar 90°"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#777777"
+            android:textSize="11sp"
+            android:text="Cada toque gira a tela e grava em player-config.json (app). Rotação do Android (SO) continua via ADB."/>
+
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"

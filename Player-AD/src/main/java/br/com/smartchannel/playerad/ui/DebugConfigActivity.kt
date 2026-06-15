@@ -44,6 +44,8 @@ class DebugConfigActivity : AppCompatActivity() {
     private lateinit var switchAllowPlaybackAudio: SwitchCompat
     private lateinit var switchStrongKiosk: SwitchCompat
     private lateinit var spinnerScreenOrientation: Spinner
+    private lateinit var textOrientationDegrees: TextView
+    private lateinit var btnRotateScreen: Button
     private lateinit var editMaxSecondsWithoutServerCheck: EditText
     private lateinit var spinnerStorage: Spinner
     private lateinit var editStoragePath: EditText
@@ -72,6 +74,8 @@ class DebugConfigActivity : AppCompatActivity() {
 
     private var heartbeatOk: Boolean = false
     private var dispatchOk: Boolean = false
+    private var currentDisplayRotation: Int = 0
+    private var suppressSpinnerOrientationCallback: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -84,6 +88,8 @@ class DebugConfigActivity : AppCompatActivity() {
         switchAllowPlaybackAudio = findViewById(R.id.switchAllowPlaybackAudio)
         switchStrongKiosk = findViewById(R.id.switchStrongKiosk)
         spinnerScreenOrientation = findViewById(R.id.spinnerScreenOrientation)
+        textOrientationDegrees = findViewById(R.id.textOrientationDegrees)
+        btnRotateScreen = findViewById(R.id.btnRotateScreen)
         editMaxSecondsWithoutServerCheck = findViewById(R.id.editMaxSecondsWithoutServerCheck)
         spinnerStorage = findViewById(R.id.spinnerStorage)
         editStoragePath = findViewById(R.id.editStoragePath)
@@ -129,11 +135,28 @@ class DebugConfigActivity : AppCompatActivity() {
         val orientAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, orientations)
         orientAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spinnerScreenOrientation.adapter = orientAdapter
-        val orientKey = PlayerConfigLoader.screenOrientationToJsonValue(current.screenOrientation)
-        val orientSel = orientations.indexOf(orientKey).let { if (it >= 0) it else 0 }
-        spinnerScreenOrientation.setSelection(orientSel)
+        currentDisplayRotation = current.displayRotation.coerceIn(0, 3)
+        applyDisplayRotation(currentDisplayRotation, persist = false)
 
-        KioskController.applyDebug(this, current.screenOrientation)
+        spinnerScreenOrientation.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(
+                parent: android.widget.AdapterView<*>?,
+                view: android.view.View?,
+                position: Int,
+                id: Long
+            ) {
+                if (suppressSpinnerOrientationCallback) return
+                val rotation = position.coerceIn(0, orientations.size - 1)
+                if (rotation == currentDisplayRotation) return
+                applyDisplayRotation(rotation, persist = true)
+            }
+
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
+        }
+
+        btnRotateScreen.setOnClickListener {
+            applyDisplayRotation((currentDisplayRotation + 1) % 4, persist = true)
+        }
 
         val storageModes = resources.getStringArray(R.array.player_storage_modes)
         val spinAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, storageModes)
@@ -329,6 +352,7 @@ class DebugConfigActivity : AppCompatActivity() {
         }
         val orientRaw = spinnerScreenOrientation.selectedItem as? String
         val screenOrientation = PlayerConfigLoader.parseScreenOrientation(orientRaw)
+        val displayRotation = PlayerConfigLoader.displayRotationFromMode(screenOrientation)
         return PlayerConfig(
             serverUrl = serverUrl,
             uin = uin,
@@ -340,8 +364,38 @@ class DebugConfigActivity : AppCompatActivity() {
             storageMode = storageMode,
             storagePathOverride = pathOverride.takeIf { it.isNotBlank() },
             kioskMode = kioskMode,
+            displayRotation = displayRotation,
             screenOrientation = screenOrientation
         )
+    }
+
+    private fun applyDisplayRotation(rotation: Int, persist: Boolean) {
+        val normalized = ((rotation % 4) + 4) % 4
+        currentDisplayRotation = normalized
+        val mode = PlayerConfigLoader.displayRotationToMode(normalized)
+        textOrientationDegrees.text = PlayerConfigLoader.displayRotationLabel(normalized)
+        suppressSpinnerOrientationCallback = true
+        spinnerScreenOrientation.setSelection(normalized)
+        suppressSpinnerOrientationCallback = false
+        KioskController.applyDebug(this, mode)
+        if (persist) {
+            persistOrientationConfig(normalized, mode)
+        }
+    }
+
+    /** Grava rotação imediatamente (mesmo campos de player-config.json). */
+    private fun persistOrientationConfig(rotation: Int, mode: br.com.smartchannel.playerad.config.ScreenOrientationMode) {
+        val base = PlayerConfigLoader(this).load()
+        val merged = base.copy(
+            displayRotation = rotation,
+            screenOrientation = mode
+        )
+        saveConfigInternal(merged)
+        PlayerAdLogger.i(
+            "DEBUG_UI",
+            "Orientação gravada: ${PlayerConfigLoader.displayRotationLabel(rotation)}"
+        )
+        appendStatus("✔ Orientação gravada: ${PlayerConfigLoader.displayRotationLabel(rotation)}")
     }
 
     private fun setHeartbeatAndDispatchState(heartbeatOk: Boolean, dispatchOk: Boolean) {
@@ -619,6 +673,7 @@ class DebugConfigActivity : AppCompatActivity() {
                 put("storagePathOverride", cfg.storagePathOverride)
             }
             put("kioskMode", PlayerConfigLoader.kioskModeToJsonValue(cfg.kioskMode))
+            put("displayRotation", cfg.displayRotation.coerceIn(0, 3))
             put("screenOrientation", PlayerConfigLoader.screenOrientationToJsonValue(cfg.screenOrientation))
         }
         val internal = File(filesDir, "player-config.json")

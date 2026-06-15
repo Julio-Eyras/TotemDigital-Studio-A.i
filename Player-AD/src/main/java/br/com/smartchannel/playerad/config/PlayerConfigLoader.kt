@@ -63,7 +63,8 @@ class PlayerConfigLoader(private val context: Context) {
                 val storageMode = parseStorageMode(json.optString("storage", ""))
                 val pathOverride = json.optString("storagePathOverride", "").trim().takeIf { it.isNotBlank() }
                 val kioskMode = parseKioskMode(json.optString("kioskMode", ""))
-                val screenOrientation = parseScreenOrientation(json.optString("screenOrientation", ""))
+                val screenOrientation = resolveScreenOrientation(json)
+                val displayRotation = displayRotationFromMode(screenOrientation)
                 PlayerConfig(
                     serverUrl = serverUrl,
                     uin = uin,
@@ -75,6 +76,7 @@ class PlayerConfigLoader(private val context: Context) {
                     storageMode = storageMode,
                     storagePathOverride = pathOverride,
                     kioskMode = kioskMode,
+                    displayRotation = displayRotation,
                     screenOrientation = screenOrientation
                 )
             }
@@ -103,15 +105,45 @@ class PlayerConfigLoader(private val context: Context) {
             return when (raw.trim().lowercase()) {
                 "landscape", "horizontal" -> ScreenOrientationMode.LANDSCAPE
                 "reverse_portrait", "reverseportrait", "portrait_reverse" -> ScreenOrientationMode.REVERSE_PORTRAIT
+                "reverse_landscape", "reverselandscape", "landscape_reverse" -> ScreenOrientationMode.REVERSE_LANDSCAPE
                 "portrait", "vertical", "9x16" -> ScreenOrientationMode.PORTRAIT
                 else -> ScreenOrientationMode.PORTRAIT
             }
+        }
+
+        fun displayRotationToMode(rotation: Int): ScreenOrientationMode = when ((rotation % 4 + 4) % 4) {
+            1 -> ScreenOrientationMode.LANDSCAPE
+            2 -> ScreenOrientationMode.REVERSE_PORTRAIT
+            3 -> ScreenOrientationMode.REVERSE_LANDSCAPE
+            else -> ScreenOrientationMode.PORTRAIT
+        }
+
+        fun displayRotationFromMode(mode: ScreenOrientationMode): Int = when (mode) {
+            ScreenOrientationMode.PORTRAIT -> 0
+            ScreenOrientationMode.LANDSCAPE -> 1
+            ScreenOrientationMode.REVERSE_PORTRAIT -> 2
+            ScreenOrientationMode.REVERSE_LANDSCAPE -> 3
+        }
+
+        fun displayRotationLabel(rotation: Int): String = when ((rotation % 4 + 4) % 4) {
+            1 -> "90° — paisagem (landscape)"
+            2 -> "180° — retrato invertido"
+            3 -> "270° — paisagem invertida"
+            else -> "0° — retrato (portrait)"
+        }
+
+        private fun resolveScreenOrientation(json: JSONObject): ScreenOrientationMode {
+            if (json.has("displayRotation")) {
+                return displayRotationToMode(json.optInt("displayRotation", 0))
+            }
+            return parseScreenOrientation(json.optString("screenOrientation", ""))
         }
 
         fun screenOrientationToJsonValue(mode: ScreenOrientationMode): String = when (mode) {
             ScreenOrientationMode.PORTRAIT -> "portrait"
             ScreenOrientationMode.LANDSCAPE -> "landscape"
             ScreenOrientationMode.REVERSE_PORTRAIT -> "reverse_portrait"
+            ScreenOrientationMode.REVERSE_LANDSCAPE -> "reverse_landscape"
         }
 
         fun parseStorageMode(raw: String?): PlayerStorageMode {
