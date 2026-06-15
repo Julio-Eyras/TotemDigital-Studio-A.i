@@ -3,7 +3,6 @@ package br.com.smartchannel.playerad.ui
 import android.app.Activity
 import android.app.ActivityManager
 import android.content.Context
-import android.content.pm.ActivityInfo
 import android.os.Build
 import android.util.Log
 import android.view.KeyEvent
@@ -12,22 +11,17 @@ import android.view.WindowManager
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import br.com.smartchannel.playerad.R
 import br.com.smartchannel.playerad.config.KioskMode
 import br.com.smartchannel.playerad.config.PlayerConfig
-import br.com.smartchannel.playerad.config.PlayerConfigLoader
-import br.com.smartchannel.playerad.config.ScreenOrientationMode
 import br.com.smartchannel.playerad.util.PlayerAdLogger
-import br.com.smartchannel.playerad.util.ViewDisplayRotation
 
 /**
- * Aplica kiosk (imersivo ou forte) e orientação conforme [PlayerConfig].
+ * Aplica kiosk fullscreen (imersivo ou forte) conforme [PlayerConfig].
  * Na tela de debug o modo é sempre relaxado (sem lock task, barras visíveis).
  */
 object KioskController {
 
     fun applyPlayback(activity: Activity, config: PlayerConfig) {
-        applyDisplayRotation(activity, config.displayRotation)
         activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         when (config.kioskMode) {
             KioskMode.IMMERSIVE -> {
@@ -41,58 +35,12 @@ object KioskController {
                 PlayerAdLogger.i("KIOSK", "Modo forte (lock task + imersivo)")
             }
         }
-        // Reaplica fallback visual após kiosk (layout/immersive podem resetar transform).
-        activity.window.decorView.post {
-            applyDisplayRotation(activity, config.displayRotation)
-        }
     }
 
-    fun applyDebug(activity: Activity, displayRotation: Int = 0) {
-        applyDisplayRotation(activity, displayRotation)
+    fun applyDebug(activity: Activity) {
         releaseLockTask(activity)
         showSystemBars(activity)
         PlayerAdLogger.i("KIOSK", "Debug: kiosk relaxado (barras visíveis, sem lock task)")
-    }
-
-    /** Rotação do SO, Activity ou fallback visual (TV boxes que ignoram user_rotation). */
-    fun applyDisplayRotation(activity: Activity, displayRotation: Int) {
-        val normalized = ((displayRotation % 4) + 4) % 4
-        val mode = PlayerConfigLoader.displayRotationToMode(normalized)
-        val result = br.com.smartchannel.playerad.util.SystemDisplayRotation.apply(activity, normalized)
-        val root = activity.findViewById<View>(R.id.root)
-
-        if (result.displayEffective) {
-            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_USER
-            ViewDisplayRotation.apply(activity, root, normalized, enabled = false)
-            PlayerAdLogger.i(
-                "KIOSK",
-                "Rotação SO efetiva user_rotation=${result.userRotation} (${PlayerConfigLoader.displayRotationLabel(normalized)})"
-            )
-            return
-        }
-
-        applyOrientation(activity, mode)
-        val useViewFallback = !result.displayEffective && normalized != 1
-        ViewDisplayRotation.apply(activity, root, normalized, enabled = useViewFallback)
-
-        when {
-            useViewFallback -> PlayerAdLogger.w(
-                "KIOSK",
-                "user_rotation gravado=${result.settingsWritten} mas display não girou; fallback visual ${PlayerConfigLoader.displayRotationLabel(normalized)}"
-            )
-            result.settingsWritten -> PlayerAdLogger.i(
-                "KIOSK",
-                "Orientação Activity ${mode.name} (settings user_rotation=${result.userRotation} sem efeito no framebuffer)"
-            )
-            else -> PlayerAdLogger.w(
-                "KIOSK",
-                "Orientação Activity ${mode.name}; SO não alterado — autorize SU ou use ADB"
-            )
-        }
-    }
-
-    fun applyOrientation(activity: Activity, orientation: ScreenOrientationMode) {
-        activity.requestedOrientation = orientation.toActivityInfoOrientation()
     }
 
     fun shouldBlockSystemKey(kioskMode: KioskMode, keyCode: Int): Boolean {

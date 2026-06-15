@@ -20,7 +20,6 @@ import br.com.smartchannel.playerad.config.PlayerConfigLoader
 import br.com.smartchannel.playerad.playback.PlayerController
 import br.com.smartchannel.playerad.util.PlayerAdLogger
 import br.com.smartchannel.playerad.util.PlayerAdPrefs
-import br.com.smartchannel.playerad.util.SuAccessHelper
 import android.webkit.WebView
 import android.widget.ImageView
 import androidx.media3.exoplayer.ExoPlayer
@@ -32,8 +31,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
- * Player em kiosk — só entra após configuração inicial e autorização SU (quando o dispositivo tem root).
- * Na 1ª execução ou sem SU, redireciona para [DebugConfigActivity] sem inicializar vídeo/kiosk.
+ * Player em kiosk fullscreen — só entra após configuração inicial concluída.
+ * Na 1ª execução redireciona para [DebugConfigActivity] sem inicializar vídeo/kiosk.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -58,17 +57,15 @@ class MainActivity : AppCompatActivity() {
     ) { _ ->
         devUiOpen = false
         if (needsSetupFlow()) {
-            launchSetupFlow("su_required", onboarding = false)
+            launchSetupFlow("setup_required", onboarding = false)
             return@registerForActivityResult
         }
         startPlayer()
     }
 
     private fun needsSetupFlow(): Boolean {
-        val firstRun = !prefs.getBoolean(PlayerAdPrefs.KEY_DEV_FIRST_RUN_DONE, false) ||
+        return !prefs.getBoolean(PlayerAdPrefs.KEY_DEV_FIRST_RUN_DONE, false) ||
             prefs.getInt(PlayerAdPrefs.KEY_DEV_LAST_VERSION_CODE, -1) != currentVersionCode()
-        val needsSu = SuAccessHelper.requiresSuGate() && !PlayerAdPrefs.isSuGranted(this)
-        return firstRun || needsSu
     }
 
     private fun launchSetupFlow(reason: String, onboarding: Boolean) {
@@ -76,7 +73,6 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(this, DebugConfigActivity::class.java).apply {
             putExtra(DebugConfigActivity.EXTRA_REASON, reason)
             putExtra(DebugConfigActivity.EXTRA_ONBOARDING, onboarding)
-            putExtra(DebugConfigActivity.EXTRA_REQUIRE_SU, SuAccessHelper.requiresSuGate())
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         }
         startActivity(intent)
@@ -97,7 +93,6 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(this, DebugConfigActivity::class.java).apply {
             putExtra(DebugConfigActivity.EXTRA_REASON, reason)
             putExtra(DebugConfigActivity.EXTRA_ONBOARDING, false)
-            putExtra(DebugConfigActivity.EXTRA_REQUIRE_SU, SuAccessHelper.requiresSuGate())
         }
         debugLauncher.launch(intent)
     }
@@ -183,12 +178,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         if (needsSetupFlow()) {
-            val firstRun = !prefs.getBoolean(PlayerAdPrefs.KEY_DEV_FIRST_RUN_DONE, false) ||
-                prefs.getInt(PlayerAdPrefs.KEY_DEV_LAST_VERSION_CODE, -1) != currentVersionCode()
-            launchSetupFlow(
-                reason = if (firstRun) "first_run" else "su_required",
-                onboarding = true
-            )
+            launchSetupFlow(reason = "first_run", onboarding = true)
             return
         }
 
@@ -215,10 +205,6 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         if (devUiOpen) return
-        if (needsSetupFlow()) {
-            launchSetupFlow("su_required", onboarding = true)
-            return
-        }
         val cfg = PlayerConfigLoader(this).load()
         kioskConfig = cfg
         KioskController.applyPlayback(this, cfg)

@@ -47,6 +47,10 @@ run_setting() {
     echo "✔ $label"
     return 0
   fi
+  if adb shell "su -c '$*'" >/dev/null 2>&1; then
+    echo "✔ $label (via su)"
+    return 0
+  fi
   echo "⚠ $label (ignorado — pode não ser suportado neste fabricante)"
   return 1
 }

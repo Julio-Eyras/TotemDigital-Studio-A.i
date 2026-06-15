@@ -229,6 +229,15 @@ class PlayerController(
      * - agenda downloads para mídias que ainda não estão em cache
      */
     private suspend fun preloadPlan(plan: DispatchPlan) = withContext(Dispatchers.IO) {
+        val currentIds = plan.mediaItems.map { it.mediaId }.toSet()
+        val removed = cacheManager.removeValidEntriesNotIn(currentIds)
+        if (removed > 0) {
+            PlayerAdLogger.i(
+                "CACHE",
+                "Removidas $removed mídia(s) do cache local (fora da playlist id=${plan.playlistId})"
+            )
+        }
+
         cacheManager.cleanupIfNeeded()
 
         for (item in plan.mediaItems) {

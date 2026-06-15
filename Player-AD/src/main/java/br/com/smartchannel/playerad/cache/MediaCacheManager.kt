@@ -202,6 +202,27 @@ class MediaCacheManager(
     }
 
     /**
+     * Remove do cache físico mídias válidas cujo mediaId não está na playlist atual.
+     * @return quantidade de entradas removidas
+     */
+    @Synchronized
+    fun removeValidEntriesNotIn(currentMediaIds: Set<Long>): Int {
+        val toRemove = mutableListOf<Long>()
+        val keys = metadata.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            val obj = metadata.optJSONObject(key) ?: continue
+            if (!obj.optBoolean("valid", false)) continue
+            val id = key.toLongOrNull() ?: continue
+            if (id !in currentMediaIds) toRemove += id
+        }
+        for (id in toRemove) {
+            markAsRemoved(id)
+        }
+        return toRemove.size
+    }
+
+    /**
      * Calcula o tamanho atual do cache (somando size de mídias valid=true).
      */
     @Synchronized

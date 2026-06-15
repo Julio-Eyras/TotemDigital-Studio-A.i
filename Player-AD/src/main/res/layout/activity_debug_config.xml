@@ -68,7 +68,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:textColor="#BDBDBD"
-            android:text="Preencha e teste antes de aplicar. «Aplicar e iniciar» exige heartbeat OK e SU autorizado (quando aplicável)."/>
+            android:text="Preencha e teste antes de aplicar. «Aplicar e iniciar» exige heartbeat OK."/>
 
         <TextView
             android:layout_width="match_parent"
@@ -189,7 +189,8 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:textColor="#FFFFFF"
-            android:text="Orientação da tela"/>
+            android:text="Orientação da tela"
+            android:visibility="gone"/>
 
         <TextView
             android:layout_width="match_parent"
@@ -197,13 +198,15 @@
             android:layout_marginTop="4dp"
             android:textColor="#BDBDBD"
             android:textSize="12sp"
-            android:text="Portrait 9:16 para totem vertical. O instalador ADB também fixa rotação no SO."/>
+            android:text="Rotação física: use set-android-display-rotation.ps1 ou configure-android-kiosk.sh via ADB."
+            android:visibility="gone"/>
 
         <Spinner
             android:id="@+id/spinnerScreenOrientation"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"/>
+            android:layout_marginTop="8dp"
+            android:visibility="gone"/>
 
         <TextView
             android:id="@+id/textOrientationDegrees"
@@ -212,22 +215,16 @@
             android:layout_marginTop="8dp"
             android:textColor="#BDBDBD"
             android:textSize="13sp"
-            android:text="0° — retrato (portrait)"/>
+            android:text="0° — retrato (portrait)"
+            android:visibility="gone"/>
 
         <Button
             android:id="@+id/btnRotateScreen"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="Girar 90°"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:textColor="#777777"
-            android:textSize="11sp"
-            android:text="Cada toque gira a tela e grava em player-config.json (app). Rotação do Android (SO) continua via ADB."/>
+            android:text="Girar 90°"
+            android:visibility="gone"/>
 
         <TextView
             android:layout_width="match_parent"

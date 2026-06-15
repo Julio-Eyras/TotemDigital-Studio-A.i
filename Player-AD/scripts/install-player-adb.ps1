@@ -80,9 +80,16 @@ function Invoke-AndroidKioskSetup {
     $mainActivity = "$PackageId/.ui.MainActivity"
     Write-Host "`n>> Provisionamento kiosk Android (portrait + home + immersive)" -ForegroundColor Yellow
 
+    $rotResult = Set-AndroidDisplayRotation -Rotation $Rotation
+    foreach ($step in $rotResult.Steps.GetEnumerator()) {
+        if ($step.Value) {
+            Write-Host "  OK $($step.Key)" -ForegroundColor Gray
+        } else {
+            Write-Host "  AVISO $($step.Key) (settings bloqueado? tente root/su)" -ForegroundColor DarkYellow
+        }
+    }
+
     $steps = @(
-        @{ Label = 'accelerometer_rotation=0'; Cmd = "settings put system accelerometer_rotation 0" },
-        @{ Label = "user_rotation=$Rotation"; Cmd = "settings put system user_rotation $Rotation" },
         @{ Label = 'policy_control immersive.full'; Cmd = 'settings put global policy_control immersive.full=*' },
         @{ Label = 'stay_on_while_plugged_in'; Cmd = 'settings put global stay_on_while_plugged_in 3' }
     )

@@ -71,7 +71,7 @@ import {
   QueueMusic,
   Description,
   OpenInNew,
-  RotateLeft,
+  CropPortrait,
 } from '@mui/icons-material';
 import { 
   subscriberApi, 
@@ -458,8 +458,7 @@ const Subscribers: React.FC = () => {
   const [editPlaylists, setEditPlaylists] = useState<PlaylistItem[]>([]);
   const [editCampaigns, setEditCampaigns] = useState<Campaign[]>([]);
   const [editingEditMediaIndex, setEditingEditMediaIndex] = useState<number | null>(null);
-  const [mediaRotationDrafts, setMediaRotationDrafts] = useState<Record<number, number>>({});
-  const [processingMediaRotationId, setProcessingMediaRotationId] = useState<number | null>(null);
+  const [processingMediaFitId, setProcessingMediaFitId] = useState<number | null>(null);
   const [mediaThumbVersion, setMediaThumbVersion] = useState(0);
   const activeOnlyFilter = useMemo(() => {
     const selectedOption = subscriberStatusOptions.find((option) => option.value === statusFilterValue);
@@ -1452,38 +1451,20 @@ const Subscribers: React.FC = () => {
     }
   };
 
-  const normalizeMediaRotation = (degrees: number) => ((degrees % 360) + 360) % 360;
-
-  const getMediaRotationDraft = (mediaId: number) => mediaRotationDrafts[mediaId] || 0;
-
-  const handleRotateMediaPreview = (mediaId: number) => {
-    setMediaRotationDrafts((prev) => ({
-      ...prev,
-      [mediaId]: normalizeMediaRotation((prev[mediaId] || 0) - 90),
-    }));
-  };
-
-  const handleConfirmMediaRotation = async (media: MediaItem) => {
-    if (!selectedSubscriber || processingMediaRotationId) return;
+  const handleFitMediaToPortrait = async (media: MediaItem) => {
+    if (!selectedSubscriber || processingMediaFitId) return;
     const mediaId = media.media_id;
-    const rotation = getMediaRotationDraft(mediaId);
-    if (!rotation) return;
 
-    if (!window.confirm('Rotacionar e converter esta mídia para 9:16?')) {
+    if (!window.confirm('Adequar esta mídia para formato 9:16 (portrait)?')) {
       return;
     }
 
     try {
-      setProcessingMediaRotationId(mediaId);
+      setProcessingMediaFitId(mediaId);
       setError(null);
       await mediaApi.transformToPortrait(mediaId, {
-        rotationDegrees: rotation,
+        rotationDegrees: 0,
         fit: '9:16',
-      });
-      setMediaRotationDrafts((prev) => {
-        const next = { ...prev };
-        delete next[mediaId];
-        return next;
       });
       setMediaPreviewFailed((prev) => {
         const next = new Set(prev);
@@ -1493,9 +1474,9 @@ const Subscribers: React.FC = () => {
       setMediaThumbVersion((v) => v + 1);
       await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
     } catch (error: any) {
-      setError(pickApiErrorMessage(error, 'Erro ao rotacionar e converter mídia'));
+      setError(pickApiErrorMessage(error, 'Erro ao adequar mídia para 9:16'));
     } finally {
-      setProcessingMediaRotationId(null);
+      setProcessingMediaFitId(null);
     }
   };
 
@@ -3656,9 +3637,7 @@ const Subscribers: React.FC = () => {
                     const showPlaceholder = mediaPreviewFailed.has(media.media_id) || !previewUrl;
                     const isThumbnailUrl = previewUrl?.includes('/thumbnail');
                     const isTransformable = /^(image|video)$/i.test(String(media.media_type || ''));
-                    const rotationDraft = getMediaRotationDraft(media.media_id);
-                    const rotationChanged = rotationDraft !== 0;
-                    const processingRotation = processingMediaRotationId === media.media_id;
+                    const processingFit = processingMediaFitId === media.media_id;
 
                     return (
                       <Grid item xs={12} sm={6} md={4} lg={3} key={media.media_id}>
@@ -3693,9 +3672,6 @@ const Subscribers: React.FC = () => {
                                   objectFit: 'cover',
                                   position: 'absolute',
                                   inset: 0,
-                                  transform: `rotate(${rotationDraft}deg)`,
-                                  transformOrigin: 'center',
-                                  transition: 'transform 0.2s ease',
                                 }}
                                 onError={() => setMediaPreviewFailed(prev => new Set(prev).add(media.media_id))}
                               />
@@ -3709,9 +3685,6 @@ const Subscribers: React.FC = () => {
                                   objectFit: 'cover',
                                   position: 'absolute',
                                   inset: 0,
-                                  transform: `rotate(${rotationDraft}deg)`,
-                                  transformOrigin: 'center',
-                                  transition: 'transform 0.2s ease',
                                   bgcolor: 'grey.900',
                                 }}
                                 muted
@@ -3855,27 +3828,15 @@ const Subscribers: React.FC = () => {
                             )}
                             <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                <Tooltip title={isTransformable ? 'Girar 90° à esquerda' : 'Rotação disponível para imagens e vídeos'}>
+                                <Tooltip title={isTransformable ? 'Adequar mídia para 9:16' : 'Disponível para imagens e vídeos'}>
                                   <span>
                                     <IconButton
                                       size="small"
-                                      color={isTransformable ? 'primary' : 'default'}
-                                      disabled={!isTransformable || processingRotation}
-                                      onClick={() => handleRotateMediaPreview(media.media_id)}
+                                      color="primary"
+                                      disabled={!isTransformable || processingFit}
+                                      onClick={() => handleFitMediaToPortrait(media)}
                                     >
-                                      <RotateLeft />
-                                    </IconButton>
-                                  </span>
-                                </Tooltip>
-                                <Tooltip title={rotationChanged ? 'Confirmar rotação e converter para 9:16' : 'Gire a mídia antes de confirmar'}>
-                                  <span>
-                                    <IconButton
-                                      size="small"
-                                      color={rotationChanged ? 'success' : 'default'}
-                                      disabled={!rotationChanged || processingRotation}
-                                      onClick={() => handleConfirmMediaRotation(media)}
-                                    >
-                                      {processingRotation ? <CircularProgress size={20} color="inherit" /> : <CheckCircle />}
+                                      {processingFit ? <CircularProgress size={20} color="inherit" /> : <CropPortrait />}
                                     </IconButton>
                                   </span>
                                 </Tooltip>

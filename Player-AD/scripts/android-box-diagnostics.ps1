@@ -121,7 +121,7 @@ function Write-AndroidBoxDiagnosticsSummary {
     }
 
     if (-not $Diagnostics.PortraitProvisioned) {
-        Write-Host "  -> Provisionar portrait: install-player-adb.ps1 (ou configure-android-kiosk.sh)" -ForegroundColor DarkYellow
+        Write-Host "  -> Provisionar portrait: .\set-android-display-rotation.ps1 -Rotation $($Diagnostics.ExpectedUserRotation)" -ForegroundColor DarkYellow
     }
 }
 
@@ -135,6 +135,59 @@ function Assert-AndroidPortraitAfterKiosk {
     }
 
     Write-Host "  AVISO portrait nao confirmado (user_rotation=$($portrait.UserRotation), accelerometer_rotation=$($portrait.AccelerometerRotation))" -ForegroundColor Yellow
-    Write-Host "  Alguns fabricantes bloqueiam settings via shell; o app ainda forca portrait na Activity." -ForegroundColor DarkYellow
+    Write-Host "  Use set-android-display-rotation.ps1 -Rotation $ExpectedUserRotation (ou su/root se o fabricante bloquear settings via shell)." -ForegroundColor DarkYellow
     return $false
+}
+
+function Invoke-AdbSettingsPut {
+    param(
+        [Parameter(Mandatory = $true)][string] $Namespace,
+        [Parameter(Mandatory = $true)][string] $Key,
+        [Parameter(Mandatory = $true)][string] $Value
+    )
+
+    $cmd = "settings put $Namespace $Key $Value"
+    $out = Get-AdbShellOutput $cmd
+    if ($LASTEXITCODE -eq 0 -and $out -notmatch 'SecurityException|Permission denial|not allowed') {
+        return $true
+    }
+
+    if (Test-AndroidRootSu) {
+        $suCmd = "su -c `"$cmd`""
+        $suOut = Get-AdbShellOutput $suCmd
+        if ($LASTEXITCODE -eq 0 -and $suOut -notmatch 'SecurityException|Permission denial|not allowed') {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+<#
+.SYNOPSIS
+  Fixa rotação física do display via ADB (user_rotation), sem depender do Player-AD.
+
+  0 = 0°, 1 = 90° (portrait típico em painel landscape), 2 = 180°, 3 = 270°
+#>
+function Set-AndroidDisplayRotation {
+    param(
+        [ValidateRange(0, 3)]
+        [int] $Rotation = 1,
+        [switch] $DisableAutoRotation = $true
+    )
+
+    $results = [ordered]@{}
+    if ($DisableAutoRotation) {
+        $results['accelerometer_rotation=0'] = Invoke-AdbSettingsPut -Namespace 'system' -Key 'accelerometer_rotation' -Value '0'
+    }
+    $results["user_rotation=$Rotation"] = Invoke-AdbSettingsPut -Namespace 'system' -Key 'user_rotation' -Value "$Rotation"
+
+    $portrait = Get-AndroidPortraitState -ExpectedUserRotation $Rotation
+    [PSCustomObject]@{
+        Rotation              = $Rotation
+        Steps                 = $results
+        PortraitProvisioned   = $portrait.PortraitProvisioned
+        UserRotation          = $portrait.UserRotation
+        AccelerometerRotation = $portrait.AccelerometerRotation
+    }
 }

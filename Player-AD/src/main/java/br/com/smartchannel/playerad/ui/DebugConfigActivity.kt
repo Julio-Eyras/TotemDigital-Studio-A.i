@@ -25,7 +25,6 @@ import br.com.smartchannel.playerad.util.DeviceProvisioningDiagnostics
 import br.com.smartchannel.playerad.util.LocalNetworkAddresses
 import br.com.smartchannel.playerad.util.PlayerAdLogger
 import br.com.smartchannel.playerad.util.PlayerAdPrefs
-import br.com.smartchannel.playerad.util.SuAccessHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -46,9 +45,6 @@ class DebugConfigActivity : AppCompatActivity() {
     private lateinit var switchAcceptImages: SwitchCompat
     private lateinit var switchAllowPlaybackAudio: SwitchCompat
     private lateinit var switchStrongKiosk: SwitchCompat
-    private lateinit var spinnerScreenOrientation: Spinner
-    private lateinit var textOrientationDegrees: TextView
-    private lateinit var btnRotateScreen: Button
     private lateinit var editMaxSecondsWithoutServerCheck: EditText
     private lateinit var spinnerStorage: Spinner
     private lateinit var editStoragePath: EditText
@@ -71,31 +67,21 @@ class DebugConfigActivity : AppCompatActivity() {
     private lateinit var textOperationalLog: TextView
     private lateinit var textOfflineState: TextView
     private lateinit var textSystemProvisioning: TextView
-    private lateinit var panelSuSetup: android.view.View
-    private lateinit var textSuStatus: TextView
-    private lateinit var btnRequestSu: Button
 
     private var lastHeartbeatToken: String? = null
     private var lastDispatchPlan: JSONObject? = null
 
     private var heartbeatOk: Boolean = false
     private var dispatchOk: Boolean = false
-    private var currentDisplayRotation: Int = 0
-    private var suppressSpinnerOrientationCallback: Boolean = false
-    private var requireSu: Boolean = false
     private var onboarding: Boolean = false
-    private var suGranted: Boolean = false
-    private var suRequestInProgress: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_debug_config)
 
-        KioskController.applyDebug(this, 0)
+        KioskController.applyDebug(this)
 
-        requireSu = intent.getBooleanExtra(EXTRA_REQUIRE_SU, SuAccessHelper.requiresSuGate())
         onboarding = intent.getBooleanExtra(EXTRA_ONBOARDING, false)
-        suGranted = PlayerAdPrefs.isSuGranted(this)
 
         editServerUrl = findViewById(R.id.editServerUrl)
         editUin = findViewById(R.id.editUin)
@@ -103,9 +89,6 @@ class DebugConfigActivity : AppCompatActivity() {
         switchAcceptImages = findViewById(R.id.switchAcceptImages)
         switchAllowPlaybackAudio = findViewById(R.id.switchAllowPlaybackAudio)
         switchStrongKiosk = findViewById(R.id.switchStrongKiosk)
-        spinnerScreenOrientation = findViewById(R.id.spinnerScreenOrientation)
-        textOrientationDegrees = findViewById(R.id.textOrientationDegrees)
-        btnRotateScreen = findViewById(R.id.btnRotateScreen)
         editMaxSecondsWithoutServerCheck = findViewById(R.id.editMaxSecondsWithoutServerCheck)
         spinnerStorage = findViewById(R.id.spinnerStorage)
         editStoragePath = findViewById(R.id.editStoragePath)
@@ -128,9 +111,6 @@ class DebugConfigActivity : AppCompatActivity() {
         textOperationalLog = findViewById(R.id.textOperationalLog)
         textOfflineState = findViewById(R.id.textOfflineState)
         textSystemProvisioning = findViewById(R.id.textSystemProvisioning)
-        panelSuSetup = findViewById(R.id.panelSuSetup)
-        textSuStatus = findViewById(R.id.textSuStatus)
-        btnRequestSu = findViewById(R.id.btnRequestSu)
 
         bindLocalIps()
 
@@ -141,9 +121,9 @@ class DebugConfigActivity : AppCompatActivity() {
             "Modo desenvolvimento: $reason"
         }
         if (reason == "first_run" || onboarding) {
-            textReason.append("\n\n1) Autorize root (SU)  2) Vincule o código  3) Aplique e inicie o player.")
+            textReason.append("\n\n1) Vincule o código  2) Aplique e inicie o player.")
         }
-        PlayerAdLogger.i("DEBUG_UI", "Ecrã de configuração aberto: $reason onboarding=$onboarding requireSu=$requireSu")
+        PlayerAdLogger.i("DEBUG_UI", "Ecrã de configuração aberto: $reason onboarding=$onboarding")
 
         val current = PlayerConfigLoader(this).load()
         editServerUrl.setText(current.serverUrl)
@@ -153,33 +133,6 @@ class DebugConfigActivity : AppCompatActivity() {
         switchAllowPlaybackAudio.isChecked = current.allowPlaybackAudio
         switchStrongKiosk.isChecked = current.kioskMode == br.com.smartchannel.playerad.config.KioskMode.STRONG
         editMaxSecondsWithoutServerCheck.setText(current.maxSecondsWithoutServerCheck.toString())
-
-        val orientations = resources.getStringArray(R.array.player_screen_orientations)
-        val orientAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, orientations)
-        orientAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        spinnerScreenOrientation.adapter = orientAdapter
-        currentDisplayRotation = current.displayRotation.coerceIn(0, 3)
-        applyDisplayRotation(currentDisplayRotation, persist = false)
-
-        spinnerScreenOrientation.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(
-                parent: android.widget.AdapterView<*>?,
-                view: android.view.View?,
-                position: Int,
-                id: Long
-            ) {
-                if (suppressSpinnerOrientationCallback) return
-                val rotation = position.coerceIn(0, orientations.size - 1)
-                if (rotation == currentDisplayRotation) return
-                applyDisplayRotation(rotation, persist = true)
-            }
-
-            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
-        }
-
-        btnRotateScreen.setOnClickListener {
-            applyDisplayRotation((currentDisplayRotation + 1) % 4, persist = true)
-        }
 
         val storageModes = resources.getStringArray(R.array.player_storage_modes)
         val spinAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, storageModes)
@@ -203,55 +156,26 @@ class DebugConfigActivity : AppCompatActivity() {
         }
 
         btnApplyAndStart.setOnClickListener {
-            if (requireSu && !suGranted) {
-                setStatus(getString(R.string.su_required_before_start))
-                return@setOnClickListener
-            }
             val cfg = readConfigOrNull()
             if (cfg == null) {
                 setStatus("Configuração inválida. Preencha serverUrl, uin e deviceId. Se storage=path_override, preencha o caminho absoluto.")
                 return@setOnClickListener
             }
 
-            lifecycleScope.launch {
-                if (requireSu && !SuAccessHelper.isSuAuthorized(SuAccessHelper.FIRST_PROBE_TIMEOUT_MS)) {
-                    suGranted = false
-                    PlayerAdPrefs.setSuGranted(this@DebugConfigActivity, false)
-                    refreshSuUi()
-                    setStatus(getString(R.string.su_required_before_start))
-                    return@launch
-                }
-                if (requireSu) {
-                    PlayerAdPrefs.setSuGranted(this@DebugConfigActivity, true)
-                }
-                saveConfigInternal(cfg)
-                if (onboarding) {
-                    markSetupComplete()
-                    launchPlayerAndFinish()
-                } else {
-                    setResult(Activity.RESULT_OK)
-                    finish()
-                }
+            saveConfigInternal(cfg)
+            if (onboarding) {
+                markSetupComplete()
+                launchPlayerAndFinish()
+            } else {
+                setResult(Activity.RESULT_OK)
+                finish()
             }
         }
 
         btnStartWithoutSave.setOnClickListener {
             if (onboarding) return@setOnClickListener
-            if (requireSu && !suGranted) {
-                setStatus(getString(R.string.su_required_before_start))
-                return@setOnClickListener
-            }
             setResult(Activity.RESULT_OK)
             finish()
-        }
-
-        btnRequestSu.setOnClickListener { requestSuAuthorization() }
-
-        if (requireSu) {
-            panelSuSetup.visibility = android.view.View.VISIBLE
-            refreshSuUi()
-        } else {
-            panelSuSetup.visibility = android.view.View.GONE
         }
 
         btnStartWithoutSave.visibility = if (onboarding) android.view.View.GONE else android.view.View.VISIBLE
@@ -415,9 +339,6 @@ class DebugConfigActivity : AppCompatActivity() {
         } else {
             br.com.smartchannel.playerad.config.KioskMode.IMMERSIVE
         }
-        val orientRaw = spinnerScreenOrientation.selectedItem as? String
-        val screenOrientation = PlayerConfigLoader.parseScreenOrientation(orientRaw)
-        val displayRotation = currentDisplayRotation.coerceIn(0, 3)
         return PlayerConfig(
             serverUrl = serverUrl,
             uin = uin,
@@ -429,87 +350,9 @@ class DebugConfigActivity : AppCompatActivity() {
             storageMode = storageMode,
             storagePathOverride = pathOverride.takeIf { it.isNotBlank() },
             kioskMode = kioskMode,
-            displayRotation = displayRotation,
-            screenOrientation = screenOrientation
+            displayRotation = loaded.displayRotation,
+            screenOrientation = loaded.screenOrientation
         )
-    }
-
-    private fun applyDisplayRotation(rotation: Int, persist: Boolean) {
-        val normalized = ((rotation % 4) + 4) % 4
-        currentDisplayRotation = normalized
-        val mode = PlayerConfigLoader.displayRotationToMode(normalized)
-        textOrientationDegrees.text = PlayerConfigLoader.displayRotationLabel(normalized)
-        suppressSpinnerOrientationCallback = true
-        spinnerScreenOrientation.setSelection(normalized)
-        suppressSpinnerOrientationCallback = false
-        KioskController.applyDebug(this, normalized)
-        if (persist) {
-            persistOrientationConfig(normalized, mode)
-        }
-    }
-
-    /** Grava rotação imediatamente (mesmo campos de player-config.json). */
-    private fun persistOrientationConfig(rotation: Int, mode: br.com.smartchannel.playerad.config.ScreenOrientationMode) {
-        val base = PlayerConfigLoader(this).load()
-        val merged = base.copy(
-            displayRotation = rotation,
-            screenOrientation = mode
-        )
-        saveConfigInternal(merged)
-        if (suGranted || !requireSu) {
-            val soResult = br.com.smartchannel.playerad.util.SystemDisplayRotation.apply(this, rotation)
-        val soNote = when {
-            soResult.displayEffective -> " (SO efetivo user_rotation=${soResult.userRotation})"
-            soResult.settingsWritten -> " (settings OK, display sem efeito — fallback visual)"
-            else -> " (SO: sem permissão)"
-        }
-        PlayerAdLogger.i(
-            "DEBUG_UI",
-            "Orientação gravada: ${PlayerConfigLoader.displayRotationLabel(rotation)}$soNote"
-        )
-        appendStatus("✔ Orientação gravada: ${PlayerConfigLoader.displayRotationLabel(rotation)}$soNote")
-        } else {
-            appendStatus("✔ Orientação gravada no app (autorize SU para aplicar no sistema)")
-        }
-    }
-
-    private fun requestSuAuthorization() {
-        if (!requireSu || suRequestInProgress) return
-        suRequestInProgress = true
-        btnRequestSu.isEnabled = false
-        btnRequestSu.text = getString(R.string.su_btn_waiting)
-        textSuStatus.text = getString(R.string.su_status_pending)
-        PlayerAdLogger.i("SU", "Operador solicitou autorização root na tela de configuração")
-
-        lifecycleScope.launch {
-            val granted = SuAccessHelper.isSuAuthorized(SuAccessHelper.FIRST_PROBE_TIMEOUT_MS)
-            suGranted = granted
-            suRequestInProgress = false
-            if (granted) {
-                PlayerAdPrefs.setSuGranted(this@DebugConfigActivity, true)
-                PlayerAdLogger.i("SU", "Autorização root confirmada na configuração")
-            } else {
-                PlayerAdPrefs.setSuGranted(this@DebugConfigActivity, false)
-                PlayerAdLogger.w("SU", "Autorização root não concedida na configuração")
-            }
-            refreshSuUi()
-            updateApplyButtonState()
-        }
-    }
-
-    private fun refreshSuUi() {
-        if (!requireSu) return
-        textSuStatus.text = when {
-            suGranted -> getString(R.string.su_status_granted)
-            suRequestInProgress -> getString(R.string.su_status_pending)
-            else -> getString(R.string.su_status_denied)
-        }
-        btnRequestSu.isEnabled = !suRequestInProgress
-        btnRequestSu.text = if (suRequestInProgress) {
-            getString(R.string.su_btn_waiting)
-        } else {
-            getString(R.string.su_btn_request)
-        }
     }
 
     private fun markSetupComplete() {
@@ -539,9 +382,8 @@ class DebugConfigActivity : AppCompatActivity() {
     }
 
     private fun updateApplyButtonState() {
-        val suOk = !requireSu || suGranted
-        btnApplyAndStart.isEnabled = heartbeatOk && suOk
-        btnApplyAndStart.alpha = if (heartbeatOk && suOk) 1f else 0.5f
+        btnApplyAndStart.isEnabled = heartbeatOk
+        btnApplyAndStart.alpha = if (heartbeatOk) 1f else 0.5f
     }
 
     private fun setHeartbeatAndDispatchState(heartbeatOk: Boolean, dispatchOk: Boolean) {
@@ -835,7 +677,6 @@ class DebugConfigActivity : AppCompatActivity() {
     companion object {
         const val EXTRA_REASON = "reason"
         const val EXTRA_ONBOARDING = "onboarding"
-        const val EXTRA_REQUIRE_SU = "require_su"
     }
 }
 
