@@ -659,7 +659,6 @@ export class DispatcherTotemService {
       const candidates: CandidateSchedule[] = [];
       
       for (const campaign of campaigns) {
-        // Buscar playlists da campanha
         const playlists = await this.db.findMany(`
           SELECT 
             cp.playlist_id,
@@ -674,25 +673,55 @@ export class DispatcherTotemService {
           LIMIT 1
         `, [campaign.campaign_id]);
 
-        if (playlists.length === 0) {
-          continue; // Campanha sem playlist válida
+        let playlistId = 0;
+        let playlistName = '';
+        let mediaId: number | undefined;
+        let mediaName: string | undefined;
+
+        if (playlists.length > 0) {
+          const playlist = playlists[0];
+          playlistId = Number(playlist.playlist_id);
+          playlistName = playlist.playlist_name || '';
+
+          const media = await this.db.findFirst(`
+            SELECT 
+              m.media_id,
+              m.name
+            FROM playlist_items pi
+            INNER JOIN medias m ON m.media_id = pi.media_id
+            WHERE pi.playlist_id = $1
+              AND COALESCE(pi.is_active, true) = true
+              AND m.is_active = true
+              AND m.status IN ('approved', 'published')
+            ORDER BY pi.order_index ASC, m.media_id ASC
+            LIMIT 1
+          `, [playlist.playlist_id]);
+
+          mediaId = media?.media_id ? Number(media.media_id) : undefined;
+          mediaName = media?.name || undefined;
+        } else {
+          const directMedia = await this.db.findFirst(`
+            SELECT 
+              m.media_id,
+              m.name
+            FROM campaign_medias cm
+            INNER JOIN medias m ON m.media_id = cm.media_id
+            WHERE cm.campaign_id = $1
+              AND COALESCE(cm.is_active, true) = true
+              AND m.is_active = true
+              AND m.status IN ('approved', 'published')
+            ORDER BY cm.order_index ASC, cm.priority ASC, m.media_id ASC
+            LIMIT 1
+          `, [campaign.campaign_id]);
+
+          if (!directMedia?.media_id) {
+            continue; // Sem playlist nem mídia direta elegível
+          }
+
+          playlistName = '(mídias diretas)';
+          mediaId = Number(directMedia.media_id);
+          mediaName = directMedia.name || undefined;
         }
-
-        const playlist = playlists[0];
-
-        // Buscar uma mídia representativa da playlist (primeiro item ativo)
-        const media = await this.db.findFirst(`
-          SELECT 
-            m.media_id,
-            m.name
-          FROM playlist_items pi
-          INNER JOIN medias m ON m.media_id = pi.media_id
-          WHERE pi.playlist_id = $1
-            AND COALESCE(pi.is_active, true) = true
-            AND m.is_active = true
-          ORDER BY pi.order_index ASC, m.media_id ASC
-          LIMIT 1
-        `, [playlist.playlist_id]);
 
         // Validar frequência temporal
         const temporalValid = await this.validateTemporalFrequency(
@@ -707,10 +736,10 @@ export class DispatcherTotemService {
         candidates.push({
           campaignId: campaign.campaign_id,
           campaignTitle: campaign.campaign_title,
-          playlistId: playlist.playlist_id,
-          playlistName: playlist.playlist_name,
-          mediaId: media?.media_id ? Number(media.media_id) : undefined,
-          mediaName: media?.name || undefined,
+          playlistId,
+          playlistName,
+          mediaId,
+          mediaName,
           priority: campaign.effective_priority,
           source: campaign.source_type === 'direct' ? 'direct' : 'campaign',
           sourceId: campaign.source_id,
@@ -1064,7 +1093,7 @@ export class DispatcherTotemService {
     checks.push({
       id: 'dispatcher_pipeline',
       label:
-        'Motor do dispatcher: campanha candidata após todos os filtros (contrato/plano/publisher/playlist/mídia/tempo)',
+        'Motor do dispatcher: campanha candidata após todos os filtros (contrato/plano/publisher/playlist ou mídia direta/tempo)',
       ok: candidates.length > 0,
       hint:
         candidates.length === 0
@@ -1173,22 +1202,38 @@ export class DispatcherTotemService {
       SELECT COUNT(DISTINCT c.campaign_id)::int AS c
       FROM campaign_totems ct
       INNER JOIN campaigns c ON c.campaign_id = ct.campaign_id
-      INNER JOIN campaign_playlists cp ON cp.campaign_id = c.campaign_id AND COALESCE(cp.is_active, true)
-      INNER JOIN playlists p ON p.playlist_id = cp.playlist_id AND COALESCE(p.is_active, true)
       WHERE ct.totem_id = $1
         AND COALESCE(ct.is_active, true)
         AND COALESCE(c.is_active, true)
         AND LOWER(COALESCE(c.status, '')) = 'active'
+        AND (
+          EXISTS (
+            SELECT 1
+            FROM campaign_playlists cp
+            INNER JOIN playlists p ON p.playlist_id = cp.playlist_id
+            WHERE cp.campaign_id = c.campaign_id
+              AND COALESCE(cp.is_active, true)
+              AND COALESCE(p.is_active, true)
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM campaign_medias cm
+            INNER JOIN medias m ON m.media_id = cm.media_id
+            WHERE cm.campaign_id = c.campaign_id
+              AND COALESCE(cm.is_active, true)
+              AND COALESCE(m.is_active, true)
+          )
+        )
     `,
       [totemId]
     );
     checks.push({
       id: 'campaign_playlist',
-      label: 'Campanha com playlist ativa associada',
+      label: 'Campanha com playlist ativa ou mídias diretas associadas',
       ok: (withPlaylist?.c ?? 0) > 0,
       hint:
         (withPlaylist?.c ?? 0) === 0
-          ? 'Associe uma playlist ativa à campanha.'
+          ? 'Associe uma playlist ativa ou mídias diretas à campanha.'
           : undefined,
     });
 
@@ -1197,24 +1242,44 @@ export class DispatcherTotemService {
       SELECT COUNT(DISTINCT c.campaign_id)::int AS c
       FROM campaign_totems ct
       INNER JOIN campaigns c ON c.campaign_id = ct.campaign_id
-      INNER JOIN campaign_playlists cp ON cp.campaign_id = c.campaign_id AND COALESCE(cp.is_active, true)
-      INNER JOIN playlists p ON p.playlist_id = cp.playlist_id AND COALESCE(p.is_active, true)
-      INNER JOIN playlist_items pi ON pi.playlist_id = p.playlist_id AND COALESCE(pi.is_active, true)
-      INNER JOIN medias m ON m.media_id = pi.media_id AND COALESCE(m.is_active, true)
       WHERE ct.totem_id = $1
         AND COALESCE(ct.is_active, true)
         AND COALESCE(c.is_active, true)
         AND LOWER(COALESCE(c.status, '')) = 'active'
+        AND (
+          EXISTS (
+            SELECT 1
+            FROM campaign_playlists cp
+            INNER JOIN playlists p ON p.playlist_id = cp.playlist_id
+            INNER JOIN playlist_items pi ON pi.playlist_id = p.playlist_id
+              AND COALESCE(pi.is_active, true) = true
+            INNER JOIN medias m ON m.media_id = pi.media_id
+              AND COALESCE(m.is_active, true)
+              AND m.status IN ('approved', 'published')
+            WHERE cp.campaign_id = c.campaign_id
+              AND COALESCE(cp.is_active, true)
+              AND COALESCE(p.is_active, true)
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM campaign_medias cm
+            INNER JOIN medias m ON m.media_id = cm.media_id
+            WHERE cm.campaign_id = c.campaign_id
+              AND COALESCE(cm.is_active, true) = true
+              AND COALESCE(m.is_active, true)
+              AND m.status IN ('approved', 'published')
+          )
+        )
     `,
       [totemId]
     );
     checks.push({
       id: 'playlist_media',
-      label: 'Playlist com pelo menos uma mídia ativa',
+      label: 'Pelo menos uma mídia ativa (playlist ou direta na campanha)',
       ok: (withMedia?.c ?? 0) > 0,
       hint:
         (withMedia?.c ?? 0) === 0
-          ? 'Adicione itens à playlist ou ative/aprove as mídias.'
+          ? 'Adicione mídias à campanha (diretas ou via playlist) e ative/aprove as mídias.'
           : undefined,
     });
 
@@ -1869,7 +1934,9 @@ export class DispatcherTotemService {
     playlistItemsCount: number;
     campaignMediaCount: number;
   }> {
-    const playlistItems = await this.db.findMany(`
+    const playlistItems =
+      playlistId > 0
+        ? await this.db.findMany(`
       SELECT 
         pi.media_id,
         pi.order_index,
@@ -1890,7 +1957,8 @@ export class DispatcherTotemService {
         AND m.is_active = true
         AND m.status IN ('approved', 'published')
       ORDER BY pi.order_index ASC, m.media_id ASC
-    `, [playlistId]);
+    `, [playlistId])
+        : [];
 
     const campaignItems = campaignId
       ? await this.db.findMany(`
