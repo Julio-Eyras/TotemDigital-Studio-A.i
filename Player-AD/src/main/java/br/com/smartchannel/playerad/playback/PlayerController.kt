@@ -1030,6 +1030,11 @@ class PlayerController(
     }
 
     private fun playbackWatchdogTimeoutMs(item: DispatchMediaItem): Long {
+        // Vídeo/áudio: duração real no ExoPlayer; `duration` do dispatch (null em vídeo) não corta reprodução.
+        val mediaTypeLower = item.mediaType?.lowercase() ?: ""
+        if (mediaTypeLower == "video" || mediaTypeLower == "audio") {
+            return VIDEO_WATCHDOG_DEFAULT_MS
+        }
         val declaredDurationMs = item.duration?.takeIf { it > 0L }?.times(1000L)
         return when {
             declaredDurationMs != null -> (declaredDurationMs + VIDEO_WATCHDOG_GRACE_MS)

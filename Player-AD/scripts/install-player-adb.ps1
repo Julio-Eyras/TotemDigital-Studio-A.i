@@ -137,10 +137,14 @@ function Grant-SuperSuPlayerAd {
 
 function Sync-PlayerConfigToApp {
     param([string] $SdPath = '/sdcard/smartsignage/player-config.json')
-    $internal = "/data/data/$PackageId/files/player-config.json"
-    adb shell "su -c 'mkdir -p /data/data/$PackageId/files && cp $SdPath $internal && chmod 660 $internal'" 2>&1 | Out-Null
+    $filesDir = "/data/data/$PackageId/files"
+    $internal = "$filesDir/player-config.json"
+    # Dono deve ser o UID da app — cp via su como root deixa files/ inacessível e a app crasha ao salvar config.
+    $syncCmd = 'su -c "APP_UID=$(stat -c %u /data/data/' + $PackageId + '); mkdir -p ' + $filesDir + '; cp ' + $SdPath + ' ' + $internal + '; chown -R $APP_UID:$APP_UID ' + $filesDir + '; chmod 700 ' + $filesDir + '; chmod 660 ' + $internal + '"'
+    adb shell $syncCmd 2>&1 | Out-Null
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "  OK config interna (filesDir) sincronizada com SD" -ForegroundColor Gray
+        Write-Host "  OK config interna (filesDir) sincronizada com SD (chown app)" -ForegroundColor Gray
+        adb shell "su -c 'ls -la $filesDir'" 2>&1 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
         adb shell "su -c 'cat $internal'" 2>&1 | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
     } else {
         Write-Host "  AVISO: nao foi possivel copiar config para filesDir (app usa SD como fallback)" -ForegroundColor DarkYellow

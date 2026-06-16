@@ -8872,20 +8872,54 @@ test_endpoints() {
         log "===> 4) CRUD rápido - pulado (token inválido)"
     fi
     
+    # Resolve subscriber ativo para testes de campanha/upload (evita subscriberId=1 inexistente)
+    INSTALL_TEST_SUBSCRIBER_ID=""
+    if [[ -n "$TOKEN" ]] && [[ "$TOKEN" != "null" ]] && [[ "$TOKEN" != "" ]]; then
+        INSTALL_TEST_SUBSCRIBER_ID=$(curl -fsS --max-time 10 -X GET "$API_HEALTH/api/subscribers?page=1&limit=1&active_only=true" \
+          -H "Authorization: Bearer $TOKEN" 2>/dev/null \
+          | jq -r '(.data[0].subscriber_id // .data[0].id // empty)' 2>/dev/null || echo "")
+    fi
+    [[ -z "$INSTALL_TEST_SUBSCRIBER_ID" ]] && INSTALL_TEST_SUBSCRIBER_ID=1
+
+    resolve_post_install_banner_file() {
+        local f
+        for f in \
+            "./banner.jpg" \
+            "$INSTALL_DIR/banner.jpg" \
+            "${REPO_ROOT}/scripts/fixtures/banner-install-test.jpg" \
+            "${REPO_ROOT}/corporate-site/dashboard.png"; do
+            if [[ -n "$f" ]] && [[ -f "$f" ]]; then
+                echo "$f"
+                return 0
+            fi
+        done
+        local tmp="/tmp/smartsignage-install-banner-$$.jpg"
+        if command -v base64 &> /dev/null; then
+            printf '%s' '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAb/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=' \
+              | base64 -d > "$tmp" 2>/dev/null
+            if [[ -s "$tmp" ]]; then
+                echo "$tmp"
+                return 0
+            fi
+        fi
+        return 1
+    }
+    
     # 5) Upload de mídia (se houver arquivo de teste)
     if [[ -n "$TOKEN" ]] && [[ "$TOKEN" != "null" ]] && [[ "$TOKEN" != "" ]]; then
         log "===> 5) Upload de mídia (teste)"
-        if [[ -f "./banner.jpg" ]] || [[ -f "$INSTALL_DIR/banner.jpg" ]]; then
-            TEST_FILE="./banner.jpg"
-            [[ ! -f "$TEST_FILE" ]] && TEST_FILE="$INSTALL_DIR/banner.jpg"
+        TEST_FILE="$(resolve_post_install_banner_file || true)"
+        if [[ -n "$TEST_FILE" ]] && [[ -f "$TEST_FILE" ]]; then
             UPLOAD_RESULT=$(curl -fsS -X POST "$API_HEALTH/api/media/upload" \
               -H "Authorization: Bearer $TOKEN" \
               -F "file=@$TEST_FILE" \
-              -F "name=banner_loja" 2>/dev/null | jq -r '.id,.name' 2>/dev/null || echo "")
-            if [[ -n "$UPLOAD_RESULT" ]]; then
-                log "✅ Upload de mídia: OK - $UPLOAD_RESULT"
+              -F "name=banner_loja_instalacao" \
+              -F "subscriberId=$INSTALL_TEST_SUBSCRIBER_ID" 2>/dev/null \
+              | jq -r '(.data.id // .data.media_id // .id | tostring) + " " + (.data.name // .name // "")' 2>/dev/null || echo "")
+            if [[ -n "$UPLOAD_RESULT" ]] && [[ "$UPLOAD_RESULT" != "null " ]] && [[ "$UPLOAD_RESULT" != " " ]]; then
+                log "✅ Upload de mídia: OK - $UPLOAD_RESULT (subscriberId=$INSTALL_TEST_SUBSCRIBER_ID)"
             else
-                warning "⚠️  Upload de mídia: Falhou"
+                warning "⚠️  Upload de mídia: Falhou (subscriberId=$INSTALL_TEST_SUBSCRIBER_ID)"
             fi
         else
             log "ℹ️  Upload de mídia: Arquivo de teste não encontrado (pulando)"
@@ -8901,11 +8935,21 @@ test_endpoints() {
         CAMPAIGN_RESULT=$(curl -fsS -X POST "$API_HEALTH/api/campaigns" \
           -H "Authorization: Bearer $TOKEN" \
           -H "Content-Type: application/json" \
-          -d "{\"subscriberId\":1,\"title\":\"$CAMPAIGN_TITLE\",\"description\":\"Demo pós-instalação\",\"campaignType\":\"general\",\"isActive\":true}" 2>/dev/null | jq -r '(.id // .campaign_id | tostring) + " " + (.title // "")' 2>/dev/null || echo "")
-        if [[ -n "$CAMPAIGN_RESULT" ]] && [[ "$CAMPAIGN_RESULT" != "null " ]]; then
-            log "✅ Campanha criada: $CAMPAIGN_RESULT"
+          -d "{\"subscriberId\":$INSTALL_TEST_SUBSCRIBER_ID,\"title\":\"$CAMPAIGN_TITLE\",\"description\":\"Demo pós-instalação\",\"campaignType\":\"general\",\"isActive\":true}" 2>/dev/null \
+          | jq -r '(.data.id // .data.campaign_id // .id // .campaign_id | tostring) + " " + (.data.title // .title // "")' 2>/dev/null || echo "")
+        if [[ -n "$CAMPAIGN_RESULT" ]] && [[ "$CAMPAIGN_RESULT" != "null " ]] && [[ "$CAMPAIGN_RESULT" != " " ]]; then
+            log "✅ Campanha criada: $CAMPAIGN_RESULT (subscriberId=$INSTALL_TEST_SUBSCRIBER_ID)"
         else
-            warning "⚠️  Falha ao criar campanha (subscriberId=1 ou API pode exigir mais campos)"
+            CAMPAIGN_ERR=$(curl -sS -X POST "$API_HEALTH/api/campaigns" \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"subscriberId\":$INSTALL_TEST_SUBSCRIBER_ID,\"title\":\"Campanha Teste Instalação $(date +%s)\",\"description\":\"Demo pós-instalação\",\"campaignType\":\"general\",\"isActive\":true}" 2>/dev/null \
+              | jq -r '.message // .error // empty' 2>/dev/null || echo "")
+            if [[ -n "$CAMPAIGN_ERR" ]]; then
+                warning "⚠️  Falha ao criar campanha (subscriberId=$INSTALL_TEST_SUBSCRIBER_ID): $CAMPAIGN_ERR"
+            else
+                warning "⚠️  Falha ao criar campanha (subscriberId=$INSTALL_TEST_SUBSCRIBER_ID ou API pode exigir mais campos)"
+            fi
         fi
     else
         log "===> 6) Campanha simples - pulado (token inválido)"

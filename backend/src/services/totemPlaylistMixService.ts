@@ -10,7 +10,7 @@ import { PublisherCampaignMixService } from './publisherCampaignMixService';
 import { AIService } from './aiService';
 import { getCacheService } from './cacheService';
 import { getWebhookService } from './webhookService';
-import { resolveDispatchItemDurationSeconds } from '../utils/dispatchItemDuration';
+import { resolvePlanTotalItemSeconds } from '../utils/dispatchItemDuration';
 
 export interface MixRule {
   rule_id: number;
@@ -609,7 +609,7 @@ export class TotemPlaylistMixService {
               source: 'campaign',
               priority: campaign.priority * playlist.priority,
               tags: item.tags ? (typeof item.tags === 'string' ? JSON.parse(item.tags) : item.tags) : [],
-              duration: resolveDispatchItemDurationSeconds({
+              duration: resolvePlanTotalItemSeconds({
                 displaySeconds: item.duration,
                 mediaType: item.media_type,
                 mediaDurationSeconds: item.media_duration,
@@ -656,7 +656,7 @@ export class TotemPlaylistMixService {
             source: 'campaign',
             priority: campaign.priority,
             tags: item.tags ? (typeof item.tags === 'string' ? JSON.parse(item.tags) : item.tags) : [],
-            duration: resolveDispatchItemDurationSeconds({
+            duration: resolvePlanTotalItemSeconds({
               displaySeconds: item.duration,
               mediaType: item.media_type,
               mediaDurationSeconds: item.media_duration,
@@ -692,7 +692,10 @@ export class TotemPlaylistMixService {
       }
 
       // 8. Calcular duração total
-      const totalDuration = finalItems.reduce((sum, item) => sum + (item.duration || 10), 0);
+      const totalDuration = finalItems.reduce(
+        (sum, item) => sum + (item.duration ?? 0),
+        0
+      );
 
       // 9. Criar snapshot do contexto
       const contextSnapshot = {

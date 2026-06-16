@@ -1,6 +1,6 @@
 import { DispatchMediaItem } from '../types/dispatcherTotem.types';
 import { resolveDispatchCacheBucket } from '../services/dispatchMediaBucket';
-import { resolveDispatchItemDurationSeconds } from './dispatchItemDuration';
+import { resolveDispatchItemDurationSeconds, positiveIntOrNull } from './dispatchItemDuration';
 import { normalizeDownloadUrl } from './pathHelper';
 
 export interface BuildDispatchMediaItemInput {
@@ -50,6 +50,7 @@ export function buildDispatchMediaItem(input: BuildDispatchMediaItemInput): Disp
       width: input.width ?? undefined,
       height: input.height ?? undefined,
       mimeType: input.mimeType ?? undefined,
+      durationSeconds: positiveIntOrNull(input.durationSeconds) ?? undefined,
     },
   };
 }

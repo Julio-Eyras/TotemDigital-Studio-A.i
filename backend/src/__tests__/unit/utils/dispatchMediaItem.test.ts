@@ -38,6 +38,8 @@ describe('dispatchMediaItem', () => {
 
       expect(item.mediaName).toBe('clip.mp4');
       expect(item.fileName).toBe('clip.mp4');
+      expect(item.duration).toBeNull();
+      expect(item.metadata?.durationSeconds).toBe(30);
     });
   });
 });

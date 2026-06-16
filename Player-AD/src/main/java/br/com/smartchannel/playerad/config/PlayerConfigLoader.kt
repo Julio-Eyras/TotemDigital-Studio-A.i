@@ -17,13 +17,16 @@ class PlayerConfigLoader(private val context: Context) {
 
     fun load(): PlayerConfig {
         // 1) interno (útil para debug/emulador; salva sem permissões)
-        val internal = File(context.filesDir, "player-config.json")
+        val internal = PlayerConfigStore.internalConfigFile(context)
         if (internal.exists()) {
-            parseConfigFile(internal)?.let { return it }
+            try {
+                parseConfigFile(internal)?.let { return it }
+            } catch (_: Exception) {
+                // Pode existir cópia ADB com dono root — tenta SD em seguida.
+            }
         }
 
-        // 2) externo (se existir, mantém compatibilidade com auto_install.sh)
-        val external = File("/sdcard/smartsignage/player-config.json")
+        val external = PlayerConfigStore.externalConfigFile()
         if (external.exists()) {
             parseConfigFile(external)?.let { return it }
         }

@@ -17,6 +17,7 @@ import { logError, logDebug } from '../utils/loggerHelper';
 import { getCacheService } from './cacheService';
 import { getTotemPlaylistMixService, TotemPlaylistMix } from './totemPlaylistMixService';
 import { buildDispatchMediaItem } from '../utils/dispatchMediaItem';
+import { sumDispatchMediaItemsPlanDuration } from '../utils/dispatchItemDuration';
 import {
   DispatchRequest,
   DispatchPlan,
@@ -816,7 +817,7 @@ export class DispatcherTotemService {
         });
       if (mediaItems.length === 0) return null;
 
-      const totalDuration = mediaItems.reduce((sum, i) => sum + i.duration, 0);
+      const totalDuration = sumDispatchMediaItemsPlanDuration(mediaItems);
       return {
         totemId,
         timestamp: now,
@@ -2205,7 +2206,7 @@ export class DispatcherTotemService {
       })
     );
 
-    const totalDuration = mediaItems.reduce((sum, item) => sum + item.duration, 0);
+    const totalDuration = sumDispatchMediaItemsPlanDuration(mediaItems);
 
     // Buscar dados da campanha
     const campaign = await this.db.findFirst(`

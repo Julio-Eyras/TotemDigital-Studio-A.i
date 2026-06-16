@@ -1,39 +1,41 @@
 import {
   resolveDispatchItemDurationSeconds,
+  resolvePlanTotalItemSeconds,
+  sumDispatchMediaItemsPlanDuration,
   DEFAULT_IMAGE_DISPLAY_SECONDS,
   DEFAULT_HTML_DISPLAY_SECONDS,
   DEFAULT_MEDIA_FALLBACK_SECONDS,
 } from '../../../utils/dispatchItemDuration';
 
 describe('resolveDispatchItemDurationSeconds', () => {
-  it('vídeo ignora display_seconds e usa duration_seconds', () => {
+  it('vídeo retorna null (duração real no player)', () => {
     expect(
       resolveDispatchItemDurationSeconds({
         displaySeconds: 5,
         mediaType: 'video',
         mediaDurationSeconds: 42,
       })
-    ).toBe(42);
+    ).toBeNull();
   });
 
-  it('vídeo sem duration_seconds válida usa fallback', () => {
+  it('vídeo sem duration_seconds também retorna null', () => {
     expect(
       resolveDispatchItemDurationSeconds({
         displaySeconds: 99,
         mediaType: 'video',
         mediaDurationSeconds: 0,
       })
-    ).toBe(DEFAULT_MEDIA_FALLBACK_SECONDS);
+    ).toBeNull();
   });
 
-  it('áudio trata como vídeo', () => {
+  it('áudio retorna null', () => {
     expect(
       resolveDispatchItemDurationSeconds({
         displaySeconds: 1,
         mediaType: 'audio',
         mediaDurationSeconds: 120,
       })
-    ).toBe(120);
+    ).toBeNull();
   });
 
   it('imagem usa display_seconds quando > 0', () => {
@@ -85,5 +87,38 @@ describe('resolveDispatchItemDurationSeconds', () => {
         mediaDurationSeconds: 99,
       })
     ).toBe(DEFAULT_IMAGE_DISPLAY_SECONDS);
+  });
+});
+
+describe('resolvePlanTotalItemSeconds', () => {
+  it('vídeo usa duration_seconds do ficheiro para total do plano', () => {
+    expect(
+      resolvePlanTotalItemSeconds({
+        displaySeconds: 5,
+        mediaType: 'video',
+        mediaDurationSeconds: 42,
+      })
+    ).toBe(42);
+  });
+
+  it('vídeo sem duration_seconds usa fallback no total', () => {
+    expect(
+      resolvePlanTotalItemSeconds({
+        displaySeconds: undefined,
+        mediaType: 'video',
+        mediaDurationSeconds: 0,
+      })
+    ).toBe(DEFAULT_MEDIA_FALLBACK_SECONDS);
+  });
+});
+
+describe('sumDispatchMediaItemsPlanDuration', () => {
+  it('soma exposure em imagem e durationSeconds em metadata para vídeo', () => {
+    expect(
+      sumDispatchMediaItemsPlanDuration([
+        { duration: 15, mediaType: 'image' },
+        { duration: null, mediaType: 'video', metadata: { durationSeconds: 120 } },
+      ])
+    ).toBe(135);
   });
 });

@@ -64,7 +64,8 @@ export interface DispatchPlan {
 export interface DispatchMediaItem {
   mediaId: number;
   order: number;
-  duration: number; // em segundos
+  /** Segundos de exposição (imagem/HTML). `null` em vídeo/áudio — duração real no player. */
+  duration: number | null;
   url: string;
   mediaType: string;
   cacheBucket: 'propagandas' | 'vinhetas';
@@ -76,6 +77,8 @@ export interface DispatchMediaItem {
     width?: number;
     height?: number;
     mimeType?: string;
+    /** Duração do ficheiro (vídeo/áudio) — só para totalDuration do plano, não para cortar no player. */
+    durationSeconds?: number;
     [key: string]: any;
   };
 }

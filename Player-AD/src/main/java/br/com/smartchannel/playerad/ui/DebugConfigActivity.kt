@@ -19,6 +19,7 @@ import br.com.smartchannel.playerad.R
 import br.com.smartchannel.playerad.api.DispatcherApiClient
 import br.com.smartchannel.playerad.config.PlayerConfig
 import br.com.smartchannel.playerad.config.PlayerConfigLoader
+import br.com.smartchannel.playerad.config.PlayerConfigStore
 import br.com.smartchannel.playerad.config.PlayerStorageMode
 import br.com.smartchannel.playerad.util.AppDirs
 import br.com.smartchannel.playerad.util.DeviceProvisioningDiagnostics
@@ -162,7 +163,16 @@ class DebugConfigActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            saveConfigInternal(cfg)
+            try {
+                val saveResult = PlayerConfigStore.save(this, cfg)
+                if (!saveResult.internalOk && saveResult.externalOk) {
+                    appendStatus("\nAviso: config gravada só no SD (filesDir sem permissão de escrita).")
+                }
+            } catch (e: Exception) {
+                setStatus("Erro ao salvar configuração: ${e.message ?: e.toString()}")
+                PlayerAdLogger.e("DEBUG_UI", "Falha ao salvar config antes de iniciar player", e)
+                return@setOnClickListener
+            }
             if (onboarding) {
                 markSetupComplete()
                 launchPlayerAndFinish()
@@ -370,7 +380,7 @@ class DebugConfigActivity : AppCompatActivity() {
         PlayerAdPrefs.prefs(this).edit()
             .putBoolean(PlayerAdPrefs.KEY_DEV_FIRST_RUN_DONE, true)
             .putInt(PlayerAdPrefs.KEY_DEV_LAST_VERSION_CODE, versionCode)
-            .apply()
+            .commit()
     }
 
     private fun launchPlayerAndFinish() {
@@ -422,7 +432,16 @@ class DebugConfigActivity : AppCompatActivity() {
             }
 
             result.onSuccess { json ->
-                saveConfigInternal(cfg)
+                try {
+                    val saveResult = PlayerConfigStore.save(this@DebugConfigActivity, cfg)
+                    if (!saveResult.internalOk && saveResult.externalOk) {
+                        appendStatus("\nAviso: config gravada só no SD (filesDir sem permissão de escrita).")
+                    }
+                } catch (e: Exception) {
+                    setStatus("Erro ao salvar configuração: ${e.message ?: e.toString()}")
+                    PlayerAdLogger.e("DEBUG_UI", "Falha ao salvar config após vinculação", e)
+                    return@onSuccess
+                }
                 val status = json.optString("status", "")
                 val token = json.optString("token", "")
                 if (token.isNotBlank()) lastHeartbeatToken = token
@@ -642,34 +661,7 @@ class DebugConfigActivity : AppCompatActivity() {
     }
 
     private fun saveConfigInternal(cfg: PlayerConfig) {
-        val json = JSONObject().apply {
-            put("serverUrl", cfg.serverUrl)
-            put("uin", cfg.uin)
-            put("deviceId", cfg.deviceId)
-            put("acceptImagesInPlaylist", cfg.acceptImagesInPlaylist)
-            put("allowPlaybackAudio", cfg.allowPlaybackAudio)
-            put("fallbackPropagandasPerVinheta", cfg.fallbackPropagandasPerVinheta)
-            put("maxSecondsWithoutServerCheck", cfg.maxSecondsWithoutServerCheck)
-            put("storage", PlayerConfigLoader.storageModeToJsonValue(cfg.storageMode))
-            if (cfg.storageMode == PlayerStorageMode.PATH_OVERRIDE && !cfg.storagePathOverride.isNullOrBlank()) {
-                put("storagePathOverride", cfg.storagePathOverride)
-            }
-            put("kioskMode", PlayerConfigLoader.kioskModeToJsonValue(cfg.kioskMode))
-            put("displayRotation", cfg.displayRotation.coerceIn(0, 3))
-            put("screenOrientation", PlayerConfigLoader.screenOrientationToJsonValue(cfg.screenOrientation))
-        }
-        val internal = File(filesDir, "player-config.json")
-        internal.writeText(json.toString(), Charsets.UTF_8)
-        Log.i("Player-AD", "Config salva internamente em filesDir/player-config.json")
-
-        // Opcional: tentar também atualizar a cópia externa, caso exista/permita.
-        try {
-            val external = File("/sdcard/smartsignage/player-config.json")
-            external.parentFile?.mkdirs()
-            external.writeText(json.toString(), Charsets.UTF_8)
-        } catch (_: Exception) {
-            // Sem permissões: silencioso (loader já prioriza interno).
-        }
+        PlayerConfigStore.save(this, cfg)
     }
 
     companion object {
