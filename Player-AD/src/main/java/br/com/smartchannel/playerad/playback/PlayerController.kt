@@ -474,6 +474,8 @@ class PlayerController(
             put("deviceId", apiClient.deviceId)
             put("cacheRoot", root.absolutePath)
             put("propagandasCount", listFallbackFiles(propagandasDir).size)
+            put("propagandasCacheValidCount", cacheManager.listValidCachedMediaFiles().size)
+            put("fallbackPropagandasEligibleCount", collectFallbackPropagandas().size)
             put("vinhetasCount", listFallbackFiles(vinhetasDir).size)
             put("storageFreeBytes", root.freeSpace)
             put("storageTotalBytes", root.totalSpace)
@@ -938,69 +940,146 @@ class PlayerController(
 
     /**
      * Constrói um DispatchPlan sintético de fallback usando arquivos locais:
-     * - Usa arquivos em propagandas/ e vinhetas/
-     * - Intercala: N propagandas, 1 vinheta (N vindo de config)
-     * - duration dos vídeos fica a cargo do player (duration=null),
-     *   mantendo o "padrão da mídia" (duração real do arquivo).
+     * - Propagandas: pasta `propagandas/` + cache válido (`metadata.json`, valid=true)
+     * - Vinhetas: pasta `vinhetas/`
+     * - Com ambos: intercala N propagandas + 1 vinheta (N = fallbackPropagandasPerVinheta)
+     * - Sem propagandas: só vinhetas (rotação)
+     * - Sem vinhetas: só propagandas (rotação)
      */
     private fun buildFallbackPlan(): DispatchPlan? {
-        val propagandas = listFallbackFiles(propagandasDir)
-        val vinhetas = listFallbackFiles(vinhetasDir)
+        val propagandas = collectFallbackPropagandas()
+        val vinhetas = collectFallbackVinhetas()
 
-        // Regra configurável: N propagandas + 1 vinheta, repetindo arquivos se necessário.
-        if (propagandas.isEmpty() || vinhetas.isEmpty()) return null
+        if (propagandas.isEmpty() && vinhetas.isEmpty()) return null
 
         val items = mutableListOf<DispatchMediaItem>()
         val propagandasPerVinheta = fallbackPropagandasPerVinheta.coerceAtLeast(1)
 
-        // N propagandas
-        for (k in 0 until propagandasPerVinheta) {
-            val file = propagandas[k % propagandas.size]
-            val mediaType = guessFallbackMediaType(file.name)
-            val durationSeconds = fallbackDurationForMediaType(mediaType)
-            items += DispatchMediaItem(
-                mediaId = 0L,
-                url = file.toURI().toString(),
-                duration = durationSeconds,
-                mediaType = mediaType,
-                order = items.size + 1,
-                label = file.name
-            )
+        val playlistName = when {
+            propagandas.isEmpty() ->
+                "Fallback (somente vinhetas, ${vinhetas.size})"
+            vinhetas.isEmpty() ->
+                "Fallback (somente propagandas, ${propagandas.size})"
+            else ->
+                "Fallback (mix ${propagandasPerVinheta}:1, prop=${propagandas.size}, vin=${vinhetas.size})"
         }
 
-        // 1 vinheta
-        run {
-            val file = vinhetas[0 % vinhetas.size]
-            val mediaType = guessFallbackMediaType(file.name)
-            val durationSeconds = fallbackDurationForMediaType(mediaType)
-            items += DispatchMediaItem(
-                mediaId = 0L,
-                url = file.toURI().toString(),
-                duration = durationSeconds,
-                mediaType = mediaType,
-                order = items.size + 1,
-                label = file.name
-            )
+        when {
+            propagandas.isEmpty() -> {
+                for (src in vinhetas) {
+                    items += fallbackItemFromSource(src, items.size + 1)
+                }
+            }
+            vinhetas.isEmpty() -> {
+                for (src in propagandas) {
+                    items += fallbackItemFromSource(src, items.size + 1)
+                }
+            }
+            else -> {
+                for (k in 0 until propagandasPerVinheta) {
+                    items += fallbackItemFromSource(propagandas[k % propagandas.size], items.size + 1)
+                }
+                items += fallbackItemFromSource(vinhetas[0], items.size + 1)
+            }
         }
 
         return DispatchPlan(
             playlistId = 0L,
-            playlistName = "Fallback (Propagandas padrão ${propagandasPerVinheta}:1)",
+            playlistName = playlistName,
             mediaItems = items,
             campaignId = null
         )
     }
 
+    private data class FallbackMediaSource(
+        val file: File,
+        val mediaId: Long,
+        val mediaType: String,
+        val label: String
+    )
+
+    /** Propagandas da pasta + cache válido (sem duplicar o mesmo arquivo). */
+    private fun collectFallbackPropagandas(): List<FallbackMediaSource> {
+        val seen = mutableSetOf<String>()
+        val out = mutableListOf<FallbackMediaSource>()
+
+        fun add(file: File, mediaId: Long, mimeType: String?) {
+            if (!isSupportedFallbackMediaName(file.name)) return
+            if (!file.isFile || file.length() <= 0L) return
+            val path = canonicalPathSafe(file) ?: file.absolutePath
+            if (!seen.add(path)) return
+            out += FallbackMediaSource(
+                file = file,
+                mediaId = mediaId,
+                mediaType = guessMediaTypeFromMime(mimeType, file.name),
+                label = file.name
+            )
+        }
+
+        for (f in listFallbackFiles(propagandasDir)) {
+            add(f, 0L, null)
+        }
+        for (cached in cacheManager.listValidCachedMediaFiles()) {
+            add(cached.file, cached.mediaId, cached.mimeType)
+        }
+
+        return out.sortedBy { it.label.lowercase() }
+    }
+
+    private fun collectFallbackVinhetas(): List<FallbackMediaSource> =
+        listFallbackFiles(vinhetasDir).map { file ->
+            FallbackMediaSource(
+                file = file,
+                mediaId = 0L,
+                mediaType = guessFallbackMediaType(file.name),
+                label = file.name
+            )
+        }
+
+    private fun fallbackItemFromSource(src: FallbackMediaSource, order: Int): DispatchMediaItem {
+        val durationSeconds = fallbackDurationForMediaType(src.mediaType)
+        return DispatchMediaItem(
+            mediaId = src.mediaId,
+            url = src.file.toURI().toString(),
+            duration = durationSeconds,
+            mediaType = src.mediaType,
+            order = order,
+            label = src.label
+        )
+    }
+
+    private fun canonicalPathSafe(file: File): String? =
+        try {
+            file.canonicalPath
+        } catch (_: Exception) {
+            file.absolutePath
+        }
+
+    private fun isSupportedFallbackMediaName(fileName: String): Boolean {
+        val lower = fileName.lowercase()
+        return lower.endsWith(".mp4") ||
+            lower.endsWith(".webm") ||
+            lower.endsWith(".mov") ||
+            lower.endsWith(".jpg") ||
+            lower.endsWith(".jpeg") ||
+            lower.endsWith(".png")
+    }
+
+    private fun guessMediaTypeFromMime(mimeType: String?, fileName: String): String {
+        val m = mimeType?.lowercase()?.trim().orEmpty()
+        return when {
+            m.startsWith("video/") -> "video"
+            m.startsWith("image/") -> "image"
+            m.contains("html") -> "html"
+            m.isNotEmpty() -> guessFallbackMediaType(fileName)
+            else -> guessFallbackMediaType(fileName)
+        }
+    }
+
     private fun listFallbackFiles(dir: File): List<File> {
         if (!dir.exists() || !dir.isDirectory) return emptyList()
-        return dir.listFiles { f ->
-            f.isFile && (f.name.endsWith(".mp4", true) ||
-                f.name.endsWith(".webm", true) ||
-                f.name.endsWith(".mov", true) ||
-                f.name.endsWith(".jpg", true) ||
-                f.name.endsWith(".jpeg", true) ||
-                f.name.endsWith(".png", true))
-        }?.sortedBy { it.name.lowercase() } ?: emptyList()
+        return dir.listFiles { f -> f.isFile && isSupportedFallbackMediaName(f.name) }
+            ?.sortedBy { it.name.lowercase() } ?: emptyList()
     }
 
     private fun guessFallbackMediaType(fileName: String): String {

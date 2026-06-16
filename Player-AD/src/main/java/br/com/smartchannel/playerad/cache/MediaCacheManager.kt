@@ -223,8 +223,37 @@ class MediaCacheManager(
     }
 
     /**
-     * Calcula o tamanho atual do cache (somando size de mídias valid=true).
+     * Mídias com `valid=true` cujo arquivo ainda existe em `propagandas/`.
+     * Usado no fallback offline (playlist vazia) junto com arquivos soltos na pasta.
      */
+    @Synchronized
+    fun listValidCachedMediaFiles(): List<CachedMediaFile> {
+        val dir = propagandasDir()
+        val out = mutableListOf<CachedMediaFile>()
+        val keys = metadata.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            val obj = metadata.optJSONObject(key) ?: continue
+            if (!obj.optBoolean("valid", false)) continue
+            val fileName = obj.optString("fileName", "").takeIf { it.isNotBlank() } ?: continue
+            val file = File(dir, fileName)
+            if (!file.isFile || file.length() <= 0L) continue
+            val mediaId = key.toLongOrNull() ?: obj.optLong("mediaId", 0L)
+            out += CachedMediaFile(
+                mediaId = mediaId,
+                file = file,
+                mimeType = obj.optString("mimeType", "").takeIf { it.isNotBlank() }
+            )
+        }
+        return out.sortedBy { it.file.name.lowercase() }
+    }
+
+    data class CachedMediaFile(
+        val mediaId: Long,
+        val file: File,
+        val mimeType: String?
+    )
+
     @Synchronized
     fun getCurrentCacheSizeBytes(): Long {
         var total = 0L
