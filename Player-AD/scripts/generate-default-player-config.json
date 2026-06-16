@@ -4,5 +4,6 @@
   "deviceId": "DEMO-UIN-001",
   "kioskMode": "strong",
   "screenOrientation": "portrait",
-  "fallbackPropagandasPerVinheta": 3
+  "fallbackPropagandasPerVinheta": 3,
+  "maxSecondsWithoutServerCheck": 600
 }

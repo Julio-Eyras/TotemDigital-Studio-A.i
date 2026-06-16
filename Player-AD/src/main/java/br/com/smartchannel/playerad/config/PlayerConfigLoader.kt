@@ -36,7 +36,7 @@ class PlayerConfigLoader(private val context: Context) {
             acceptImagesInPlaylist = true,
             allowPlaybackAudio = true,
             fallbackPropagandasPerVinheta = 3,
-            maxSecondsWithoutServerCheck = 60,
+            maxSecondsWithoutServerCheck = 600,
             storageMode = PlayerStorageMode.AUTO,
             storagePathOverride = null,
             kioskMode = KioskMode.STRONG,
@@ -58,7 +58,7 @@ class PlayerConfigLoader(private val context: Context) {
                 val allowAudio = json.optBoolean("allowPlaybackAudio", true)
                 val fallbackRatioRaw = json.optInt("fallbackPropagandasPerVinheta", 3)
                 val fallbackRatio = fallbackRatioRaw.coerceAtLeast(1)
-                val maxSecondsRaw = json.optInt("maxSecondsWithoutServerCheck", 60)
+                val maxSecondsRaw = json.optInt("maxSecondsWithoutServerCheck", 600)
                 val maxSeconds = maxSecondsRaw.coerceAtLeast(10)
                 val storageMode = parseStorageMode(json.optString("storage", ""))
                 val pathOverride = json.optString("storagePathOverride", "").trim().takeIf { it.isNotBlank() }

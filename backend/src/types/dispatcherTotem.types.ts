@@ -68,6 +68,10 @@ export interface DispatchMediaItem {
   url: string;
   mediaType: string;
   cacheBucket: 'propagandas' | 'vinhetas';
+  /** Nome/título da mídia (medias.name). */
+  mediaName?: string;
+  /** Nome do ficheiro original (medias.file_name). */
+  fileName?: string;
   metadata?: {
     width?: number;
     height?: number;

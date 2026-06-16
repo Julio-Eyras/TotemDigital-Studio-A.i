@@ -567,27 +567,25 @@ class DebugConfigActivity : AppCompatActivity() {
 
                     val apiClient = DispatcherApiClient(cfg.serverUrl, cfg.uin, cfg.deviceId)
                     val json = apiClient.getDispatchPlan(token)
-                    Result.success(json)
+                    val dispatchFile = File(AppDirs.root(this@DebugConfigActivity), "last-dispatch-plan.json")
+                    dispatchFile.parentFile?.mkdirs()
+                    dispatchFile.writeText(json.toString(), Charsets.UTF_8)
+                    Result.success(json to dispatchFile.absolutePath)
                 } catch (e: Exception) {
-                    Result.failure<JSONObject>(e)
+                    Result.failure<Pair<JSONObject, String>>(e)
                 }
             }
 
-            result.onSuccess { json ->
+            result.onSuccess { pair ->
+                val json = pair.first
+                val savedJsonPath = pair.second
                 lastDispatchPlan = json
                 dispatchOk = true
                 heartbeatOk = true
 
                 val planSummary = summarizeDispatch(json)
                 setStatus("✔ DispatchPlan OK\n\n$planSummary")
-                val planObj = json.optJSONObject("plan")
-                val name = planObj?.optString("playlistName", "") ?: ""
-                val pid = planObj?.optLong("playlistId", 0L) ?: 0L
-                val items = planObj?.optJSONArray("mediaItems")?.length() ?: 0
-                val campaignIdForLog = planObj?.let { p ->
-                    if (p.has("campaignId")) p.optLong("campaignId", 0L) else null
-                }
-                PlayerAdLogger.logDispatchPlanReceived(pid, name.ifBlank { "(sem nome)" }, items, campaignIdForLog)
+                PlayerAdLogger.logDispatchPlanDetailFromJson("teste_debug", json, savedJsonPath)
                 PlayerAdLogger.i("DEBUG_UI", "Teste DispatchPlan OK (ecrã debug)")
                 setHeartbeatAndDispatchState(heartbeatOk = heartbeatOk, dispatchOk = dispatchOk)
                 refreshOfflineState()

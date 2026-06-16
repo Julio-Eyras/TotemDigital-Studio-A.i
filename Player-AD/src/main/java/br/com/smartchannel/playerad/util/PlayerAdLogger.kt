@@ -6,6 +6,8 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * Registro operacional do Player-AD: ações, erros e recebimento de DispatchPlan (data/hora).
@@ -66,6 +68,99 @@ object PlayerAdLogger {
             "DISPATCH",
             "DispatchPlan recebido — playlist=\"$playlistName\" id=$playlistId itens=$itemCount campaignId=${campaignId ?: "-"}"
         )
+    }
+
+    /**
+     * Resumo compacto do DispatchPlan + caminho do JSON completo em disco (opção B de debug).
+     * [sequenceEntries]: `order:mediaId,type,dur_s,label` separados por ` | ` na linha de log.
+     */
+    fun logDispatchPlanDetail(
+        source: String,
+        playlistId: Long,
+        playlistName: String,
+        campaignId: Long?,
+        sequenceEntries: List<String>,
+        savedJsonPath: String?
+    ) {
+        logDispatchPlanReceived(playlistId, playlistName, sequenceEntries.size, campaignId)
+        if (sequenceEntries.isNotEmpty()) {
+            i("DISPATCH", "[$source] Sequencia: ${sequenceEntries.joinToString(" | ")}")
+        }
+        savedJsonPath?.takeIf { it.isNotBlank() }?.let { path ->
+            i("DISPATCH", "[$source] JSON completo persistido em: $path")
+        }
+    }
+
+    /** Extrai sequência e metadados do JSON bruto de dispatch (ecrã debug / testes). */
+    fun logDispatchPlanDetailFromJson(source: String, json: JSONObject, savedJsonPath: String?) {
+        val planObj = extractPlanObject(json)
+        val playlistId = planObj.optLong("playlistId", planObj.optLong("playlist_id", 0L))
+        val playlistName = planObj.optString("playlistName", planObj.optString("playlist_name", "DispatchPlan"))
+            .ifBlank { "(sem nome)" }
+        val campaignId = planObj.optLong("campaignId", planObj.optLong("campaign_id", 0L)).takeIf { it > 0L }
+        val itemsArray = planObj.optJSONArray("mediaItems")
+            ?: planObj.optJSONArray("media_items")
+            ?: JSONArray()
+        val entries = buildSequenceEntriesFromJsonArray(itemsArray)
+        logDispatchPlanDetail(source, playlistId, playlistName, campaignId, entries, savedJsonPath)
+    }
+
+    private fun extractPlanObject(json: JSONObject): JSONObject {
+        json.optJSONObject("plan")?.let { return it }
+        json.optJSONObject("data")?.optJSONObject("plan")?.let { return it }
+        return JSONObject()
+    }
+
+    private fun buildSequenceEntriesFromJsonArray(itemsArray: JSONArray): List<String> {
+        val entries = mutableListOf<String>()
+        for (i in 0 until itemsArray.length()) {
+            val obj = itemsArray.optJSONObject(i) ?: continue
+            val mediaId = firstPositiveLong(obj, "mediaId", "media_id") ?: continue
+            val order = firstPositiveLong(obj, "order")?.toInt() ?: (i + 1)
+            val type = firstNonBlankString(obj, "mediaType", "media_type", "mimeType", "mime_type")
+                .ifBlank { "-" }
+            val duration = firstPositiveLong(obj, "duration", "display_seconds", "displaySeconds")
+            val durLabel = duration?.let { "${it}s" } ?: "-"
+            val url = firstNonBlankString(obj, "url", "file_path", "filePath", "src")
+            val label = firstNonBlankString(
+                obj,
+                "mediaName",
+                "media_name",
+                "title",
+                "name",
+                "fileName",
+                "file_name",
+            ).ifBlank {
+                url.substringAfterLast('/').substringBefore('?').ifBlank { "-" }
+            }
+            entries += "$order:$mediaId,$type,$durLabel,$label"
+        }
+        return entries
+    }
+
+    private fun firstNonBlankString(obj: JSONObject, vararg keys: String): String {
+        for (key in keys) {
+            val v = obj.optString(key, "").trim()
+            if (v.isNotBlank()) return v
+        }
+        return ""
+    }
+
+    private fun firstPositiveLong(obj: JSONObject, vararg keys: String): Long? {
+        for (key in keys) {
+            if (!obj.has(key)) continue
+            val parsed = try {
+                when (val v = obj.get(key)) {
+                    is Number -> v.toLong()
+                    is String -> v.trim().toLongOrNull()
+                    else -> null
+                }
+            } catch (_: Exception) {
+                obj.optString(key, "").trim().toLongOrNull()
+            }
+            if (parsed != null && parsed > 0L) return parsed
+        }
+        return null
     }
 
     fun logPlaybackStart(kind: String, mediaId: Any, playlistName: String, playlistId: Long) {

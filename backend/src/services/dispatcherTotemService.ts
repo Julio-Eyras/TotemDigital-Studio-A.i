@@ -14,11 +14,9 @@ import { getDatabase } from '../config/database';
 import { DISABLE_DIRECT_CAMPAIGN_TOTEM } from '../config/featureFlags';
 import { isStudioRuntime } from '../config/installationRuntime';
 import { logError, logDebug } from '../utils/loggerHelper';
-import { normalizeDownloadUrl } from '../utils/pathHelper';
 import { getCacheService } from './cacheService';
 import { getTotemPlaylistMixService, TotemPlaylistMix } from './totemPlaylistMixService';
-import { resolveDispatchCacheBucket } from './dispatchMediaBucket';
-import { resolveDispatchItemDurationSeconds } from '../utils/dispatchItemDuration';
+import { buildDispatchMediaItem } from '../utils/dispatchMediaItem';
 import {
   DispatchRequest,
   DispatchPlan,
@@ -785,7 +783,7 @@ export class DispatcherTotemService {
 
       const mediaIds = [...new Set(items.map((i: any) => i.media_id))];
       const medias = await this.db.findMany(`
-        SELECT media_id, file_path, media_type, duration_seconds, width, height, mime_type, tags
+        SELECT media_id, name, file_name, file_path, media_type, duration_seconds, width, height, mime_type, tags
         FROM medias
         WHERE media_id = ANY($1::int[]) AND is_active = true
       `, [mediaIds]);
@@ -797,21 +795,24 @@ export class DispatcherTotemService {
         .filter((item: any) => mediaMap.has(item.media_id))
         .map((item: any, index: number) => {
           const m = mediaMap.get(item.media_id);
-          const duration = resolveDispatchItemDurationSeconds({
-            displaySeconds: item.display_seconds,
-            mediaType: m?.media_type,
-            mediaDurationSeconds: m?.duration_seconds,
-          });
-          const url = normalizeDownloadUrl(m?.file_path) || '';
-          return {
+          const built = buildDispatchMediaItem({
             mediaId: item.media_id,
             order: item.order_index ?? index + 1,
-            duration,
-            url: url || `/api/media/${item.media_id}/stream`,
-            mediaType: m?.media_type || 'image',
-            cacheBucket: resolveDispatchCacheBucket(m || {}),
-            metadata: { width: m?.width, height: m?.height, mimeType: m?.mime_type },
-          };
+            displaySeconds: item.display_seconds,
+            mediaType: m?.media_type,
+            durationSeconds: m?.duration_seconds,
+            filePath: m?.file_path,
+            name: m?.name,
+            fileName: m?.file_name,
+            width: m?.width,
+            height: m?.height,
+            mimeType: m?.mime_type,
+            tags: m?.tags,
+          });
+          if (!built.url) {
+            built.url = `/api/media/${item.media_id}/stream`;
+          }
+          return built;
         });
       if (mediaItems.length === 0) return null;
 
@@ -1853,6 +1854,7 @@ export class DispatcherTotemService {
       order_index: number;
       duration: number | null;
       name: string | null;
+      file_name: string | null;
       file_path: string | null;
       media_type: string | null;
       tags: any;
@@ -1872,6 +1874,7 @@ export class DispatcherTotemService {
         pi.order_index,
         pi.display_seconds as duration,
         m.name,
+        m.file_name,
         m.file_path,
         m.media_type,
         m.tags,
@@ -1895,6 +1898,7 @@ export class DispatcherTotemService {
             cm.order_index,
             cm.display_seconds as duration,
             m.name,
+            m.file_name,
             m.file_path,
             m.media_type,
             m.tags,
@@ -1993,6 +1997,7 @@ export class DispatcherTotemService {
         SELECT 
           m.media_id,
           m.name,
+          m.file_name,
           m.file_path,
           m.media_type,
           m.is_active,
@@ -2010,23 +2015,22 @@ export class DispatcherTotemService {
         !!media && media.is_active === true && ['approved', 'published'].includes(String(media.status));
 
       if (media && mediaIsPlayable) {
-        mediaItems.push({
-          mediaId: media.media_id,
-          order: mixItem.order_index,
-          duration: resolveDispatchItemDurationSeconds({
+        mediaItems.push(
+          buildDispatchMediaItem({
+            mediaId: media.media_id,
+            order: mixItem.order_index,
             displaySeconds: mixItem.duration,
             mediaType: media.media_type,
-            mediaDurationSeconds: media.duration_seconds,
-          }),
-          url: normalizeDownloadUrl(media.file_path) || '',
-          mediaType: media.media_type,
-          cacheBucket: resolveDispatchCacheBucket(media),
-          metadata: {
+            durationSeconds: media.duration_seconds,
+            filePath: media.file_path,
+            name: media.name,
+            fileName: media.file_name,
             width: media.width,
             height: media.height,
             mimeType: media.mime_type,
-          },
-        });
+            tags: media.tags,
+          })
+        );
       } else {
         discardedItems++;
         const reason = !media
@@ -2184,26 +2188,22 @@ export class DispatcherTotemService {
     );
     const items = consolidated.items;
 
-    const mediaItems: DispatchMediaItem[] = items.map((item, index) => ({
-      mediaId: item.media_id,
-      order: index + 1,
-      duration: resolveDispatchItemDurationSeconds({
+    const mediaItems: DispatchMediaItem[] = items.map((item, index) =>
+      buildDispatchMediaItem({
+        mediaId: item.media_id,
+        order: index + 1,
         displaySeconds: item.duration,
         mediaType: item.media_type,
-        mediaDurationSeconds: item.duration_seconds,
-      }),
-      url: normalizeDownloadUrl(item.file_path) || '',
-      mediaType: item.media_type || 'image',
-      cacheBucket: resolveDispatchCacheBucket({
-        ...item,
-        file_path: item.file_path || undefined,
-      }),
-      metadata: {
-        width: item.width ?? undefined,
-        height: item.height ?? undefined,
-        mimeType: item.mime_type ?? undefined,
-      },
-    }));
+        durationSeconds: item.duration_seconds,
+        filePath: item.file_path,
+        name: item.name,
+        fileName: item.file_name,
+        width: item.width,
+        height: item.height,
+        mimeType: item.mime_type,
+        tags: item.tags,
+      })
+    );
 
     const totalDuration = mediaItems.reduce((sum, item) => sum + item.duration, 0);
 

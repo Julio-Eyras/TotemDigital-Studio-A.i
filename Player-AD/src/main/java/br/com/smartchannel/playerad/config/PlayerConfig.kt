@@ -17,7 +17,7 @@ data class PlayerConfig(
      * Tempo máximo (em segundos) sem tentar heartbeat+dispatch.
      * Mantém o modo híbrido: por ciclo + janela de segurança temporal.
      */
-    val maxSecondsWithoutServerCheck: Int = 60,
+    val maxSecondsWithoutServerCheck: Int = 600,
     /**
      * Onde gravar propagandas, vinhetas e JSON do último dispatch.
      * Ver [PlayerStorageMode] e campo `storage` em `player-config.json`.

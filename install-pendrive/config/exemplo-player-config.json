@@ -5,5 +5,6 @@
   "kioskMode": "strong",
   "displayRotation": 0,
   "screenOrientation": "portrait",
-  "fallbackPropagandasPerVinheta": 3
+  "fallbackPropagandasPerVinheta": 3,
+  "maxSecondsWithoutServerCheck": 600
 }

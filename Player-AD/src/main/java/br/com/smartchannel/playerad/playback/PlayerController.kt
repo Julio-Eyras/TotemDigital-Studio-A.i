@@ -56,7 +56,7 @@ class PlayerController(
     /** Se false, [exoPlayer] permanece em volume 0 durante vídeo/áudio. */
     private val allowPlaybackAudio: Boolean = true,
     private val fallbackPropagandasPerVinheta: Int = 3,
-    private val maxSecondsWithoutServerCheck: Int = 60,
+    private val maxSecondsWithoutServerCheck: Int = 600,
     private val otaUpdateCoordinator: OtaUpdateCoordinator? = null
 ) {
     private var restartRequested = false
@@ -76,7 +76,9 @@ class PlayerController(
         val mediaId: Long,
         val url: String,
         val duration: Long?, // em segundos
-        val mediaType: String?
+        val mediaType: String?,
+        val order: Int = 0,
+        val label: String? = null
     )
 
     data class DispatchPlan(
@@ -109,14 +111,8 @@ class PlayerController(
         PlayerAdLogger.i("LIFECYCLE", "(1) Heartbeat inicial — token/sessão (GET /token se necessário + POST /heartbeat)")
         var sessionToken = apiClient.cachedToken() ?: ""
         val initialPlanWithSource = try {
-            val online = fetchOnlinePlan(sessionToken)
+            val online = fetchOnlinePlan(sessionToken, "arranque")
             sessionToken = online.token
-            PlayerAdLogger.logDispatchPlanReceived(
-                online.plan.playlistId,
-                online.plan.playlistName,
-                online.plan.mediaItems.size,
-                online.plan.campaignId
-            )
             online.plan to PlanSource.ONLINE
         } catch (e: Exception) {
             PlayerAdLogger.e("DISPATCH", "Falha no arranque online (heartbeat/dispatch); tentando fallback local", e)
@@ -168,7 +164,26 @@ class PlayerController(
                 .takeIf { it > 0L }
             val mediaType = firstNonBlankString(obj, "mediaType", "media_type", "mimeType", "mime_type")
                 .takeIf { it.isNotBlank() }
-            items += DispatchMediaItem(mediaId, apiClient.resolveUrl(url), duration, mediaType)
+            val order = parsePositiveLong(obj, "order").takeIf { it > 0L }?.toInt() ?: (i + 1)
+            val label = firstNonBlankString(
+                obj,
+                "mediaName",
+                "media_name",
+                "title",
+                "name",
+                "fileName",
+                "file_name",
+            ).ifBlank {
+                url.substringAfterLast('/').substringBefore('?').ifBlank { null }
+            }
+            items += DispatchMediaItem(
+                mediaId = mediaId,
+                url = apiClient.resolveUrl(url),
+                duration = duration,
+                mediaType = mediaType,
+                order = order,
+                label = label
+            )
         }
 
         val rawCount = itemsArray.length()
@@ -310,7 +325,7 @@ class PlayerController(
             val nowMs = System.currentTimeMillis()
             if (nowMs - lastServerCheckAtMs >= maxGapMs) {
                 try {
-                    val refreshed = fetchOnlinePlan(currentToken)
+                    val refreshed = fetchOnlinePlan(currentToken, "checagem_temporal")
                     currentToken = refreshed.token
                     currentPlan = refreshed.plan
                     currentPlanSource = PlanSource.ONLINE
@@ -368,20 +383,9 @@ class PlayerController(
 
             if (currentPlan.mediaItems.isNotEmpty() && index == 0 && completedFullCycle) {
                 try {
-                    val refreshed = fetchOnlinePlan(currentToken)
+                    val refreshed = fetchOnlinePlan(currentToken, "pos_ciclo")
                     currentToken = refreshed.token
-                    val newPlan = refreshed.plan
-                    PlayerAdLogger.i(
-                        "DISPATCH",
-                        "Plano atualizado após ciclo — playlist=${newPlan.playlistName} (${newPlan.mediaItems.size} itens)"
-                    )
-                    PlayerAdLogger.logDispatchPlanReceived(
-                        newPlan.playlistId,
-                        newPlan.playlistName,
-                        newPlan.mediaItems.size,
-                        newPlan.campaignId
-                    )
-                    currentPlan = newPlan
+                    currentPlan = refreshed.plan
                     currentPlanSource = PlanSource.ONLINE
                     updatePlanSource(currentPlanSource, "Fonte do plano alterada")
                     lastServerCheckAtMs = System.currentTimeMillis()
@@ -424,7 +428,7 @@ class PlayerController(
         val plan: DispatchPlan
     )
 
-    private suspend fun fetchOnlinePlan(previousToken: String): OnlinePlanResult {
+    private suspend fun fetchOnlinePlan(previousToken: String, logSource: String = "online"): OnlinePlanResult {
         PlayerAdLogger.i("LIFECYCLE", "(2) DispatchPlan + pré-cache (GET /api/player/dispatch)")
         val hb = apiClient.heartbeatWithCommands(buildHealthMetrics())
         var token = hb.token
@@ -434,15 +438,31 @@ class PlayerController(
             token = processPendingCommands(hb.pendingCommands, token)
         }
         val dispatchJson = apiClient.getDispatchPlan(token)
-        saveDispatchPlanToDisk(dispatchJson)
+        val savedJsonPath = saveDispatchPlanToDisk(dispatchJson)
         val effectiveToken = apiClient.cachedToken() ?: token.ifBlank { previousToken }
         val plan = parseDispatchPlan(dispatchJson)
+        PlayerAdLogger.logDispatchPlanDetail(
+            source = logSource,
+            playlistId = plan.playlistId,
+            playlistName = plan.playlistName,
+            campaignId = plan.campaignId,
+            sequenceEntries = formatDispatchSequence(plan.mediaItems),
+            savedJsonPath = savedJsonPath
+        )
         preloadPlan(plan)
         return OnlinePlanResult(
             token = effectiveToken,
             plan = plan
         )
     }
+
+    private fun formatDispatchSequence(items: List<DispatchMediaItem>): List<String> =
+        items.sortedBy { it.order }.map { item ->
+            val type = item.mediaType?.takeIf { it.isNotBlank() } ?: "-"
+            val durLabel = item.duration?.let { "${it}s" } ?: "-"
+            val label = item.label?.takeIf { it.isNotBlank() } ?: "-"
+            "${item.order}:${item.mediaId},$type,$durLabel,$label"
+        }
 
     private fun buildHealthMetrics(): JSONObject {
         val root = AppDirs.root(context)
@@ -942,7 +962,9 @@ class PlayerController(
                 mediaId = 0L,
                 url = file.toURI().toString(),
                 duration = durationSeconds,
-                mediaType = mediaType
+                mediaType = mediaType,
+                order = items.size + 1,
+                label = file.name
             )
         }
 
@@ -955,7 +977,9 @@ class PlayerController(
                 mediaId = 0L,
                 url = file.toURI().toString(),
                 duration = durationSeconds,
-                mediaType = mediaType
+                mediaType = mediaType,
+                order = items.size + 1,
+                label = file.name
             )
         }
 
@@ -1014,13 +1038,15 @@ class PlayerController(
         }
     }
 
-    private suspend fun saveDispatchPlanToDisk(json: JSONObject) = withContext(Dispatchers.IO) {
+    private suspend fun saveDispatchPlanToDisk(json: JSONObject): String? = withContext(Dispatchers.IO) {
         try {
             val parent = persistedDispatchFile.parentFile
             if (parent != null && !parent.exists()) parent.mkdirs()
             persistedDispatchFile.writeText(json.toString(), Charsets.UTF_8)
+            persistedDispatchFile.absolutePath
         } catch (e: Exception) {
             PlayerAdLogger.e("DISPATCH", "Falha ao persistir ultimo DispatchPlan em disco", e)
+            null
         }
     }
 
