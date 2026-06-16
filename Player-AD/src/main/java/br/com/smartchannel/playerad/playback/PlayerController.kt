@@ -78,7 +78,9 @@ class PlayerController(
         val duration: Long?, // em segundos
         val mediaType: String?,
         val order: Int = 0,
-        val label: String? = null
+        val label: String? = null,
+        /** true quando o item veio marcado como vinheta no dispatch (tag/cacheBucket/caminho). */
+        val isVinheta: Boolean = false,
     )
 
     data class DispatchPlan(
@@ -116,7 +118,7 @@ class PlayerController(
             online.plan to PlanSource.ONLINE
         } catch (e: Exception) {
             PlayerAdLogger.e("DISPATCH", "Falha no arranque online (heartbeat/dispatch); tentando fallback local", e)
-            val persistedPlan = loadDispatchPlanFromDisk()?.let { parseDispatchPlan(it) }
+            val persistedPlan = loadDispatchPlanFromDisk()?.let { applyVinhetaMixToDispatchPlan(parseDispatchPlan(it)) }
             if (persistedPlan != null && persistedPlan.mediaItems.isNotEmpty()) {
                 PlayerAdLogger.logFallbackActivated(
                     "arranque offline — usando ultimo DispatchPlan persistido (${persistedPlan.mediaItems.size} itens)"
@@ -176,13 +178,15 @@ class PlayerController(
             ).ifBlank {
                 url.substringAfterLast('/').substringBefore('?').ifBlank { null }
             }
+            val isVinheta = isVinhetaDispatchJson(obj, url)
             items += DispatchMediaItem(
                 mediaId = mediaId,
                 url = apiClient.resolveUrl(url),
                 duration = duration,
                 mediaType = mediaType,
                 order = order,
-                label = label
+                label = label,
+                isVinheta = isVinheta,
             )
         }
 
@@ -202,6 +206,92 @@ class PlayerController(
         }
 
         return DispatchPlan(playlistId, playlistName, items, campaignId)
+    }
+
+    /** Alinhado ao backend (`cacheBucket`, tag `vinheta`, pasta `/vinhetas/`). */
+    private fun isVinhetaDispatchJson(obj: JSONObject, url: String): Boolean {
+        val bucket = firstNonBlankString(obj, "cacheBucket", "cache_bucket").lowercase()
+        if (bucket == "vinhetas") return true
+
+        val tagsArray = obj.optJSONArray("tags")
+        if (tagsArray != null) {
+            for (i in 0 until tagsArray.length()) {
+                if (tagsArray.optString(i, "").trim().equals("vinheta", ignoreCase = true)) return true
+            }
+        }
+        val tagsRaw = obj.optString("tags", "").trim()
+        if (tagsRaw.isNotBlank()) {
+            if (tagsRaw.split(',').any { it.trim().equals("vinheta", ignoreCase = true) }) return true
+        }
+
+        val lower = url.lowercase()
+        return lower.contains("/vinhetas/") || lower.contains("\\vinhetas\\")
+    }
+
+    /**
+     * Intercala o plano do dispatcher (propagandas/campanha) com vinhetas do plano e/ou pasta local,
+     * na proporção [fallbackPropagandasPerVinheta]:1 (ex.: 3 propagandas, 1 vinheta).
+     */
+    private fun applyVinhetaMixToDispatchPlan(plan: DispatchPlan): DispatchPlan {
+        val propagandas = plan.mediaItems.filter { !it.isVinheta }
+        val planVinhetas = plan.mediaItems.filter { it.isVinheta }
+        val vinhetaPool = buildVinhetaPlaybackPool(planVinhetas, collectFallbackVinhetas())
+
+        if (propagandas.isEmpty()) {
+            if (vinhetaPool.isEmpty()) return plan
+            return plan.copy(
+                playlistName = "${plan.playlistName} (somente vinhetas)",
+                mediaItems = vinhetaPool.mapIndexed { index, item -> item.copy(order = index + 1) },
+            )
+        }
+
+        if (vinhetaPool.isEmpty()) {
+            return plan.copy(mediaItems = propagandas.mapIndexed { index, item -> item.copy(order = index + 1) })
+        }
+
+        val ratio = fallbackPropagandasPerVinheta.coerceAtLeast(1)
+        val mixed = mutableListOf<DispatchMediaItem>()
+        var propsSinceVinheta = 0
+        var vinIdx = 0
+        for (prop in propagandas) {
+            mixed += prop.copy(order = mixed.size + 1)
+            propsSinceVinheta++
+            if (propsSinceVinheta >= ratio) {
+                val vin = vinhetaPool[vinIdx % vinhetaPool.size]
+                mixed += vin.copy(order = mixed.size + 1)
+                vinIdx++
+                propsSinceVinheta = 0
+            }
+        }
+
+        PlayerAdLogger.i(
+            "DISPATCH",
+            "Mix vinhetas ${ratio}:1 — campanha=${propagandas.size} vinhetas=${vinhetaPool.size} → reprodução=${mixed.size} itens"
+        )
+        return plan.copy(
+            playlistName = "${plan.playlistName} (mix ${ratio}:1)",
+            mediaItems = mixed,
+        )
+    }
+
+    private fun buildVinhetaPlaybackPool(
+        planVinhetas: List<DispatchMediaItem>,
+        localVinhetas: List<FallbackMediaSource>,
+    ): List<DispatchMediaItem> {
+        val seen = mutableSetOf<String>()
+        val out = mutableListOf<DispatchMediaItem>()
+        fun add(item: DispatchMediaItem) {
+            val key = item.url.ifBlank { "id:${item.mediaId}" }
+            if (!seen.add(key)) return
+            out += item
+        }
+        for (item in planVinhetas) add(item)
+        for (src in localVinhetas) {
+            add(
+                fallbackItemFromSource(src, out.size + 1).copy(isVinheta = true)
+            )
+        }
+        return out
     }
 
     /** Suporta `plan` na raiz ou dentro de `data` (proxies / versões antigas). */
@@ -256,6 +346,7 @@ class PlayerController(
         cacheManager.cleanupIfNeeded()
 
         for (item in plan.mediaItems) {
+            if (item.url.startsWith("file://") || item.mediaId <= 0L) continue
             val meta = cacheManager.getMetadata(item.mediaId)
             val file = meta?.fileName?.let { File(propagandasDir, it) }
             val hasValidCache =
@@ -348,7 +439,7 @@ class PlayerController(
             }
 
             if (currentPlan.mediaItems.isEmpty()) {
-                val persistedPlan = loadDispatchPlanFromDisk()?.let { parseDispatchPlan(it) }
+                val persistedPlan = loadDispatchPlanFromDisk()?.let { applyVinhetaMixToDispatchPlan(parseDispatchPlan(it)) }
                 if (persistedPlan != null && persistedPlan.mediaItems.isNotEmpty()) {
                     PlayerAdLogger.logFallbackActivated(
                         "plano remoto vazio — usando ultimo DispatchPlan persistido (${persistedPlan.mediaItems.size} itens)"
@@ -440,7 +531,9 @@ class PlayerController(
         val dispatchJson = apiClient.getDispatchPlan(token)
         val savedJsonPath = saveDispatchPlanToDisk(dispatchJson)
         val effectiveToken = apiClient.cachedToken() ?: token.ifBlank { previousToken }
-        val plan = parseDispatchPlan(dispatchJson)
+        val parsed = parseDispatchPlan(dispatchJson)
+        preloadPlan(parsed)
+        val plan = applyVinhetaMixToDispatchPlan(parsed)
         PlayerAdLogger.logDispatchPlanDetail(
             source = logSource,
             playlistId = plan.playlistId,
@@ -449,7 +542,6 @@ class PlayerController(
             sequenceEntries = formatDispatchSequence(plan.mediaItems),
             savedJsonPath = savedJsonPath
         )
-        preloadPlan(plan)
         return OnlinePlanResult(
             token = effectiveToken,
             plan = plan
@@ -458,10 +550,10 @@ class PlayerController(
 
     private fun formatDispatchSequence(items: List<DispatchMediaItem>): List<String> =
         items.sortedBy { it.order }.map { item ->
-            val type = item.mediaType?.takeIf { it.isNotBlank() } ?: "-"
+            val kind = if (item.isVinheta) "vinheta" else (item.mediaType?.takeIf { it.isNotBlank() } ?: "-")
             val durLabel = item.duration?.let { "${it}s" } ?: "-"
             val label = item.label?.takeIf { it.isNotBlank() } ?: "-"
-            "${item.order}:${item.mediaId},$type,$durLabel,$label"
+            "${item.order}:${item.mediaId},$kind,$durLabel,$label"
         }
 
     private fun buildHealthMetrics(): JSONObject {

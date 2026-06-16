@@ -11,7 +11,7 @@ data class PlayerConfig(
      * Imagens já não têm som; o interruptor só afeta mídia tocada pelo player.
      */
     val allowPlaybackAudio: Boolean = true,
-    /** Quantas propagandas tocar antes de inserir 1 vinheta no fallback local. */
+    /** Quantas propagandas/campanha tocar antes de inserir 1 vinheta (dispatch online e fallback local). */
     val fallbackPropagandasPerVinheta: Int = 3,
     /**
      * Tempo máximo (em segundos) sem tentar heartbeat+dispatch.
