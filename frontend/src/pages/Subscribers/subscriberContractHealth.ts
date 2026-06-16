@@ -27,6 +27,11 @@ export function normalizeSubscriberContractStatus(raw: unknown): string {
     .toLowerCase();
 }
 
+/** Contrato elegível para vincular campanha aos totens (só status `active`). */
+export function isSubscriberContractActiveForCampaign(contract: { status?: unknown }): boolean {
+  return normalizeSubscriberContractStatus(contract.status) === 'active';
+}
+
 export type ContractHealthLevel = 'success' | 'warning' | 'error';
 
 export interface SubscriberContractHealth {

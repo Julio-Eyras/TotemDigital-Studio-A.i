@@ -115,6 +115,7 @@ import { SubscriberCard, SubscriberDetails, SubscriberForm } from './components'
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import CampaignFullEditorDialog from '../Campaigns/CampaignFullEditorDialog';
+import { isSubscriberContractActiveForCampaign } from './subscriberContractHealth';
 import { useAppSelector } from '../../store/hooks';
 import { getForeignTotemIdFromRow, getTotemIdFromRow, getTotemLocalIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
@@ -525,7 +526,7 @@ const Subscribers: React.FC = () => {
     contracts.filter((c: any) => String(c?.status || '').toLowerCase() !== 'cancelled');
   /** Contratos com status "active" para vincular a campanhas (só estes podem ser usados nos totens) */
   const contractsActiveForCampaign = useMemo(
-    () => (activeContracts || []).filter((c: any) => c.status === 'active'),
+    () => (activeContracts || []).filter((c: any) => isSubscriberContractActiveForCampaign(c)),
     [activeContracts]
   );
 

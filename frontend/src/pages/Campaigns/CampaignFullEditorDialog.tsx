@@ -61,6 +61,7 @@ import {
 import { getTotemIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { getProductTerminology } from '../../config/productTerminology';
+import { isSubscriberContractActiveForCampaign } from '../Subscribers/subscriberContractHealth';
 import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
 import {
   CAMPAIGN_START_DATE_MIN_HELPER,
@@ -82,8 +83,6 @@ export interface CampaignFullEditorDialogProps {
   /** Contratos já carregados no pai (ativos) — evita combo vazio por timing de rede */
   prefetchedContracts?: Contract[] | null;
 }
-
-const isActiveContract = (c: Contract) => String(c.status || '').toLowerCase() === 'active';
 
 const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
   open,
@@ -138,9 +137,16 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
   }, [selectedCampaign, subscriberIdProp]);
 
   const contractsForPicker = useMemo(() => {
-    const pref = (prefetchedContracts || []).filter(isActiveContract);
-    if (pref.length > 0) return pref;
-    return subscriberContracts.filter(isActiveContract);
+    const seen = new Set<number>();
+    const out: Contract[] = [];
+    for (const c of [...(prefetchedContracts || []), ...subscriberContracts]) {
+      if (!isSubscriberContractActiveForCampaign(c)) continue;
+      const id = Number(c.contract_id);
+      if (!Number.isFinite(id) || seen.has(id)) continue;
+      seen.add(id);
+      out.push(c);
+    }
+    return out;
   }, [prefetchedContracts, subscriberContracts]);
 
   useEffect(() => {
@@ -359,7 +365,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
     let cancelled = false;
     setContractsLoading(true);
     subscriberApi
-      .getContracts(sid, { activeOnly: false })
+      .getContracts(sid, { activeOnly: true })
       .then((rows) => {
         if (!cancelled) setSubscriberContracts(Array.isArray(rows) ? rows : []);
       })
@@ -666,7 +672,8 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                             (selectedCampaign as any)?.contract_id ?? (selectedCampaign as any)?.contractId;
                           if (c === undefined || c === null || String(c).trim() === '') return '';
                           const n = Number(c);
-                          return Number.isNaN(n) ? '' : String(n);
+                          if (Number.isNaN(n)) return '';
+                          return contractsForPicker.some((row) => row.contract_id === n) ? String(n) : '';
                         })()}
                         onChange={(e) => {
                           const v = e.target.value;
@@ -702,13 +709,36 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                         Contratos do anunciante antes de vincular a campanha aos totens.
                       </Alert>
                     )}
-                    {contractsForPicker.length > 0 &&
-                      !((selectedCampaign as any)?.contract_id ?? (selectedCampaign as any)?.contractId) && (
-                        <Alert severity="info" sx={{ mt: 1 }}>
-                          Esta campanha ainda não está vinculada a um contrato. Selecione um contrato ativo acima e
-                          depois escolha os totens na aba Totens.
-                        </Alert>
-                      )}
+                    {(() => {
+                      const raw =
+                        (selectedCampaign as any)?.contract_id ?? (selectedCampaign as any)?.contractId;
+                      const n =
+                        raw !== undefined && raw !== null && String(raw).trim() !== ''
+                          ? Number(raw)
+                          : NaN;
+                      const hasInactiveSelection =
+                        !Number.isNaN(n) && !contractsForPicker.some((row) => row.contract_id === n);
+                      if (hasInactiveSelection) {
+                        return (
+                          <Alert severity="warning" sx={{ mt: 1 }}>
+                            A campanha está vinculada a um contrato que não está ativo. Selecione um contrato ativo
+                            acima para executar nos totens.
+                          </Alert>
+                        );
+                      }
+                      if (
+                        contractsForPicker.length > 0 &&
+                        (Number.isNaN(n) || raw === undefined || raw === null || String(raw).trim() === '')
+                      ) {
+                        return (
+                          <Alert severity="info" sx={{ mt: 1 }}>
+                            Esta campanha ainda não está vinculada a um contrato. Selecione um contrato ativo acima e
+                            depois escolha os totens na aba Totens.
+                          </Alert>
+                        );
+                      }
+                      return null;
+                    })()}
                   </>
                 )}
                 <Grid container spacing={2} sx={{ mt: 1, alignItems: 'center' }}>
