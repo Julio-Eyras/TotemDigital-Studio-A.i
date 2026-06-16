@@ -28,6 +28,7 @@ import {
   LinearProgress,
   Typography,
   Chip,
+  Paper,
   useTheme,
   alpha,
 } from '@mui/material';
@@ -72,6 +73,9 @@ import {
   resolveCampaignStartYmdForSave,
 } from '../../utils/campaignStartDate';
 import { formatDateForApi } from '../../utils/businessDate';
+import { PlanTopologyTabPanel } from '../Subscribers/PlanTopologyTabPanel';
+import { countTopologyInRows } from '../Subscribers/planTopologyPreview';
+import { buildContractEligibleTopologyRow } from './campaignContractTopology';
 
 export interface CampaignFullEditorDialogProps {
   open: boolean;
@@ -126,6 +130,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
   const [derivedDevicesLoading, setDerivedDevicesLoading] = useState(false);
   const [subscriberContracts, setSubscriberContracts] = useState<Contract[]>([]);
   const [contractsLoading, setContractsLoading] = useState(false);
+  const [contractTopoSubTab, setContractTopoSubTab] = useState(0);
   const [serverUi, setServerUi] = useState<DashboardUiContext | null>(null);
 
   const resolvedSubscriberId = useMemo(() => {
@@ -148,6 +153,39 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
     }
     return out;
   }, [prefetchedContracts, subscriberContracts]);
+
+  const selectedContractId = useMemo(() => {
+    const raw =
+      (selectedCampaign as any)?.contract_id ?? (selectedCampaign as any)?.contractId;
+    if (raw === undefined || raw === null || String(raw).trim() === '') return undefined;
+    const n = Number(raw);
+    return Number.isNaN(n) ? undefined : n;
+  }, [selectedCampaign]);
+
+  const selectedContractRow = useMemo(() => {
+    if (selectedContractId == null) return undefined;
+    const all = [...(prefetchedContracts || []), ...subscriberContracts];
+    return all.find((c) => Number(c.contract_id) === selectedContractId);
+  }, [selectedContractId, prefetchedContracts, subscriberContracts]);
+
+  const contractTopologyRow = useMemo(() => {
+    if (!selectedContractRow) return null;
+    return buildContractEligibleTopologyRow(
+      {
+        contract_id: selectedContractRow.contract_id,
+        contract_number: selectedContractRow.contract_number,
+        title: selectedContractRow.title,
+        plan_id: selectedContractRow.plan_id,
+        plan_name: (selectedContractRow as any).plan_name ?? (selectedContractRow as any).planName,
+      },
+      derivedTotems
+    );
+  }, [selectedContractRow, derivedTotems]);
+
+  const contractTopologyCounts = useMemo(
+    () => (contractTopologyRow ? countTopologyInRows([contractTopologyRow]) : { lc: 0, tt: 0, st: 0 }),
+    [contractTopologyRow]
+  );
 
   useEffect(() => {
     if (!open) {
@@ -388,6 +426,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
       setDerivedSmartTvs([]);
       setSelectedCampaign(null);
       setError(null);
+      setContractTopoSubTab(0);
       return;
     }
     if (selectedCampaign) {
@@ -678,6 +717,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                         onChange={(e) => {
                           const v = e.target.value;
                           const cid = v === '' ? undefined : Number(v);
+                          setContractTopoSubTab(0);
                           setSelectedCampaign({
                             ...selectedCampaign!,
                             contract_id: cid as any,
@@ -696,8 +736,8 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                         ))}
                       </Select>
                       <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                        Escolha um contrato ativo com plano. Os totens na aba Totens vêm do plano (
-                        {orgTerms.organizationPlural.toLowerCase()} e locais permitidos).
+                        Escolha um contrato ativo com plano. Abaixo aparecem os locais e totens elegíveis; na aba
+                        Totens você escolhe onde a campanha será exibida.
                       </Typography>
                     </FormControl>
                     {contractsLoading && contractsForPicker.length === 0 && (
@@ -732,13 +772,96 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                       ) {
                         return (
                           <Alert severity="info" sx={{ mt: 1 }}>
-                            Esta campanha ainda não está vinculada a um contrato. Selecione um contrato ativo acima e
-                            depois escolha os totens na aba Totens.
+                            Esta campanha ainda não está vinculada a um contrato. Selecione um contrato ativo acima
+                            para ver a rede permitida e depois escolha os totens na aba Totens.
                           </Alert>
                         );
                       }
                       return null;
                     })()}
+                    {selectedContractRow && (
+                      <Paper variant="outlined" sx={{ mt: 2, p: 2 }}>
+                        <Typography
+                          variant="subtitle1"
+                          component="div"
+                          sx={{ color: 'primary.dark', fontWeight: 700, fontSize: '0.9375rem', mb: 0.5 }}
+                        >
+                          Rede permitida pelo contrato (somente leitura)
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1.5 }}>
+                          Locais e totens que este contrato autoriza para campanhas (plano,{' '}
+                          {orgTerms.organizationPlural.toLowerCase()} e locais configurados no plano).
+                        </Typography>
+                        <Tabs
+                          value={contractTopoSubTab}
+                          onChange={(_, v) => setContractTopoSubTab(v)}
+                          variant="scrollable"
+                          scrollButtons="auto"
+                          allowScrollButtonsMobile
+                          sx={{ borderBottom: 1, borderColor: 'divider', mb: 1 }}
+                        >
+                          <Tab
+                            label="Locais"
+                            icon={
+                              contractTopologyCounts.lc > 0 ? (
+                                <Chip label={contractTopologyCounts.lc} size="small" color="primary" />
+                              ) : undefined
+                            }
+                            iconPosition="end"
+                          />
+                          <Tab
+                            label="Totens"
+                            icon={
+                              contractTopologyCounts.tt > 0 ? (
+                                <Chip label={contractTopologyCounts.tt} size="small" color="primary" />
+                              ) : undefined
+                            }
+                            iconPosition="end"
+                          />
+                        </Tabs>
+                        {derivedDevicesLoading ? (
+                          <LinearProgress sx={{ my: 2 }} />
+                        ) : (
+                          <>
+                            {!selectedContractRow.plan_id && (
+                              <Alert severity="warning" sx={{ mb: 2 }}>
+                                Este contrato não tem plano associado. Associe um plano na aba Contratos do anunciante
+                                para liberar locais e totens.
+                              </Alert>
+                            )}
+                            {selectedContractRow.plan_id && derivedTotems.length === 0 && (
+                              <Alert severity="warning" sx={{ mb: 2 }}>
+                                Nenhum totem elegível neste contrato. Verifique se o plano permite a{' '}
+                                {orgTerms.organization.toLowerCase()} de cada local e se cada local está listado em
+                                «locais do plano» (plan_local_access).
+                              </Alert>
+                            )}
+                            {contractTopologyRow && (
+                              <>
+                                {contractTopoSubTab === 0 && (
+                                  <PlanTopologyTabPanel
+                                    mode="locals"
+                                    preview={{ loading: false, error: null, rows: [contractTopologyRow] }}
+                                    variant="edit"
+                                    contractCount={1}
+                                    dense
+                                  />
+                                )}
+                                {contractTopoSubTab === 1 && (
+                                  <PlanTopologyTabPanel
+                                    mode="totens"
+                                    preview={{ loading: false, error: null, rows: [contractTopologyRow] }}
+                                    variant="edit"
+                                    contractCount={1}
+                                    dense
+                                  />
+                                )}
+                              </>
+                            )}
+                          </>
+                        )}
+                      </Paper>
+                    )}
                   </>
                 )}
                 <Grid container spacing={2} sx={{ mt: 1, alignItems: 'center' }}>
