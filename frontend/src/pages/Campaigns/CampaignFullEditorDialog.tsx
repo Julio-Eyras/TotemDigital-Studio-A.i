@@ -77,13 +77,21 @@ export interface CampaignFullEditorDialogProps {
   campaignId: number | null;
   onClose: () => void;
   onSaved?: () => void;
+  /** Anunciante em contexto (ex.: tela Anunciantes) — carrega contratos antes do GET da campanha */
+  subscriberId?: number | null;
+  /** Contratos já carregados no pai (ativos) — evita combo vazio por timing de rede */
+  prefetchedContracts?: Contract[] | null;
 }
+
+const isActiveContract = (c: Contract) => String(c.status || '').toLowerCase() === 'active';
 
 const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
   open,
   campaignId,
   onClose,
   onSaved,
+  subscriberId: subscriberIdProp,
+  prefetchedContracts,
 }) => {
   const theme = useTheme();
   const user = useAppSelector((state) => state.auth.user);
@@ -118,7 +126,22 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
   const [derivedSmartTvs, setDerivedSmartTvs] = useState<any[]>([]);
   const [derivedDevicesLoading, setDerivedDevicesLoading] = useState(false);
   const [subscriberContracts, setSubscriberContracts] = useState<Contract[]>([]);
+  const [contractsLoading, setContractsLoading] = useState(false);
   const [serverUi, setServerUi] = useState<DashboardUiContext | null>(null);
+
+  const resolvedSubscriberId = useMemo(() => {
+    const fromCampaign =
+      selectedCampaign?.subscriber_id ?? (selectedCampaign as any)?.subscriberId;
+    if (fromCampaign != null && Number.isFinite(Number(fromCampaign))) return Number(fromCampaign);
+    if (subscriberIdProp != null && Number.isFinite(Number(subscriberIdProp))) return Number(subscriberIdProp);
+    return undefined;
+  }, [selectedCampaign, subscriberIdProp]);
+
+  const contractsForPicker = useMemo(() => {
+    const pref = (prefetchedContracts || []).filter(isActiveContract);
+    if (pref.length > 0) return pref;
+    return subscriberContracts.filter(isActiveContract);
+  }, [prefetchedContracts, subscriberContracts]);
 
   useEffect(() => {
     if (!open) {
@@ -324,27 +347,32 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
   useEffect(() => {
     if (!open) {
       setSubscriberContracts([]);
+      setContractsLoading(false);
       return;
     }
-    if (!compactMode || !selectedCampaign) return;
-    const sid = selectedCampaign.subscriber_id ?? (selectedCampaign as any).subscriberId;
+    if (!compactMode) return;
+    const sid = resolvedSubscriberId;
     if (!sid) {
       setSubscriberContracts([]);
       return;
     }
     let cancelled = false;
+    setContractsLoading(true);
     subscriberApi
-      .getContracts(Number(sid), { activeOnly: false })
+      .getContracts(sid, { activeOnly: false })
       .then((rows) => {
         if (!cancelled) setSubscriberContracts(Array.isArray(rows) ? rows : []);
       })
       .catch(() => {
         if (!cancelled) setSubscriberContracts([]);
+      })
+      .finally(() => {
+        if (!cancelled) setContractsLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [open, compactMode, selectedCampaign?.subscriber_id, selectedCampaign?.campaign_id]);
+  }, [open, compactMode, resolvedSubscriberId]);
 
   useEffect(() => {
     if (!open) {
@@ -501,11 +529,19 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
       if (!compactMode) {
         (updateData as any).publisherIds = (((selectedCampaign as any).publisherIds || []) as number[]);
       }
-      const contractRaw =
-        (selectedCampaign as any)?.contract_id ?? (selectedCampaign as any)?.contractId;
-      if (contractRaw !== undefined && contractRaw !== null && String(contractRaw).trim() !== '') {
-        const n = Number(contractRaw);
-        if (!Number.isNaN(n)) (updateData as any).contractId = n;
+      if (compactMode) {
+        const contractRaw =
+          (selectedCampaign as any)?.contract_id ?? (selectedCampaign as any)?.contractId;
+        if (
+          contractRaw !== undefined &&
+          contractRaw !== null &&
+          String(contractRaw).trim() !== '' &&
+          !Number.isNaN(Number(contractRaw))
+        ) {
+          (updateData as any).contractId = Number(contractRaw);
+        } else {
+          (updateData as any).contractId = null;
+        }
       }
       const cid =
         selectedCampaign.campaign_id ??
@@ -620,42 +656,60 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                   rows={3}
                 />
                 {compactMode && (
-                  <FormControl fullWidth margin="normal">
-                    <InputLabel {...selectLabelShrinkProps}>Contrato (define o plano e os totens elegíveis)</InputLabel>
-                    <Select
-                      label="Contrato (define o plano e os totens elegíveis)"
-                      value={(() => {
-                        const c =
-                          (selectedCampaign as any)?.contract_id ?? (selectedCampaign as any)?.contractId;
-                        if (c === undefined || c === null || String(c).trim() === '') return '';
-                        const n = Number(c);
-                        return Number.isNaN(n) ? '' : String(n);
-                      })()}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        const cid = v === '' ? undefined : Number(v);
-                        setSelectedCampaign({
-                          ...selectedCampaign!,
-                          contract_id: cid as any,
-                          contractId: cid as any,
-                        } as any);
-                      }}
-                    >
-                      <MenuItem value="">
-                        <em>Nenhum</em>
-                      </MenuItem>
-                      {subscriberContracts.map((c) => (
-                        <MenuItem key={c.contract_id} value={String(c.contract_id)}>
-                          {c.contract_number || `Contrato #${c.contract_id}`}
-                          {c.plan_name ? ` — ${c.plan_name}` : ''} ({c.status})
+                  <>
+                    <FormControl fullWidth margin="normal" disabled={contractsLoading && contractsForPicker.length === 0}>
+                      <InputLabel {...selectLabelShrinkProps}>Contrato (define o plano e os totens elegíveis)</InputLabel>
+                      <Select
+                        label="Contrato (define o plano e os totens elegíveis)"
+                        value={(() => {
+                          const c =
+                            (selectedCampaign as any)?.contract_id ?? (selectedCampaign as any)?.contractId;
+                          if (c === undefined || c === null || String(c).trim() === '') return '';
+                          const n = Number(c);
+                          return Number.isNaN(n) ? '' : String(n);
+                        })()}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          const cid = v === '' ? undefined : Number(v);
+                          setSelectedCampaign({
+                            ...selectedCampaign!,
+                            contract_id: cid as any,
+                            contractId: cid as any,
+                          } as any);
+                        }}
+                      >
+                        <MenuItem value="">
+                          <em>Nenhum (sem execução nos totens)</em>
                         </MenuItem>
-                      ))}
-                    </Select>
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                      Escolha um contrato ativo com plano. Os totens na aba Totens vêm do plano ({orgTerms.organizationPlural.toLowerCase()} e locais
-                      permitidos).
-                    </Typography>
-                  </FormControl>
+                        {contractsForPicker.map((c) => (
+                          <MenuItem key={c.contract_id} value={String(c.contract_id)}>
+                            {c.contract_number || `Contrato #${c.contract_id}`}
+                            {c.plan_name ? ` — ${c.plan_name}` : ''}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                        Escolha um contrato ativo com plano. Os totens na aba Totens vêm do plano (
+                        {orgTerms.organizationPlural.toLowerCase()} e locais permitidos).
+                      </Typography>
+                    </FormControl>
+                    {contractsLoading && contractsForPicker.length === 0 && (
+                      <LinearProgress sx={{ mb: 1 }} />
+                    )}
+                    {!contractsLoading && contractsForPicker.length === 0 && (
+                      <Alert severity="warning" sx={{ mt: 1 }}>
+                        Nenhum contrato ativo encontrado para este anunciante. Crie ou ative um contrato na aba
+                        Contratos do anunciante antes de vincular a campanha aos totens.
+                      </Alert>
+                    )}
+                    {contractsForPicker.length > 0 &&
+                      !((selectedCampaign as any)?.contract_id ?? (selectedCampaign as any)?.contractId) && (
+                        <Alert severity="info" sx={{ mt: 1 }}>
+                          Esta campanha ainda não está vinculada a um contrato. Selecione um contrato ativo acima e
+                          depois escolha os totens na aba Totens.
+                        </Alert>
+                      )}
+                  </>
                 )}
                 <Grid container spacing={2} sx={{ mt: 1, alignItems: 'center' }}>
                   <Grid item xs={12} sm={6}>
@@ -1015,6 +1069,13 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
 
             {editTab === tabTotems && selectedCampaign && (
               <Box sx={{ mt: 2, mb: 1 }}>
+                {compactMode &&
+                  !((selectedCampaign as any)?.contract_id ?? (selectedCampaign as any)?.contractId) && (
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                      Selecione um contrato ativo na aba Principal para listar os totens elegíveis (plano e locais do
+                      contrato).
+                    </Alert>
+                  )}
                 {derivedDevicesLoading ? (
                   <LinearProgress sx={{ mt: 2 }} />
                 ) : (

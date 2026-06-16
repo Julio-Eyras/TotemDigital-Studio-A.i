@@ -4895,6 +4895,8 @@ const Subscribers: React.FC = () => {
       <CampaignFullEditorDialog
         open={campaignFullEditorOpen}
         campaignId={campaignFullEditorId}
+        subscriberId={selectedSubscriber?.subscriber_id}
+        prefetchedContracts={contractsActiveForCampaign}
         onClose={() => {
           setCampaignFullEditorOpen(false);
           setCampaignFullEditorId(null);
