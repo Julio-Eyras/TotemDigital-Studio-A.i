@@ -91,8 +91,6 @@ import {
   UpdatePlaylistRequest,
   campaignApi,
   Campaign,
-  CreateCampaignRequest,
-  UpdateCampaignRequest,
   Contract,
   CreateContractRequest,
   CreateLocalRequest,
@@ -141,16 +139,7 @@ import {
   formatDateForInput,
   getDefaultContractStartDate,
 } from '../../utils/businessDate';
-import {
-  CAMPAIGN_START_DATE_MIN_HELPER,
-  clampCampaignStartYmd,
-  getCampaignEndYmdForDisplay,
-  getCampaignStartYmdForDisplay,
-  getMinCampaignStartYmd,
-  getTodayYmd,
-  resolveCampaignStartYmdForSave,
-  toDateOnlyYmd,
-} from '../../utils/campaignStartDate';
+import { getTodayYmd } from '../../utils/campaignStartDate';
 
 const compareByDisplayName = (a?: string, b?: string) =>
   String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
@@ -473,8 +462,6 @@ const Subscribers: React.FC = () => {
     return selectedOption?.activeOnly === true;
   }, [statusFilterValue, subscriberStatusOptions]);
   const [editingEditPlaylistIndex, setEditingEditPlaylistIndex] = useState<number | null>(null);
-  const [editingEditCampaignIndex, setEditingEditCampaignIndex] = useState<number | null>(null);
-  const [campaignSaveLoading, setCampaignSaveLoading] = useState(false);
   
   // Estados para upload de mídia
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -490,20 +477,6 @@ const Subscribers: React.FC = () => {
     description: '',
     isActive: true,
   });
-  const [editCampaignForm, setEditCampaignForm] = useState<
-    Partial<UpdateCampaignRequest> & { start_date?: string; end_date?: string }
-  >({
-    title: '',
-    description: '',
-    campaign_type: 'general',
-    priority: 1,
-    contractId: undefined,
-    status: 'draft',
-    isActive: true,
-    start_date: getTodayYmd(),
-    end_date: undefined,
-  });
-  
   // Estados para itens de playlist
   const [playlistItems, setPlaylistItems] = useState<PlaylistMediaItem[]>([]);
   const [editingPlaylistItemIndex, setEditingPlaylistItemIndex] = useState<number | null>(null);
@@ -516,8 +489,6 @@ const Subscribers: React.FC = () => {
   const [editPlaylistTotemLabels, setEditPlaylistTotemLabels] = useState<string[]>([]);
   
   // Estados para campanha (mídias e playlists associadas)
-  const [campaignMedias, setCampaignMedias] = useState<any[]>([]);
-  const [campaignPlaylists, setCampaignPlaylists] = useState<any[]>([]);
   
   // Estados para contratos
   // null = ainda não carregado do backend (evita gerar número antes da hora)
@@ -905,16 +876,7 @@ const Subscribers: React.FC = () => {
   }, [editDialogOpen, editTab, selectedSubscriber?.subscriber_id]);
 
   // Se o contrato selecionado na campanha deixar de existir/ficar inativo, limpar a seleção.
-  useEffect(() => {
-    const selectedContractId = editCampaignForm.contractId;
-    if (selectedContractId == null) return;
-    const exists = contractsActiveForCampaign.some(
-      (c: any) => Number(c.contract_id) === Number(selectedContractId)
-    );
-    if (!exists) {
-      setEditCampaignForm((prev) => ({ ...prev, contractId: undefined }));
-    }
-  }, [contractsActiveForCampaign, editCampaignForm.contractId]);
+  // (contrato é gerido no CampaignFullEditorDialog)
 
   // Pré-preencher número do contrato na aba "Contratos do Anunciante" (edição)
   useEffect(() => {
@@ -1654,144 +1616,6 @@ const Subscribers: React.FC = () => {
   // FUNÇÕES CRUD PARA CAMPANHAS
   // ============================================================================
 
-  const handleAddCampaign = async () => {
-    if (isOperadorComercial) return;
-    // PROTEÇÃO INICIAL ABSOLUTA: Resetar editingEditCampaignIndex se inválido ANTES de qualquer processamento
-    if (editingEditCampaignIndex !== null) {
-      const checkCampaign = editCampaigns[editingEditCampaignIndex];
-      const checkCampaignId = checkCampaign?.campaign_id || (checkCampaign as any)?.id;
-      if (!checkCampaign || !checkCampaignId || checkCampaignId === 0 || !Number.isInteger(checkCampaignId)) {
-        setEditingEditCampaignIndex(null);
-      }
-    }
-
-    setError(null);
-    if (!selectedSubscriber || !editCampaignForm.title?.trim()) {
-      setError('Título da campanha é obrigatório');
-      return;
-    }
-
-    // Validação prévia de limites (apenas para criação)
-    if (editingEditCampaignIndex === null) {
-      try {
-        const validation = await subscriberApi.validatePlanLimits(selectedSubscriber.subscriber_id, 'campaign');
-        if (!validation.valid) {
-          setError(validation.message || 'Limite de campanhas do plano excedido');
-          return;
-        }
-      } catch {
-        // Validação prévia opcional; backend valida limites na mesma operação
-      }
-    }
-
-    // Verificar se está em modo de edição e se a campanha existe
-    // Normalizar campaign_id: pode vir como campaign_id (snake_case) ou id (camelCase)
-    const campaignAtIndex = editingEditCampaignIndex !== null && editingEditCampaignIndex >= 0 && editingEditCampaignIndex < editCampaigns.length
-      ? editCampaigns[editingEditCampaignIndex]
-      : null;
-    const campaignIdAtEditIndex = campaignAtIndex?.campaign_id || (campaignAtIndex as any)?.id;
-    
-    let isEditMode = editingEditCampaignIndex !== null && 
-                     editingEditCampaignIndex >= 0 && 
-                     editingEditCampaignIndex < editCampaigns.length &&
-                     !!campaignIdAtEditIndex; // Garantir que campaignId existe e não é 0/null/undefined
-
-    if (editingEditCampaignIndex !== null && !isEditMode) {
-      setEditingEditCampaignIndex(null);
-      // Forçar modo criação após reset
-      isEditMode = false;
-    }
-
-    // PROTEÇÃO FINAL: Se não há campaignId válido, forçar modo criação
-    if (isEditMode && (!campaignIdAtEditIndex || campaignIdAtEditIndex === 0 || !Number.isInteger(campaignIdAtEditIndex))) {
-      isEditMode = false;
-      setEditingEditCampaignIndex(null);
-    }
-
-    // VALIDAÇÃO FINAL ABSOLUTA: NUNCA entrar em modo edição sem campaignId válido
-    const finalCampaignId = isEditMode && campaignIdAtEditIndex && campaignIdAtEditIndex > 0 && Number.isInteger(campaignIdAtEditIndex) 
-      ? campaignIdAtEditIndex 
-      : null;
-    const shouldEdit = !!finalCampaignId;
-
-    setCampaignSaveLoading(true);
-    try {
-      // VALIDAÇÃO ABSOLUTA FINAL: NUNCA fazer UPDATE sem campaignId válido
-      if (shouldEdit && finalCampaignId && Number.isInteger(finalCampaignId) && finalCampaignId > 0) {
-        const campaign = editCampaigns[editingEditCampaignIndex!];
-        // Usar o campaignId já validado acima
-        const campaignId = finalCampaignId;
-        
-        // Verificação dupla antes de chamar API
-        if (!campaignId || campaignId === 0 || !Number.isInteger(campaignId)) {
-          setError('Erro: campanha não encontrada para edição. Tente criar uma nova campanha.');
-          setEditingEditCampaignIndex(null);
-          setCampaignSaveLoading(false);
-          return;
-        }
-
-        const updateData: UpdateCampaignRequest = {
-          ...editCampaignForm,
-          contractId: editCampaignForm.contractId !== undefined && editCampaignForm.contractId !== null ? Number(editCampaignForm.contractId) : undefined,
-          mediaIds: campaignMedias.map(m => m.media_id),
-          playlistIds: campaignPlaylists.map(p => p.playlist_id),
-          start_date: formatDateForAPI(
-            resolveCampaignStartYmdForSave(campaign, editCampaignForm.start_date)
-          ),
-          end_date: editCampaignForm.end_date?.trim()
-            ? formatDateForAPI(editCampaignForm.end_date)
-            : undefined,
-        };
-        await campaignApi.update(campaignId, updateData);
-        await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
-        setEditingEditCampaignIndex(null);
-        setCampaignMedias([]);
-        setCampaignPlaylists([]);
-      } else {
-        const createData = {
-          title: editCampaignForm.title?.trim() || '',
-          description: editCampaignForm.description,
-          campaign_type: editCampaignForm.campaign_type || 'general',
-          priority: editCampaignForm.priority ?? 1,
-          contractId: editCampaignForm.contractId !== undefined && editCampaignForm.contractId !== null ? Number(editCampaignForm.contractId) : undefined,
-          subscriberId: selectedSubscriber.subscriber_id,
-          mediaIds: campaignMedias.map(m => m.media_id),
-          playlistIds: campaignPlaylists.map(p => p.playlist_id),
-          status: editCampaignForm.status ?? 'draft',
-          isActive: editCampaignForm.isActive ?? true,
-          start_date: formatDateForAPI(
-            resolveCampaignStartYmdForSave(null, editCampaignForm.start_date || getTodayYmd())
-          ),
-          end_date: editCampaignForm.end_date?.trim()
-            ? formatDateForAPI(editCampaignForm.end_date)
-            : undefined,
-        } as CreateCampaignRequest;
-        await campaignApi.create(createData);
-        await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
-        setCampaignMedias([]);
-        setCampaignPlaylists([]);
-      }
-      setError(null);
-      setEditCampaignForm({
-        title: '',
-        description: '',
-        campaign_type: 'general',
-        priority: 1,
-        contractId: undefined,
-        status: 'draft',
-        isActive: true,
-        start_date: getTodayYmd(),
-        end_date: undefined,
-      });
-    } catch (error: any) {
-      setError(
-        pickApiErrorMessage(error, 'Erro ao salvar campanha. Tente novamente.')
-      );
-    } finally {
-      setCampaignSaveLoading(false);
-    }
-  };
-
   const handleStartEditCampaign = async (index: number) => {
     if (isOperadorComercial) return;
     const campaign = editCampaigns[index];
@@ -1802,28 +1626,6 @@ const Subscribers: React.FC = () => {
     if (!campaignId) {
       return;
     }
-    const cid = campaign.contract_id ?? (campaign as any).contractId;
-    setEditingEditCampaignIndex(index);
-    setEditCampaignForm((prev) => ({
-      ...prev,
-      title: campaign.title || prev.title || '',
-      description: campaign.description ?? prev.description,
-      campaign_type: campaign.campaign_type || prev.campaign_type || 'general',
-      priority: campaign.priority ?? prev.priority ?? 1,
-      contractId:
-        cid !== undefined && cid !== null && String(cid).trim() !== '' && !Number.isNaN(Number(cid))
-          ? Number(cid)
-          : undefined,
-      status: campaign.status || prev.status || 'draft',
-      isActive:
-        campaign.is_active !== undefined
-          ? campaign.is_active
-          : (campaign as any).isActive !== undefined
-            ? (campaign as any).isActive
-            : prev.isActive ?? true,
-      start_date: getCampaignStartYmdForDisplay(campaign) || getMinCampaignStartYmd(campaign),
-      end_date: toDateOnlyYmd(campaign.end_date ?? (campaign as any).endDate) || undefined,
-    }));
     setCampaignFullEditorId(Number(campaignId));
     setCampaignFullEditorOpen(true);
   };
@@ -2223,7 +2025,6 @@ const Subscribers: React.FC = () => {
       setEditCampaigns([]);
       setEditingEditMediaIndex(null);
       setEditingEditPlaylistIndex(null);
-      setEditingEditCampaignIndex(null);
       setActiveContracts([]);
       setSelectedSubscriber(null);
       loadSubscribers();
@@ -2948,7 +2749,6 @@ const Subscribers: React.FC = () => {
           setEditCampaigns([]);
           setEditingEditMediaIndex(null);
           setEditingEditPlaylistIndex(null);
-          setEditingEditCampaignIndex(null);
           setEditingSubscriberContractIndexEdit(null);
           setSubscriberContractFormEdit({
             contract_number: '',
@@ -4414,358 +4214,28 @@ const Subscribers: React.FC = () => {
                 </Alert>
               )}
               {!isOperadorComercial && (
-              <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1, bgcolor: editingEditCampaignIndex !== null ? alpha(theme.palette.primary.main, 0.05) : 'transparent' }}>
-                <Typography variant="subtitle2" sx={{ mb: 2 }}>
-                  {editingEditCampaignIndex !== null ? 'Editar Campanha' : 'Adicionar Campanha'}
+              <Box sx={{ mb: 3 }}>
+                <Button
+                  type="button"
+                  variant="contained"
+                  startIcon={<Add />}
+                  onClick={() => {
+                    setCampaignFullEditorId(null);
+                    setCampaignFullEditorOpen(true);
+                  }}
+                >
+                  Adicionar Campanha
+                </Button>
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                  Ao escolher o contrato, a rede permitida e os totens elegíveis serão apresentados para seleção
+                  (mesmo fluxo do editor completo de campanha).
                 </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Título *"
-                      value={editCampaignForm.title || ''}
-                      onChange={(e) => setEditCampaignForm({ ...editCampaignForm, title: e.target.value })}
-                      size="small"
-                      required
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel {...selectLabelShrinkProps}>Contrato</InputLabel>
-                      <Select
-                        sx={sxSelectChosenGreen(editCampaignForm.contractId != null)}
-                        value={editCampaignForm.contractId != null ? String(editCampaignForm.contractId) : ''}
-                        label="Contrato"
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setEditCampaignForm({ ...editCampaignForm, contractId: v !== '' && v != null ? Number(v) : undefined });
-                        }}
-                      >
-                        <MenuItem value="">
-                          <em>Nenhum (Rascunho)</em>
-                        </MenuItem>
-                        {contractsActiveForCampaign.map((contract: any) => (
-                          <MenuItem key={contract.contract_id} value={String(contract.contract_id)}>
-                            {contract.contract_number} - {contract.plan_name || 'Sem plano'}
-                            {contract.start_date && contract.end_date &&
-                              ` (${new Date(contract.start_date).toLocaleDateString('pt-BR')} a ${new Date(contract.end_date).toLocaleDateString('pt-BR')})`
-                            }
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                    {contractsActiveForCampaign.length === 0 && (
-                      <Alert severity="warning" sx={{ mt: 1 }}>
-                        Você precisa ter um contrato ativo para executar campanhas nos totens. Crie ou ative um contrato na aba &quot;Contratos&quot;.
-                      </Alert>
-                    )}
-                    {!editCampaignForm.contractId && (
-                      <Alert severity="info" sx={{ mt: 1 }}>
-                        Esta campanha não está vinculada a um contrato. Vincule a um contrato ativo para executá-la nos totens.
-                      </Alert>
-                    )}
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Tipo</InputLabel>
-                      <Select
-                        sx={sxSelectChosenGreen(true)}
-                        value={editCampaignForm.campaign_type || 'general'}
-                        label="Tipo"
-                        onChange={(e) => setEditCampaignForm({ ...editCampaignForm, campaign_type: e.target.value as any })}
-                      >
-                        <MenuItem value="general">Geral</MenuItem>
-                        <MenuItem value="scheduled">Agendada</MenuItem>
-                        <MenuItem value="interactive">Interativa</MenuItem>
-                        <MenuItem value="recurring">Recorrente</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <TextField
-                      fullWidth
-                      label="Prioridade (1-10)"
-                      type="number"
-                      value={editCampaignForm.priority || 1}
-                      onChange={(e) => setEditCampaignForm({ ...editCampaignForm, priority: Number(e.target.value) })}
-                      size="small"
-                      inputProps={{ min: 1, max: 10 }}
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Status</InputLabel>
-                      <Select
-                        sx={sxSelectChosenGreen(true)}
-                        value={editCampaignForm.status || 'draft'}
-                        label="Status"
-                        onChange={(e) => setEditCampaignForm({ ...editCampaignForm, status: e.target.value as any })}
-                      >
-                        <MenuItem value="draft">Rascunho</MenuItem>
-                        <MenuItem value="pending_approval">Aguardando Aprovação</MenuItem>
-                        <MenuItem value="approved">Aprovada</MenuItem>
-                        <MenuItem value="active">Ativa</MenuItem>
-                        <MenuItem value="paused">Pausada</MenuItem>
-                        <MenuItem value="finished">Finalizada</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Status Ativo</InputLabel>
-                      <Select
-                        sx={sxSelectChosenGreen(true)}
-                        value={editCampaignForm.isActive ? 'active' : 'inactive'}
-                        label="Status Ativo"
-                        onChange={(e) => setEditCampaignForm({ ...editCampaignForm, isActive: e.target.value === 'active' })}
-                      >
-                        <MenuItem value="active">Ativa</MenuItem>
-                        <MenuItem value="inactive">Inativa</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Grid container spacing={2}>
-                      <Grid item xs={6}>
-                        <TextField
-                          fullWidth
-                          label="Data de Início"
-                          type="date"
-                          size="small"
-                          value={
-                            getCampaignStartYmdForDisplay(
-                              editingEditCampaignIndex !== null
-                                ? editCampaigns[editingEditCampaignIndex]
-                                : null,
-                              editCampaignForm.start_date || (editingEditCampaignIndex === null ? getTodayYmd() : '')
-                            ) ||
-                            (editingEditCampaignIndex !== null &&
-                            editCampaigns[editingEditCampaignIndex]
-                              ? getMinCampaignStartYmd(editCampaigns[editingEditCampaignIndex])
-                              : getTodayYmd())
-                          }
-                          onChange={(e) => {
-                            const minYmd =
-                              editingEditCampaignIndex !== null &&
-                              editCampaigns[editingEditCampaignIndex]
-                                ? getMinCampaignStartYmd(editCampaigns[editingEditCampaignIndex])
-                                : getTodayYmd();
-                            setEditCampaignForm({
-                              ...editCampaignForm,
-                              start_date: clampCampaignStartYmd(e.target.value, minYmd),
-                            });
-                          }}
-                          inputProps={{
-                            min:
-                              editingEditCampaignIndex !== null &&
-                              editCampaigns[editingEditCampaignIndex]
-                                ? getMinCampaignStartYmd(editCampaigns[editingEditCampaignIndex])
-                                : getTodayYmd(),
-                          }}
-                          InputLabelProps={{ shrink: true }}
-                          helperText={CAMPAIGN_START_DATE_MIN_HELPER}
-                        />
-                      </Grid>
-                      <Grid item xs={6}>
-                        <TextField
-                          fullWidth
-                          label="Data de Fim"
-                          type="date"
-                          size="small"
-                          value={toDateOnlyYmd(editCampaignForm.end_date) || ''}
-                          onChange={(e) =>
-                            setEditCampaignForm({
-                              ...editCampaignForm,
-                              end_date: e.target.value || undefined,
-                            })
-                          }
-                          InputLabelProps={{ shrink: true }}
-                          helperText="Período de validade da campanha (fim)"
-                        />
-                      </Grid>
-                    </Grid>
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      label="Descrição"
-                      value={editCampaignForm.description || ''}
-                      onChange={(e) => setEditCampaignForm({ ...editCampaignForm, description: e.target.value })}
-                      size="small"
-                      multiline
-                      rows={3}
-                    />
-                  </Grid>
-                  
-                  {/* Seção de Conteúdo: Mídias e Playlists */}
-                  {(editingEditCampaignIndex !== null || editCampaignForm.title) && (
-                    <>
-                      <Grid item xs={12}>
-                        <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>
-                          Conteúdo da Campanha
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <Box sx={{ p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
-                          <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                            Mídias Individuais
-                          </Typography>
-                          <FormControl fullWidth size="small">
-                            <InputLabel>Selecionar Mídias</InputLabel>
-                            <Select
-                              multiple
-                              value={campaignMedias.map(m => m.media_id) || []}
-                              onChange={(e) => {
-                                const selectedIds = e.target.value as number[];
-                                const selectedMedias = editMedias.filter(m => selectedIds.includes(m.media_id));
-                                setCampaignMedias(selectedMedias);
-                              }}
-                              renderValue={(selected) => (
-                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                  {(selected as number[]).map((id) => {
-                                    const media = editMedias.find(m => m.media_id === id);
-                                    return media ? (
-                                      <Chip key={id} label={media.name} size="small" color="success" variant="outlined" />
-                                    ) : null;
-                                  })}
-                                </Box>
-                              )}
-                            >
-                              {editMedias.map((media) => (
-                                <MenuItem key={media.media_id} value={media.media_id}>
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    {getMediaIcon(media.media_type)}
-                                    <Typography variant="body2">{media.name}</Typography>
-                                  </Box>
-                                </MenuItem>
-                              ))}
-                            </Select>
-                          </FormControl>
-                          {campaignMedias.length > 0 && (
-                            <List dense sx={{ mt: 1, maxHeight: 200, overflow: 'auto' }}>
-                              {campaignMedias.map((media) => (
-                                <ListItem key={media.media_id} sx={{ py: 0.5 }}>
-                                  <ListItemIcon sx={{ minWidth: 32 }}>
-                                    {getMediaIcon(media.media_type)}
-                                  </ListItemIcon>
-                                  <ListItemText 
-                                    primary={media.name}
-                                    secondary={formatFileSize(media.size_bytes)}
-                                  />
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => setCampaignMedias(campaignMedias.filter(m => m.media_id !== media.media_id))}
-                                  >
-                                    <Delete fontSize="small" />
-                                  </IconButton>
-                                </ListItem>
-                              ))}
-                            </List>
-                          )}
-                        </Box>
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <Box sx={{ p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1 }}>
-                          <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                            Playlists
-                          </Typography>
-                          <FormControl fullWidth size="small">
-                            <InputLabel>Selecionar Playlists</InputLabel>
-                            <Select
-                              multiple
-                              value={campaignPlaylists.map(p => p.playlist_id) || []}
-                              onChange={(e) => {
-                                const selectedIds = e.target.value as number[];
-                                const selectedPlaylists = editPlaylists.filter(p => selectedIds.includes(p.playlist_id));
-                                setCampaignPlaylists(selectedPlaylists);
-                              }}
-                              renderValue={(selected) => (
-                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                  {(selected as number[]).map((id) => {
-                                    const playlist = editPlaylists.find(p => p.playlist_id === id);
-                                    return playlist ? (
-                                      <Chip key={id} label={playlist.name} size="small" color="success" variant="outlined" />
-                                    ) : null;
-                                  })}
-                                </Box>
-                              )}
-                            >
-                              {editPlaylists.map((playlist) => (
-                                <MenuItem key={playlist.playlist_id} value={playlist.playlist_id}>
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    <QueueMusic />
-                                    <Typography variant="body2">{playlist.name}</Typography>
-                                  </Box>
-                                </MenuItem>
-                              ))}
-                            </Select>
-                          </FormControl>
-                          {campaignPlaylists.length > 0 && (
-                            <List dense sx={{ mt: 1, maxHeight: 200, overflow: 'auto' }}>
-                              {campaignPlaylists.map((playlist) => (
-                                <ListItem key={playlist.playlist_id} sx={{ py: 0.5 }}>
-                                  <ListItemIcon sx={{ minWidth: 32 }}>
-                                    <QueueMusic />
-                                  </ListItemIcon>
-                                  <ListItemText 
-                                    primary={playlist.name}
-                                    secondary={playlist.description || 'Sem descrição'}
-                                  />
-                                  <IconButton
-                                    size="small"
-                                    onClick={() => setCampaignPlaylists(campaignPlaylists.filter(p => p.playlist_id !== playlist.playlist_id))}
-                                  >
-                                    <Delete fontSize="small" />
-                                  </IconButton>
-                                </ListItem>
-                              ))}
-                            </List>
-                          )}
-                        </Box>
-                      </Grid>
-                    </>
-                  )}
-                  
-                  <Grid item xs={12}>
-                    <Button
-                      type="button"
-                      variant="contained"
-                      startIcon={campaignSaveLoading ? undefined : <Add />}
-                      onClick={handleAddCampaign}
-                      disabled={campaignSaveLoading}
-                    >
-                      {campaignSaveLoading
-                        ? 'A adicionar…'
-                        : editingEditCampaignIndex !== null
-                          ? 'Atualizar Campanha'
-                          : 'Adicionar Campanha'}
-                    </Button>
-                    {editingEditCampaignIndex !== null && (
-                      <Button
-                        variant="outlined"
-                        onClick={() => {
-                          setEditingEditCampaignIndex(null);
-                          setEditCampaignForm({
-                            title: '',
-                            description: '',
-                            campaign_type: 'general',
-                            priority: 1,
-                            contractId: undefined,
-                            status: 'draft',
-                            isActive: true,
-                            start_date: getTodayYmd(),
-                            end_date: undefined,
-                          });
-                          setCampaignMedias([]);
-                          setCampaignPlaylists([]);
-                        }}
-                        sx={{ ml: 1 }}
-                      >
-                        Cancelar Edição
-                      </Button>
-                    )}
-                  </Grid>
-                </Grid>
+                {contractsActiveForCampaign.length === 0 && (
+                  <Alert severity="warning" sx={{ mt: 1 }}>
+                    Você precisa ter um contrato ativo para executar campanhas nos totens. Crie ou ative um contrato na
+                    aba &quot;Contratos&quot;.
+                  </Alert>
+                )}
               </Box>
               )}
 
@@ -4858,20 +4328,8 @@ const Subscribers: React.FC = () => {
             setEditCampaigns([]);
             setEditingEditMediaIndex(null);
             setEditingEditPlaylistIndex(null);
-            setEditingEditCampaignIndex(null);
             setEditMediaForm({ name: '', description: '', tags: [] });
             setEditPlaylistForm({ name: '', description: '', isActive: true });
-            setEditCampaignForm({
-              title: '',
-              description: '',
-              campaign_type: 'general',
-              priority: 1,
-              contractId: undefined,
-              status: 'draft',
-              isActive: true,
-              start_date: getTodayYmd(),
-              end_date: undefined,
-            });
             setPlaylistItems([]);
           }}>Cancelar</Button>
           <Button variant="contained" onClick={handleEditSubscriber}>Salvar</Button>

@@ -2,7 +2,7 @@
  * Editor completo de campanha (mesmo fluxo de abas que o menu global tinha),
  * para uso a partir de Anunciantes — o menu Campanhas global fica só leitura.
  */
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Box,
   Button,
@@ -36,6 +36,7 @@ import {
   campaignApi,
   Campaign,
   Contract,
+  CreateCampaignRequest,
   UpdateCampaignRequest,
   playlistApi,
   PlaylistItem,
@@ -70,6 +71,7 @@ import {
   getCampaignEndYmdForDisplay,
   getCampaignStartYmdForDisplay,
   getMinCampaignStartYmd,
+  getTodayYmd,
   resolveCampaignStartYmdForSave,
 } from '../../utils/campaignStartDate';
 import { formatDateForApi } from '../../utils/businessDate';
@@ -119,6 +121,8 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
   const [orderedPlaylistIds, setOrderedPlaylistIds] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loadingCampaign, setLoadingCampaign] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const isCreateMode = campaignId == null;
 
   const [playlists, setPlaylists] = useState<PlaylistItem[]>([]);
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
@@ -132,6 +136,8 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
   const [contractsLoading, setContractsLoading] = useState(false);
   const [contractTopoSubTab, setContractTopoSubTab] = useState(0);
   const [serverUi, setServerUi] = useState<DashboardUiContext | null>(null);
+  /** Evita reaplicar “todos selecionados” após o utilizador alterar manualmente. */
+  const autoTotemSelectionContractRef = useRef<number | null>(null);
 
   const resolvedSubscriberId = useMemo(() => {
     const fromCampaign =
@@ -356,6 +362,11 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
   }, [open, compactMode, userSubscriberId]);
 
   useEffect(() => {
+    if (!open) return;
+    autoTotemSelectionContractRef.current = null;
+  }, [open, campaignId]);
+
+  useEffect(() => {
     if (!open || !campaignId) return;
     let cancelled = false;
     (async () => {
@@ -387,6 +398,42 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
       cancelled = true;
     };
   }, [open, campaignId, compactMode, isAdmin]);
+
+  useEffect(() => {
+    if (!open || !isCreateMode) return;
+    const sid = resolvedSubscriberId;
+    if (!sid) {
+      setSelectedCampaign(null);
+      setError('Anunciante não definido para criar campanha.');
+      return;
+    }
+    setError(null);
+    setLoadingCampaign(false);
+    setSelectedCampaign({
+      title: '',
+      description: '',
+      campaign_type: 'general',
+      status: 'draft',
+      is_active: true,
+      subscriber_id: sid,
+      contract_id: undefined,
+      contractId: undefined,
+      totemIds: [],
+      mediaIds: [],
+      playlistIds: [],
+      start_date: getTodayYmd(),
+      commercial_tier: 'standard',
+      default_time_share_percent: 0,
+      max_consecutive_slots: 2,
+    } as unknown as Campaign);
+    setOrderedMediaIds([]);
+    setOrderedPlaylistIds([]);
+    setEditTab(0);
+    setContractTopoSubTab(0);
+    void loadPlaylists(sid);
+    void loadMediaItems(sid);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, isCreateMode, resolvedSubscriberId]);
 
   useEffect(() => {
     if (!open) {
@@ -427,6 +474,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
       setSelectedCampaign(null);
       setError(null);
       setContractTopoSubTab(0);
+      autoTotemSelectionContractRef.current = null;
       return;
     }
     if (selectedCampaign) {
@@ -479,6 +527,57 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
     }
     return out;
   }, [derivedTotems, selectedCampaign?.campaign_id, (selectedCampaign as any)?.totemIds]);
+
+  const eligibleTotemIds = useMemo(
+    () =>
+      derivedTotems
+        .map((t) => getTotemIdFromRow(t))
+        .filter((id): id is number => id !== undefined && id > 0),
+    [derivedTotems]
+  );
+
+  const allTotemsSelected =
+    eligibleTotemIds.length > 0 &&
+    eligibleTotemIds.every((id) => getSelectedTotemIds().includes(id));
+
+  /** Sem totens definidos ainda: selecionar todos os elegíveis do contrato (padrão). */
+  useEffect(() => {
+    if (!open || !compactMode || !selectedCampaign || derivedDevicesLoading) return;
+    const contractRaw =
+      (selectedCampaign as any)?.contract_id ?? (selectedCampaign as any)?.contractId;
+    if (
+      contractRaw === undefined ||
+      contractRaw === null ||
+      String(contractRaw).trim() === '' ||
+      Number.isNaN(Number(contractRaw))
+    ) {
+      autoTotemSelectionContractRef.current = null;
+      return;
+    }
+    const contractId = Number(contractRaw);
+    if (eligibleTotemIds.length === 0) return;
+
+    const currentIds = getSelectedTotemIds();
+    if (currentIds.length > 0) {
+      autoTotemSelectionContractRef.current = contractId;
+      return;
+    }
+    if (autoTotemSelectionContractRef.current === contractId) return;
+
+    autoTotemSelectionContractRef.current = contractId;
+    setSelectedCampaign((prev) =>
+      prev ? ({ ...prev, totemIds: [...eligibleTotemIds] } as any) : prev
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    open,
+    compactMode,
+    selectedCampaign?.campaign_id,
+    (selectedCampaign as any)?.contract_id,
+    (selectedCampaign as any)?.contractId,
+    eligibleTotemIds,
+    derivedDevicesLoading,
+  ]);
 
   /** Compacto: remove só totens que deixaram de ser elegíveis quando já temos lista elegível (>0).
    * Se a lista vier vazia (sem contrato, API sem linhas, erro de rede), não apagar seleção no estado. */
@@ -540,13 +639,36 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
     }
   };
 
-  const handleEditCampaign = async () => {
+  const handleSaveCampaign = async () => {
     if (!selectedCampaign) return;
+    if (!selectedCampaign.title?.trim()) {
+      setError('Título da campanha é obrigatório');
+      setEditTab(0);
+      return;
+    }
+
+    const totemIds = getSelectedTotemIds();
+    const contractRaw =
+      (selectedCampaign as any)?.contract_id ?? (selectedCampaign as any)?.contractId;
+    const hasContract =
+      contractRaw !== undefined &&
+      contractRaw !== null &&
+      String(contractRaw).trim() !== '' &&
+      !Number.isNaN(Number(contractRaw));
+
+    if (compactMode && hasContract && totemIds.length === 0) {
+      setError('Selecione pelo menos um totem na aba Totens (rede permitida pelo contrato).');
+      setEditTab(tabTotems);
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
     try {
-      const totemIds = getSelectedTotemIds();
-      const updateData: UpdateCampaignRequest = {
-        title: selectedCampaign.title,
-        categorySegment: (selectedCampaign as any).categorySegment || (selectedCampaign as any).category_segment,
+      const basePayload = {
+        title: selectedCampaign.title.trim(),
+        categorySegment:
+          (selectedCampaign as any).categorySegment || (selectedCampaign as any).category_segment,
         description: selectedCampaign.description,
         campaign_type: normalizeCampaignType(
           selectedCampaign.campaign_type || (selectedCampaign as any).campaignType
@@ -564,42 +686,63 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
             : (selectedCampaign as any).isActive !== undefined
               ? (selectedCampaign as any).isActive
               : true,
-        playlistIds: orderedPlaylistIds.length > 0 ? orderedPlaylistIds : selectedCampaign.playlistIds || [],
+        playlistIds:
+          orderedPlaylistIds.length > 0 ? orderedPlaylistIds : selectedCampaign.playlistIds || [],
         mediaIds: orderedMediaIds.length > 0 ? orderedMediaIds : selectedCampaign.mediaIds || [],
         totemIds,
         commercial_tier: (selectedCampaign as any).commercial_tier || 'standard',
         default_time_share_percent: (selectedCampaign as any).default_time_share_percent ?? 0,
         max_consecutive_slots: (selectedCampaign as any).max_consecutive_slots ?? 2,
-      } as any;
-      if (!compactMode) {
-        (updateData as any).publisherIds = (((selectedCampaign as any).publisherIds || []) as number[]);
-      }
-      if (compactMode) {
-        const contractRaw =
-          (selectedCampaign as any)?.contract_id ?? (selectedCampaign as any)?.contractId;
-        if (
-          contractRaw !== undefined &&
-          contractRaw !== null &&
-          String(contractRaw).trim() !== '' &&
-          !Number.isNaN(Number(contractRaw))
-        ) {
-          (updateData as any).contractId = Number(contractRaw);
-        } else {
-          (updateData as any).contractId = null;
+      };
+
+      if (isCreateMode) {
+        const sid = resolvedSubscriberId;
+        if (!sid) {
+          throw new Error('Anunciante não definido para criar campanha.');
         }
+        try {
+          const validation = await subscriberApi.validatePlanLimits(sid, 'campaign');
+          if (!validation.valid) {
+            setError(validation.message || 'Limite de campanhas do plano excedido');
+            return;
+          }
+        } catch {
+          /* validação prévia opcional */
+        }
+
+        const createData: CreateCampaignRequest = {
+          ...basePayload,
+          subscriberId: sid,
+          contractId: hasContract ? Number(contractRaw) : undefined,
+          priority: (selectedCampaign as any).priority ?? 1,
+        };
+        await campaignApi.create(createData);
+      } else {
+        const updateData: UpdateCampaignRequest = { ...basePayload } as any;
+        if (!compactMode) {
+          (updateData as any).publisherIds = (((selectedCampaign as any).publisherIds || []) as number[]);
+        }
+        if (compactMode) {
+          (updateData as any).contractId = hasContract ? Number(contractRaw) : null;
+        }
+        const cid =
+          selectedCampaign.campaign_id ??
+          (selectedCampaign as any).id ??
+          (selectedCampaign as any).campaignId;
+        if (!cid || Number.isNaN(Number(cid))) {
+          throw new Error('ID da campanha inválido ao salvar.');
+        }
+        await campaignApi.update(Number(cid), updateData);
       }
-      const cid =
-        selectedCampaign.campaign_id ??
-        (selectedCampaign as any).id ??
-        (selectedCampaign as any).campaignId;
-      if (!cid || Number.isNaN(Number(cid))) {
-        throw new Error('ID da campanha inválido ao salvar.');
-      }
-      await campaignApi.update(Number(cid), updateData);
+
       onSaved?.();
       onClose();
     } catch (error: any) {
-      setError(pickApiErrorMessage(error, 'Erro ao atualizar campanha'));
+      setError(
+        pickApiErrorMessage(error, isCreateMode ? 'Erro ao criar campanha' : 'Erro ao atualizar campanha')
+      );
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -610,12 +753,17 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
-      <DialogTitle>Editar Campanha</DialogTitle>
+      <DialogTitle>{isCreateMode ? 'Adicionar Campanha' : 'Editar Campanha'}</DialogTitle>
       <DialogContent>
         {loadingCampaign && <LinearProgress sx={{ mb: 2 }} />}
         {error && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
             {error}
+          </Alert>
+        )}
+        {isCreateMode && !resolvedSubscriberId && !loadingCampaign && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Anunciante não definido. Feche e abra novamente a partir da edição do anunciante.
           </Alert>
         )}
         {directTotemDisabled && (
@@ -718,11 +866,16 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                           const v = e.target.value;
                           const cid = v === '' ? undefined : Number(v);
                           setContractTopoSubTab(0);
+                          autoTotemSelectionContractRef.current = null;
                           setSelectedCampaign({
                             ...selectedCampaign!,
                             contract_id: cid as any,
                             contractId: cid as any,
+                            totemIds: [],
                           } as any);
+                          if (cid !== undefined && !Number.isNaN(cid)) {
+                            setEditTab(tabTotems);
+                          }
                         }}
                       >
                         <MenuItem value="">
@@ -1232,6 +1385,39 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                 {derivedDevicesLoading ? (
                   <LinearProgress sx={{ mt: 2 }} />
                 ) : (
+                  <>
+                    {compactMode && eligibleTotemIds.length > 0 && (
+                      <FormControlLabel
+                        sx={{ mb: 1, display: 'flex', alignItems: 'center' }}
+                        control={
+                          <Switch
+                            checked={allTotemsSelected}
+                            onChange={(e) => {
+                              if (!selectedCampaign) return;
+                              const checked = e.target.checked;
+                              const contractRaw =
+                                (selectedCampaign as any)?.contract_id ??
+                                (selectedCampaign as any)?.contractId;
+                              const contractId =
+                                contractRaw !== undefined &&
+                                contractRaw !== null &&
+                                String(contractRaw).trim() !== '' &&
+                                !Number.isNaN(Number(contractRaw))
+                                  ? Number(contractRaw)
+                                  : null;
+                              if (contractId != null) {
+                                autoTotemSelectionContractRef.current = contractId;
+                              }
+                              setSelectedCampaign({
+                                ...selectedCampaign,
+                                totemIds: checked ? [...eligibleTotemIds] : [],
+                              } as any);
+                            }}
+                          />
+                        }
+                        label="Selecionar todos"
+                      />
+                    )}
                   <Autocomplete
                     multiple
                     disableCloseOnSelect
@@ -1332,7 +1518,9 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                               : 'Nenhum totem listado. Escolha um contrato ativo com plano na aba Principal (campo Contrato).';
                           }
                           return compactMode
-                            ? `Só aparecem totens dos locais explicitamente ligados ao plano do contrato (e cuja ${orgTerms.organization.toLowerCase()} o plano também permite).`
+                            ? allTotemsSelected
+                              ? 'Todos os totens elegíveis do contrato estão selecionados (padrão). Desmarque «Selecionar todos» ou retire totens para limitar.'
+                              : `Só aparecem totens dos locais explicitamente ligados ao plano do contrato (e cuja ${orgTerms.organization.toLowerCase()} o plano também permite).`
                             : `Selecione os totens onde a campanha será exibida. Se nenhum for selecionado, a campanha vale para todos os totens das ${orgTerms.organizationPlural.toLowerCase()}.`;
                         })()}
                       />
@@ -1344,6 +1532,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                         : `Nenhum totem nas ${orgTerms.organizationPlural.toLowerCase()} selecionadas. Selecione ${orgTerms.organizationPlural.toLowerCase()} na aba ${orgTerms.campaignOrganizationsTab}.`
                     }
                   />
+                  </>
                 )}
               </Box>
             )}
@@ -1474,8 +1663,12 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
       </DialogContent>
       <DialogActions>
         <Button onClick={handleClose}>Cancelar</Button>
-        <Button variant="contained" onClick={handleEditCampaign} disabled={!selectedCampaign || loadingCampaign}>
-          Salvar
+        <Button
+          variant="contained"
+          onClick={handleSaveCampaign}
+          disabled={!selectedCampaign || loadingCampaign || saving}
+        >
+          {saving ? 'A guardar…' : 'Salvar'}
         </Button>
       </DialogActions>
     </Dialog>
