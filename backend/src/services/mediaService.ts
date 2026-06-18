@@ -1168,19 +1168,18 @@ export class MediaService {
         result.previewUrl = generateThumbnailUrl(thumbnailPath, 'image');
 
       } else if (mimetype.startsWith('video/')) {
-        // Para vídeo, você pode usar ffmpeg para extrair metadados
-        // Por enquanto, vamos usar valores padrão
-        result.durationSeconds = 0; // Implementar com ffmpeg
-        result.width = 1920; // Implementar com ffmpeg
-        result.height = 1080; // Implementar com ffmpeg
+        const probed = await this.probeMediaWithFfprobe(filePath, mimetype);
+        result.durationSeconds = probed.durationSeconds ?? 0;
+        result.width = probed.width ?? 1920;
+        result.height = probed.height ?? 1080;
 
         // Gerar thumbnail do vídeo
         const thumbnailPath = await this.generateVideoThumbnail(buffer, filePath);
         result.previewUrl = generateThumbnailUrl(thumbnailPath, 'video');
 
       } else if (mimetype.startsWith('audio/')) {
-        // Para áudio, extrair duração
-        result.durationSeconds = 0; // Implementar com ffmpeg
+        const probed = await this.probeMediaWithFfprobe(filePath, mimetype);
+        result.durationSeconds = probed.durationSeconds ?? 0;
       }
 
       return result;
@@ -1189,6 +1188,65 @@ export class MediaService {
       await logError('Erro ao processar mídia', error, { filePath, mimetype });
       return {};
     }
+  }
+
+  /**
+   * Extrai duração (e dimensões de vídeo) via ffprobe. Retorna vazio se ffprobe indisponível.
+   */
+  private async probeMediaWithFfprobe(
+    filePath: string,
+    mimetype: string
+  ): Promise<{ durationSeconds?: number; width?: number; height?: number }> {
+    const result: { durationSeconds?: number; width?: number; height?: number } = {};
+
+    try {
+      const { stdout } = await execFileAsync(
+        'ffprobe',
+        [
+          '-v',
+          'error',
+          '-show_entries',
+          'format=duration',
+          '-of',
+          'default=noprint_wrappers=1:nokey=1',
+          filePath,
+        ],
+        { timeout: 30_000 }
+      );
+      const dur = Math.round(Number(String(stdout).trim()));
+      if (Number.isFinite(dur) && dur > 0) {
+        result.durationSeconds = dur;
+      }
+    } catch (error: any) {
+      await logWarn('ffprobe não extraiu duração do arquivo', { filePath, error: error?.message });
+    }
+
+    if (mimetype.startsWith('video/')) {
+      try {
+        const { stdout } = await execFileAsync(
+          'ffprobe',
+          [
+            '-v',
+            'error',
+            '-select_streams',
+            'v:0',
+            '-show_entries',
+            'stream=width,height',
+            '-of',
+            'json',
+            filePath,
+          ],
+          { timeout: 30_000 }
+        );
+        const stream = JSON.parse(stdout)?.streams?.[0];
+        if (stream?.width) result.width = Number(stream.width);
+        if (stream?.height) result.height = Number(stream.height);
+      } catch {
+        // dimensões opcionais
+      }
+    }
+
+    return result;
   }
 
   /**

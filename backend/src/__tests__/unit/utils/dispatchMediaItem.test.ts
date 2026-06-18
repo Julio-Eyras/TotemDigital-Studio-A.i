@@ -41,5 +41,19 @@ describe('dispatchMediaItem', () => {
       expect(item.duration).toBeNull();
       expect(item.metadata?.durationSeconds).toBe(30);
     });
+
+    it('infere vídeo por extensão mesmo com mediaType incorreto na playlist', () => {
+      const item = buildDispatchMediaItem({
+        mediaId: 12,
+        order: 1,
+        displaySeconds: 10,
+        mediaType: 'image',
+        mimeType: 'video/mp4',
+        filePath: '/uploads/subscriber/3/promo.mp4',
+      });
+
+      expect(item.mediaType).toBe('video');
+      expect(item.duration).toBeNull();
+    });
   });
 });

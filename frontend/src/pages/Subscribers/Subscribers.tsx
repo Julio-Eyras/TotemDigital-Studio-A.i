@@ -144,6 +144,12 @@ import { getTodayYmd } from '../../utils/campaignStartDate';
 const compareByDisplayName = (a?: string, b?: string) =>
   String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
 
+const isVideoOrAudioMediaType = (mediaType?: string | null): boolean => {
+  const t = String(mediaType || '').trim().toLowerCase();
+  if (t === 'video' || t === 'audio') return true;
+  return t.startsWith('video/') || t.startsWith('audio/');
+};
+
 interface SubscriberStatusFilterOption {
   value: string;
   label: string;
@@ -1581,11 +1587,17 @@ const Subscribers: React.FC = () => {
       
       // Adicionar cada mídia selecionada à playlist
       for (const mediaId of selectedMediasForPlaylist) {
+        const media = editMedias.find((m) => m.media_id === mediaId);
+        const mt = String(media?.media_type || '').toLowerCase();
+        const imageDurationSec =
+          defaultPlaylistItemDuration > 0 ? defaultPlaylistItemDuration : 10;
+        const durationMs = isVideoOrAudioMediaType(mt) ? 0 : imageDurationSec * 1000;
+
         await playlistApi.addMedia(
           playlist.playlist_id,
           mediaId,
           undefined, // orderIndex será calculado automaticamente
-          defaultPlaylistItemDuration * 1000 // Converter segundos para milissegundos
+          durationMs
         );
       }
 
@@ -3884,7 +3896,7 @@ const Subscribers: React.FC = () => {
                         }}
                         size="small"
                         inputProps={{ min: 0, max: 300 }}
-                        helperText="0 = vídeo/áudio usam a duração do arquivo; para imagens, 0 vira 10 s ao adicionar. De 1 a 300 = segundos fixos (principalmente imagens)."
+                        helperText="Aplica-se apenas a imagens. 0 vira 10 s ao adicionar. Vídeo e áudio usam sempre a duração do arquivo."
                       />
                     </Grid>
                     <Grid item xs={12} md={6}>
@@ -3917,8 +3929,16 @@ const Subscribers: React.FC = () => {
                   </Alert>
                   <List>
                     {playlistItems.map((item, index) => {
-                      const durationMs = item.duration ?? 10000;
-                      const durationSecEffective = Math.max(1, Math.round(durationMs / 1000));
+                      const m = item.media as any;
+                      const mediaType: string | undefined = m?.media_type || m?.mediaType;
+                      const isAutoDuration = isVideoOrAudioMediaType(mediaType);
+                      const fileDurationSec = Math.max(0, Number(m?.duration_seconds) || 0);
+                      const durationMs = item.duration ?? (isAutoDuration ? fileDurationSec * 1000 : 10000);
+                      const durationSecEffective = isAutoDuration
+                        ? fileDurationSec > 0
+                          ? fileDurationSec
+                          : Math.max(0, Math.round(durationMs / 1000))
+                        : Math.max(1, Math.round(durationMs / 1000));
                       const storedSec =
                         item.display_seconds !== undefined && item.display_seconds !== null
                           ? item.display_seconds
@@ -3926,8 +3946,6 @@ const Subscribers: React.FC = () => {
                       const isEditing = editingItemDuration === item.item_id;
                       const tempDuration = tempItemDuration[item.item_id] ?? storedSec;
                       const isDragging = draggedItemIndex === index;
-                      const m = item.media as any;
-                      const mediaType: string | undefined = m?.media_type || m?.mediaType;
                       const mediaName =
                         m?.name || (item as any).mediaName || (item as any).media_name || `Mídia ${item.media_id}`;
                       const thumbFromApi = m?.thumbnail_url || m?.thumbnailUrl;
@@ -4120,20 +4138,24 @@ const Subscribers: React.FC = () => {
                             ) : (
                               <>
                                 <Typography variant="body2" color="text.secondary" title="Duração efetiva de exibição">
-                                  {storedSec === 0 && (mediaType === 'video' || mediaType === 'audio')
-                                    ? `auto (${durationSecEffective}s)`
+                                  {isAutoDuration
+                                    ? fileDurationSec > 0
+                                      ? `auto (${formatDuration(fileDurationSec)})`
+                                      : 'auto (duração do arquivo)'
                                     : `${durationSecEffective}s`}
                                 </Typography>
-                                <IconButton
-                                  size="small"
-                                  onClick={() => {
-                                    setEditingItemDuration(item.item_id);
-                                    setTempItemDuration({ ...tempItemDuration, [item.item_id]: storedSec });
-                                  }}
-                                  title="Editar duração"
-                                >
-                                  <Edit fontSize="small" />
-                                </IconButton>
+                                {!isAutoDuration && (
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => {
+                                      setEditingItemDuration(item.item_id);
+                                      setTempItemDuration({ ...tempItemDuration, [item.item_id]: storedSec });
+                                    }}
+                                    title="Editar duração"
+                                  >
+                                    <Edit fontSize="small" />
+                                  </IconButton>
+                                )}
                               </>
                             )}
                           </Box>

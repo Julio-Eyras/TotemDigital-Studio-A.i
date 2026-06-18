@@ -1,6 +1,7 @@
 import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
 import { getCacheService } from './cacheService';
+import { isVideoOrAudioMediaType } from '../utils/mediaTypeUtils';
 
 export interface PlaylistItem {
   playlist_id: number;
@@ -185,9 +186,11 @@ export class PlaylistService {
           COALESCE(SUM(
             CASE
               WHEN pi.item_id IS NULL THEN 0
-              WHEN COALESCE(pi.display_seconds, 0) > 0 THEN pi.display_seconds
+              WHEN COALESCE(pi.display_seconds, 0) > 0
+                AND LOWER(COALESCE(m.media_type, '')) NOT IN ('video', 'audio')
+                THEN pi.display_seconds
               WHEN LOWER(COALESCE(m.media_type, '')) IN ('video', 'audio')
-                THEN COALESCE(NULLIF(m.duration_seconds, 0), 10)
+                THEN COALESCE(NULLIF(m.duration_seconds, 0), 0)
               ELSE 10
             END
           ), 0) as total_duration
@@ -274,9 +277,11 @@ export class PlaylistService {
           COALESCE(SUM(
             CASE
               WHEN pi.item_id IS NULL THEN 0
-              WHEN COALESCE(pi.display_seconds, 0) > 0 THEN pi.display_seconds
+              WHEN COALESCE(pi.display_seconds, 0) > 0
+                AND LOWER(COALESCE(m.media_type, '')) NOT IN ('video', 'audio')
+                THEN pi.display_seconds
               WHEN LOWER(COALESCE(m.media_type, '')) IN ('video', 'audio')
-                THEN COALESCE(NULLIF(m.duration_seconds, 0), 10)
+                THEN COALESCE(NULLIF(m.duration_seconds, 0), 0)
               ELSE 10
             END
           ), 0) as total_duration
@@ -554,24 +559,31 @@ export class PlaylistService {
       `, [playlistId]);
 
       return media.map(item => {
-        const storedSec = Math.max(0, Number(item.display_seconds) || 0);
         const mediaType = String(item.media_type || '').toLowerCase();
+        const storedSec = Math.max(0, Number(item.display_seconds) || 0);
+        const fileSec = Math.max(0, Number(item.duration_seconds) || 0);
+
+        let displaySeconds: number;
         let effectiveSec: number;
-        if (storedSec > 0) {
+
+        if (isVideoOrAudioMediaType(mediaType)) {
+          displaySeconds = 0;
+          effectiveSec = fileSec;
+        } else if (storedSec > 0) {
+          displaySeconds = storedSec;
           effectiveSec = storedSec;
-        } else if (mediaType === 'video' || mediaType === 'audio') {
-          effectiveSec = Math.max(1, Number(item.duration_seconds) || 10);
         } else {
+          displaySeconds = 0;
           effectiveSec = 10;
         }
+
         return {
           item_id: item.item_id,
           playlist_id: item.playlist_id,
           media_id: item.media_id,
           order_index: item.order_index,
-          /** Segundos gravados no item (0 = automático para vídeo/áudio: usa duração do arquivo) */
-          display_seconds: storedSec,
-          // Duração efetiva em ms (totais, player, UI)
+          /** 0 = automático (vídeo/áudio: duração do arquivo) */
+          display_seconds: displaySeconds,
           duration: effectiveSec * 1000,
           media: {
             media_id: item.media_id,
@@ -579,7 +591,7 @@ export class PlaylistService {
             media_type: item.media_type,
             file_path: item.file_path,
             mime_type: item.mime_type,
-            duration_seconds: item.duration_seconds,
+            duration_seconds: fileSec > 0 ? fileSec : item.duration_seconds,
             size_bytes: item.size_bytes,
             thumbnail_url: item.thumbnail_url,
             preview_url: item.preview_url,
@@ -647,17 +659,21 @@ export class PlaylistService {
         orderIndex = (maxOrder?.max_order || 0) + 1;
       }
 
-      // Duração: API em ms; display_seconds no banco em segundos. 0 = não forçar (só vídeo/áudio); imagem com 0 grava 10s.
+      // Duração: API em ms; display_seconds no banco em segundos.
+      // Vídeo/áudio: sempre 0 (duração real do arquivo). Imagem: 0 → 10s; ou valor fixo 1–300s.
+      const mediaType = String(media.media_type || '').toLowerCase();
       let durationSeconds: number;
-      if (duration === undefined || duration === null) {
+
+      if (isVideoOrAudioMediaType(mediaType)) {
+        durationSeconds = 0;
+      } else if (duration === undefined || duration === null) {
         durationSeconds = 10;
       } else {
         const ms = Number(duration);
         if (!Number.isFinite(ms)) {
           durationSeconds = 10;
         } else if (ms === 0) {
-          const t = String(media.media_type || '').toLowerCase();
-          durationSeconds = t === 'image' ? 10 : 0;
+          durationSeconds = 10;
         } else {
           durationSeconds = Math.max(1, Math.min(300, Math.floor(ms / 1000)));
         }
@@ -767,12 +783,19 @@ export class PlaylistService {
       }
 
       const t = String(itemRow.media_type || '').toLowerCase();
+
+      if (isVideoOrAudioMediaType(t) && duration !== 0) {
+        throw new Error(
+          'Vídeo e áudio usam a duração do arquivo; não é possível definir tempo fixo na playlist.'
+        );
+      }
+
       const durationSeconds =
-        duration === 0
-          ? t === 'image'
+        isVideoOrAudioMediaType(t)
+          ? 0
+          : duration === 0
             ? 10
-            : 0
-          : Math.max(1, Math.min(300, Math.floor(Number(duration) / 1000)));
+            : Math.max(1, Math.min(300, Math.floor(Number(duration) / 1000)));
 
       // Atualizar duração (display_seconds no banco = segundos; body da API em ms)
       await this.db.executeRaw(`

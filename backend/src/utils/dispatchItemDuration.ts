@@ -13,15 +13,10 @@ export const DEFAULT_IMAGE_DISPLAY_SECONDS = 10;
 export const DEFAULT_HTML_DISPLAY_SECONDS = 60;
 export const DEFAULT_MEDIA_FALLBACK_SECONDS = 10;
 
-function isVideoOrAudio(mediaType: string | null | undefined): boolean {
-  const t = String(mediaType || '').toLowerCase();
-  return t === 'video' || t === 'audio';
-}
-
-function isHtmlMedia(mediaType: string | null | undefined): boolean {
-  const t = String(mediaType || '').toLowerCase();
-  return t === 'html' || t === 'web' || t === 'widget' || t === 'iframe';
-}
+import {
+  isHtmlMediaType as isHtmlMedia,
+  isVideoOrAudioMediaType as isVideoOrAudio,
+} from './mediaTypeUtils';
 
 export function positiveIntOrNull(v: unknown): number | null {
   if (v === undefined || v === null || v === '') return null;

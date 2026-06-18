@@ -1,6 +1,7 @@
 import { DispatchMediaItem } from '../types/dispatcherTotem.types';
 import { resolveDispatchCacheBucket } from '../services/dispatchMediaBucket';
 import { resolveDispatchItemDurationSeconds, positiveIntOrNull } from './dispatchItemDuration';
+import { resolveLogicalMediaType } from './mediaTypeUtils';
 import { normalizeDownloadUrl } from './pathHelper';
 
 export interface BuildDispatchMediaItemInput {
@@ -25,8 +26,13 @@ export function extractFileNameFromPath(filePath: string | null | undefined): st
 }
 
 export function buildDispatchMediaItem(input: BuildDispatchMediaItemInput): DispatchMediaItem {
-  const mediaType = String(input.mediaType || 'image');
   const fileName = input.fileName?.trim() || extractFileNameFromPath(input.filePath) || undefined;
+  const mediaType = resolveLogicalMediaType({
+    mediaType: input.mediaType,
+    mimeType: input.mimeType,
+    filePath: input.filePath,
+    fileName,
+  });
   const mediaName = input.name?.trim() || fileName;
   const filePath = input.filePath ?? undefined;
 
@@ -35,7 +41,7 @@ export function buildDispatchMediaItem(input: BuildDispatchMediaItemInput): Disp
     order: input.order,
     duration: resolveDispatchItemDurationSeconds({
       displaySeconds: input.displaySeconds,
-      mediaType: input.mediaType,
+      mediaType,
       mediaDurationSeconds: input.durationSeconds,
     }),
     url: normalizeDownloadUrl(filePath) || '',

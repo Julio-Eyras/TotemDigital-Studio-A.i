@@ -776,8 +776,7 @@ class PlayerController(
 
         // Fallback local (file://) não usa cache/metadata
         val isFileUrl = item.url.startsWith("file://")
-        val mediaTypeLower = item.mediaType?.lowercase() ?: "video"
-        val isVideo = mediaTypeLower == "video" || mediaTypeLower == "audio"
+        val isVideo = isVideoOrAudioPlaybackType(item.mediaType, item.url)
         val isHtml = HtmlWebViewPlayback.isHtmlMediaType(item.mediaType, item.url)
 
         val meta = if (!isFileUrl) cacheManager.getMetadata(item.mediaId) else null
@@ -1184,6 +1183,17 @@ class PlayerController(
         }
     }
 
+    /** Vídeo/áudio por tipo lógico, MIME ou extensão na URL — alinhado ao dispatch do backend. */
+    private fun isVideoOrAudioPlaybackType(mediaType: String?, url: String?): Boolean {
+        val t = mediaType?.lowercase()?.trim().orEmpty()
+        if (t == "video" || t == "audio") return true
+        if (t.startsWith("video/") || t.startsWith("audio/")) return true
+        val ref = (url ?: "").lowercase()
+        if (Regex("\\.(mp4|webm|mov|mkv|m4v)(\\?|#|$)").containsMatchIn(ref)) return true
+        if (Regex("\\.(mp3|aac|wav|ogg|m4a)(\\?|#|$)").containsMatchIn(ref)) return true
+        return false
+    }
+
     private fun guessExtension(mediaType: String?, url: String): String {
         if (HtmlWebViewPlayback.isHtmlMediaType(mediaType, url)) return "html"
         mediaType?.let {
@@ -1202,8 +1212,7 @@ class PlayerController(
 
     private fun playbackWatchdogTimeoutMs(item: DispatchMediaItem): Long {
         // Vídeo/áudio: duração real no ExoPlayer; `duration` do dispatch (null em vídeo) não corta reprodução.
-        val mediaTypeLower = item.mediaType?.lowercase() ?: ""
-        if (mediaTypeLower == "video" || mediaTypeLower == "audio") {
+        if (isVideoOrAudioPlaybackType(item.mediaType, item.url)) {
             return VIDEO_WATCHDOG_DEFAULT_MS
         }
         val declaredDurationMs = item.duration?.takeIf { it > 0L }?.times(1000L)
