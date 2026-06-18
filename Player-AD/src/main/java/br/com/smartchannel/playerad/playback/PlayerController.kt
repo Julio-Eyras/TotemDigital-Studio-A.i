@@ -23,6 +23,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
@@ -779,6 +780,10 @@ class PlayerController(
         val isVideo = isVideoOrAudioPlaybackType(item.mediaType, item.url)
         val isHtml = HtmlWebViewPlayback.isHtmlMediaType(item.mediaType, item.url)
 
+        if (!isHtml) {
+            hideHtmlLayer()
+        }
+
         val meta = if (!isFileUrl) cacheManager.getMetadata(item.mediaId) else null
         val file = meta?.fileName?.let { File(propagandasDir, it) }
         val hasValidCache =
@@ -1000,7 +1005,6 @@ class PlayerController(
             else -> null
         }
 
-        htmlWebView.visibility = View.VISIBLE
         HtmlWebViewPlayback.load(
             webView = htmlWebView,
             serverBaseUrl = apiClient.baseUrl,
@@ -1008,9 +1012,28 @@ class PlayerController(
             cachedHtmlFile = cachedFile
         )
 
-        delay(durationMs)
+        // Timer fora da Main: animações JS na WebView não devem atrasar o avanço da playlist.
+        val watchdogMs = durationMs + HTML_PLAYBACK_GRACE_MS
+        try {
+            withTimeout(watchdogMs) {
+                withContext(Dispatchers.Default) {
+                    delay(durationMs)
+                }
+            }
+        } catch (e: Exception) {
+            PlayerAdLogger.w(
+                "WATCHDOG",
+                "HTML mediaId=${item.mediaId} watchdog ${watchdogMs / 1000L}s — forçando próximo item",
+            )
+        }
         HtmlWebViewPlayback.stop(htmlWebView)
+        hideImageLayer()
+        playerView.visibility = View.GONE
         PlayerAdLogger.logPlaybackEnd("html", item.mediaId, durationSeconds)
+        PlayerAdLogger.i(
+            "PLAYBACK",
+            "HTML encerrado mediaId=${item.mediaId} — avançando playlist (${plan.mediaItems.size} itens no plano)"
+        )
         return t
     }
 
@@ -1356,6 +1379,7 @@ class PlayerController(
         private const val VIDEO_WATCHDOG_MIN_MS = 30_000L
         private const val VIDEO_WATCHDOG_GRACE_MS = 15_000L
         private const val VIDEO_WATCHDOG_DEFAULT_MS = 15 * 60 * 1000L
+        private const val HTML_PLAYBACK_GRACE_MS = 5_000L
     }
 }
 

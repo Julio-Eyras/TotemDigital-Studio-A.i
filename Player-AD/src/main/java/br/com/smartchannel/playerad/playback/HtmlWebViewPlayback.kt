@@ -28,6 +28,8 @@ object HtmlWebViewPlayback {
         httpUrl: String,
         cachedHtmlFile: File?
     ) {
+        webView.onResume()
+        webView.visibility = android.view.View.VISIBLE
         val base = serverBaseUrl.trimEnd('/') + "/"
         when {
             cachedHtmlFile != null && cachedHtmlFile.exists() -> {
@@ -38,9 +40,12 @@ object HtmlWebViewPlayback {
         }
     }
 
+    /** Liberta a WebView antes do próximo item (imagem/vídeo) — evita sobreposição visual. */
     fun stop(webView: WebView) {
+        webView.onPause()
         webView.stopLoading()
         webView.loadUrl("about:blank")
+        webView.clearHistory()
         webView.visibility = android.view.View.GONE
     }
 
