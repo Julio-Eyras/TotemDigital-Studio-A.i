@@ -18,6 +18,7 @@ import { getCacheService } from './cacheService';
 import { getTotemPlaylistMixService, TotemPlaylistMix } from './totemPlaylistMixService';
 import { buildDispatchMediaItem } from '../utils/dispatchMediaItem';
 import { sumDispatchMediaItemsPlanDuration } from '../utils/dispatchItemDuration';
+import { enrichDispatchPlanWithGlobalVinhetas } from './dispatchVinhetaEnrichment';
 import {
   DispatchRequest,
   DispatchPlan,
@@ -258,8 +259,8 @@ export class DispatcherTotemService {
         }
       } else {
         // Estratégia SINGLE ou PRIORITY: usar resolução de conflitos tradicional
-        winner = await this.resolveConflicts(validatedCandidates, totemId, targetTimestamp);
-        
+        winner = await this.resolveConflictsWithValidPlan(validatedCandidates, totemId, targetTimestamp);
+
         if (!winner) {
           await logDebug('[DispatcherTotem] Nenhum candidato válido após resolução, tentando fallbacks', {
             totem: totemContext,
@@ -291,17 +292,7 @@ export class DispatcherTotemService {
             winner: await this.getCandidateLogContext(winner),
             errors: technicalValid.errors,
           });
-          
-          // Tentar próximo candidato
-          const nextWinner = validatedCandidates.find(c => c.campaignId !== winner!.campaignId && c.score < winner!.score);
-          if (nextWinner) {
-            // Recursão limitada (apenas 1 nível)
-            return this.dispatch(
-              { totemId, timestamp: targetTimestamp, timezone },
-              { ...options, skipCache: true }
-            );
-          }
-          
+
           return {
             success: false,
             error: `Validação técnica falhou: ${technicalValid.errors.join(', ')}`,
@@ -311,25 +302,7 @@ export class DispatcherTotemService {
           };
         }
 
-        // Validar integridade da playlist
-        const integrityValid = await this.validatePlaylistIntegrity(winner.playlistId, winner.campaignId);
-        if (!integrityValid.valid) {
-          await logDebug('[DispatcherTotem] Falha na validação de integridade', {
-            totem: totemContext,
-            winner: await this.getCandidateLogContext(winner),
-            errors: integrityValid.errors,
-          });
-          
-          return {
-            success: false,
-            error: `Validação de integridade falhou: ${integrityValid.errors.join(', ')}`,
-            candidates: includeCandidates ? validatedCandidates : undefined,
-            fromCache: false,
-            executionTimeMs: Date.now() - startTime,
-          };
-        }
-
-        // Gerar plano de exibição
+        // Gerar plano de exibição (integridade já validada em resolveConflictsWithValidPlan)
         plan = await this.generateDispatchPlan(winner, totemId, targetTimestamp);
       }
 
@@ -721,6 +694,20 @@ export class DispatcherTotemService {
           playlistName = '(mídias diretas)';
           mediaId = Number(directMedia.media_id);
           mediaName = directMedia.name || undefined;
+        }
+
+        const consolidatedPreview = await this.getConsolidatedDispatchItems(
+          playlistId,
+          campaign.campaign_id
+        );
+        if (consolidatedPreview.items.length === 0) {
+          await logDebug('[DispatcherTotem] Campanha ignorada: sem mídia reproduzível (playlist vazia e sem diretas)', {
+            campaignId: campaign.campaign_id,
+            playlistId,
+            playlistItems: consolidatedPreview.playlistItemsCount,
+            campaignMedias: consolidatedPreview.campaignMediaCount,
+          });
+          continue;
         }
 
         // Validar frequência temporal
@@ -1377,6 +1364,44 @@ export class DispatcherTotemService {
     }
 
     return checks;
+  }
+
+  /**
+   * Escolhe o melhor candidato cujo conteúdo consolidado (playlist + mídias diretas) é reproduzível.
+   */
+  private async resolveConflictsWithValidPlan(
+    candidates: CandidateSchedule[],
+    totemId: number,
+    timestamp: Date
+  ): Promise<CandidateSchedule | null> {
+    let remaining = candidates.filter((c) => c.temporalValid);
+    const tried = new Set<string>();
+
+    while (remaining.length > 0) {
+      const winner = await this.resolveConflicts(remaining, totemId, timestamp);
+      if (!winner) return null;
+
+      const key = `${winner.campaignId}-${winner.playlistId}`;
+      if (tried.has(key)) break;
+      tried.add(key);
+
+      const integrityValid = await this.validatePlaylistIntegrity(winner.playlistId, winner.campaignId);
+      if (integrityValid.valid) {
+        return winner;
+      }
+
+      await logDebug('[DispatcherTotem] Candidato descartado por integridade; tentando próximo', {
+        campaignId: winner.campaignId,
+        playlistId: winner.playlistId,
+        errors: integrityValid.errors,
+      });
+
+      remaining = remaining.filter(
+        (c) => !(c.campaignId === winner.campaignId && c.playlistId === winner.playlistId)
+      );
+    }
+
+    return null;
   }
 
   /**
@@ -2140,8 +2165,16 @@ export class DispatcherTotemService {
     const playlist = firstPlaylistId > 0 ? await this.db.findFirst(`
       SELECT playlist_id, name FROM playlists WHERE playlist_id = $1
     `, [firstPlaylistId]) : null;
-    
-    return {
+
+    const subscriberIds = [
+      ...new Set(
+        (mix.mix_items || [])
+          .map((item) => Number((item as { subscriber_id?: number }).subscriber_id))
+          .filter((id) => Number.isFinite(id) && id > 0)
+      ),
+    ];
+
+    const basePlan: DispatchPlan = {
       totemId,
       timestamp,
       playlistId: firstPlaylistId,
@@ -2163,6 +2196,8 @@ export class DispatcherTotemService {
         mixItemsDiscardedCount: discardedItems,
       },
     };
+
+    return enrichDispatchPlanWithGlobalVinhetas(basePlan, subscriberIds);
   }
 
   /**
@@ -2173,7 +2208,7 @@ export class DispatcherTotemService {
     totemId: number,
     targetTimestamp: Date
   ): Promise<{ plan?: DispatchPlan; winner: CandidateSchedule | null }> {
-    const winner = await this.resolveConflicts(validatedCandidates, totemId, targetTimestamp);
+    const winner = await this.resolveConflictsWithValidPlan(validatedCandidates, totemId, targetTimestamp);
     if (!winner) {
       return { plan: undefined, winner: null };
     }
@@ -2185,10 +2220,6 @@ export class DispatcherTotemService {
     });
     const technicalValid = await this.validateTechnicalCompatibility(winner, totemId);
     if (!technicalValid.valid) {
-      return { plan: undefined, winner: null };
-    }
-    const integrityValid = await this.validatePlaylistIntegrity(winner.playlistId, winner.campaignId);
-    if (!integrityValid.valid) {
       return { plan: undefined, winner: null };
     }
     const plan = await this.generateDispatchPlan(winner, totemId, targetTimestamp);
@@ -2287,27 +2318,30 @@ export class DispatcherTotemService {
       WHERE campaign_id = $1
     `, [candidate.campaignId]);
 
-    return {
-      totemId,
-      timestamp,
-      playlistId: candidate.playlistId,
-      playlistName: candidate.playlistName,
-      mediaItems,
-      totalDuration,
-      priority: candidate.priority,
-      source: candidate.source,
-      sourceId: candidate.sourceId,
-      sourceName: candidate.campaignTitle,
-      validityStart: campaign?.start_date ? new Date(campaign.start_date) : timestamp,
-      validityEnd: campaign?.end_date ? new Date(campaign.end_date) : new Date(timestamp.getTime() + 24 * 60 * 60 * 1000),
-      metadata: {
-        campaignId: candidate.campaignId,
-        campaignTitle: campaign?.title,
-        playlistItemsCount: consolidated.playlistItemsCount,
-        campaignMediaCount: consolidated.campaignMediaCount,
-        mergedItemsCount: mediaItems.length,
+    return enrichDispatchPlanWithGlobalVinhetas(
+      {
+        totemId,
+        timestamp,
+        playlistId: candidate.playlistId,
+        playlistName: candidate.playlistName,
+        mediaItems,
+        totalDuration,
+        priority: candidate.priority,
+        source: candidate.source,
+        sourceId: candidate.sourceId,
+        sourceName: candidate.campaignTitle,
+        validityStart: campaign?.start_date ? new Date(campaign.start_date) : timestamp,
+        validityEnd: campaign?.end_date ? new Date(campaign.end_date) : new Date(timestamp.getTime() + 24 * 60 * 60 * 1000),
+        metadata: {
+          campaignId: candidate.campaignId,
+          campaignTitle: campaign?.title,
+          playlistItemsCount: consolidated.playlistItemsCount,
+          campaignMediaCount: consolidated.campaignMediaCount,
+          mergedItemsCount: mediaItems.length,
+        },
       },
-    };
+      candidate.subscriberId ? [candidate.subscriberId] : []
+    );
   }
 
   /**

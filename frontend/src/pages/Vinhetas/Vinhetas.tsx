@@ -20,6 +20,8 @@ import {
   Alert,
   LinearProgress,
   Tooltip,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
 import { Add, Delete, Edit, Refresh, VideoLibrary } from '@mui/icons-material';
 import { MediaItem, mediaApi, subscriberApi, Subscriber } from '../../services/api';
@@ -29,6 +31,26 @@ import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 const VINHETA_TAG = 'vinheta';
+const VINHETA_GLOBAL_TAG = 'vinheta_global';
+
+function normalizeTags(tags: unknown): string[] {
+  if (!tags) return [];
+  if (Array.isArray(tags)) return tags.map((t) => String(t).trim().toLowerCase()).filter(Boolean);
+  if (typeof tags === 'string') return tags.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
+  return [];
+}
+
+function mergeVinhetaTags(existing: unknown, global: boolean): string[] {
+  const base = new Set(normalizeTags(existing));
+  base.add(VINHETA_TAG);
+  if (global) base.add(VINHETA_GLOBAL_TAG);
+  else base.delete(VINHETA_GLOBAL_TAG);
+  return Array.from(base);
+}
+
+function isGlobalVinheta(tags: unknown): boolean {
+  return normalizeTags(tags).includes(VINHETA_GLOBAL_TAG);
+}
 
 const Vinhetas: React.FC = () => {
   const breadcrumbs = useBreadcrumbs();
@@ -44,7 +66,8 @@ const Vinhetas: React.FC = () => {
   const [userSubscriberId, setUserSubscriberId] = useState<number | undefined>(undefined);
   const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editForm, setEditForm] = useState<{ name: string; description: string; status: string } | null>(null);
+  const [editForm, setEditForm] = useState<{ name: string; description: string; status: string; global: boolean } | null>(null);
+  const [uploadAsGlobal, setUploadAsGlobal] = useState(false);
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -119,6 +142,7 @@ const Vinhetas: React.FC = () => {
       name: m.name || '',
       description: m.description || '',
       status: m.status || 'draft',
+      global: isGlobalVinheta(m.tags),
     });
     setEditDialogOpen(true);
   };
@@ -130,7 +154,7 @@ const Vinhetas: React.FC = () => {
         name: editForm.name,
         description: editForm.description,
         status: editForm.status,
-        tags: Array.from(new Set([...(selectedMedia.tags || []), VINHETA_TAG])),
+        tags: mergeVinhetaTags(selectedMedia.tags, editForm.global),
       });
       setEditDialogOpen(false);
       setSelectedMedia(null);
@@ -145,7 +169,7 @@ const Vinhetas: React.FC = () => {
     <Box sx={{ p: 3 }}>
       <PageHeader
         title="Vinhetas"
-        subtitle="Gerencie vinhetas com bucket dedicado no dispatch"
+        subtitle="Vinhetas no dispatch (globais no servidor + pasta local no player)"
         breadcrumbs={breadcrumbs}
         onRefresh={loadVinhetas}
         loading={loading}
@@ -193,9 +217,12 @@ const Vinhetas: React.FC = () => {
               <CardContent>
                 <Typography variant="h6" noWrap>{m.name}</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{m.description || 'Sem descrição'}</Typography>
-                <Box sx={{ mb: 1, display: 'flex', gap: 1 }}>
+                <Box sx={{ mb: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                   <Chip size="small" label={m.media_type?.toUpperCase() || 'MÍDIA'} />
                   <Chip size="small" color="secondary" label="vinheta" />
+                  {isGlobalVinheta(m.tags) && (
+                    <Chip size="small" color="primary" label="global" />
+                  )}
                   <Chip size="small" variant="outlined" label={m.status || 'draft'} />
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -217,6 +244,24 @@ const Vinhetas: React.FC = () => {
         </Card>
       )}
 
+      <Alert severity="info" sx={{ mb: 2 }}>
+        Vinhetas <strong>globais</strong> entram automaticamente no JSON do dispatch do anunciante. O Player-AD ainda mistura com MP4 da pasta local <code>vinhetas/</code>.
+      </Alert>
+
+      <Card sx={{ mb: 2 }}>
+        <CardContent>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={uploadAsGlobal}
+                onChange={(e) => setUploadAsGlobal(e.target.checked)}
+              />
+            }
+            label="Próximo upload como vinheta global (todas as campanhas do anunciante)"
+          />
+        </CardContent>
+      </Card>
+
       <MediaUploadDialog
         open={uploadDialogOpen}
         onClose={() => setUploadDialogOpen(false)}
@@ -226,7 +271,7 @@ const Vinhetas: React.FC = () => {
         subscribers={subscribers}
         userSubscriberId={userSubscriberId}
         dialogTitle="Upload de Vinheta"
-        defaultTags={[VINHETA_TAG]}
+        defaultTags={uploadAsGlobal ? [VINHETA_TAG, VINHETA_GLOBAL_TAG] : [VINHETA_TAG]}
         lockDefaultTags={false}
       />
 
@@ -247,6 +292,16 @@ const Vinhetas: React.FC = () => {
                   <MenuItem value="archived">Arquivado</MenuItem>
                 </Select>
               </FormControl>
+              <FormControlLabel
+                sx={{ mt: 1 }}
+                control={
+                  <Switch
+                    checked={editForm.global}
+                    onChange={(e) => setEditForm((p) => p ? { ...p, global: e.target.checked } : null)}
+                  />
+                }
+                label="Vinheta global (incluir em todos os dispatches do anunciante)"
+              />
             </>
           )}
         </DialogContent>
