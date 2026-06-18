@@ -20,6 +20,10 @@ import { buildDispatchMediaItem } from '../utils/dispatchMediaItem';
 import { sumDispatchMediaItemsPlanDuration } from '../utils/dispatchItemDuration';
 import { enrichDispatchPlanWithGlobalVinhetas } from './dispatchVinhetaEnrichment';
 import {
+  DEFAULT_FALLBACK_PROPAGANDAS_PER_VINHETA,
+  interleaveDirectAndPlaylistItems,
+} from '../utils/dispatchPlaylistDirectMix';
+import {
   DispatchRequest,
   DispatchPlan,
   DispatchMediaItem,
@@ -643,71 +647,33 @@ export class DispatcherTotemService {
             AND cp.is_active = true
             AND p.is_active = true
           ORDER BY cp.priority DESC, cp.created_at ASC
-          LIMIT 1
         `, [campaign.campaign_id]);
 
-        let playlistId = 0;
-        let playlistName = '';
-        let mediaId: number | undefined;
-        let mediaName: string | undefined;
-
-        if (playlists.length > 0) {
-          const playlist = playlists[0];
-          playlistId = Number(playlist.playlist_id);
-          playlistName = playlist.playlist_name || '';
-
-          const media = await this.db.findFirst(`
-            SELECT 
-              m.media_id,
-              m.name
-            FROM playlist_items pi
-            INNER JOIN medias m ON m.media_id = pi.media_id
-            WHERE pi.playlist_id = $1
-              AND COALESCE(pi.is_active, true) = true
-              AND m.is_active = true
-              AND m.status IN ('approved', 'published')
-            ORDER BY pi.order_index ASC, m.media_id ASC
-            LIMIT 1
-          `, [playlist.playlist_id]);
-
-          mediaId = media?.media_id ? Number(media.media_id) : undefined;
-          mediaName = media?.name || undefined;
-        } else {
-          const directMedia = await this.db.findFirst(`
-            SELECT 
-              m.media_id,
-              m.name
-            FROM campaign_medias cm
-            INNER JOIN medias m ON m.media_id = cm.media_id
-            WHERE cm.campaign_id = $1
-              AND COALESCE(cm.is_active, true) = true
-              AND m.is_active = true
-              AND m.status IN ('approved', 'published')
-            ORDER BY cm.order_index ASC, cm.priority ASC, m.media_id ASC
-            LIMIT 1
-          `, [campaign.campaign_id]);
-
-          if (!directMedia?.media_id) {
-            continue; // Sem playlist nem mídia direta elegível
-          }
-
-          playlistName = '(mídias diretas)';
-          mediaId = Number(directMedia.media_id);
-          mediaName = directMedia.name || undefined;
-        }
-
-        const consolidatedPreview = await this.getConsolidatedDispatchItems(
-          playlistId,
-          campaign.campaign_id
-        );
+        const consolidatedPreview = await this.getConsolidatedDispatchItems(campaign.campaign_id);
         if (consolidatedPreview.items.length === 0) {
           await logDebug('[DispatcherTotem] Campanha ignorada: sem mídia reproduzível (playlist vazia e sem diretas)', {
             campaignId: campaign.campaign_id,
-            playlistId,
+            playlistCount: playlists.length,
             playlistItems: consolidatedPreview.playlistItemsCount,
             campaignMedias: consolidatedPreview.campaignMediaCount,
           });
           continue;
+        }
+
+        let playlistId = 0;
+        let playlistName = '';
+        const firstItem = consolidatedPreview.items[0];
+        const mediaId = Number(firstItem?.media_id) || undefined;
+        const mediaName = firstItem?.name || undefined;
+
+        if (playlists.length === 1) {
+          playlistId = Number(playlists[0].playlist_id);
+          playlistName = playlists[0].playlist_name || '';
+        } else if (playlists.length > 1) {
+          playlistId = Number(playlists[0].playlist_id);
+          playlistName = `${playlists.length} playlists`;
+        } else {
+          playlistName = '(mídias diretas)';
         }
 
         // Validar frequência temporal
@@ -1906,7 +1872,9 @@ export class DispatcherTotemService {
     const errors: string[] = [];
     
     try {
-      const consolidated = await this.getConsolidatedDispatchItems(playlistId, campaignId);
+      const consolidated = campaignId
+        ? await this.getConsolidatedDispatchItems(campaignId)
+        : await this.getConsolidatedDispatchItemsFromPlaylistOnly(playlistId);
       const items = consolidated.items;
 
       if (items.length === 0) {
@@ -1933,12 +1901,13 @@ export class DispatcherTotemService {
   }
 
   /**
-   * Consolida mídias de playlist_items e campaign_medias para dispatch.
-   * Deduplica por media_id e preserva ordem determinística.
+   * Consolida mídias de todas as playlists da campanha + campaign_medias.
+   * Quando ambos existem, intercala N mídias diretas : 1 item de playlist
+   * (N = fallbackPropagandasPerVinheta do player, default 3).
    */
   private async getConsolidatedDispatchItems(
-    playlistId: number,
-    campaignId?: number
+    campaignId: number,
+    mixRatio: number = DEFAULT_FALLBACK_PROPAGANDAS_PER_VINHETA
   ): Promise<{
     items: Array<{
       media_id: number;
@@ -1958,11 +1927,13 @@ export class DispatcherTotemService {
     }>;
     playlistItemsCount: number;
     campaignMediaCount: number;
+    playlistDirectMixApplied: boolean;
+    playlistDirectMixRatio: number;
+    campaignPlaylistCount: number;
   }> {
-    const playlistItems =
-      playlistId > 0
-        ? await this.db.findMany(`
-      SELECT 
+    const playlistRows = await this.db.findMany(
+      `
+      SELECT
         pi.media_id,
         pi.order_index,
         pi.display_seconds as duration,
@@ -1974,19 +1945,25 @@ export class DispatcherTotemService {
         m.width,
         m.height,
         m.mime_type,
-        m.duration_seconds
-      FROM playlist_items pi
-      INNER JOIN medias m ON pi.media_id = m.media_id
-      WHERE pi.playlist_id = $1
+        m.duration_seconds,
+        cp.priority as playlist_priority,
+        cp.created_at as playlist_linked_at,
+        cp.playlist_id
+      FROM campaign_playlists cp
+      INNER JOIN playlist_items pi ON pi.playlist_id = cp.playlist_id
+      INNER JOIN medias m ON m.media_id = pi.media_id
+      WHERE cp.campaign_id = $1
+        AND cp.is_active = true
         AND COALESCE(pi.is_active, true) = true
         AND m.is_active = true
         AND m.status IN ('approved', 'published')
-      ORDER BY pi.order_index ASC, m.media_id ASC
-    `, [playlistId])
-        : [];
+      ORDER BY cp.priority DESC, cp.created_at ASC, pi.order_index ASC, m.media_id ASC
+    `,
+      [campaignId]
+    );
 
-    const campaignItems = campaignId
-      ? await this.db.findMany(`
+    const campaignItems = await this.db.findMany(
+      `
           SELECT 
             cm.media_id,
             cm.order_index,
@@ -2007,64 +1984,144 @@ export class DispatcherTotemService {
             AND m.is_active = true
             AND m.status IN ('approved', 'published')
           ORDER BY cm.order_index ASC, m.media_id ASC
-        `, [campaignId])
-      : [];
+        `,
+      [campaignId]
+    );
 
-    const normalizedPlaylist = playlistItems.map((item: any) => ({
-      ...item,
+    const normalizedPlaylist = playlistRows.map((item: any) => ({
+      media_id: Number(item.media_id),
       order_index: Number(item.order_index ?? 0),
+      duration: item.duration,
+      name: item.name,
+      file_name: item.file_name,
+      file_path: item.file_path,
+      media_type: item.media_type,
+      tags: item.tags,
+      width: item.width,
+      height: item.height,
+      mime_type: item.mime_type,
+      duration_seconds: item.duration_seconds,
       source: 'playlist' as const,
       source_priority: 0,
     }));
+
     const normalizedCampaign = campaignItems.map((item: any) => ({
-      ...item,
+      media_id: Number(item.media_id),
       order_index: Number(item.order_index ?? 0),
+      duration: item.duration,
+      name: item.name,
+      file_name: item.file_name,
+      file_path: item.file_path,
+      media_type: item.media_type,
+      tags: item.tags,
+      width: item.width,
+      height: item.height,
+      mime_type: item.mime_type,
+      duration_seconds: item.duration_seconds,
       source: 'campaign' as const,
       source_priority: 1,
     }));
 
-    const byMediaId = new Map<number, any>();
-    for (const item of [...normalizedPlaylist, ...normalizedCampaign]) {
-      const mediaId = Number(item.media_id);
-      if (!Number.isFinite(mediaId)) continue;
+    const campaignPlaylistCount = new Set(
+      playlistRows.map((row: { playlist_id?: number }) => Number(row.playlist_id)).filter((id) => id > 0)
+    ).size;
 
-      const existing = byMediaId.get(mediaId);
-      if (!existing) {
-        byMediaId.set(mediaId, item);
-        continue;
-      }
+    const playlistDirectMixApplied =
+      normalizedPlaylist.length > 0 && normalizedCampaign.length > 0;
 
-      const isBetterOrder =
-        item.order_index < existing.order_index ||
-        (
-          item.order_index === existing.order_index &&
-          item.source_priority < existing.source_priority
-        );
-      if (isBetterOrder) {
-        // Preservar duration explícita caso a escolha "melhor" venha sem duração.
-        if ((item.duration == null || Number(item.duration) <= 0) && existing.duration != null) {
-          item.duration = existing.duration;
-        }
-        byMediaId.set(mediaId, item);
-        continue;
-      }
-
-      // Mantém item existente, mas preenche duration se faltava.
-      if ((existing.duration == null || Number(existing.duration) <= 0) && item.duration != null) {
-        existing.duration = item.duration;
-      }
-    }
-
-    const items = Array.from(byMediaId.values()).sort((a, b) => {
-      if (a.order_index !== b.order_index) return a.order_index - b.order_index;
-      if (a.source_priority !== b.source_priority) return a.source_priority - b.source_priority;
-      return Number(a.media_id) - Number(b.media_id);
-    });
+    const items = playlistDirectMixApplied
+      ? interleaveDirectAndPlaylistItems(normalizedCampaign, normalizedPlaylist, mixRatio)
+      : normalizedPlaylist.length > 0
+        ? normalizedPlaylist
+        : normalizedCampaign;
 
     return {
       items,
       playlistItemsCount: normalizedPlaylist.length,
       campaignMediaCount: normalizedCampaign.length,
+      playlistDirectMixApplied,
+      playlistDirectMixRatio: Math.max(1, Math.floor(mixRatio || DEFAULT_FALLBACK_PROPAGANDAS_PER_VINHETA)),
+      campaignPlaylistCount,
+    };
+  }
+
+  /** Fallback quando só há playlistId (sem campanha) — mantém ordem linear da playlist. */
+  private async getConsolidatedDispatchItemsFromPlaylistOnly(playlistId: number): Promise<{
+    items: Array<{
+      media_id: number;
+      order_index: number;
+      duration: number | null;
+      name: string | null;
+      file_name: string | null;
+      file_path: string | null;
+      media_type: string | null;
+      tags: any;
+      width: number | null;
+      height: number | null;
+      mime_type: string | null;
+      duration_seconds: number | null;
+      source: 'playlist' | 'campaign';
+      source_priority: number;
+    }>;
+    playlistItemsCount: number;
+    campaignMediaCount: number;
+    playlistDirectMixApplied: boolean;
+    playlistDirectMixRatio: number;
+    campaignPlaylistCount: number;
+  }> {
+    const playlistItems =
+      playlistId > 0
+        ? await this.db.findMany(
+            `
+      SELECT 
+        pi.media_id,
+        pi.order_index,
+        pi.display_seconds as duration,
+        m.name,
+        m.file_name,
+        m.file_path,
+        m.media_type,
+        m.tags,
+        m.width,
+        m.height,
+        m.mime_type,
+        m.duration_seconds
+      FROM playlist_items pi
+      INNER JOIN medias m ON pi.media_id = m.media_id
+      WHERE pi.playlist_id = $1
+        AND COALESCE(pi.is_active, true) = true
+        AND m.is_active = true
+        AND m.status IN ('approved', 'published')
+      ORDER BY pi.order_index ASC, m.media_id ASC
+    `,
+            [playlistId]
+          )
+        : [];
+
+    const items = playlistItems.map((item: any) => ({
+      media_id: Number(item.media_id),
+      order_index: Number(item.order_index ?? 0),
+      duration: item.duration,
+      name: item.name,
+      file_name: item.file_name,
+      file_path: item.file_path,
+      media_type: item.media_type,
+      tags: item.tags,
+      width: item.width,
+      height: item.height,
+      mime_type: item.mime_type,
+      duration_seconds: item.duration_seconds,
+      source: 'playlist' as const,
+      source_priority: 0,
+    }));
+
+    return {
+      items,
+      playlistItemsCount: items.length,
+      campaignMediaCount: 0,
+      playlistDirectMixApplied: false,
+      playlistDirectMixRatio: DEFAULT_FALLBACK_PROPAGANDAS_PER_VINHETA,
+      campaignPlaylistCount: playlistId > 0 ? 1 : 0,
     };
   }
 
@@ -2282,10 +2339,7 @@ export class DispatcherTotemService {
     totemId: number,
     timestamp: Date
   ): Promise<DispatchPlan> {
-    const consolidated = await this.getConsolidatedDispatchItems(
-      candidate.playlistId,
-      candidate.campaignId
-    );
+    const consolidated = await this.getConsolidatedDispatchItems(candidate.campaignId);
     const items = consolidated.items;
 
     const mediaItems: DispatchMediaItem[] = items.map((item, index) =>
@@ -2338,6 +2392,9 @@ export class DispatcherTotemService {
           playlistItemsCount: consolidated.playlistItemsCount,
           campaignMediaCount: consolidated.campaignMediaCount,
           mergedItemsCount: mediaItems.length,
+          campaignPlaylistCount: consolidated.campaignPlaylistCount,
+          playlistDirectMixApplied: consolidated.playlistDirectMixApplied,
+          playlistDirectMixRatio: consolidated.playlistDirectMixRatio,
         },
       },
       candidate.subscriberId ? [candidate.subscriberId] : []
