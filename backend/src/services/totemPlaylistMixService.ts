@@ -11,6 +11,8 @@ import { AIService } from './aiService';
 import { getCacheService } from './cacheService';
 import { getWebhookService } from './webhookService';
 import { resolvePlanTotalItemSeconds } from '../utils/dispatchItemDuration';
+import { DEFAULT_FALLBACK_PROPAGANDAS_PER_VINHETA } from '../utils/dispatchPlaylistDirectMix';
+import { expandMixItemsForPlaybackCycle, interleaveMixItemPools } from '../utils/mixPlaybackCycle';
 
 export interface MixRule {
   rule_id: number;
@@ -567,9 +569,11 @@ export class TotemPlaylistMixService {
       const allItems: MixItem[] = [];
 
       for (const campaign of mixedCampaigns) {
-        // 5.1 Itens vindos de playlists da campanha
+        const playlistPool: MixItem[] = [];
+        const directPool: MixItem[] = [];
+
+        // 5.1 Itens vindos de playlists da campanha (todas as playlists)
         for (const playlist of campaign.playlists) {
-          // Buscar itens da playlist
           const playlistItems = await this.db.findMany(`
             SELECT 
               pi.item_id,
@@ -590,7 +594,6 @@ export class TotemPlaylistMixService {
           `, [playlist.playlist_id]);
 
           for (const item of playlistItems) {
-            // Calcular peso do item
             const weight = this.calculateItemWeight(
               item,
               campaign,
@@ -599,7 +602,7 @@ export class TotemPlaylistMixService {
               aiContext
             );
 
-            allItems.push({
+            playlistPool.push({
               media_id: item.media_id,
               playlist_id: playlist.playlist_id,
               campaign_id: campaign.campaign_id,
@@ -618,7 +621,7 @@ export class TotemPlaylistMixService {
           }
         }
 
-        // 5.2 Mídias diretas associadas à campanha (campaign_medias)
+        // 5.2 Mídias diretas da campanha (intercaladas com playlists: N diretas : 1 playlist)
         const directMedias = await this.db.findMany(`
           SELECT 
             cm.media_id,
@@ -640,13 +643,12 @@ export class TotemPlaylistMixService {
           const weight = this.calculateItemWeight(
             item,
             campaign,
-            // Não há playlist específica; usamos um objeto \"playlist\" neutro apenas para o cálculo de peso
             { playlist_id: 0, name: 'direct-medias', priority: 1 } as any,
             rule,
             aiContext
           );
 
-          allItems.push({
+          directPool.push({
             media_id: item.media_id,
             playlist_id: 0,
             campaign_id: campaign.campaign_id,
@@ -663,17 +665,27 @@ export class TotemPlaylistMixService {
             }),
           });
         }
+
+        const campaignItems = interleaveMixItemPools(
+          directPool,
+          playlistPool,
+          DEFAULT_FALLBACK_PROPAGANDAS_PER_VINHETA
+        );
+        allItems.push(...campaignItems);
       }
 
       // 6. Ordenar e filtrar itens baseado na regra
       const sortedItems = this.sortAndFilterItems(allItems, rule, aiContext);
 
-      // 7. Distribuir em slots por hora (timeline) usando campos comerciais
-      const finalItems = await this.distributeIntoTimeSlots(
-        sortedItems,
-        mixedCampaigns,
-        rule
-      );
+      // 7. Ciclo de reprodução para o player (repetição permitida; evita plano com 1 item)
+      const cycleBase =
+        rule.rotation_strategy === 'round_robin' || mixedCampaigns.length > 1
+          ? this.roundRobinSort(sortedItems)
+          : sortedItems;
+      const finalItems = expandMixItemsForPlaybackCycle(
+        cycleBase,
+        rule.max_items_per_playlist
+      ) as MixItem[];
       if (finalItems.length === 0) {
         await logDebug('Mix vazio após distribuição', {
           totem: totemContext,
@@ -887,157 +899,6 @@ export class TotemPlaylistMixService {
     }
 
     return Math.max(0, weight);
-  }
-
-  /**
-   * Distribui itens em slots de tempo (timeline) baseado em campos comerciais
-   * Respeita time_share_percent, impression limits, e max_consecutive_slots
-   */
-  private async distributeIntoTimeSlots(
-    items: MixItem[],
-    campaigns: any[],
-    rule: MixRule
-  ): Promise<MixItem[]> {
-    // Quantidade de slots por hora (6 slots de 10 minutos = 1 hora)
-    const SLOTS_PER_HOUR = 6;
-    // Período total para gerar mix (ex: 24 horas = 144 slots)
-    const TOTAL_HOURS = 24;
-    const TOTAL_SLOTS = TOTAL_HOURS * SLOTS_PER_HOUR;
-
-    // Criar mapa de campanhas com informações comerciais
-    const campaignMap = new Map<number, any>();
-    for (const campaign of campaigns) {
-      campaignMap.set(campaign.campaign_id, campaign);
-    }
-
-    // Calcular share de tempo por campanha (em slots)
-    const campaignSlots = new Map<number, number>(); // campaign_id -> número de slots
-    const campaignItems = new Map<number, MixItem[]>(); // campaign_id -> itens da campanha
-    const campaignConsecutiveCount = new Map<number, number>(); // campaign_id -> slots consecutivos atuais
-
-    // Agrupar itens por campanha
-    for (const item of items) {
-      if (!campaignItems.has(item.campaign_id)) {
-        campaignItems.set(item.campaign_id, []);
-        campaignConsecutiveCount.set(item.campaign_id, 0);
-      }
-      campaignItems.get(item.campaign_id)!.push(item);
-    }
-
-    // Calcular slots alocados por campanha baseado em time_share_percent
-    let totalAllocatedPercent = 0;
-    for (const [campaignId, campaign] of campaignMap) {
-      const timeShare = campaign.time_share_percent ?? campaign.default_time_share_percent ?? 0;
-      const slots = Math.floor((timeShare / 100) * TOTAL_SLOTS);
-      campaignSlots.set(campaignId, slots);
-      totalAllocatedPercent += timeShare;
-    }
-
-    // Distribuir slots restantes proporcionalmente para campanhas sem share definido
-    const unallocatedSlots = TOTAL_SLOTS - Array.from(campaignSlots.values()).reduce((a, b) => a + b, 0);
-    if (unallocatedSlots > 0 && totalAllocatedPercent < 100) {
-      const remainingCampaigns = Array.from(campaignMap.entries()).filter(
-        ([id]) => !campaignSlots.has(id) || campaignSlots.get(id) === 0
-      );
-      const slotsPerCampaign = Math.floor(unallocatedSlots / remainingCampaigns.length);
-      for (const [campaignId] of remainingCampaigns) {
-        campaignSlots.set(campaignId, (campaignSlots.get(campaignId) || 0) + slotsPerCampaign);
-      }
-    }
-
-    // Distribuir itens nos slots respeitando limites
-    const timeline: (MixItem | null)[] = new Array(TOTAL_SLOTS).fill(null);
-    const campaignSlotCount = new Map<number, number>(); // Contador de slots usados por campanha
-    const campaignHourlyImpressions = new Map<number, Map<number, number>>(); // campaign_id -> hour -> impressions
-
-    // Inicializar contadores
-    for (const campaignId of campaignMap.keys()) {
-      campaignSlotCount.set(campaignId, 0);
-      campaignHourlyImpressions.set(campaignId, new Map());
-    }
-
-    // Ordenar campanhas por tier (premium primeiro) e prioridade
-    const sortedCampaignIds = Array.from(campaignMap.keys()).sort((a, b) => {
-      const campaignA = campaignMap.get(a)!;
-      const campaignB = campaignMap.get(b)!;
-      const tierOrder: Record<string, number> = { premium: 3, standard: 2, remnant: 1 };
-      const tierA = tierOrder[campaignA.commercial_tier || 'standard'] || 2;
-      const tierB = tierOrder[campaignB.commercial_tier || 'standard'] || 2;
-      if (tierA !== tierB) return tierB - tierA;
-      return (campaignB.priority || 1) - (campaignA.priority || 1);
-    });
-
-    // Preencher timeline slot por slot
-    for (let slotIndex = 0; slotIndex < TOTAL_SLOTS; slotIndex++) {
-      const hour = Math.floor(slotIndex / SLOTS_PER_HOUR);
-      
-      // Tentar preencher slot com itens das campanhas prioritárias
-      let filled = false;
-      for (const campaignId of sortedCampaignIds) {
-        const campaign = campaignMap.get(campaignId)!;
-        const maxSlots = campaignSlots.get(campaignId) || 0;
-        const currentSlots = campaignSlotCount.get(campaignId) || 0;
-        const maxConsecutive = campaign.max_consecutive_slots || 2;
-        const currentConsecutive = campaignConsecutiveCount.get(campaignId) || 0;
-        const hourlyImpressions = campaignHourlyImpressions.get(campaignId)!.get(hour) || 0;
-        const maxImpressions = campaign.max_impressions_per_hour || Infinity;
-
-        // Verificar limites
-        if (currentSlots >= maxSlots) continue; // Limite de slots atingido
-        if (currentConsecutive >= maxConsecutive) continue; // Limite de consecutivos atingido
-        if (maxImpressions !== Infinity && hourlyImpressions >= maxImpressions) continue; // Limite de impressões/hora
-
-        // Pegar próximo item da campanha
-        const items = campaignItems.get(campaignId) || [];
-        if (items.length === 0) continue;
-
-        const item = items.shift()!; // Remove do array
-        timeline[slotIndex] = item;
-
-        // Atualizar contadores
-        campaignSlotCount.set(campaignId, currentSlots + 1);
-        campaignConsecutiveCount.set(campaignId, currentConsecutive + 1);
-        
-        // Reset contador consecutivo das outras campanhas
-        for (const [otherId] of campaignMap) {
-          if (otherId !== campaignId) {
-            campaignConsecutiveCount.set(otherId, 0);
-          }
-        }
-
-        // Atualizar impressões por hora
-        const currentHourly = campaignHourlyImpressions.get(campaignId)!.get(hour) || 0;
-        campaignHourlyImpressions.get(campaignId)!.set(hour, currentHourly + 1);
-
-        filled = true;
-        break;
-      }
-
-      // Se não preencheu, tentar com qualquer campanha disponível
-      if (!filled) {
-        for (const campaignId of sortedCampaignIds) {
-          const items = campaignItems.get(campaignId) || [];
-          if (items.length > 0) {
-            const item = items.shift()!;
-            timeline[slotIndex] = item;
-            const currentSlots = campaignSlotCount.get(campaignId) || 0;
-            campaignSlotCount.set(campaignId, currentSlots + 1);
-            break;
-          }
-        }
-      }
-    }
-
-    // Remover slots vazios e retornar itens ordenados
-    const finalItems = timeline.filter(item => item !== null) as MixItem[];
-    
-    // Adicionar ordem sequencial baseada na posição no timeline
-    finalItems.forEach((item, index) => {
-      item.order_index = index + 1;
-    });
-
-    // Limitar ao máximo permitido pela regra
-    return finalItems.slice(0, rule.max_items_per_playlist);
   }
 
   /**

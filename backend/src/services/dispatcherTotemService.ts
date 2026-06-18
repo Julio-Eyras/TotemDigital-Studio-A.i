@@ -1792,6 +1792,15 @@ export class DispatcherTotemService {
     if (validCandidates.length === 1) {
       return 'single'; // Apenas um válido = plano único
     }
+
+    const uniqueSubscribers = new Set(
+      validCandidates
+        .map((c) => Number(c.subscriberId))
+        .filter((id) => Number.isFinite(id) && id > 0)
+    );
+    if (uniqueSubscribers.size > 1) {
+      return 'mix'; // Vários anunciantes → mixar campanhas na playlist final
+    }
     
     // Verificar se algum tem time_share_percent > 0
     const hasTimeShare = validCandidates.some(

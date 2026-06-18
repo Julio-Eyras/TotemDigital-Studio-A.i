@@ -265,6 +265,13 @@ class PlayerController(
             }
         }
 
+        // Com poucas propagandas (< N), ainda inclui ao menos 1 vinheta no ciclo
+        if (vinIdx == 0 && vinhetaPool.isNotEmpty() && propagandas.isNotEmpty()) {
+            val vin = vinhetaPool[vinIdx % vinhetaPool.size]
+            mixed += vin.copy(order = mixed.size + 1)
+            vinIdx++
+        }
+
         PlayerAdLogger.i(
             "DISPATCH",
             "Mix vinhetas ${ratio}:1 — campanha=${propagandas.size} vinhetas=${vinhetaPool.size} → reprodução=${mixed.size} itens"
