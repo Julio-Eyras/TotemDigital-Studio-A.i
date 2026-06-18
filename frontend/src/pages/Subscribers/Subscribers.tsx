@@ -1638,6 +1638,9 @@ const Subscribers: React.FC = () => {
     if (!campaignId) {
       return;
     }
+    if (selectedSubscriber) {
+      await refreshSubscriberContracts(selectedSubscriber.subscriber_id);
+    }
     setCampaignFullEditorId(Number(campaignId));
     setCampaignFullEditorOpen(true);
   };
@@ -4241,7 +4244,10 @@ const Subscribers: React.FC = () => {
                   type="button"
                   variant="contained"
                   startIcon={<Add />}
-                  onClick={() => {
+                  onClick={async () => {
+                    if (selectedSubscriber) {
+                      await refreshSubscriberContracts(selectedSubscriber.subscriber_id);
+                    }
                     setCampaignFullEditorId(null);
                     setCampaignFullEditorOpen(true);
                   }}
@@ -4377,7 +4383,11 @@ const Subscribers: React.FC = () => {
         open={campaignFullEditorOpen}
         campaignId={campaignFullEditorId}
         subscriberId={selectedSubscriber?.subscriber_id}
-        prefetchedContracts={contractsActiveForCampaign}
+        prefetchedContracts={activeContracts ?? []}
+        onGoToSubscriberContracts={() => {
+          setCampaignFullEditorOpen(false);
+          setEditTab(1);
+        }}
         onClose={() => {
           setCampaignFullEditorOpen(false);
           setCampaignFullEditorId(null);

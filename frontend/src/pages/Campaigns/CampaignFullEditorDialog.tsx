@@ -31,6 +31,7 @@ import {
   Paper,
   useTheme,
   alpha,
+  ListSubheader,
 } from '@mui/material';
 import {
   campaignApi,
@@ -86,8 +87,10 @@ export interface CampaignFullEditorDialogProps {
   onSaved?: () => void;
   /** Anunciante em contexto (ex.: tela Anunciantes) — carrega contratos antes do GET da campanha */
   subscriberId?: number | null;
-  /** Contratos já carregados no pai (ativos) — evita combo vazio por timing de rede */
+  /** Contratos já carregados no pai (todos exceto cancelados) — evita combo vazio por timing de rede */
   prefetchedContracts?: Contract[] | null;
+  /** Abre a aba Contratos no modal do anunciante (quando o utilizador precisa ativar um contrato). */
+  onGoToSubscriberContracts?: () => void;
 }
 
 const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
@@ -97,6 +100,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
   onSaved,
   subscriberId: subscriberIdProp,
   prefetchedContracts,
+  onGoToSubscriberContracts,
 }) => {
   const theme = useTheme();
   const user = useAppSelector((state) => state.auth.user);
@@ -147,11 +151,10 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
     return undefined;
   }, [selectedCampaign, subscriberIdProp]);
 
-  const contractsForPicker = useMemo(() => {
+  const allContractsForSubscriber = useMemo(() => {
     const seen = new Set<number>();
     const out: Contract[] = [];
     for (const c of [...(prefetchedContracts || []), ...subscriberContracts]) {
-      if (!isSubscriberContractActiveForCampaign(c)) continue;
       const id = Number(c.contract_id);
       if (!Number.isFinite(id) || seen.has(id)) continue;
       seen.add(id);
@@ -159,6 +162,26 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
     }
     return out;
   }, [prefetchedContracts, subscriberContracts]);
+
+  const contractsForPicker = useMemo(
+    () => allContractsForSubscriber.filter((c) => isSubscriberContractActiveForCampaign(c)),
+    [allContractsForSubscriber]
+  );
+
+  const contractsInactiveForPicker = useMemo(
+    () => allContractsForSubscriber.filter((c) => !isSubscriberContractActiveForCampaign(c)),
+    [allContractsForSubscriber]
+  );
+
+  const contractStatusHint = (c: Contract): string => {
+    const status = String(c.status || '').toLowerCase();
+    if (status === 'draft') return 'Rascunho';
+    if (status === 'expired') return 'Expirado';
+    if (status === 'terminated') return 'Terminado';
+    if (status === 'cancelled') return 'Cancelado';
+    if (status === 'active') return 'Fora da vigência';
+    return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Indisponível';
+  };
 
   const selectedContractId = useMemo(() => {
     const raw =
@@ -170,9 +193,8 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
 
   const selectedContractRow = useMemo(() => {
     if (selectedContractId == null) return undefined;
-    const all = [...(prefetchedContracts || []), ...subscriberContracts];
-    return all.find((c) => Number(c.contract_id) === selectedContractId);
-  }, [selectedContractId, prefetchedContracts, subscriberContracts]);
+    return allContractsForSubscriber.find((c) => Number(c.contract_id) === selectedContractId);
+  }, [selectedContractId, allContractsForSubscriber]);
 
   const contractTopologyRow = useMemo(() => {
     if (!selectedContractRow) return null;
@@ -450,7 +472,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
     let cancelled = false;
     setContractsLoading(true);
     subscriberApi
-      .getContracts(sid, { activeOnly: true })
+      .getContracts(sid, { activeOnly: false })
       .then((rows) => {
         if (!cancelled) setSubscriberContracts(Array.isArray(rows) ? rows : []);
       })
@@ -887,6 +909,18 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                             {c.plan_name ? ` — ${c.plan_name}` : ''}
                           </MenuItem>
                         ))}
+                        {contractsInactiveForPicker.length > 0 && (
+                          <ListSubheader component="div" sx={{ lineHeight: '32px', fontWeight: 600 }}>
+                            Indisponíveis — ative na aba Contratos
+                          </ListSubheader>
+                        )}
+                        {contractsInactiveForPicker.map((c) => (
+                          <MenuItem key={`inactive-${c.contract_id}`} value={`__inactive_${c.contract_id}`} disabled>
+                            {c.contract_number || `Contrato #${c.contract_id}`}
+                            {c.plan_name ? ` — ${c.plan_name}` : ''}
+                            {` (${contractStatusHint(c)})`}
+                          </MenuItem>
+                        ))}
                       </Select>
                       <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
                         Escolha um contrato ativo com plano. Abaixo aparecem os locais e totens elegíveis; na aba
@@ -897,9 +931,20 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                       <LinearProgress sx={{ mb: 1 }} />
                     )}
                     {!contractsLoading && contractsForPicker.length === 0 && (
-                      <Alert severity="warning" sx={{ mt: 1 }}>
-                        Nenhum contrato ativo encontrado para este anunciante. Crie ou ative um contrato na aba
-                        Contratos do anunciante antes de vincular a campanha aos totens.
+                      <Alert
+                        severity="warning"
+                        sx={{ mt: 1 }}
+                        action={
+                          onGoToSubscriberContracts ? (
+                            <Button color="inherit" size="small" onClick={onGoToSubscriberContracts}>
+                              Abrir Contratos
+                            </Button>
+                          ) : undefined
+                        }
+                      >
+                        {contractsInactiveForPicker.length > 0
+                          ? `Há ${contractsInactiveForPicker.length} contrato(s) em rascunho ou inativo. Ative um contrato na aba Contratos do anunciante (status «Ativo» e dentro da vigência) para vincular a campanha aos totens do plano.`
+                          : 'Nenhum contrato encontrado para este anunciante. Crie um contrato na aba Contratos antes de vincular a campanha aos totens.'}
                       </Alert>
                     )}
                     {(() => {
