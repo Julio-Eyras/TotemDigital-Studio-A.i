@@ -514,7 +514,24 @@ class PlayerController(
             currentToken = playItem(currentPlan, item, currentToken)
 
             index = (index + 1) % currentPlan.mediaItems.size
+            if (index == 0 && currentPlan.mediaItems.size > 1) {
+                currentPlan = shufflePlanForNewCycle(currentPlan)
+                PlayerAdLogger.i(
+                    "PLAYBACK",
+                    "Ciclo completo — fila embaralhada (${currentPlan.mediaItems.size} itens); vinhetas ${fallbackPropagandasPerVinheta}:1 reaplicadas"
+                )
+            }
         }
+    }
+
+    /** Embaralha propagandas ao fim do ciclo e reaplica mix de vinhetas (sem novo dispatch). */
+    private fun shufflePlanForNewCycle(plan: DispatchPlan): DispatchPlan {
+        val propagandas = plan.mediaItems.filter { !it.isVinheta }
+        if (propagandas.size < 2) return plan
+        val shuffled = propagandas.shuffled().mapIndexed { idx, item ->
+            item.copy(order = idx + 1)
+        }
+        return applyVinhetaMixToDispatchPlan(plan.copy(mediaItems = shuffled))
     }
 
     private data class OnlinePlanResult(
