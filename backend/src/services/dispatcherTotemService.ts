@@ -17,6 +17,7 @@ import { logError, logDebug } from '../utils/loggerHelper';
 import { getCacheService } from './cacheService';
 import { getTotemPlaylistMixService, TotemPlaylistMix } from './totemPlaylistMixService';
 import { getTotemSimpleMixService } from './totemSimpleMixService';
+import { isTotemSimpleModeEnabled } from './totemSimpleModeService';
 import { buildDispatchMediaItem } from '../utils/dispatchMediaItem';
 import { sumDispatchMediaItemsPlanDuration } from '../utils/dispatchItemDuration';
 import { enrichDispatchPlanWithGlobalVinhetas } from './dispatchVinhetaEnrichment';
@@ -197,49 +198,54 @@ export class DispatcherTotemService {
         };
       }
 
-      // Mix simples multi-anunciante (round-robin entre filas de cada subscriber)
-      try {
-        const simpleMixPlan = await getTotemSimpleMixService().buildPlan(
-          validatedCandidates,
-          totemId,
-          targetTimestamp
-        );
-        if (simpleMixPlan && simpleMixPlan.mediaItems.length > 0) {
-          await logDebug('[DispatcherTotem] Plano mix simples multi-anunciante', {
-            totem: totemContext,
-            items: simpleMixPlan.mediaItems.length,
-            subscribers: simpleMixPlan.metadata?.subscriberIds,
-          });
-          if (this.cacheConfig.enabled && !skipCache && !validateOnly) {
-            await this.saveToCache(cacheKey, {
+      // Mix simples quando o totem está em modo simples (round-robin multi-anunciante)
+      const simpleModeEnabled = await isTotemSimpleModeEnabled(totemId);
+      if (simpleModeEnabled) {
+        try {
+          const simpleMixPlan = await getTotemSimpleMixService().buildPlan(
+            validatedCandidates,
+            totemId,
+            targetTimestamp,
+            { allowSingleSubscriber: true }
+          );
+          if (simpleMixPlan && simpleMixPlan.mediaItems.length > 0) {
+            await logDebug('[DispatcherTotem] Plano mix modo simples', {
+              totem: totemContext,
+              items: simpleMixPlan.mediaItems.length,
+              subscribers: simpleMixPlan.metadata?.subscriberIds,
+              simpleMode: true,
+            });
+            if (this.cacheConfig.enabled && !skipCache && !validateOnly) {
+              await this.saveToCache(cacheKey, {
+                plan: simpleMixPlan,
+                candidates: includeCandidates ? validatedCandidates : undefined,
+              });
+            }
+            await this.logDispatch({
+              totemId,
+              timestamp: targetTimestamp,
+              selectedSource: 'mix',
+              selectedSourceId: totemId,
+              candidatesCount: validatedCandidates.length,
+              candidates: validatedCandidates,
+              fromCache: false,
+              cacheKey,
+              plan: simpleMixPlan,
+              executionTimeMs: Date.now() - startTime,
+            });
+            return {
+              success: true,
               plan: simpleMixPlan,
               candidates: includeCandidates ? validatedCandidates : undefined,
-            });
+              fromCache: false,
+              executionTimeMs: Date.now() - startTime,
+            };
           }
-          await this.logDispatch({
-            totemId,
-            timestamp: targetTimestamp,
-            selectedSource: 'mix',
-            selectedSourceId: totemId,
-            candidatesCount: validatedCandidates.length,
-            candidates: validatedCandidates,
-            fromCache: false,
-            cacheKey,
-            plan: simpleMixPlan,
-            executionTimeMs: Date.now() - startTime,
+        } catch (simpleMixError: any) {
+          await logError('[DispatcherTotem] Erro no mix modo simples', simpleMixError, {
+            totem: totemContext,
           });
-          return {
-            success: true,
-            plan: simpleMixPlan,
-            candidates: includeCandidates ? validatedCandidates : undefined,
-            fromCache: false,
-            executionTimeMs: Date.now() - startTime,
-          };
         }
-      } catch (simpleMixError: any) {
-        await logError('[DispatcherTotem] Erro no mix simples multi-anunciante', simpleMixError, {
-          totem: totemContext,
-        });
       }
 
       // 2. Decidir estratégia (Fase 1.4)

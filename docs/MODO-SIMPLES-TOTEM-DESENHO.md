@@ -1,7 +1,7 @@
 # Modo simples — totem com mix multi-anunciante
 
 Data: 2026-06-23  
-Estado: **F1 + F4 parcialmente implementados** (mix round-robin no dispatch; shuffle no player v1.22). UI modo simples e API `simple-publish` pendentes.
+Estado: **F1–F4 + F2/F3/F5 parcial** — mix round-robin com flag `totem.simple_mode_enabled`, API `POST /api/simple-publish`, UI oculta campanhas no modo simples, shuffle no player v1.22.
 
 ## Objetivo
 

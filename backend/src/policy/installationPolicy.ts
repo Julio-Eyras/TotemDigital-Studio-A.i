@@ -16,6 +16,7 @@ export interface InstallationCapabilities {
   subdomainTenancy: boolean;
   subscriberPortal: boolean;
   smartDisplayFx: boolean;
+  simpleTotemMode: boolean;
 }
 
 /** Perfil derivado do ambiente (build/deploy). DB pode refinir via installationProfileService. */
@@ -30,9 +31,14 @@ export function isSinglePublisherInstallation(profile?: InstallationProfile): bo
 }
 
 export function buildInstallationCapabilities(
-  profile: InstallationProfile = getInstallationProfileFromEnv()
+  profile: InstallationProfile = getInstallationProfileFromEnv(),
+  simpleTotemMode?: boolean
 ): InstallationCapabilities {
   const single = profile === 'single_publisher';
+  const simple =
+    simpleTotemMode ??
+    (process.env.SIMPLE_TOTEM_MODE_DEFAULT === 'true' ||
+      (process.env.SIMPLE_TOTEM_MODE_DEFAULT !== 'false' && single));
   return {
     profile,
     totemDigitalCompact: single,
@@ -47,5 +53,6 @@ export function buildInstallationCapabilities(
     subscriberPortal: !single,
   /** Studio/mono: menu oculto; rotas API mantidas para evolução futura. */
     smartDisplayFx: !single,
+    simpleTotemMode: simple,
   };
 }

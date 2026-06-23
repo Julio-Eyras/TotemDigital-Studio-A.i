@@ -14,6 +14,7 @@ const mockCapabilities = {
   subdomainTenancy: false,
   subscriberPortal: true,
   smartDisplayFx: false,
+  simpleTotemMode: true,
 };
 
 const mockResolveInstallationCapabilities = jest.fn().mockResolvedValue(mockCapabilities);

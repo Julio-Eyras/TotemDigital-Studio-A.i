@@ -30,7 +30,7 @@ function getEnv(key: string, defaultValue: string): string {
 /**
  * Obtém variável de ambiente numérica com valor padrão
  */
-function getEnvNumber(key: string, defaultValue: number): number {
+export function getEnvNumber(key: string, defaultValue: number): number {
   const value = process.env[key];
   if (!value) return defaultValue;
   const parsed = parseInt(value, 10);
@@ -349,6 +349,17 @@ export const financialConfig = {
  */
 export function validateConfig(): void {
   const errors: string[] = [];
+
+  const totemKey = process.env.TOTEM_SECRET_KEY?.trim();
+  if (serverConfig.isProduction && !totemKey) {
+    errors.push('TOTEM_SECRET_KEY deve estar definido em produção');
+  }
+  if (
+    totemKey &&
+    totemKey === 'smart-signage-totem-secret-key-2025-change-in-production'
+  ) {
+    errors.push('TOTEM_SECRET_KEY não pode usar o valor padrão inseguro em produção');
+  }
 
   // Validar JWT_SECRET
   if (!jwtConfig.secret || jwtConfig.secret === 'your-super-secret-jwt-key-change-this-in-production') {

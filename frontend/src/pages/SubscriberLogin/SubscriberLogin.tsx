@@ -15,7 +15,7 @@ import {
 } from '@mui/material';
 import { Visibility, VisibilityOff, Login as LoginIcon, Business } from '@mui/icons-material';
 import { AppDispatch } from '../../store/store';
-import { authApi } from '../../services/api/authApi';
+import { authApi } from '../../services/api';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { enterAdminSessionViewport, leaveAdminSessionViewport } from '../../utils/appViewport';
 
@@ -97,13 +97,13 @@ const SubscriberLogin: React.FC = () => {
         password: formData.password,
       });
 
-      if (response.data.token && response.data.user) {
+      if (response.token && response.user) {
         // Salvar token e dados do usuário
-        localStorage.setItem('token', response.data.token);
-        if (response.data.refreshToken) {
-          localStorage.setItem('refreshToken', response.data.refreshToken);
+        localStorage.setItem('token', response.token);
+        if (response.refreshToken) {
+          localStorage.setItem('refreshToken', response.refreshToken);
         }
-        localStorage.setItem('user', JSON.stringify(response.data.user));
+        localStorage.setItem('user', JSON.stringify(response.user));
         navigate('/subscriber/dashboard');
       } else {
         setError('Resposta inválida do servidor');
