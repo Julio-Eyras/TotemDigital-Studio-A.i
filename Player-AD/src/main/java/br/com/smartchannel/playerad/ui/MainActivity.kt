@@ -123,6 +123,7 @@ class MainActivity : AppCompatActivity() {
                         config.acceptImagesInPlaylist,
                         config.allowPlaybackAudio,
                         config.fallbackPropagandasPerVinheta,
+                        config.batimentoCardiaco,
                         config.maxSecondsWithoutServerCheck,
                         otaCoordinator
                     )

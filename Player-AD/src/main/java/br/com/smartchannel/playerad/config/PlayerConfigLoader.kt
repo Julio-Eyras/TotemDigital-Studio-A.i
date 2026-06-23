@@ -6,7 +6,7 @@ import java.io.File
 
 /**
  * Carrega configuração do Player-AD (serverUrl, uin, deviceId, acceptImagesInPlaylist,
- * allowPlaybackAudio, fallbackPropagandasPerVinheta, maxSecondsWithoutServerCheck, storage, storagePathOverride).
+ * allowPlaybackAudio, fallbackPropagandasPerVinheta, batimentoCardiaco, maxSecondsWithoutServerCheck, storage, storagePathOverride).
  *
  * Ordem de busca:
  * 1. Arquivo interno em filesDir/player-config.json (se existir)
@@ -39,6 +39,7 @@ class PlayerConfigLoader(private val context: Context) {
             acceptImagesInPlaylist = true,
             allowPlaybackAudio = true,
             fallbackPropagandasPerVinheta = 3,
+            batimentoCardiaco = 120,
             maxSecondsWithoutServerCheck = 600,
             storageMode = PlayerStorageMode.AUTO,
             storagePathOverride = null,
@@ -61,6 +62,8 @@ class PlayerConfigLoader(private val context: Context) {
                 val allowAudio = json.optBoolean("allowPlaybackAudio", true)
                 val fallbackRatioRaw = json.optInt("fallbackPropagandasPerVinheta", 3)
                 val fallbackRatio = fallbackRatioRaw.coerceAtLeast(1)
+                val batimentoRaw = json.optInt("batimentoCardiaco", 120)
+                val batimento = batimentoRaw.coerceAtLeast(10)
                 val maxSecondsRaw = json.optInt("maxSecondsWithoutServerCheck", 600)
                 val maxSeconds = maxSecondsRaw.coerceAtLeast(10)
                 val storageMode = parseStorageMode(json.optString("storage", ""))
@@ -79,6 +82,7 @@ class PlayerConfigLoader(private val context: Context) {
                     acceptImagesInPlaylist = acceptImages,
                     allowPlaybackAudio = allowAudio,
                     fallbackPropagandasPerVinheta = fallbackRatio,
+                    batimentoCardiaco = batimento,
                     maxSecondsWithoutServerCheck = maxSeconds,
                     storageMode = storageMode,
                     storagePathOverride = pathOverride,

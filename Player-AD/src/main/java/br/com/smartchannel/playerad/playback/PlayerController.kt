@@ -57,6 +57,9 @@ class PlayerController(
     /** Se false, [exoPlayer] permanece em volume 0 durante vídeo/áudio. */
     private val allowPlaybackAudio: Boolean = true,
     private val fallbackPropagandasPerVinheta: Int = 3,
+    /** Intervalo do batimento cardiaco (segundos) — heartbeat sem dispatch. */
+    private val batimentoCardiaco: Int = 120,
+    /** Intervalo (segundos) para atualizar dispatch/plano — independente do ciclo de reprodução. */
     private val maxSecondsWithoutServerCheck: Int = 600,
     private val otaUpdateCoordinator: OtaUpdateCoordinator? = null
 ) {
@@ -139,7 +142,7 @@ class PlayerController(
         }
         val (initialPlan, initialSource) = initialPlanWithSource
         updatePlanSource(initialSource, "Fonte inicial do plano")
-        PlayerAdLogger.i("LIFECYCLE", "(3) Loop de playback; após cada ciclo: heartbeat + novo dispatch; eventos com token atualizado")
+        PlayerAdLogger.i("LIFECYCLE", "(3) Loop de playback; batimento cardiaco=${batimentoCardiaco}s; dispatch a cada ${maxSecondsWithoutServerCheck}s")
         playLoop(initialPlan, sessionToken, initialSource)
     }
 
@@ -415,34 +418,53 @@ class PlayerController(
         var currentPlan = plan
         var currentToken = token
         var currentPlanSource = initialSource
-        val maxGapMs = maxSecondsWithoutServerCheck.coerceAtLeast(10) * 1000L
-        var lastServerCheckAtMs = System.currentTimeMillis()
+        val heartbeatGapMs = batimentoCardiaco.coerceAtLeast(10) * 1000L
+        val dispatchGapMs = maxSecondsWithoutServerCheck.coerceAtLeast(10) * 1000L
+        var lastHeartbeatAtMs = System.currentTimeMillis()
+        var lastDispatchAtMs = System.currentTimeMillis()
         var index = 0
-        var completedFullCycle = false
         applyPlaybackVolumePolicy()
         while (true) {
             val nowMs = System.currentTimeMillis()
-            if (nowMs - lastServerCheckAtMs >= maxGapMs) {
+
+            if (nowMs - lastHeartbeatAtMs >= heartbeatGapMs) {
                 try {
-                    val refreshed = fetchOnlinePlan(currentToken, "checagem_temporal")
+                    currentToken = performHeartbeat(currentToken)
+                    PlayerAdLogger.i(
+                        "HEARTBEAT",
+                        "Batimento cardiaco (${batimentoCardiaco}s) — OK; comandos/servidor"
+                    )
+                } catch (e: Exception) {
+                    PlayerAdLogger.e(
+                        "HEARTBEAT",
+                        "Batimento cardiaco (${batimentoCardiaco}s) falhou; mantém token/plano atuais",
+                        e
+                    )
+                } finally {
+                    lastHeartbeatAtMs = System.currentTimeMillis()
+                }
+            }
+
+            if (nowMs - lastDispatchAtMs >= dispatchGapMs) {
+                try {
+                    val refreshed = fetchDispatchPlan(currentToken, "checagem_temporal")
                     currentToken = refreshed.token
                     currentPlan = refreshed.plan
                     currentPlanSource = PlanSource.ONLINE
                     updatePlanSource(currentPlanSource, "Fonte do plano alterada")
                     if (index >= currentPlan.mediaItems.size) index = 0
-                    completedFullCycle = false
                     PlayerAdLogger.i(
                         "DISPATCH",
-                        "Checagem temporal (${maxSecondsWithoutServerCheck}s) — plano atualizado (${currentPlan.mediaItems.size} itens)"
+                        "Atualização de plano (${maxSecondsWithoutServerCheck}s) — ${currentPlan.mediaItems.size} itens"
                     )
                 } catch (e: Exception) {
                     PlayerAdLogger.e(
                         "DISPATCH",
-                        "Checagem temporal (${maxSecondsWithoutServerCheck}s) falhou; mantém plano atual ($currentPlanSource)",
+                        "Atualização de plano (${maxSecondsWithoutServerCheck}s) falhou; mantém plano atual ($currentPlanSource)",
                         e
                     )
                 } finally {
-                    lastServerCheckAtMs = System.currentTimeMillis()
+                    lastDispatchAtMs = System.currentTimeMillis()
                 }
             }
 
@@ -456,7 +478,6 @@ class PlayerController(
                     currentPlanSource = PlanSource.PERSISTED
                     updatePlanSource(currentPlanSource, "Fonte do plano alterada")
                     index = 0
-                    completedFullCycle = false
                     continue
                 }
                 // Plano vazio: tentar usar fallback sintético (propagandas + vinhetas locais)
@@ -476,31 +497,6 @@ class PlayerController(
                     currentPlanSource = PlanSource.FALLBACK_LOCAL
                     updatePlanSource(currentPlanSource, "Fonte do plano alterada")
                     index = 0
-                    completedFullCycle = false
-                }
-            }
-
-            if (currentPlan.mediaItems.isNotEmpty() && index == 0 && completedFullCycle) {
-                try {
-                    val refreshed = fetchOnlinePlan(currentToken, "pos_ciclo")
-                    currentToken = refreshed.token
-                    currentPlan = refreshed.plan
-                    currentPlanSource = PlanSource.ONLINE
-                    updatePlanSource(currentPlanSource, "Fonte do plano alterada")
-                    lastServerCheckAtMs = System.currentTimeMillis()
-                    if (currentPlan.mediaItems.isEmpty()) {
-                        // Reentra no início do loop para cair no fluxo de fallback (persistido/local)
-                        // e evitar indexação em lista vazia.
-                        index = 0
-                        completedFullCycle = false
-                        continue
-                    }
-                } catch (e: Exception) {
-                    PlayerAdLogger.e(
-                        "DISPATCH",
-                        "Falha ao atualizar plano após ciclo; mantém plano atual ($currentPlanSource)",
-                        e
-                    )
                 }
             }
 
@@ -518,7 +514,6 @@ class PlayerController(
             currentToken = playItem(currentPlan, item, currentToken)
 
             index = (index + 1) % currentPlan.mediaItems.size
-            if (index == 0) completedFullCycle = true
         }
     }
 
@@ -528,7 +523,13 @@ class PlayerController(
     )
 
     private suspend fun fetchOnlinePlan(previousToken: String, logSource: String = "online"): OnlinePlanResult {
-        PlayerAdLogger.i("LIFECYCLE", "(2) DispatchPlan + pré-cache (GET /api/player/dispatch)")
+        val token = performHeartbeat(previousToken)
+        return fetchDispatchPlan(token, logSource)
+    }
+
+    /** Heartbeat: comandos remotos, OTA, token e presença — sem GET dispatch. */
+    private suspend fun performHeartbeat(previousToken: String): String {
+        PlayerAdLogger.i("LIFECYCLE", "Heartbeat — token/sessão/comandos (POST /api/player/heartbeat)")
         val hb = apiClient.heartbeatWithCommands(buildHealthMetrics())
         var token = hb.token
         PlayerAdLogger.i("HEARTBEAT", "OK — sessão/token renovados; comandos=${hb.pendingCommands.size}")
@@ -536,6 +537,13 @@ class PlayerController(
         if (hb.pendingCommands.isNotEmpty()) {
             token = processPendingCommands(hb.pendingCommands, token)
         }
+        return apiClient.cachedToken() ?: token.ifBlank { previousToken }
+    }
+
+    /** Atualiza plano de mídia (GET dispatch) sem novo heartbeat. */
+    private suspend fun fetchDispatchPlan(previousToken: String, logSource: String = "dispatch"): OnlinePlanResult {
+        PlayerAdLogger.i("LIFECYCLE", "DispatchPlan + pré-cache (GET /api/player/dispatch)")
+        val token = apiClient.cachedToken()?.takeIf { it.isNotBlank() } ?: previousToken
         val dispatchJson = apiClient.getDispatchPlan(token)
         val savedJsonPath = saveDispatchPlanToDisk(dispatchJson)
         val effectiveToken = apiClient.cachedToken() ?: token.ifBlank { previousToken }
