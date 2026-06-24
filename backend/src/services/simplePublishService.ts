@@ -21,7 +21,11 @@ export class SimplePublishService {
     return getDatabase();
   }
 
-  async publish(input: SimplePublishRequest, userId: number): Promise<QuickPublishResult> {
+  async publish(
+    input: SimplePublishRequest,
+    userId: number,
+    options?: { userRole?: string }
+  ): Promise<QuickPublishResult> {
     const title = String(input.title || 'Publicação na tela').trim();
     const result = await getQuickPublishService().publish(
       {
@@ -34,7 +38,8 @@ export class SimplePublishService {
         description: input.description,
         publishNow: true,
       },
-      userId
+      userId,
+      options
     );
 
     const simpleMeta = {

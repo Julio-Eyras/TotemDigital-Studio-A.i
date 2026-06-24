@@ -38,6 +38,8 @@ export interface Subscriber {
   financial_alert_label?: string;
   has_billing_overdue?: boolean;
   has_billing_due_soon?: boolean;
+  /** Inadimplência além da tolerância — publicação/campanhas bloqueadas. */
+  has_billing_publish_blocked?: boolean;
 }
 
 export interface CreateSubscriberRequest {
@@ -236,7 +238,22 @@ export class SubscriberService {
                 AND sb.due_date IS NOT NULL
                 AND sb.due_date >= CURRENT_DATE
                 AND sb.due_date <= CURRENT_DATE + (30 * INTERVAL '1 day')
-              ) AS has_billing_due_soon
+              ) AS has_billing_due_soon,
+              BOOL_OR(
+                COALESCE(
+                  (SELECT LOWER(TRIM(setting_value)) FROM system_settings
+                   WHERE setting_key = 'financial.block_publish_on_overdue' LIMIT 1),
+                  'true'
+                ) IN ('true', '1')
+                AND sb.payment_status IN ('pending', 'overdue')
+                AND sb.due_date IS NOT NULL
+                AND sb.due_date::date < CURRENT_DATE
+                AND GREATEST(0, EXTRACT(DAY FROM CURRENT_DATE - sb.due_date::date)::int) >= COALESCE(
+                  (SELECT NULLIF(TRIM(setting_value), '')::int FROM system_settings
+                   WHERE setting_key = 'financial.block_publish_overdue_grace_days' LIMIT 1),
+                  0
+                )
+              ) AS has_billing_publish_blocked
             FROM subscriber_billing sb
             JOIN ids ON ids.subscriber_id = sb.subscriber_id
             WHERE sb.payment_status NOT IN ('paid', 'cancelled', 'refunded')
@@ -299,7 +316,8 @@ export class SubscriberService {
             END AS contract_alert_level,
             contract_alert.days_until_contract_end,
             COALESCE(billing_alert.has_billing_overdue, false) AS has_billing_overdue,
-            COALESCE(billing_alert.has_billing_due_soon, false) AS has_billing_due_soon
+            COALESCE(billing_alert.has_billing_due_soon, false) AS has_billing_due_soon,
+            COALESCE(billing_alert.has_billing_publish_blocked, false) AS has_billing_publish_blocked
           FROM ids
           LEFT JOIN active_contracts ON active_contracts.subscriber_id = ids.subscriber_id
           LEFT JOIN contract_alert ON contract_alert.subscriber_id = ids.subscriber_id
@@ -336,12 +354,14 @@ export class SubscriberService {
               daysUntil != null && daysUntil !== '' ? Number(daysUntil) : null;
             subscriber.has_billing_overdue = Boolean(metrics.has_billing_overdue);
             subscriber.has_billing_due_soon = Boolean(metrics.has_billing_due_soon);
+            subscriber.has_billing_publish_blocked = Boolean(metrics.has_billing_publish_blocked);
 
             const { getFinancialAdminService } = require('./financialAdminService');
             const fin = getFinancialAdminService().resolveSubscriberFinancialAlert({
               contract_alert_level: alertLevel,
               has_billing_overdue: subscriber.has_billing_overdue,
               has_billing_due_soon: subscriber.has_billing_due_soon,
+              has_billing_publish_blocked: subscriber.has_billing_publish_blocked,
               days_until_contract_end: subscriber.days_until_contract_end,
             });
             subscriber.financial_alert_level = fin.level;

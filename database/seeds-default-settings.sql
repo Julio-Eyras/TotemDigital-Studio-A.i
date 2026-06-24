@@ -466,6 +466,127 @@ ON CONFLICT (setting_key) DO UPDATE SET
   options = EXCLUDED.options,
   updated_at = CURRENT_TIMESTAMP;
 
+-- Financeiro: bloqueio operacional por inadimplência
+INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description, is_public, is_editable, default_value, validation, options)
+VALUES
+  (
+    'financial.block_publish_on_overdue',
+    'true',
+    'boolean',
+    'financial',
+    'Bloqueia novas publicações (Publicar em Tela, campanhas ativas) quando o anunciante tem prestações vencidas',
+    false,
+    true,
+    'true',
+    '^(true|false)$',
+    '["true", "false"]'
+  ),
+  (
+    'financial.admin_override_overdue_block',
+    'true',
+    'boolean',
+    'financial',
+    'Permite owner_system, admin_sql e admin publicar mesmo com prestações vencidas (override operacional)',
+    false,
+    true,
+    'true',
+    '^(true|false)$',
+    '["true", "false"]'
+  ),
+  (
+    'financial.block_publish_overdue_grace_days',
+    '0',
+    'number',
+    'financial',
+    'Dias de tolerância após o vencimento antes de bloquear publicações e pausar campanhas (0 = bloqueia no 1º dia após vencimento)',
+    false,
+    true,
+    '0',
+    '^[0-9]+$',
+    NULL
+  ),
+  (
+    'financial.auto_pause_campaigns_on_block',
+    'true',
+    'boolean',
+    'financial',
+    'Pausa automaticamente campanhas ativas quando o bloqueio por inadimplência entra em vigor',
+    false,
+    true,
+    'true',
+    '^(true|false)$',
+    '["true", "false"]'
+  ),
+  (
+    'financial.notify_block_email_enabled',
+    'true',
+    'boolean',
+    'financial',
+    'Envia e-mail padronizado ao anunciante quando o bloqueio automático é aplicado',
+    false,
+    true,
+    'true',
+    '^(true|false)$',
+    '["true", "false"]'
+  ),
+  (
+    'financial.notify_block_whatsapp_enabled',
+    'true',
+    'boolean',
+    'financial',
+    'Envia WhatsApp ao anunciante (Meta Cloud API se configurada; senão link wa.me no e-mail)',
+    false,
+    true,
+    'true',
+    '^(true|false)$',
+    '["true", "false"]'
+  ),
+  (
+    'financial.overdue_block_email_subject',
+    'Publicação suspensa — {{subscriber_name}} ({{overdue_count}} prestação(ões) em atraso)',
+    'string',
+    'financial',
+    'Assunto do e-mail de bloqueio. Placeholders: {{subscriber_name}}, {{overdue_count}}, {{amount_total}}, {{grace_days}}, {{days_overdue}}, {{billing_url}}, {{invoice_list}}, {{merchant_name}}',
+    false,
+    true,
+    'Publicação suspensa — {{subscriber_name}} ({{overdue_count}} prestação(ões) em atraso)',
+    NULL,
+    NULL
+  ),
+  (
+    'financial.overdue_block_email_body',
+    'Olá {{subscriber_name}},\n\nA publicação nas telas foi suspensa após {{grace_days}} dia(s) de tolerância.\n\nPrestações em atraso: {{overdue_count}}\nValor total: {{amount_total}}\nMaior atraso: {{days_overdue}} dia(s)\n\n{{invoice_list}}\n\nRegularize: {{billing_url}}\n\n{{merchant_name}}',
+    'string',
+    'financial',
+    'Corpo do e-mail de bloqueio (texto). Use os mesmos placeholders do assunto.',
+    false,
+    true,
+    'Olá {{subscriber_name}},\n\nA publicação nas telas foi suspensa após {{grace_days}} dia(s) de tolerância.\n\nRegularize: {{billing_url}}',
+    NULL,
+    NULL
+  ),
+  (
+    'financial.overdue_block_whatsapp_message',
+    'Olá {{subscriber_name}}, sua publicação foi suspensa por inadimplência ({{overdue_count}} prestação(ões), {{amount_total}}, {{days_overdue}} dia(s) de atraso). Regularize: {{billing_url}}',
+    'string',
+    'financial',
+    'Mensagem WhatsApp de bloqueio. Placeholders iguais ao e-mail.',
+    false,
+    true,
+    'Olá {{subscriber_name}}, regularize em {{billing_url}}',
+    NULL,
+    NULL
+  )
+ON CONFLICT (setting_key) DO UPDATE SET
+  description = EXCLUDED.description,
+  category = EXCLUDED.category,
+  is_public = EXCLUDED.is_public,
+  is_editable = EXCLUDED.is_editable,
+  default_value = EXCLUDED.default_value,
+  validation = EXCLUDED.validation,
+  options = EXCLUDED.options,
+  updated_at = CURRENT_TIMESTAMP;
+
 -- Chave legada (JSON); o runtime usa media.upload.allowed_types (string)
 DELETE FROM system_settings WHERE setting_key = 'media.allowed_types';
 

@@ -285,18 +285,14 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
         { text: 'Manutenção Usuário', icon: <People />, path: '/users' },
         { text: 'Tags', icon: <Assignment />, path: '/tags' },
         { text: 'QR-Codes', icon: <QrCode />, path: '/qr-codes' },
+        { text: 'OTA Updates', icon: <CloudUpload />, path: '/ota-updates' },
+        { text: 'SmartDisplayFX', icon: <AutoAwesome />, path: '/smartdisplayfx' },
         { text: 'Analíticos', icon: <Analytics />, path: '/analytics' },
         { text: 'Relatórios', icon: <Assessment />, path: '/reports' },
+        { text: 'Admin Tools', icon: <Build />, path: '/admin-tools' },
         dispatcherBlock,
-        {
-          text: 'Configurações',
-          icon: <Settings />,
-          path: '/settings',
-          children: [
-            { text: 'OTA Update', icon: <CloudUpload />, path: '/ota-updates' },
-            { text: 'Templates publicação', icon: <AutoAwesome />, path: '/publish-templates-admin' },
-          ],
-        },
+        { text: 'Configurações', icon: <Settings />, path: '/settings' },
+        { text: 'Templates publicação', icon: <AutoAwesome />, path: '/publish-templates-admin' },
       ],
     },
   ];

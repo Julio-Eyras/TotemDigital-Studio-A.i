@@ -88,10 +88,23 @@ export class FinancialBillingWorker {
       })
     );
 
+    this.jobs.push(
+      cron.schedule(financialConfig.cronEnforceOverdueBlocks, async () => {
+        try {
+          const { getBillingEnforcementService } = await import('../services/billingEnforcementService');
+          const result = await getBillingEnforcementService().enforceAutomaticBlocks();
+          await logInfo('Financeiro: bloqueio automático por inadimplência', result);
+        } catch (error: any) {
+          await logError('Financeiro: erro no bloqueio automático', error);
+        }
+      })
+    );
+
     logInfo('Financial Billing Worker iniciado', {
       issue: financialConfig.cronIssueInvoices,
       overdue: financialConfig.cronMarkOverdue,
       reminders: financialConfig.cronSendReminders,
+      enforceBlocks: financialConfig.cronEnforceOverdueBlocks,
       autoRevenueShare: financialConfig.autoRevenueSharePayouts,
       revenueShareCron: financialConfig.cronRevenueSharePayouts || '(desativado)',
     });

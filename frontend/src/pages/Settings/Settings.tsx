@@ -39,6 +39,7 @@ import {
   Shuffle,
   BugReport,
   ViewTimeline,
+  Payment,
 } from '@mui/icons-material';
 import { settingsApi, SystemSetting, logsApi, LogRotationConfig, LogFileInfo, DiskSpaceInfo, RotationStatus, authApi } from '../../services/api';
 import TwoFactor from './TwoFactor';
@@ -66,6 +67,63 @@ const MEDIA_SETTINGS_ORDER: string[] = [
   'media.storage.auto_cleanup',
   'media.storage.cleanup_days',
 ];
+
+function sortFinancialSettings(list: SystemSetting[]): SystemSetting[] {
+  const rank = (k: string) => {
+    const i = FINANCIAL_SETTINGS_ORDER.indexOf(k);
+    return i === -1 ? FINANCIAL_SETTINGS_ORDER.length + 1 : i;
+  };
+  return [...list].sort((a, b) => {
+    const d = rank(a.key) - rank(b.key);
+    return d !== 0 ? d : a.key.localeCompare(b.key);
+  });
+}
+
+function renderSettingField(
+  s: SystemSetting,
+  onChange: (key: string, value: string) => void
+): React.ReactNode {
+  const readOnly = isSettingReadOnly(s);
+  if (s.type === 'boolean') {
+    return (
+      <FormControlLabel
+        disabled={readOnly}
+        control={
+          <Switch
+            checked={s.value === 'true' || s.value === true}
+            onChange={(e) => onChange(s.key, e.target.checked.toString())}
+            disabled={readOnly}
+          />
+        }
+        label={s.description || s.key}
+      />
+    );
+  }
+  const multiline =
+    s.type === 'json' ||
+    s.type === 'array' ||
+    s.key.includes('email_body') ||
+    s.key.includes('whatsapp_message');
+  return (
+    <TextField
+      fullWidth
+      label={s.description || s.key}
+      value={formatSettingValueForEdit(s)}
+      onChange={(e) => onChange(s.key, e.target.value)}
+      type={s.type === 'number' ? 'number' : 'text'}
+      multiline={multiline}
+      minRows={multiline ? 4 : undefined}
+      disabled={readOnly}
+      helperText={
+        s.key.startsWith('financial.overdue_block_')
+          ? 'Placeholders: {{subscriber_name}}, {{overdue_count}}, {{amount_total}}, {{grace_days}}, {{days_overdue}}, {{billing_url}}, {{invoice_list}}, {{merchant_name}}'
+          : s.type === 'json' || s.type === 'array'
+            ? 'Edite como JSON válido.'
+            : undefined
+      }
+    />
+  );
+}
 
 function sortMediaSettings(list: SystemSetting[]): SystemSetting[] {
   const rank = (k: string) => {
@@ -117,12 +175,25 @@ function TabPanel(props: TabPanelProps) {
 
 const SETTINGS_SECTIONS = [
   { label: 'Geral', icon: SettingsIcon },
+  { label: 'Financeiro', icon: Payment },
   { label: 'Logs', icon: Storage },
   { label: 'Mídias', icon: VideoLibrary },
   { label: 'Dispatcher', icon: MonitorHeart },
   { label: '2FA', icon: Security },
   { label: 'Senha', icon: Security },
 ] as const;
+
+const FINANCIAL_SETTINGS_ORDER: string[] = [
+  'financial.block_publish_on_overdue',
+  'financial.block_publish_overdue_grace_days',
+  'financial.auto_pause_campaigns_on_block',
+  'financial.admin_override_overdue_block',
+  'financial.notify_block_email_enabled',
+  'financial.notify_block_whatsapp_enabled',
+  'financial.overdue_block_email_subject',
+  'financial.overdue_block_email_body',
+  'financial.overdue_block_whatsapp_message',
+];
 
 const Settings: React.FC = () => {
   const theme = useTheme();
@@ -156,7 +227,7 @@ const Settings: React.FC = () => {
 
   useEffect(() => {
     loadSettings();
-    if (tabValue === 1) {
+    if (tabValue === 2) {
       loadLogsInfo();
     }
   }, [tabValue]);
@@ -278,20 +349,14 @@ const Settings: React.FC = () => {
       setError(null);
       let settingsToSave: SystemSetting[] = [];
       if (tabValue === 0) {
-        settingsToSave = Array.isArray(settings)
-          ? settings.filter(
-              (s) =>
-                s?.key &&
-                !s.key.startsWith('log.') &&
-                !s.key.startsWith('media.') &&
-                !isSettingReadOnly(s)
-            )
-          : [];
+        settingsToSave = generalSettings.filter((s) => s?.key && !isSettingReadOnly(s));
       } else if (tabValue === 1) {
+        settingsToSave = financialSettings.filter((s) => s?.key && !isSettingReadOnly(s));
+      } else if (tabValue === 2) {
         settingsToSave = Array.isArray(logSettings)
           ? logSettings.filter((s) => s?.key && !isSettingReadOnly(s))
           : [];
-      } else if (tabValue === 2) {
+      } else if (tabValue === 3) {
         settingsToSave = Array.isArray(mediaSettings)
           ? mediaSettings.filter((s) => s?.key && !isSettingReadOnly(s))
           : [];
@@ -310,7 +375,7 @@ const Settings: React.FC = () => {
       await settingsApi.updateMultiple(settingsObj);
       
       // Recarregar logger se foram alteradas configurações de logs
-      if (tabValue === 1) {
+      if (tabValue === 2) {
         await logsApi.reload();
         await loadLogsInfo();
       }
@@ -354,6 +419,26 @@ const Settings: React.FC = () => {
   const sortedMediaSettings = useMemo(
     () => sortMediaSettings(Array.isArray(mediaSettings) ? mediaSettings : []),
     [mediaSettings]
+  );
+
+  const financialSettings = useMemo(
+    () =>
+      sortFinancialSettings(
+        (Array.isArray(settings) ? settings : []).filter((s) => s?.key?.startsWith('financial.'))
+      ),
+    [settings]
+  );
+
+  const generalSettings = useMemo(
+    () =>
+      (Array.isArray(settings) ? settings : []).filter(
+        (s) =>
+          s?.key &&
+          !s.key.startsWith('log.') &&
+          !s.key.startsWith('media.') &&
+          !s.key.startsWith('financial.')
+      ),
+    [settings]
   );
 
   const handlePasswordFieldChange = (field: keyof typeof passwordForm, value: string) => {
@@ -451,66 +536,70 @@ const Settings: React.FC = () => {
         </Box>
 
         <Grid container spacing={3}>
-          {Array.isArray(settings) &&
-            settings
-              .filter(
-                (s) => s?.key && !s.key.startsWith('log.') && !s.key.startsWith('media.')
-              )
-              .map((s) => {
-                const readOnly = isSettingReadOnly(s);
-                return (
-                  <Grid item xs={12} md={6} key={s.key}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
-                          {s.key}
-                          {readOnly && (
-                            <Chip
-                              label="Somente leitura"
-                              size="small"
-                              sx={{ ml: 1, verticalAlign: 'middle' }}
-                              variant="outlined"
-                            />
-                          )}
-                        </Typography>
-                        {s.type === 'boolean' ? (
-                          <FormControlLabel
-                            disabled={readOnly}
-                            control={
-                              <Switch
-                                checked={s.value === 'true' || s.value === true}
-                                onChange={(e) => handleChange(s.key, e.target.checked.toString())}
-                                disabled={readOnly}
-                              />
-                            }
-                            label={s.description || s.key}
-                          />
-                        ) : (
-                          <TextField
-                            fullWidth
-                            label={s.description || s.key}
-                            value={formatSettingValueForEdit(s)}
-                            onChange={(e) => handleChange(s.key, e.target.value)}
-                            type={s.type === 'number' ? 'number' : 'text'}
-                            multiline={s.type === 'json' || s.type === 'array'}
-                            minRows={s.type === 'json' || s.type === 'array' ? 4 : undefined}
-                            disabled={readOnly}
-                            helperText={
-                              s.type === 'json' || s.type === 'array'
-                                ? 'Edite como JSON válido.'
-                                : undefined
-                            }
-                          />
-                        )}
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                );
-              })}
+          {generalSettings.map((s) => (
+            <Grid item xs={12} md={6} key={s.key}>
+              <Card>
+                <CardContent>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                    {s.key}
+                    {isSettingReadOnly(s) && (
+                      <Chip
+                        label="Somente leitura"
+                        size="small"
+                        sx={{ ml: 1, verticalAlign: 'middle' }}
+                        variant="outlined"
+                      />
+                    )}
+                  </Typography>
+                  {renderSettingField(s, handleChange)}
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
         </Grid>
       </TabPanel>
 
       <TabPanel value={tabValue} index={1}>
+        <Card variant="outlined" sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+              Inadimplência, bloqueio e notificações
+            </Typography>
+            <Typography variant="body2" color="text.secondary" component="div">
+              Defina quantos dias após o vencimento o sistema bloqueia novas publicações, pausa campanhas ativas e
+              envia e-mail/WhatsApp padronizados. Para envio automático de WhatsApp, configure no servidor{' '}
+              <code>WHATSAPP_CLOUD_API_TOKEN</code> e <code>WHATSAPP_PHONE_NUMBER_ID</code> (Meta Cloud API). Sem API,
+              o e-mail inclui link <code>wa.me</code> para encaminhamento manual.
+            </Typography>
+          </CardContent>
+        </Card>
+
+        <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+          <Button startIcon={<Refresh />} variant="outlined" onClick={loadSettings}>
+            Recarregar
+          </Button>
+          <Button startIcon={<Save />} variant="contained" onClick={handleSave}>
+            Salvar Alterações
+          </Button>
+        </Box>
+
+        <Grid container spacing={3}>
+          {financialSettings.map((s) => (
+            <Grid item xs={12} md={s.key.includes('email_body') || s.key.includes('whatsapp_message') ? 12 : 6} key={s.key}>
+              <Card>
+                <CardContent>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                    {s.key}
+                  </Typography>
+                  {renderSettingField(s, handleChange)}
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={2}>
         <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
           <Button startIcon={<Refresh />} variant="outlined" onClick={loadLogsInfo} disabled={loadingLogs}>
             Atualizar Informações
@@ -694,7 +783,7 @@ const Settings: React.FC = () => {
         </Card>
       </TabPanel>
 
-      <TabPanel value={tabValue} index={2}>
+      <TabPanel value={tabValue} index={3}>
         <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
           <Button startIcon={<Refresh />} variant="outlined" onClick={loadSettings}>
             Recarregar
@@ -809,7 +898,7 @@ const Settings: React.FC = () => {
         )}
       </TabPanel>
 
-      <TabPanel value={tabValue} index={3}>
+      <TabPanel value={tabValue} index={4}>
         <Typography variant="body2" color="text.secondary" paragraph sx={{ maxWidth: 720 }}>
           Aceda às ferramentas do dispatcher para acompanhar mensagens, pedidos e ficheiros entre o servidor e os
           totens, e o fluxo ligado a playlists e publicidades. Cada cartão abre a área dedicada (e mantém o menu
@@ -886,11 +975,11 @@ const Settings: React.FC = () => {
         )}
       </TabPanel>
 
-      <TabPanel value={tabValue} index={4}>
+      <TabPanel value={tabValue} index={5}>
         <TwoFactor />
       </TabPanel>
 
-      <TabPanel value={tabValue} index={5}>
+      <TabPanel value={tabValue} index={6}>
         {passwordSuccess && (
           <Alert severity="success" sx={{ mb: 2 }} onClose={() => setPasswordSuccess(null)}>
             {passwordSuccess}

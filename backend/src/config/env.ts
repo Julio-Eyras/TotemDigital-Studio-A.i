@@ -329,6 +329,8 @@ export const financialConfig = {
   cronIssueInvoices: getEnv('FINANCIAL_CRON_ISSUE', '30 2 * * *'),
   cronMarkOverdue: getEnv('FINANCIAL_CRON_OVERDUE', '30 3 * * *'),
   cronSendReminders: getEnv('FINANCIAL_CRON_REMINDERS', '0 9 * * *'),
+  /** Pausa campanhas + e-mail/WhatsApp após tolerância de inadimplência */
+  cronEnforceOverdueBlocks: getEnv('FINANCIAL_CRON_ENFORCE_BLOCKS', '15 4 * * *'),
   /** Após emissão automática de faturas, gerar repasses revenue share (campanhas pagas). */
   autoRevenueSharePayouts: getEnvBoolean(
     'FINANCIAL_AUTO_REVENUE_SHARE',

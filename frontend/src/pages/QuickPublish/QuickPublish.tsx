@@ -57,6 +57,7 @@ import {
 import { usePublishTemplatesFromApi } from '../../hooks/usePublishTemplatesFromApi';
 import { campaignTotemOptionLabel } from '../Campaigns/campaignHelpers';
 import { getTotemIdFromRow } from '../../utils/totemRowIds';
+import { useAppSelector } from '../../store';
 
 const STEPS = ['Cliente', 'Tela', 'Conteúdo', 'Publicar'];
 
@@ -125,6 +126,7 @@ function normalizePublicAssetUrl(raw?: string | null): string | undefined {
 
 const QuickPublish: React.FC = () => {
   const theme = useTheme();
+  const user = useAppSelector((state) => state.auth.user);
   const breadcrumbs = useBreadcrumbs();
   const { presets: publishPresets, getPreset } = usePublishTemplatesFromApi();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -247,13 +249,33 @@ const QuickPublish: React.FC = () => {
   const allTotemsSelected =
     eligibleTotemIds.length > 0 && eligibleTotemIds.every((id) => totemIds.includes(id));
 
+  const billingBlocksPublish = useMemo(() => {
+    if (!selectedSubscriber?.has_billing_publish_blocked) return false;
+    const role = String(user?.role || '');
+    return !['owner_system', 'admin_sql', 'admin'].includes(role);
+  }, [selectedSubscriber, user?.role]);
+
+  const billingGraceWarning = useMemo(
+    () =>
+      Boolean(
+        selectedSubscriber?.has_billing_overdue && !selectedSubscriber?.has_billing_publish_blocked
+      ),
+    [selectedSubscriber]
+  );
+
   const canPublish = Boolean(
-    subscriberId && contractId && totemIds.length > 0 && safeMediaIds.length > 0 && title.trim()
+    subscriberId &&
+      contractId &&
+      totemIds.length > 0 &&
+      safeMediaIds.length > 0 &&
+      title.trim() &&
+      !billingBlocksPublish
   );
 
   const autoPublishReady = useMemo(
-    () => Boolean(subscriberId && contractId && totemIds.length > 0 && title.trim()),
-    [contractId, subscriberId, title, totemIds.length]
+    () =>
+      Boolean(subscriberId && contractId && totemIds.length > 0 && title.trim() && !billingBlocksPublish),
+    [billingBlocksPublish, contractId, subscriberId, title, totemIds.length]
   );
 
   const autoPublishContext = useMemo(() => {
@@ -753,6 +775,29 @@ const QuickPublish: React.FC = () => {
       {partialRegenWarning && (
         <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setPartialRegenWarning(null)}>
           {partialRegenWarning}
+        </Alert>
+      )}
+      {billingGraceWarning && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Este anunciante tem prestações vencidas, mas ainda está dentro da tolerância configurada em{' '}
+          <Button component={RouterLink} to="/settings" size="small" sx={{ ml: 0.5, verticalAlign: 'baseline' }}>
+            Configurações → Financeiro
+          </Button>
+          . A publicação será bloqueada automaticamente após o prazo de dias de atraso.
+        </Alert>
+      )}
+      {billingBlocksPublish && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          Publicação bloqueada: tolerância de inadimplência excedida. Regularize em{' '}
+          <Button
+            component={RouterLink}
+            to={`/billing?type=subscriber&view=invoices&dueFilter=overdue&subscriberId=${subscriberId}`}
+            size="small"
+            sx={{ ml: 0.5, verticalAlign: 'baseline' }}
+          >
+            Faturamento
+          </Button>
+          {' '}antes de publicar na tela.
         </Alert>
       )}
 

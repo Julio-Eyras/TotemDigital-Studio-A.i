@@ -650,8 +650,16 @@ export class FinancialAdminService {
     contract_alert_level?: string;
     has_billing_overdue?: boolean;
     has_billing_due_soon?: boolean;
+    has_billing_publish_blocked?: boolean;
     days_until_contract_end?: number | null;
   }): { level: FinancialAlertLevel; label: string; tooltip: string } {
+    if (row.has_billing_publish_blocked) {
+      return {
+        level: 'error',
+        label: 'Publicação bloqueada',
+        tooltip: 'Prestações vencidas além da tolerância configurada — publicação e campanhas suspensas.',
+      };
+    }
     if (row.has_billing_overdue) {
       return {
         level: 'error',

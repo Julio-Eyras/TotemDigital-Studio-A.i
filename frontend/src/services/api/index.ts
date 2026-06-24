@@ -3586,6 +3586,7 @@ export interface Subscriber {
   financial_alert_label?: string;
   has_billing_overdue?: boolean;
   has_billing_due_soon?: boolean;
+  has_billing_publish_blocked?: boolean;
 }
 
 export interface CreateSubscriberRequest {

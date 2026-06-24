@@ -4,6 +4,7 @@ import { authenticateToken, authorizeRole } from '../middleware/auth.middleware'
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { getQuickPublishService } from '../services/quickPublishService';
 import { logError } from '../utils/loggerHelper';
+import { publishGuardErrorPayload, resolvePublishGuardHttpStatus } from '../utils/publishGuardHttp';
 
 const router = Router();
 
@@ -35,7 +36,7 @@ function sanitizeIdList(raw: unknown): number[] {
 
 router.post(
   '/',
-  authorizeRole(['admin', 'admin_sql', 'gerente_marketing', 'editoracao']),
+  authorizeRole(['admin', 'admin_sql', 'owner_system', 'gerente_marketing', 'editoracao']),
   (req: any, _res: any, next: any) => {
     if (Array.isArray(req.body?.totemIds)) {
       req.body.totemIds = sanitizeIdList(req.body.totemIds);
@@ -71,7 +72,8 @@ router.post(
           publishNow: req.body.publishNow,
           durationMs: req.body.durationMs,
         },
-        req.user?.id || req.user?.userId || 0
+        req.user?.id || req.user?.userId || 0,
+        { userRole: req.user?.role }
       );
 
       return res.status(201).json({
@@ -81,12 +83,10 @@ router.post(
       });
     } catch (error: any) {
       await logError('Erro na rota de publicação rápida', error);
-      const message = error?.message || 'Erro ao executar publicação rápida';
-      const status = message.includes('Acesso negado') ? 403 : 400;
-      return res.status(status).json({
+      const payload = publishGuardErrorPayload(error);
+      return res.status(resolvePublishGuardHttpStatus(error)).json({
         success: false,
-        error: message,
-        message,
+        ...payload,
       });
     }
   }

@@ -4,6 +4,7 @@ import { authenticateToken, authorizeRole } from '../middleware/auth.middleware'
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { getSimplePublishService } from '../services/simplePublishService';
 import { logError } from '../utils/loggerHelper';
+import { publishGuardErrorPayload, resolvePublishGuardHttpStatus } from '../utils/publishGuardHttp';
 
 const router = Router();
 
@@ -86,7 +87,8 @@ router.post(
           title: req.body.title,
           description: req.body.description,
         },
-        req.user?.id || req.user?.userId || 0
+        req.user?.id || req.user?.userId || 0,
+        { userRole: req.user?.role }
       );
 
       return res.status(201).json({
@@ -96,12 +98,10 @@ router.post(
       });
     } catch (error: any) {
       await logError('Erro na rota simple-publish', error);
-      const message = error?.message || 'Erro ao publicar na tela';
-      const status = message.includes('Acesso negado') ? 403 : 400;
-      return res.status(status).json({
+      const payload = publishGuardErrorPayload(error);
+      return res.status(resolvePublishGuardHttpStatus(error)).json({
         success: false,
-        error: message,
-        message,
+        ...payload,
       });
     }
   }
