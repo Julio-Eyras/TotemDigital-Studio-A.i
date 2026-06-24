@@ -35,11 +35,11 @@ Pré-validação (recomendado antes do deploy):
   bash scripts/validate-predeploy-staging.sh --strict
   bash scripts/validate-predeploy-staging.sh --generate-key
 
-Exemplo (SSH no staging — feature segurança):
+Exemplo (SSH no staging):
   ssh usuario@217.216.91.135
   cd /opt/smart-signage
   bash scripts/validate-predeploy-staging.sh --strict
-  bash scripts/deploy-staging-vx5.sh --branch feature/audit-security-modo-simples-vx5
+  bash scripts/deploy-staging-vx5.sh
 
 Após o deploy, homologue em:
   http://SEU_HOST:8080/quick-publish?mode=create
@@ -186,6 +186,10 @@ else
 fi
 
 if [[ "$NO_PULL" == "false" ]]; then
+  if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
+    echo "⚠️  Working tree com alterações locais não commitadas — o pull pode falhar ou misturar mudanças."
+    echo "    Faça commit/stash antes do deploy ou use --no-pull se o código já estiver atualizado."
+  fi
   echo "[2/7] Atualizando git ($BRANCH)..."
   git fetch origin
   git checkout "$BRANCH"

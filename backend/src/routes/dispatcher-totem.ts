@@ -10,6 +10,8 @@ import { getDispatcherTotemService } from '../services/dispatcherTotemService';
 import { logError } from '../utils/loggerHelper';
 import { idParamValidator } from '../validators/common.validators';
 import { isStudioRuntime } from '../config/installationRuntime';
+import { isTotemSimpleModeEnabled } from '../services/totemSimpleModeService';
+import { assertDispatcherTotemScope } from '../middleware/dispatcherTotemScope.middleware';
 
 const router = Router();
 
@@ -43,6 +45,7 @@ router.get('/:totemId/dispatch',
   query('skipCache').optional().isBoolean().withMessage('skipCache deve ser um booleano'),
   query('includeCandidates').optional().isBoolean().withMessage('includeCandidates deve ser um booleano'),
   validateRequest,
+  assertDispatcherTotemScope as any,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.totemId);
@@ -57,6 +60,8 @@ router.get('/:totemId/dispatch',
         { skipCache, includeCandidates }
       );
 
+      const simpleMode = await isTotemSimpleModeEnabled(totemId);
+
       return res.json({
         success: result.success,
         data: result.plan,
@@ -64,6 +69,8 @@ router.get('/:totemId/dispatch',
         fromCache: result.fromCache,
         executionTimeMs: result.executionTimeMs,
         error: result.error,
+        simpleMode,
+        planSimpleMode: result.plan?.metadata?.simpleMode === true,
       });
 
     } catch (error: any) {
@@ -93,6 +100,7 @@ router.post('/:totemId/dispatch-batch',
   body('skipCache').optional({ nullable: true }).isBoolean().withMessage('skipCache deve ser um booleano'),
   body('includeCandidates').optional({ nullable: true }).isBoolean().withMessage('includeCandidates deve ser um booleano'),
   validateRequest,
+  assertDispatcherTotemScope as any,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.totemId, 10);
@@ -145,6 +153,7 @@ router.get('/:totemId/history',
   query('startDate').isISO8601().withMessage('startDate deve ser uma data ISO8601 válida'),
   query('endDate').isISO8601().withMessage('endDate deve ser uma data ISO8601 válida'),
   validateRequest,
+  assertDispatcherTotemScope as any,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.totemId);
@@ -181,6 +190,7 @@ router.get('/:totemId/candidates',
   query('timezone').optional().isString().withMessage('timezone deve ser uma string'),
   validateRequest,
   authorizeRole([...DISPATCHER_TOTEM_TECH_ROLES]) as any,
+  assertDispatcherTotemScope as any,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.totemId);
@@ -194,11 +204,15 @@ router.get('/:totemId/candidates',
         { includeCandidates: true, skipCache: true }
       );
 
+      const simpleMode = await isTotemSimpleModeEnabled(totemId);
+
       return res.json({
         success: true,
         candidates: result.candidates || [],
         selectedPlan: result.plan,
         count: result.candidates?.length || 0,
+        simpleMode,
+        planSimpleMode: result.plan?.metadata?.simpleMode === true,
       });
 
     } catch (error: any) {
@@ -221,6 +235,7 @@ router.get(
   ...idParamValidator('totemId'),
   validateRequest,
   authorizeRole([...DISPATCHER_TOTEM_TECH_ROLES]) as any,
+  assertDispatcherTotemScope as any,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.totemId);

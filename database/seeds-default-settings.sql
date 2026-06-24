@@ -442,6 +442,30 @@ ON CONFLICT (setting_key) DO UPDATE SET
   default_value = EXCLUDED.default_value,
   updated_at = CURRENT_TIMESTAMP;
 
+-- Modo simples de programação (mix round-robin; UI sem agendamento)
+INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description, is_public, is_editable, default_value, validation, options)
+VALUES
+  (
+    'totem.simple_mode_enabled',
+    'true',
+    'boolean',
+    'totem',
+    'Habilita modo simples: mix multi-anunciante round-robin e publicação sem agendamento na UI',
+    true,
+    true,
+    'true',
+    '^(true|false)$',
+    '["true", "false"]'
+  )
+ON CONFLICT (setting_key) DO UPDATE SET
+  description = EXCLUDED.description,
+  is_public = EXCLUDED.is_public,
+  is_editable = EXCLUDED.is_editable,
+  default_value = EXCLUDED.default_value,
+  validation = EXCLUDED.validation,
+  options = EXCLUDED.options,
+  updated_at = CURRENT_TIMESTAMP;
+
 -- Chave legada (JSON); o runtime usa media.upload.allowed_types (string)
 DELETE FROM system_settings WHERE setting_key = 'media.allowed_types';
 

@@ -16,6 +16,8 @@ import os from 'os';
 import fs from 'fs';
 import path from 'path';
 import { config } from '../config/env';
+import { getTotemSecretKey } from '../config/totemSecurity';
+import { decryptOpenSslSaltedBase64 } from '../utils/totemEncryption';
 import { normalizeTotemUin } from '../utils/normalizeTotemUin';
 
 const execAsync = promisify(exec);
@@ -221,7 +223,7 @@ async function handleApprovalRequest(
         const scriptPath = process.env.GENERATE_CONFIG_SCRIPT || 
                          path.join(__dirname, '../../scripts/generate-player-config.sh');
         
-        await execAsync(`bash "${scriptPath}" "${uin}" "${playerDir}" "${TOTEM_SECRET_KEY}"`, {
+        await execAsync(`bash "${scriptPath}" "${uin}" "${playerDir}" "${getTotemSecretKey()}"`, {
           timeout: 10000
         });
         
@@ -303,17 +305,12 @@ async function handleApprovalRequest(
   }
 }
 
-// Chave secreta para validação de totem (deve estar no .env em produção)
-const TOTEM_SECRET_KEY = process.env.TOTEM_SECRET_KEY || 'smart-signage-totem-secret-key-2025-change-in-production';
-
-/**
- * Gerar token de validação para totem
- */
+// Chave secreta para validação de totem — ver getTotemSecretKey()
 export function generateTotemToken(uin: string): string {
   const timestamp = Date.now();
   const data = `${uin}:${timestamp}`;
   const token = crypto
-    .createHmac('sha256', TOTEM_SECRET_KEY)
+    .createHmac('sha256', getTotemSecretKey())
     .update(data)
     .digest('hex');
   return `${timestamp}:${token}`;
@@ -331,7 +328,7 @@ export function validateTotemToken(uin: string, token: string, maxAge: number = 
     if (age > maxAge || age < 0) return false; // Token expirado ou inválido
 
     const expectedToken = crypto
-      .createHmac('sha256', TOTEM_SECRET_KEY)
+      .createHmac('sha256', getTotemSecretKey())
       .update(`${uin}:${timestamp}`)
       .digest('hex');
 
@@ -918,14 +915,9 @@ router.post('/decrypt-config',
         }
       }
 
-      // Desencriptar usando OpenSSL (via child_process)
+      // Desencriptar via crypto Node (sem shell/openssl)
       try {
-        const { stdout } = await execAsync(
-          `echo -n "${encryptedConfig.data}" | openssl enc -aes-256-cbc -d -base64 -salt -pbkdf2 -iter 10000 -k "${TOTEM_SECRET_KEY}"`,
-          { timeout: 5000 }
-        );
-        
-        const decrypted = stdout.trim();
+        const decrypted = decryptOpenSslSaltedBase64(encryptedConfig.data, getTotemSecretKey());
         const [uin, configMac, timestamp] = decrypted.split(':');
         
         if (!uin || uin.length < 3) {

@@ -22,6 +22,7 @@ export const blockClientDataAccess = (
     const blockedResources = [
       'campaigns',
       'quick-publish',
+      'simple-publish',
       'medias',
       'playlists',
       'reports',
@@ -36,6 +37,7 @@ export const blockClientDataAccess = (
       '/menu-catalog',
       '/publish-board',
       '/quick-publish',
+      '/simple-publish',
     ];
     if (clientDataPaths.some((segment) => fullPath.includes(segment))) {
       logWarn('OPERATOR tentou acessar dados de cliente (rota aninhada)', {

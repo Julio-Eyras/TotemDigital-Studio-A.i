@@ -4,6 +4,7 @@ import {
   InstallationCapabilities,
   InstallationProfile,
 } from '../policy/installationPolicy';
+import { resolveInstallationSimpleTotemMode } from './totemSimpleModeService';
 
 let cachedProfile: InstallationProfile | undefined;
 let cachedCapabilities: InstallationCapabilities | undefined;
@@ -48,7 +49,8 @@ export async function resolveInstallationCapabilities(db?: {
 }): Promise<InstallationCapabilities> {
   if (cachedCapabilities) return cachedCapabilities;
   const profile = await resolveInstallationProfile(db);
-  cachedCapabilities = buildInstallationCapabilities(profile);
+  const simpleTotemMode = await resolveInstallationSimpleTotemMode(db);
+  cachedCapabilities = buildInstallationCapabilities(profile, simpleTotemMode);
   return cachedCapabilities;
 }
 

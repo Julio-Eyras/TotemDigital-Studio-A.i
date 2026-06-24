@@ -9,7 +9,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
-import { apiLimiter, validatePayloadSize, sanitizeQueryParams, validateOrigin } from './middleware/security.middleware';
+import { apiLimiter, validatePayloadSize, sanitizeQueryParams, validateOrigin, playerApiLimiter, playerTokenLimiter } from './middleware/security.middleware';
 import { config } from './config/env';
 import { initializeDatabase, closeDatabase } from './config/database';
 import { initializeRedis, closeRedis, testRedisConnection } from './config/redis';
@@ -577,6 +577,8 @@ app.get('/player/', (_req, res) => {
 });
 
 // API de validação do player (antes do middleware de autenticação)
+app.use('/api/player/token', playerTokenLimiter);
+app.use('/api/player', playerApiLimiter);
 app.use('/api/player', playerValidationRoutes);
 app.use('/api/player/debug', authMiddleware as any, playerDebugRoutes); // Debug de transações do player (requer autenticação)
 app.use('/api/debug', debugRoutes); // Debug endpoints (logs, diagnóstico)

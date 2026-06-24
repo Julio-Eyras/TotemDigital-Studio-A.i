@@ -12,8 +12,7 @@ export interface InstallationCapabilities {
   bullExportQueues: boolean;
   subdomainTenancy: boolean;
   subscriberPortal: boolean;
-  smartDisplayFx: boolean;
-}
+  simpleTotemMode: boolean;
 
 export interface DashboardUiContextResponse {
   disableDirectCampaignTotem: boolean;
@@ -38,5 +37,6 @@ export function defaultInstallationCapabilities(): InstallationCapabilities {
     subdomainTenancy: !compact,
     subscriberPortal: !compact,
     smartDisplayFx: !compact,
+    simpleTotemMode: compact,
   };
 }

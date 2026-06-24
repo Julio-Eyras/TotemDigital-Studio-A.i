@@ -42,7 +42,8 @@ export class TotemSimpleMixService {
   async buildPlan(
     candidates: CandidateSchedule[],
     totemId: number,
-    timestamp: Date
+    timestamp: Date,
+    options?: { allowSingleSubscriber?: boolean }
   ): Promise<DispatchPlan | undefined> {
     const bySubscriber = new Map<number, CandidateSchedule[]>();
     for (const c of candidates) {
@@ -53,7 +54,10 @@ export class TotemSimpleMixService {
       bySubscriber.set(sid, list);
     }
 
-    if (bySubscriber.size < 2) {
+    if (bySubscriber.size < 1) {
+      return undefined;
+    }
+    if (bySubscriber.size < 2 && !options?.allowSingleSubscriber) {
       return undefined;
     }
 
@@ -85,11 +89,19 @@ export class TotemSimpleMixService {
       }
     }
 
-    if (pools.size < 2) {
+    if (pools.size < 1) {
+      return undefined;
+    }
+    if (pools.size < 2 && !options?.allowSingleSubscriber) {
       return undefined;
     }
 
-    const interleaved = interleaveSubscriberRoundRobin(pools);
+    let interleaved: SubscriberMixItem[];
+    if (pools.size === 1) {
+      interleaved = [...pools.values()][0];
+    } else {
+      interleaved = interleaveSubscriberRoundRobin(pools);
+    }
     if (interleaved.length === 0) {
       return undefined;
     }
@@ -116,7 +128,9 @@ export class TotemSimpleMixService {
       totemId,
       timestamp,
       playlistId: 0,
-      playlistName: `Mix simples (${subscriberIds.length} anunciantes)`,
+      playlistName: pools.size === 1
+        ? `Modo simples (1 anunciante)`
+        : `Mix simples (${subscriberIds.length} anunciantes)`,
       mediaItems,
       totalDuration,
       priority: 0,

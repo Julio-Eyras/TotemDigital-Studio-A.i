@@ -13,6 +13,6 @@ export function getInstallationCapabilities(): InstallationCapabilities {
   return snapshot;
 }
 
-export function isStudioInstallation(): boolean {
-  return snapshot.profile === 'single_publisher' || snapshot.totemDigitalCompact;
+export function isSimpleTotemMode(): boolean {
+  return getInstallationCapabilities().simpleTotemMode;
 }

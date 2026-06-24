@@ -64,11 +64,9 @@ async function validateAndExecute() {
       console.log(`   Tabelas faltando: ${missingTables.join(', ')}\n`);
       console.log('📋 Para criar o schema completo, execute:');
       console.log('   PowerShell: .\\apply-schema-v2.ps1');
-      console.log('   Bash: ./apply-schema-v2.sh\n');
-      console.log('   Ou execute os scripts SQL na ordem:');
-      console.log('   1. smartchannel-db-v2-refactored-part1-schema-setup.sql');
-      console.log('   2. smartchannel-db-v2-refactored-part2-tables-base.sql');
-      console.log('   3. ... (veja apply-all-schema-v2.sh para ordem completa)\n');
+      console.log('   Bash: ./apply-schema-v2.sh');
+      console.log('   (aplica partes 1–17: setup, tabelas, billing, FKs, índices, triggers,');
+      console.log('    views, playlist mix, dispatcher, reconcile, contracts, plans e procedures)\n');
       console.log('❌ Não é possível executar a carga sem o schema criado.\n');
       await pool.end();
       process.exit(1);
@@ -513,13 +511,58 @@ async function validateAndExecute() {
       console.log('\n  ✅ Studio Vx4/Vx5 (templates, cardápio, estúdio visual): schema OK\n');
     }
 
+    console.log('🔍 Validando schema parts 14–17 (reconcile, contracts, plans, procedures)...\n');
+    let schemaPartsOk = true;
+
+    const reconcileTable = 'reconcile_plan_publisher_jobs';
+    const reconcileExists = await pool.query(
+      `SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = $1
+      )`,
+      [reconcileTable]
+    );
+    if (reconcileExists.rows[0].exists) {
+      console.log(`  ✅ Tabela ${reconcileTable} (part14)`);
+    } else {
+      console.log(`  ❌ Tabela ${reconcileTable} ausente — execute apply-schema-v2.sh (part14)`);
+      schemaPartsOk = false;
+    }
+
+    const atomicFunctions = [
+      'create_publisher_with_resources',
+      'create_subscriber_with_contracts',
+    ];
+    for (const fn of atomicFunctions) {
+      const fnExists = await pool.query(
+        `SELECT EXISTS (
+          SELECT 1 FROM pg_proc p
+          JOIN pg_namespace n ON n.oid = p.pronamespace
+          WHERE n.nspname = 'public' AND p.proname = $1
+        )`,
+        [fn]
+      );
+      if (fnExists.rows[0].exists) {
+        console.log(`  ✅ Função ${fn}() (part17)`);
+      } else {
+        console.log(`  ❌ Função ${fn}() ausente — execute apply-schema-v2.sh (part17)`);
+        schemaPartsOk = false;
+      }
+    }
+
+    if (!schemaPartsOk) {
+      console.log('\n⚠️  Parts 14–17 incompletas — reaplique apply-schema-v2.sh.\n');
+    } else {
+      console.log('\n  ✅ Parts 14–17: schema OK\n');
+    }
+
     console.log('✅ Validação concluída com sucesso!');
     console.log('📊 O banco está pronto para testes integrados.\n');
 
     const strict =
       process.env.VALIDATE_V6_STRICT === '1' || process.env.VALIDATE_V6_STRICT === 'true';
-    if (strict && (!financialOk || !studioOk || !studioPublishOk)) {
-      console.error('❌ VALIDATE_V6_STRICT: validação financeira, Studio ou Vx4/Vx5 falhou.');
+    if (strict && (!financialOk || !studioOk || !studioPublishOk || !schemaPartsOk)) {
+      console.error('❌ VALIDATE_V6_STRICT: validação financeira, Studio, Vx4/Vx5 ou parts 14–17 falhou.');
       process.exit(1);
     }
 

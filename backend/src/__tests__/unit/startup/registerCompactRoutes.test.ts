@@ -27,6 +27,7 @@ describe('registerCompactRoutes', () => {
         '/api/playlists',
         '/api/campaigns',
         '/api/quick-publish',
+        '/api/simple-publish',
         '/api/settings',
         '/api/dashboard',
         '/api/alerts',
