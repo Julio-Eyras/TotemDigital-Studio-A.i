@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -119,17 +119,9 @@ import { getForeignTotemIdFromRow, getTotemIdFromRow, getTotemLocalIdFromRow } f
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import {
   billingIntervalLabel,
-  clampContractEndDate,
   contractEndDateHelperText,
-  getBillingIntervalOptionsForPlan,
-  getDefaultContractEndDate,
   getMinContractEndDate,
-  getPlanAvailableIntervals,
-  getPlanDefaultBillingInterval,
-  getPlanPriceForInterval,
-  isContractEndDateValid,
   normalizeBillingInterval,
-  resolveContractBillingInterval,
 } from '../../utils/billingIntervals';
 import { PlanTopologyPreviewRow, loadPlanTopologyPreviewRows, countTopologyInRows } from './planTopologyPreview';
 import { PlanTopologyTabPanel } from './PlanTopologyTabPanel';
@@ -140,6 +132,21 @@ import {
   getDefaultContractStartDate,
 } from '../../utils/businessDate';
 import { getTodayYmd } from '../../utils/campaignStartDate';
+import SubscriberContractList from './components/SubscriberContractList';
+import {
+  applyContractBillingInterval,
+  applyContractEndDate,
+  applyContractStartDate,
+  applyPlanToContractForm,
+  buildContractEndDateForStart,
+  filterEditableContracts,
+  formatCurrencyAmount,
+  getContractIntervalOptions,
+  getPlanIdFromOption,
+  getPlanOptionLabel,
+  getSelectedPlanValueHelper,
+  validateSubscriberContractForm,
+} from './subscriberContractUtils';
 
 const compareByDisplayName = (a?: string, b?: string) =>
   String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
@@ -189,6 +196,7 @@ const Subscribers: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const breadcrumbs = useBreadcrumbs();
   const authUser = useAppSelector((state) => state.auth.user);
   /** Comercial consulta campanhas no anunciante; não edita nem abre o editor completo. */
@@ -204,13 +212,6 @@ const Subscribers: React.FC = () => {
           },
         } as const)
       : undefined;
-
-  // Datas de contrato: calendário America/Sao_Paulo (businessDate)
-  const buildContractEndDateForStart = (startYmd?: string, billingInterval?: string, currentEnd?: string) => {
-    const start = startYmd || getDefaultContractStartDate();
-    const interval = normalizeBillingInterval(billingInterval || 'month');
-    return clampContractEndDate(start, currentEnd || getDefaultContractEndDate(start), interval);
-  };
 
   const [Subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [loading, setLoading] = useState(true);
@@ -237,6 +238,10 @@ const Subscribers: React.FC = () => {
   const [total, setTotal] = useState<number>(0);
   const [createTab, setCreateTab] = useState(0); // NOVO: Aba do dialog de criação
   const [editTab, setEditTab] = useState(0); // NOVO: Aba do dialog de edição
+  /** Transição ao voltar da página de contrato. */
+  const [restoringSubscriberEdit, setRestoringSubscriberEdit] = useState(() =>
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('openEdit')
+  );
   /** Editor completo de campanha (mesmas abas que o menu global). */
   const [campaignFullEditorOpen, setCampaignFullEditorOpen] = useState(false);
   const [campaignFullEditorId, setCampaignFullEditorId] = useState<number | null>(null);
@@ -260,22 +265,7 @@ const Subscribers: React.FC = () => {
   // NOVO: Estados para gerenciar contratos durante a criação
   const [tempSubscriberContracts, setTempSubscriberContracts] = useState<(CreateContractRequest & { tempId: string })[]>([]);
   const [editingSubscriberContractIndexCreate, setEditingSubscriberContractIndexCreate] = useState<number | null>(null);
-  // Estados para gerenciar contratos durante a edição
-  const [editingSubscriberContractIndexEdit, setEditingSubscriberContractIndexEdit] = useState<number | null>(null);
   const [subscriberContractForm, setSubscriberContractForm] = useState<CreateContractRequest>({
-    contract_number: '',
-    contract_type: 'advertising',
-    title: '',
-    description: '',
-    start_date: getDefaultContractStartDate(),
-    end_date: buildContractEndDateForStart(getDefaultContractStartDate()),
-    currency: 'BRL',
-    total_amount: undefined,
-    billing_interval: 'month',
-    status: 'draft',
-    plan_id: undefined,
-  });
-  const [subscriberContractFormEdit, setSubscriberContractFormEdit] = useState<CreateContractRequest>({
     contract_number: '',
     contract_type: 'advertising',
     title: '',
@@ -293,129 +283,6 @@ const Subscribers: React.FC = () => {
   const [editSubscriberOverdueLoading, setEditSubscriberOverdueLoading] = useState(false);
   const [editSubscriberOverdueError, setEditSubscriberOverdueError] = useState<string | null>(null);
 
-  const getPlanIdFromOption = (plan: any): number | undefined => {
-    const id = plan?.planId ?? plan?.plan_id;
-    const n = Number(id);
-    return Number.isFinite(n) && n > 0 ? n : undefined;
-  };
-
-  const getPlanCurrency = (plan: any): string => String(plan?.currency || 'BRL').toUpperCase();
-
-  const formatCurrencyAmount = (amount?: number | null, currency: string = 'BRL') => {
-    const n = Number(amount);
-    if (!Number.isFinite(n)) return '';
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: currency || 'BRL',
-    }).format(n);
-  };
-
-  const getPlanOptionLabel = (plan: any): string => {
-    const currency = getPlanCurrency(plan);
-    const iv = resolveContractBillingInterval(plan);
-    const amount = getPlanPriceForInterval(plan, iv);
-    const offered = getPlanAvailableIntervals(plan).map((c) => billingIntervalLabel(c)).join(', ');
-    const value =
-      amount != null
-        ? ` — ref. ${formatCurrencyAmount(amount, currency)} (${billingIntervalLabel(iv)})`
-        : '';
-    const intervals = offered ? ` · ${offered}` : '';
-    return `${plan?.name || 'Plano'}${value}${intervals}`;
-  };
-
-  const getContractIntervalOptions = (planId?: number) => {
-    const plan = availablePlansForContract.find((p: any) => getPlanIdFromOption(p) === planId);
-    return getBillingIntervalOptionsForPlan(plan);
-  };
-
-  const getSelectedPlanValueHelper = (planId?: number, billingInterval?: string): string => {
-    const plan = availablePlansForContract.find((p: any) => getPlanIdFromOption(p) === planId);
-    if (!plan) return 'Valor fechado neste contrato';
-    const iv = normalizeBillingInterval(billingInterval ?? getPlanDefaultBillingInterval(plan));
-    const ref = getPlanPriceForInterval(plan, iv);
-    if (ref == null) return 'Informe o valor acordado para este contrato';
-    return `Referência do plano (${billingIntervalLabel(iv)}): ${formatCurrencyAmount(ref, getPlanCurrency(plan))} — pode negociar abaixo`;
-  };
-
-  const applyPlanToContractForm = <T extends CreateContractRequest>(
-    form: T,
-    planId?: number,
-    intervalOverride?: string
-  ): T => {
-    const plan = availablePlansForContract.find((p: any) => getPlanIdFromOption(p) === planId);
-    if (!planId || !plan) {
-      return { ...form, plan_id: planId } as T;
-    }
-    const interval = resolveContractBillingInterval(
-      plan,
-      intervalOverride ?? (form as any).billing_interval
-    );
-    const refAmount = getPlanPriceForInterval(plan, interval);
-    const start = formatDateForInput(form.start_date) || getDefaultContractStartDate();
-    const end = clampContractEndDate(start, formatDateForInput(form.end_date), interval);
-    return {
-      ...form,
-      plan_id: planId,
-      billing_interval: interval,
-      payment_terms: billingIntervalLabel(interval),
-      currency: getPlanCurrency(plan),
-      start_date: start,
-      end_date: end,
-      ...(refAmount != null ? { total_amount: refAmount } : {}),
-    } as T;
-  };
-
-  const applyContractBillingInterval = <T extends CreateContractRequest>(form: T, interval: string): T => {
-    const plan = availablePlansForContract.find((p: any) => getPlanIdFromOption(p) === form.plan_id);
-    const code = resolveContractBillingInterval(plan, interval);
-    const refAmount = plan ? getPlanPriceForInterval(plan, code) : undefined;
-    const start = formatDateForInput(form.start_date) || getDefaultContractStartDate();
-    const end = clampContractEndDate(start, formatDateForInput(form.end_date), code);
-    return {
-      ...form,
-      billing_interval: code,
-      payment_terms: billingIntervalLabel(code),
-      end_date: end,
-      ...(refAmount != null ? { total_amount: refAmount } : {}),
-    } as T;
-  };
-
-  const applyContractStartDate = <T extends CreateContractRequest>(form: T, startYmd: string): T => ({
-    ...form,
-    start_date: startYmd,
-    end_date: getDefaultContractEndDate(startYmd),
-  } as T);
-
-  const applyContractEndDate = <T extends CreateContractRequest>(form: T, endYmd: string): T => {
-    const start = formatDateForInput(form.start_date) || getDefaultContractStartDate();
-    const interval = normalizeBillingInterval((form as any).billing_interval || 'month');
-    return {
-      ...form,
-      end_date: clampContractEndDate(start, endYmd, interval),
-    } as T;
-  };
-
-  const validateSubscriberContractForm = (form: CreateContractRequest): string | null => {
-    const start = formatDateForInput(form.start_date) || getDefaultContractStartDate();
-    const end =
-      formatDateForInput(form.end_date) ||
-      buildContractEndDateForStart(start, (form as any).billing_interval);
-    const interval = normalizeBillingInterval((form as any).billing_interval || 'month');
-    if (!isContractEndDateValid(start, end, interval)) {
-      return 'Data de término deve cobrir pelo menos um período do intervalo de cobrança escolhido';
-    }
-    if (form.plan_id) {
-      const plan = availablePlansForContract.find((p: any) => getPlanIdFromOption(p) === form.plan_id);
-      const available = getPlanAvailableIntervals(plan);
-      if (available.length === 0) {
-        return 'O plano selecionado não possui preços por intervalo configurados';
-      }
-      if (!available.includes(interval)) {
-        return 'Intervalo de cobrança não disponível para este plano';
-      }
-    }
-    return null;
-  };
   // NOVO: Estados para gerenciar locais, totens, smart TVs e subscribers durante a criação
   const [tempLocals, setTempLocals] = useState<CreateLocalRequest[]>([]);
   const [tempTotems, setTempTotems] = useState<(CreatePlayerRequest & { tempId: string })[]>([]);
@@ -440,15 +307,27 @@ const Subscribers: React.FC = () => {
 
   /** Sub-abas Locais / Totens / Smart TVs dentro da aba Contratos (modal Editar). */
   const [editContractTopologySubTab, setEditContractTopologySubTab] = useState(0);
+  /** Contrato selecionado na aba Contratos (modal Editar). */
+  const [editSelectedContractId, setEditSelectedContractId] = useState<number | null>(null);
 
   const createPreviewCounts = useMemo(
     () => countTopologyInRows(createContractPlanPreview.rows),
     [createContractPlanPreview.rows]
   );
 
+  const editSelectedContractTopologyPreview = useMemo(() => {
+    const base = editContractPlanPreview;
+    if (editSelectedContractId == null) {
+      return { ...base, rows: [] as PlanTopologyPreviewRow[] };
+    }
+    const rowKey = `contract-${editSelectedContractId}`;
+    const row = base.rows.find((r) => r.rowKey === rowKey);
+    return { ...base, rows: row ? [row] : [] };
+  }, [editContractPlanPreview, editSelectedContractId]);
+
   const editPreviewCounts = useMemo(
-    () => countTopologyInRows(editContractPlanPreview.rows),
-    [editContractPlanPreview.rows]
+    () => countTopologyInRows(editSelectedContractTopologyPreview.rows),
+    [editSelectedContractTopologyPreview.rows]
   );
 
   // Estados para edição de Anunciante (carregar dados existentes)
@@ -499,13 +378,19 @@ const Subscribers: React.FC = () => {
   // Estados para contratos
   // null = ainda não carregado do backend (evita gerar número antes da hora)
   const [activeContracts, setActiveContracts] = useState<any[] | null>(null);
-  const filterEditableContracts = (contracts: any[]): any[] =>
-    contracts.filter((c: any) => String(c?.status || '').toLowerCase() !== 'cancelled');
   /** Contratos com status "active" para vincular a campanhas (só estes podem ser usados nos totens) */
   const contractsActiveForCampaign = useMemo(
     () => (activeContracts || []).filter((c: any) => isSubscriberContractActiveForCampaign(c)),
     [activeContracts]
   );
+
+  const editSelectedContract = useMemo(() => {
+    if (editSelectedContractId == null || !Array.isArray(activeContracts)) return null;
+    return (
+      activeContracts.find((c: any) => Number(c.contract_id) === Number(editSelectedContractId)) ??
+      null
+    );
+  }, [activeContracts, editSelectedContractId]);
 
   // Próximo número = último sequencial existente (após o ponto) + 1. Ex: SUB-11.000003 -> próximo 000004
   const generateInlineSubscriberContractNumber = (subscriberId: number): string => {
@@ -721,6 +606,22 @@ const Subscribers: React.FC = () => {
     };
   }, [editDialogOpen, editTab, activeContracts]);
 
+  /** Seleciona contrato na aba Contratos quando nenhum está selecionado (ex.: abrir modal manualmente). */
+  useEffect(() => {
+    if (!editDialogOpen || editTab !== 1 || !Array.isArray(activeContracts)) return;
+    if (activeContracts.length === 0) {
+      if (editSelectedContractId != null) setEditSelectedContractId(null);
+      return;
+    }
+    if (editSelectedContractId != null) {
+      const stillExists = activeContracts.some(
+        (c: any) => Number(c.contract_id) === Number(editSelectedContractId)
+      );
+      if (stillExists) return;
+    }
+    setEditSelectedContractId(Number(activeContracts[0].contract_id));
+  }, [editDialogOpen, editTab, activeContracts, editSelectedContractId]);
+
   useEffect(() => {
     // Debounce para busca
     const timer = setTimeout(() => {
@@ -856,11 +757,12 @@ const Subscribers: React.FC = () => {
       const campaignsForEdit = campaignsArray.filter((c: any) => c.campaign_id);
 
       setEditCampaigns(campaignsForEdit);
-      setActiveContracts(
-        Array.isArray(contractsResponse) ? filterEditableContracts(contractsResponse) : []
-      );
+      const contracts = Array.isArray(contractsResponse) ? filterEditableContracts(contractsResponse) : [];
+      setActiveContracts(contracts);
+      return contracts;
     } catch (error) {
       setError(pickApiErrorMessage(error, 'Erro ao carregar dados do Anunciante'));
+      return [];
     }
   };
 
@@ -883,20 +785,6 @@ const Subscribers: React.FC = () => {
 
   // Se o contrato selecionado na campanha deixar de existir/ficar inativo, limpar a seleção.
   // (contrato é gerido no CampaignFullEditorDialog)
-
-  // Pré-preencher número do contrato na aba "Contratos do Anunciante" (edição)
-  useEffect(() => {
-    // Só gerar quando:
-    // - modal de edição aberto
-    // - aba Contratos ativa
-    // - subscriber selecionado
-    // - contratos já carregados (activeContracts != null)
-    if (!editDialogOpen || !selectedSubscriber || editTab !== 1 || !Array.isArray(activeContracts)) return;
-    setSubscriberContractFormEdit((prev) => {
-      if (prev.contract_number != null && prev.contract_number !== '') return prev;
-      return { ...prev, contract_number: generateInlineSubscriberContractNumber(selectedSubscriber.subscriber_id) };
-    });
-  }, [editDialogOpen, editTab, selectedSubscriber?.subscriber_id, activeContracts]);
 
   // Pré-preencher número do contrato no cadastro (novo assinante, aba Contratos): SUB-NOVO.<NNNNNN>
   useEffect(() => {
@@ -1649,28 +1537,70 @@ const Subscribers: React.FC = () => {
     const st = (location.state || {}) as {
       openEditForSubscriberId?: number;
       focusCampaignTab?: boolean;
+      focusContractsTab?: boolean;
       highlightCampaignId?: number;
+      highlightContractId?: number;
     };
-    if (st.openEditForSubscriberId == null) return;
+
+    const openEditParam = searchParams.get('openEdit');
+    const subscriberIdToOpen = openEditParam
+      ? Number(openEditParam)
+      : st.openEditForSubscriberId;
+
+    if (subscriberIdToOpen == null || !Number.isFinite(subscriberIdToOpen) || subscriberIdToOpen <= 0) {
+      setRestoringSubscriberEdit(false);
+      return;
+    }
+
+    setRestoringSubscriberEdit(true);
+
+    const tabParam = searchParams.get('tab');
+    const focusContractsTab = tabParam === 'contracts' || st.focusContractsTab === true;
+    const focusCampaignTab = tabParam === 'campaigns' || st.focusCampaignTab === true;
+    const contractParam = searchParams.get('contract');
+    const highlightContractId =
+      contractParam != null && contractParam !== ''
+        ? Number(contractParam)
+        : st.highlightContractId;
+    const highlightCampaignId = st.highlightCampaignId;
 
     let cancelled = false;
     (async () => {
       try {
-        const sub = await subscriberApi.getById(st.openEditForSubscriberId!);
+        const sub = await subscriberApi.getById(subscriberIdToOpen);
         if (cancelled) return;
+
         setSelectedSubscriber(sub);
+        if (focusCampaignTab) setEditTab(4);
+        else if (focusContractsTab) setEditTab(1);
         setEditDialogOpen(true);
-        await loadSubscriberDataForEdit(sub.subscriber_id);
+
+        const contractsAfterLoad = await loadSubscriberDataForEdit(sub.subscriber_id);
         if (cancelled) return;
-        if (st.focusCampaignTab) setEditTab(4);
-        if (!isOperadorComercial && st.highlightCampaignId != null) {
-          setCampaignFullEditorId(st.highlightCampaignId);
+
+        const resolvedContractId =
+          highlightContractId != null && Number.isFinite(highlightContractId)
+            ? highlightContractId
+            : contractsAfterLoad[0]?.contract_id;
+        if (resolvedContractId != null && Number.isFinite(Number(resolvedContractId))) {
+          setEditSelectedContractId(Number(resolvedContractId));
+        }
+        if (!isOperadorComercial && highlightCampaignId != null) {
+          setCampaignFullEditorId(highlightCampaignId);
           setCampaignFullEditorOpen(true);
         }
       } catch (e) {
         setError('Não foi possível abrir o anunciante indicado.');
       } finally {
-        navigate('.', { replace: true, state: {} });
+        if (!cancelled) {
+          setRestoringSubscriberEdit(false);
+          if (openEditParam) {
+            setSearchParams({}, { replace: true });
+          }
+          if (st.openEditForSubscriberId != null) {
+            navigate('.', { replace: true, state: {} });
+          }
+        }
       }
     })();
 
@@ -1678,7 +1608,7 @@ const Subscribers: React.FC = () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.state, isOperadorComercial]);
+  }, [searchParams, location.state, isOperadorComercial]);
 
   const handleDeleteCampaign = async (index: number) => {
     if (isOperadorComercial) return;
@@ -2145,6 +2075,20 @@ const Subscribers: React.FC = () => {
         </Typography>
       </Alert>
 
+      {restoringSubscriberEdit ? (
+        <Card sx={{ textAlign: 'center', py: 8, mb: 3 }}>
+          <CardContent>
+            <CircularProgress sx={{ mb: 2 }} />
+            <Typography variant="h6" gutterBottom>
+              Abrindo contratos do anunciante…
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Aguarde enquanto carregamos os dados do contrato.
+            </Typography>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
       {/* Filters */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
@@ -2272,6 +2216,9 @@ const Subscribers: React.FC = () => {
         </Card>
       )}
 
+        </>
+      )}
+
       {/* Create Dialog com Abas */}
       <Dialog 
         open={createDialogOpen} 
@@ -2358,7 +2305,7 @@ const Subscribers: React.FC = () => {
                         label="Plano"
                         onChange={(e) => {
                           const planId = e.target.value ? Number(e.target.value) : undefined;
-                          setSubscriberContractForm(applyPlanToContractForm(subscriberContractForm, planId));
+                          setSubscriberContractForm(applyPlanToContractForm(subscriberContractForm, planId, availablePlansForContract));
                         }}
                       >
                         <MenuItem value="">Nenhum (contrato sem plano)</MenuItem>
@@ -2478,11 +2425,15 @@ const Subscribers: React.FC = () => {
                         disabled={!subscriberContractForm.plan_id}
                         onChange={(e) =>
                           setSubscriberContractForm(
-                            applyContractBillingInterval(subscriberContractForm, e.target.value)
+                            applyContractBillingInterval(
+                              subscriberContractForm,
+                              availablePlansForContract,
+                              e.target.value
+                            )
                           )
                         }
                       >
-                        {getContractIntervalOptions(subscriberContractForm.plan_id).map((opt) => (
+                        {getContractIntervalOptions(subscriberContractForm.plan_id, availablePlansForContract).map((opt) => (
                           <MenuItem key={opt.value} value={opt.value}>
                             {opt.label}
                           </MenuItem>
@@ -2511,6 +2462,7 @@ const Subscribers: React.FC = () => {
                       inputProps={{ min: 0, step: '0.01' }}
                       helperText={getSelectedPlanValueHelper(
                         subscriberContractForm.plan_id,
+                        availablePlansForContract,
                         subscriberContractForm.billing_interval
                       )}
                     />
@@ -2542,7 +2494,10 @@ const Subscribers: React.FC = () => {
                           setError('Número do contrato e título são obrigatórios');
                           return;
                         }
-                        const dateErrCreate = validateSubscriberContractForm(subscriberContractForm);
+                        const dateErrCreate = validateSubscriberContractForm(
+                          subscriberContractForm,
+                          availablePlansForContract
+                        );
                         if (dateErrCreate) {
                           setError(dateErrCreate);
                           return;
@@ -2764,19 +2719,7 @@ const Subscribers: React.FC = () => {
           setEditCampaigns([]);
           setEditingEditMediaIndex(null);
           setEditingEditPlaylistIndex(null);
-          setEditingSubscriberContractIndexEdit(null);
-          setSubscriberContractFormEdit({
-            contract_number: '',
-            contract_type: 'advertising',
-            title: '',
-            description: '',
-            start_date: getDefaultContractStartDate(),
-            end_date: buildContractEndDateForStart(getDefaultContractStartDate()),
-            currency: 'BRL',
-            total_amount: undefined,
-            status: 'draft',
-            plan_id: undefined,
-          });
+          setEditSelectedContractId(null);
         }} 
         maxWidth="lg" 
         fullWidth
@@ -2841,8 +2784,6 @@ const Subscribers: React.FC = () => {
           {/* Aba Contratos */}
           {editTab === 1 && selectedSubscriber && (
             <Box>
-              <Typography variant="h6" sx={{ mb: 2 }}>Contratos do Anunciante</Typography>
-
               {editSubscriberOverdueError && (
                 <Alert
                   severity="warning"
@@ -2938,427 +2879,54 @@ const Subscribers: React.FC = () => {
                   </Button>
                 </Alert>
               )}
-              
-              {/* Formulário para criar/editar Subscriber Contract */}
-              <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1, bgcolor: editingSubscriberContractIndexEdit !== null ? alpha(theme.palette.primary.main, 0.05) : 'transparent' }}>
-                <Typography variant="subtitle2" sx={{ mb: 2 }}>
-                  {editingSubscriberContractIndexEdit !== null ? 'Editar Contrato' : 'Adicionar Contrato'}
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel {...selectLabelShrinkProps}>Plano</InputLabel>
-                      <Select
-                        sx={sxSelectChosenGreen(!!subscriberContractFormEdit.plan_id)}
-                        value={subscriberContractFormEdit.plan_id || ''}
-                        label="Plano"
-                        onChange={(e) => {
-                          const planId = e.target.value ? Number(e.target.value) : undefined;
-                          setSubscriberContractFormEdit(applyPlanToContractForm(subscriberContractFormEdit, planId));
-                        }}
-                      >
-                        <MenuItem value="">Nenhum (contrato sem plano)</MenuItem>
-                        {availablePlansForContract.map((p: any) => (
-                          <MenuItem key={getPlanIdFromOption(p)} value={getPlanIdFromOption(p)}>
-                            {getPlanOptionLabel(p)}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Número do Contrato *"
-                      value={subscriberContractFormEdit.contract_number || ''}
-                      size="small"
-                      required
-                      InputProps={{ readOnly: true, disabled: true }}
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <FormControl fullWidth size="small" required>
-                      <InputLabel>Tipo de Contrato *</InputLabel>
-                      <Select
-                        sx={sxSelectChosenGreen(true)}
-                        value={subscriberContractFormEdit.contract_type || 'advertising'}
-                        label="Tipo de Contrato *"
-                        onChange={(e) => setSubscriberContractFormEdit({ ...subscriberContractFormEdit, contract_type: e.target.value as any })}
-                      >
-                        <MenuItem value="advertising">Advertising</MenuItem>
-                        <MenuItem value="subscription">Subscription</MenuItem>
-                        <MenuItem value="partnership">Partnership</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      label="Título *"
-                      value={subscriberContractFormEdit.title || ''}
-                      onChange={(e) => setSubscriberContractFormEdit({ ...subscriberContractFormEdit, title: e.target.value })}
-                      size="small"
-                      required
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      label="Descrição"
-                      value={subscriberContractFormEdit.description || ''}
-                      onChange={(e) => setSubscriberContractFormEdit({ ...subscriberContractFormEdit, description: e.target.value })}
-                      size="small"
-                      multiline
-                      rows={2}
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Data de Início *"
-                      type="date"
-                      value={formatDateForInput(subscriberContractFormEdit.start_date) || ''}
-                      onChange={(e) =>
-                        setSubscriberContractFormEdit(
-                          applyContractStartDate(subscriberContractFormEdit, e.target.value)
-                        )
-                      }
-                      size="small"
-                      InputLabelProps={{ shrink: true }}
-                      required
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Data de Término"
-                      type="date"
-                      value={
-                        formatDateForInput(subscriberContractFormEdit.end_date) ||
-                        buildContractEndDateForStart(
-                          formatDateForInput(subscriberContractFormEdit.start_date) || getDefaultContractStartDate(),
-                          subscriberContractFormEdit.billing_interval
-                        )
-                      }
-                      onChange={(e) =>
-                        setSubscriberContractFormEdit(
-                          applyContractEndDate(subscriberContractFormEdit, e.target.value)
-                        )
-                      }
-                      size="small"
-                      InputLabelProps={{ shrink: true }}
-                      inputProps={{
-                        min: getMinContractEndDate(
-                          formatDateForInput(subscriberContractFormEdit.start_date) || getDefaultContractStartDate(),
-                          subscriberContractFormEdit.billing_interval || 'month'
-                        ),
-                      }}
-                      helperText={contractEndDateHelperText(
-                        formatDateForInput(subscriberContractFormEdit.start_date) || getDefaultContractStartDate(),
-                        subscriberContractFormEdit.billing_interval || 'month'
-                      )}
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Moeda"
-                      value={subscriberContractFormEdit.currency || 'BRL'}
-                      onChange={(e) => setSubscriberContractFormEdit({ ...subscriberContractFormEdit, currency: e.target.value })}
-                      size="small"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Intervalo de cobrança</InputLabel>
-                      <Select
-                        sx={sxSelectChosenGreen(!!subscriberContractFormEdit.billing_interval)}
-                        value={normalizeBillingInterval(subscriberContractFormEdit.billing_interval || 'month')}
-                        label="Intervalo de cobrança"
-                        disabled={!subscriberContractFormEdit.plan_id}
-                        onChange={(e) =>
-                          setSubscriberContractFormEdit(
-                            applyContractBillingInterval(subscriberContractFormEdit, e.target.value)
-                          )
-                        }
-                      >
-                        {getContractIntervalOptions(subscriberContractFormEdit.plan_id).map((opt) => (
-                          <MenuItem key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      label="Valor acordado"
-                      type="number"
-                      value={subscriberContractFormEdit.total_amount ?? ''}
-                      onChange={(e) =>
-                        setSubscriberContractFormEdit({
-                          ...subscriberContractFormEdit,
-                          total_amount: e.target.value === '' ? undefined : Number(e.target.value),
-                        })
-                      }
-                      size="small"
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">{subscriberContractFormEdit.currency || 'BRL'}</InputAdornment>
-                        ),
-                      }}
-                      inputProps={{ min: 0, step: '0.01' }}
-                      helperText={getSelectedPlanValueHelper(
-                        subscriberContractFormEdit.plan_id,
-                        subscriberContractFormEdit.billing_interval
-                      )}
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Status</InputLabel>
-                      <Select
-                        sx={sxSelectChosenGreen(true)}
-                        value={subscriberContractFormEdit.status || 'draft'}
-                        label="Status"
-                        onChange={(e) => setSubscriberContractFormEdit({ ...subscriberContractFormEdit, status: e.target.value as any })}
-                      >
-                        <MenuItem value="draft">Rascunho</MenuItem>
-                        <MenuItem value="active">Ativo</MenuItem>
-                        <MenuItem value="expired">Expirado</MenuItem>
-                        <MenuItem value="terminated">Terminado</MenuItem>
-                        <MenuItem value="cancelled">Cancelado</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12}>
-                    <Button
-                      variant="contained"
-                      startIcon={<Add />}
-                      onClick={async () => {
-                        if (!subscriberContractFormEdit.contract_number || !subscriberContractFormEdit.title) {
-                          setError('Número do contrato e título são obrigatórios');
-                          return;
-                        }
-                        const dateErrEdit = validateSubscriberContractForm(subscriberContractFormEdit);
-                        if (dateErrEdit) {
-                          setError(dateErrEdit);
-                          return;
-                        }
-                        if (!selectedSubscriber?.subscriber_id) {
-                          setError('Anunciante não selecionado');
-                          return;
-                        }
-                        try {
-                          if (editingSubscriberContractIndexEdit !== null) {
-                            // Atualizar contrato existente
-                            const contractToUpdate = activeContracts?.[editingSubscriberContractIndexEdit];
-                            if (!contractToUpdate?.contract_id) {
-                              setError('Contrato não encontrado para atualizar.');
-                              return;
-                            }
-                            await contractApi.update(contractToUpdate.contract_id, {
-                              ...subscriberContractFormEdit,
-                              start_date: formatDateForAPI(subscriberContractFormEdit.start_date),
-                              end_date: formatDateForAPI(
-                                subscriberContractFormEdit.end_date ||
-                                  buildContractEndDateForStart(
-                                    formatDateForInput(subscriberContractFormEdit.start_date) ||
-                                      getDefaultContractStartDate(),
-                                    subscriberContractFormEdit.billing_interval
-                                  )
-                              ),
-                            });
-                            setEditingSubscriberContractIndexEdit(null);
-                          } else {
-                            // Criar novo contrato
-                            await contractApi.create({
-                              ...subscriberContractFormEdit,
-                              start_date: formatDateForAPI(subscriberContractFormEdit.start_date) || '',
-                              end_date: formatDateForAPI(
-                                subscriberContractFormEdit.end_date ||
-                                  buildContractEndDateForStart(
-                                    formatDateForInput(subscriberContractFormEdit.start_date) ||
-                                      getDefaultContractStartDate(),
-                                    subscriberContractFormEdit.billing_interval
-                                  )
-                              ),
-                              subscriber_id: selectedSubscriber.subscriber_id,
-                              created_before_subscriber: false,
-                            });
-                          }
-                          // Recarregar contratos
-                          await refreshSubscriberContracts(selectedSubscriber.subscriber_id);
-                          const { rows, error } = await fetchSubscriberOverdueBillings(
-                            selectedSubscriber.subscriber_id
-                          );
-                          setEditSubscriberOverdueBillings(rows);
-                          setEditSubscriberOverdueError(error);
-                          // Limpar formulário
-                          setSubscriberContractFormEdit({
-                            contract_number: '',
-                            contract_type: 'advertising',
-                            title: '',
-                            description: '',
-                            start_date: getDefaultContractStartDate(),
-                            end_date: buildContractEndDateForStart(getDefaultContractStartDate()),
-                            currency: 'BRL',
-                            total_amount: undefined,
-                            status: 'draft',
-                            plan_id: undefined,
-                            billing_interval: 'month',
-                          });
-                        } catch (error: any) {
-                          setError(pickApiErrorMessage(error, 'Erro ao salvar contrato'));
-                        }
-                      }}
-                      disabled={!subscriberContractFormEdit.contract_number || !subscriberContractFormEdit.title}
-                    >
-                      {editingSubscriberContractIndexEdit !== null ? 'Atualizar Contrato' : 'Adicionar Contrato'}
-                    </Button>
-                    {editingSubscriberContractIndexEdit !== null && (
-                      <Button
-                        variant="outlined"
-                        onClick={() => {
-                          setEditingSubscriberContractIndexEdit(null);
-                          setSubscriberContractFormEdit({
-                            contract_number: '',
-                            contract_type: 'advertising',
-                            title: '',
-                            description: '',
-                            start_date: getDefaultContractStartDate(),
-                            end_date: buildContractEndDateForStart(getDefaultContractStartDate()),
-                            currency: 'BRL',
-                            total_amount: undefined,
-                            status: 'draft',
-                            plan_id: undefined,
-                            billing_interval: 'month',
-                          });
-                        }}
-                        sx={{ ml: 1 }}
-                      >
-                        Cancelar Edição
-                      </Button>
-                    )}
-                  </Grid>
-                </Grid>
+
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6">Contratos do Anunciante</Typography>
+                <Button
+                  variant="contained"
+                  startIcon={<Add />}
+                  onClick={() =>
+                    navigate(`/subscribers/${selectedSubscriber.subscriber_id}/contracts/new`)
+                  }
+                >
+                  Adicionar Contrato
+                </Button>
               </Box>
 
-              {/* Lista de Contratos do Anunciante */}
               {Array.isArray(activeContracts) && activeContracts.length > 0 ? (
-                <List>
-                  {activeContracts.map((contract, index) => (
-                    <ListItem
-                      key={contract.contract_id}
-                      sx={{
-                        border: `1px solid ${theme.palette.divider}`,
-                        borderRadius: 1,
-                        mb: 1,
-                        flexDirection: 'column',
-                        alignItems: 'stretch',
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
-                        <Box>
-                          <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                            {contract.contract_number} - {contract.title}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {contract.description || 'Sem descrição'}
-                            {contract.plan_name && ` | Plano: ${contract.plan_name}`}
-                            {contract.start_date && ` | Início: ${new Date(contract.start_date).toLocaleDateString('pt-BR')}`}
-                            {contract.end_date && ` | Fim: ${new Date(contract.end_date).toLocaleDateString('pt-BR')}`}
-                            {contract.total_amount != null &&
-                              ` | Valor: ${formatCurrencyAmount(contract.total_amount, contract.currency || 'BRL')}`}
-                            {((contract as any).billing_interval || contract.payment_terms) &&
-                              ` | ${billingIntervalLabel((contract as any).billing_interval || contract.payment_terms)}`}
-                          </Typography>
-                        </Box>
-                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                          <Chip
-                            label={contract.status || 'draft'}
-                            size="small"
-                            color={contract.status === 'active' ? 'success' : 'default'}
-                          />
-                          <IconButton
-                            size="small"
-                            onClick={async () => {
-                              try {
-                                const plans = await planApi.getAll(false);
-                                setAvailablePlansForContract(plans ?? []);
-                                const contractPlan = (plans ?? []).find(
-                                  (p: any) => getPlanIdFromOption(p) === Number(contract.plan_id)
-                                );
-                                const iv = normalizeBillingInterval(
-                                  (contract as any).billing_interval || contract.payment_terms
-                                );
-                                setSubscriberContractFormEdit({
-                                  contract_number: contract.contract_number,
-                                  contract_type: contract.contract_type as any,
-                                  title: contract.title,
-                                  description: contract.description || '',
-                                  start_date: formatDateForInput(contract.start_date) || getDefaultContractStartDate(),
-                                  end_date: formatDateForInput(contract.end_date) || buildContractEndDateForStart(getDefaultContractStartDate()),
-                                  currency: contract.currency || 'BRL',
-                                  billing_interval: iv,
-                                  payment_terms: billingIntervalLabel(iv),
-                                  total_amount:
-                                    contract.total_amount ??
-                                    (contractPlan ? getPlanPriceForInterval(contractPlan, iv) : undefined),
-                                  status: contract.status as any || 'draft',
-                                  plan_id: contract.plan_id || undefined,
-                                });
-                                setEditingSubscriberContractIndexEdit(index);
-                              } catch (error: any) {
-                                setError(
-                                  pickApiErrorMessage(error, 'Não foi possível carregar o contrato para edição.')
-                                );
-                              }
-                            }}
-                          >
-                            <Edit />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            onClick={async () => {
-                              if (window.confirm(`Tem certeza que deseja excluir o contrato "${contract.contract_number}"?`)) {
-                                try {
-                                  await contractApi.delete(contract.contract_id);
-                                  await refreshSubscriberContracts(selectedSubscriber!.subscriber_id);
-                                  const { rows, error } = await fetchSubscriberOverdueBillings(
-                                    selectedSubscriber!.subscriber_id
-                                  );
-                                  setEditSubscriberOverdueBillings(rows);
-                                  setEditSubscriberOverdueError(error);
-                                  if (editingSubscriberContractIndexEdit === index) {
-                                    setEditingSubscriberContractIndexEdit(null);
-                                    setSubscriberContractFormEdit({
-                                      contract_number: '',
-                                      contract_type: 'advertising',
-                                      title: '',
-                                      description: '',
-                                      start_date: getDefaultContractStartDate(),
-                                      end_date: buildContractEndDateForStart(getDefaultContractStartDate()),
-                                      currency: 'BRL',
-                                      total_amount: undefined,
-                                      status: 'draft',
-                                      plan_id: undefined,
-                                    });
-                                  }
-                                } catch (error: any) {
-                                  setError(pickApiErrorMessage(error, 'Erro ao excluir contrato'));
-                                }
-                              }
-                            }}
-                          >
-                            <Delete />
-                          </IconButton>
-                        </Box>
-                      </Box>
-                    </ListItem>
-                  ))}
-                </List>
+                <SubscriberContractList
+                  contracts={activeContracts}
+                  selectedContractId={editSelectedContractId}
+                  onSelect={(contract) => setEditSelectedContractId(Number(contract.contract_id))}
+                  onEdit={(contract) =>
+                    navigate(
+                      `/subscribers/${selectedSubscriber.subscriber_id}/contracts/${contract.contract_id}/edit`
+                    )
+                  }
+                  onDelete={async (contract) => {
+                    if (
+                      !window.confirm(
+                        `Tem certeza que deseja excluir o contrato "${contract.contract_number}"?`
+                      )
+                    ) {
+                      return;
+                    }
+                    try {
+                      await contractApi.delete(contract.contract_id);
+                      await refreshSubscriberContracts(selectedSubscriber.subscriber_id);
+                      const { rows, error } = await fetchSubscriberOverdueBillings(
+                        selectedSubscriber.subscriber_id
+                      );
+                      setEditSubscriberOverdueBillings(rows);
+                      setEditSubscriberOverdueError(error);
+                      if (editSelectedContractId === contract.contract_id) {
+                        setEditSelectedContractId(null);
+                      }
+                    } catch (error: any) {
+                      setError(pickApiErrorMessage(error, 'Erro ao excluir contrato'));
+                    }
+                  }}
+                />
               ) : (
                 <Alert severity="info">
                   Nenhum contrato vinculado ao anunciante ainda.
@@ -3370,7 +2938,22 @@ const Subscribers: React.FC = () => {
                 Rede permitida pelo plano (somente leitura)
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Locais, totens e Smart TVs conforme os planos dos contratos acima; mesma lógica do cadastro de anunciante.
+                {editSelectedContract ? (
+                  <>
+                    Exibindo locais, totens e Smart TVs do contrato{' '}
+                    <strong>
+                      {editSelectedContract.contract_number} — {editSelectedContract.title}
+                    </strong>
+                    {editSelectedContract.plan_name
+                      ? ` (plano: ${editSelectedContract.plan_name})`
+                      : editSelectedContract.plan_id
+                        ? ` (plano ID: ${editSelectedContract.plan_id})`
+                        : ''}
+                    . Selecione outro contrato na lista acima para ver a rede correspondente.
+                  </>
+                ) : (
+                  <>Selecione um contrato na lista acima para ver a rede do plano associado.</>
+                )}
               </Typography>
               <Tabs
                 value={editContractTopologySubTab}
@@ -3399,25 +2982,28 @@ const Subscribers: React.FC = () => {
               {editContractTopologySubTab === 0 && (
                 <PlanTopologyTabPanel
                   mode="locals"
-                  preview={editContractPlanPreview}
+                  preview={editSelectedContractTopologyPreview}
                   variant="edit"
-                  contractCount={activeContracts?.length ?? 0}
+                  contractCount={editSelectedContractId != null ? 1 : 0}
+                  dense
                 />
               )}
               {editContractTopologySubTab === 1 && (
                 <PlanTopologyTabPanel
                   mode="totens"
-                  preview={editContractPlanPreview}
+                  preview={editSelectedContractTopologyPreview}
                   variant="edit"
-                  contractCount={activeContracts?.length ?? 0}
+                  contractCount={editSelectedContractId != null ? 1 : 0}
+                  dense
                 />
               )}
               {editContractTopologySubTab === 2 && (
                 <PlanTopologyTabPanel
                   mode="smartTvs"
-                  preview={editContractPlanPreview}
+                  preview={editSelectedContractTopologyPreview}
                   variant="edit"
-                  contractCount={activeContracts?.length ?? 0}
+                  contractCount={editSelectedContractId != null ? 1 : 0}
+                  dense
                 />
               )}
             </Box>

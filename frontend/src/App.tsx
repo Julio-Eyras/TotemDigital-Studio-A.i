@@ -67,6 +67,9 @@ const SubscriberAccessExpiring = React.lazy(() => import('./pages/SubscriberAcce
 const Locals = React.lazy(() => import('./pages/Locals/Locals'));
 const SmartTvs = React.lazy(() => import('./pages/SmartTvs/SmartTvs'));
 const Subscribers = React.lazy(() => import('./pages/Subscribers/Subscribers'));
+const SubscriberContractEditPage = React.lazy(
+  () => import('./pages/Subscribers/SubscriberContractEditPage')
+);
 const Contracts = React.lazy(() => import('./pages/Contracts/Contracts'));
 const SubscriberContracts = React.lazy(() => import('./pages/SubscriberContracts/SubscriberContracts'));
 const PublisherContracts = React.lazy(() => import('./pages/PublisherContracts/PublisherContracts'));
@@ -454,6 +457,26 @@ const AppContent: React.FC = () => {
               <ProtectedRoute>
                 <Suspense fallback={<CircularProgress />}>
                   <Subscribers />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/subscribers/:subscriberId/contracts/new"
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<CircularProgress />}>
+                  <SubscriberContractEditPage />
+                </Suspense>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/subscribers/:subscriberId/contracts/:contractId/edit"
+            element={
+              <ProtectedRoute>
+                <Suspense fallback={<CircularProgress />}>
+                  <SubscriberContractEditPage />
                 </Suspense>
               </ProtectedRoute>
             }
