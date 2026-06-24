@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Card,
@@ -18,6 +19,7 @@ import {
   ListItemText,
   MenuItem,
   Select,
+  Switch,
   Step,
   StepLabel,
   Stepper,
@@ -25,6 +27,8 @@ import {
   Tabs,
   TextField,
   Typography,
+  alpha,
+  useTheme,
 } from '@mui/material';
 import { AutoAwesome, CheckCircle, CloudUpload, FlashOn, PlayCircleOutline, Refresh, Send } from '@mui/icons-material';
 import { CreatePublishPanel } from '../../components/Publish/CreatePublishPanel';
@@ -51,6 +55,8 @@ import {
   resolvePublishPreset,
 } from '../../config/publishTemplates';
 import { usePublishTemplatesFromApi } from '../../hooks/usePublishTemplatesFromApi';
+import { campaignTotemOptionLabel } from '../Campaigns/campaignHelpers';
+import { getTotemIdFromRow } from '../../utils/totemRowIds';
 
 const STEPS = ['Cliente', 'Tela', 'Conteúdo', 'Publicar'];
 
@@ -80,13 +86,6 @@ function getContractLabel(contract: Contract): string {
   const number = String(contractAny.contract_number || contractAny.contractNumber || '').trim();
   const plan = String(contractAny.plan_name || contractAny.planName || 'Plano').trim();
   return `${number || `Contrato ${contract.contract_id}`} - ${plan}`;
-}
-
-function getTotemLabel(totem: Player | any): string {
-  const name = String(totem.name || '').trim();
-  const identifier = String(totem.identifier || '').trim();
-  const local = String(totem.local_name || totem.localName || '').trim();
-  return [name || identifier || `Totem ${totem.totem_id}`, local].filter(Boolean).join(' - ');
 }
 
 function getMediaLabel(media: MediaItem): string {
@@ -125,6 +124,7 @@ function normalizePublicAssetUrl(raw?: string | null): string | undefined {
 }
 
 const QuickPublish: React.FC = () => {
+  const theme = useTheme();
   const breadcrumbs = useBreadcrumbs();
   const { presets: publishPresets, getPreset } = usePublishTemplatesFromApi();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -160,6 +160,7 @@ const QuickPublish: React.FC = () => {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null);
   const uploadPreviewRevokeRef = useRef<(() => void) | null>(null);
+  const autoTotemSelectionContractRef = useRef<number | null>(null);
   const selectedMediaPreviewUrlsRef = useRef<Map<number, string>>(new Map());
   const [selectedMediaPreviewTick, setSelectedMediaPreviewTick] = useState(0);
   const [loadingSelectedMediaPreview, setLoadingSelectedMediaPreview] = useState(false);
@@ -225,9 +226,26 @@ const QuickPublish: React.FC = () => {
   }, [selectedMediaPreviewTick]);
 
   const selectedTotemNames = useMemo(
-    () => totems.filter((totem) => totemIds.includes(totem.totem_id)).map(getTotemLabel),
+    () =>
+      totems
+        .filter((totem) => {
+          const id = getTotemIdFromRow(totem);
+          return id !== undefined && totemIds.includes(id);
+        })
+        .map((totem) => campaignTotemOptionLabel(totem)),
     [totemIds, totems]
   );
+
+  const eligibleTotemIds = useMemo(
+    () =>
+      totems
+        .map((totem) => getTotemIdFromRow(totem))
+        .filter((id): id is number => id !== undefined),
+    [totems]
+  );
+
+  const allTotemsSelected =
+    eligibleTotemIds.length > 0 && eligibleTotemIds.every((id) => totemIds.includes(id));
 
   const canPublish = Boolean(
     subscriberId && contractId && totemIds.length > 0 && safeMediaIds.length > 0 && title.trim()
@@ -402,6 +420,7 @@ const QuickPublish: React.FC = () => {
       setContractId('');
       setTotemIds([]);
       setMediaIds([]);
+      autoTotemSelectionContractRef.current = null;
       return;
     }
 
@@ -409,6 +428,7 @@ const QuickPublish: React.FC = () => {
       try {
         setLoadingDetails(true);
         setError(null);
+        autoTotemSelectionContractRef.current = null;
         setContractId('');
         setTotemIds([]);
         const fromUrl = parseIdListParam(searchParams.get('mediaIds'));
@@ -459,6 +479,34 @@ const QuickPublish: React.FC = () => {
 
     loadTotems();
   }, [contractId, subscriberId]);
+
+  /** Sem totens definidos: selecionar todos os elegíveis do contrato (mesma regra das campanhas). */
+  useEffect(() => {
+    if (!subscriberId || !contractId || loadingDetails) return;
+    const cid = Number(contractId);
+    if (eligibleTotemIds.length === 0) return;
+
+    if (totemIds.length > 0) {
+      autoTotemSelectionContractRef.current = cid;
+      return;
+    }
+    if (autoTotemSelectionContractRef.current === cid) return;
+
+    autoTotemSelectionContractRef.current = cid;
+    setTotemIds([...eligibleTotemIds]);
+  }, [contractId, eligibleTotemIds, loadingDetails, subscriberId, totemIds.length]);
+
+  /** Remove totens que deixaram de ser elegíveis sem apagar seleção quando a lista ainda está vazia. */
+  useEffect(() => {
+    if (!subscriberId || !contractId || loadingDetails) return;
+    if (totems.length === 0) return;
+    const ids = totemIds.filter((id) => Number.isInteger(id) && id > 0);
+    if (ids.length === 0) return;
+    const allowed = new Set(eligibleTotemIds);
+    const pruned = ids.filter((id) => allowed.has(id));
+    if (pruned.length === ids.length) return;
+    setTotemIds(pruned);
+  }, [contractId, eligibleTotemIds, loadingDetails, subscriberId, totems.length, totemIds]);
 
   useEffect(() => {
     if (!title.trim() && selectedSubscriber) {
@@ -766,7 +814,11 @@ const QuickPublish: React.FC = () => {
                 <Select
                   value={contractId === '' ? '' : String(contractId)}
                   label="Contrato ativo"
-                  onChange={(e) => setContractId(e.target.value === '' ? '' : Number(e.target.value))}
+                  onChange={(e) => {
+                    autoTotemSelectionContractRef.current = null;
+                    setTotemIds([]);
+                    setContractId(e.target.value === '' ? '' : Number(e.target.value));
+                  }}
                 >
                   {contracts.map((contract) => (
                     <MenuItem key={contract.contract_id} value={String(contract.contract_id)}>
@@ -777,28 +829,129 @@ const QuickPublish: React.FC = () => {
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} md={6}>
-              <FormControl fullWidth size="small" disabled={!contractId || loadingDetails || publishing}>
-                <InputLabel>Telas/Totens</InputLabel>
-                <Select
-                  multiple
-                  value={totemIds.map(String)}
-                  label="Telas/Totens"
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    const values = Array.isArray(value) ? value : String(value).split(',');
-                    setTotemIds(values.map(Number).filter((item) => Number.isInteger(item) && item > 0));
-                  }}
-                  renderValue={() => selectedTotemNames.join(', ')}
-                >
-                  {totems.map((totem) => (
-                    <MenuItem key={totem.totem_id} value={String(totem.totem_id)}>
-                      <Checkbox checked={totemIds.includes(totem.totem_id)} />
-                      <ListItemText primary={getTotemLabel(totem)} secondary={totem.status} />
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+            <Grid item xs={12}>
+              {loadingDetails && contractId ? <LinearProgress sx={{ mb: 1 }} /> : null}
+              {contractId && eligibleTotemIds.length > 0 && (
+                <FormControlLabel
+                  sx={{ mb: 1, display: 'flex', alignItems: 'center' }}
+                  control={
+                    <Switch
+                      checked={allTotemsSelected}
+                      disabled={loadingDetails || publishing}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        if (contractId) {
+                          autoTotemSelectionContractRef.current = Number(contractId);
+                        }
+                        setTotemIds(checked ? [...eligibleTotemIds] : []);
+                      }}
+                    />
+                  }
+                  label="Selecionar todos"
+                />
+              )}
+              <Autocomplete
+                multiple
+                disableCloseOnSelect
+                filterSelectedOptions={false}
+                size="small"
+                sx={{
+                  '& .MuiAutocomplete-inputRoot': {
+                    alignItems: 'flex-start',
+                    py: 1,
+                  },
+                  '& .MuiAutocomplete-tag': {
+                    my: 0.25,
+                  },
+                }}
+                options={totems}
+                getOptionLabel={(option) => campaignTotemOptionLabel(option)}
+                isOptionEqualToValue={(option, value) =>
+                  getTotemIdFromRow(option) === getTotemIdFromRow(value)
+                }
+                value={totems.filter((totem) => {
+                  const id = getTotemIdFromRow(totem);
+                  return id !== undefined && totemIds.includes(id);
+                })}
+                onChange={(_, newValue, reason, details) => {
+                  if (contractId) {
+                    autoTotemSelectionContractRef.current = Number(contractId);
+                  }
+                  let nextIds: number[];
+                  if (reason === 'selectOption' && details?.option) {
+                    const clickedId = getTotemIdFromRow(details.option);
+                    if (clickedId === undefined) return;
+                    nextIds = totemIds.includes(clickedId)
+                      ? totemIds.filter((id) => id !== clickedId)
+                      : [...totemIds, clickedId];
+                  } else {
+                    nextIds = newValue
+                      .map((totem) => getTotemIdFromRow(totem))
+                      .filter((id): id is number => id !== undefined);
+                  }
+                  setTotemIds(nextIds);
+                }}
+                renderTags={(tagValue, getTagProps) =>
+                  tagValue.map((option, index) => (
+                    <Chip
+                      {...getTagProps({ index })}
+                      label={campaignTotemOptionLabel(option)}
+                      size="small"
+                      color="success"
+                      variant="outlined"
+                    />
+                  ))
+                }
+                renderOption={(props, option, { selected }) => {
+                  const { key, ...liProps } = props as React.HTMLAttributes<HTMLLIElement> & { key?: string };
+                  const id = getTotemIdFromRow(option);
+                  return (
+                    <Box
+                      component="li"
+                      key={key ?? id}
+                      {...liProps}
+                      sx={{
+                        ...(selected && {
+                          bgcolor: alpha(theme.palette.success.main, 0.14),
+                          color: 'success.dark',
+                          fontWeight: 600,
+                          '&.Mui-focused, &.Mui-focusVisible': {
+                            bgcolor: alpha(theme.palette.success.main, 0.22),
+                          },
+                        }),
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                        <Typography variant="body2">{campaignTotemOptionLabel(option)}</Typography>
+                        {option.status ? (
+                          <Typography variant="caption" color="text.secondary">
+                            {option.status}
+                          </Typography>
+                        ) : null}
+                      </Box>
+                    </Box>
+                  );
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Telas/Totens (Onde o conteúdo será exibido)"
+                    size="small"
+                    InputLabelProps={{ shrink: true }}
+                    helperText={
+                      !contractId
+                        ? 'Selecione um contrato ativo para listar os totens elegíveis.'
+                        : eligibleTotemIds.length === 0
+                          ? 'Nenhum totem elegível para este contrato.'
+                          : allTotemsSelected
+                            ? 'Todos os totens elegíveis do contrato estão selecionados (padrão). Desmarque «Selecionar todos» ou retire totens para limitar.'
+                            : 'Selecione uma ou mais telas/totens onde o conteúdo será exibido.'
+                    }
+                  />
+                )}
+                disabled={!contractId || loadingDetails || publishing || totems.length === 0}
+                noOptionsText="Nenhum totem elegível para este contrato."
+              />
             </Grid>
 
             {publishMode === 'quick' && (
@@ -1282,7 +1435,7 @@ const QuickPublish: React.FC = () => {
           <Divider sx={{ my: 2 }} />
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
             {selectedTotemNames.map((name) => (
-              <Chip key={name} label={name} size="small" color="primary" variant="outlined" />
+              <Chip key={name} label={name} size="small" color="success" variant="outlined" />
             ))}
             {selectedMediaNames.map((name) => (
               <Chip key={name} label={name} size="small" color="success" variant="outlined" />
