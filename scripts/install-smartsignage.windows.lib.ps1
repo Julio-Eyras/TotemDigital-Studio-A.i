@@ -516,7 +516,19 @@ function New-SmSiRootEnv {
         "REDIS_HOST=127.0.0.1",
         "REDIS_PORT=6379",
         "MQTT_ENABLED=true",
-        "MQTT_URL=mqtt://127.0.0.1:1883"
+        "MQTT_URL=mqtt://127.0.0.1:1883",
+        "",
+        "# Financeiro / bloqueio inadimplencia (ver backend/env.example)",
+        "FINANCIAL_WHATSAPP_NUMBER=",
+        "FINANCIAL_CRON_ENFORCE_BLOCKS=15 4 * * *",
+        "WHATSAPP_CLOUD_API_TOKEN=",
+        "WHATSAPP_PHONE_NUMBER_ID=",
+        "WHATSAPP_API_VERSION=v21.0",
+        "FINANCIAL_WORKER_ENABLED=true",
+        "FINANCIAL_CRON_ISSUE=30 2 * * *",
+        "FINANCIAL_CRON_OVERDUE=30 3 * * *",
+        "FINANCIAL_CRON_REMINDERS=0 9 * * *",
+        "EMAIL_ENABLED=false"
     )
     $envFile = Join-Path $InstallDir ".env"
     $lines | Set-Content -Path $envFile -Encoding UTF8
