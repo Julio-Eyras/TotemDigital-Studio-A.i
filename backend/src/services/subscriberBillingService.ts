@@ -216,7 +216,7 @@ export class SubscriberBillingService {
           END as "isOverdue",
           CASE 
             WHEN sb.payment_status = 'pending' AND sb.due_date < CURRENT_DATE 
-            THEN EXTRACT(DAY FROM CURRENT_DATE - sb.due_date)::int
+            THEN GREATEST(0, (CURRENT_DATE - sb.due_date::date))
             ELSE 0
           END as "daysOverdue",
           CASE
@@ -231,7 +231,7 @@ export class SubscriberBillingService {
             WHEN sb.payment_status = 'pending'
               AND sb.due_date IS NOT NULL
               AND sb.due_date >= CURRENT_DATE
-            THEN GREATEST(0, EXTRACT(DAY FROM sb.due_date - CURRENT_DATE)::int)
+            THEN GREATEST(0, (sb.due_date::date - CURRENT_DATE))
             ELSE NULL
           END as "daysUntilDue"
         FROM subscriber_billing sb
@@ -293,7 +293,7 @@ export class SubscriberBillingService {
         END as "isOverdue",
         CASE 
           WHEN sb.payment_status = 'pending' AND sb.due_date < CURRENT_DATE 
-          THEN EXTRACT(DAY FROM CURRENT_DATE - sb.due_date)::int
+          THEN GREATEST(0, (CURRENT_DATE - sb.due_date::date))
           ELSE 0
         END as "daysOverdue"
       FROM subscriber_billing sb
@@ -346,7 +346,7 @@ export class SubscriberBillingService {
           END as "isOverdue",
           CASE 
             WHEN sb.payment_status IN ('pending', 'overdue') AND sb.due_date IS NOT NULL AND sb.due_date < CURRENT_DATE 
-            THEN EXTRACT(DAY FROM CURRENT_DATE - sb.due_date)::int
+            THEN GREATEST(0, (CURRENT_DATE - sb.due_date::date))
             ELSE 0
           END as "daysOverdue",
           CASE
@@ -361,7 +361,7 @@ export class SubscriberBillingService {
             WHEN sb.payment_status = 'pending'
               AND sb.due_date IS NOT NULL
               AND sb.due_date >= CURRENT_DATE
-            THEN GREATEST(0, EXTRACT(DAY FROM sb.due_date - CURRENT_DATE)::int)
+            THEN GREATEST(0, (sb.due_date::date - CURRENT_DATE))
             ELSE NULL
           END as "daysUntilDue"
         FROM subscriber_billing sb

@@ -64,8 +64,25 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun needsSetupFlow(): Boolean {
-        return !prefs.getBoolean(PlayerAdPrefs.KEY_DEV_FIRST_RUN_DONE, false) ||
-            prefs.getInt(PlayerAdPrefs.KEY_DEV_LAST_VERSION_CODE, -1) != currentVersionCode()
+        if (prefs.getBoolean(PlayerAdPrefs.KEY_DEV_FIRST_RUN_DONE, false)) {
+            return false
+        }
+        // Config já presente (ex.: push via adb) — não bloquear o player após update do APK.
+        return try {
+            val cfg = PlayerConfigLoader(this).load()
+            val valid = cfg.serverUrl.isNotBlank() && cfg.uin.isNotBlank() && cfg.deviceId.isNotBlank()
+            if (valid) {
+                prefs.edit()
+                    .putBoolean(PlayerAdPrefs.KEY_DEV_FIRST_RUN_DONE, true)
+                    .putInt(PlayerAdPrefs.KEY_DEV_LAST_VERSION_CODE, currentVersionCode())
+                    .commit()
+                false
+            } else {
+                true
+            }
+        } catch (_: Exception) {
+            true
+        }
     }
 
     private fun launchSetupFlow(reason: String, onboarding: Boolean) {
@@ -163,6 +180,9 @@ class MainActivity : AppCompatActivity() {
         kioskConfig = PlayerConfigLoader(this).load()
         if (!devUiOpen) {
             KioskController.applyPlayback(this, kioskConfig!!)
+            findViewById<android.view.View>(R.id.contentHost)?.post {
+                kioskConfig?.let { KioskController.applyPlayback(this@MainActivity, it) }
+            }
         }
 
         onBackPressedDispatcher.addCallback(
@@ -193,6 +213,8 @@ class MainActivity : AppCompatActivity() {
 
         exoPlayer = ExoPlayer.Builder(this).build()
         playerView.player = exoPlayer
+        playerView.useController = false
+        playerView.controllerHideOnTouch = false
 
         completeStartup()
     }

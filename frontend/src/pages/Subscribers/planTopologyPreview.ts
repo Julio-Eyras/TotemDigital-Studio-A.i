@@ -2,7 +2,7 @@
  * Pré-visualização da rede do plano (publicadores → locais/totens/TVs), só leitura.
  */
 
-import { Local, planApi, publisherApi, subscriberAccessApi } from '../../services/api';
+import { planApi } from '../../services/api';
 
 export interface PlanTopologyPreviewRow {
   rowKey: string;
@@ -13,7 +13,7 @@ export interface PlanTopologyPreviewRow {
   publishers: Array<{
     publisher_id: number;
     publisher_name: string;
-    locals: Local[];
+    locals: any[];
     totems: any[];
     smartTvs: any[];
   }>;
@@ -23,7 +23,7 @@ type PlanTopologyData = Pick<PlanTopologyPreviewRow, 'planId' | 'planName' | 'pu
 
 const planTopologyCache = new Map<number, Promise<PlanTopologyData>>();
 
-/** Limpa cache (útil após alterar plan_publisher_access no admin). */
+/** Limpa cache (útil após alterar locais/totens do plano no admin). */
 export function clearPlanTopologyPreviewCache(planId?: number): void {
   if (planId != null) {
     planTopologyCache.delete(planId);
@@ -33,38 +33,11 @@ export function clearPlanTopologyPreviewCache(planId?: number): void {
 }
 
 async function loadPlanTopologyData(planId: number): Promise<PlanTopologyData> {
-  let planName: string | null = null;
-  try {
-    const plan = await planApi.getById(planId);
-    planName = plan?.name ?? null;
-  } catch {
-    planName = null;
-  }
-
-  const accessList = await subscriberAccessApi.getPlanPublisherAccess({ planId });
-  const allowed = (accessList || []).filter((a: any) => a.is_allowed !== false);
-  const publishers = await Promise.all(
-    allowed.map(async (a: any) => {
-      const pid = a.publisher_id;
-      const [locals, totems, smartTvs] = await Promise.all([
-        publisherApi.getLocals(pid),
-        publisherApi.getTotems(pid),
-        publisherApi.getSmartTvs(pid),
-      ]);
-      return {
-        publisher_id: pid,
-        publisher_name: a.publisher_name || `Publisher ${pid}`,
-        locals: Array.isArray(locals) ? locals : [],
-        totems: Array.isArray(totems) ? totems : [],
-        smartTvs: Array.isArray(smartTvs) ? smartTvs : [],
-      };
-    })
-  );
-
+  const topology = await planApi.getNetworkTopology(planId);
   return {
-    planId,
-    planName: planName || `Plano #${planId}`,
-    publishers,
+    planId: topology.planId,
+    planName: topology.planName ?? null,
+    publishers: topology.publishers ?? [],
   };
 }
 

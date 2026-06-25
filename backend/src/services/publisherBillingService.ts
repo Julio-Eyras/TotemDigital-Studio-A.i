@@ -243,7 +243,7 @@ export class PublisherBillingService {
           END as "isOverdue",
           CASE 
             WHEN pb.payment_status IN ('pending', 'pending_payout') AND pb.due_date IS NOT NULL AND pb.due_date < CURRENT_DATE 
-            THEN EXTRACT(DAY FROM CURRENT_DATE - pb.due_date)::int
+            THEN GREATEST(0, (CURRENT_DATE - pb.due_date::date))
             ELSE 0
           END as "daysOverdue",
           CASE
@@ -258,7 +258,7 @@ export class PublisherBillingService {
             WHEN pb.payment_status IN ('pending', 'pending_payout')
               AND pb.due_date IS NOT NULL
               AND pb.due_date >= CURRENT_DATE
-            THEN GREATEST(0, EXTRACT(DAY FROM pb.due_date - CURRENT_DATE)::int)
+            THEN GREATEST(0, (pb.due_date::date - CURRENT_DATE))
             ELSE NULL
           END as "daysUntilDue"
         FROM publisher_billing pb
@@ -334,7 +334,7 @@ export class PublisherBillingService {
           END as "isOverdue",
           CASE 
             WHEN pb.payment_status IN ('pending', 'pending_payout') AND pb.due_date < CURRENT_DATE 
-            THEN EXTRACT(DAY FROM CURRENT_DATE - pb.due_date)::int
+            THEN GREATEST(0, (CURRENT_DATE - pb.due_date::date))
             ELSE 0
           END as "daysOverdue"
         FROM publisher_billing pb

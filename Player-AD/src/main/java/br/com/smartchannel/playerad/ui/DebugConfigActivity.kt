@@ -156,6 +156,7 @@ class DebugConfigActivity : AppCompatActivity() {
         bindScreenOrientationSpinner(current)
 
         setHeartbeatAndDispatchState(heartbeatOk = false, dispatchOk = false)
+        updateApplyButtonState()
 
         btnRegisterActivation.setOnClickListener {
             runRegisterActivation()
@@ -185,8 +186,13 @@ class DebugConfigActivity : AppCompatActivity() {
                 PlayerAdLogger.e("DEBUG_UI", "Falha ao salvar config antes de iniciar player", e)
                 return@setOnClickListener
             }
+
+            markSetupComplete()
+            if (!heartbeatOk) {
+                appendStatus("\nAviso: heartbeat não testado; o player tentará ligar ao servidor ao iniciar.")
+            }
+
             if (onboarding) {
-                markSetupComplete()
                 launchPlayerAndFinish()
             } else {
                 setResult(Activity.RESULT_OK)
@@ -195,12 +201,29 @@ class DebugConfigActivity : AppCompatActivity() {
         }
 
         btnStartWithoutSave.setOnClickListener {
-            if (onboarding) return@setOnClickListener
+            if (onboarding) {
+                val cfg = readConfigOrNull()
+                if (cfg == null) {
+                    setStatus("Preencha serverUrl, uin e deviceId para iniciar.")
+                    return@setOnClickListener
+                }
+                try {
+                    DisplayPresentationController.apply(this, cfg)
+                } catch (e: Exception) {
+                    PlayerAdLogger.w("DEBUG_UI", "Montagem ao iniciar sem salvar: ${e.message}")
+                }
+                markSetupComplete()
+                launchPlayerAndFinish()
+                return@setOnClickListener
+            }
             setResult(Activity.RESULT_OK)
             finish()
         }
 
-        btnStartWithoutSave.visibility = if (onboarding) android.view.View.GONE else android.view.View.VISIBLE
+        btnStartWithoutSave.visibility = android.view.View.VISIBLE
+        if (onboarding) {
+            btnStartWithoutSave.text = "Iniciar com config atual"
+        }
 
         if (onboarding) {
             onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
@@ -440,8 +463,10 @@ class DebugConfigActivity : AppCompatActivity() {
     }
 
     private fun updateApplyButtonState() {
-        btnApplyAndStart.isEnabled = heartbeatOk
-        btnApplyAndStart.alpha = if (heartbeatOk) 1f else 0.5f
+        val configValid = readConfigOrNull() != null
+        val canApply = if (onboarding) configValid else (configValid && heartbeatOk)
+        btnApplyAndStart.isEnabled = canApply
+        btnApplyAndStart.alpha = if (canApply) 1f else 0.5f
     }
 
     private fun setHeartbeatAndDispatchState(heartbeatOk: Boolean, dispatchOk: Boolean) {

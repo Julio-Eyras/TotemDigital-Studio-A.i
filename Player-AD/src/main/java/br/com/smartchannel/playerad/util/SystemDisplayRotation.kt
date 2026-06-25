@@ -42,9 +42,18 @@ object SystemDisplayRotation {
     )
 
     fun isDisplayRotationEffective(context: Context, displayRotation: Int): Boolean {
+        if (isUserRotationAligned(context, displayRotation)) {
+            return true
+        }
         val display = resolveDisplay(context) ?: return false
         val expected = displayRotationToSurfaceRotation(displayRotation)
         return display.rotation == expected
+    }
+
+    /** TV boxes costumam aplicar user_rotation mas [Display.getRotation] continua em 0. */
+    fun isUserRotationAligned(context: Context, displayRotation: Int): Boolean {
+        val expected = PlayerConfigLoader.displayRotationToUserRotation(displayRotation)
+        return readUserRotation(context) == expected
     }
 
     fun displayRotationToSurfaceRotation(displayRotation: Int): Int {

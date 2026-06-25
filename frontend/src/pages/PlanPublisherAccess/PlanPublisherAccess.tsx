@@ -72,6 +72,7 @@ import {
 import ResponsiveSectionNav from '../../components/Navigation/ResponsiveSectionNav';
 import { getTotemIdFromRow, getTotemLocalIdFromRow, getTotemPublisherIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { clearPlanTopologyPreviewCache } from '../Subscribers/planTopologyPreview';
 import { getLocalMenuItemSx, orderLocalsForSelect } from '../../utils/localOrdering';
 import { isStudioMode } from '../../config/studioMode';
 import { getProductTerminology } from '../../config/productTerminology';
@@ -712,6 +713,7 @@ const PlanPublisherAccessPage: React.FC = () => {
       }
 
       handleClosePlanDialog();
+      clearPlanTopologyPreviewCache(savedPlanId);
       await loadAllData();
     } catch (error: any) {
       setError(pickApiErrorMessage(error, 'Erro ao salvar plano'));

@@ -68,7 +68,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:textColor="#BDBDBD"
-            android:text="Preencha e teste antes de aplicar. «Aplicar e iniciar» exige heartbeat OK."/>
+            android:text="Na configuração inicial, «Aplicar e iniciar» fica ativo com serverUrl, uin e deviceId preenchidos. Recomenda-se vincular o código ou testar heartbeat antes."/>
 
         <TextView
             android:layout_width="match_parent"

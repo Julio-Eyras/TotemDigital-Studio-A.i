@@ -2657,6 +2657,21 @@ export const planApi = {
     return response.data.data;
   },
 
+  getNetworkTopology: async (planId: number): Promise<{
+    planId: number;
+    planName: string;
+    publishers: Array<{
+      publisher_id: number;
+      publisher_name: string;
+      locals: Local[];
+      totems: any[];
+      smartTvs: any[];
+    }>;
+  }> => {
+    const response = await api.get(`/plans/${planId}/network-topology`);
+    return response.data.data;
+  },
+
   getBySlug: async (slug: string): Promise<Plan> => {
     const response = await api.get(`/plans/slug/${slug}`);
     return response.data.data;

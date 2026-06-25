@@ -482,6 +482,231 @@ export class PlanService {
   }
 
   /**
+   * Rede permitida pelo plano (locais/totens/TVs), respeitando compact_scope e plan_local_access.
+   */
+  async getPlanNetworkTopology(planId: number): Promise<{
+    planId: number;
+    planName: string;
+    publishers: Array<{
+      publisher_id: number;
+      publisher_name: string;
+      locals: any[];
+      totems: any[];
+      smartTvs: any[];
+    }>;
+  }> {
+    const plan = await this.getPlanById(planId);
+    if (!plan) {
+      throw new Error('Plano não encontrado');
+    }
+
+    const accessRows = await this.db.findMany(
+      `
+        SELECT ppa.publisher_id, pub.name AS publisher_name, ppa.restrictions
+        FROM plan_publisher_access ppa
+        INNER JOIN publishers pub ON pub.publisher_id = ppa.publisher_id
+        WHERE ppa.plan_id = $1
+          AND ppa.is_allowed = true
+          AND COALESCE(ppa.is_active, true) = true
+        ORDER BY pub.name
+      `,
+      [planId]
+    );
+
+    const planLocalRows = await this.db.findMany(
+      `
+        SELECT local_id
+        FROM plan_local_access
+        WHERE plan_id = $1
+          AND is_allowed = true
+          AND COALESCE(is_active, true) = true
+      `,
+      [planId]
+    );
+    const planLocalIds = new Set<number>(
+      planLocalRows.map((row: { local_id: number }) => Number(row.local_id))
+    );
+
+    const compactLocalIds = new Set<number>();
+    const enabledTotemsByLocal = new Map<number, Set<number>>();
+    let hasCompactScope = false;
+
+    const parseRestrictions = (raw: unknown): Record<string, any> => {
+      if (!raw) return {};
+      if (typeof raw === 'string') {
+        try {
+          return JSON.parse(raw) as Record<string, any>;
+        } catch {
+          return {};
+        }
+      }
+      if (typeof raw === 'object' && !Array.isArray(raw)) {
+        return raw as Record<string, any>;
+      }
+      return {};
+    };
+
+    const pushPositiveInts = (target: Set<number>, values: unknown): void => {
+      if (!Array.isArray(values)) return;
+      for (const value of values) {
+        const n = Number(value);
+        if (Number.isInteger(n) && n > 0) target.add(n);
+      }
+    };
+
+    for (const row of accessRows) {
+      const compactScope = parseRestrictions(row.restrictions).compact_scope;
+      if (!compactScope || typeof compactScope !== 'object') continue;
+
+      const localIds = compactScope.local_ids;
+      if (Array.isArray(localIds) && localIds.length > 0) {
+        hasCompactScope = true;
+        pushPositiveInts(compactLocalIds, localIds);
+      }
+
+      const enabledByLocal = compactScope.enabled_totem_ids_by_local;
+      if (enabledByLocal && typeof enabledByLocal === 'object' && !Array.isArray(enabledByLocal)) {
+        hasCompactScope = true;
+        for (const [localKey, totemIds] of Object.entries(enabledByLocal)) {
+          const localId = Number(localKey);
+          if (!Number.isInteger(localId) || localId <= 0) continue;
+          if (!enabledTotemsByLocal.has(localId)) {
+            enabledTotemsByLocal.set(localId, new Set<number>());
+          }
+          pushPositiveInts(enabledTotemsByLocal.get(localId)!, totemIds);
+        }
+      }
+    }
+
+    const publishers: Array<{
+      publisher_id: number;
+      publisher_name: string;
+      locals: any[];
+      totems: any[];
+      smartTvs: any[];
+    }> = [];
+
+    for (const row of accessRows) {
+      const publisherId = Number(row.publisher_id);
+      const allLocals = await this.db.findMany(
+        `
+          SELECT
+            l.local_id,
+            l.name,
+            l.address,
+            l.city,
+            l.state,
+            l.publisher_id,
+            l.is_active
+          FROM locals l
+          WHERE l.publisher_id = $1
+            AND COALESCE(l.is_active, true) = true
+          ORDER BY l.name
+        `,
+        [publisherId]
+      );
+
+      let allowedLocals = allLocals;
+      if (hasCompactScope && compactLocalIds.size > 0) {
+        allowedLocals = allLocals.filter((local: { local_id: number }) =>
+          compactLocalIds.has(Number(local.local_id))
+        );
+      } else if (planLocalIds.size > 0) {
+        allowedLocals = allLocals.filter((local: { local_id: number }) =>
+          planLocalIds.has(Number(local.local_id))
+        );
+      }
+
+      const allowedLocalIds = allowedLocals.map((local: { local_id: number }) => Number(local.local_id));
+      if (allowedLocalIds.length === 0) {
+        publishers.push({
+          publisher_id: publisherId,
+          publisher_name: row.publisher_name,
+          locals: [],
+          totems: [],
+          smartTvs: [],
+        });
+        continue;
+      }
+
+      const totems = await this.db.findMany(
+        `
+          SELECT
+            t.totem_id,
+            t.identifier,
+            t.uin,
+            t.device_id,
+            t.name,
+            t.description,
+            t.model,
+            t.manufacturer,
+            t.status,
+            t.is_active,
+            t.local_id,
+            l.name AS local_name
+          FROM totems t
+          INNER JOIN locals l ON l.local_id = t.local_id
+          WHERE t.local_id = ANY($1::int[])
+            AND COALESCE(t.is_active, true) = true
+          ORDER BY l.name, t.name
+        `,
+        [allowedLocalIds]
+      );
+
+      const filteredTotems = totems.filter((totem: { totem_id: number; local_id: number }) => {
+        if (!hasCompactScope) return true;
+        const localId = Number(totem.local_id);
+        if (compactLocalIds.size > 0 && !compactLocalIds.has(localId)) return false;
+        const allowedTotems = enabledTotemsByLocal.get(localId);
+        if (!allowedTotems || allowedTotems.size === 0) return true;
+        return allowedTotems.has(Number(totem.totem_id));
+      });
+
+      const filteredTotemIds = new Set(
+        filteredTotems.map((totem: { totem_id: number }) => Number(totem.totem_id))
+      );
+
+      const smartTvs = await this.db.findMany(
+        `
+          SELECT
+            st.smart_tv_id,
+            st.name,
+            st.brand,
+            st.model,
+            st.is_active,
+            st.totem_id,
+            t.local_id,
+            l.name AS local_name
+          FROM smart_tvs st
+          INNER JOIN totems t ON t.totem_id = st.totem_id
+          INNER JOIN locals l ON l.local_id = t.local_id
+          WHERE t.local_id = ANY($1::int[])
+            AND COALESCE(st.is_active, true) = true
+            AND COALESCE(t.is_active, true) = true
+          ORDER BY l.name, st.name
+        `,
+        [allowedLocalIds]
+      ).then((rows: Array<{ totem_id: number }>) =>
+        rows.filter((tv) => filteredTotemIds.has(Number(tv.totem_id)))
+      );
+
+      publishers.push({
+        publisher_id: publisherId,
+        publisher_name: row.publisher_name,
+        locals: allowedLocals,
+        totems: filteredTotems,
+        smartTvs,
+      });
+    }
+
+    return {
+      planId,
+      planName: plan.name,
+      publishers,
+    };
+  }
+
+  /**
    * Remove plano
    */
   async deletePlan(planId: number): Promise<void> {

@@ -68,6 +68,30 @@ router.get('/all', authenticateToken, authorizeRole(['admin', 'admin_sql']), asy
 });
 
 /**
+ * @route GET /api/plans/:id/network-topology
+ * @desc Rede permitida pelo plano (locais, totens, Smart TVs)
+ * @access Private
+ */
+router.get('/:id/network-topology', authenticateToken, async (req, res) => {
+  try {
+    const planId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(planId) || planId <= 0) {
+      return res.status(400).json({ success: false, message: 'ID do plano inválido' });
+    }
+
+    const topology = await getPlanService().getPlanNetworkTopology(planId);
+    return res.json({ success: true, data: topology });
+  } catch (error: any) {
+    await logError('Erro ao buscar topologia do plano', error);
+    const status = error.message === 'Plano não encontrado' ? 404 : 500;
+    return res.status(status).json({
+      success: false,
+      message: error.message || 'Erro interno do servidor',
+    });
+  }
+});
+
+/**
  * @route GET /api/plans/:id
  * @desc Busca plano por ID
  * @access Public

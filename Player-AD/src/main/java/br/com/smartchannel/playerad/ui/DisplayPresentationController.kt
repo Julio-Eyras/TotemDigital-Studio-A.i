@@ -16,10 +16,16 @@ import br.com.smartchannel.playerad.util.ViewDisplayRotation
 object DisplayPresentationController {
 
     fun apply(activity: Activity, config: PlayerConfig) {
-        val contentHost = activity.findViewById<View>(R.id.contentHost) ?: activity.findViewById(R.id.root)
+        val contentHost = activity.findViewById<View>(R.id.contentHost)
+        if (contentHost == null) {
+            // Ecrã de debug não tem viewport de playback; só ajusta rotação do SO.
+            SystemDisplayRotation.apply(activity, config.displayRotation)
+            return
+        }
 
         val systemResult = SystemDisplayRotation.apply(activity, config.displayRotation)
-        val needsVisualFallback = !systemResult.displayEffective
+        val needsVisualFallback = !systemResult.displayEffective &&
+            !SystemDisplayRotation.isUserRotationAligned(activity, config.displayRotation)
         ViewDisplayRotation.apply(
             activity = activity,
             root = contentHost,
@@ -53,6 +59,9 @@ object DisplayPresentationController {
                 append(metrics.densityDpi)
                 append(" | systemRotation=")
                 append(if (systemEffective) "effective" else "ineffective")
+                if (!systemEffective && SystemDisplayRotation.isUserRotationAligned(activity, config.displayRotation)) {
+                    append(" | userRotation=aligned")
+                }
                 if (visualFallback) append(" | visualFallback=on")
             }
         )
