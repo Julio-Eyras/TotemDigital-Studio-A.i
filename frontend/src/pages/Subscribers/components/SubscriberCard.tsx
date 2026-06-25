@@ -75,7 +75,7 @@ const SubscriberCard: React.FC<SubscriberCardProps> = ({
   const contractAlert = getSubscriberListContractAlert(subscriber);
 
   const metricItems = [
-    { label: 'Contratos', value: activeContracts, icon: <Article fontSize="small" color="action" /> },
+    { label: 'Contratos Ativos', value: activeContracts, icon: <Article fontSize="small" color="action" /> },
     { label: 'Mídias', value: mediaCount, icon: <VideoLibrary fontSize="small" color="action" /> },
     { label: 'Playlists', value: playlistCount, icon: <QueueMusic fontSize="small" color="action" /> },
     { label: 'Campanhas', value: campaignCount, icon: <CampaignIcon fontSize="small" color="action" /> },
