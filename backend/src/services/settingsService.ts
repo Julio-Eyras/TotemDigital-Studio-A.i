@@ -6,6 +6,11 @@
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import { logError } from '../utils/loggerHelper';
+import {
+  invalidateFinancialIntegrationConfigCache,
+} from './financialIntegrationConfigService';
+import { isSecretSettingKey, maskSecretSettingValue } from '../constants/secretSettingKeys';
+import { DEFAULT_FINANCIAL_SETTINGS } from '../constants/defaultFinancialSettings';
 
 export interface SystemSetting {
   id: number;
@@ -158,12 +163,48 @@ export class SettingsService {
     this.defaultUiSettingsEnsured = true;
   }
 
+  /** Insere chaves financial.* ausentes (bases instaladas antes dos seeds financeiros). */
+  private async ensureDefaultFinancialSettings(): Promise<void> {
+    for (const setting of DEFAULT_FINANCIAL_SETTINGS) {
+      const existing = await this.db.findFirst(
+        'SELECT setting_id FROM system_settings WHERE setting_key = ?',
+        [setting.key]
+      );
+      if (existing) {
+        continue;
+      }
+
+      await this.db.executeRaw(
+        `
+        INSERT INTO system_settings (
+          setting_key, setting_value, setting_type, category, description,
+          is_public, is_editable, validation, options, default_value
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+        [
+          setting.key,
+          this.convertValueToString(setting.value, setting.type),
+          setting.type,
+          setting.category,
+          setting.description,
+          setting.isPublic,
+          setting.isEditable,
+          setting.validation || null,
+          setting.options ? JSON.stringify(setting.options) : null,
+          setting.defaultValue,
+        ]
+      );
+    }
+  }
+
   /**
    * Busca todas as configurações organizadas por categoria
    */
   async getSettings(): Promise<SettingsResponse> {
     try {
       await this.ensureDefaultUiSettings();
+      await this.ensureDefaultFinancialSettings();
 
       const settings = await this.db.findMany(`
         SELECT 
@@ -201,9 +242,9 @@ export class SettingsService {
 
         // Separar configurações públicas e privadas
         if (setting.isPublic) {
-          publicSettings[setting.key] = convertedValue;
+          publicSettings[setting.key] = maskSecretSettingValue(setting.key, convertedValue);
         } else {
-          privateSettings[setting.key] = convertedValue;
+          privateSettings[setting.key] = maskSecretSettingValue(setting.key, convertedValue);
         }
 
         // Organizar por categoria
@@ -220,7 +261,7 @@ export class SettingsService {
         categories[setting.category].settings.push({
           ...setting,
           isEditable: isEditableNorm,
-          value: convertedValue,
+          value: maskSecretSettingValue(setting.key, convertedValue),
           options: this.tryParseJson(setting.options)
         });
       });
@@ -278,7 +319,7 @@ export class SettingsService {
       return {
         ...setting,
         isEditable,
-        value: this.convertSettingValue(setting.value, setting.type),
+        value: maskSecretSettingValue(setting.key, this.convertSettingValue(setting.value, setting.type)),
         options: this.tryParseJson(setting.options)
       };
 
@@ -315,6 +356,13 @@ export class SettingsService {
             continue;
           }
 
+          if (isSecretSettingKey(key)) {
+            const trimmed = String(value ?? '').trim();
+            if (!trimmed || trimmed === '********') {
+              continue;
+            }
+          }
+
           // Converter valor para string
           const stringValue = this.convertValueToString(value, setting.type);
 
@@ -345,6 +393,10 @@ export class SettingsService {
         updatedSettings: updates,
         changes: settings
       });
+
+      if (updates.some((k) => k.startsWith('financial.'))) {
+        invalidateFinancialIntegrationConfigCache();
+      }
 
       return {
         isValid: true,
@@ -742,6 +794,7 @@ export class SettingsService {
       'database': 'Banco de Dados',
       'ai': 'Inteligência Artificial',
       'billing': 'Faturamento',
+      'financial': 'Financeiro',
       'security': 'Segurança',
       'performance': 'Performance',
       'notifications': 'Notificações',
@@ -763,6 +816,7 @@ export class SettingsService {
       'database': 'Configurações do banco de dados',
       'ai': 'Configurações de inteligência artificial',
       'billing': 'Configurações de faturamento',
+      'financial': 'Financeiro, bloqueio por inadimplência e integrações de envio',
       'security': 'Configurações de segurança',
       'performance': 'Configurações de performance',
       'notifications': 'Configurações de notificações',

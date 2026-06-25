@@ -5,7 +5,7 @@
 
 import nodemailer from 'nodemailer';
 import { logError, logInfo, logWarn } from '../utils/loggerHelper';
-import { config } from '../config/env';
+import { resolveEmailIntegrationConfig } from './financialIntegrationConfigService';
 
 export interface EmailOptions {
   to: string | string[];
@@ -31,46 +31,62 @@ export interface EmailTemplate {
 
 export class EmailService {
   private transporter: nodemailer.Transporter | null = null;
-  private isEnabled: boolean;
-  private defaultFrom: string;
-
-  constructor() {
-    this.isEnabled = config.email.enabled;
-    this.defaultFrom = config.email.smtp.from;
-    
-    if (this.isEnabled) {
-      this.initializeTransporter();
-    }
-  }
+  private isEnabled = false;
+  private defaultFrom = '';
+  private lastConfigSignature = '';
 
   /**
-   * Inicializa transporter do Nodemailer
+   * Recarrega SMTP a partir de Configurações → Financeiro (system_settings) ou .env.
    */
-  private initializeTransporter(): void {
+  private async refreshTransporter(): Promise<boolean> {
     try {
+      const emailCfg = await resolveEmailIntegrationConfig();
+      this.defaultFrom = emailCfg.smtp.from;
+
+      const signature = JSON.stringify({
+        enabled: emailCfg.enabled,
+        host: emailCfg.smtp.host,
+        port: emailCfg.smtp.port,
+        secure: emailCfg.smtp.secure,
+        user: emailCfg.smtp.user,
+        pass: emailCfg.smtp.pass ? '***' : '',
+        from: emailCfg.smtp.from,
+        tlsRejectUnauthorized: emailCfg.smtp.tlsRejectUnauthorized,
+      });
+
+      if (signature === this.lastConfigSignature && this.transporter) {
+        return this.isEnabled;
+      }
+
+      this.lastConfigSignature = signature;
+      this.transporter = null;
+      this.isEnabled = emailCfg.enabled;
+
+      if (!emailCfg.enabled) {
+        return false;
+      }
+
       const smtpConfig = {
-        host: config.email.smtp.host,
-        port: config.email.smtp.port,
-        secure: config.email.smtp.secure,
+        host: emailCfg.smtp.host,
+        port: emailCfg.smtp.port,
+        secure: emailCfg.smtp.secure,
         auth: {
-          user: config.email.smtp.user,
-          pass: config.email.smtp.pass
+          user: emailCfg.smtp.user,
+          pass: emailCfg.smtp.pass,
         },
         tls: {
-          rejectUnauthorized: config.email.smtp.tlsRejectUnauthorized
-        }
+          rejectUnauthorized: emailCfg.smtp.tlsRejectUnauthorized,
+        },
       };
 
-      // Verificar se credenciais estão configuradas
       if (!smtpConfig.auth.user || !smtpConfig.auth.pass) {
         logWarn('SMTP não configurado. Email desabilitado.', {});
         this.isEnabled = false;
-        return;
+        return false;
       }
 
       this.transporter = nodemailer.createTransport(smtpConfig);
 
-      // Verificar conexão (não bloquear fluxo)
       this.transporter.verify().then(() => {
         logInfo('Email Service configurado e pronto', {}).catch(() => {});
       }).catch((error: any) => {
@@ -78,11 +94,24 @@ export class EmailService {
         this.isEnabled = false;
       });
 
+      return true;
     } catch (error: any) {
-      // Não podemos usar await em construtor; logar de forma assíncrona
       logError('Erro ao inicializar Email Service', error, {}).catch(() => {});
       this.isEnabled = false;
+      this.transporter = null;
+      return false;
     }
+  }
+
+  /**
+   * Inicializa transporter do Nodemailer (legado — usa refreshTransporter).
+   */
+  private initializeTransporter(): void {
+    this.refreshTransporter().catch(() => {});
+  }
+
+  constructor() {
+    this.initializeTransporter();
   }
 
   /**
@@ -90,6 +119,8 @@ export class EmailService {
    */
   async sendEmail(options: EmailOptions): Promise<{ success: boolean; messageId?: string; error?: string }> {
     try {
+      await this.refreshTransporter();
+
       if (!this.isEnabled || !this.transporter) {
         if (process.env.NODE_ENV === 'development') {
           await logInfo('Email não enviado (SMTP desabilitado)', {
@@ -433,6 +464,7 @@ Smart Signage Pro - Sistema de Sinalização Digital
    */
   async testConnection(): Promise<boolean> {
     try {
+      await this.refreshTransporter();
       if (!this.transporter) {
         return false;
       }
@@ -450,6 +482,12 @@ Smart Signage Pro - Sistema de Sinalização Digital
    * Verifica se o serviço está habilitado
    */
   isServiceEnabled(): boolean {
+    return this.isEnabled;
+  }
+
+  /** Verifica SMTP ativo (recarrega configuração antes). */
+  async isServiceEnabledAsync(): Promise<boolean> {
+    await this.refreshTransporter();
     return this.isEnabled && this.transporter !== null;
   }
 }

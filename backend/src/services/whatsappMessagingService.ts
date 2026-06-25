@@ -2,8 +2,8 @@
  * WhatsApp — Meta Cloud API (opcional) ou link wa.me para encaminhamento manual.
  */
 
-import { financialConfig } from '../config/env';
 import { logError, logInfo, logWarn } from '../utils/loggerHelper';
+import { resolveWhatsAppIntegrationConfig } from './financialIntegrationConfigService';
 
 export interface WhatsAppSendResult {
   sent: boolean;
@@ -23,11 +23,9 @@ function buildWaMeUrl(phoneDigits: string, text: string): string {
 }
 
 export class WhatsappMessagingService {
-  private get cloudApiEnabled(): boolean {
-    return Boolean(
-      process.env.WHATSAPP_CLOUD_API_TOKEN?.trim() &&
-        process.env.WHATSAPP_PHONE_NUMBER_ID?.trim()
-    );
+  private async cloudApiEnabled(): Promise<boolean> {
+    const cfg = await resolveWhatsAppIntegrationConfig();
+    return Boolean(cfg.cloudApiToken && cfg.phoneNumberId);
   }
 
   buildLink(toPhone: string, text: string): string | null {
@@ -47,22 +45,24 @@ export class WhatsappMessagingService {
     }
 
     const waMeUrl = buildWaMeUrl(digits, text);
+    const cfg = await resolveWhatsAppIntegrationConfig();
 
-    if (!this.cloudApiEnabled) {
+    if (!(await this.cloudApiEnabled())) {
       await logInfo('WhatsApp Cloud API não configurada — link wa.me gerado', {
         to: digits.slice(0, 6) + '***',
       });
       return {
         sent: false,
         mode: 'wa_me_link',
-        reason: 'Configure WHATSAPP_CLOUD_API_TOKEN e WHATSAPP_PHONE_NUMBER_ID para envio automático',
+        reason:
+          'Configure financial.whatsapp_api_token e financial.whatsapp_phone_number_id em Configurações → Financeiro (ou .env)',
         waMeUrl,
       };
     }
 
-    const token = process.env.WHATSAPP_CLOUD_API_TOKEN!.trim();
-    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID!.trim();
-    const apiVersion = process.env.WHATSAPP_API_VERSION?.trim() || 'v21.0';
+    const token = cfg.cloudApiToken;
+    const phoneNumberId = cfg.phoneNumberId;
+    const apiVersion = cfg.apiVersion || 'v21.0';
 
     try {
       const response = await fetch(
@@ -112,19 +112,18 @@ export class WhatsappMessagingService {
     }
   }
 
-  /** Link para falar com o financeiro da plataforma (FINANCIAL_WHATSAPP_NUMBER). */
-  merchantContactLink(text: string): string | null {
-    const phone = financialConfig.whatsappNumber?.replace(/\D/g, '');
+  /** Link para falar com o financeiro da plataforma. */
+  async merchantContactLink(text: string): Promise<string | null> {
+    const cfg = await resolveWhatsAppIntegrationConfig();
+    const phone = cfg.merchantNumber?.replace(/\D/g, '');
     if (!phone) return null;
     return buildWaMeUrl(phone, text);
   }
 }
 
-let whatsappMessagingServiceInstance: WhatsappMessagingService | null = null;
+let instance: WhatsappMessagingService | null = null;
 
 export function getWhatsappMessagingService(): WhatsappMessagingService {
-  if (!whatsappMessagingServiceInstance) {
-    whatsappMessagingServiceInstance = new WhatsappMessagingService();
-  }
-  return whatsappMessagingServiceInstance;
+  if (!instance) instance = new WhatsappMessagingService();
+  return instance;
 }

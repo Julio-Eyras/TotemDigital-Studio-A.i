@@ -79,6 +79,15 @@ function sortFinancialSettings(list: SystemSetting[]): SystemSetting[] {
   });
 }
 
+const SECRET_FINANCIAL_SETTING_KEYS = new Set([
+  'financial.smtp_pass',
+  'financial.whatsapp_api_token',
+]);
+
+function isSecretFinancialSetting(key: string): boolean {
+  return SECRET_FINANCIAL_SETTING_KEYS.has(key);
+}
+
 function renderSettingField(
   s: SystemSetting,
   onChange: (key: string, value: string) => void
@@ -104,22 +113,31 @@ function renderSettingField(
     s.type === 'array' ||
     s.key.includes('email_body') ||
     s.key.includes('whatsapp_message');
+  const isSecret = isSecretFinancialSetting(s.key);
   return (
     <TextField
       fullWidth
       label={s.description || s.key}
       value={formatSettingValueForEdit(s)}
       onChange={(e) => onChange(s.key, e.target.value)}
-      type={s.type === 'number' ? 'number' : 'text'}
+      type={
+        isSecret ? 'password' : s.type === 'number' ? 'number' : 'text'
+      }
       multiline={multiline}
       minRows={multiline ? 4 : undefined}
       disabled={readOnly}
       helperText={
-        s.key.startsWith('financial.overdue_block_')
-          ? 'Placeholders: {{subscriber_name}}, {{overdue_count}}, {{amount_total}}, {{grace_days}}, {{days_overdue}}, {{billing_url}}, {{invoice_list}}, {{merchant_name}}'
-          : s.type === 'json' || s.type === 'array'
-            ? 'Edite como JSON válido.'
-            : undefined
+        isSecret
+          ? 'Deixe em branco ao salvar para manter o valor atual.'
+          : s.key.startsWith('financial.overdue_block_')
+            ? 'Placeholders: {{subscriber_name}}, {{overdue_count}}, {{amount_total}}, {{grace_days}}, {{days_overdue}}, {{billing_url}}, {{invoice_list}}, {{merchant_name}}'
+            : s.key === 'financial.merchant_whatsapp_number'
+              ? 'Somente dígitos, com DDI (ex.: 5551999999999).'
+              : s.key === 'financial.whatsapp_phone_number_id'
+                ? 'ID numérico do número WhatsApp na Meta Business.'
+                : s.type === 'json' || s.type === 'array'
+                  ? 'Edite como JSON válido.'
+                  : undefined
       }
     />
   );
@@ -184,6 +202,19 @@ const SETTINGS_SECTIONS = [
 ] as const;
 
 const FINANCIAL_SETTINGS_ORDER: string[] = [
+  'financial.worker_enabled',
+  'financial.smtp_enabled',
+  'financial.smtp_host',
+  'financial.smtp_port',
+  'financial.smtp_secure',
+  'financial.smtp_user',
+  'financial.smtp_pass',
+  'financial.smtp_from',
+  'financial.smtp_tls_reject_unauthorized',
+  'financial.whatsapp_api_token',
+  'financial.whatsapp_phone_number_id',
+  'financial.whatsapp_api_version',
+  'financial.merchant_whatsapp_number',
   'financial.block_publish_on_overdue',
   'financial.block_publish_overdue_grace_days',
   'financial.auto_pause_campaigns_on_block',
@@ -563,13 +594,13 @@ const Settings: React.FC = () => {
         <Card variant="outlined" sx={{ mb: 3 }}>
           <CardContent>
             <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-              Inadimplência, bloqueio e notificações
+              Integrações, inadimplência e notificações
             </Typography>
             <Typography variant="body2" color="text.secondary" component="div">
-              Defina quantos dias após o vencimento o sistema bloqueia novas publicações, pausa campanhas ativas e
-              envia e-mail/WhatsApp padronizados. Para envio automático de WhatsApp, configure no servidor{' '}
-              <code>WHATSAPP_CLOUD_API_TOKEN</code> e <code>WHATSAPP_PHONE_NUMBER_ID</code> (Meta Cloud API). Sem API,
-              o e-mail inclui link <code>wa.me</code> para encaminhamento manual.
+              Configure aqui o <strong>SMTP</strong>, o <strong>WhatsApp Meta Cloud API</strong> e o{' '}
+              <strong>worker financeiro</strong> (crons de faturas, lembretes e bloqueio). Valores do{' '}
+              <code>.env</code> servem como fallback quando o campo está vazio. Sem API WhatsApp, o e-mail inclui link{' '}
+              <code>wa.me</code> para encaminhamento manual.
             </Typography>
           </CardContent>
         </Card>
@@ -584,8 +615,33 @@ const Settings: React.FC = () => {
         </Box>
 
         <Grid container spacing={3}>
+          {loading && financialSettings.length === 0 ? (
+            <Grid item xs={12}>
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                <CircularProgress />
+              </Box>
+            </Grid>
+          ) : financialSettings.length === 0 ? (
+            <Grid item xs={12}>
+              <Alert severity="warning">
+                Nenhum parâmetro financeiro encontrado na base. Clique em <strong>Recarregar</strong>. Se
+                persistir, atualize o backend e reaplique <code>seeds-default-settings.sql</code>.
+              </Alert>
+            </Grid>
+          ) : null}
           {financialSettings.map((s) => (
-            <Grid item xs={12} md={s.key.includes('email_body') || s.key.includes('whatsapp_message') ? 12 : 6} key={s.key}>
+            <Grid
+              item
+              xs={12}
+              md={
+                s.key.includes('email_body') ||
+                s.key.includes('whatsapp_message') ||
+                isSecretFinancialSetting(s.key)
+                  ? 12
+                  : 6
+              }
+              key={s.key}
+            >
               <Card>
                 <CardContent>
                   <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>

@@ -469,7 +469,7 @@ export class FinancialNotificationService {
 
       if (emailEnabled && row.email) {
         const waService = getWhatsappMessagingService();
-        const merchantWa = waService.merchantContactLink(whatsappText);
+        const merchantWa = await waService.merchantContactLink(whatsappText);
         const subscriberWa = row.whatsapp
           ? waService.buildLink(String(row.whatsapp), whatsappText)
           : null;
