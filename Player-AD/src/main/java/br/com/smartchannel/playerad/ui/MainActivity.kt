@@ -23,6 +23,7 @@ import br.com.smartchannel.playerad.util.PlayerAdPrefs
 import android.webkit.WebView
 import android.widget.ImageView
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -215,6 +216,7 @@ class MainActivity : AppCompatActivity() {
         playerView.player = exoPlayer
         playerView.useController = false
         playerView.controllerHideOnTouch = false
+        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
 
         completeStartup()
     }

@@ -3,11 +3,10 @@ package br.com.smartchannel.playerad.ui
 import android.content.Context
 import android.util.AttributeSet
 import android.widget.FrameLayout
-import kotlin.math.roundToInt
+import br.com.smartchannel.playerad.util.PlayerAdLogger
 
 /**
- * Viewport fixo 9:16 (portrait) centrado no espaço disponível.
- * Todo o conteúdo (vídeo, imagem, HTML) é renderizado dentro desta área.
+ * Viewport 9:16 (portrait) centrado, ou canvas lógico completo quando o SO já roda portrait.
  */
 class PortraitViewportLayout @JvmOverloads constructor(
     context: Context,
@@ -15,29 +14,27 @@ class PortraitViewportLayout @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : FrameLayout(context, attrs, defStyleAttr) {
 
-    /** Largura / altura em portrait (9:16). */
-    private val aspectWidth = 9f
-    private val aspectHeight = 16f
+    private var lastLoggedMode: String? = null
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val maxW = MeasureSpec.getSize(widthMeasureSpec)
-        val maxH = MeasureSpec.getSize(heightMeasureSpec)
-        if (maxW <= 0 || maxH <= 0) {
-            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
-            return
+        val parentW = MeasureSpec.getSize(widthMeasureSpec)
+        val parentH = MeasureSpec.getSize(heightMeasureSpec)
+        val viewport = PortraitViewportMetrics.resolveFromConfig(context)
+
+        var targetW = viewport.width
+        var targetH = viewport.height
+
+        if (parentW > 0 && parentH > 0) {
+            targetW = targetW.coerceAtMost(parentW)
+            targetH = targetH.coerceAtMost(parentH)
         }
 
-        val maxRatio = maxW.toFloat() / maxH.toFloat()
-        val targetRatio = aspectWidth / aspectHeight
-
-        val targetW: Int
-        val targetH: Int
-        if (maxRatio > targetRatio) {
-            targetH = maxH
-            targetW = (maxH * targetRatio).roundToInt()
-        } else {
-            targetW = maxW
-            targetH = (maxW / targetRatio).roundToInt()
+        if (lastLoggedMode != viewport.mode) {
+            lastLoggedMode = viewport.mode
+            PlayerAdLogger.i(
+                "DISPLAY",
+                "PortraitViewport mode=${viewport.mode} size=${targetW}x${targetH} parent=${parentW}x${parentH}"
+            )
         }
 
         super.onMeasure(
