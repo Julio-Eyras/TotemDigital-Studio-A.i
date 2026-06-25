@@ -5,7 +5,7 @@
 import { getDatabase } from '../config/database';
 import { getCacheService } from './cacheService';
 import { getPlaylistEngineServiceInstance } from './playlistEngineService';
-import { getRemoteCommandService } from './remoteCommandService';
+import { getMediaTotemSyncService } from './mediaTotemSyncService';
 import { StorageService } from './storageService';
 import { AuditService } from './auditService';
 import { logError, logInfo } from '../utils/loggerHelper';
@@ -72,7 +72,6 @@ export interface ForceDeleteMediaResult {
   offlineTotemWarning: string;
 }
 
-const OFFLINE_HEARTBEAT_MS = 5 * 60 * 1000;
 const OFFLINE_TOTEM_WARNING =
   'Totens offline só removerão a mídia do cache local quando voltarem a contactar o servidor (heartbeat).';
 
@@ -173,7 +172,7 @@ export class MediaDeletionService {
       totemId: Number(r.totem_id),
       identifier: String(r.identifier || '').trim() || `totem-${r.totem_id}`,
       campaignTitle: r.campaign_title ? String(r.campaign_title) : null,
-      online: this.isTotemOnline(r.last_heartbeat),
+      online: getMediaTotemSyncService().isTotemOnline(r.last_heartbeat),
     }));
 
     return {
@@ -231,7 +230,7 @@ export class MediaDeletionService {
     }
 
     const affectedTotemPlaylistIds = await this.findTotemPlaylistIdsForMedia(mediaId);
-    const totemTargets = await this.findAffectedTotems(mediaId);
+    const totemTargets = await getMediaTotemSyncService().findAffectedTotems(mediaId);
 
     const playlistItemsRemoved = await this.deletePlaylistItemsForMedia(mediaId);
     const playlistsReordered: number[] = [];
@@ -277,40 +276,23 @@ export class MediaDeletionService {
       await this.recompactTotemPlaylistOrder(tpId);
     }
 
-    const totemsNotified: ForceDeleteMediaResult['totemsNotified'] = [];
-
     if (filePath) {
       await this.getStorageService().deleteMediaFile(filePath);
     }
 
     await this.db.executeRaw(`DELETE FROM medias WHERE media_id = $1`, [mediaId]);
 
-    const remoteCommandService = getRemoteCommandService();
-    for (const totem of totemTargets) {
-      let commandQueued = false;
-      try {
-        await remoteCommandService.createCommand(
-          {
-            totemId: totem.totemId,
-            commandType: 'invalidate_media',
-            commandData: { mediaIds: [mediaId], mediaId },
-          },
-          deletedBy
-        );
-        commandQueued = true;
-      } catch (e: any) {
-        await logError('Falha ao enfileirar invalidate_media', e, {
-          mediaId,
-          totemId: totem.totemId,
-        });
-      }
-      totemsNotified.push({
-        totemId: totem.totemId,
-        identifier: totem.identifier,
-        online: totem.online,
-        commandQueued,
-      });
-    }
+    const notifyResult = await getMediaTotemSyncService().notifyAffectedTotems(mediaId, {
+      reason: 'file_content',
+      updatedBy: deletedBy,
+      totemTargets,
+    });
+    const totemsNotified: ForceDeleteMediaResult['totemsNotified'] = notifyResult.totems.map((t) => ({
+      totemId: t.totemId,
+      identifier: t.identifier,
+      online: t.online,
+      commandQueued: t.commandQueued,
+    }));
 
     const engine = getPlaylistEngineServiceInstance();
     for (const campaignId of campaignsReordered) {
@@ -358,13 +340,6 @@ export class MediaDeletionService {
       totemsNotified,
       offlineTotemWarning: hasOffline ? OFFLINE_TOTEM_WARNING : '',
     };
-  }
-
-  private isTotemOnline(lastHeartbeat: unknown): boolean {
-    if (!lastHeartbeat) return false;
-    const ts = new Date(String(lastHeartbeat)).getTime();
-    if (Number.isNaN(ts)) return false;
-    return Date.now() - ts <= OFFLINE_HEARTBEAT_MS;
   }
 
   private async deletePlaylistItemsForMedia(mediaId: number): Promise<number> {
@@ -483,45 +458,6 @@ export class MediaDeletionService {
     await this.db.executeRaw(`DELETE FROM playlist_items WHERE playlist_id = $1`, [playlistId]);
     await this.db.executeRaw(`DELETE FROM playlists WHERE playlist_id = $1`, [playlistId]);
     await getCacheService().invalidateEntity('playlist', playlistId).catch(() => {});
-  }
-
-  private async findAffectedTotems(
-    mediaId: number
-  ): Promise<Array<{ totemId: number; identifier: string; online: boolean }>> {
-    const rows = await this.db.findMany(
-      `
-      SELECT DISTINCT t.totem_id, t.identifier, t.last_heartbeat
-      FROM (
-        SELECT DISTINCT tp.totem_id
-        FROM totem_playlist_items tpi
-        JOIN totem_playlists tp ON tp.totem_playlist_id = tpi.totem_playlist_id
-        WHERE tpi.media_id = $1
-        UNION
-        SELECT DISTINCT ct.totem_id
-        FROM campaign_medias cm
-        JOIN campaign_totems ct ON ct.campaign_id = cm.campaign_id
-        WHERE cm.media_id = $1 AND COALESCE(ct.is_active, true) = true
-        UNION
-        SELECT DISTINCT ct.totem_id
-        FROM playlist_items pi
-        JOIN campaign_playlists cp ON cp.playlist_id = pi.playlist_id
-        JOIN campaign_totems ct ON ct.campaign_id = cp.campaign_id
-        WHERE pi.media_id = $1
-          AND COALESCE(cp.is_active, true) = true
-          AND COALESCE(ct.is_active, true) = true
-      ) affected
-      JOIN totems t ON t.totem_id = affected.totem_id
-      WHERE COALESCE(t.is_active, true) = true
-      ORDER BY t.identifier ASC
-    `,
-      [mediaId]
-    );
-
-    return (rows || []).map((r: any) => ({
-      totemId: Number(r.totem_id),
-      identifier: String(r.identifier || '').trim() || `totem-${r.totem_id}`,
-      online: this.isTotemOnline(r.last_heartbeat),
-    }));
   }
 }
 

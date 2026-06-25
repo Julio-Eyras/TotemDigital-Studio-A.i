@@ -18,6 +18,7 @@ import { getCacheService } from './cacheService';
 import { logError, logWarn } from '../utils/loggerHelper';
 import { normalizeDownloadUrl, generateThumbnailUrl } from '../utils/pathHelper';
 import { isStudioRuntime } from '../config/installationRuntime';
+import { getMediaTotemSyncService } from './mediaTotemSyncService';
 import {
   getMediaDeletionService,
   MediaInUseError,
@@ -934,6 +935,17 @@ export class MediaService {
       if (!updatedMedia) {
         throw new Error('Erro ao buscar mídia transformada');
       }
+
+      await getMediaTotemSyncService()
+        .notifyAffectedTotems(mediaId, {
+          reason: 'transform',
+          updatedBy,
+          updatedAt: updatedMedia.updatedAt,
+          filePath: updatedMedia.filePath,
+          fileSizeBytes: updatedMedia.fileSizeBytes,
+        })
+        .catch((e) => logError('Falha ao notificar totens após transformar mídia', e, { mediaId }));
+
       return updatedMedia;
     } catch (error: any) {
       await this.removeFileIfExists(outputPath);
@@ -1421,7 +1433,8 @@ export class MediaService {
       generateThumbnail?: boolean;
       optimize?: boolean;
       resize?: { width?: number; height?: number; fit?: 'cover' | 'contain' | 'fill' | 'inside' | 'outside' };
-    } = {}
+    } = {},
+    updatedBy?: number
   ): Promise<{
     success: boolean;
     message: string;
@@ -1550,6 +1563,20 @@ export class MediaService {
         }
 
         result.message = 'Imagem processada com sucesso';
+
+        if (processed && (result.optimized || result.resized)) {
+          const refreshed = await this.getMediaById(mediaId);
+          await getMediaTotemSyncService()
+            .notifyAffectedTotems(mediaId, {
+              reason: 'process',
+              updatedBy,
+              updatedAt: refreshed?.updatedAt,
+              filePath: refreshed?.filePath ?? media.filePath,
+              fileSizeBytes: refreshed?.fileSizeBytes ?? result.metadata?.size,
+            })
+            .catch((e) => logError('Falha ao notificar totens após processar mídia', e, { mediaId }));
+        }
+
         return result;
 
       } else if (media.mediaType === 'video') {

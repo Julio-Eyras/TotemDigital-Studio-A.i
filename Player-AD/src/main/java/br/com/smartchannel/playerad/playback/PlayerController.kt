@@ -429,7 +429,20 @@ class PlayerController(
 
             if (nowMs - lastHeartbeatAtMs >= heartbeatGapMs) {
                 try {
-                    currentToken = performHeartbeat(currentToken)
+                    val heartbeat = performHeartbeat(currentToken)
+                    currentToken = heartbeat.token
+                    if (heartbeat.refreshDispatch) {
+                        val refreshed = refreshPlanAfterRemoteCommand(
+                            currentToken,
+                            index,
+                            "heartbeat_media_refresh"
+                        )
+                        currentToken = refreshed.first
+                        currentPlan = refreshed.second
+                        index = refreshed.third
+                        currentPlanSource = PlanSource.ONLINE
+                        lastDispatchAtMs = System.currentTimeMillis()
+                    }
                     PlayerAdLogger.i(
                         "HEARTBEAT",
                         "Batimento cardiaco (${batimentoCardiaco}s) — OK; comandos/servidor"
@@ -534,27 +547,57 @@ class PlayerController(
         return applyVinhetaMixToDispatchPlan(plan.copy(mediaItems = shuffled))
     }
 
+    private data class HeartbeatOutcome(
+        val token: String,
+        val refreshDispatch: Boolean
+    )
+
+    private data class RemoteCommandOutcome(
+        val token: String,
+        val refreshDispatch: Boolean
+    )
+
     private data class OnlinePlanResult(
         val token: String,
         val plan: DispatchPlan
     )
 
+    private suspend fun refreshPlanAfterRemoteCommand(
+        currentToken: String,
+        currentIndex: Int,
+        logSource: String
+    ): Triple<String, DispatchPlan, Int> {
+        val refreshed = fetchDispatchPlan(currentToken, logSource)
+        var index = currentIndex
+        if (index >= refreshed.plan.mediaItems.size) index = 0
+        updatePlanSource(PlanSource.ONLINE, "Fonte do plano alterada")
+        PlayerAdLogger.i(
+            "DISPATCH",
+            "Plano atualizado após comando remoto ($logSource) — ${refreshed.plan.mediaItems.size} itens"
+        )
+        return Triple(refreshed.token, refreshed.plan, index)
+    }
+
     private suspend fun fetchOnlinePlan(previousToken: String, logSource: String = "online"): OnlinePlanResult {
-        val token = performHeartbeat(previousToken)
-        return fetchDispatchPlan(token, logSource)
+        val heartbeat = performHeartbeat(previousToken)
+        return fetchDispatchPlan(heartbeat.token, logSource)
     }
 
     /** Heartbeat: comandos remotos, OTA, token e presença — sem GET dispatch. */
-    private suspend fun performHeartbeat(previousToken: String): String {
+    private suspend fun performHeartbeat(previousToken: String): HeartbeatOutcome {
         PlayerAdLogger.i("LIFECYCLE", "Heartbeat — token/sessão/comandos (POST /api/player/heartbeat)")
         val hb = apiClient.heartbeatWithCommands(buildHealthMetrics())
         var token = hb.token
         PlayerAdLogger.i("HEARTBEAT", "OK — sessão/token renovados; comandos=${hb.pendingCommands.size}")
         otaUpdateCoordinator?.handleFromHeartbeat(hb.otaUpdate)
+        var refreshDispatch = false
         if (hb.pendingCommands.isNotEmpty()) {
-            token = processPendingCommands(hb.pendingCommands, token)
+            val outcome = processPendingCommands(hb.pendingCommands, token)
+            token = outcome.token
+            refreshDispatch = outcome.refreshDispatch
         }
-        return apiClient.cachedToken() ?: token.ifBlank { previousToken }
+        val effectiveToken = apiClient.cachedToken() ?: token.ifBlank { previousToken }
+        return HeartbeatOutcome(effectiveToken, refreshDispatch)
     }
 
     /** Atualiza plano de mídia (GET dispatch) sem novo heartbeat. */
@@ -612,8 +655,9 @@ class PlayerController(
     private suspend fun processPendingCommands(
         commands: List<DispatcherApiClient.PendingCommand>,
         initialToken: String
-    ): String {
+    ): RemoteCommandOutcome {
         var token = initialToken
+        var refreshDispatch = false
         for (cmd in commands) {
             val type = cmd.type.trim().lowercase(Locale.US)
             try {
@@ -624,6 +668,9 @@ class PlayerController(
                     status = "completed",
                     result = result
                 )
+                if (type == "invalidate_media" || type == "invalidate_playlist" || type == "invalidate_campaign") {
+                    refreshDispatch = true
+                }
                 PlayerAdLogger.i("REMOTE_CMD", "Comando executado com sucesso: type=$type id=${cmd.id}")
             } catch (e: Exception) {
                 token = apiClient.reportCommandResult(
@@ -640,7 +687,10 @@ class PlayerController(
             restartRequested = false
             scheduleAppRestart()
         }
-        return token
+        return RemoteCommandOutcome(
+            token = apiClient.cachedToken() ?: token.ifBlank { initialToken },
+            refreshDispatch = refreshDispatch
+        )
     }
 
     private suspend fun executeRemoteCommand(type: String, data: JSONObject?): JSONObject {
