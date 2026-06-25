@@ -248,7 +248,7 @@ export class SubscriberService {
                 AND sb.payment_status IN ('pending', 'overdue')
                 AND sb.due_date IS NOT NULL
                 AND sb.due_date::date < CURRENT_DATE
-                AND GREATEST(0, EXTRACT(DAY FROM CURRENT_DATE - sb.due_date::date)::int) >= COALESCE(
+                AND GREATEST(0, (CURRENT_DATE - sb.due_date::date)) >= COALESCE(
                   (SELECT NULLIF(TRIM(setting_value), '')::int FROM system_settings
                    WHERE setting_key = 'financial.block_publish_overdue_grace_days' LIMIT 1),
                   0

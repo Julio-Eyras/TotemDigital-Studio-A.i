@@ -112,14 +112,14 @@ export class BillingEnforcementService {
         sb.amount,
         sb.currency,
         sb.due_date,
-        GREATEST(0, EXTRACT(DAY FROM CURRENT_DATE - sb.due_date::date)::int) AS days_overdue
+        GREATEST(0, (CURRENT_DATE - sb.due_date::date)) AS days_overdue
       FROM subscriber_billing sb
       WHERE sb.subscriber_id = $1
         AND sb.payment_status NOT IN ('paid', 'cancelled', 'refunded')
         AND sb.payment_status IN ('pending', 'overdue')
         AND sb.due_date IS NOT NULL
         AND sb.due_date::date < CURRENT_DATE
-        AND GREATEST(0, EXTRACT(DAY FROM CURRENT_DATE - sb.due_date::date)::int) >= $2
+        AND GREATEST(0, (CURRENT_DATE - sb.due_date::date)) >= $2
       ORDER BY sb.due_date ASC
       `,
       [sid, graceDays]
@@ -164,7 +164,7 @@ export class BillingEnforcementService {
         sb.amount,
         sb.currency,
         sb.due_date,
-        GREATEST(0, EXTRACT(DAY FROM CURRENT_DATE - sb.due_date::date)::int) AS days_overdue
+        GREATEST(0, (CURRENT_DATE - sb.due_date::date)) AS days_overdue
       FROM subscriber_billing sb
       WHERE sb.subscriber_id = $1
         AND sb.payment_status NOT IN ('paid', 'cancelled', 'refunded')
@@ -346,7 +346,7 @@ export class BillingEnforcementService {
         AND sb.payment_status IN ('pending', 'overdue')
         AND sb.due_date IS NOT NULL
         AND sb.due_date::date < CURRENT_DATE
-        AND GREATEST(0, EXTRACT(DAY FROM CURRENT_DATE - sb.due_date::date)::int) >= $1
+        AND GREATEST(0, (CURRENT_DATE - sb.due_date::date)) >= $1
       `,
       [graceDays]
     );
