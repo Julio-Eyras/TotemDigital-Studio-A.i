@@ -71,7 +71,6 @@ import {
   QueueMusic,
   Description,
   OpenInNew,
-  CropPortrait,
 } from '@mui/icons-material';
 import { 
   subscriberApi, 
@@ -108,6 +107,7 @@ import {
 } from '../../services/api';
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 import MediaDeleteConflictDialog from '../../components/MediaDeleteConflictDialog/MediaDeleteConflictDialog';
+import MediaTransformActions from '../../components/Media/MediaTransformActions';
 import { SortableList } from '../../components/SortableList/SortableList';
 import { SubscriberCard, SubscriberDetails, SubscriberForm } from './components';
 import { PageHeader } from '../../components/DataDisplay';
@@ -117,6 +117,7 @@ import { isSubscriberContractActiveForCampaign } from './subscriberContractHealt
 import { useAppSelector } from '../../store/hooks';
 import { getForeignTotemIdFromRow, getTotemIdFromRow, getTotemLocalIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { useMediaRotationTransform, mediaPreviewRotationSx } from '../../hooks/useMediaRotationTransform';
 import {
   billingIntervalLabel,
   clampContractEndDate,
@@ -864,6 +865,18 @@ const Subscribers: React.FC = () => {
     }
   };
 
+  const {
+    getRotationDraft,
+    handleRotatePreview,
+    handleConfirmRotation,
+    processingRotationId,
+  } = useMediaRotationTransform(async () => {
+    setMediaThumbVersion((v) => v + 1);
+    if (selectedSubscriber) {
+      await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
+    }
+  });
+
   // Carregar dados automaticamente quando o dialog de edição abrir
   useEffect(() => {
     if (editDialogOpen && selectedSubscriber) {
@@ -1476,7 +1489,7 @@ const Subscribers: React.FC = () => {
   };
 
   const handleFitMediaToPortrait = async (media: MediaItem) => {
-    if (!selectedSubscriber || processingMediaFitId) return;
+    if (!selectedSubscriber || processingMediaFitId || processingRotationId) return;
     const mediaId = media.media_id;
 
     if (!window.confirm('Adequar esta mídia para formato 9:16 (portrait)?')) {
@@ -3509,6 +3522,7 @@ const Subscribers: React.FC = () => {
                     const isThumbnailUrl = previewUrl?.includes('/thumbnail');
                     const isTransformable = /^(image|video)$/i.test(String(media.media_type || ''));
                     const processingFit = processingMediaFitId === media.media_id;
+                    const processingRotation = processingRotationId === media.media_id;
 
                     return (
                       <Grid item xs={12} sm={6} md={4} lg={3} key={media.media_id}>
@@ -3543,6 +3557,7 @@ const Subscribers: React.FC = () => {
                                   objectFit: 'cover',
                                   position: 'absolute',
                                   inset: 0,
+                                  ...mediaPreviewRotationSx(getRotationDraft(media.media_id)),
                                 }}
                                 onError={() => setMediaPreviewFailed(prev => new Set(prev).add(media.media_id))}
                               />
@@ -3557,6 +3572,7 @@ const Subscribers: React.FC = () => {
                                   position: 'absolute',
                                   inset: 0,
                                   bgcolor: 'grey.900',
+                                  ...mediaPreviewRotationSx(getRotationDraft(media.media_id)),
                                 }}
                                 muted
                                 onError={() => setMediaPreviewFailed(prev => new Set(prev).add(media.media_id))}
@@ -3698,19 +3714,19 @@ const Subscribers: React.FC = () => {
                               </Box>
                             )}
                             <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                <Tooltip title={isTransformable ? 'Adequar mídia para 9:16' : 'Disponível para imagens e vídeos'}>
-                                  <span>
-                                    <IconButton
-                                      size="small"
-                                      color="primary"
-                                      disabled={!isTransformable || processingFit}
-                                      onClick={() => handleFitMediaToPortrait(media)}
-                                    >
-                                      {processingFit ? <CircularProgress size={20} color="inherit" /> : <CropPortrait />}
-                                    </IconButton>
-                                  </span>
-                                </Tooltip>
+                              <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexWrap: 'wrap' }}>
+                                <MediaTransformActions
+                                  isTransformable={isTransformable}
+                                  rotationDraft={getRotationDraft(media.media_id)}
+                                  processingRotation={processingRotation}
+                                  processingFit={processingFit}
+                                  onRotatePreview={() => handleRotatePreview(media.media_id)}
+                                  onConfirmRotation={async () => {
+                                    const err = await handleConfirmRotation(media.media_id);
+                                    if (err) setError(err);
+                                  }}
+                                  onFitPortrait={() => handleFitMediaToPortrait(media)}
+                                />
                                 <Tooltip title="Visualizar">
                                   <IconButton size="small" color="primary">
                                     <Visibility />
