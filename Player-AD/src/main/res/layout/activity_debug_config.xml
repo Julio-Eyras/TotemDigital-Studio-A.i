@@ -256,7 +256,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:textColor="#FFFFFF"
-            android:text="Máx. segundos sem verificar servidor"/>
+            android:text="Batimento cardiaco (segundos)"/>
 
         <TextView
             android:layout_width="match_parent"
@@ -264,7 +264,32 @@
             android:layout_marginTop="4dp"
             android:textColor="#BDBDBD"
             android:textSize="12sp"
-            android:text="Checagem híbrida: por ciclo + tempo máximo. Mínimo: 10s (recomendado: 30-60s)."/>
+            android:text="Intervalo do heartbeat: comandos remotos, OTA, presença online. Sem pedir dispatch. Mínimo: 10s (recomendado: 120s)."/>
+
+        <EditText
+            android:id="@+id/editBatimentoCardiaco"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:inputType="number"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#777777"
+            android:hint="120"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:textColor="#FFFFFF"
+            android:text="Atualizar plano / dispatch (segundos)"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#BDBDBD"
+            android:textSize="12sp"
+            android:text="Intervalo para GET /dispatch (plano de mídia). Independente do fim de ciclo. Mínimo: 10s (recomendado: 600s)."/>
 
         <EditText
             android:id="@+id/editMaxSecondsWithoutServerCheck"

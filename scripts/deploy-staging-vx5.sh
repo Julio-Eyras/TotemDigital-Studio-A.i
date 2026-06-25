@@ -31,9 +31,15 @@ Variáveis de ambiente:
   INSTALL_DIR      Caminho do repositório no servidor
   BRANCH           Branch a fazer deploy
 
+Pré-validação (recomendado antes do deploy):
+  bash scripts/validate-predeploy-staging.sh --strict
+  bash scripts/validate-predeploy-staging.sh --generate-key
+
 Exemplo (SSH no staging):
   ssh usuario@217.216.91.135
-  cd /opt/smart-signage && bash scripts/deploy-staging-vx5.sh
+  cd /opt/smart-signage
+  bash scripts/validate-predeploy-staging.sh --strict
+  bash scripts/deploy-staging-vx5.sh
 
 Após o deploy, homologue em:
   http://SEU_HOST:8080/quick-publish?mode=create
@@ -81,11 +87,30 @@ resolve_install_dir() {
   exit 1
 }
 
+run_predeploy_validation() {
+  local validate_script="$INSTALL_DIR/scripts/validate-predeploy-staging.sh"
+  if [[ ! -f "$validate_script" ]]; then
+    echo "⚠️  validate-predeploy-staging.sh não encontrado — pulando validação estrita."
+    warn_env_keys
+    return 0
+  fi
+  echo "[3/7] Validação pré-deploy (TOTEM_SECRET_KEY / NODE_ENV)..."
+  if INSTALL_DIR="$INSTALL_DIR" bash "$validate_script" --strict; then
+    echo "✓ Pré-deploy OK"
+  else
+    echo
+    echo "Deploy abortado. Corrija o .env e tente novamente."
+    echo "  bash scripts/validate-predeploy-staging.sh --generate-key"
+    exit 1
+  fi
+  warn_env_keys
+}
+
 warn_env_keys() {
   local env_file="$INSTALL_DIR/.env"
   [[ -f "$env_file" ]] || return 0
   local missing=()
-  for key in TOTEMDIGITAL_COMPACT MENU_LIVE_REFRESH_SECONDS; do
+  for key in TOTEMDIGITAL_COMPACT MENU_LIVE_REFRESH_SECONDS TOTEM_SECRET_KEY; do
     if ! grep -qE "^${key}=" "$env_file" 2>/dev/null; then
       missing+=("$key")
     fi
@@ -93,6 +118,9 @@ warn_env_keys() {
   if [[ ${#missing[@]} -gt 0 ]]; then
     echo "⚠️  .env sem chaves recomendadas para Vx5: ${missing[*]}"
     echo "    Edite $env_file antes da homologação (ver PDF de procedimentos)."
+  fi
+  if grep -qE '^TOTEM_SECRET_KEY=smart-signage-totem-secret-key-2025-change-in-production' "$env_file" 2>/dev/null; then
+    echo "⚠️  TOTEM_SECRET_KEY está com valor padrão inseguro — altere antes de produção."
   fi
   if ! grep -qE '^AI_VIDEO_' "$env_file" 2>/dev/null; then
     echo "ℹ️  AI_VIDEO_* não configurado — vídeo IA Premium ficará em fila informativa (202)."
@@ -106,23 +134,34 @@ health_smoke() {
     parsed="$(grep -E '^PORT=' "$INSTALL_DIR/.env" | tail -1 | cut -d= -f2 | tr -d '"' | tr -d "'" | xargs || true)"
     [[ -n "$parsed" ]] && port="$parsed"
   fi
+  if ! command -v curl >/dev/null 2>&1; then
+    echo "curl não disponível — smoke HTTP ignorado."
+    return 0
+  fi
   echo "[smoke] GET http://127.0.0.1:${port}/health"
-  if command -v curl >/dev/null 2>&1; then
-    local body
-    body="$(curl -sf "http://127.0.0.1:${port}/health" 2>/dev/null || true)"
-    if [[ -n "$body" ]]; then
-      echo "$body" | head -c 400
-      echo
-      if echo "$body" | grep -q 'studioMode'; then
-        echo "✓ Health respondeu (verifique studioMode no JSON acima)."
-      else
-        echo "⚠️  Health OK mas studioMode não encontrado no corpo — conferir TOTEMDIGITAL_COMPACT."
-      fi
+  local body
+  body="$(curl -sf "http://127.0.0.1:${port}/health" 2>/dev/null || true)"
+  if [[ -n "$body" ]]; then
+    echo "$body" | head -c 400
+    echo
+    if echo "$body" | grep -q 'studioMode'; then
+      echo "✓ Health respondeu (verifique studioMode no JSON acima)."
     else
-      echo "⚠️  Não foi possível contactar /health na porta ${port}. Verifique journalctl -u smart-signage."
+      echo "⚠️  Health OK mas studioMode não encontrado no corpo — conferir TOTEMDIGITAL_COMPACT."
     fi
   else
-    echo "curl não disponível — smoke HTTP ignorado."
+    echo "⚠️  Não foi possível contactar /health na porta ${port}. Verifique journalctl -u smart-signage."
+    return 0
+  fi
+  echo "[smoke] GET http://127.0.0.1:${port}/api/health"
+  local api_body
+  api_body="$(curl -sf "http://127.0.0.1:${port}/api/health" 2>/dev/null || true)"
+  if [[ -n "$api_body" ]]; then
+    echo "$api_body" | head -c 200
+    echo
+    echo "✓ /api/health respondeu."
+  else
+    echo "⚠️  /api/health não respondeu — backend pode estar a arrancar."
   fi
 }
 
@@ -141,36 +180,39 @@ echo
 if [[ -f "$INSTALL_DIR/.env" ]]; then
   backup="$INSTALL_DIR/.env.backup.$(date +%Y%m%d-%H%M%S)"
   cp "$INSTALL_DIR/.env" "$backup"
-  echo "[1/6] Backup .env → $backup"
+  echo "[1/7] Backup .env → $backup"
 else
-  echo "[1/6] .env não encontrado — continuando sem backup."
+  echo "[1/7] .env não encontrado — continuando sem backup."
 fi
 
 if [[ "$NO_PULL" == "false" ]]; then
-  echo "[2/6] Atualizando git ($BRANCH)..."
+  if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
+    echo "⚠️  Working tree com alterações locais não commitadas — o pull pode falhar ou misturar mudanças."
+    echo "    Faça commit/stash antes do deploy ou use --no-pull se o código já estiver atualizado."
+  fi
+  echo "[2/7] Atualizando git ($BRANCH)..."
   git fetch origin
   git checkout "$BRANCH"
   git pull origin "$BRANCH"
   echo "HEAD: $(git log -1 --oneline)"
 else
-  echo "[2/6] Git pull ignorado (--no-pull). HEAD: $(git log -1 --oneline 2>/dev/null || echo '?')"
+  echo "[2/7] Git pull ignorado (--no-pull). HEAD: $(git log -1 --oneline 2>/dev/null || echo '?')"
 fi
 
-echo "[3/6] Verificando variáveis .env..."
-warn_env_keys
+run_predeploy_validation
 
-echo "[4/6] Build + sync + restart..."
+echo "[4/7] Build + sync + restart..."
 if [[ "$NO_BUILD" == "true" ]]; then
   bash "$INSTALL_DIR/scripts/deploy-backfront-build.sh" --no-build
 else
   bash "$INSTALL_DIR/scripts/deploy-backfront-build.sh"
 fi
 
-echo "[5/6] Status dos serviços..."
+echo "[5/7] Status dos serviços..."
 sudo systemctl is-active smart-signage 2>/dev/null && echo "✓ smart-signage ativo" || echo "⚠️  smart-signage não reportou active"
 sudo systemctl is-active nginx 2>/dev/null && echo "✓ nginx ativo" || echo "⚠️  nginx não reportou active"
 
-echo "[6/6] Smoke HTTP..."
+echo "[6/7] Smoke HTTP..."
 health_smoke
 
 echo

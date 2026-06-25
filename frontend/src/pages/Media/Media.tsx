@@ -45,13 +45,14 @@ import {
   AudioFile,
   MoreVert,
   Refresh,
-  CropPortrait,
 } from '@mui/icons-material';
 import { mediaApi, MediaItem, CreateMediaRequest, clientApi, Client, subscriberApi, Subscriber, MediaInUseConflictPayload, parseMediaInUseConflict } from '../../services/api';
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 import MediaDeleteConflictDialog from '../../components/MediaDeleteConflictDialog/MediaDeleteConflictDialog';
+import MediaTransformActions from '../../components/Media/MediaTransformActions';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
+import { useMediaRotationTransform, mediaPreviewRotationSx } from '../../hooks/useMediaRotationTransform';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { isStudioMode } from '../../config/studioMode';
 
@@ -273,6 +274,16 @@ const Media: React.FC = () => {
     }
   };
 
+  const {
+    getRotationDraft,
+    handleRotatePreview,
+    handleConfirmRotation,
+    processingRotationId,
+  } = useMediaRotationTransform(async () => {
+    setThumbVersion((v) => v + 1);
+    await loadMediaItems();
+  });
+
   useEffect(() => {
     loadMediaItems();
   }, [searchTerm, mediaTypeFilter, subscriberFilter]);
@@ -388,7 +399,7 @@ const Media: React.FC = () => {
 
   const handleFitToPortrait = async (media: MediaItem) => {
     const mediaId = media.media_id;
-    if (processingFitId) return;
+    if (processingFitId || processingRotationId) return;
 
     if (!window.confirm('Adequar esta mídia para formato 9:16 (portrait)?')) {
       return;
@@ -695,6 +706,7 @@ const Media: React.FC = () => {
                             position: 'absolute',
                             top: 0,
                             left: 0,
+                            ...mediaPreviewRotationSx(getRotationDraft(media.media_id)),
                           }}
                           onError={(e: any) => {
                             e.target.style.display = 'none';
@@ -749,6 +761,7 @@ const Media: React.FC = () => {
                         zIndex: 2,
                         pointerEvents: 'none',
                         backgroundColor: '#000',
+                        ...mediaPreviewRotationSx(getRotationDraft(media.media_id)),
                       }}
                     />
                   )}
@@ -918,23 +931,22 @@ const Media: React.FC = () => {
                 )}
 
                 <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Box sx={{ display: 'flex', gap: 0.5 }}>
+                  <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
                     {(() => {
                       const isTransformable = /^(image|video)$/i.test(String(media.media_type || ''));
-                      const processing = processingFitId === media.media_id;
                       return (
-                        <Tooltip title={isTransformable ? 'Adequar mídia para 9:16' : 'Disponível para imagens e vídeos'}>
-                          <span>
-                            <IconButton
-                              size="small"
-                              color="primary"
-                              disabled={!isTransformable || processing}
-                              onClick={() => handleFitToPortrait(media)}
-                            >
-                              {processing ? <CircularProgress size={20} color="inherit" /> : <CropPortrait />}
-                            </IconButton>
-                          </span>
-                        </Tooltip>
+                        <MediaTransformActions
+                          isTransformable={isTransformable}
+                          rotationDraft={getRotationDraft(media.media_id)}
+                          processingRotation={processingRotationId === media.media_id}
+                          processingFit={processingFitId === media.media_id}
+                          onRotatePreview={() => handleRotatePreview(media.media_id)}
+                          onConfirmRotation={async () => {
+                            const err = await handleConfirmRotation(media.media_id);
+                            if (err) setError(err);
+                          }}
+                          onFitPortrait={() => handleFitToPortrait(media)}
+                        />
                       );
                     })()}
                     <Tooltip title="Visualizar">

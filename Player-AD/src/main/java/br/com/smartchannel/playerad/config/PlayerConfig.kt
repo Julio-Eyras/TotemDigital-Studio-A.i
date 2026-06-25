@@ -14,8 +14,14 @@ data class PlayerConfig(
     /** Quantas propagandas/campanha tocar antes de inserir 1 vinheta (dispatch online e fallback local). */
     val fallbackPropagandasPerVinheta: Int = 3,
     /**
-     * Tempo máximo (em segundos) sem tentar heartbeat+dispatch.
-     * Mantém o modo híbrido: por ciclo + janela de segurança temporal.
+     * Intervalo do batimento cardiaco (segundos): POST /heartbeat para comandos remotos,
+     * OTA, token e presença online — sem solicitar dispatch/plano.
+     * Campo JSON: `batimentoCardiaco`.
+     */
+    val batimentoCardiaco: Int = 120,
+    /**
+     * Intervalo (segundos) para atualizar o plano de mídia (GET /dispatch).
+     * Independente do fim de ciclo de reprodução.
      */
     val maxSecondsWithoutServerCheck: Int = 600,
     /**

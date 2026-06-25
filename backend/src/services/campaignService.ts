@@ -10,6 +10,7 @@ import { logError, logDebug, logInfo } from '../utils/loggerHelper';
 import { getCacheService } from './cacheService';
 import { getSubscriberAccessServiceInstance } from './subscriberAccessService';
 import { getSubscriberService } from './subscriberService';
+import { getBillingEnforcementService } from './billingEnforcementService';
 import type { PoolClient } from 'pg';
 import { dateToYmd, todayYmd } from '../utils/businessDate';
 
@@ -887,7 +888,11 @@ export class CampaignService {
   /**
    * Cria nova campanha (com transação para garantir consistência)
    */
-  async createCampaign(data: CreateCampaignRequest, createdBy: number): Promise<CampaignResponse> {
+  async createCampaign(
+    data: CreateCampaignRequest,
+    createdBy: number,
+    options?: { userRole?: string }
+  ): Promise<CampaignResponse> {
     // Validações prévias (fora da transação - são apenas leituras)
     const {
       subscriberId,
@@ -930,6 +935,13 @@ export class CampaignService {
 
     if (!subscriber) {
       throw new Error('Subscriber (anunciante) não encontrado ou inativo');
+    }
+
+    if (
+      isActive &&
+      ['active', 'approved'].includes(String(status || '').toLowerCase())
+    ) {
+      await getBillingEnforcementService().assertSubscriberCanPublish(subscriberId, options?.userRole);
     }
 
     // Validar contrato se fornecido
@@ -1134,7 +1146,12 @@ export class CampaignService {
   /**
    * Atualiza campanha
    */
-  async updateCampaign(campaignId: number, data: UpdateCampaignRequest, updatedBy: number): Promise<CampaignResponse> {
+  async updateCampaign(
+    campaignId: number,
+    data: UpdateCampaignRequest,
+    updatedBy: number,
+    options?: { userRole?: string }
+  ): Promise<CampaignResponse> {
     try {
       // Verificar se campanha existe
       const existingCampaign = await this.getCampaignById(campaignId);
@@ -1284,6 +1301,26 @@ export class CampaignService {
 
       if (updates.length === 0 && !hasAssociationWork) {
         return existingCampaign;
+      }
+
+      const wasPublished =
+        existingCampaign.isActive !== false &&
+        ['active', 'approved'].includes(String(existingCampaign.status || '').toLowerCase());
+      const nextStatus = data.status !== undefined ? data.status : existingCampaign.status;
+      const nextIsActive = data.isActive !== undefined ? data.isActive : existingCampaign.isActive;
+      const willBePublished =
+        nextIsActive !== false &&
+        ['active', 'approved'].includes(String(nextStatus || '').toLowerCase());
+
+      if (willBePublished && !wasPublished) {
+        const subscriberId =
+          existingCampaign.subscriberId ?? (existingCampaign as any).subscriber_id;
+        if (subscriberId != null) {
+          await getBillingEnforcementService().assertSubscriberCanPublish(
+            Number(subscriberId),
+            options?.userRole
+          );
+        }
       }
 
       if (updates.length > 0) {
@@ -1657,7 +1694,11 @@ export class CampaignService {
   /**
    * Ativa campanha
    */
-  async activateCampaign(campaignId: number, activatedBy: number): Promise<void> {
+  async activateCampaign(
+    campaignId: number,
+    activatedBy: number,
+    options?: { userRole?: string }
+  ): Promise<void> {
     try {
       // Verificar se campanha existe
       const campaign = await this.getCampaignById(campaignId);
@@ -1668,6 +1709,11 @@ export class CampaignService {
       if (campaign.isActive) {
         throw new Error('Campanha já está ativa');
       }
+
+      await getBillingEnforcementService().assertSubscriberCanPublish(
+        campaign.subscriberId,
+        options?.userRole
+      );
 
       // Validar execução antes de ativar
       const totems = await this.getCampaignTotems(campaignId);

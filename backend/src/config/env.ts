@@ -30,7 +30,7 @@ function getEnv(key: string, defaultValue: string): string {
 /**
  * Obtém variável de ambiente numérica com valor padrão
  */
-function getEnvNumber(key: string, defaultValue: number): number {
+export function getEnvNumber(key: string, defaultValue: number): number {
   const value = process.env[key];
   if (!value) return defaultValue;
   const parsed = parseInt(value, 10);
@@ -329,6 +329,8 @@ export const financialConfig = {
   cronIssueInvoices: getEnv('FINANCIAL_CRON_ISSUE', '30 2 * * *'),
   cronMarkOverdue: getEnv('FINANCIAL_CRON_OVERDUE', '30 3 * * *'),
   cronSendReminders: getEnv('FINANCIAL_CRON_REMINDERS', '0 9 * * *'),
+  /** Pausa campanhas + e-mail/WhatsApp após tolerância de inadimplência */
+  cronEnforceOverdueBlocks: getEnv('FINANCIAL_CRON_ENFORCE_BLOCKS', '15 4 * * *'),
   /** Após emissão automática de faturas, gerar repasses revenue share (campanhas pagas). */
   autoRevenueSharePayouts: getEnvBoolean(
     'FINANCIAL_AUTO_REVENUE_SHARE',
@@ -349,6 +351,17 @@ export const financialConfig = {
  */
 export function validateConfig(): void {
   const errors: string[] = [];
+
+  const totemKey = process.env.TOTEM_SECRET_KEY?.trim();
+  if (serverConfig.isProduction && !totemKey) {
+    errors.push('TOTEM_SECRET_KEY deve estar definido em produção');
+  }
+  if (
+    totemKey &&
+    totemKey === 'smart-signage-totem-secret-key-2025-change-in-production'
+  ) {
+    errors.push('TOTEM_SECRET_KEY não pode usar o valor padrão inseguro em produção');
+  }
 
   // Validar JWT_SECRET
   if (!jwtConfig.secret || jwtConfig.secret === 'your-super-secret-jwt-key-change-this-in-production') {

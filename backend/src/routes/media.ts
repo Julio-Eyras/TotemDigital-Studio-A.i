@@ -805,7 +805,7 @@ router.post('/:id/process',
         generateThumbnail: processOptions.generateThumbnail !== false, // Padrão: true
         optimize: processOptions.optimize !== false, // Padrão: true
         resize: processOptions.resize || undefined
-      });
+      }, req.user?.id || req.user?.userId);
 
       if (!result.success) {
         return res.status(400).json(result);

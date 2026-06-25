@@ -3,6 +3,7 @@ import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
 import { getCacheService } from './cacheService';
 import { getSubscriberService } from './subscriberService';
+import { getBillingEnforcementService } from './billingEnforcementService';
 import { getPlaylistEngineServiceInstance } from './playlistEngineService';
 
 export type QuickPublishPreset = 'menu' | 'promotion' | 'ad' | 'announcement' | 'institutional';
@@ -83,7 +84,11 @@ export class QuickPublishService {
     return getDatabase();
   }
 
-  async publish(input: QuickPublishRequest, userId: number): Promise<QuickPublishResult> {
+  async publish(
+    input: QuickPublishRequest,
+    userId: number,
+    options?: { userRole?: string }
+  ): Promise<QuickPublishResult> {
     const subscriberId = Number(input.subscriberId);
     const contractId = Number(input.contractId);
     const totemIds = normalizePositiveIds(input.totemIds);
@@ -120,6 +125,11 @@ export class QuickPublishService {
       if (!subscriber || subscriber.is_active === false) {
         throw new Error('Anunciante não encontrado ou inativo');
       }
+
+      await getBillingEnforcementService().assertSubscriberCanPublish(
+        subscriberId,
+        options?.userRole
+      );
 
       const contracts = await subscriberService.getSubscriberContracts(subscriberId, true);
       const contract = contracts.find((item: any) => Number(item.contract_id) === contractId);

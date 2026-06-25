@@ -11,6 +11,7 @@ import { body, param, query } from 'express-validator';
 import { logError, logWarn, logInfo } from '../utils/loggerHelper';
 import { getDatabase } from '../config/database';
 import { isStudioRuntime } from '../config/installationRuntime';
+import { getTotemSecretKey } from '../config/totemSecurity';
 import { getTotemCreateRoles } from '../utils/totemCreateRoles';
 
 const router = Router();
@@ -697,7 +698,7 @@ router.put('/:id/approve',
           // Determinar diretório do player
           const { config } = require('../config/env');
           const playerDir = config.player.dir;
-          const secretKey = process.env.TOTEM_SECRET_KEY || 'smart-signage-totem-secret-key-2025-change-in-production';
+          const secretKey = getTotemSecretKey();
           
           // Executar script de geração de config
           const path = require('path');

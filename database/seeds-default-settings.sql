@@ -442,6 +442,307 @@ ON CONFLICT (setting_key) DO UPDATE SET
   default_value = EXCLUDED.default_value,
   updated_at = CURRENT_TIMESTAMP;
 
+-- Modo simples de programação (mix round-robin; UI sem agendamento)
+INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description, is_public, is_editable, default_value, validation, options)
+VALUES
+  (
+    'totem.simple_mode_enabled',
+    'true',
+    'boolean',
+    'totem',
+    'Habilita modo simples: mix multi-anunciante round-robin e publicação sem agendamento na UI',
+    true,
+    true,
+    'true',
+    '^(true|false)$',
+    '["true", "false"]'
+  )
+ON CONFLICT (setting_key) DO UPDATE SET
+  description = EXCLUDED.description,
+  is_public = EXCLUDED.is_public,
+  is_editable = EXCLUDED.is_editable,
+  default_value = EXCLUDED.default_value,
+  validation = EXCLUDED.validation,
+  options = EXCLUDED.options,
+  updated_at = CURRENT_TIMESTAMP;
+
+-- Financeiro: bloqueio operacional por inadimplência
+INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description, is_public, is_editable, default_value, validation, options)
+VALUES
+  (
+    'financial.block_publish_on_overdue',
+    'true',
+    'boolean',
+    'financial',
+    'Bloqueia novas publicações (Publicar em Tela, campanhas ativas) quando o anunciante tem prestações vencidas',
+    false,
+    true,
+    'true',
+    '^(true|false)$',
+    '["true", "false"]'
+  ),
+  (
+    'financial.admin_override_overdue_block',
+    'true',
+    'boolean',
+    'financial',
+    'Permite owner_system, admin_sql e admin publicar mesmo com prestações vencidas (override operacional)',
+    false,
+    true,
+    'true',
+    '^(true|false)$',
+    '["true", "false"]'
+  ),
+  (
+    'financial.block_publish_overdue_grace_days',
+    '0',
+    'number',
+    'financial',
+    'Dias de tolerância após o vencimento antes de bloquear publicações e pausar campanhas (0 = bloqueia no 1º dia após vencimento)',
+    false,
+    true,
+    '0',
+    '^[0-9]+$',
+    NULL
+  ),
+  (
+    'financial.auto_pause_campaigns_on_block',
+    'true',
+    'boolean',
+    'financial',
+    'Pausa automaticamente campanhas ativas quando o bloqueio por inadimplência entra em vigor',
+    false,
+    true,
+    'true',
+    '^(true|false)$',
+    '["true", "false"]'
+  ),
+  (
+    'financial.notify_block_email_enabled',
+    'true',
+    'boolean',
+    'financial',
+    'Envia e-mail padronizado ao anunciante quando o bloqueio automático é aplicado',
+    false,
+    true,
+    'true',
+    '^(true|false)$',
+    '["true", "false"]'
+  ),
+  (
+    'financial.notify_block_whatsapp_enabled',
+    'true',
+    'boolean',
+    'financial',
+    'Envia WhatsApp ao anunciante (Meta Cloud API se configurada; senão link wa.me no e-mail)',
+    false,
+    true,
+    'true',
+    '^(true|false)$',
+    '["true", "false"]'
+  ),
+  (
+    'financial.overdue_block_email_subject',
+    'Publicação suspensa — {{subscriber_name}} ({{overdue_count}} prestação(ões) em atraso)',
+    'string',
+    'financial',
+    'Assunto do e-mail de bloqueio. Placeholders: {{subscriber_name}}, {{overdue_count}}, {{amount_total}}, {{grace_days}}, {{days_overdue}}, {{billing_url}}, {{invoice_list}}, {{merchant_name}}',
+    false,
+    true,
+    'Publicação suspensa — {{subscriber_name}} ({{overdue_count}} prestação(ões) em atraso)',
+    NULL,
+    NULL
+  ),
+  (
+    'financial.overdue_block_email_body',
+    'Olá {{subscriber_name}},\n\nA publicação nas telas foi suspensa após {{grace_days}} dia(s) de tolerância.\n\nPrestações em atraso: {{overdue_count}}\nValor total: {{amount_total}}\nMaior atraso: {{days_overdue}} dia(s)\n\n{{invoice_list}}\n\nRegularize: {{billing_url}}\n\n{{merchant_name}}',
+    'string',
+    'financial',
+    'Corpo do e-mail de bloqueio (texto). Use os mesmos placeholders do assunto.',
+    false,
+    true,
+    'Olá {{subscriber_name}},\n\nA publicação nas telas foi suspensa após {{grace_days}} dia(s) de tolerância.\n\nRegularize: {{billing_url}}',
+    NULL,
+    NULL
+  ),
+  (
+    'financial.overdue_block_whatsapp_message',
+    'Olá {{subscriber_name}}, sua publicação foi suspensa por inadimplência ({{overdue_count}} prestação(ões), {{amount_total}}, {{days_overdue}} dia(s) de atraso). Regularize: {{billing_url}}',
+    'string',
+    'financial',
+    'Mensagem WhatsApp de bloqueio. Placeholders iguais ao e-mail.',
+    false,
+    true,
+    'Olá {{subscriber_name}}, regularize em {{billing_url}}',
+    NULL,
+    NULL
+  ),
+  (
+    'financial.worker_enabled',
+    'true',
+    'boolean',
+    'financial',
+    'Worker financeiro (crons de faturas, lembretes e bloqueio). Desligue para pausar rotinas sem reiniciar o servidor.',
+    false,
+    true,
+    'true',
+    '^(true|false)$',
+    '["true", "false"]'
+  ),
+  (
+    'financial.merchant_whatsapp_number',
+    '',
+    'string',
+    'financial',
+    'WhatsApp do financeiro da plataforma (link wa.me nos e-mails). Apenas dígitos, com DDI.',
+    false,
+    true,
+    '',
+    NULL,
+    NULL
+  ),
+  (
+    'financial.smtp_enabled',
+    'false',
+    'boolean',
+    'financial',
+    'Habilita envio de e-mails (lembretes, bloqueio por inadimplência, etc.)',
+    false,
+    true,
+    'false',
+    '^(true|false)$',
+    '["true", "false"]'
+  ),
+  (
+    'financial.smtp_host',
+    'smtp.gmail.com',
+    'string',
+    'financial',
+    'Servidor SMTP (host)',
+    false,
+    true,
+    'smtp.gmail.com',
+    NULL,
+    NULL
+  ),
+  (
+    'financial.smtp_port',
+    '587',
+    'number',
+    'financial',
+    'Porta SMTP',
+    false,
+    true,
+    '587',
+    '^[0-9]+$',
+    NULL
+  ),
+  (
+    'financial.smtp_secure',
+    'false',
+    'boolean',
+    'financial',
+    'SMTP SSL direto (porta 465). Para STARTTLS na 587, deixe false.',
+    false,
+    true,
+    'false',
+    '^(true|false)$',
+    '["true", "false"]'
+  ),
+  (
+    'financial.smtp_user',
+    '',
+    'string',
+    'financial',
+    'Usuário SMTP',
+    false,
+    true,
+    '',
+    NULL,
+    NULL
+  ),
+  (
+    'financial.smtp_pass',
+    '',
+    'string',
+    'financial',
+    'Senha SMTP (mascarada na UI; deixe em branco ao salvar para manter a atual)',
+    false,
+    true,
+    '',
+    NULL,
+    NULL
+  ),
+  (
+    'financial.smtp_from',
+    'Smart Signage <noreply@smartsignage.com>',
+    'string',
+    'financial',
+    'Remetente dos e-mails (From)',
+    false,
+    true,
+    'Smart Signage <noreply@smartsignage.com>',
+    NULL,
+    NULL
+  ),
+  (
+    'financial.smtp_tls_reject_unauthorized',
+    'true',
+    'boolean',
+    'financial',
+    'Rejeitar certificado SMTP inválido (TLS)',
+    false,
+    true,
+    'true',
+    '^(true|false)$',
+    '["true", "false"]'
+  ),
+  (
+    'financial.whatsapp_api_token',
+    '',
+    'string',
+    'financial',
+    'Token Meta Cloud API (WhatsApp Business). Deixe vazio para usar apenas link wa.me.',
+    false,
+    true,
+    '',
+    NULL,
+    NULL
+  ),
+  (
+    'financial.whatsapp_phone_number_id',
+    '',
+    'string',
+    'financial',
+    'Phone Number ID da Meta Cloud API (WhatsApp)',
+    false,
+    true,
+    '',
+    NULL,
+    NULL
+  ),
+  (
+    'financial.whatsapp_api_version',
+    'v21.0',
+    'string',
+    'financial',
+    'Versão da Graph API Meta (WhatsApp)',
+    false,
+    true,
+    'v21.0',
+    NULL,
+    NULL
+  )
+ON CONFLICT (setting_key) DO UPDATE SET
+  description = EXCLUDED.description,
+  category = EXCLUDED.category,
+  is_public = EXCLUDED.is_public,
+  is_editable = EXCLUDED.is_editable,
+  default_value = EXCLUDED.default_value,
+  validation = EXCLUDED.validation,
+  options = EXCLUDED.options,
+  updated_at = CURRENT_TIMESTAMP;
+
 -- Chave legada (JSON); o runtime usa media.upload.allowed_types (string)
 DELETE FROM system_settings WHERE setting_key = 'media.allowed_types';
 

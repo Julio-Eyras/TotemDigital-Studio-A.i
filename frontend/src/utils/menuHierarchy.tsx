@@ -40,7 +40,7 @@ import {
 import { UserRole, canAccess } from './rolePermissions';
 import { UserFlags } from '../store/slices/authSlice';
 import { DASHBOARD_COMMERCIAL_FOCUS } from '../config/featureFlags';
-import { getInstallationCapabilities } from '../config/installationCapabilities';
+import { getInstallationCapabilities, isSimpleTotemMode } from '../config/installationCapabilities';
 import { isStudioMode } from '../config/studioMode';
 import { getProductTerminology, isSingleOrganizationProfile } from '../config/productTerminology';
 
@@ -59,6 +59,8 @@ export interface HierarchicalMenuItem {
   requiredFlag?: `flag_smart_${0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}`;
   /** Oculto no menu compacto (funcionalidade reservada para evolução Pro). */
   hiddenInCompact?: boolean;
+  /** Oculto no modo simples de totem (publicação via fila / quick-publish). */
+  hiddenInSimpleTotemMode?: boolean;
 }
 
 /**
@@ -73,6 +75,12 @@ function filterHierarchicalMenu(
   
   for (const item of items) {
     if (isStudioMode() && item.hiddenInCompact) {
+      continue;
+    }
+    if (isSimpleTotemMode() && item.hiddenInSimpleTotemMode) {
+      continue;
+    }
+    if (isSimpleTotemMode() && item.path === '/campaigns') {
       continue;
     }
 
@@ -277,18 +285,14 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
         { text: 'Manutenção Usuário', icon: <People />, path: '/users' },
         { text: 'Tags', icon: <Assignment />, path: '/tags' },
         { text: 'QR-Codes', icon: <QrCode />, path: '/qr-codes' },
+        { text: 'OTA Updates', icon: <CloudUpload />, path: '/ota-updates' },
+        { text: 'SmartDisplayFX', icon: <AutoAwesome />, path: '/smartdisplayfx' },
         { text: 'Analíticos', icon: <Analytics />, path: '/analytics' },
         { text: 'Relatórios', icon: <Assessment />, path: '/reports' },
+        { text: 'Admin Tools', icon: <Build />, path: '/admin-tools' },
         dispatcherBlock,
-        {
-          text: 'Configurações',
-          icon: <Settings />,
-          path: '/settings',
-          children: [
-            { text: 'OTA Update', icon: <CloudUpload />, path: '/ota-updates' },
-            { text: 'Templates publicação', icon: <AutoAwesome />, path: '/publish-templates-admin' },
-          ],
-        },
+        { text: 'Configurações', icon: <Settings />, path: '/settings' },
+        { text: 'Templates publicação', icon: <AutoAwesome />, path: '/publish-templates-admin' },
       ],
     },
   ];

@@ -6,7 +6,45 @@
 import { Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import { logWarn } from '../utils/loggerHelper';
-import { securityConfig } from '../config/env';
+import { securityConfig, getEnvNumber } from '../config/env';
+
+function playerRateLimitKey(req: Request): string {
+  const uin = String(req.query?.uin || (req.body as { uin?: string })?.uin || '').trim();
+  if (uin) {
+    return `uin:${uin}`;
+  }
+  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+  return `ip:${ip}`;
+}
+
+/**
+ * Rate limit dedicado à API do player (heartbeat, dispatch, eventos).
+ * /api/player estava excluído do apiLimiter global.
+ */
+export const playerApiLimiter = rateLimit({
+  windowMs: securityConfig.rateLimit.windowMs,
+  max: Math.max(getEnvNumber('PLAYER_API_RATE_LIMIT_MAX', 400), 60),
+  message: {
+    error: 'Muitas requisições do player. Tente novamente em alguns minutos.',
+    retryAfter: '15 minutos',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: playerRateLimitKey,
+});
+
+/** Limite mais restrito para emissão de token (anti enumeração de UIN). */
+export const playerTokenLimiter = rateLimit({
+  windowMs: securityConfig.rateLimit.windowMs,
+  max: Math.max(getEnvNumber('PLAYER_TOKEN_RATE_LIMIT_MAX', 30), 10),
+  message: {
+    error: 'Muitas solicitações de token do player. Tente novamente em alguns minutos.',
+    retryAfter: '15 minutos',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `${playerRateLimitKey(req)}:token`,
+});
 
 /**
  * Rate limiter genérico para API

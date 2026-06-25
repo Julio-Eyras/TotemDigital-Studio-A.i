@@ -1200,9 +1200,34 @@ export interface LoginResponse {
   error?: string;
 }
 
+export interface SubscriberLoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface SubscriberLoginResponse {
+  message: string;
+  token: string;
+  refreshToken?: string;
+  user: {
+    id: number;
+    username: string;
+    role: string;
+    subscriberId?: number;
+    publisherId?: number;
+    subscriberName?: string;
+    clientId?: number;
+  };
+}
+
 export const authApi = {
   login: async (data: LoginRequest): Promise<LoginResponse> => {
     const response = await api.post('/auth/login', data);
+    return response.data;
+  },
+
+  subscriberLogin: async (data: SubscriberLoginRequest): Promise<SubscriberLoginResponse> => {
+    const response = await api.post('/auth/subscriber-login', data);
     return response.data;
   },
 
@@ -1609,6 +1634,22 @@ export interface QuickPublishResult {
 export const quickPublishApi = {
   publish: async (data: QuickPublishRequest): Promise<QuickPublishResult> => {
     const response = await api.post('/quick-publish', data);
+    return response.data.data;
+  },
+};
+
+export interface SimplePublishRequest {
+  subscriberId: number;
+  contractId: number;
+  totemIds: number[];
+  mediaIds: number[];
+  title?: string;
+  description?: string;
+}
+
+export const simplePublishApi = {
+  publish: async (data: SimplePublishRequest): Promise<QuickPublishResult> => {
+    const response = await api.post('/simple-publish', data);
     return response.data.data;
   },
 };
@@ -3545,6 +3586,7 @@ export interface Subscriber {
   financial_alert_label?: string;
   has_billing_overdue?: boolean;
   has_billing_due_soon?: boolean;
+  has_billing_publish_blocked?: boolean;
 }
 
 export interface CreateSubscriberRequest {

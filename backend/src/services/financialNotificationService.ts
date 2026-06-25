@@ -7,8 +7,19 @@ import { financialConfig } from '../config/env';
 import { emailService } from './emailService';
 import { buildPixCopyPaste } from '../utils/pixEmv';
 import { logError, logInfo } from '../utils/loggerHelper';
+import {
+  DEFAULT_OVERDUE_BLOCK_EMAIL_BODY,
+  DEFAULT_OVERDUE_BLOCK_EMAIL_SUBJECT,
+  DEFAULT_OVERDUE_BLOCK_WHATSAPP_MESSAGE,
+  renderBillingTemplate,
+} from '../utils/billingTemplateRenderer';
+import { SettingsService } from './settingsService';
+import { getWhatsappMessagingService } from './whatsappMessagingService';
+import type { OverdueBillingSummary } from '../types/billingEnforcementTypes';
 
 export class FinancialNotificationService {
+  private settingsService = new SettingsService();
+
   private get db() {
     return getDatabase();
   }
@@ -347,6 +358,179 @@ export class FinancialNotificationService {
       else skipped++;
     }
     return { sent, skipped };
+  }
+
+  private async readTemplateSetting(key: string, fallback: string): Promise<string> {
+    try {
+      const row = await this.settingsService.getSetting(key);
+      const value = String(row?.value ?? '').trim();
+      return value || fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  private async isNotifyChannelEnabled(key: string, fallback = true): Promise<boolean> {
+    try {
+      const row = await this.settingsService.getSetting(key);
+      if (row?.value === undefined || row?.value === null) return fallback;
+      const v = String(row.value).trim().toLowerCase();
+      return v === 'true' || v === '1';
+    } catch {
+      return fallback;
+    }
+  }
+
+  private buildBillingListLines(summary: OverdueBillingSummary): string {
+    return summary.items
+      .map((item) => {
+        const amount = Number(item.amount).toLocaleString('pt-BR', {
+          style: 'currency',
+          currency: item.currency || 'BRL',
+        });
+        const due = item.dueDate
+          ? new Date(item.dueDate).toLocaleDateString('pt-BR')
+          : '—';
+        return `• ${item.description} — ${amount} — venc. ${due} (${item.daysOverdue} dia(s) em atraso)`;
+      })
+      .join('\n');
+  }
+
+  private buildTemplateVars(
+    subscriberName: string,
+    summary: OverdueBillingSummary
+  ): Record<string, string | number> {
+    const amountTotal = summary.totalAmount.toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: summary.currency || 'BRL',
+    });
+    const billingUrl = `${financialConfig.publicAppUrl.replace(/\/$/, '')}/billing?type=subscriber&dueFilter=overdue`;
+    return {
+      subscriber_name: subscriberName,
+      overdue_count: summary.count,
+      amount_total: amountTotal,
+      grace_days: summary.graceDays,
+      days_overdue: summary.maxDaysOverdue,
+      billing_url: billingUrl,
+      invoice_list: this.buildBillingListLines(summary),
+      merchant_name: financialConfig.pixMerchantName,
+    };
+  }
+
+  /**
+   * E-mail + WhatsApp padronizados quando o bloqueio automático entra em vigor.
+   */
+  async sendOverdueBlockNotification(
+    subscriberId: number,
+    summary: OverdueBillingSummary
+  ): Promise<{ sent: boolean; channels: string[]; reason?: string }> {
+    try {
+      const row = await this.db.findFirst(
+        `
+        SELECT subscriber_id, name, email, whatsapp
+        FROM subscribers
+        WHERE subscriber_id = $1
+        `,
+        [subscriberId]
+      );
+
+      if (!row) return { sent: false, channels: [], reason: 'Anunciante não encontrado' };
+
+      const subscriberName = String(row.name || '').trim() || `Anunciante #${subscriberId}`;
+      const vars = this.buildTemplateVars(subscriberName, summary);
+
+      const emailEnabled = await this.isNotifyChannelEnabled(
+        'financial.notify_block_email_enabled',
+        true
+      );
+      const whatsappEnabled = await this.isNotifyChannelEnabled(
+        'financial.notify_block_whatsapp_enabled',
+        true
+      );
+
+      const subjectTemplate = await this.readTemplateSetting(
+        'financial.overdue_block_email_subject',
+        DEFAULT_OVERDUE_BLOCK_EMAIL_SUBJECT
+      );
+      const bodyTemplate = await this.readTemplateSetting(
+        'financial.overdue_block_email_body',
+        DEFAULT_OVERDUE_BLOCK_EMAIL_BODY
+      );
+      const whatsappTemplate = await this.readTemplateSetting(
+        'financial.overdue_block_whatsapp_message',
+        DEFAULT_OVERDUE_BLOCK_WHATSAPP_MESSAGE
+      );
+
+      const subject = renderBillingTemplate(subjectTemplate, vars);
+      const bodyText = renderBillingTemplate(bodyTemplate, vars);
+      const whatsappText = renderBillingTemplate(whatsappTemplate, vars);
+
+      const channels: string[] = [];
+
+      if (emailEnabled && row.email) {
+        const waService = getWhatsappMessagingService();
+        const merchantWa = await waService.merchantContactLink(whatsappText);
+        const subscriberWa = row.whatsapp
+          ? waService.buildLink(String(row.whatsapp), whatsappText)
+          : null;
+
+        const htmlBody = bodyText
+          .split('\n')
+          .map((line) => `<p>${line.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>`)
+          .join('');
+
+        const html = `
+          ${htmlBody}
+          <p><a href="${vars.billing_url}">Abrir faturamento</a></p>
+          ${subscriberWa ? `<p><a href="${subscriberWa}">WhatsApp para o anunciante (wa.me)</a></p>` : ''}
+          ${merchantWa ? `<p><a href="${merchantWa}">Falar com o financeiro no WhatsApp</a></p>` : ''}
+        `;
+
+        const result = await emailService.sendEmail({
+          to: row.email,
+          subject,
+          html,
+          text: bodyText,
+        });
+
+        if (result.success) {
+          channels.push('email');
+          await logInfo('E-mail de bloqueio por inadimplência enviado', {
+            subscriberId,
+            to: row.email,
+          });
+        }
+      }
+
+      if (whatsappEnabled && row.whatsapp) {
+        const waResult = await getWhatsappMessagingService().sendTextMessage(
+          String(row.whatsapp),
+          whatsappText
+        );
+        if (waResult.sent) {
+          channels.push('whatsapp_api');
+        } else if (waResult.waMeUrl) {
+          channels.push('whatsapp_wa_me');
+          await logInfo('WhatsApp bloqueio: link wa.me (API não configurada ou falhou)', {
+            subscriberId,
+            reason: waResult.reason,
+          });
+        }
+      }
+
+      if (channels.length === 0) {
+        return {
+          sent: false,
+          channels: [],
+          reason: 'Sem e-mail/WhatsApp do anunciante ou canais desabilitados',
+        };
+      }
+
+      return { sent: true, channels };
+    } catch (error: any) {
+      await logError('Erro ao enviar notificação de bloqueio financeiro', error, { subscriberId });
+      return { sent: false, channels: [], reason: error.message };
+    }
   }
 }
 

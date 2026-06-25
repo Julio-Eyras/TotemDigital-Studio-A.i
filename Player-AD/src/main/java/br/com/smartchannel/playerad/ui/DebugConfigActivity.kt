@@ -47,6 +47,7 @@ class DebugConfigActivity : AppCompatActivity() {
     private lateinit var switchAllowPlaybackAudio: SwitchCompat
     private lateinit var switchStrongKiosk: SwitchCompat
     private lateinit var editMaxSecondsWithoutServerCheck: EditText
+    private lateinit var editBatimentoCardiaco: EditText
     private lateinit var spinnerStorage: Spinner
     private lateinit var editStoragePath: EditText
 
@@ -91,6 +92,7 @@ class DebugConfigActivity : AppCompatActivity() {
         switchAllowPlaybackAudio = findViewById(R.id.switchAllowPlaybackAudio)
         switchStrongKiosk = findViewById(R.id.switchStrongKiosk)
         editMaxSecondsWithoutServerCheck = findViewById(R.id.editMaxSecondsWithoutServerCheck)
+        editBatimentoCardiaco = findViewById(R.id.editBatimentoCardiaco)
         spinnerStorage = findViewById(R.id.spinnerStorage)
         editStoragePath = findViewById(R.id.editStoragePath)
 
@@ -133,6 +135,7 @@ class DebugConfigActivity : AppCompatActivity() {
         switchAcceptImages.isChecked = current.acceptImagesInPlaylist
         switchAllowPlaybackAudio.isChecked = current.allowPlaybackAudio
         switchStrongKiosk.isChecked = current.kioskMode == br.com.smartchannel.playerad.config.KioskMode.STRONG
+        editBatimentoCardiaco.setText(current.batimentoCardiaco.toString())
         editMaxSecondsWithoutServerCheck.setText(current.maxSecondsWithoutServerCheck.toString())
 
         val storageModes = resources.getStringArray(R.array.player_storage_modes)
@@ -341,6 +344,9 @@ class DebugConfigActivity : AppCompatActivity() {
         val storageMode = PlayerConfigLoader.parseStorageMode(modeRaw)
         val pathOverride = editStoragePath.text?.toString()?.trim().orEmpty()
         if (storageMode == PlayerStorageMode.PATH_OVERRIDE && pathOverride.isBlank()) return null
+        val batimentoRaw = editBatimentoCardiaco.text?.toString()?.trim().orEmpty()
+        val batimento = batimentoRaw.toIntOrNull()?.coerceAtLeast(10)
+            ?: loaded.batimentoCardiaco.coerceAtLeast(10)
         val maxSecondsRaw = editMaxSecondsWithoutServerCheck.text?.toString()?.trim().orEmpty()
         val maxSeconds = maxSecondsRaw.toIntOrNull()?.coerceAtLeast(10)
             ?: loaded.maxSecondsWithoutServerCheck.coerceAtLeast(10)
@@ -356,6 +362,7 @@ class DebugConfigActivity : AppCompatActivity() {
             acceptImagesInPlaylist = switchAcceptImages.isChecked,
             allowPlaybackAudio = switchAllowPlaybackAudio.isChecked,
             fallbackPropagandasPerVinheta = loaded.fallbackPropagandasPerVinheta,
+            batimentoCardiaco = batimento,
             maxSecondsWithoutServerCheck = maxSeconds,
             storageMode = storageMode,
             storagePathOverride = pathOverride.takeIf { it.isNotBlank() },

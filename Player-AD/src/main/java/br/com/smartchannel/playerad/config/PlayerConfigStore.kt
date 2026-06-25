@@ -30,6 +30,7 @@ object PlayerConfigStore {
         put("acceptImagesInPlaylist", cfg.acceptImagesInPlaylist)
         put("allowPlaybackAudio", cfg.allowPlaybackAudio)
         put("fallbackPropagandasPerVinheta", cfg.fallbackPropagandasPerVinheta)
+        put("batimentoCardiaco", cfg.batimentoCardiaco)
         put("maxSecondsWithoutServerCheck", cfg.maxSecondsWithoutServerCheck)
         put("storage", PlayerConfigLoader.storageModeToJsonValue(cfg.storageMode))
         if (cfg.storageMode == PlayerStorageMode.PATH_OVERRIDE && !cfg.storagePathOverride.isNullOrBlank()) {

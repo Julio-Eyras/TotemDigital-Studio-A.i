@@ -16,6 +16,8 @@ import { isStudioRuntime } from '../config/installationRuntime';
 import { logError, logDebug } from '../utils/loggerHelper';
 import { getCacheService } from './cacheService';
 import { getTotemPlaylistMixService, TotemPlaylistMix } from './totemPlaylistMixService';
+import { getTotemSimpleMixService } from './totemSimpleMixService';
+import { isTotemSimpleModeEnabled } from './totemSimpleModeService';
 import { buildDispatchMediaItem } from '../utils/dispatchMediaItem';
 import { sumDispatchMediaItemsPlanDuration } from '../utils/dispatchItemDuration';
 import { enrichDispatchPlanWithGlobalVinhetas } from './dispatchVinhetaEnrichment';
@@ -196,6 +198,56 @@ export class DispatcherTotemService {
         };
       }
 
+      // Mix simples quando o totem está em modo simples (round-robin multi-anunciante)
+      const simpleModeEnabled = await isTotemSimpleModeEnabled(totemId);
+      if (simpleModeEnabled) {
+        try {
+          const simpleMixPlan = await getTotemSimpleMixService().buildPlan(
+            validatedCandidates,
+            totemId,
+            targetTimestamp,
+            { allowSingleSubscriber: true }
+          );
+          if (simpleMixPlan && simpleMixPlan.mediaItems.length > 0) {
+            await logDebug('[DispatcherTotem] Plano mix modo simples', {
+              totem: totemContext,
+              items: simpleMixPlan.mediaItems.length,
+              subscribers: simpleMixPlan.metadata?.subscriberIds,
+              simpleMode: true,
+            });
+            if (this.cacheConfig.enabled && !skipCache && !validateOnly) {
+              await this.saveToCache(cacheKey, {
+                plan: simpleMixPlan,
+                candidates: includeCandidates ? validatedCandidates : undefined,
+              });
+            }
+            await this.logDispatch({
+              totemId,
+              timestamp: targetTimestamp,
+              selectedSource: 'mix',
+              selectedSourceId: totemId,
+              candidatesCount: validatedCandidates.length,
+              candidates: validatedCandidates,
+              fromCache: false,
+              cacheKey,
+              plan: simpleMixPlan,
+              executionTimeMs: Date.now() - startTime,
+            });
+            return {
+              success: true,
+              plan: simpleMixPlan,
+              candidates: includeCandidates ? validatedCandidates : undefined,
+              fromCache: false,
+              executionTimeMs: Date.now() - startTime,
+            };
+          }
+        } catch (simpleMixError: any) {
+          await logError('[DispatcherTotem] Erro no mix modo simples', simpleMixError, {
+            totem: totemContext,
+          });
+        }
+      }
+
       // 2. Decidir estratégia (Fase 1.4)
       const strategy = this.decideStrategy(validatedCandidates);
       await logDebug('[DispatcherTotem] Estratégia decidida', {
@@ -211,6 +263,23 @@ export class DispatcherTotemService {
       let mixId: number | undefined = undefined;
       
       if (strategy === 'mix') {
+        // Mix simples round-robin (preferido) ou mix ponderado legado
+        try {
+          const simpleMixPlan = await getTotemSimpleMixService().buildPlan(
+            validatedCandidates,
+            totemId,
+            targetTimestamp
+          );
+          if (simpleMixPlan && simpleMixPlan.mediaItems.length > 0) {
+            plan = simpleMixPlan;
+          }
+        } catch (simpleMixError: any) {
+          await logError('[DispatcherTotem] Mix simples falhou no ramo mix', simpleMixError, {
+            totem: totemContext,
+          });
+        }
+
+        if (!plan?.mediaItems?.length) {
         // FASE 3.1: Usar Mix Service para combinar múltiplas campanhas
         try {
           const mixService = getTotemPlaylistMixService();
@@ -260,6 +329,7 @@ export class DispatcherTotemService {
           );
           plan = fallback.plan;
           winner = fallback.winner;
+        }
         }
       } else {
         // Estratégia SINGLE ou PRIORITY: usar resolução de conflitos tradicional
@@ -1907,6 +1977,13 @@ export class DispatcherTotemService {
       errors.push(`Erro na validação de integridade: ${error.message}`);
       return { valid: false, errors };
     }
+  }
+
+  /**
+   * Expõe consolidação de mídias da campanha para serviços auxiliares (mix simples).
+   */
+  async consolidateCampaignForDispatch(campaignId: number) {
+    return this.getConsolidatedDispatchItems(campaignId);
   }
 
   /**

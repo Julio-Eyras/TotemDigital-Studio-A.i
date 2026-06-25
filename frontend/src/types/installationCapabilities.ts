@@ -13,6 +13,7 @@ export interface InstallationCapabilities {
   subdomainTenancy: boolean;
   subscriberPortal: boolean;
   smartDisplayFx: boolean;
+  simpleTotemMode: boolean;
 }
 
 export interface DashboardUiContextResponse {
@@ -38,5 +39,6 @@ export function defaultInstallationCapabilities(): InstallationCapabilities {
     subdomainTenancy: !compact,
     subscriberPortal: !compact,
     smartDisplayFx: !compact,
+    simpleTotemMode: compact,
   };
 }

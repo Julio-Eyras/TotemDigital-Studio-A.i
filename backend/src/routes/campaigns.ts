@@ -37,6 +37,7 @@ import {
 } from '../utils/tenantClientAccess';
 import { assertTotemReadAccess } from '../utils/totemReadAccess';
 import { isAdminRole } from '../utils/tenantScope';
+import { resolvePublishGuardHttpStatus } from '../utils/publishGuardHttp';
 
 const router = Router();
 
@@ -412,7 +413,7 @@ router.post('/',
       ...mappedData,
       subscriberId: mappedData.subscriberId as number, // Já validado acima
       title: mappedData.title || '', // Já validado acima
-    }, userId);
+    }, userId, { userRole: req.user?.role });
 
     // Registrar evento de criação de campanha (se ativa)
     if (campaign.isActive && campaign.status === 'active') {
@@ -447,7 +448,7 @@ router.post('/',
     // Sanitizar dados antes de logar (campaignData pode não estar definido se erro ocorrer antes)
     const sanitizedData = req.body ? sanitizeForLogging(req.body) : null;
     await logError('Erro ao criar campanha', error, { campaignData: sanitizedData });
-    return res.status(400).json({
+    return res.status(resolvePublishGuardHttpStatus(error)).json({
       success: false,
       message: error.message || 'Erro ao criar campanha',
       error: error.message || 'Erro desconhecido'
@@ -493,7 +494,8 @@ router.put('/:id',
     const campaign = await getCampaignService().updateCampaign(
       parseInt(id),
       mappedUpdateData,
-      req.user.userId
+      req.user.userId,
+      { userRole: req.user?.role }
     );
 
     return res.json({
@@ -508,7 +510,7 @@ router.put('/:id',
       id, 
       updateData: req.body || null 
     });
-    return res.status(400).json({
+    return res.status(resolvePublishGuardHttpStatus(error)).json({
       success: false,
       message: error.message || 'Erro ao atualizar campanha',
       error: error.message
@@ -571,7 +573,9 @@ router.post('/:id/activate',
       });
     }
 
-    await getCampaignService().activateCampaign(parseInt(id), req.user.userId);
+    await getCampaignService().activateCampaign(parseInt(id), req.user.userId, {
+      userRole: req.user?.role,
+    });
 
     // Registrar evento de início de campanha para todos os totems associados
     try {
@@ -601,7 +605,7 @@ router.post('/:id/activate',
 
   } catch (error: any) {
     await logError('Erro ao ativar campanha', error, { id });
-    return res.status(400).json({
+    return res.status(resolvePublishGuardHttpStatus(error)).json({
       success: false,
       message: error.message || 'Erro ao ativar campanha',
       error: error.message

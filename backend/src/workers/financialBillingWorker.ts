@@ -6,11 +6,19 @@ import cron from 'node-cron';
 import { financialConfig } from '../config/env';
 import { getFinancialAdminService } from '../services/financialAdminService';
 import { getFinancialNotificationService } from '../services/financialNotificationService';
+import { resolveFinancialWorkerEnabled } from '../services/financialIntegrationConfigService';
 import { logError, logInfo } from '../utils/loggerHelper';
 import { getDatabase } from '../config/database';
 
 export class FinancialBillingWorker {
   private jobs: cron.ScheduledTask[] = [];
+
+  private async runIfWorkerEnabled(fn: () => Promise<void>): Promise<void> {
+    if (!(await resolveFinancialWorkerEnabled())) {
+      return;
+    }
+    await fn();
+  }
 
   start(): void {
     if (!financialConfig.workerEnabled) {
@@ -20,71 +28,93 @@ export class FinancialBillingWorker {
 
     this.jobs.push(
       cron.schedule(financialConfig.cronIssueInvoices, async () => {
-        try {
-          await logInfo('Financeiro: emissão automática de faturas por contrato', {
-            autoRevenueShare: financialConfig.autoRevenueSharePayouts,
-          });
-          const result = await getFinancialAdminService().issueContractInvoices({
-            includeRevenueSharePayouts: financialConfig.autoRevenueSharePayouts,
-            revenueShareSinceDays: financialConfig.revenueShareSinceDays,
-          });
-          await logInfo('Financeiro: emissão concluída', result);
-        } catch (error: any) {
-          await logError('Financeiro: erro na emissão automática', error);
-        }
+        await this.runIfWorkerEnabled(async () => {
+          try {
+            await logInfo('Financeiro: emissão automática de faturas por contrato', {
+              autoRevenueShare: financialConfig.autoRevenueSharePayouts,
+            });
+            const result = await getFinancialAdminService().issueContractInvoices({
+              includeRevenueSharePayouts: financialConfig.autoRevenueSharePayouts,
+              revenueShareSinceDays: financialConfig.revenueShareSinceDays,
+            });
+            await logInfo('Financeiro: emissão concluída', result);
+          } catch (error: any) {
+            await logError('Financeiro: erro na emissão automática', error);
+          }
+        });
       })
     );
 
     if (financialConfig.cronRevenueSharePayouts) {
       this.jobs.push(
         cron.schedule(financialConfig.cronRevenueSharePayouts, async () => {
-          try {
-            await logInfo('Financeiro: repasses revenue share automáticos', {});
-            const result = await getFinancialAdminService().issueRevenueSharePayouts({
-              sinceDays: financialConfig.revenueShareSinceDays,
-            });
-            await logInfo('Financeiro: repasses concluídos', result);
-          } catch (error: any) {
-            await logError('Financeiro: erro nos repasses revenue share', error);
-          }
+          await this.runIfWorkerEnabled(async () => {
+            try {
+              await logInfo('Financeiro: repasses revenue share automáticos', {});
+              const result = await getFinancialAdminService().issueRevenueSharePayouts({
+                sinceDays: financialConfig.revenueShareSinceDays,
+              });
+              await logInfo('Financeiro: repasses concluídos', result);
+            } catch (error: any) {
+              await logError('Financeiro: erro nos repasses revenue share', error);
+            }
+          });
         })
       );
     }
 
     this.jobs.push(
       cron.schedule(financialConfig.cronMarkOverdue, async () => {
-        try {
-          const db = getDatabase();
-          const sub = await db.executeRaw(`
+        await this.runIfWorkerEnabled(async () => {
+          try {
+            const db = getDatabase();
+            const sub = await db.executeRaw(`
             UPDATE subscriber_billing
             SET payment_status = 'overdue', updated_at = CURRENT_TIMESTAMP
             WHERE payment_status = 'pending' AND due_date < CURRENT_TIMESTAMP
           `);
-          const pub = await db.executeRaw(`
+            const pub = await db.executeRaw(`
             UPDATE publisher_billing
             SET payment_status = 'overdue', updated_at = CURRENT_TIMESTAMP
             WHERE payment_status = 'pending'
               AND direction = 'incoming'
               AND due_date < CURRENT_TIMESTAMP
           `);
-          await logInfo('Financeiro: faturas marcadas como vencidas', {
-            subscriber: sub.rowCount || 0,
-            publisherIncoming: pub.rowCount || 0,
-          });
-        } catch (error: any) {
-          await logError('Financeiro: erro ao marcar vencidas', error);
-        }
+            await logInfo('Financeiro: faturas marcadas como vencidas', {
+              subscriber: sub.rowCount || 0,
+              publisherIncoming: pub.rowCount || 0,
+            });
+          } catch (error: any) {
+            await logError('Financeiro: erro ao marcar vencidas', error);
+          }
+        });
       })
     );
 
     this.jobs.push(
       cron.schedule(financialConfig.cronSendReminders, async () => {
-        try {
-          const result = await getFinancialNotificationService().sendPendingInvoiceReminders();
-          await logInfo('Financeiro: lembretes por e-mail', result);
-        } catch (error: any) {
-          await logError('Financeiro: erro nos lembretes', error);
-        }
+        await this.runIfWorkerEnabled(async () => {
+          try {
+            const result = await getFinancialNotificationService().sendPendingInvoiceReminders();
+            await logInfo('Financeiro: lembretes por e-mail', result);
+          } catch (error: any) {
+            await logError('Financeiro: erro nos lembretes', error);
+          }
+        });
+      })
+    );
+
+    this.jobs.push(
+      cron.schedule(financialConfig.cronEnforceOverdueBlocks, async () => {
+        await this.runIfWorkerEnabled(async () => {
+          try {
+            const { getBillingEnforcementService } = await import('../services/billingEnforcementService');
+            const result = await getBillingEnforcementService().enforceAutomaticBlocks();
+            await logInfo('Financeiro: bloqueio automático por inadimplência', result);
+          } catch (error: any) {
+            await logError('Financeiro: erro no bloqueio automático', error);
+          }
+        });
       })
     );
 
@@ -92,6 +122,7 @@ export class FinancialBillingWorker {
       issue: financialConfig.cronIssueInvoices,
       overdue: financialConfig.cronMarkOverdue,
       reminders: financialConfig.cronSendReminders,
+      enforceBlocks: financialConfig.cronEnforceOverdueBlocks,
       autoRevenueShare: financialConfig.autoRevenueSharePayouts,
       revenueShareCron: financialConfig.cronRevenueSharePayouts || '(desativado)',
     });
