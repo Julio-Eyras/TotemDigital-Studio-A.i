@@ -6,29 +6,44 @@
     android:layout_height="match_parent"
     android:background="#000000">
 
-    <androidx.media3.ui.PlayerView
-        android:id="@+id/playerView"
+    <FrameLayout
+        android:id="@+id/contentHost"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        app:use_controller="false"
-        app:resize_mode="zoom" />
+        android:layout_gravity="center">
 
-    <ImageView
-        android:id="@+id/imageView"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:adjustViewBounds="true"
-        android:background="@android:color/transparent"
-        android:contentDescription="@string/app_name"
-        android:scaleType="fitCenter"
-        android:visibility="gone" />
+        <br.com.smartchannel.playerad.ui.PortraitViewportLayout
+            android:id="@+id/portraitViewport"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_gravity="center"
+            android:background="#000000">
 
-    <WebView
-        android:id="@+id/htmlWebView"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="#000000"
-        android:visibility="gone" />
+            <androidx.media3.ui.PlayerView
+                android:id="@+id/playerView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                app:use_controller="false"
+                app:resize_mode="zoom" />
 
+            <ImageView
+                android:id="@+id/imageView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:adjustViewBounds="true"
+                android:background="@android:color/transparent"
+                android:contentDescription="@string/app_name"
+                android:scaleType="centerCrop"
+                android:visibility="gone" />
+
+            <WebView
+                android:id="@+id/htmlWebView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#000000"
+                android:visibility="gone" />
+
+        </br.com.smartchannel.playerad.ui.PortraitViewportLayout>
+    </FrameLayout>
 </FrameLayout>
 

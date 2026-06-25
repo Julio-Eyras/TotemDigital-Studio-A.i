@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import br.com.smartchannel.playerad.R
 import br.com.smartchannel.playerad.api.DispatcherApiClient
 import br.com.smartchannel.playerad.ota.OtaUpdateCoordinator
 import br.com.smartchannel.playerad.api.PlayerEventsClient
@@ -1374,6 +1375,10 @@ class PlayerController(
      * Limite do maior lado do bitmap em px (ligado ao ecrã, com teto para 4K).
      */
     private fun targetMaxBitmapSidePx(): Int {
+        val viewport = (context as? android.app.Activity)?.findViewById<View>(R.id.portraitViewport)
+        if (viewport != null && viewport.width > 0 && viewport.height > 0) {
+            return maxOf(viewport.width, viewport.height).coerceIn(720, 3840)
+        }
         val dm = context.resources.displayMetrics
         val longest = maxOf(dm.widthPixels, dm.heightPixels)
         return longest.coerceIn(720, 3840)

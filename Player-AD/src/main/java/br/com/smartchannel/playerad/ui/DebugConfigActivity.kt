@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
+import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
@@ -21,6 +22,7 @@ import br.com.smartchannel.playerad.config.PlayerConfig
 import br.com.smartchannel.playerad.config.PlayerConfigLoader
 import br.com.smartchannel.playerad.config.PlayerConfigStore
 import br.com.smartchannel.playerad.config.PlayerStorageMode
+import br.com.smartchannel.playerad.config.ScreenOrientationMode
 import br.com.smartchannel.playerad.util.AppDirs
 import br.com.smartchannel.playerad.util.DeviceProvisioningDiagnostics
 import br.com.smartchannel.playerad.util.LocalNetworkAddresses
@@ -46,6 +48,8 @@ class DebugConfigActivity : AppCompatActivity() {
     private lateinit var switchAcceptImages: SwitchCompat
     private lateinit var switchAllowPlaybackAudio: SwitchCompat
     private lateinit var switchStrongKiosk: SwitchCompat
+    private lateinit var spinnerScreenOrientation: Spinner
+    private lateinit var textOrientationDegrees: TextView
     private lateinit var editMaxSecondsWithoutServerCheck: EditText
     private lateinit var editBatimentoCardiaco: EditText
     private lateinit var spinnerStorage: Spinner
@@ -91,6 +95,8 @@ class DebugConfigActivity : AppCompatActivity() {
         switchAcceptImages = findViewById(R.id.switchAcceptImages)
         switchAllowPlaybackAudio = findViewById(R.id.switchAllowPlaybackAudio)
         switchStrongKiosk = findViewById(R.id.switchStrongKiosk)
+        spinnerScreenOrientation = findViewById(R.id.spinnerScreenOrientation)
+        textOrientationDegrees = findViewById(R.id.textOrientationDegrees)
         editMaxSecondsWithoutServerCheck = findViewById(R.id.editMaxSecondsWithoutServerCheck)
         editBatimentoCardiaco = findViewById(R.id.editBatimentoCardiaco)
         spinnerStorage = findViewById(R.id.spinnerStorage)
@@ -147,6 +153,8 @@ class DebugConfigActivity : AppCompatActivity() {
         spinnerStorage.setSelection(sel)
         editStoragePath.setText(current.storagePathOverride.orEmpty())
 
+        bindScreenOrientationSpinner(current)
+
         setHeartbeatAndDispatchState(heartbeatOk = false, dispatchOk = false)
 
         btnRegisterActivation.setOnClickListener {
@@ -171,6 +179,7 @@ class DebugConfigActivity : AppCompatActivity() {
                 if (!saveResult.internalOk && saveResult.externalOk) {
                     appendStatus("\nAviso: config gravada só no SD (filesDir sem permissão de escrita).")
                 }
+                DisplayPresentationController.apply(this, cfg)
             } catch (e: Exception) {
                 setStatus("Erro ao salvar configuração: ${e.message ?: e.toString()}")
                 PlayerAdLogger.e("DEBUG_UI", "Falha ao salvar config antes de iniciar player", e)
@@ -355,6 +364,8 @@ class DebugConfigActivity : AppCompatActivity() {
         } else {
             br.com.smartchannel.playerad.config.KioskMode.IMMERSIVE
         }
+        val orientationMode = readSelectedScreenOrientation()
+        val displayRotation = PlayerConfigLoader.displayRotationFromMode(orientationMode)
         return PlayerConfig(
             serverUrl = serverUrl,
             uin = uin,
@@ -367,9 +378,39 @@ class DebugConfigActivity : AppCompatActivity() {
             storageMode = storageMode,
             storagePathOverride = pathOverride.takeIf { it.isNotBlank() },
             kioskMode = kioskMode,
-            displayRotation = loaded.displayRotation,
-            screenOrientation = loaded.screenOrientation
+            displayRotation = displayRotation,
+            screenOrientation = orientationMode
         )
+    }
+
+    private fun bindScreenOrientationSpinner(current: PlayerConfig) {
+        val orientationValues = resources.getStringArray(R.array.player_screen_orientations)
+        val orientationLabels = resources.getStringArray(R.array.player_screen_orientation_labels)
+        val orientAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, orientationLabels)
+        orientAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinnerScreenOrientation.adapter = orientAdapter
+        val modeKey = PlayerConfigLoader.screenOrientationToJsonValue(current.screenOrientation)
+        val sel = orientationValues.indexOf(modeKey).let { if (it >= 0) it else 0 }
+        spinnerScreenOrientation.setSelection(sel)
+        updateOrientationHint(current.displayRotation)
+        spinnerScreenOrientation.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                val mode = PlayerConfigLoader.parseScreenOrientation(orientationValues[position])
+                updateOrientationHint(PlayerConfigLoader.displayRotationFromMode(mode))
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
+    }
+
+    private fun readSelectedScreenOrientation(): ScreenOrientationMode {
+        val orientationValues = resources.getStringArray(R.array.player_screen_orientations)
+        val pos = spinnerScreenOrientation.selectedItemPosition.coerceIn(0, orientationValues.size - 1)
+        return PlayerConfigLoader.parseScreenOrientation(orientationValues[pos])
+    }
+
+    private fun updateOrientationHint(displayRotation: Int) {
+        textOrientationDegrees.text = PlayerConfigLoader.displayRotationLabel(displayRotation)
     }
 
     private fun markSetupComplete() {

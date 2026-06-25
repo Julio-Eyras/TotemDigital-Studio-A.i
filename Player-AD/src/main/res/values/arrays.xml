@@ -10,8 +10,14 @@
     </string-array>
     <string-array name="player_screen_orientations">
         <item>portrait</item>
-        <item>landscape</item>
         <item>reverse_portrait</item>
+        <item>landscape</item>
         <item>reverse_landscape</item>
+    </string-array>
+    <string-array name="player_screen_orientation_labels">
+        <item>Retrato (topo para cima)</item>
+        <item>Retrato invertido (topo para baixo)</item>
+        <item>Paisagem (90° direita)</item>
+        <item>Paisagem invertida (90° esquerda)</item>
     </string-array>
 </resources>

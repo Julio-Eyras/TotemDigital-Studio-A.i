@@ -189,8 +189,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:textColor="#FFFFFF"
-            android:text="Orientação da tela"
-            android:visibility="gone"/>
+            android:text="Montagem do painel (orientação física)"/>
 
         <TextView
             android:layout_width="match_parent"
@@ -198,15 +197,13 @@
             android:layout_marginTop="4dp"
             android:textColor="#BDBDBD"
             android:textSize="12sp"
-            android:text="Rotação física: use set-android-display-rotation.ps1 ou configure-android-kiosk.sh via ADB."
-            android:visibility="gone"/>
+            android:text="Como o totem está instalado na parede. O player aplica rotação no dispositivo e exibe mídia 9:16 dentro do viewport."/>
 
         <Spinner
             android:id="@+id/spinnerScreenOrientation"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:visibility="gone"/>
+            android:layout_marginTop="8dp"/>
 
         <TextView
             android:id="@+id/textOrientationDegrees"
@@ -215,16 +212,7 @@
             android:layout_marginTop="8dp"
             android:textColor="#BDBDBD"
             android:textSize="13sp"
-            android:text="0° — retrato (portrait)"
-            android:visibility="gone"/>
-
-        <Button
-            android:id="@+id/btnRotateScreen"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Girar 90°"
-            android:visibility="gone"/>
+            android:text="0° — retrato (portrait)"/>
 
         <TextView
             android:layout_width="match_parent"

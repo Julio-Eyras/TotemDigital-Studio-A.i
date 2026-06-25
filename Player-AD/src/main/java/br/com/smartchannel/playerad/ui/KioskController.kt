@@ -23,6 +23,7 @@ object KioskController {
 
     fun applyPlayback(activity: Activity, config: PlayerConfig) {
         activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        DisplayPresentationController.apply(activity, config)
         when (config.kioskMode) {
             KioskMode.IMMERSIVE -> {
                 releaseLockTask(activity)
