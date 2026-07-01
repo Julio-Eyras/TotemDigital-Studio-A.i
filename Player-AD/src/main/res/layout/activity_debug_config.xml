@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <FrameLayout
+        android:id="@+id/configContentHost"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+<ScrollView
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#000000">
@@ -69,6 +79,49 @@
             android:layout_marginTop="12dp"
             android:textColor="#BDBDBD"
             android:text="Na configuração inicial, «Aplicar e iniciar» fica ativo com serverUrl, uin e deviceId preenchidos. Recomenda-se vincular o código ou testar heartbeat antes."/>
+
+        <LinearLayout
+            android:id="@+id/panelOrientation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="#1A237E"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Virar tela / Montagem do painel"
+                android:textColor="#FFFFFF"
+                android:textSize="17sp"
+                android:textStyle="bold"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:lineSpacingExtra="2dp"
+                android:text="Como o totem está na parede. A tela de configuração gira ao escolher — confirme visualmente e toque «Aplicar e iniciar» para gravar."
+                android:textColor="#C5CAE9"
+                android:textSize="13sp"/>
+
+            <Spinner
+                android:id="@+id/spinnerScreenOrientation"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:minHeight="48dp"/>
+
+            <TextView
+                android:id="@+id/textOrientationDegrees"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="0° — retrato (portrait)"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"/>
+        </LinearLayout>
 
         <TextView
             android:layout_width="match_parent"
@@ -183,36 +236,6 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
             android:checked="true"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:textColor="#FFFFFF"
-            android:text="Montagem do painel (orientação física)"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:textColor="#BDBDBD"
-            android:textSize="12sp"
-            android:text="Como o totem está instalado na parede. O player aplica rotação no dispositivo e exibe mídia 9:16 dentro do viewport."/>
-
-        <Spinner
-            android:id="@+id/spinnerScreenOrientation"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"/>
-
-        <TextView
-            android:id="@+id/textOrientationDegrees"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:textColor="#BDBDBD"
-            android:textSize="13sp"
-            android:text="0° — retrato (portrait)"/>
 
         <TextView
             android:layout_width="match_parent"
@@ -548,4 +571,7 @@
 
     </LinearLayout>
 </ScrollView>
+
+    </FrameLayout>
+</FrameLayout>
 

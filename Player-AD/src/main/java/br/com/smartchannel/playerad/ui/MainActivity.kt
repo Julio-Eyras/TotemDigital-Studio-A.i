@@ -174,6 +174,15 @@ class MainActivity : AppCompatActivity() {
         if (devTapCount >= DEV_TAPS_REQUIRED) {
             devTapCount = 0
             openDebug("tap_$DEV_TAPS_REQUIRED")
+            return
+        }
+        val remaining = DEV_TAPS_REQUIRED - devTapCount
+        if (remaining in 1..3) {
+            android.widget.Toast.makeText(
+                this,
+                "Mais $remaining toque(s) no OK para abrir configuração",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
@@ -286,7 +295,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
-        private const val DEV_TAPS_REQUIRED = 8
+        private const val DEV_TAPS_REQUIRED = 5
         private const val WATCHDOG_RESTART_DELAY_MS = 10_000L
     }
 }

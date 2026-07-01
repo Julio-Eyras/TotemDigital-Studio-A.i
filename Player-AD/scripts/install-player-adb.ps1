@@ -25,6 +25,7 @@ param(
     [switch] $NoConfigPush,
     [string] $ConfigJson = "",
     [switch] $NoLaunch,
+    [switch] $OpenConfig,
     [switch] $NoKioskSetup,
     [int] $UserRotation = 1
 )
@@ -260,7 +261,10 @@ if (-not $NoKioskSetup) {
     Write-AndroidBoxDiagnosticsSummary -Diagnostics $postDiag -Title 'Diagnostico pos-provisionamento'
 }
 
-if (-not $NoLaunch) {
+if ($OpenConfig) {
+    Write-Host "`n>> A abrir tela de configuracao (DebugConfigActivity)..." -ForegroundColor Yellow
+    adb shell am start -n "$PackageId/.ui.DebugConfigActivity" 2>&1 | Out-Host
+} elseif (-not $NoLaunch) {
     Write-Host "`n>> A iniciar MainActivity..." -ForegroundColor Yellow
     adb shell am start -n "$PackageId/.ui.MainActivity" 2>&1 | Out-Host
 }

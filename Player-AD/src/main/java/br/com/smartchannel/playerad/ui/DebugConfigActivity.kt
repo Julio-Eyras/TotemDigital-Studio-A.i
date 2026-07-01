@@ -2,6 +2,7 @@ package br.com.smartchannel.playerad.ui
 
 import android.app.Activity
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -154,6 +155,7 @@ class DebugConfigActivity : AppCompatActivity() {
         editStoragePath.setText(current.storagePathOverride.orEmpty())
 
         bindScreenOrientationSpinner(current)
+        applyConfigOrientationPreview(current.displayRotation)
 
         setHeartbeatAndDispatchState(heartbeatOk = false, dispatchOk = false)
         updateApplyButtonState()
@@ -417,13 +419,37 @@ class DebugConfigActivity : AppCompatActivity() {
         spinnerScreenOrientation.setSelection(sel)
         updateOrientationHint(current.displayRotation)
         spinnerScreenOrientation.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            private var skipFirst = true
+
             override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
                 val mode = PlayerConfigLoader.parseScreenOrientation(orientationValues[position])
-                updateOrientationHint(PlayerConfigLoader.displayRotationFromMode(mode))
+                val rotation = PlayerConfigLoader.displayRotationFromMode(mode)
+                updateOrientationHint(rotation)
+                if (skipFirst) {
+                    skipFirst = false
+                    return
+                }
+                val base = readConfigOrNull() ?: return
+                val preview = base.copy(displayRotation = rotation, screenOrientation = mode)
+                applyConfigOrientationPreview(preview.displayRotation)
             }
 
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
         }
+    }
+
+    private fun applyConfigOrientationPreview(displayRotation: Int) {
+        val host = findViewById<android.view.View>(R.id.configContentHost) ?: return
+        ConfigOrientationPreview.apply(this, host, displayRotation)
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (!::spinnerScreenOrientation.isInitialized) return
+        val orientationValues = resources.getStringArray(R.array.player_screen_orientations)
+        val pos = spinnerScreenOrientation.selectedItemPosition.coerceIn(0, orientationValues.size - 1)
+        val mode = PlayerConfigLoader.parseScreenOrientation(orientationValues[pos])
+        applyConfigOrientationPreview(PlayerConfigLoader.displayRotationFromMode(mode))
     }
 
     private fun readSelectedScreenOrientation(): ScreenOrientationMode {
