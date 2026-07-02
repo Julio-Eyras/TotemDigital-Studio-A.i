@@ -6,8 +6,10 @@ import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.util.Log
+import android.view.KeyEvent
+import android.view.ViewTreeObserver
 import android.widget.AdapterView
+import android.widget.ScrollView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
@@ -74,6 +76,9 @@ class DebugConfigActivity : AppCompatActivity() {
     private lateinit var textOperationalLog: TextView
     private lateinit var textOfflineState: TextView
     private lateinit var textSystemProvisioning: TextView
+    private lateinit var configScrollView: ScrollView
+
+    private var lastPreviewRotation: Int = 0
 
     private var lastHeartbeatToken: String? = null
     private var lastDispatchPlan: JSONObject? = null
@@ -121,6 +126,7 @@ class DebugConfigActivity : AppCompatActivity() {
         textOperationalLog = findViewById(R.id.textOperationalLog)
         textOfflineState = findViewById(R.id.textOfflineState)
         textSystemProvisioning = findViewById(R.id.textSystemProvisioning)
+        configScrollView = findViewById(R.id.configScrollView)
 
         bindLocalIps()
 
@@ -155,7 +161,8 @@ class DebugConfigActivity : AppCompatActivity() {
         editStoragePath.setText(current.storagePathOverride.orEmpty())
 
         bindScreenOrientationSpinner(current)
-        applyConfigOrientationPreview(current.displayRotation)
+        scheduleOrientationPreview(current.displayRotation)
+        btnApplyAndStart.requestFocus()
 
         setHeartbeatAndDispatchState(heartbeatOk = false, dispatchOk = false)
         updateApplyButtonState()
@@ -439,17 +446,47 @@ class DebugConfigActivity : AppCompatActivity() {
     }
 
     private fun applyConfigOrientationPreview(displayRotation: Int) {
+        lastPreviewRotation = displayRotation
         val host = findViewById<android.view.View>(R.id.configContentHost) ?: return
         ConfigOrientationPreview.apply(this, host, displayRotation)
+        configScrollView.post { configScrollView.scrollTo(0, 0) }
+    }
+
+    private fun scheduleOrientationPreview(displayRotation: Int) {
+        val host = findViewById<ConfigContentHost>(R.id.configContentHost)
+        host.viewTreeObserver.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
+            override fun onGlobalLayout() {
+                if (host.height <= 0) return
+                host.viewTreeObserver.removeOnGlobalLayoutListener(this)
+                applyConfigOrientationPreview(displayRotation)
+            }
+        })
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN && ::configScrollView.isInitialized) {
+            val step = 200
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_PAGE_DOWN -> {
+                    if (configScrollView.canScrollVertically(1)) {
+                        configScrollView.smoothScrollBy(0, step)
+                        return true
+                    }
+                }
+                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_PAGE_UP -> {
+                    if (configScrollView.canScrollVertically(-1)) {
+                        configScrollView.smoothScrollBy(0, -step)
+                        return true
+                    }
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        if (!::spinnerScreenOrientation.isInitialized) return
-        val orientationValues = resources.getStringArray(R.array.player_screen_orientations)
-        val pos = spinnerScreenOrientation.selectedItemPosition.coerceIn(0, orientationValues.size - 1)
-        val mode = PlayerConfigLoader.parseScreenOrientation(orientationValues[pos])
-        applyConfigOrientationPreview(PlayerConfigLoader.displayRotationFromMode(mode))
+        scheduleOrientationPreview(lastPreviewRotation)
     }
 
     private fun readSelectedScreenOrientation(): ScreenOrientationMode {

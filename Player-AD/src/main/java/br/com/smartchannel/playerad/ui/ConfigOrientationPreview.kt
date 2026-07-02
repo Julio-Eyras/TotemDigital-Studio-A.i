@@ -7,8 +7,8 @@ import br.com.smartchannel.playerad.config.PlayerConfigLoader
 import br.com.smartchannel.playerad.util.PlayerAdLogger
 
 /**
- * Pré-visualização da montagem na tela de configuração: gira todo o formulário
- * para o operador ver como o player ficará com o [displayRotation] escolhido.
+ * Pré-visualização da montagem na área rolável da configuração.
+ * A barra fixa (orientação + «Aplicar») fica fora deste container.
  */
 object ConfigOrientationPreview {
 
@@ -17,23 +17,25 @@ object ConfigOrientationPreview {
         val normalized = ((displayRotation % 4) + 4) % 4
         target.post {
             val metrics = activity.resources.displayMetrics
-            val w = metrics.widthPixels.toFloat()
-            val h = metrics.heightPixels.toFloat()
-            if (w <= 0f || h <= 0f) return@post
+            val hostW = target.width.takeIf { it > 0 }?.toFloat() ?: metrics.widthPixels.toFloat()
+            val hostH = target.height.takeIf { it > 0 }?.toFloat() ?: metrics.heightPixels.toFloat()
+            if (hostW <= 0f || hostH <= 0f) return@post
 
-            target.pivotX = w / 2f
-            target.pivotY = h / 2f
+            target.pivotX = hostW / 2f
+            target.pivotY = hostH / 2f
 
-            if (w >= h) {
-                applyLandscapeBuffer(target, normalized, w, h)
+            val panelLandscape = metrics.widthPixels >= metrics.heightPixels
+            if (panelLandscape) {
+                applyLandscapeBuffer(target, normalized, hostW, hostH)
             } else {
-                applyPortraitBuffer(target, normalized, w, h)
+                applyPortraitBuffer(target, normalized, hostW, hostH)
             }
 
+            target.requestLayout()
             PlayerAdLogger.i(
                 "DEBUG_UI",
                 "Preview orientação config: ${PlayerConfigLoader.displayRotationLabel(normalized)} " +
-                    "(${w.toInt()}x${h.toInt()})"
+                    "host=${hostW.toInt()}x${hostH.toInt()} panel=${metrics.widthPixels}x${metrics.heightPixels}"
             )
         }
     }
@@ -47,7 +49,7 @@ object ConfigOrientationPreview {
                 target.translationY = (w - h) / 2f
                 resizeRoot(target, h.toInt(), w.toInt())
             }
-            1 -> resetRoot(target, w.toInt(), h.toInt())
+            1 -> resetRoot(target)
             2 -> {
                 target.rotation = 180f
                 target.translationX = 0f
@@ -66,7 +68,7 @@ object ConfigOrientationPreview {
     /** Buffer já em portrait lógico (altura maior que largura). */
     private fun applyPortraitBuffer(target: View, normalized: Int, w: Float, h: Float) {
         when (normalized) {
-            0 -> resetRoot(target, w.toInt(), h.toInt())
+            0 -> resetRoot(target)
             1 -> {
                 target.rotation = 90f
                 target.translationX = (h - w) / 2f
@@ -88,11 +90,17 @@ object ConfigOrientationPreview {
         }
     }
 
-    private fun resetRoot(target: View, width: Int, height: Int) {
+    private fun resetRoot(target: View) {
         target.rotation = 0f
         target.translationX = 0f
         target.translationY = 0f
-        resizeRoot(target, width, height)
+        val lp = target.layoutParams ?: ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
+        lp.width = ViewGroup.LayoutParams.MATCH_PARENT
+        lp.height = ViewGroup.LayoutParams.MATCH_PARENT
+        target.layoutParams = lp
     }
 
     private fun resizeRoot(target: View, width: Int, height: Int) {

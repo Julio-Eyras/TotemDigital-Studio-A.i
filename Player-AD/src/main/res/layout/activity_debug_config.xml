@@ -1,24 +1,118 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000000">
+    android:background="#000000"
+    android:orientation="vertical">
 
-    <FrameLayout
-        android:id="@+id/configContentHost"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent">
-
-<ScrollView
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#000000">
-
+    <!-- Barra fixa: não roda com o preview — orientação e gravar sempre visíveis -->
     <LinearLayout
+        android:id="@+id/configActionBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="24dp"
-        android:orientation="vertical">
+        android:background="#121212"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <LinearLayout
+            android:id="@+id/panelOrientation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#1A237E"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Virar tela / Montagem do painel"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:lineSpacingExtra="2dp"
+                android:text="Escolha a orientação. A área abaixo gira como preview. Use ▲▼ no controle para rolar. «Aplicar e iniciar» fica sempre aqui."
+                android:textColor="#C5CAE9"
+                android:textSize="12sp"/>
+
+            <Spinner
+                android:id="@+id/spinnerScreenOrientation"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:minHeight="44dp"/>
+
+            <TextView
+                android:id="@+id/textOrientationDegrees"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="0° — retrato (portrait)"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnApplyAndStart"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Aplicar e iniciar"/>
+
+            <Button
+                android:id="@+id/btnStartWithoutSave"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:layout_weight="1"
+                android:text="Iniciar sem salvar"/>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/textStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:ellipsize="end"
+            android:maxLines="4"
+            android:text="Status..."
+            android:textColor="#FFFFFF"
+            android:textSize="11sp"/>
+    </LinearLayout>
+
+    <br.com.smartchannel.playerad.ui.ConfigContentHost
+        android:id="@+id/configContentHost"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipChildren="false"
+        android:clipToPadding="false">
+
+        <ScrollView
+            android:id="@+id/configScrollView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#000000"
+            android:fillViewport="true"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:scrollbars="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
 
         <TextView
             android:id="@+id/textReason"
@@ -77,51 +171,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:textColor="#BDBDBD"
-            android:text="Na configuração inicial, «Aplicar e iniciar» fica ativo com serverUrl, uin e deviceId preenchidos. Recomenda-se vincular o código ou testar heartbeat antes."/>
-
-        <LinearLayout
-            android:id="@+id/panelOrientation"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:background="#1A237E"
-            android:orientation="vertical"
-            android:padding="16dp">
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Virar tela / Montagem do painel"
-                android:textColor="#FFFFFF"
-                android:textSize="17sp"
-                android:textStyle="bold"/>
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:lineSpacingExtra="2dp"
-                android:text="Como o totem está na parede. A tela de configuração gira ao escolher — confirme visualmente e toque «Aplicar e iniciar» para gravar."
-                android:textColor="#C5CAE9"
-                android:textSize="13sp"/>
-
-            <Spinner
-                android:id="@+id/spinnerScreenOrientation"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:minHeight="48dp"/>
-
-            <TextView
-                android:id="@+id/textOrientationDegrees"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="0° — retrato (portrait)"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"/>
-        </LinearLayout>
+            android:text="Na configuração inicial, «Aplicar e iniciar» (barra fixa no topo) fica ativo com serverUrl, uin e deviceId preenchidos."
+            android:textColor="#BDBDBD"/>
 
         <TextView
             android:layout_width="match_parent"
@@ -462,8 +513,8 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="12dp">
+            android:layout_marginTop="12dp"
+            android:orientation="horizontal">
 
             <Button
                 android:id="@+id/btnTestHeartbeat"
@@ -481,44 +532,13 @@
                 android:text="DispatchPlan"/>
         </LinearLayout>
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="12dp">
-
-            <Button
-                android:id="@+id/btnApplyAndStart"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Aplicar e iniciar"/>
-
-            <Button
-                android:id="@+id/btnStartWithoutSave"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="12dp"
-                android:text="Iniciar sem salvar"/>
-        </LinearLayout>
-
-        <TextView
-            android:id="@+id/textStatus"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp"
-            android:text="Status..."/>
-
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
+            android:text="Registo operacional"
             android:textColor="#FFFFFF"
-            android:textStyle="bold"
-            android:text="Registo operacional"/>
+            android:textStyle="bold"/>
 
         <TextView
             android:layout_width="match_parent"
@@ -569,9 +589,8 @@
                 android:text="(carregar…)"/>
         </ScrollView>
 
-    </LinearLayout>
-</ScrollView>
-
-    </FrameLayout>
-</FrameLayout>
+            </LinearLayout>
+        </ScrollView>
+    </br.com.smartchannel.playerad.ui.ConfigContentHost>
+</LinearLayout>
 

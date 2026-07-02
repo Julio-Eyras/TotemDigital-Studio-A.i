@@ -31,7 +31,7 @@ object DeviceProvisioningDiagnostics {
         val portraitOk = userRot == expectedUserRotation && accelRot == 0
 
         return Report(
-            rootSuAvailable = detectSuAvailable(),
+            rootSuAvailable = suBinaryPresent(),
             userRotation = userRot,
             accelerometerRotation = accelRot,
             hwRotation = readSystemProperty("ro.sf.hwrotation"),
@@ -45,7 +45,7 @@ object DeviceProvisioningDiagnostics {
 
     fun formatDebugText(report: Report, expectedUserRotation: Int = EXPECTED_USER_ROTATION_PORTRAIT): String {
         val rootLine = if (report.rootSuAvailable) {
-            "Root (su): disponível — logo boot /system pode ser alterável"
+            "Root (su): binário presente (gerenciador SuperSU; o player não testa su em runtime)"
         } else {
             "Root (su): não disponível (normal em produção)"
         }
@@ -116,27 +116,14 @@ object DeviceProvisioningDiagnostics {
         return candidates.firstOrNull { File(it).exists() }
     }
 
-    /** Verifica binário su e teste rápido (timeout); não mantém sessão root. */
-    private fun detectSuAvailable(): Boolean {
+    /** Apenas verifica se o binário existe — não executa `su` (evita diálogo SuperSU). */
+    private fun suBinaryPresent(): Boolean {
         val suPaths = listOf(
             "/system/bin/su",
             "/system/xbin/su",
             "/sbin/su",
             "/vendor/bin/su"
         )
-        if (suPaths.none { File(it).exists() }) return false
-        return try {
-            val proc = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
-            val waiter = Thread { proc.waitFor() }
-            waiter.start()
-            waiter.join(2000)
-            if (waiter.isAlive) {
-                proc.destroy()
-                return false
-            }
-            proc.inputStream.bufferedReader().readText().contains("uid=0")
-        } catch (_: Exception) {
-            false
-        }
+        return suPaths.any { File(it).exists() }
     }
 }

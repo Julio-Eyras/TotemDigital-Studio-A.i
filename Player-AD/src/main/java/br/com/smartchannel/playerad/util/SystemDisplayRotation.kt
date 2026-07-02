@@ -20,6 +20,21 @@ object SystemDisplayRotation {
     fun apply(context: Context, displayRotation: Int): ApplyResult {
         val normalized = ((displayRotation % 4) + 4) % 4
         val userRotation = PlayerConfigLoader.displayRotationToUserRotation(normalized)
+
+        // Já provisionado no SO (ex.: install-player-adb.ps1) — evita su -c e pop-up SuperSU.
+        val currentUser = readUserRotation(context)
+        val currentAccel = readAccelerometerRotation(context)
+        if (currentUser == userRotation && currentAccel == 0) {
+            val displayEffective = isDisplayRotationEffective(context, normalized)
+            return ApplyResult(
+                userRotation = userRotation,
+                rotationApplied = displayEffective,
+                settingsWritten = false,
+                displayEffective = displayEffective,
+                accelerometerLocked = true
+            )
+        }
+
         val accelerometerLocked = lockAccelerometerRotation(context)
         val settingsWritten = writeUserRotation(context, userRotation)
         val displayEffective = isDisplayRotationEffective(context, normalized)
@@ -74,12 +89,14 @@ object SystemDisplayRotation {
     }
 
     private fun lockAccelerometerRotation(context: Context): Boolean {
+        if (readAccelerometerRotation(context) == 0) return true
         if (putSystemInt(context, Settings.System.ACCELEROMETER_ROTATION, 0)) return true
         return runSuSettings("put system accelerometer_rotation 0")
     }
 
     private fun writeUserRotation(context: Context, userRotation: Int): Boolean {
         val value = userRotation.coerceIn(0, 3)
+        if (readUserRotation(context) == value) return true
         if (putSystemInt(context, Settings.System.USER_ROTATION, value)) return true
         if (!runSuSettings("put system user_rotation $value")) return false
         return readUserRotation(context) == value
@@ -114,6 +131,14 @@ object SystemDisplayRotation {
     fun readUserRotation(context: Context): Int? {
         return try {
             Settings.System.getInt(context.contentResolver, Settings.System.USER_ROTATION)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun readAccelerometerRotation(context: Context): Int? {
+        return try {
+            Settings.System.getInt(context.contentResolver, Settings.System.ACCELEROMETER_ROTATION)
         } catch (_: Exception) {
             null
         }

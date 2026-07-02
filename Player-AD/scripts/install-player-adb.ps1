@@ -118,6 +118,7 @@ function Invoke-AndroidKioskSetup {
     }
 
     Assert-AndroidPortraitAfterKiosk -ExpectedUserRotation $Rotation | Out-Null
+    Write-Host "  Portrait persiste apos reboot (settings system user_rotation=$Rotation, accelerometer_rotation=0)" -ForegroundColor Gray
 }
 
 function Grant-SuperSuPlayerAd {
@@ -127,13 +128,19 @@ function Grant-SuperSuPlayerAd {
         Write-Host "  AVISO SuperSU nao encontrado; configure root manualmente" -ForegroundColor DarkYellow
         return
     }
-    $prefs = adb shell "su -c 'cat /data/data/$suPkg/shared_prefs/eu.chainfire.supersu_preferences.xml 2>/dev/null'" 2>&1 | Out-String
-    if ($prefs -match 'config_br.com.smartchannel.playerad_access">grant' -or $prefs -match 'config_br.com.smartchannel.playerad_access''>grant') {
+  $prefs = adb shell "su -c 'cat /data/data/$suPkg/shared_prefs/eu.chainfire.supersu_preferences.xml 2>/dev/null'" 2>&1 | Out-String
+    if ($prefs -match 'config_br.com.smartchannel.playerad_access">grant' -or $prefs -match "config_br.com.smartchannel.playerad_access'>grant") {
         Write-Host "  OK SuperSU: Player-AD com acesso permanente (grant)" -ForegroundColor Green
-    } else {
-        Write-Host "  AVISO SuperSU: no app SuperSU defina Player-AD como Permitir (sempre)" -ForegroundColor Yellow
-        Write-Host "    SuperSU > Configuracoes > Acesso padrao: Permitir" -ForegroundColor DarkYellow
+        return
     }
+    # Uma unica chamada su na instalacao (operador pode tocar Permitir sempre neste momento).
+    $probe = adb shell "su -c 'id'" 2>&1 | Out-String
+    if ($probe -match 'uid=0') {
+        Write-Host "  OK SuperSU: root autorizado nesta sessao de instalacao" -ForegroundColor Green
+    }
+    Write-Host "  IMPORTANTE SuperSU: abra o app SuperSU > Player-AD > Permitir (sempre)" -ForegroundColor Yellow
+    Write-Host "    Ou SuperSU > Configuracoes > Acesso padrao para novos apps: Permitir" -ForegroundColor DarkYellow
+    Write-Host "    Sem isso o Android pode voltar a pedir root a cada ~15 min." -ForegroundColor DarkYellow
 }
 
 function Sync-PlayerConfigToApp {

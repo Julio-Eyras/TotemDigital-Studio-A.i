@@ -20,17 +20,32 @@ object DisplayPresentationController {
         val configHost = activity.findViewById<View>(R.id.configContentHost)
 
         if (playbackHost == null && configHost != null) {
-            SystemDisplayRotation.apply(activity, config.displayRotation)
+            if (!SystemDisplayRotation.isUserRotationAligned(activity, config.displayRotation)) {
+                SystemDisplayRotation.apply(activity, config.displayRotation)
+            }
             ConfigOrientationPreview.apply(activity, configHost, config.displayRotation)
             return
         }
 
         if (playbackHost == null) {
-            SystemDisplayRotation.apply(activity, config.displayRotation)
+            if (!SystemDisplayRotation.isUserRotationAligned(activity, config.displayRotation)) {
+                SystemDisplayRotation.apply(activity, config.displayRotation)
+            }
             return
         }
 
-        val systemResult = SystemDisplayRotation.apply(activity, config.displayRotation)
+        val alreadyAligned = SystemDisplayRotation.isUserRotationAligned(activity, config.displayRotation)
+        val systemResult = if (alreadyAligned) {
+            SystemDisplayRotation.ApplyResult(
+                userRotation = PlayerConfigLoader.displayRotationToUserRotation(config.displayRotation),
+                rotationApplied = true,
+                settingsWritten = false,
+                displayEffective = true,
+                accelerometerLocked = true
+            )
+        } else {
+            SystemDisplayRotation.apply(activity, config.displayRotation)
+        }
         val needsVisualFallback = !systemResult.displayEffective &&
             !SystemDisplayRotation.isUserRotationAligned(activity, config.displayRotation)
         ViewDisplayRotation.apply(
