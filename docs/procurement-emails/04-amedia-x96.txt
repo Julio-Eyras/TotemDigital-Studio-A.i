@@ -1,0 +1,14 @@
+To: jerry@amediatech.cn
+WhatsApp: +86 157 0595 7686
+Subject: Digital signage OEM — Brazil totem project
+
+Hello Jerry,
+
+We are looking for Android signage player OEM (Amlogic or Allwinner H618), 2–5 samples for Brazil.
+
+Requirements: custom boot animation, launcher, APK sideload, portrait kiosk, Ethernet.
+
+Can you recommend X96 signage model and quote sample + MOQ?
+
+Best,
+Totem Digital

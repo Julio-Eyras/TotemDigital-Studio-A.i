@@ -1,0 +1,16 @@
+To: sales@tanixtvbox.com
+Subject: Sample request — K2B H618 + TX5 signage for Brazil digital totem
+
+Hello Tanix team,
+
+We operate digital signage totems in Brazil (24/7 portrait, custom boot logo/animation, our APK as launcher).
+
+Please quote:
+1) KICKPI K2B / K2B Allwinner H618 — 2 samples
+2) Tanix TX5 Amlogic S905Y5 Android 14 — 1 sample
+   Config: 2GB+ RAM, 16GB+ ROM, Ethernet, ADB enabled
+
+Confirm: writable /system or factory bootanimation; user_rotation portrait; pre-install APK; MOQ and shipping to Brazil.
+
+Best regards,
+Totem Digital — Brazil

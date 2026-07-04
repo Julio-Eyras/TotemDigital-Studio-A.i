@@ -10,6 +10,7 @@ import br.com.smartchannel.playerad.ota.OtaUpdateCoordinator
 import br.com.smartchannel.playerad.api.PlayerEventsClient
 import br.com.smartchannel.playerad.cache.MediaCacheManager
 import br.com.smartchannel.playerad.util.AppDirs
+import br.com.smartchannel.playerad.util.MediaViewportRotation
 import br.com.smartchannel.playerad.util.PlayerAdLogger
 import android.content.Intent
 import android.view.View
@@ -18,7 +19,9 @@ import android.widget.ImageView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -62,9 +65,12 @@ class PlayerController(
     private val batimentoCardiaco: Int = 120,
     /** Intervalo (segundos) para atualizar dispatch/plano — independente do ciclo de reprodução. */
     private val maxSecondsWithoutServerCheck: Int = 600,
+    /** Montagem do painel (0=portrait … 3=landscape invertido) — alinha orientação da mídia. */
+    private val displayRotation: Int = 0,
     private val otaUpdateCoordinator: OtaUpdateCoordinator? = null
 ) {
     private var restartRequested = false
+    private var videoOrientationListener: Player.Listener? = null
 
     private enum class PlanSource { ONLINE, PERSISTED, FALLBACK_LOCAL }
 
@@ -892,6 +898,7 @@ class PlayerController(
                 return t
             }
             hideHtmlLayer()
+            resetMediaViewOrientation()
             imageView.visibility = View.VISIBLE
             playerView.visibility = View.GONE
             exoPlayer.stop()
@@ -947,9 +954,10 @@ class PlayerController(
             }
 
             if (bitmap != null) {
-                imageView.setImageBitmap(bitmap)
+                applyImageOrientationCorrection(bitmap, imageUri.path)
             } else {
                 imageView.setImageDrawable(null)
+                resetMediaViewOrientation()
             }
 
             delay(durationMs)
@@ -960,6 +968,7 @@ class PlayerController(
 
         // Vídeos: garantir que ImageView/HTML estão escondidos e usar ExoPlayer com duração natural.
         hideHtmlLayer()
+        resetMediaViewOrientation()
         imageView.visibility = View.GONE
         imageView.setImageDrawable(null)
         playerView.visibility = View.VISIBLE
@@ -996,6 +1005,7 @@ class PlayerController(
         } catch (_: Exception) { }
 
         exoPlayer.setMediaItem(mediaItem)
+        attachVideoOrientationListener()
         exoPlayer.prepare()
         exoPlayer.play()
 
@@ -1127,6 +1137,67 @@ class PlayerController(
     private fun hideImageLayer() {
         imageView.visibility = View.GONE
         imageView.setImageDrawable(null)
+        MediaViewportRotation.resetView(imageView)
+    }
+
+    private fun resetMediaViewOrientation() {
+        detachVideoOrientationListener()
+        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        MediaViewportRotation.resetPlayerView(playerView)
+        MediaViewportRotation.resetView(imageView)
+    }
+
+    private fun attachVideoOrientationListener() {
+        detachVideoOrientationListener()
+        val listener = object : Player.Listener {
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                applyVideoOrientationCorrection(videoSize)
+            }
+        }
+        videoOrientationListener = listener
+        exoPlayer.addListener(listener)
+    }
+
+    private fun detachVideoOrientationListener() {
+        videoOrientationListener?.let { exoPlayer.removeListener(it) }
+        videoOrientationListener = null
+    }
+
+    private fun applyVideoOrientationCorrection(videoSize: VideoSize) {
+        val (w, h) = MediaViewportRotation.rawVideoSize(videoSize)
+        val rot = MediaViewportRotation.correctionRotation(displayRotation, w, h)
+        if (rot != 0f) {
+            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            PlayerAdLogger.i(
+                "DISPLAY",
+                "Correção orientação vídeo ${w}x${h} → ${rot.toInt()}° (mount=$displayRotation)"
+            )
+        } else {
+            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        }
+        MediaViewportRotation.applyToPlayerView(playerView, rot, w, h)
+    }
+
+    private fun applyImageOrientationCorrection(bitmap: Bitmap, filePath: String?) {
+        val (w, h) = if (!filePath.isNullOrBlank()) {
+            val fromExif = MediaViewportRotation.readImageEffectiveSize(filePath)
+            if (fromExif.first > 0 && fromExif.second > 0) fromExif else bitmap.width to bitmap.height
+        } else {
+            bitmap.width to bitmap.height
+        }
+        val rot = MediaViewportRotation.correctionRotation(displayRotation, w, h)
+        val displayBitmap = if (rot != 0f) {
+            PlayerAdLogger.i(
+                "DISPLAY",
+                "Correção orientação imagem ${w}x${h} → ${rot.toInt()}° (mount=$displayRotation)"
+            )
+            MediaViewportRotation.rotateBitmap(bitmap, rot)
+        } else {
+            bitmap
+        }
+        imageView.scaleType = ImageView.ScaleType.CENTER_CROP
+        imageView.setImageBitmap(displayBitmap)
+        MediaViewportRotation.applyToImageView(imageView, 0f)
     }
 
     private fun fallbackDurationForMediaType(mediaType: String): Long? = when (mediaType) {

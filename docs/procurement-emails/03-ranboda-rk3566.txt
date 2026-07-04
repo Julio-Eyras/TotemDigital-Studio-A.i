@@ -1,0 +1,13 @@
+To: sales@ranboda.com
+Subject: RK3566 signage sample — screen rotation + Gigabit
+
+Hello,
+
+We deploy Android totems in Brazil. Please quote 2× RK3566 digital signage player (4GB/32GB, Gigabit LAN, screen rotation).
+
+Need: ADB, portrait mode, custom boot logo/animation, OEM firmware.
+
+Sample price + shipping to Brazil?
+
+Regards,
+Totem Digital

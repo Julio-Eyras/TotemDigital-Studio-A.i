@@ -1,0 +1,11 @@
+To: (formulário https://www.dadocer.com/product/android-digital-signage-player/)
+Subject: H618 signage player sample — boot animation OEM
+
+Hello,
+
+Brazil digital totem integrator. Need 2× Allwinner H618 signage player (Android 12, 2GB/16GB+, Ethernet).
+
+Confirm: boot animation factory install, APK pre-load, ADB, portrait support, price to Brazil.
+
+Thank you,
+Totem Digital

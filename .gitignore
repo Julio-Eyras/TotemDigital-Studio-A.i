@@ -308,3 +308,7 @@ docs/chaves*/
 /instalar_duckdns.sh
 /ssh-key-*.pub
 
+# Python / build temp
+scripts/__pycache__/
+**/__pycache__/
+install-pendrive/bootanimation/.bootanimation-build/

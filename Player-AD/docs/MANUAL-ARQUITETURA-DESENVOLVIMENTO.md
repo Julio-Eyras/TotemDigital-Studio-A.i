@@ -31,7 +31,7 @@ O `Player-AD` é um player Android TV orientado a:
   - cria `ExoPlayer` + `PlayerView` + `ImageView`;
   - inicia `PlayerController.start()`;
   - mantém watchdog interno para reiniciar o loop caso ele termine ou falhe;
-  - abre `DebugConfigActivity` no primeiro arranque ou por gesto oculto (8 taps/clicks).
+  - abre `DebugConfigActivity` no primeiro arranque ou por gesto oculto (**5 toques** no OK/centro).
 - `DebugConfigActivity`
   - edição de `serverUrl`, `uin`, `deviceId`;
   - testes de conectividade (`heartbeat`, `dispatch`);
@@ -225,6 +225,15 @@ Estrutura inclui:
 - **Imagens fora do ExoPlayer:** exibidas via `ImageView` para reduzir complexidade.
 - **Persistência de estado operacional:** logs e fonte de plano ficam acessíveis no debug.
 - **Compatibilidade Android TV/STB:** `AppDirs` evita dependência rígida de storage externo.
+- **Orientação da mídia (v1.33):** `MediaViewportRotation` corrige vídeo (TextureView transform) e imagem (rotação bitmap) quando a orientação natural da mídia difere de `displayRotation` na config.
+- **Boot custom (operacional):** scripts `build-bootanimation.py`, `build-bootlogo.py`, `install-bootanimation.ps1`, `install-bootlogo.ps1` — ver manual operacional.
+
+### 2.6 Apresentação e orientação
+
+- `DisplayPresentationController` — aplica rotação SO + fallback visual (`ViewDisplayRotation`).
+- `PortraitViewportLayout` / `PortraitViewportMetrics` — viewport 9:16.
+- `MediaViewportRotation` — correção por item de mídia no playback.
+- `SystemDisplayRotation` — `user_rotation` via Settings ou `su`.
 
 ## 7. Pontos de atenção para evolução
 
@@ -248,6 +257,9 @@ Estrutura inclui:
 
 ## 9. Referências internas
 
+- **`Player-AD/docs/MANUAL-OPERACIONAL-TVBOX.md`** — instalação, boot, config, troubleshooting (campo)
 - `Player-AD/docs/REGISTRO-OPERACIONAL.md`
 - `Player-AD/docs/TROUBLESHOOTING-CRASH.md`
+- `docs/hardware/README.md` — índice hardware, ODM spec, SoC boot paths
+- `docs/hardware/TOTEM-ODM-SPEC-v1.md`
 - `install-pendrive/README.md`

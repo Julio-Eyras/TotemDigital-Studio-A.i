@@ -143,6 +143,7 @@ class MainActivity : AppCompatActivity() {
                         config.fallbackPropagandasPerVinheta,
                         config.batimentoCardiaco,
                         config.maxSecondsWithoutServerCheck,
+                        config.displayRotation,
                         otaCoordinator
                     )
                     PlayerAdLogger.i("WATCHDOG", "Loop do player iniciado")

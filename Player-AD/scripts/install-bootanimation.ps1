@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Instala bootanimation customizado (tela preta) na TV box via root.
+  Instala bootanimation customizado (TotemDigital) na TV box via root.
 
 .DESCRIPTION
   - Gera bootanimation.zip se necessario (build-bootanimation.py).
@@ -96,7 +96,7 @@ su -c 'mount -o rw,remount /system 2>/dev/null || mount -o rw,remount / 2>/dev/n
 "@
 $out = adb shell $installCmd 2>&1 | Out-String
 if ($out -match 'INSTALLED') {
-    Write-Host "OK bootanimation instalado. Reinicie a box para ver o boot sem logo Android." -ForegroundColor Green
+    Write-Host "OK bootanimation instalado. Reinicie a box para ver «TotemDigital» no boot." -ForegroundColor Green
 } else {
     Write-Host "Falha ao gravar em $target" -ForegroundColor Red
     Write-Host $out.Trim()

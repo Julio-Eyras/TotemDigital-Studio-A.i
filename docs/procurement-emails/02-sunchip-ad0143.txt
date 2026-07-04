@@ -1,0 +1,13 @@
+To: info@sunchip-tech.com
+Subject: Sample AD-0143-RK3566 — portrait kiosk Brazil
+
+Hello,
+
+We need 2 units of AD-0143-RK3566 (2GB/32GB, Android 11, Ethernet) for evaluation.
+
+Requirements: ADB, fixed portrait (user_rotation), custom boot animation, our APK auto-start on boot, root or device owner for kiosk.
+
+Please send sample price, lead time to Brazil, and confirm /system customization.
+
+Thank you,
+Totem Digital
