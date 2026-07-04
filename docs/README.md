@@ -28,6 +28,21 @@ Regenerar: `python3 scripts/generate-er-system-png.py` ou com detalhe: `python3 
 
 ---
 
+## E-commerce, QR promo e wizard de campanha
+
+| Documento | Descrição |
+|-----------|-----------|
+| [**COMMERCE-QR-WIZARD-SPEC.md**](./COMMERCE-QR-WIZARD-SPEC.md) | Especificação de design: integrações **Shopify / WooCommerce** (padrão), **Magento** (premium), schema `commerce_*`, wizard “Usar cupom em campanha”, contrato dispatch `qr_promo` e fluxo de scan `/r/{code}`. |
+| [**COMMERCE-QR-WIZARD-SPEC.pdf**](./COMMERCE-QR-WIZARD-SPEC.pdf) | PDF gerado a partir do Markdown acima. |
+
+Regenerar PDF:
+
+```powershell
+python scripts/md_to_pdf.py docs/COMMERCE-QR-WIZARD-SPEC.md -o docs/COMMERCE-QR-WIZARD-SPEC.pdf
+```
+
+---
+
 ## Schema, instalação e validação (v6)
 
 | Recurso | Caminho |
@@ -79,4 +94,4 @@ Regenerar: `python3 scripts/generate-er-system-png.py` ou com detalhe: `python3 
 ---
 
 **Versão da documentação (índice):** 2.1.x  
-**Última atualização deste índice:** abril de 2026
+**Última atualização deste índice:** julho de 2026
