@@ -43,7 +43,14 @@ export function getMediaUiPreviewUndoRotation(media?: {
   tags?: string[] | null;
   width?: number;
   height?: number;
+  deliveryPreviewRotation?: number | null;
+  delivery_preview_rotation?: number | null;
 }): number {
+  const fromApi =
+    media?.deliveryPreviewRotation ?? media?.delivery_preview_rotation ?? null;
+  if (fromApi != null && Number.isFinite(Number(fromApi))) {
+    return normalizeMediaRotation(Number(fromApi));
+  }
   const delivery = parseDeliveryRotationFromTags(media?.tags);
   if (delivery != null) {
     return normalizeMediaRotation(360 - delivery);
@@ -139,10 +146,31 @@ export function mediaTotemUiPreviewSx(
 
 export function mediaTotemHoverVideoSx(
   rotationDegrees: number,
-  media?: { width?: number; height?: number },
+  media?: {
+    tags?: string[] | null;
+    width?: number;
+    height?: number;
+    deliveryPreviewRotation?: number | null;
+    delivery_preview_rotation?: number | null;
+  },
 ) {
+  if (!isTotemDeliveryMedia(media)) {
+    return {
+      ...mediaThumbnailPortraitPreviewSx(rotationDegrees),
+      zIndex: 3,
+      pointerEvents: 'none' as const,
+    };
+  }
+  const deg = resolveTotemDeliveryUiRotation(rotationDegrees, media);
   return {
-    ...mediaTotemUiPreviewSx(rotationDegrees, media),
+    position: 'absolute' as const,
+    inset: 0,
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover' as const,
+    display: 'block',
+    transformOrigin: 'center center',
+    transform: deg !== 0 ? `rotate(${deg}deg)` : undefined,
     zIndex: 3,
     pointerEvents: 'none' as const,
   };
@@ -182,7 +210,13 @@ export function mediaVideoPortraitPreviewSx(rotationDraft = 0) {
 
 export function mediaPortraitHoverVideoSx(
   rotationDegrees: number,
-  media?: { width?: number; height?: number },
+  media?: {
+    tags?: string[] | null;
+    width?: number;
+    height?: number;
+    deliveryPreviewRotation?: number | null;
+    delivery_preview_rotation?: number | null;
+  },
 ) {
   return mediaTotemHoverVideoSx(rotationDegrees, media);
 }

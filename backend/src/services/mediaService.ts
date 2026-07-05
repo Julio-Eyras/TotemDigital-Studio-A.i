@@ -107,6 +107,10 @@ export interface MediaResponse {
   // URLs calculadas
   downloadUrl?: string;
   thumbnailUrlComputed?: string; // Alias para thumbnailUrl
+  /** Graus aplicados no ficheiro 16:9 de entrega (90 ou 180). */
+  deliveryRotation?: number | null;
+  /** Graus para desfazer na UI (hover/preview CSS). */
+  deliveryPreviewRotation?: number | null;
 }
 
 export interface MediaStats {
@@ -370,6 +374,11 @@ export class MediaService {
         const thumbnailUrl = item.id ? `/api/media/${item.id}/thumbnail` : (item.thumbnailUrl || item.thumbnailurl || (filePath ? generateThumbnailUrl(filePath, item.mediaType || 'image') : ''));
         
         const previewUrl = this.normalizePreviewUrl(item.previewUrl || item.previewurl, thumbnailUrl);
+        const deliveryPreview = this.enrichDeliveryPreviewFields(
+          processedTags,
+          item.width || null,
+          item.height || null
+        );
 
         return {
           id: item.id,
@@ -405,7 +414,9 @@ export class MediaService {
           createdAt: item.createdAt || item.createdat || new Date().toISOString(),
           updatedAt: item.updatedAt || item.updatedat || new Date().toISOString(),
           downloadUrl: downloadUrl,
-          thumbnailUrlComputed: thumbnailUrl
+          thumbnailUrlComputed: thumbnailUrl,
+          deliveryRotation: deliveryPreview.deliveryRotation,
+          deliveryPreviewRotation: deliveryPreview.deliveryPreviewRotation,
         } as MediaResponse;
       });
 
@@ -528,6 +539,11 @@ export class MediaService {
       const downloadUrl = media.id ? `/api/media/${media.id}/download` : (filePath ? normalizeDownloadUrl(filePath) : '');
       const thumbnailUrl = media.id ? `/api/media/${media.id}/thumbnail` : (media.thumbnailUrl || media.thumbnailurl || (filePath ? generateThumbnailUrl(filePath, media.mediaType || 'image') : ''));
       const previewUrl = this.normalizePreviewUrl(media.previewUrl || media.previewurl, thumbnailUrl);
+      const deliveryPreview = this.enrichDeliveryPreviewFields(
+        processedTags,
+        media.width || null,
+        media.height || null
+      );
 
       return {
         id: media.id,
@@ -561,7 +577,9 @@ export class MediaService {
         createdAt: media.createdAt || media.createdat || new Date().toISOString(),
         updatedAt: media.updatedAt || media.updatedat || new Date().toISOString(),
         downloadUrl: downloadUrl,
-        thumbnailUrlComputed: thumbnailUrl
+        thumbnailUrlComputed: thumbnailUrl,
+        deliveryRotation: deliveryPreview.deliveryRotation,
+        deliveryPreviewRotation: deliveryPreview.deliveryPreviewRotation,
       } as MediaResponse;
 
     } catch (error: any) {
@@ -689,6 +707,14 @@ export class MediaService {
       }
 
       // Vídeo: thumbnail rápido (1 frame ffmpeg) — leve; normalização 9:16 completa fica em background.
+      let processedTags: string[] | null = null;
+      if (tags && tags.length > 0) {
+        processedTags = Array.isArray(tags) ? tags : [tags];
+      }
+      if (uploadDeliveryRotation != null) {
+        processedTags = this.mergeDeliveryRotationTag(processedTags, uploadDeliveryRotation);
+      }
+
       if (mediaType === 'video') {
         try {
           await this.generatePortraitThumbnailFromVideoFile(filePath);
@@ -697,6 +723,18 @@ export class MediaService {
             filePath,
             error: thumbErr?.message,
           });
+        }
+        try {
+          const info = await this.probeVideoStreamInfo(filePath);
+          const delivery = this.resolveDeliveryRotationFromStream(
+            info.width,
+            info.height,
+            info.rotation,
+            0
+          );
+          processedTags = this.mergeDeliveryRotationTag(processedTags, delivery);
+        } catch {
+          /* tag opcional no insert */
         }
       }
 
@@ -723,14 +761,7 @@ export class MediaService {
         // mantém tamanho original
       }
 
-      // Processar tags (TEXT[] array)
-      let processedTags: string[] | null = null;
-      if (tags && tags.length > 0) {
-        processedTags = Array.isArray(tags) ? tags : [tags];
-      }
-      if (uploadDeliveryRotation != null) {
-        processedTags = this.mergeDeliveryRotationTag(processedTags, uploadDeliveryRotation);
-      }
+      // Processar tags (TEXT[] array) — processedTags já inicializado acima para vídeo/imagem
 
       // Modo TotemDigital compacto: mídia entra já aprovada (menos passos no PoC / instalação única).
       const initialStatus = isStudioRuntime() ? 'approved' : 'draft';
@@ -1138,6 +1169,28 @@ export class MediaService {
       (t) => !String(t).startsWith(DELIVERY_ROTATION_TAG_PREFIX)
     );
     return [...filtered, `${DELIVERY_ROTATION_TAG_PREFIX}${this.normalizeRotation(deliveryRotation)}`];
+  }
+
+  private enrichDeliveryPreviewFields(
+    tags: string[] | null | undefined,
+    width?: number | null,
+    height?: number | null
+  ): { deliveryRotation: number | null; deliveryPreviewRotation: number | null } {
+    let delivery = this.parseDeliveryRotationFromTags(tags);
+    if (
+      delivery == null &&
+      width === TOTEM_DELIVERY_WIDTH &&
+      height === TOTEM_DELIVERY_HEIGHT
+    ) {
+      delivery = 90;
+    }
+    if (delivery == null) {
+      return { deliveryRotation: null, deliveryPreviewRotation: null };
+    }
+    return {
+      deliveryRotation: delivery,
+      deliveryPreviewRotation: this.resolveDeliveryPreviewUndoRotation(delivery),
+    };
   }
 
   private parseDeliveryRotationFromTags(tags?: string[] | null): number | null {
@@ -1921,8 +1974,15 @@ export class MediaService {
           const info = await this.probeVideoStreamInfo(existingFilePath);
           if (this.isTotemDeliverySize(info.width, info.height)) {
             const fromTag = this.parseDeliveryRotationFromTags(media.tags);
-            const delivery =
+            let delivery =
               fromTag ?? (await this.probeDeliveryRotationFromFile(existingFilePath));
+            if (fromTag == null && delivery !== 90) {
+              const nextTags = this.mergeDeliveryRotationTag(media.tags, delivery);
+              await this.db.executeRaw(
+                `UPDATE medias SET tags = $1, updated_at = CURRENT_TIMESTAMP WHERE media_id = $2`,
+                [nextTags, mediaId]
+              ).catch(() => {});
+            }
             const thumbPath = await this.generatePortraitThumbnailFromDeliveryVideo(
               existingFilePath,
               delivery

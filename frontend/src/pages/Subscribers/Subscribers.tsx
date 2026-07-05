@@ -3199,7 +3199,11 @@ const Subscribers: React.FC = () => {
                                 key={`${media.media_id}-${mediaThumbVersion}`}
                                 src={previewUrl}
                                 alt={media.name}
-                                sx={mediaThumbnailPortraitPreviewSx(getRotationDraft(media.media_id))}
+                                sx={{
+                                  ...mediaThumbnailPortraitPreviewSx(getRotationDraft(media.media_id)),
+                                  opacity:
+                                    videoHover.id === media.media_id && videoHover.url ? 0 : 1,
+                                }}
                                 onError={() => setMediaPreviewFailed(prev => new Set(prev).add(media.media_id))}
                               />
                             ) : !showPlaceholder && previewUrl && media.media_type === 'video' && !isThumbnailUrl ? (
@@ -3345,13 +3349,17 @@ const Subscribers: React.FC = () => {
                                 {media.approvedAt && ` em ${new Date(media.approvedAt).toLocaleDateString('pt-BR')}`}
                               </Typography>
                             )}
-                            {Array.isArray(media.tags) && media.tags.length > 0 && (
+                            {Array.isArray(media.tags) &&
+                              media.tags.filter((t) => !String(t).startsWith('_delivery_rotation:')).length > 0 && (
                               <Box sx={{ mb: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                {media.tags.slice(0, 3).map((tag, idx) => (
+                                {media.tags
+                                  .filter((t) => !String(t).startsWith('_delivery_rotation:'))
+                                  .slice(0, 3)
+                                  .map((tag, idx) => (
                                   <Chip key={idx} label={tag} size="small" sx={{ fontSize: '0.65rem', height: 20 }} />
                                 ))}
-                                {media.tags.length > 3 && (
-                                  <Chip label={`+${media.tags.length - 3}`} size="small" sx={{ fontSize: '0.65rem', height: 20 }} />
+                                {media.tags.filter((t) => !String(t).startsWith('_delivery_rotation:')).length > 3 && (
+                                  <Chip label={`+${media.tags.filter((t) => !String(t).startsWith('_delivery_rotation:')).length - 3}`} size="small" sx={{ fontSize: '0.65rem', height: 20 }} />
                                 )}
                               </Box>
                             )}

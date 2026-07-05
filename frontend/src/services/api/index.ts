@@ -926,6 +926,8 @@ export interface MediaItem {
   duration_seconds?: number;
   width?: number;
   height?: number;
+  deliveryRotation?: number | null;
+  deliveryPreviewRotation?: number | null;
   
   // URLs
   thumbnailUrl?: string;
@@ -1080,6 +1082,9 @@ export const mediaApi = {
         duration_seconds: item.duration_seconds || item.durationSeconds || null,
         width: item.width,
         height: item.height,
+        deliveryRotation: item.deliveryRotation ?? item.delivery_rotation ?? null,
+        deliveryPreviewRotation:
+          item.deliveryPreviewRotation ?? item.delivery_preview_rotation ?? null,
         
         // URLs
         thumbnailUrl: thumbnailUrl,
