@@ -10,6 +10,14 @@ import {
   resolveLimitWithDefault,
 } from '../utils/subscriberLimitsPolicy';
 
+/** Campanha considerada activa para totais comerciais (alinhado a getSubscriberStats / dispatcher). */
+const ACTIVE_CAMPAIGN_SQL = `
+  c.is_active = true
+  AND c.status IN ('active', 'approved')
+  AND (c.start_date IS NULL OR c.start_date <= CURRENT_DATE)
+  AND (c.end_date IS NULL OR c.end_date >= CURRENT_DATE)
+`;
+
 export interface Subscriber {
   subscriber_id: number;
   name: string;
@@ -28,6 +36,14 @@ export interface Subscriber {
   media_count?: number;
   playlist_count?: number;
   campaign_count?: number;
+  /** Mídias ligadas directamente a campanhas activas. */
+  campaign_direct_media_count?: number;
+  /** Playlists activas ligadas a campanhas activas. */
+  campaign_playlist_count?: number;
+  /** Mídias activas nessas playlists de campanha. */
+  campaign_playlist_media_count?: number;
+  /** Itens de mídia activos em playlists activas do assinante. */
+  playlist_media_count?: number;
   storage_used_gb?: number;
   storage_limit_gb?: number;
   /** Semáforo na listagem: contratos vencidos / a vencer (30 dias). */
@@ -284,7 +300,44 @@ export class SubscriberService {
               COUNT(*)::int AS campaign_count
             FROM campaigns c
             JOIN ids ON ids.subscriber_id = c.subscriber_id
+            WHERE ${ACTIVE_CAMPAIGN_SQL}
             GROUP BY c.subscriber_id
+          ),
+          campaign_direct_media_stats AS (
+            SELECT
+              c.subscriber_id,
+              COUNT(*)::int AS campaign_direct_media_count
+            FROM campaigns c
+            JOIN campaign_medias cm ON cm.campaign_id = c.campaign_id AND cm.is_active = true
+            JOIN medias m ON m.media_id = cm.media_id AND m.is_active = true
+            JOIN ids ON ids.subscriber_id = c.subscriber_id
+            WHERE ${ACTIVE_CAMPAIGN_SQL}
+            GROUP BY c.subscriber_id
+          ),
+          campaign_playlist_media_stats AS (
+            SELECT
+              c.subscriber_id,
+              COUNT(DISTINCT cp.playlist_id)::int AS campaign_playlist_count,
+              COUNT(DISTINCT pi.media_id)::int AS campaign_playlist_media_count
+            FROM campaigns c
+            JOIN campaign_playlists cp ON cp.campaign_id = c.campaign_id AND cp.is_active = true
+            JOIN playlists p ON p.playlist_id = cp.playlist_id AND p.is_active = true
+            JOIN playlist_items pi ON pi.playlist_id = p.playlist_id AND COALESCE(pi.is_active, true) = true
+            JOIN medias m ON m.media_id = pi.media_id AND m.is_active = true
+            JOIN ids ON ids.subscriber_id = c.subscriber_id
+            WHERE ${ACTIVE_CAMPAIGN_SQL}
+            GROUP BY c.subscriber_id
+          ),
+          playlist_media_stats AS (
+            SELECT
+              p.subscriber_id,
+              COUNT(DISTINCT pi.media_id)::int AS playlist_media_count
+            FROM playlists p
+            JOIN playlist_items pi ON pi.playlist_id = p.playlist_id AND COALESCE(pi.is_active, true) = true
+            JOIN medias m ON m.media_id = pi.media_id AND m.is_active = true
+            JOIN ids ON ids.subscriber_id = p.subscriber_id
+            WHERE p.is_active = true
+            GROUP BY p.subscriber_id
           ),
           city_stats AS (
             SELECT
@@ -307,6 +360,10 @@ export class SubscriberService {
             COALESCE(media_stats.storage_bytes, 0) / 1073741824.0 AS storage_used_gb,
             COALESCE(playlist_stats.playlist_count, 0) AS playlist_count,
             COALESCE(campaign_stats.campaign_count, 0) AS campaign_count,
+            COALESCE(campaign_direct_media_stats.campaign_direct_media_count, 0) AS campaign_direct_media_count,
+            COALESCE(campaign_playlist_media_stats.campaign_playlist_count, 0) AS campaign_playlist_count,
+            COALESCE(campaign_playlist_media_stats.campaign_playlist_media_count, 0) AS campaign_playlist_media_count,
+            COALESCE(playlist_media_stats.playlist_media_count, 0) AS playlist_media_count,
             city_stats.city,
             CASE
               WHEN COALESCE(contract_alert.has_expired, false) THEN 'error'
@@ -325,6 +382,9 @@ export class SubscriberService {
           LEFT JOIN media_stats ON media_stats.subscriber_id = ids.subscriber_id
           LEFT JOIN playlist_stats ON playlist_stats.subscriber_id = ids.subscriber_id
           LEFT JOIN campaign_stats ON campaign_stats.subscriber_id = ids.subscriber_id
+          LEFT JOIN campaign_direct_media_stats ON campaign_direct_media_stats.subscriber_id = ids.subscriber_id
+          LEFT JOIN campaign_playlist_media_stats ON campaign_playlist_media_stats.subscriber_id = ids.subscriber_id
+          LEFT JOIN playlist_media_stats ON playlist_media_stats.subscriber_id = ids.subscriber_id
           LEFT JOIN city_stats ON city_stats.subscriber_id = ids.subscriber_id
         `, [subscriberIds]);
 
@@ -344,6 +404,10 @@ export class SubscriberService {
             subscriber.media_count = Number(metrics.media_count || 0);
             subscriber.playlist_count = Number(metrics.playlist_count || 0);
             subscriber.campaign_count = Number(metrics.campaign_count || 0);
+            subscriber.campaign_direct_media_count = Number(metrics.campaign_direct_media_count || 0);
+            subscriber.campaign_playlist_count = Number(metrics.campaign_playlist_count || 0);
+            subscriber.campaign_playlist_media_count = Number(metrics.campaign_playlist_media_count || 0);
+            subscriber.playlist_media_count = Number(metrics.playlist_media_count || 0);
             subscriber.storage_used_gb = Number(metrics.storage_used_gb || 0);
             subscriber.storage_limit_gb = limits.storage_gb;
 
@@ -1432,6 +1496,10 @@ export class SubscriberService {
     media_count: number;
     playlist_count: number;
     campaign_count: number;
+    campaign_direct_media_count: number;
+    campaign_playlist_count: number;
+    campaign_playlist_media_count: number;
+    playlist_media_count: number;
     storage_used_gb: number;
     storage_limit_gb?: number;
     plan_limits?: {
@@ -1486,15 +1554,40 @@ export class SubscriberService {
         WHERE st.is_active = true
       `, [subscriberId]);
 
-      // Contar campanhas ativas
+      // Contar campanhas activas (mesmas regras da listagem / execução)
       const campaignsCountResult = await this.db.findFirst(`
         SELECT COUNT(*) as count
-        FROM campaigns
-        WHERE subscriber_id = $1 
-          AND is_active = true 
-          AND status = 'active'
-          AND (start_date IS NULL OR start_date <= CURRENT_DATE)
-          AND (end_date IS NULL OR end_date >= CURRENT_DATE)
+        FROM campaigns c
+        WHERE c.subscriber_id = $1 
+          AND ${ACTIVE_CAMPAIGN_SQL}
+      `, [subscriberId]);
+
+      const campaignDirectMediaResult = await this.db.findFirst(`
+        SELECT COUNT(*) as count
+        FROM campaigns c
+        JOIN campaign_medias cm ON cm.campaign_id = c.campaign_id AND cm.is_active = true
+        JOIN medias m ON m.media_id = cm.media_id AND m.is_active = true
+        WHERE c.subscriber_id = $1 AND ${ACTIVE_CAMPAIGN_SQL}
+      `, [subscriberId]);
+
+      const campaignPlaylistMediaResult = await this.db.findFirst(`
+        SELECT
+          COUNT(DISTINCT cp.playlist_id) as playlist_count,
+          COUNT(DISTINCT pi.media_id) as media_count
+        FROM campaigns c
+        JOIN campaign_playlists cp ON cp.campaign_id = c.campaign_id AND cp.is_active = true
+        JOIN playlists p ON p.playlist_id = cp.playlist_id AND p.is_active = true
+        JOIN playlist_items pi ON pi.playlist_id = p.playlist_id AND COALESCE(pi.is_active, true) = true
+        JOIN medias m ON m.media_id = pi.media_id AND m.is_active = true
+        WHERE c.subscriber_id = $1 AND ${ACTIVE_CAMPAIGN_SQL}
+      `, [subscriberId]);
+
+      const playlistMediaResult = await this.db.findFirst(`
+        SELECT COUNT(DISTINCT pi.media_id) as count
+        FROM playlists p
+        JOIN playlist_items pi ON pi.playlist_id = p.playlist_id AND COALESCE(pi.is_active, true) = true
+        JOIN medias m ON m.media_id = pi.media_id AND m.is_active = true
+        WHERE p.subscriber_id = $1 AND p.is_active = true
       `, [subscriberId]);
 
       // Contar totens online
@@ -1534,13 +1627,6 @@ export class SubscriberService {
         WHERE subscriber_id = $1 AND is_active = true
       `, [subscriberId]);
 
-      // Contar campanhas (todas, não apenas ativas)
-      const campaignCountResult = await this.db.findFirst(`
-        SELECT COUNT(*) as count
-        FROM campaigns
-        WHERE subscriber_id = $1
-      `, [subscriberId]);
-
       // Obter storage usado
       const storageResult = await this.db.findFirst(`
         SELECT COALESCE(SUM(file_size_bytes), 0) as total_bytes
@@ -1562,7 +1648,11 @@ export class SubscriberService {
         playingTvs: parseInt(playingTvsResult?.count || '0'),
         media_count: parseInt(mediaCountResult?.count || '0'),
         playlist_count: parseInt(playlistCountResult?.count || '0'),
-        campaign_count: parseInt(campaignCountResult?.count || '0'),
+        campaign_count: parseInt(campaignsCountResult?.count || '0'),
+        campaign_direct_media_count: parseInt(campaignDirectMediaResult?.count || '0'),
+        campaign_playlist_count: parseInt(campaignPlaylistMediaResult?.playlist_count || '0'),
+        campaign_playlist_media_count: parseInt(campaignPlaylistMediaResult?.media_count || '0'),
+        playlist_media_count: parseInt(playlistMediaResult?.count || '0'),
         storage_used_gb: storageUsedGB,
         storage_limit_gb: storageLimitGB,
         plan_limits: {

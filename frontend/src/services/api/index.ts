@@ -3592,6 +3592,14 @@ export interface Subscriber {
   media_count?: number;
   playlist_count?: number;
   campaign_count?: number;
+  /** Mídias directas em campanhas activas. */
+  campaign_direct_media_count?: number;
+  /** Playlists activas ligadas a campanhas activas. */
+  campaign_playlist_count?: number;
+  /** Mídias activas nessas playlists de campanha. */
+  campaign_playlist_media_count?: number;
+  /** Mídias activas em playlists activas do assinante. */
+  playlist_media_count?: number;
   storage_used_gb?: number;
   storage_limit_gb?: number;
   contract_alert_level?: 'error' | 'warning' | 'success' | 'neutral';

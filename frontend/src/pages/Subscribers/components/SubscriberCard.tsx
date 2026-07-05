@@ -63,6 +63,10 @@ const SubscriberCard: React.FC<SubscriberCardProps> = ({
   const mediaCount = subscriber.media_count || 0;
   const playlistCount = subscriber.playlist_count || 0;
   const campaignCount = subscriber.campaign_count || 0;
+  const campaignDirectMedia = subscriber.campaign_direct_media_count || 0;
+  const campaignPlaylistCount = subscriber.campaign_playlist_count || 0;
+  const campaignPlaylistMedia = subscriber.campaign_playlist_media_count || 0;
+  const playlistMediaCount = subscriber.playlist_media_count || 0;
   const storageUsedGB = subscriber.storage_used_gb || 0;
   const storageLimitGB = subscriber.storage_limit_gb || 0;
   const storagePercent =
@@ -77,8 +81,21 @@ const SubscriberCard: React.FC<SubscriberCardProps> = ({
   const metricItems = [
     { label: 'Contratos Ativos', value: activeContracts, icon: <Article fontSize="small" color="action" /> },
     { label: 'Mídias', value: mediaCount, icon: <VideoLibrary fontSize="small" color="action" /> },
-    { label: 'Playlists', value: playlistCount, icon: <QueueMusic fontSize="small" color="action" /> },
-    { label: 'Campanhas', value: campaignCount, icon: <CampaignIcon fontSize="small" color="action" /> },
+    {
+      label: 'Playlists',
+      value: playlistCount,
+      detail: `${playlistCount}:${playlistMediaCount}`,
+      detailTitle: 'Playlists activas : mídias activas nas playlists',
+      icon: <QueueMusic fontSize="small" color="action" />,
+    },
+    {
+      label: 'Campanhas',
+      value: campaignCount,
+      detail: `${campaignDirectMedia} dir · ${campaignPlaylistCount}:${campaignPlaylistMedia}`,
+      detailTitle:
+        'Campanhas activas · mídias directas · playlists:mídias nas playlists das campanhas',
+      icon: <CampaignIcon fontSize="small" color="action" />,
+    },
   ];
 
   return (
@@ -201,6 +218,18 @@ const SubscriberCard: React.FC<SubscriberCardProps> = ({
                   <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.1 }}>
                     {item.value}
                   </Typography>
+                  {'detail' in item && item.detail ? (
+                    <Tooltip title={item.detailTitle || item.detail}>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ display: 'block', lineHeight: 1.2, fontSize: '0.68rem' }}
+                        noWrap
+                      >
+                        {item.detail}
+                      </Typography>
+                    </Tooltip>
+                  ) : null}
                 </Box>
               </Box>
             ))}
