@@ -37,8 +37,9 @@ const TOTEM_DELIVERY_HEIGHT = 1080;
 /** Pré-visualização UI / thumbnail: moldura 9:16 (WYSIWYG do totem). */
 const TOTEM_THUMB_WIDTH = 540;
 const TOTEM_THUMB_HEIGHT = 960;
-/** Desfaz rotação de entrega (90° CW) para thumbnail/preview em pé na UI. */
-const TOTEM_DELIVERY_PREVIEW_ROTATION = 270;
+/** Desfaz rotação de entrega na UI (inverso da rotação gravada no ficheiro). */
+const TOTEM_DELIVERY_PREVIEW_ROTATION_LEGACY = 270;
+const DELIVERY_ROTATION_TAG_PREFIX = '_delivery_rotation:';
 
 export interface CreateMediaRequest {
   name: string;
@@ -669,6 +670,7 @@ export class MediaService {
       let storedMimeType = file.mimetype;
 
       // Imagem: normalização 9:16 síncrona (sharp, rápido). Vídeo: ffmpeg em background (evita 502/timeout).
+      let uploadDeliveryRotation: number | null = null;
       if (mediaType === 'image') {
         try {
           const normalized = await this.normalizeNewUploadToTotemPortrait(
@@ -678,6 +680,7 @@ export class MediaService {
           );
           filePath = normalized.filePath;
           storedMimeType = normalized.mimeType ?? storedMimeType;
+          uploadDeliveryRotation = normalized.deliveryRotation;
         } catch (normErr: any) {
           await logWarn('Normalização 9:16 no upload falhou; mantém ficheiro original', {
             filePath,
@@ -726,6 +729,9 @@ export class MediaService {
       let processedTags: string[] | null = null;
       if (tags && tags.length > 0) {
         processedTags = Array.isArray(tags) ? tags : [tags];
+      }
+      if (uploadDeliveryRotation != null) {
+        processedTags = this.mergeDeliveryRotationTag(processedTags, uploadDeliveryRotation);
       }
 
       // Modo TotemDigital compacto: mídia entra já aprovada (menos passos no PoC / instalação única).
@@ -961,14 +967,15 @@ export class MediaService {
     try {
       if (mediaType === 'image') {
         await this.normalizeImageToTotemDelivery(sourcePath, outputPath, resolvedDeliveryRotation, media.mimeType);
-        await this.generatePortraitThumbnailFromDeliveryImage(outputPath);
+        await this.generatePortraitThumbnailFromDeliveryImage(outputPath, resolvedDeliveryRotation);
       } else {
         await this.normalizeVideoToTotemDelivery(sourcePath, outputPath, resolvedDeliveryRotation);
-        await this.generatePortraitThumbnailFromDeliveryVideo(outputPath);
+        await this.generatePortraitThumbnailFromDeliveryVideo(outputPath, resolvedDeliveryRotation);
       }
 
       const stats = await fs.promises.stat(outputPath);
       const dimensions = { width: TOTEM_DELIVERY_WIDTH, height: TOTEM_DELIVERY_HEIGHT };
+      const nextTags = this.mergeDeliveryRotationTag(media.tags, resolvedDeliveryRotation);
 
       const nextMimeType = mediaType === 'video' ? 'video/mp4' : this.getImageMimeTypeFromExtension(ext);
       const nextFileName = path.basename(outputPath);
@@ -983,8 +990,9 @@ export class MediaService {
             width = $5,
             height = $6,
             preview_url = $7,
+            tags = $8,
             updated_at = CURRENT_TIMESTAMP
-        WHERE media_id = $8
+        WHERE media_id = $9
       `, [
         outputPath,
         nextFileName,
@@ -993,6 +1001,7 @@ export class MediaService {
         dimensions.width,
         dimensions.height,
         previewUrl,
+        nextTags,
         mediaId,
       ]);
 
@@ -1056,8 +1065,8 @@ export class MediaService {
   }
 
   /**
-   * Rotação para **ficheiro de entrega** 16:9: conteúdo pré-rodado 90° à direita;
-   * o totem reproduz sem transformação em runtime.
+   * Rotação para **ficheiro de entrega** 16:9 (totem reproduz sem transformação em runtime).
+   * Portrait (telefone): 180° à direita. Landscape: 90° à direita.
    */
   private resolveDeliveryRotationDegrees(
     displayWidth: number,
@@ -1067,6 +1076,58 @@ export class MediaService {
     const user = this.normalizeRotation(userRotationDegrees);
     if (user !== 0) return user;
     if (displayWidth <= 0 || displayHeight <= 0) return 90;
+    if (displayHeight > displayWidth) return 180;
+    return 90;
+  }
+
+  private resolveDeliveryPreviewUndoRotation(deliveryRotationDegrees: number): number {
+    const delivery = this.normalizeRotation(deliveryRotationDegrees);
+    return this.normalizeRotation(360 - delivery);
+  }
+
+  private mergeDeliveryRotationTag(
+    existingTags: string[] | null | undefined,
+    deliveryRotation: number
+  ): string[] {
+    const filtered = (existingTags || []).filter(
+      (t) => !String(t).startsWith(DELIVERY_ROTATION_TAG_PREFIX)
+    );
+    return [...filtered, `${DELIVERY_ROTATION_TAG_PREFIX}${this.normalizeRotation(deliveryRotation)}`];
+  }
+
+  private parseDeliveryRotationFromTags(tags?: string[] | null): number | null {
+    if (!tags?.length) return null;
+    for (const tag of tags) {
+      if (!String(tag).startsWith(DELIVERY_ROTATION_TAG_PREFIX)) continue;
+      const raw = String(tag).slice(DELIVERY_ROTATION_TAG_PREFIX.length);
+      const parsed = this.normalizeRotation(Number(raw));
+      if (parsed !== 0) return parsed;
+    }
+    return null;
+  }
+
+  private async probeDeliveryRotationFromFile(filePath: string): Promise<number> {
+    try {
+      const { stdout } = await execFileAsync(
+        'ffprobe',
+        [
+          '-v',
+          'error',
+          '-show_entries',
+          'format_tags=delivery_rotation',
+          '-of',
+          'json',
+          filePath,
+        ],
+        { timeout: 15_000 }
+      );
+      const raw = JSON.parse(stdout)?.format?.tags?.delivery_rotation;
+      if (raw != null && String(raw).trim() !== '') {
+        return this.normalizeRotation(Number(raw));
+      }
+    } catch {
+      /* metadado opcional */
+    }
     return 90;
   }
 
@@ -1176,9 +1237,11 @@ export class MediaService {
       const stats = await fs.promises.stat(newPath);
       const thumbPath = newPath.replace(/\.[^/.]+$/, '_thumb.jpg');
       if (!fs.existsSync(thumbPath)) {
-        await this.generatePortraitThumbnailFromDeliveryVideo(newPath);
+        await this.generatePortraitThumbnailFromDeliveryVideo(newPath, normalized.deliveryRotation);
       }
       const previewUrl = generateThumbnailUrl(thumbPath, 'video');
+      const current = await this.getMediaById(mediaId);
+      const nextTags = this.mergeDeliveryRotationTag(current?.tags, normalized.deliveryRotation);
 
       await this.db.executeRaw(
         `
@@ -1190,8 +1253,9 @@ export class MediaService {
             width = $5,
             height = $6,
             preview_url = $7,
+            tags = $8,
             updated_at = CURRENT_TIMESTAMP
-        WHERE media_id = $8
+        WHERE media_id = $9
       `,
         [
           newPath,
@@ -1201,6 +1265,7 @@ export class MediaService {
           TOTEM_DELIVERY_WIDTH,
           TOTEM_DELIVERY_HEIGHT,
           previewUrl,
+          nextTags,
           mediaId,
         ]
       );
@@ -1232,7 +1297,7 @@ export class MediaService {
     sourcePath: string,
     mediaType: 'image' | 'video',
     mimeType?: string
-  ): Promise<{ filePath: string; mimeType?: string }> {
+  ): Promise<{ filePath: string; mimeType?: string; deliveryRotation: number }> {
     const dir = path.dirname(sourcePath);
     const stamp = Date.now();
     const tempOut =
@@ -1243,14 +1308,16 @@ export class MediaService {
             `${path.basename(sourcePath, path.extname(sourcePath))}_totem_${stamp}${path.extname(sourcePath) || '.jpg'}`
           );
 
+    let deliveryRotation = 90;
+
     try {
       if (mediaType === 'image') {
         const { displayWidth, displayHeight } = await this.probeImageEffectiveSize(sourcePath);
-        const deliveryRotation = this.resolveDeliveryRotationDegrees(displayWidth, displayHeight, 0);
+        deliveryRotation = this.resolveDeliveryRotationDegrees(displayWidth, displayHeight, 0);
         await this.normalizeImageToTotemDelivery(sourcePath, tempOut, deliveryRotation, mimeType);
       } else {
         const info = await this.probeVideoStreamInfo(sourcePath);
-        const deliveryRotation = this.resolveDeliveryRotationDegrees(
+        deliveryRotation = this.resolveDeliveryRotationDegrees(
           info.displayWidth,
           info.displayHeight,
           0
@@ -1269,14 +1336,15 @@ export class MediaService {
       }
 
       if (mediaType === 'image') {
-        await this.generatePortraitThumbnailFromDeliveryImage(finalPath);
+        await this.generatePortraitThumbnailFromDeliveryImage(finalPath, deliveryRotation);
       } else {
-        await this.generatePortraitThumbnailFromDeliveryVideo(finalPath);
+        await this.generatePortraitThumbnailFromDeliveryVideo(finalPath, deliveryRotation);
       }
 
       return {
         filePath: finalPath,
         mimeType: mediaType === 'video' ? 'video/mp4' : mimeType,
+        deliveryRotation,
       };
     } catch (error) {
       await this.removeFileIfExists(tempOut);
@@ -1363,6 +1431,8 @@ export class MediaService {
         '+faststart',
         '-metadata:s:v:0',
         'rotate=0',
+        '-metadata',
+        `delivery_rotation=${this.normalizeRotation(rotationDegrees)}`,
         outputPath,
       ],
       { timeout: 600_000 }
@@ -1419,12 +1489,24 @@ export class MediaService {
     return width === TOTEM_DELIVERY_WIDTH && height === TOTEM_DELIVERY_HEIGHT;
   }
 
-  private async generatePortraitThumbnailFromDeliveryImage(filePath: string): Promise<string> {
-    return this.generatePreviewThumbnailFromImageSource(filePath, TOTEM_DELIVERY_PREVIEW_ROTATION);
+  private async generatePortraitThumbnailFromDeliveryImage(
+    filePath: string,
+    deliveryRotation?: number
+  ): Promise<string> {
+    const delivery =
+      deliveryRotation ?? (await this.probeDeliveryRotationFromFile(filePath));
+    const undo = this.resolveDeliveryPreviewUndoRotation(delivery);
+    return this.generatePreviewThumbnailFromImageSource(filePath, undo);
   }
 
-  private async generatePortraitThumbnailFromDeliveryVideo(filePath: string): Promise<string> {
-    return this.generatePreviewThumbnailFromVideoSource(filePath, TOTEM_DELIVERY_PREVIEW_ROTATION);
+  private async generatePortraitThumbnailFromDeliveryVideo(
+    filePath: string,
+    deliveryRotation?: number
+  ): Promise<string> {
+    const delivery =
+      deliveryRotation ?? (await this.probeDeliveryRotationFromFile(filePath));
+    const undo = this.resolveDeliveryPreviewUndoRotation(delivery);
+    return this.generatePreviewThumbnailFromVideoSource(filePath, undo);
   }
 
   /** Thumbnail 9:16 a partir do ficheiro original (antes da entrega 16:9). */
@@ -1786,11 +1868,22 @@ export class MediaService {
       if (media.mediaType === 'video' && existingFilePath) {
         try {
           const info = await this.probeVideoStreamInfo(existingFilePath);
-          const thumbPath = this.isTotemDeliverySize(info.width, info.height)
-            ? await this.generatePortraitThumbnailFromDeliveryVideo(existingFilePath)
-            : await this.generatePortraitThumbnailFromVideoFile(existingFilePath);
-          if (thumbPath && fs.existsSync(thumbPath)) {
-            return thumbPath;
+          if (this.isTotemDeliverySize(info.width, info.height)) {
+            const fromTag = this.parseDeliveryRotationFromTags(media.tags);
+            const delivery =
+              fromTag ?? (await this.probeDeliveryRotationFromFile(existingFilePath));
+            const thumbPath = await this.generatePortraitThumbnailFromDeliveryVideo(
+              existingFilePath,
+              delivery
+            );
+            if (thumbPath && fs.existsSync(thumbPath)) {
+              return thumbPath;
+            }
+          } else {
+            const thumbPath = await this.generatePortraitThumbnailFromVideoFile(existingFilePath);
+            if (thumbPath && fs.existsSync(thumbPath)) {
+              return thumbPath;
+            }
           }
         } catch (error: any) {
           await logWarn('Falha ao gerar thumbnail de vídeo on-demand', {

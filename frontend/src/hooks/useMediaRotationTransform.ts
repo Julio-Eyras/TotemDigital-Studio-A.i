@@ -25,11 +25,37 @@ export function mediaPreviewDims(
   };
 }
 
-/** Desfaz rotação de entrega 90° CW — igual ao ffmpeg do thumbnail (270°). */
-export const TOTEM_DELIVERY_UI_PREVIEW_ROTATION = 270;
+/** Desfaz rotação de entrega na UI — inverso do valor gravado no ficheiro/tag. */
+export const TOTEM_DELIVERY_UI_PREVIEW_ROTATION_LEGACY = 270;
+const DELIVERY_ROTATION_TAG_PREFIX = '_delivery_rotation:';
 
-export function resolveTotemDeliveryUiRotation(rotationDraft: number): number {
-  return normalizeMediaRotation(rotationDraft + TOTEM_DELIVERY_UI_PREVIEW_ROTATION);
+export function parseDeliveryRotationFromTags(tags?: string[] | null): number | null {
+  if (!tags?.length) return null;
+  for (const tag of tags) {
+    if (!String(tag).startsWith(DELIVERY_ROTATION_TAG_PREFIX)) continue;
+    const raw = Number(String(tag).slice(DELIVERY_ROTATION_TAG_PREFIX.length));
+    if (Number.isFinite(raw)) return normalizeMediaRotation(raw);
+  }
+  return null;
+}
+
+export function getMediaUiPreviewUndoRotation(media?: {
+  tags?: string[] | null;
+  width?: number;
+  height?: number;
+}): number {
+  const delivery = parseDeliveryRotationFromTags(media?.tags);
+  if (delivery != null) {
+    return normalizeMediaRotation(360 - delivery);
+  }
+  return TOTEM_DELIVERY_UI_PREVIEW_ROTATION_LEGACY;
+}
+
+export function resolveTotemDeliveryUiRotation(
+  rotationDraft: number,
+  media?: { tags?: string[] | null; width?: number; height?: number },
+): number {
+  return normalizeMediaRotation(rotationDraft + getMediaUiPreviewUndoRotation(media));
 }
 
 /** Rotação efectiva: draft do utilizador + auto 90° para landscape em moldura 9:16. */
@@ -106,7 +132,7 @@ export function mediaTotemUiPreviewSx(
   media?: { width?: number; height?: number },
 ) {
   if (isTotemDeliveryMedia(media)) {
-    return buildRotatedPortraitPreviewSx(resolveTotemDeliveryUiRotation(rotationDegrees));
+    return buildRotatedPortraitPreviewSx(resolveTotemDeliveryUiRotation(rotationDegrees, media));
   }
   return mediaThumbnailPortraitPreviewSx(rotationDegrees);
 }
