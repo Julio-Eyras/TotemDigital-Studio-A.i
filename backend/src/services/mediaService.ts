@@ -37,8 +37,6 @@ const TOTEM_DELIVERY_HEIGHT = 1080;
 /** Pré-visualização UI / thumbnail: moldura 9:16 (WYSIWYG do totem). */
 const TOTEM_THUMB_WIDTH = 540;
 const TOTEM_THUMB_HEIGHT = 960;
-/** Desfaz rotação de entrega na UI (inverso da rotação gravada no ficheiro). */
-const TOTEM_DELIVERY_PREVIEW_ROTATION_LEGACY = 270;
 const DELIVERY_ROTATION_TAG_PREFIX = '_delivery_rotation:';
 
 export interface CreateMediaRequest {
