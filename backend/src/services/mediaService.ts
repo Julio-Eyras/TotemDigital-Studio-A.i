@@ -943,18 +943,19 @@ export class MediaService {
       throw new Error('Transformação disponível apenas para imagens e vídeos');
     }
 
-    const displaySize =
+    const streamInfo =
       mediaType === 'image'
-        ? await this.probeImageEffectiveSize(sourcePath)
+        ? await this.probeImageStreamInfo(sourcePath)
         : await this.probeVideoStreamInfo(sourcePath);
     const resolvedPreviewRotation = this.resolvePreviewRotationDegrees(
-      displaySize.displayWidth,
-      displaySize.displayHeight,
+      streamInfo.displayWidth,
+      streamInfo.displayHeight,
       normalizedRotation
     );
-    const resolvedDeliveryRotation = this.resolveDeliveryRotationDegrees(
-      displaySize.displayWidth,
-      displaySize.displayHeight,
+    const resolvedDeliveryRotation = this.resolveDeliveryRotationFromStream(
+      streamInfo.width,
+      streamInfo.height,
+      streamInfo.rotation,
       normalizedRotation
     );
 
@@ -1063,19 +1064,65 @@ export class MediaService {
   }
 
   /**
-   * Rotação para **ficheiro de entrega** 16:9 (totem reproduz sem transformação em runtime).
-   * Portrait (telefone): 180° à direita. Landscape: 90° à direita.
+   * Telemóvel: pixels landscape + metadado rotate 90/270 → entrega 180°.
+   * Portrait nativo (1080×1920) ou landscape → entrega 90°.
    */
-  private resolveDeliveryRotationDegrees(
-    displayWidth: number,
-    displayHeight: number,
+  private resolveDeliveryRotationFromStream(
+    rawWidth: number,
+    rawHeight: number,
+    streamRotation: number,
     userRotationDegrees: number
   ): number {
     const user = this.normalizeRotation(userRotationDegrees);
     if (user !== 0) return user;
-    if (displayWidth <= 0 || displayHeight <= 0) return 90;
-    if (displayHeight > displayWidth) return 180;
+    if (rawWidth <= 0 || rawHeight <= 0) return 90;
+
+    const rot = this.normalizeRotation(streamRotation);
+    const rawLandscape = rawWidth > rawHeight;
+
+    if (rawLandscape && (rot === 90 || rot === 270)) {
+      return 180;
+    }
     return 90;
+  }
+
+  private exifOrientationToDegrees(orientation: number): number {
+    switch (orientation) {
+      case 6:
+      case 5:
+        return 90;
+      case 3:
+        return 180;
+      case 8:
+      case 7:
+        return 270;
+      default:
+        return 0;
+    }
+  }
+
+  private async probeImageStreamInfo(sourcePath: string): Promise<{
+    width: number;
+    height: number;
+    rotation: number;
+    displayWidth: number;
+    displayHeight: number;
+  }> {
+    try {
+      const meta = await (sharp as any)(sourcePath).metadata();
+      const width = meta.width ?? 0;
+      const height = meta.height ?? 0;
+      const rotation = this.exifOrientationToDegrees(Number(meta.orientation ?? 1));
+      let displayWidth = width;
+      let displayHeight = height;
+      if (rotation === 90 || rotation === 270) {
+        displayWidth = height;
+        displayHeight = width;
+      }
+      return { width, height, rotation, displayWidth, displayHeight };
+    } catch {
+      return { width: 0, height: 0, rotation: 0, displayWidth: 0, displayHeight: 0 };
+    }
   }
 
   private resolveDeliveryPreviewUndoRotation(deliveryRotationDegrees: number): number {
@@ -1310,14 +1357,20 @@ export class MediaService {
 
     try {
       if (mediaType === 'image') {
-        const { displayWidth, displayHeight } = await this.probeImageEffectiveSize(sourcePath);
-        deliveryRotation = this.resolveDeliveryRotationDegrees(displayWidth, displayHeight, 0);
+        const info = await this.probeImageStreamInfo(sourcePath);
+        deliveryRotation = this.resolveDeliveryRotationFromStream(
+          info.width,
+          info.height,
+          info.rotation,
+          0
+        );
         await this.normalizeImageToTotemDelivery(sourcePath, tempOut, deliveryRotation, mimeType);
       } else {
         const info = await this.probeVideoStreamInfo(sourcePath);
-        deliveryRotation = this.resolveDeliveryRotationDegrees(
-          info.displayWidth,
-          info.displayHeight,
+        deliveryRotation = this.resolveDeliveryRotationFromStream(
+          info.width,
+          info.height,
+          info.rotation,
           0
         );
         await this.normalizeVideoToTotemDelivery(sourcePath, tempOut, deliveryRotation);
