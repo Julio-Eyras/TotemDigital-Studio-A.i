@@ -1096,7 +1096,8 @@ export class MediaService {
 
   /**
    * Telemóvel: pixels landscape + metadado rotate 90/270 → entrega 180°.
-   * Portrait nativo (1080×1920) ou landscape → entrega 90°.
+   * Landscape nativo (16:9 horizontal) → entrega 270° (totem SO +90° = correcto).
+   * Portrait nativo (9:16) → entrega 90°.
    */
   private resolveDeliveryRotationFromStream(
     rawWidth: number,
@@ -1113,6 +1114,9 @@ export class MediaService {
 
     if (rawLandscape && (rot === 90 || rot === 270)) {
       return 180;
+    }
+    if (rawLandscape) {
+      return 270;
     }
     return 90;
   }
