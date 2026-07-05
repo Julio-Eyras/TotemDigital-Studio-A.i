@@ -114,9 +114,10 @@ object PortraitVideoCacheProcessor {
     }
 
     /**
-     * Rotação no cache desactivada: a mídia correcta vem do servidor (transform 9:16).
-     * Reativar só se o dispatch entregar landscape bruto sem normalização.
+     * Rotação no cache desactivada — [MediaViewportRotation] trata landscape em runtime
+     * (mais leve na TV box). Vídeos já 9:16 ou pré-virados externamente não são alterados.
      */
+    @Suppress("UNUSED_PARAMETER")
     fun needsPortraitCacheRotation(displayRotation: Int, width: Int, height: Int): Boolean = false
 
     fun probeVideoSize(file: File): Pair<Int, Int> {
