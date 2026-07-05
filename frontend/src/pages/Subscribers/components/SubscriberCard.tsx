@@ -3,7 +3,7 @@
  * Card reutilizável para exibir informações de um subscriber
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Card,
   CardContent,
@@ -16,6 +16,11 @@ import {
   Tooltip,
   Stack,
   LinearProgress,
+  Popover,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material';
 import {
   Business,
@@ -33,12 +38,21 @@ import {
   Add,
   AutoAwesome,
   Storefront,
+  ContactMail,
+  Schedule,
+  WarningAmber,
 } from '@mui/icons-material';
 import { Subscriber } from '../../../services/api';
+import { ContractHealthLevel, subscriberAlertCardSx } from '../subscriberContractHealth';
 import {
-  getSubscriberListContractAlert,
-  subscriberAlertCardSx,
-} from '../subscriberContractHealth';
+  SUBSCRIBER_KPI_LEGEND,
+  formatCoverageLabel,
+  formatPlanQuota,
+  getPublishReadiness,
+  getSubscriberContractListChip,
+  getSubscriberFinancialListChip,
+  resolveLastActivityLabel,
+} from '../subscriberCardMetrics';
 
 export interface SubscriberCardProps {
   subscriber: Subscriber;
@@ -50,6 +64,20 @@ export interface SubscriberCardProps {
   onStudio?: (subscriber: Subscriber) => void;
 }
 
+function worstCardHealth(
+  contract: ContractHealthLevel,
+  financial: ContractHealthLevel | 'neutral' | null,
+  publishColor: 'success' | 'warning' | 'error' | 'default',
+): ContractHealthLevel {
+  const rank = (h: string) =>
+    h === 'error' ? 3 : h === 'warning' ? 2 : h === 'success' ? 1 : 0;
+  let best: ContractHealthLevel = contract;
+  if (financial && rank(financial) > rank(best)) best = financial as ContractHealthLevel;
+  if (publishColor === 'error' && rank('error') > rank(best)) best = 'error';
+  if (publishColor === 'warning' && rank('warning') > rank(best)) best = 'warning';
+  return best;
+}
+
 const SubscriberCard: React.FC<SubscriberCardProps> = ({
   subscriber,
   onEdit,
@@ -59,14 +87,19 @@ const SubscriberCard: React.FC<SubscriberCardProps> = ({
   onMenuCatalog,
   onStudio,
 }) => {
+  const [contactAnchor, setContactAnchor] = useState<HTMLElement | null>(null);
+
   const activeContracts = subscriber.active_contracts_count || 0;
   const mediaCount = subscriber.media_count || 0;
   const playlistCount = subscriber.playlist_count || 0;
   const campaignCount = subscriber.campaign_count || 0;
-  const campaignDirectMedia = subscriber.campaign_direct_media_count || 0;
   const campaignPlaylistCount = subscriber.campaign_playlist_count || 0;
-  const campaignPlaylistMedia = subscriber.campaign_playlist_media_count || 0;
+  const campaignTotalMedia =
+    subscriber.campaign_total_media_count ??
+    (subscriber.campaign_direct_media_count || 0) + (subscriber.campaign_playlist_media_count || 0);
   const playlistMediaCount = subscriber.playlist_media_count || 0;
+  const orphanMedia = subscriber.orphan_media_count ?? Math.max(0, mediaCount - campaignTotalMedia);
+
   const storageUsedGB = subscriber.storage_used_gb || 0;
   const storageLimitGB = subscriber.storage_limit_gb || 0;
   const storagePercent =
@@ -76,27 +109,47 @@ const SubscriberCard: React.FC<SubscriberCardProps> = ({
       ? `${storageUsedGB.toFixed(2)} / ${storageLimitGB} GB`
       : `${storageUsedGB.toFixed(2)} GB usados`;
 
-  const contractAlert = getSubscriberListContractAlert(subscriber);
+  const contractChip = getSubscriberContractListChip(subscriber);
+  const financialChip = getSubscriberFinancialListChip(subscriber);
+  const publishReady = getPublishReadiness(subscriber);
+  const lastActivity = resolveLastActivityLabel(subscriber);
+  const coverageLabel = formatCoverageLabel(subscriber);
 
-  const metricItems = [
-    { label: 'Contratos Ativos', value: activeContracts, icon: <Article fontSize="small" color="action" /> },
-    { label: 'Mídias', value: mediaCount, icon: <VideoLibrary fontSize="small" color="action" /> },
+  const cardHealth = worstCardHealth(
+    contractChip.health,
+    financialChip?.health ?? null,
+    publishReady.color,
+  );
+
+  const kpiItems = [
     {
-      label: 'Playlists',
-      value: playlistCount,
-      detail: `${playlistCount}:${playlistMediaCount}`,
-      detailTitle: 'Playlists activas : mídias activas nas playlists',
-      icon: <QueueMusic fontSize="small" color="action" />,
+      key: 'media',
+      icon: <VideoLibrary fontSize="small" color="action" />,
+      label: 'Bibliotecas Mídias',
+      display: String(mediaCount),
+      sub: formatPlanQuota(mediaCount, subscriber.plan_limit_medias),
+      tooltip: `Total activas · cota ${formatPlanQuota(mediaCount, subscriber.plan_limit_medias)}`,
     },
     {
-      label: 'Campanhas',
-      value: campaignCount,
-      detail: `${campaignDirectMedia} dir · ${campaignPlaylistCount}:${campaignPlaylistMedia}`,
-      detailTitle:
-        'Campanhas activas · mídias directas · playlists:mídias nas playlists das campanhas',
+      key: 'playlists',
+      icon: <QueueMusic fontSize="small" color="action" />,
+      label: 'Playlists',
+      display: `${playlistCount}:${playlistMediaCount}`,
+      sub: `PT:MT · ${formatPlanQuota(playlistCount, subscriber.plan_limit_playlists)}`,
+      tooltip: 'PT:MT — playlists activas : mídias activas nessas playlists',
+    },
+    {
+      key: 'campaigns',
       icon: <CampaignIcon fontSize="small" color="action" />,
+      label: 'Campanhas',
+      display: `${campaignCount},${campaignTotalMedia},${campaignPlaylistCount}`,
+      sub: `Ct,mt,pt · ${formatPlanQuota(campaignCount, subscriber.plan_limit_campaigns)}`,
+      tooltip:
+        'Ct, mt, pt — campanhas activas · mídias (directas ou em playlists) · playlists assignadas',
     },
   ];
+
+  const hasContact = Boolean(subscriber.email || subscriber.phone || subscriber.whatsapp);
 
   return (
     <Card
@@ -106,161 +159,219 @@ const SubscriberCard: React.FC<SubscriberCardProps> = ({
         display: 'flex',
         flexDirection: 'column',
         transition: 'transform 0.2s, box-shadow 0.2s',
-        ...subscriberAlertCardSx(contractAlert.health),
+        ...subscriberAlertCardSx(cardHealth),
         '&:hover': {
           transform: 'translateY(-4px)',
           boxShadow: 4,
         },
       }}
     >
-      <CardContent sx={{ flexGrow: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <Avatar
-            sx={{
-              bgcolor: 'primary.main',
-              width: 56,
-              height: 56,
-              mr: 2,
-            }}
-          >
+      <CardContent sx={{ flexGrow: 1, pb: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 1.5, gap: 1 }}>
+          <Avatar sx={{ bgcolor: 'primary.main', width: 52, height: 52, flexShrink: 0 }}>
             <Business />
           </Avatar>
-          <Box sx={{ flexGrow: 1 }}>
+          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
             <Typography variant="h6" component="div" noWrap>
               {subscriber.name}
             </Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
               <Chip
-                label={subscriber.is_active ? 'Ativo' : 'Inativo'}
+                label={subscriber.is_active ? 'Ativo' : 'Inactivo'}
                 size="small"
                 color={subscriber.is_active ? 'success' : 'default'}
               />
-              <Tooltip title={contractAlert.tooltip}>
+              <Tooltip title={contractChip.tooltip}>
                 <Chip
-                  label={contractAlert.chipLabel}
+                  label={contractChip.label}
                   size="small"
                   color={
-                    contractAlert.health === 'error'
+                    contractChip.health === 'error'
                       ? 'error'
-                      : contractAlert.health === 'warning'
+                      : contractChip.health === 'warning'
                         ? 'warning'
-                        : contractAlert.health === 'success'
-                          ? 'success'
-                          : 'default'
+                        : 'success'
                   }
-                  variant={contractAlert.health === 'success' ? 'outlined' : 'filled'}
+                  variant={contractChip.health === 'success' ? 'outlined' : 'filled'}
+                />
+              </Tooltip>
+              {financialChip && (
+                <Tooltip title={financialChip.tooltip}>
+                  <Chip
+                    label={financialChip.label}
+                    size="small"
+                    color={
+                      financialChip.health === 'error'
+                        ? 'error'
+                        : financialChip.health === 'warning'
+                          ? 'warning'
+                          : 'success'
+                    }
+                    variant="outlined"
+                  />
+                </Tooltip>
+              )}
+              <Tooltip title={publishReady.tooltip}>
+                <Chip
+                  label={publishReady.label}
+                  size="small"
+                  color={publishReady.color}
+                  variant={publishReady.level === 'ready' ? 'filled' : 'outlined'}
                 />
               </Tooltip>
             </Box>
           </Box>
+          {hasContact && (
+            <>
+              <Tooltip title="Contacto">
+                <IconButton size="small" onClick={(e) => setContactAnchor(e.currentTarget)}>
+                  <ContactMail fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Popover
+                open={Boolean(contactAnchor)}
+                anchorEl={contactAnchor}
+                onClose={() => setContactAnchor(null)}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+              >
+                <List dense sx={{ minWidth: 240, py: 0.5 }}>
+                  {subscriber.email && (
+                    <ListItem>
+                      <ListItemIcon sx={{ minWidth: 36 }}>
+                        <Email fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText primary={subscriber.email} primaryTypographyProps={{ variant: 'body2' }} />
+                    </ListItem>
+                  )}
+                  {subscriber.phone && (
+                    <ListItem>
+                      <ListItemIcon sx={{ minWidth: 36 }}>
+                        <Phone fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText primary={subscriber.phone} primaryTypographyProps={{ variant: 'body2' }} />
+                    </ListItem>
+                  )}
+                  {subscriber.whatsapp && subscriber.whatsapp !== subscriber.phone && (
+                    <ListItem>
+                      <ListItemIcon sx={{ minWidth: 36 }}>
+                        <Phone fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={subscriber.whatsapp}
+                        secondary="WhatsApp"
+                        primaryTypographyProps={{ variant: 'body2' }}
+                      />
+                    </ListItem>
+                  )}
+                </List>
+              </Popover>
+            </>
+          )}
         </Box>
 
-        <Stack spacing={1} sx={{ mt: 2 }}>
-          {subscriber.email && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Email fontSize="small" color="action" />
-              <Typography variant="body2" color="text.secondary" noWrap>
-                {subscriber.email}
-              </Typography>
-            </Box>
-          )}
-
-          {subscriber.phone && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Phone fontSize="small" color="action" />
-              <Typography variant="body2" color="text.secondary">
-                {subscriber.phone}
-              </Typography>
-            </Box>
-          )}
-
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Stack spacing={0.75} sx={{ mb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
             <LocationOn fontSize="small" color="action" />
-            <Tooltip title={subscriber.city || 'Cidade não informada'}>
-              <Typography variant="body2" color="text.secondary" noWrap>
-                {subscriber.city || 'Cidade não informada'}
+            <Tooltip title={coverageLabel}>
+              <Typography variant="caption" color="text.secondary" noWrap>
+                {coverageLabel}
               </Typography>
             </Tooltip>
           </Box>
-
-          {subscriber.category_segment && (
-            <Chip
-              label={subscriber.category_segment}
-              size="small"
-              variant="outlined"
-              sx={{ alignSelf: 'flex-start', mt: 1 }}
-            />
+          {lastActivity && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+              <Schedule fontSize="small" color="action" />
+              <Typography variant="caption" color="text.secondary" noWrap>
+                {lastActivity}
+              </Typography>
+            </Box>
           )}
+          {subscriber.category_segment && (
+            <Chip label={subscriber.category_segment} size="small" variant="outlined" sx={{ alignSelf: 'flex-start' }} />
+          )}
+        </Stack>
 
-          <Box
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-              gap: 1,
-              mt: 1,
-            }}
-          >
-            {metricItems.map((item) => (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, lineHeight: 1.3 }}>
+          {SUBSCRIBER_KPI_LEGEND}
+        </Typography>
+
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+            gap: 0.75,
+            mb: 0.75,
+          }}
+        >
+          {kpiItems.map((item) => (
+            <Tooltip key={item.key} title={item.tooltip}>
               <Box
-                key={item.label}
                 sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0.75,
+                  textAlign: 'center',
+                  px: 0.25,
+                  py: 0.75,
+                  borderRadius: 1,
+                  bgcolor: 'action.hover',
                   minWidth: 0,
                 }}
               >
-                {item.icon}
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography variant="caption" color="text.secondary" noWrap>
-                    {item.label}
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.1 }}>
-                    {item.value}
-                  </Typography>
-                  {'detail' in item && item.detail ? (
-                    <Tooltip title={item.detailTitle || item.detail}>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{
-                          display: 'block',
-                          lineHeight: 1.25,
-                          fontSize: '0.72rem',
-                          fontWeight: 500,
-                          mt: 0.15,
-                        }}
-                        noWrap
-                      >
-                        {item.detail}
-                      </Typography>
-                    </Tooltip>
-                  ) : null}
-                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'center', mb: 0.25 }}>{item.icon}</Box>
+                <Typography variant="caption" color="text.secondary" noWrap sx={{ fontSize: '0.65rem' }}>
+                  {item.label}
+                </Typography>
+                <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.1, fontSize: '1.05rem' }}>
+                  {item.display}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.62rem' }} noWrap>
+                  {item.sub}
+                </Typography>
               </Box>
-            ))}
-          </Box>
+            </Tooltip>
+          ))}
+        </Box>
 
-          <Box sx={{ mt: 1 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-              <Storage fontSize="small" color="action" />
-              <Typography variant="caption" color="text.secondary" noWrap>
-                Espaço da cota
-              </Typography>
-              <Typography variant="caption" sx={{ ml: 'auto', fontWeight: 600 }}>
-                {storageLabel}
-              </Typography>
-            </Box>
-            {storageLimitGB > 0 && (
-              <LinearProgress
-                variant="determinate"
-                value={storagePercent}
-                color={storagePercent > 90 ? 'error' : storagePercent > 75 ? 'warning' : 'primary'}
-                sx={{ height: 6, borderRadius: 3 }}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.75, flexWrap: 'wrap' }}>
+          <Article fontSize="small" color="action" />
+          <Typography variant="caption" color="text.secondary">
+            Contratos activos
+          </Typography>
+          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+            {activeContracts}
+          </Typography>
+          {orphanMedia > 0 && (
+            <Tooltip title="Mídias activas na biblioteca sem campanha activa">
+              <Chip
+                icon={<WarningAmber sx={{ fontSize: 14 }} />}
+                label={`${orphanMedia} sem campanha`}
+                size="small"
+                color="warning"
+                variant="outlined"
+                sx={{ ml: 'auto', height: 22, '& .MuiChip-label': { px: 0.75, fontSize: '0.68rem' } }}
               />
-            )}
+            </Tooltip>
+          )}
+        </Box>
+
+        <Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+            <Storage fontSize="small" color="action" />
+            <Typography variant="caption" color="text.secondary" noWrap>
+              Espaço da cota
+            </Typography>
+            <Typography variant="caption" sx={{ ml: 'auto', fontWeight: 600 }}>
+              {storageLabel}
+            </Typography>
           </Box>
-        </Stack>
+          {storageLimitGB > 0 && (
+            <LinearProgress
+              variant="determinate"
+              value={storagePercent}
+              color={storagePercent > 90 ? 'error' : storagePercent > 75 ? 'warning' : 'primary'}
+              sx={{ height: 6, borderRadius: 3 }}
+            />
+          )}
+        </Box>
       </CardContent>
 
       <CardActions sx={{ justifyContent: 'flex-end', flexWrap: 'wrap', px: 2, pb: 2, gap: 0.5 }}>
@@ -301,11 +412,7 @@ const SubscriberCard: React.FC<SubscriberCardProps> = ({
         )}
         {onDelete && (
           <Tooltip title="Deletar">
-            <IconButton
-              size="small"
-              color="error"
-              onClick={() => onDelete(subscriber)}
-            >
+            <IconButton size="small" color="error" onClick={() => onDelete(subscriber)}>
               <Delete />
             </IconButton>
           </Tooltip>

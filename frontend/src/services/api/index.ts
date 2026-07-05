@@ -3598,8 +3598,20 @@ export interface Subscriber {
   campaign_playlist_count?: number;
   /** Mídias activas nessas playlists de campanha. */
   campaign_playlist_media_count?: number;
+  /** Mídias activas distintas em campanhas activas (directas ∪ playlists). */
+  campaign_total_media_count?: number;
   /** Mídias activas em playlists activas do assinante. */
   playlist_media_count?: number;
+  orphan_media_count?: number;
+  publisher_count?: number;
+  cities_count?: number;
+  totems_count?: number;
+  online_totems_count?: number;
+  last_media_upload_at?: string | null;
+  last_campaign_activity_at?: string | null;
+  plan_limit_medias?: number;
+  plan_limit_playlists?: number;
+  plan_limit_campaigns?: number;
   storage_used_gb?: number;
   storage_limit_gb?: number;
   contract_alert_level?: 'error' | 'warning' | 'success' | 'neutral';

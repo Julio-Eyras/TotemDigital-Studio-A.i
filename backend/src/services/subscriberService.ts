@@ -42,8 +42,20 @@ export interface Subscriber {
   campaign_playlist_count?: number;
   /** Mídias activas nessas playlists de campanha. */
   campaign_playlist_media_count?: number;
+  /** Mídias activas distintas em campanhas activas (directas ∪ playlists). */
+  campaign_total_media_count?: number;
   /** Itens de mídia activos em playlists activas do assinante. */
   playlist_media_count?: number;
+  orphan_media_count?: number;
+  publisher_count?: number;
+  cities_count?: number;
+  totems_count?: number;
+  online_totems_count?: number;
+  last_media_upload_at?: string | null;
+  last_campaign_activity_at?: string | null;
+  plan_limit_medias?: number;
+  plan_limit_playlists?: number;
+  plan_limit_campaigns?: number;
   storage_used_gb?: number;
   storage_limit_gb?: number;
   /** Semáforo na listagem: contratos vencidos / a vencer (30 dias). */
@@ -339,6 +351,95 @@ export class SubscriberService {
             WHERE p.is_active = true
             GROUP BY p.subscriber_id
           ),
+          campaign_total_media_stats AS (
+            SELECT
+              src.subscriber_id,
+              COUNT(DISTINCT src.media_id)::int AS campaign_total_media_count
+            FROM (
+              SELECT c.subscriber_id, m.media_id
+              FROM campaigns c
+              JOIN ids ON ids.subscriber_id = c.subscriber_id
+              JOIN campaign_medias cm ON cm.campaign_id = c.campaign_id AND cm.is_active = true
+              JOIN medias m ON m.media_id = cm.media_id AND m.is_active = true
+              WHERE ${ACTIVE_CAMPAIGN_SQL}
+              UNION
+              SELECT c.subscriber_id, m.media_id
+              FROM campaigns c
+              JOIN ids ON ids.subscriber_id = c.subscriber_id
+              JOIN campaign_playlists cp ON cp.campaign_id = c.campaign_id AND cp.is_active = true
+              JOIN playlists p ON p.playlist_id = cp.playlist_id AND p.is_active = true
+              JOIN playlist_items pi ON pi.playlist_id = p.playlist_id AND COALESCE(pi.is_active, true) = true
+              JOIN medias m ON m.media_id = pi.media_id AND m.is_active = true
+              WHERE ${ACTIVE_CAMPAIGN_SQL}
+            ) src
+            GROUP BY src.subscriber_id
+          ),
+          orphan_media_stats AS (
+            SELECT
+              m.subscriber_id,
+              COUNT(*)::int AS orphan_media_count
+            FROM medias m
+            JOIN ids ON ids.subscriber_id = m.subscriber_id
+            WHERE m.is_active = true
+              AND NOT EXISTS (
+                SELECT 1
+                FROM campaigns c
+                JOIN campaign_medias cm ON cm.campaign_id = c.campaign_id AND cm.is_active = true
+                WHERE cm.media_id = m.media_id
+                  AND c.subscriber_id = m.subscriber_id
+                  AND ${ACTIVE_CAMPAIGN_SQL}
+              )
+              AND NOT EXISTS (
+                SELECT 1
+                FROM campaigns c
+                JOIN campaign_playlists cp ON cp.campaign_id = c.campaign_id AND cp.is_active = true
+                JOIN playlists p ON p.playlist_id = cp.playlist_id AND p.is_active = true
+                JOIN playlist_items pi ON pi.playlist_id = p.playlist_id AND COALESCE(pi.is_active, true) = true
+                WHERE pi.media_id = m.media_id
+                  AND c.subscriber_id = m.subscriber_id
+                  AND ${ACTIVE_CAMPAIGN_SQL}
+              )
+            GROUP BY m.subscriber_id
+          ),
+          reach_stats AS (
+            SELECT
+              spa.subscriber_id,
+              COUNT(DISTINCT spa.publisher_id)::int AS publisher_count,
+              COUNT(DISTINCT NULLIF(TRIM(l.city), ''))::int AS cities_count,
+              COUNT(DISTINCT t.totem_id)::int AS totems_count,
+              COUNT(DISTINCT t.totem_id) FILTER (
+                WHERE COALESCE(t.status, 'offline') = 'online'
+              )::int AS online_totems_count
+            FROM subscriber_publisher_access spa
+            JOIN ids ON ids.subscriber_id = spa.subscriber_id
+            LEFT JOIN locals l ON l.publisher_id = spa.publisher_id AND l.is_active = true
+            LEFT JOIN totems t ON t.local_id = l.local_id AND t.is_active = true
+            WHERE spa.is_active = true
+              AND spa.revoked_at IS NULL
+              AND (spa.expires_at IS NULL OR spa.expires_at > CURRENT_TIMESTAMP)
+            GROUP BY spa.subscriber_id
+          ),
+          activity_stats AS (
+            SELECT
+              ids.subscriber_id,
+              media_act.last_media_upload_at,
+              camp_act.last_campaign_activity_at
+            FROM ids
+            LEFT JOIN (
+              SELECT m.subscriber_id, MAX(m.created_at) AS last_media_upload_at
+              FROM medias m
+              JOIN ids i ON i.subscriber_id = m.subscriber_id
+              WHERE m.is_active = true
+              GROUP BY m.subscriber_id
+            ) media_act ON media_act.subscriber_id = ids.subscriber_id
+            LEFT JOIN (
+              SELECT c.subscriber_id, MAX(c.updated_at) AS last_campaign_activity_at
+              FROM campaigns c
+              JOIN ids i ON i.subscriber_id = c.subscriber_id
+              WHERE ${ACTIVE_CAMPAIGN_SQL}
+              GROUP BY c.subscriber_id
+            ) camp_act ON camp_act.subscriber_id = ids.subscriber_id
+          ),
           city_stats AS (
             SELECT
               spa.subscriber_id,
@@ -363,7 +464,15 @@ export class SubscriberService {
             COALESCE(campaign_direct_media_stats.campaign_direct_media_count, 0) AS campaign_direct_media_count,
             COALESCE(campaign_playlist_media_stats.campaign_playlist_count, 0) AS campaign_playlist_count,
             COALESCE(campaign_playlist_media_stats.campaign_playlist_media_count, 0) AS campaign_playlist_media_count,
+            COALESCE(campaign_total_media_stats.campaign_total_media_count, 0) AS campaign_total_media_count,
             COALESCE(playlist_media_stats.playlist_media_count, 0) AS playlist_media_count,
+            COALESCE(orphan_media_stats.orphan_media_count, 0) AS orphan_media_count,
+            COALESCE(reach_stats.publisher_count, 0) AS publisher_count,
+            COALESCE(reach_stats.cities_count, 0) AS cities_count,
+            COALESCE(reach_stats.totems_count, 0) AS totems_count,
+            COALESCE(reach_stats.online_totems_count, 0) AS online_totems_count,
+            activity_stats.last_media_upload_at,
+            activity_stats.last_campaign_activity_at,
             city_stats.city,
             CASE
               WHEN COALESCE(contract_alert.has_expired, false) THEN 'error'
@@ -384,7 +493,11 @@ export class SubscriberService {
           LEFT JOIN campaign_stats ON campaign_stats.subscriber_id = ids.subscriber_id
           LEFT JOIN campaign_direct_media_stats ON campaign_direct_media_stats.subscriber_id = ids.subscriber_id
           LEFT JOIN campaign_playlist_media_stats ON campaign_playlist_media_stats.subscriber_id = ids.subscriber_id
+          LEFT JOIN campaign_total_media_stats ON campaign_total_media_stats.subscriber_id = ids.subscriber_id
           LEFT JOIN playlist_media_stats ON playlist_media_stats.subscriber_id = ids.subscriber_id
+          LEFT JOIN orphan_media_stats ON orphan_media_stats.subscriber_id = ids.subscriber_id
+          LEFT JOIN reach_stats ON reach_stats.subscriber_id = ids.subscriber_id
+          LEFT JOIN activity_stats ON activity_stats.subscriber_id = ids.subscriber_id
           LEFT JOIN city_stats ON city_stats.subscriber_id = ids.subscriber_id
         `, [subscriberIds]);
 
@@ -396,7 +509,13 @@ export class SubscriberService {
           subscribers.map(async (subscriber: Subscriber) => {
             const metrics = metricsBySubscriberId.get(subscriber.subscriber_id) || {};
             const limits = await this.getMaxLimits(subscriber.subscriber_id).catch(
-              (): { storage_gb?: number } => ({})
+              (): {
+                medias?: number;
+                playlists?: number;
+                campaigns?: number;
+                storage_gb?: number;
+                totems?: number;
+              } => ({}),
             );
 
             subscriber.city = metrics.city || undefined;
@@ -407,9 +526,20 @@ export class SubscriberService {
             subscriber.campaign_direct_media_count = Number(metrics.campaign_direct_media_count || 0);
             subscriber.campaign_playlist_count = Number(metrics.campaign_playlist_count || 0);
             subscriber.campaign_playlist_media_count = Number(metrics.campaign_playlist_media_count || 0);
+            subscriber.campaign_total_media_count = Number(metrics.campaign_total_media_count || 0);
             subscriber.playlist_media_count = Number(metrics.playlist_media_count || 0);
+            subscriber.orphan_media_count = Number(metrics.orphan_media_count || 0);
+            subscriber.publisher_count = Number(metrics.publisher_count || 0);
+            subscriber.cities_count = Number(metrics.cities_count || 0);
+            subscriber.totems_count = Number(metrics.totems_count || 0);
+            subscriber.online_totems_count = Number(metrics.online_totems_count || 0);
+            subscriber.last_media_upload_at = metrics.last_media_upload_at || null;
+            subscriber.last_campaign_activity_at = metrics.last_campaign_activity_at || null;
             subscriber.storage_used_gb = Number(metrics.storage_used_gb || 0);
             subscriber.storage_limit_gb = limits.storage_gb;
+            subscriber.plan_limit_medias = limits.medias;
+            subscriber.plan_limit_playlists = limits.playlists;
+            subscriber.plan_limit_campaigns = limits.campaigns;
 
             const alertLevel = metrics.contract_alert_level as Subscriber['contract_alert_level'];
             subscriber.contract_alert_level = alertLevel || 'neutral';
@@ -1499,6 +1629,7 @@ export class SubscriberService {
     campaign_direct_media_count: number;
     campaign_playlist_count: number;
     campaign_playlist_media_count: number;
+    campaign_total_media_count: number;
     playlist_media_count: number;
     storage_used_gb: number;
     storage_limit_gb?: number;
@@ -1590,6 +1721,25 @@ export class SubscriberService {
         WHERE p.subscriber_id = $1 AND p.is_active = true
       `, [subscriberId]);
 
+      const campaignTotalMediaResult = await this.db.findFirst(`
+        SELECT COUNT(DISTINCT media_id) as count
+        FROM (
+          SELECT m.media_id
+          FROM campaigns c
+          JOIN campaign_medias cm ON cm.campaign_id = c.campaign_id AND cm.is_active = true
+          JOIN medias m ON m.media_id = cm.media_id AND m.is_active = true
+          WHERE c.subscriber_id = $1 AND ${ACTIVE_CAMPAIGN_SQL}
+          UNION
+          SELECT m.media_id
+          FROM campaigns c
+          JOIN campaign_playlists cp ON cp.campaign_id = c.campaign_id AND cp.is_active = true
+          JOIN playlists p ON p.playlist_id = cp.playlist_id AND p.is_active = true
+          JOIN playlist_items pi ON pi.playlist_id = p.playlist_id AND COALESCE(pi.is_active, true) = true
+          JOIN medias m ON m.media_id = pi.media_id AND m.is_active = true
+          WHERE c.subscriber_id = $1 AND ${ACTIVE_CAMPAIGN_SQL}
+        ) u
+      `, [subscriberId]);
+
       // Contar totens online
       const onlineTotemsResult = await this.db.findFirst(`
         ${publisherAccessCte}
@@ -1652,6 +1802,7 @@ export class SubscriberService {
         campaign_direct_media_count: parseInt(campaignDirectMediaResult?.count || '0'),
         campaign_playlist_count: parseInt(campaignPlaylistMediaResult?.playlist_count || '0'),
         campaign_playlist_media_count: parseInt(campaignPlaylistMediaResult?.media_count || '0'),
+        campaign_total_media_count: parseInt(campaignTotalMediaResult?.count || '0'),
         playlist_media_count: parseInt(playlistMediaResult?.count || '0'),
         storage_used_gb: storageUsedGB,
         storage_limit_gb: storageLimitGB,

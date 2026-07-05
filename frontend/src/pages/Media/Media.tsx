@@ -52,7 +52,7 @@ import MediaDeleteConflictDialog from '../../components/MediaDeleteConflictDialo
 import MediaTransformActions from '../../components/Media/MediaTransformActions';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
-import { useMediaRotationTransform, mediaPortraitPreviewSx, mediaPortraitPreviewFrameSx } from '../../hooks/useMediaRotationTransform';
+import { useMediaRotationTransform, mediaPortraitPreviewSx, mediaPortraitPreviewFrameSx, mediaPortraitHoverVideoSx, mediaPreviewDims } from '../../hooks/useMediaRotationTransform';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { isStudioMode } from '../../config/studioMode';
 
@@ -693,7 +693,7 @@ const Media: React.FC = () => {
                           key={`${media.media_id || media.id}-${thumbVersion}`}
                           src={finalPreviewUrl}
                           alt={media.name}
-                          sx={mediaPortraitPreviewSx(getRotationDraft(media.media_id))}
+                          sx={mediaPortraitPreviewSx(getRotationDraft(media.media_id), mediaPreviewDims(media))}
                           onError={(e: any) => {
                             e.target.style.display = 'none';
                           }}
@@ -737,11 +737,10 @@ const Media: React.FC = () => {
                       muted
                       loop
                       playsInline
-                      sx={{
-                        ...mediaPortraitPreviewSx(getRotationDraft(media.media_id)),
-                        zIndex: 2,
-                        pointerEvents: 'none',
-                      }}
+                      sx={mediaPortraitHoverVideoSx(
+                        getRotationDraft(media.media_id),
+                        mediaPreviewDims(media, true),
+                      )}
                     />
                   )}
                 

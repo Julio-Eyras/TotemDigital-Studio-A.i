@@ -6,21 +6,92 @@ export function normalizeMediaRotation(degrees: number): number {
   return ((degrees % 360) + 360) % 360;
 }
 
-export function mediaPortraitPreviewSx(rotationDegrees: number) {
-  const deg = normalizeMediaRotation(rotationDegrees);
+export interface MediaPreviewDimensions {
+  width?: number;
+  height?: number;
+  /** Vídeo sem width/height na API — assumir 16:9 horizontal (como no totem). */
+  assumeLandscapeIfUnknown?: boolean;
+}
+
+export function mediaPreviewDims(
+  media: { width?: number; height?: number; media_type?: string },
+  forVideoHover = false,
+): MediaPreviewDimensions {
+  return {
+    width: media.width,
+    height: media.height,
+    assumeLandscapeIfUnknown:
+      forVideoHover && /^video$/i.test(String(media.media_type || '')),
+  };
+}
+
+/** Rotação efectiva: draft do utilizador + auto 90° para landscape em moldura 9:16. */
+export function resolvePortraitPreviewRotation(
+  rotationDraft: number,
+  dims?: MediaPreviewDimensions,
+): number {
+  const draft = normalizeMediaRotation(rotationDraft);
+  const w = dims?.width ?? 0;
+  const h = dims?.height ?? 0;
+  if (w > 0 && h > 0) {
+    if (w > h) return normalizeMediaRotation(draft + 90);
+    return draft;
+  }
+  if (dims?.assumeLandscapeIfUnknown) {
+    return normalizeMediaRotation(draft + 90);
+  }
+  return draft;
+}
+
+export function mediaPortraitPreviewSx(
+  rotationDegrees: number,
+  dims?: MediaPreviewDimensions,
+) {
+  const deg = resolvePortraitPreviewRotation(rotationDegrees, dims);
   const sideways = deg === 90 || deg === 270;
 
-  return {
+  const base = {
+    position: 'absolute' as const,
     display: 'block',
-    objectFit: 'contain' as const,
-    transform: deg !== 0 ? `rotate(${deg}deg)` : undefined,
+    objectFit: 'cover' as const,
     transformOrigin: 'center center',
     transition: 'transform 0.2s ease',
-    maxWidth: '100%',
-    maxHeight: '100%',
-    width: sideways ? 'auto' : '100%',
+  };
+
+  if (sideways) {
+    return {
+      ...base,
+      top: '50%',
+      left: '50%',
+      width: '178%',
+      height: '100%',
+      maxWidth: 'none',
+      maxHeight: 'none',
+      transform: `translate(-50%, -50%) rotate(${deg}deg)`,
+    };
+  }
+
+  return {
+    ...base,
+    inset: 0,
+    width: '100%',
     height: '100%',
-  } as const;
+    transform: deg !== 0 ? `rotate(${deg}deg)` : undefined,
+  };
+}
+
+export function mediaPortraitHoverVideoSx(
+  rotationDegrees: number,
+  dims?: MediaPreviewDimensions,
+) {
+  return {
+    ...mediaPortraitPreviewSx(rotationDegrees, {
+      ...dims,
+      assumeLandscapeIfUnknown: dims?.assumeLandscapeIfUnknown ?? true,
+    }),
+    zIndex: 3,
+    pointerEvents: 'none' as const,
+  };
 }
 
 /** @deprecated use mediaPortraitPreviewSx */
@@ -28,7 +99,7 @@ export function mediaPreviewRotationSx(degrees: number) {
   return mediaPortraitPreviewSx(degrees);
 }
 
-/** Moldura 9:16 — mesma lógica do totem (contain + letterbox). */
+/** Moldura 9:16 — mesma lógica do totem (cover + rotação landscape). */
 export function mediaPortraitPreviewFrameSx() {
   return {
     position: 'relative' as const,
@@ -36,9 +107,6 @@ export function mediaPortraitPreviewFrameSx() {
     aspectRatio: '9 / 16',
     bgcolor: '#000',
     overflow: 'hidden',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
   };
 }
 
@@ -52,7 +120,7 @@ export function useMediaRotationTransform(onTransformed: () => Promise<void> | v
 
   const getRotationDraft = useCallback(
     (mediaId: number) => rotationDrafts[mediaId] || 0,
-    [rotationDrafts]
+    [rotationDrafts],
   );
 
   const handleRotatePreview = useCallback((mediaId: number) => {
@@ -92,7 +160,7 @@ export function useMediaRotationTransform(onTransformed: () => Promise<void> | v
         setProcessingRotationId(null);
       }
     },
-    [getRotationDraft, onTransformed, processingRotationId]
+    [getRotationDraft, onTransformed, processingRotationId],
   );
 
   return {
