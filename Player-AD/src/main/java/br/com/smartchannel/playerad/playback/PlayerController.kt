@@ -9,13 +9,16 @@ import br.com.smartchannel.playerad.api.DispatcherApiClient
 import br.com.smartchannel.playerad.ota.OtaUpdateCoordinator
 import br.com.smartchannel.playerad.api.PlayerEventsClient
 import br.com.smartchannel.playerad.cache.MediaCacheManager
+import br.com.smartchannel.playerad.cache.PortraitVideoCacheProcessor
 import br.com.smartchannel.playerad.util.AppDirs
+import br.com.smartchannel.playerad.util.FullscreenViewport
 import br.com.smartchannel.playerad.util.MediaViewportRotation
 import br.com.smartchannel.playerad.util.PlayerAdLogger
 import android.content.Intent
 import android.view.View
 import android.webkit.WebView
 import android.widget.ImageView
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.PlaybackException
@@ -64,7 +67,7 @@ class PlayerController(
     /** Intervalo do batimento cardiaco (segundos) — heartbeat sem dispatch. */
     private val batimentoCardiaco: Int = 120,
     /** Intervalo (segundos) para atualizar dispatch/plano — independente do ciclo de reprodução. */
-    private val maxSecondsWithoutServerCheck: Int = 600,
+    private val maxSecondsWithoutServerCheck: Int = 60,
     /** Montagem do painel (0=portrait … 3=landscape invertido) — alinha orientação da mídia. */
     private val displayRotation: Int = 0,
     private val otaUpdateCoordinator: OtaUpdateCoordinator? = null
@@ -373,7 +376,35 @@ class PlayerController(
 
             if (!hasValidCache) {
                 downloadToCache(item)
+            } else if (
+                PortraitVideoCacheProcessor.isVideoFile(item.mediaType, item.url) &&
+                meta?.cacheOrientationReady != true &&
+                file != null
+            ) {
+                normalizeCachedVideo(item, file)
             }
+        }
+    }
+
+    private suspend fun normalizeCachedVideo(
+        item: DispatchMediaItem,
+        file: File,
+    ) = withContext(Dispatchers.IO) {
+        val result = PortraitVideoCacheProcessor.normalizeIfNeeded(
+            context,
+            file,
+            displayRotation,
+            item.mediaType,
+            item.url,
+        )
+        if (result.orientationReady) {
+            cacheManager.updateCacheOrientationState(
+                mediaId = item.mediaId,
+                fileName = result.file.name,
+                sizeBytes = result.sizeBytes,
+                cacheOrientationReady = true,
+                cacheRotated = result.rotated,
+            )
         }
     }
 
@@ -384,7 +415,11 @@ class PlayerController(
         try {
             val url = java.net.URL(item.url)
             val conn = url.openConnection()
-            val ext = guessExtension(item.mediaType, item.url)
+            val ext = if (PortraitVideoCacheProcessor.isVideoFile(item.mediaType, item.url)) {
+                "mp4"
+            } else {
+                guessExtension(item.mediaType, item.url)
+            }
             val fileName = "${item.mediaId}.$ext"
             val outFile = File(propagandasDir, fileName)
 
@@ -394,14 +429,32 @@ class PlayerController(
                 }
             }
 
-            val size = outFile.length()
-            // Para o primeiro esqueleto, não calculamos checksum aqui.
+            var finalFile = outFile
+            var finalSize = outFile.length()
+            var orientationReady = true
+            var rotated = false
+            if (PortraitVideoCacheProcessor.isVideoFile(item.mediaType, item.url)) {
+                val result = PortraitVideoCacheProcessor.normalizeIfNeeded(
+                    context,
+                    outFile,
+                    displayRotation,
+                    item.mediaType,
+                    item.url,
+                )
+                finalFile = result.file
+                finalSize = result.sizeBytes
+                orientationReady = result.orientationReady
+                rotated = result.rotated
+            }
+
             cacheManager.onDownloadCompleted(
                 mediaId = item.mediaId,
-                fileName = fileName,
-                sizeBytes = size,
+                fileName = finalFile.name,
+                sizeBytes = finalSize,
                 checksum = null,
-                mimeType = item.mediaType
+                mimeType = item.mediaType,
+                cacheOrientationReady = orientationReady,
+                cacheRotated = rotated,
             )
         } catch (e: Exception) {
             PlayerAdLogger.logDownloadFailed(item.mediaId, item.url, e)
@@ -954,10 +1007,10 @@ class PlayerController(
             }
 
             if (bitmap != null) {
-                applyImageOrientationCorrection(bitmap, imageUri.path)
+                imageView.scaleType = ImageView.ScaleType.FIT_CENTER
+                imageView.setImageBitmap(bitmap)
             } else {
                 imageView.setImageDrawable(null)
-                resetMediaViewOrientation()
             }
 
             delay(durationMs)
@@ -966,12 +1019,13 @@ class PlayerController(
             return t
         }
 
-        // Vídeos: garantir que ImageView/HTML estão escondidos e usar ExoPlayer com duração natural.
+        // Vídeo: ExoPlayer FIT — orientação/resolução vêm do servidor (sem auto-rotação).
         hideHtmlLayer()
-        resetMediaViewOrientation()
         imageView.visibility = View.GONE
         imageView.setImageDrawable(null)
         playerView.visibility = View.VISIBLE
+        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        playerView.post { FullscreenViewport.applyToPlayerView(playerView) }
         applyPlaybackVolumePolicy()
 
         PlayerAdLogger.logPlaybackStart(
@@ -1004,12 +1058,13 @@ class PlayerController(
             )
         } catch (_: Exception) { }
 
+        exoPlayer.stop()
+        exoPlayer.clearMediaItems()
         exoPlayer.setMediaItem(mediaItem)
-        attachVideoOrientationListener()
         exoPlayer.prepare()
         exoPlayer.play()
 
-        val playbackTimeoutMs = playbackWatchdogTimeoutMs(item)
+        val playbackTimeoutMs = videoWatchdogTimeoutMs(item)
         val playedMs = withTimeoutOrNull(playbackTimeoutMs) {
             waitForPlaybackEnd()
         } ?: run {
@@ -1053,6 +1108,7 @@ class PlayerController(
         today: String
     ): String {
         var t = token
+        resetMediaViewOrientation()
         hideImageLayer()
         exoPlayer.stop()
         playerView.visibility = View.GONE
@@ -1137,17 +1193,18 @@ class PlayerController(
     private fun hideImageLayer() {
         imageView.visibility = View.GONE
         imageView.setImageDrawable(null)
-        MediaViewportRotation.resetView(imageView)
     }
 
     private fun resetMediaViewOrientation() {
         detachVideoOrientationListener()
         playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        exoPlayer.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT)
         MediaViewportRotation.resetPlayerView(playerView)
-        MediaViewportRotation.resetView(imageView)
     }
 
+    /** SUSPENSO — auto-rotação desligada; mídia deve vir correta do servidor. */
     private fun attachVideoOrientationListener() {
+        if (!AUTO_MEDIA_ORIENTATION) return
         detachVideoOrientationListener()
         val listener = object : Player.Listener {
             override fun onVideoSizeChanged(videoSize: VideoSize) {
@@ -1163,41 +1220,18 @@ class PlayerController(
         videoOrientationListener = null
     }
 
-    private fun applyVideoOrientationCorrection(videoSize: VideoSize) {
-        val (w, h) = MediaViewportRotation.rawVideoSize(videoSize)
-        val rot = MediaViewportRotation.correctionRotation(displayRotation, w, h)
-        if (rot != 0f) {
-            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-            PlayerAdLogger.i(
-                "DISPLAY",
-                "Correção orientação vídeo ${w}x${h} → ${rot.toInt()}° (mount=$displayRotation)"
-            )
-        } else {
-            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-        }
-        MediaViewportRotation.applyToPlayerView(playerView, rot, w, h)
+    /** SUSPENSO — ver [MediaViewportRotation.ENABLED]. */
+    private fun applyVideoOrientationCorrection(@Suppress("UNUSED_PARAMETER") videoSize: VideoSize) {
+        if (!AUTO_MEDIA_ORIENTATION) return
     }
 
-    private fun applyImageOrientationCorrection(bitmap: Bitmap, filePath: String?) {
-        val (w, h) = if (!filePath.isNullOrBlank()) {
-            val fromExif = MediaViewportRotation.readImageEffectiveSize(filePath)
-            if (fromExif.first > 0 && fromExif.second > 0) fromExif else bitmap.width to bitmap.height
-        } else {
-            bitmap.width to bitmap.height
+    /** SUSPENSO — ver [MediaViewportRotation.ENABLED]. */
+    private fun applyImageOrientationCorrection(bitmap: Bitmap, @Suppress("UNUSED_PARAMETER") filePath: String?) {
+        if (!AUTO_MEDIA_ORIENTATION) {
+            imageView.scaleType = ImageView.ScaleType.FIT_CENTER
+            imageView.setImageBitmap(bitmap)
+            return
         }
-        val rot = MediaViewportRotation.correctionRotation(displayRotation, w, h)
-        val displayBitmap = if (rot != 0f) {
-            PlayerAdLogger.i(
-                "DISPLAY",
-                "Correção orientação imagem ${w}x${h} → ${rot.toInt()}° (mount=$displayRotation)"
-            )
-            MediaViewportRotation.rotateBitmap(bitmap, rot)
-        } else {
-            bitmap
-        }
-        imageView.scaleType = ImageView.ScaleType.CENTER_CROP
-        imageView.setImageBitmap(displayBitmap)
-        MediaViewportRotation.applyToImageView(imageView, 0f)
     }
 
     private fun fallbackDurationForMediaType(mediaType: String): Long? = when (mediaType) {
@@ -1387,16 +1421,22 @@ class PlayerController(
         }
     }
 
+    private fun videoWatchdogTimeoutMs(item: DispatchMediaItem): Long {
+        val declaredMs = item.duration?.takeIf { it > 0L }?.times(1000L)
+        val playerMs = exoPlayer.duration.takeIf { it > 0L }
+        val baseMs = declaredMs ?: playerMs ?: VIDEO_WATCHDOG_FALLBACK_MS
+        return (baseMs + VIDEO_WATCHDOG_GRACE_MS).coerceIn(VIDEO_WATCHDOG_MIN_MS, VIDEO_WATCHDOG_MAX_MS)
+    }
+
     private fun playbackWatchdogTimeoutMs(item: DispatchMediaItem): Long {
-        // Vídeo/áudio: duração real no ExoPlayer; `duration` do dispatch (null em vídeo) não corta reprodução.
         if (isVideoOrAudioPlaybackType(item.mediaType, item.url)) {
-            return VIDEO_WATCHDOG_DEFAULT_MS
+            return videoWatchdogTimeoutMs(item)
         }
         val declaredDurationMs = item.duration?.takeIf { it > 0L }?.times(1000L)
         return when {
             declaredDurationMs != null -> (declaredDurationMs + VIDEO_WATCHDOG_GRACE_MS)
                 .coerceAtLeast(VIDEO_WATCHDOG_MIN_MS)
-            else -> VIDEO_WATCHDOG_DEFAULT_MS
+            else -> VIDEO_WATCHDOG_FALLBACK_MS
         }
     }
 
@@ -1513,17 +1553,29 @@ class PlayerController(
     }
 
     private suspend fun waitForPlaybackEnd(): Long = suspendCancellableCoroutine { cont ->
+        fun finish() {
+            if (cont.isActive) {
+                cont.resume(exoPlayer.currentPosition.coerceAtLeast(0L))
+            }
+        }
+
+        if (exoPlayer.playbackState == Player.STATE_ENDED) {
+            finish()
+            return@suspendCancellableCoroutine
+        }
+
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_ENDED) {
                     exoPlayer.removeListener(this)
-                    cont.resume(exoPlayer.currentPosition)
+                    finish()
                 }
             }
 
             override fun onPlayerError(error: PlaybackException) {
                 exoPlayer.removeListener(this)
-                cont.resume(exoPlayer.currentPosition)
+                PlayerAdLogger.w("PLAYBACK", "Erro ExoPlayer: ${error.message}")
+                finish()
             }
         }
         exoPlayer.addListener(listener)
@@ -1534,9 +1586,13 @@ class PlayerController(
     }
 
     companion object {
+        /** SUSPENSO v1.55 — orientação/resolução vêm do servidor. */
+        private const val AUTO_MEDIA_ORIENTATION = false
         private const val VIDEO_WATCHDOG_MIN_MS = 30_000L
         private const val VIDEO_WATCHDOG_GRACE_MS = 15_000L
-        private const val VIDEO_WATCHDOG_DEFAULT_MS = 15 * 60 * 1000L
+        /** Quando duração desconhecida — fallback curto (não 15 min). */
+        private const val VIDEO_WATCHDOG_FALLBACK_MS = 5 * 60 * 1000L
+        private const val VIDEO_WATCHDOG_MAX_MS = 15 * 60 * 1000L
         private const val HTML_PLAYBACK_GRACE_MS = 5_000L
     }
 }

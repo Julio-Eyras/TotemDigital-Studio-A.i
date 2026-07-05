@@ -50,7 +50,10 @@ class MediaCacheManager(
         val downloadedAt: Long,
         val lastAccessed: Long,
         val valid: Boolean,
-        val sumPlay: Map<String, Int>
+        val sumPlay: Map<String, Int>,
+        /** Avaliação de orientação no cache concluída (com ou sem rotação). */
+        val cacheOrientationReady: Boolean = false,
+        val cacheRotated: Boolean = false,
     )
 
     /**
@@ -92,7 +95,9 @@ class MediaCacheManager(
         fileName: String,
         sizeBytes: Long,
         checksum: String?,
-        mimeType: String?
+        mimeType: String?,
+        cacheOrientationReady: Boolean = false,
+        cacheRotated: Boolean = false,
     ) {
         val now = System.currentTimeMillis()
         val key = mediaId.toString()
@@ -110,8 +115,29 @@ class MediaCacheManager(
         obj.put("lastAccessed", now)
         obj.put("valid", true)
         obj.put("sum_play", sumPlay)
+        obj.put("cacheOrientationReady", cacheOrientationReady)
+        obj.put("cacheRotated", cacheRotated)
 
         metadata.put(key, obj)
+        saveMetadataToDisk()
+    }
+
+    @Synchronized
+    fun updateCacheOrientationState(
+        mediaId: Long,
+        fileName: String?,
+        sizeBytes: Long?,
+        cacheOrientationReady: Boolean,
+        cacheRotated: Boolean,
+    ) {
+        val key = mediaId.toString()
+        val existing = metadata.optJSONObject(key) ?: return
+        fileName?.let { existing.put("fileName", it) }
+        sizeBytes?.let { existing.put("size", it) }
+        existing.put("cacheOrientationReady", cacheOrientationReady)
+        existing.put("cacheRotated", cacheRotated)
+        existing.put("lastAccessed", System.currentTimeMillis())
+        metadata.put(key, existing)
         saveMetadataToDisk()
     }
 
@@ -194,7 +220,9 @@ class MediaCacheManager(
                 downloadedAt = obj.optLong("downloadedAt", 0L),
                 lastAccessed = obj.optLong("lastAccessed", 0L),
                 valid = obj.optBoolean("valid", false),
-                sumPlay = sumPlayMap
+                sumPlay = sumPlayMap,
+                cacheOrientationReady = obj.optBoolean("cacheOrientationReady", false),
+                cacheRotated = obj.optBoolean("cacheRotated", false),
             )
         } catch (e: JSONException) {
             null

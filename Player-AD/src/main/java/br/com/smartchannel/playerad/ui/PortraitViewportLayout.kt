@@ -3,43 +3,39 @@ package br.com.smartchannel.playerad.ui
 import android.content.Context
 import android.util.AttributeSet
 import android.widget.FrameLayout
+import br.com.smartchannel.playerad.util.DisplayCanvas
 import br.com.smartchannel.playerad.util.PlayerAdLogger
 
 /**
- * Viewport 9:16 (portrait) centrado, ou canvas lógico completo quando o SO já roda portrait.
+ * Viewport de mídia = **100%** da área útil do ecrã (largura × altura do painel).
+ * Sem auto-rotação — só garante measure EXACTLY em fullscreen.
  */
 class PortraitViewportLayout @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
-    defStyleAttr: Int = 0
+    defStyleAttr: Int = 0,
 ) : FrameLayout(context, attrs, defStyleAttr) {
 
-    private var lastLoggedMode: String? = null
+    private var lastLoggedSize: String? = null
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val parentW = MeasureSpec.getSize(widthMeasureSpec)
-        val parentH = MeasureSpec.getSize(heightMeasureSpec)
-        val viewport = PortraitViewportMetrics.resolveFromConfig(context)
-
-        var targetW = viewport.width
-        var targetH = viewport.height
-
-        if (parentW > 0 && parentH > 0) {
-            targetW = targetW.coerceAtMost(parentW)
-            targetH = targetH.coerceAtMost(parentH)
-        }
-
-        if (lastLoggedMode != viewport.mode) {
-            lastLoggedMode = viewport.mode
-            PlayerAdLogger.i(
-                "DISPLAY",
-                "PortraitViewport mode=${viewport.mode} size=${targetW}x${targetH} parent=${parentW}x${parentH}"
-            )
-        }
-
+        val w = MeasureSpec.getSize(widthMeasureSpec).coerceAtLeast(1)
+        val h = MeasureSpec.getSize(heightMeasureSpec).coerceAtLeast(1)
+        logOnce(w, h)
         super.onMeasure(
-            MeasureSpec.makeMeasureSpec(targetW, MeasureSpec.EXACTLY),
-            MeasureSpec.makeMeasureSpec(targetH, MeasureSpec.EXACTLY)
+            MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY),
+            MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY),
+        )
+    }
+
+    private fun logOnce(w: Int, h: Int) {
+        val canvas = DisplayCanvas.resolveFromConfig(context)
+        val key = "${canvas.width}x${canvas.height}:$w:$h"
+        if (lastLoggedSize == key) return
+        lastLoggedSize = key
+        PlayerAdLogger.i(
+            "DISPLAY",
+            "Viewport fullscreen ${w}x${h} (canvas=${canvas.width}x${canvas.height})",
         )
     }
 }

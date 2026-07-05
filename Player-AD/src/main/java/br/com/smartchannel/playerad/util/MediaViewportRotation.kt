@@ -1,97 +1,77 @@
 package br.com.smartchannel.playerad.util
 
+import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Matrix
-import android.graphics.RectF
-import android.media.ExifInterface
-import android.view.TextureView
 import android.view.View
 import androidx.media3.common.VideoSize
 import androidx.media3.ui.PlayerView
 
 /**
- * Alinha orientação da mídia à montagem configurada (portrait vs landscape).
+ * SUSPENSO (v1.55+): auto-rotação e matriz TextureView.
+ * Viewport fullscreen = [PortraitViewportLayout] + [FullscreenViewport] (sem rotação).
  *
- * Vídeo: [TextureView.setTransform] — girar a [PlayerView] não altera o frame do ExoPlayer.
- * Imagem: rotação do bitmap antes de exibir.
+ * Playback = ficheiro já correto no cache ([PortraitVideoCacheProcessor]) ou do servidor.
+ * Runtime: ExoPlayer FIT, sem matriz TextureView.
+ *
+ * Reativar: restaurar implementação de v1.54 em git e [PlayerController.AUTO_MEDIA_ORIENTATION].
  */
 object MediaViewportRotation {
+
+    const val ENABLED = false
 
     fun isPortraitMount(displayRotation: Int): Boolean {
         val normalized = ((displayRotation % 4) + 4) % 4
         return normalized == 0 || normalized == 2
     }
 
-    /** Dimensões brutas do stream (sem trocar por metadados — decisão de correção). */
     fun rawVideoSize(videoSize: VideoSize): Pair<Int, Int> {
         val w = videoSize.width
         val h = videoSize.height
         return if (w > 0 && h > 0) w to h else 0 to 0
     }
 
-    fun readImageEffectiveSize(path: String): Pair<Int, Int> {
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(path, bounds)
-        var w = bounds.outWidth
-        var h = bounds.outHeight
-        if (w <= 0 || h <= 0) return 0 to 0
-        if (readExifOrientationDegrees(path) in setOf(90, 270)) {
-            w = bounds.outHeight
-            h = bounds.outWidth
-        }
-        return w to h
+    fun effectiveVideoSize(videoSize: VideoSize): Pair<Int, Int> = rawVideoSize(videoSize)
+
+    @Suppress("UNUSED_PARAMETER")
+    fun mountCorrectionRotation(displayRotation: Int, mediaWidth: Int, mediaHeight: Int): Float = 0f
+
+    @Suppress("UNUSED_PARAMETER")
+    fun correctionRotation(displayRotation: Int, mediaWidth: Int, mediaHeight: Int): Float = 0f
+
+    @Suppress("UNUSED_PARAMETER")
+    fun logicalSurfaceCompensationDegrees(context: Context, displayRotation: Int): Int = 0
+
+    @Suppress("UNUSED_PARAMETER")
+    fun totalRotationDegrees(context: Context, displayRotation: Int, videoSize: VideoSize): Float = 0f
+
+    @Suppress("UNUSED_PARAMETER")
+    fun imageRotationDegrees(context: Context, displayRotation: Int, mediaWidth: Int, mediaHeight: Int): Float =
+        0f
+
+    @Suppress("UNUSED_PARAMETER")
+    fun readImageEffectiveSize(path: String): Pair<Int, Int> = 0 to 0
+
+    fun rotateBitmap(source: Bitmap, @Suppress("UNUSED_PARAMETER") degrees: Float): Bitmap = source
+
+    @Suppress("UNUSED_PARAMETER")
+    fun applyToPlayerView(
+        context: Context,
+        displayRotation: Int,
+        playerView: PlayerView,
+        rotationDegrees: Float,
+        videoWidth: Int,
+        videoHeight: Int,
+    ) {
+        // SUSPENSO — sem matriz / content frame expand
     }
 
-    fun correctionRotation(displayRotation: Int, mediaWidth: Int, mediaHeight: Int): Float {
-        if (mediaWidth <= 0 || mediaHeight <= 0) return 0f
-        val targetPortrait = isPortraitMount(displayRotation)
-        val mediaPortrait = mediaHeight > mediaWidth
-        if (targetPortrait == mediaPortrait) return 0f
-
-        val normalized = ((displayRotation % 4) + 4) % 4
-        return when (normalized) {
-            0, 1 -> 90f
-            else -> 270f
-        }
-    }
-
-    fun rotateBitmap(source: Bitmap, degrees: Float): Bitmap {
-        if (degrees == 0f) return source
-        val matrix = Matrix().apply { postRotate(degrees) }
-        return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
-    }
-
-    fun applyToPlayerView(playerView: PlayerView, rotationDegrees: Float, videoWidth: Int, videoHeight: Int) {
-        if (rotationDegrees == 0f) {
-            resetPlayerView(playerView)
-            return
-        }
-        runWhenSized(playerView) {
-            val texture = playerView.videoSurfaceView as? TextureView
-            if (texture == null) {
-                applyViewRotation(playerView, rotationDegrees)
-                return@runWhenSized
-            }
-            applyTextureTransform(texture, rotationDegrees, videoWidth, videoHeight)
-            PlayerAdLogger.i(
-                "DISPLAY",
-                "TextureView transform ${rotationDegrees.toInt()}° vídeo ${videoWidth}x${videoHeight} view=${texture.width}x${texture.height}"
-            )
-        }
-    }
-
+    @Suppress("UNUSED_PARAMETER")
     fun applyToImageView(imageView: View, rotationDegrees: Float) {
-        if (rotationDegrees == 0f) {
-            resetView(imageView)
-            return
-        }
-        applyViewRotation(imageView, rotationDegrees)
+        // SUSPENSO
     }
 
     fun resetPlayerView(playerView: PlayerView) {
         resetView(playerView)
-        (playerView.videoSurfaceView as? TextureView)?.setTransform(Matrix())
     }
 
     fun resetView(view: View) {
@@ -100,115 +80,5 @@ object MediaViewportRotation {
         view.translationY = 0f
         view.scaleX = 1f
         view.scaleY = 1f
-    }
-
-    private fun applyViewRotation(view: View, rotationDegrees: Float) {
-        runWhenSized(view) {
-            val w = view.width.toFloat()
-            val h = view.height.toFloat()
-            view.pivotX = w / 2f
-            view.pivotY = h / 2f
-            view.rotation = rotationDegrees
-            when ((rotationDegrees.toInt() % 360 + 360) % 360) {
-                90, 270 -> {
-                    view.translationX = (h - w) / 2f
-                    view.translationY = (w - h) / 2f
-                }
-                else -> {
-                    view.translationX = 0f
-                    view.translationY = 0f
-                }
-            }
-        }
-    }
-
-    private fun applyTextureTransform(
-        textureView: TextureView,
-        rotationDegrees: Float,
-        videoWidth: Int,
-        videoHeight: Int,
-    ) {
-        val viewW = textureView.width.toFloat()
-        val viewH = textureView.height.toFloat()
-        if (viewW <= 0f || viewH <= 0f || videoWidth <= 0 || videoHeight <= 0) return
-
-        val matrix = Matrix()
-        val viewRect = RectF(0f, 0f, viewW, viewH)
-        val centerX = viewRect.centerX()
-        val centerY = viewRect.centerY()
-        val degrees = ((rotationDegrees.toInt() % 360) + 360) % 360
-
-        val srcW: Float
-        val srcH: Float
-        when (degrees) {
-            90, 270 -> {
-                srcW = videoHeight.toFloat()
-                srcH = videoWidth.toFloat()
-            }
-            else -> {
-                srcW = videoWidth.toFloat()
-                srcH = videoHeight.toFloat()
-            }
-        }
-
-        val bufferRect = RectF(0f, 0f, srcW, srcH)
-        bufferRect.offset(centerX - bufferRect.centerX(), centerY - bufferRect.centerY())
-        matrix.setRectToRect(viewRect, bufferRect, Matrix.ScaleToFit.CENTER)
-        matrix.postRotate(rotationDegrees, centerX, centerY)
-        textureView.setTransform(matrix)
-    }
-
-    private fun runWhenSized(view: View, block: () -> Unit) {
-        fun tryRun() {
-            if (view.width > 0 && view.height > 0) {
-                block()
-            }
-        }
-        view.post {
-            tryRun()
-            if (view.width <= 0 || view.height <= 0) {
-                val listener = object : View.OnLayoutChangeListener {
-                    override fun onLayoutChange(
-                        v: View,
-                        left: Int,
-                        top: Int,
-                        right: Int,
-                        bottom: Int,
-                        oldLeft: Int,
-                        oldTop: Int,
-                        oldRight: Int,
-                        oldBottom: Int,
-                    ) {
-                        if (v.width > 0 && v.height > 0) {
-                            v.removeOnLayoutChangeListener(this)
-                            block()
-                        }
-                    }
-                }
-                view.addOnLayoutChangeListener(listener)
-            }
-        }
-    }
-
-    private fun readExifOrientationDegrees(path: String): Int {
-        return try {
-            exifOrientationToDegrees(
-                ExifInterface(path).getAttributeInt(
-                    ExifInterface.TAG_ORIENTATION,
-                    ExifInterface.ORIENTATION_NORMAL
-                )
-            )
-        } catch (_: Exception) {
-            0
-        }
-    }
-
-    private fun exifOrientationToDegrees(orientation: Int): Int = when (orientation) {
-        ExifInterface.ORIENTATION_ROTATE_90,
-        ExifInterface.ORIENTATION_TRANSPOSE -> 90
-        ExifInterface.ORIENTATION_ROTATE_180 -> 180
-        ExifInterface.ORIENTATION_ROTATE_270,
-        ExifInterface.ORIENTATION_TRANSVERSE -> 270
-        else -> 0
     }
 }

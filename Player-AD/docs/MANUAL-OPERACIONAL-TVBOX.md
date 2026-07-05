@@ -148,7 +148,7 @@ Parâmetros em `build-bootanimation.py`: `TEXT_ROTATION_DEG`, `TEXT_SCALE`, `ACC
 
 ---
 
-## 6. Rotação automática da mídia (v1.33+)
+## 6. Rotação automática da mídia (v1.34+)
 
 Se vídeo/imagem estiver em orientação diferente da config (ex.: landscape num totem portrait):
 
@@ -218,11 +218,11 @@ adb shell settings get system accelerometer_rotation # esperado: 0
 - Montagem: `/mnt/bootlogo` (script cria se não existir)
 - Formato: BMP 1280×720 RGB 24-bit
 
-### Mídia não gira (v1.33)
+### Mídia não gira (v1.34)
 
-1. Confirmar versão ≥ 1.33
-2. Ver log `DISPLAY` / `Correção orientação`
-3. Vídeo landscape + config portrait deve gerar rotação 90° ou 270°
+1. Confirmar versão ≥ 1.34 (`adb shell dumpsys package br.com.smartchannel.playerad | findstr versionName`)
+2. Ver log `DISPLAY` — deve mostrar `raw=`, `eff=`, `meta=` e `total=` graus
+3. Vídeo landscape + config portrait → `total=90` ou `270`
 4. Se invertido: reportar combinação (config + tipo mídia) para ajuste de sentido
 
 ### Sem rede / offline
@@ -274,4 +274,4 @@ cd ~/TotemDigital && git pull
 
 ---
 
-*Última atualização: jul/2026 — Player-AD v1.33*
+*Última atualização: jul/2026 — Player-AD v1.34*

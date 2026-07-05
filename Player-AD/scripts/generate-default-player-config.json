@@ -6,5 +6,5 @@
   "screenOrientation": "portrait",
   "fallbackPropagandasPerVinheta": 3,
   "batimentoCardiaco": 120,
-  "maxSecondsWithoutServerCheck": 600
+  "maxSecondsWithoutServerCheck": 60
 }

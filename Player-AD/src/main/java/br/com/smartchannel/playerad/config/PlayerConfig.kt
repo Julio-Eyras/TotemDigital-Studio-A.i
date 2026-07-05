@@ -23,7 +23,7 @@ data class PlayerConfig(
      * Intervalo (segundos) para atualizar o plano de mídia (GET /dispatch).
      * Independente do fim de ciclo de reprodução.
      */
-    val maxSecondsWithoutServerCheck: Int = 600,
+    val maxSecondsWithoutServerCheck: Int = 60,
     /**
      * Onde gravar propagandas, vinhetas e JSON do último dispatch.
      * Ver [PlayerStorageMode] e campo `storage` em `player-config.json`.

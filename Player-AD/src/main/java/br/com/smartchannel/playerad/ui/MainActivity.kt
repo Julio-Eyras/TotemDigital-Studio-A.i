@@ -2,6 +2,7 @@ package br.com.smartchannel.playerad.ui
 
 import android.content.Intent
 import android.content.res.Configuration
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
@@ -18,6 +19,7 @@ import br.com.smartchannel.playerad.api.DispatcherApiClient
 import br.com.smartchannel.playerad.cache.MediaCacheManager
 import br.com.smartchannel.playerad.config.PlayerConfigLoader
 import br.com.smartchannel.playerad.playback.PlayerController
+import br.com.smartchannel.playerad.util.FullscreenViewport
 import br.com.smartchannel.playerad.util.PlayerAdLogger
 import br.com.smartchannel.playerad.util.PlayerAdPrefs
 import android.webkit.WebView
@@ -227,6 +229,9 @@ class MainActivity : AppCompatActivity() {
         playerView.useController = false
         playerView.controllerHideOnTouch = false
         playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        playerView.setKeepContentOnPlayerReset(true)
+        playerView.setShutterBackgroundColor(Color.TRANSPARENT)
+        playerView.post { FullscreenViewport.applyToPlayerView(playerView) }
 
         completeStartup()
     }

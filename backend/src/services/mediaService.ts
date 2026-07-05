@@ -1011,7 +1011,10 @@ export class MediaService {
   ): Promise<void> {
     let pipeline = (sharp as any)(sourcePath)
       .rotate(rotationDegrees)
-      .resize(1080, 1920, { fit: 'cover', position: 'center' });
+      .resize(1080, 1920, {
+        fit: 'contain',
+        background: { r: 0, g: 0, b: 0, alpha: 1 },
+      });
 
     const ext = this.getImageOutputExtension(mimeType, outputPath);
     if (ext === '.png') {
@@ -1033,8 +1036,8 @@ export class MediaService {
     const rotationFilters = this.getFfmpegRotationFilters(rotationDegrees);
     const filters = [
       ...rotationFilters,
-      'scale=1080:1920:force_original_aspect_ratio=increase',
-      'crop=1080:1920',
+      'scale=1080:1920:force_original_aspect_ratio=decrease',
+      'pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black',
       'setsar=1',
     ].join(',');
 

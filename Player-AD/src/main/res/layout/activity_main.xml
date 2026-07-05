@@ -4,37 +4,38 @@
     android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000000">
+    android:background="#000000"
+    android:fitsSystemWindows="false">
 
     <FrameLayout
         android:id="@+id/contentHost"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_gravity="center">
+        android:fitsSystemWindows="false">
 
         <br.com.smartchannel.playerad.ui.PortraitViewportLayout
             android:id="@+id/portraitViewport"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:background="#000000">
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#000000"
+            android:fitsSystemWindows="false">
 
             <androidx.media3.ui.PlayerView
                 android:id="@+id/playerView"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
+                android:fitsSystemWindows="false"
                 app:use_controller="false"
-                app:surface_type="texture_view"
                 app:resize_mode="fit" />
 
             <ImageView
                 android:id="@+id/imageView"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:adjustViewBounds="true"
+                android:adjustViewBounds="false"
                 android:background="@android:color/transparent"
                 android:contentDescription="@string/app_name"
-                android:scaleType="centerCrop"
+                android:scaleType="fitCenter"
                 android:visibility="gone" />
 
             <WebView
@@ -47,4 +48,3 @@
         </br.com.smartchannel.playerad.ui.PortraitViewportLayout>
     </FrameLayout>
 </FrameLayout>
-

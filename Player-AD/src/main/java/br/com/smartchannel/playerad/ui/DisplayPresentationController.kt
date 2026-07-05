@@ -1,11 +1,11 @@
 package br.com.smartchannel.playerad.ui
 
 import android.app.Activity
-import android.util.DisplayMetrics
 import android.view.View
 import br.com.smartchannel.playerad.R
 import br.com.smartchannel.playerad.config.PlayerConfig
 import br.com.smartchannel.playerad.config.PlayerConfigLoader
+import br.com.smartchannel.playerad.util.DisplayCanvas
 import br.com.smartchannel.playerad.util.PlayerAdLogger
 import br.com.smartchannel.playerad.util.SystemDisplayRotation
 import br.com.smartchannel.playerad.util.ViewDisplayRotation
@@ -64,28 +64,29 @@ object DisplayPresentationController {
         systemEffective: Boolean,
         visualFallback: Boolean
     ) {
-        val metrics: DisplayMetrics = activity.resources.displayMetrics
+        val canvas = DisplayCanvas.resolve(activity, config.displayRotation)
         val mode = PlayerConfigLoader.displayRotationLabel(config.displayRotation)
         PlayerAdLogger.i(
             "DISPLAY",
             buildString {
-                append("viewport=9:16 | mount=")
+                append("canvas=")
+                append(canvas.width)
+                append('x')
+                append(canvas.height)
+                append(" mount=")
                 append(config.displayRotation)
                 append(" (")
                 append(mode)
-                append(") | panel=")
-                append(metrics.widthPixels)
-                append('x')
-                append(metrics.heightPixels)
-                append(" dpi=")
-                append(metrics.densityDpi)
+                append(") dpi=")
+                append(canvas.densityDpi)
                 append(" | systemRotation=")
                 append(if (systemEffective) "effective" else "ineffective")
                 if (!systemEffective && SystemDisplayRotation.isUserRotationAligned(activity, config.displayRotation)) {
                     append(" | userRotation=aligned")
                 }
+                if (canvas.needsSurfaceCompensation) append(" | surfaceComp=suspended")
                 if (visualFallback) append(" | visualFallback=on")
-            }
+            },
         )
     }
 }
