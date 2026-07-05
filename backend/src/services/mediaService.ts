@@ -684,13 +684,31 @@ export class MediaService {
         }
       }
 
-      // Metadados leves no upload; vídeo: sem ffmpeg síncrono (evita 502/OOM no servidor)
+      // Vídeo: thumbnail rápido (1 frame ffmpeg) — leve; normalização 9:16 completa fica em background.
+      if (mediaType === 'video') {
+        try {
+          await this.generatePortraitThumbnailFromVideoFile(filePath);
+        } catch (thumbErr: any) {
+          await logWarn('Thumbnail de vídeo no upload falhou', {
+            filePath,
+            error: thumbErr?.message,
+          });
+        }
+      }
+
+      // Metadados leves no upload; vídeo: sem re-encode síncrono (evita 502/timeout).
       const metadata = await this.processMedia(
         file.buffer ?? Buffer.alloc(0),
         storedMimeType,
         filePath,
         { deferVideoFfmpeg: mediaType === 'video' }
       );
+      if (mediaType === 'video') {
+        const thumbPath = filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
+        if (fs.existsSync(thumbPath)) {
+          metadata.previewUrl = generateThumbnailUrl(thumbPath, 'video');
+        }
+      }
       let storedSize = file.size;
       try {
         const st = await fs.promises.stat(filePath);
@@ -1696,6 +1714,21 @@ export class MediaService {
           .jpeg({ quality: 80, progressive: true })
           .toFile(generatedThumbPath);
         return generatedThumbPath;
+      }
+
+      // 2b) Vídeo: gerar _thumb.jpg ao lado do ficheiro (evita placeholder cinza no painel)
+      if (media.mediaType === 'video' && existingFilePath) {
+        try {
+          const thumbPath = await this.generatePortraitThumbnailFromVideoFile(existingFilePath);
+          if (thumbPath && fs.existsSync(thumbPath)) {
+            return thumbPath;
+          }
+        } catch (error: any) {
+          await logWarn('Falha ao gerar thumbnail de vídeo on-demand', {
+            mediaId,
+            error: error?.message,
+          });
+        }
       }
 
       // 3) Fallback: placeholder

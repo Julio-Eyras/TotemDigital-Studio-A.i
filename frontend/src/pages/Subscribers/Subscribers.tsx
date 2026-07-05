@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useCallback } from 'react';
+﻿import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   Box,
@@ -343,6 +343,14 @@ const Subscribers: React.FC = () => {
   const [mediaDeleteLoading, setMediaDeleteLoading] = useState(false);
   const [pendingMediaDeleteIndex, setPendingMediaDeleteIndex] = useState<number | null>(null);
   const [mediaThumbVersion, setMediaThumbVersion] = useState(0);
+  const HOVER_PREVIEW_MAX_BYTES = 30 * 1024 * 1024;
+  const videoHoverBlobUrlsRef = useRef<Map<number, string>>(new Map());
+  const hoverGenRef = useRef(0);
+  const [videoHover, setVideoHover] = useState<{ id: number | null; url: string | null }>({
+    id: null,
+    url: null,
+  });
+  const hoverVideoRef = useRef<HTMLVideoElement | null>(null);
   const activeOnlyFilter = useMemo(() => {
     const selectedOption = subscriberStatusOptions.find((option) => option.value === statusFilterValue);
     return selectedOption?.activeOnly === true;
@@ -1287,10 +1295,64 @@ const Subscribers: React.FC = () => {
   // ============================================================================
 
   const handleUploadMediaSuccess = async () => {
+    setMediaPreviewFailed(new Set());
+    setMediaThumbVersion((v) => v + 1);
     if (selectedSubscriber) {
       await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
     }
   };
+
+  const handleMediaPreviewMouseEnter = async (media: MediaItem) => {
+    const id = media.media_id;
+    if (!id || !/^video$/i.test(String(media.media_type || ''))) return;
+    const bytes = Number((media as any).size_bytes ?? (media as any).fileSizeBytes ?? 0);
+    if (bytes > HOVER_PREVIEW_MAX_BYTES) return;
+    const gen = ++hoverGenRef.current;
+    let url = videoHoverBlobUrlsRef.current.get(id);
+    if (!url) {
+      try {
+        const blob = await mediaApi.getFileBlob(id);
+        if (gen !== hoverGenRef.current) return;
+        url = URL.createObjectURL(blob);
+        videoHoverBlobUrlsRef.current.set(id, url);
+      } catch {
+        if (gen === hoverGenRef.current) setVideoHover({ id: null, url: null });
+        return;
+      }
+    }
+    if (gen !== hoverGenRef.current) return;
+    setVideoHover({ id, url: url! });
+  };
+
+  const handleMediaPreviewMouseLeave = () => {
+    hoverGenRef.current += 1;
+    try {
+      hoverVideoRef.current?.pause();
+    } catch {
+      /* noop */
+    }
+    setVideoHover({ id: null, url: null });
+  };
+
+  useEffect(() => {
+    const el = hoverVideoRef.current;
+    if (!el || !videoHover.url) return;
+    el.currentTime = 0;
+    void el.play().catch(() => {});
+  }, [videoHover.id, videoHover.url]);
+
+  useEffect(() => {
+    return () => {
+      videoHoverBlobUrlsRef.current.forEach((url) => {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          /* noop */
+        }
+      });
+      videoHoverBlobUrlsRef.current.clear();
+    };
+  }, []);
 
   const handleEditMedia = async () => {
     if (!selectedSubscriber || editingEditMediaIndex === null) return;
@@ -3122,7 +3184,11 @@ const Subscribers: React.FC = () => {
                             boxShadow: theme.shadows[8],
                           },
                         }}>
-                          <Box sx={mediaPortraitPreviewFrameSx()}>
+                          <Box
+                            sx={mediaPortraitPreviewFrameSx()}
+                            onMouseEnter={() => handleMediaPreviewMouseEnter(media)}
+                            onMouseLeave={handleMediaPreviewMouseLeave}
+                          >
                             {!showPlaceholder && previewUrl && (media.media_type === 'image' || isThumbnailUrl) ? (
                               <Box
                                 component="img"
@@ -3149,6 +3215,23 @@ const Subscribers: React.FC = () => {
                                 </Avatar>
                               </Box>
                             )}
+                            {/^video$/i.test(String(media.media_type || '')) &&
+                              videoHover.id === media.media_id &&
+                              videoHover.url && (
+                                <Box
+                                  component="video"
+                                  ref={hoverVideoRef}
+                                  src={videoHover.url}
+                                  muted
+                                  loop
+                                  playsInline
+                                  sx={{
+                                    ...mediaPortraitPreviewSx(getRotationDraft(media.media_id)),
+                                    zIndex: 2,
+                                    pointerEvents: 'none',
+                                  }}
+                                />
+                              )}
                             <Box
                               sx={{
                                 position: 'absolute',
