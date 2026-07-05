@@ -25,6 +25,13 @@ export function mediaPreviewDims(
   };
 }
 
+/** Desfaz rotação de entrega 90° CW — igual ao ffmpeg do thumbnail (270°). */
+export const TOTEM_DELIVERY_UI_PREVIEW_ROTATION = 270;
+
+export function resolveTotemDeliveryUiRotation(rotationDraft: number): number {
+  return normalizeMediaRotation(rotationDraft + TOTEM_DELIVERY_UI_PREVIEW_ROTATION);
+}
+
 /** Rotação efectiva: draft do utilizador + auto 90° para landscape em moldura 9:16. */
 export function resolvePortraitPreviewRotation(
   rotationDraft: number,
@@ -47,7 +54,10 @@ export function mediaPortraitPreviewSx(
   rotationDegrees: number,
   dims?: MediaPreviewDimensions,
 ) {
-  const deg = resolvePortraitPreviewRotation(rotationDegrees, dims);
+  return buildRotatedPortraitPreviewSx(resolvePortraitPreviewRotation(rotationDegrees, dims));
+}
+
+function buildRotatedPortraitPreviewSx(deg: number) {
   const sideways = deg === 90 || deg === 270;
 
   const base = {
@@ -96,7 +106,7 @@ export function mediaTotemUiPreviewSx(
   media?: { width?: number; height?: number },
 ) {
   if (isTotemDeliveryMedia(media)) {
-    return mediaPortraitPreviewSx(rotationDegrees, { width: media?.width, height: media?.height });
+    return buildRotatedPortraitPreviewSx(resolveTotemDeliveryUiRotation(rotationDegrees));
   }
   return mediaThumbnailPortraitPreviewSx(rotationDegrees);
 }
