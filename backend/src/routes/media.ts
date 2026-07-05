@@ -401,8 +401,6 @@ router.post('/upload', uploadLimiter,
         });
       }
 
-      const buffer = fs.readFileSync(req.file.path);
-
       // Processar tags
       let processedTags: string[] = [];
       if (req.body.tags) {
@@ -419,12 +417,20 @@ router.post('/upload', uploadLimiter,
         subscriberId: finalSubscriberId,
         createdBy: req.user?.id || 0,
         file: {
-          buffer,
+          diskPath: req.file.path,
           originalname: req.file.originalname,
           mimetype: req.file.mimetype,
           size: req.file.size,
         },
       }, requestSubscriberId, isAdmin);
+
+      try {
+        if (req.file.path && fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
+      } catch {
+        // ficheiro temporário do multer — ignorar falha ao remover
+      }
       
       return res.status(201).json({
         success: true,
@@ -535,14 +541,9 @@ router.post('/upload-multiple',
         });
       }
 
-      // Ler todos os arquivos de forma assíncrona (paralelo)
-      const fileBuffers = await Promise.all(
-        files.map(file => fs.promises.readFile(file.path))
-      );
-
       const created = await getMediaService().createMultipleMedia(
-        files.map((file, index) => ({
-          buffer: fileBuffers[index],
+        files.map((file) => ({
+          diskPath: file.path,
           originalname: file.originalname,
           mimetype: file.mimetype,
           size: file.size,
@@ -552,6 +553,16 @@ router.post('/upload-multiple',
         req.subscriberId || req.user?.subscriberId || req.user?.clientId,
         isAdmin
       );
+
+      files.forEach((file) => {
+        try {
+          if (file.path && fs.existsSync(file.path)) {
+            fs.unlinkSync(file.path);
+          }
+        } catch {
+          // ignorar
+        }
+      });
       
       return res.status(201).json(created);
     } catch (error: any) {

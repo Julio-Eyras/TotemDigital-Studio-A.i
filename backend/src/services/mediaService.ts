@@ -42,7 +42,8 @@ export interface CreateMediaRequest {
   description?: string;
   tags?: string[];
   file: {
-    buffer: Buffer;
+    buffer?: Buffer;
+    diskPath?: string;
     originalname: string;
     mimetype: string;
     size: number;
@@ -664,12 +665,12 @@ export class MediaService {
       let filePath = await this.getStorageService().saveMediaFile(file, subscriberId, name);
       let storedMimeType = file.mimetype;
 
-      // Normalizar imagem/vídeo para 9:16 em pé (contrato totem) logo no upload
-      if (mediaType === 'image' || mediaType === 'video') {
+      // Imagem: normalização 9:16 síncrona (sharp, rápido). Vídeo: ffmpeg em background (evita 502/timeout).
+      if (mediaType === 'image') {
         try {
           const normalized = await this.normalizeNewUploadToTotemPortrait(
             filePath,
-            mediaType as 'image' | 'video',
+            'image',
             file.mimetype
           );
           filePath = normalized.filePath;
@@ -683,8 +684,8 @@ export class MediaService {
         }
       }
 
-      // Metadados + thumbnail (ficheiro já normalizado quando possível)
-      const metadata = await this.processMedia(file.buffer, storedMimeType, filePath);
+      // Metadados + thumbnail (vídeo usa original até concluir normalização em background)
+      const metadata = await this.processMedia(file.buffer ?? Buffer.alloc(0), storedMimeType, filePath);
       let storedSize = file.size;
       try {
         const st = await fs.promises.stat(filePath);
@@ -753,6 +754,15 @@ export class MediaService {
       // Invalidar cache
       await getCacheService().invalidateEntity('media', newMedia.id).catch(() => {});
       await getCacheService().invalidateEntity('subscriber', subscriberId).catch(() => {});
+
+      if (mediaType === 'video') {
+        this.scheduleVideoPortraitNormalizationAfterUpload(
+          newMedia.id,
+          filePath,
+          storedMimeType,
+          createdBy
+        );
+      }
 
       return newMedia;
 
@@ -1083,6 +1093,81 @@ export class MediaService {
   }
 
   /**
+   * Re-encode de vídeo para 9:16 após o upload responder (ffmpeg é pesado para pedido HTTP síncrono).
+   */
+  private scheduleVideoPortraitNormalizationAfterUpload(
+    mediaId: number,
+    filePath: string,
+    mimeType: string,
+    updatedBy: number
+  ): void {
+    setImmediate(() => {
+      this.completeVideoPortraitNormalizationAfterUpload(mediaId, filePath, mimeType, updatedBy).catch(
+        (error) =>
+          logError('Normalização 9:16 de vídeo em background falhou', error, { mediaId, filePath })
+      );
+    });
+  }
+
+  private async completeVideoPortraitNormalizationAfterUpload(
+    mediaId: number,
+    filePath: string,
+    mimeType: string,
+    updatedBy: number
+  ): Promise<void> {
+    try {
+      const normalized = await this.normalizeNewUploadToTotemPortrait(filePath, 'video', mimeType);
+      const newPath = normalized.filePath;
+      const stats = await fs.promises.stat(newPath);
+      const thumbPath = newPath.replace(/\.[^/.]+$/, '_thumb.jpg');
+      const previewUrl = generateThumbnailUrl(thumbPath, 'video');
+
+      await this.db.executeRaw(
+        `
+        UPDATE medias
+        SET file_path = $1,
+            file_name = $2,
+            file_size_bytes = $3,
+            mime_type = $4,
+            width = $5,
+            height = $6,
+            preview_url = $7,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE media_id = $8
+      `,
+        [
+          newPath,
+          path.basename(newPath),
+          stats.size,
+          normalized.mimeType ?? 'video/mp4',
+          TOTEM_PORTRAIT_WIDTH,
+          TOTEM_PORTRAIT_HEIGHT,
+          previewUrl,
+          mediaId,
+        ]
+      );
+
+      await getCacheService().invalidateEntity('media', mediaId).catch(() => {});
+      const refreshed = await this.getMediaById(mediaId);
+      await getMediaTotemSyncService()
+        .notifyAffectedTotems(mediaId, {
+          reason: 'process',
+          updatedBy,
+          updatedAt: refreshed?.updatedAt,
+          filePath: newPath,
+          fileSizeBytes: stats.size,
+        })
+        .catch((e) => logError('Falha ao notificar totens após normalizar vídeo', e, { mediaId }));
+    } catch (error: any) {
+      await logWarn('Normalização 9:16 de vídeo em background falhou; mantém original', {
+        mediaId,
+        filePath,
+        error: error?.message,
+      });
+    }
+  }
+
+  /**
    * Normaliza ficheiro recém-enviado in-place para 1080×1920 em pé (contrato totem).
    */
   private async normalizeNewUploadToTotemPortrait(
@@ -1204,6 +1289,8 @@ export class MediaService {
         'libx264',
         '-preset',
         'veryfast',
+        '-threads',
+        '2',
         '-crf',
         '23',
         '-c:a',

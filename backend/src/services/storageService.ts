@@ -11,7 +11,9 @@ import crypto from 'crypto';
 import { logInfoSync, logWarnSync, logErrorSync, logDebugSync } from '../utils/loggerHelper';
 
 export interface FileInfo {
-  buffer: Buffer;
+  buffer?: Buffer;
+  /** Ficheiro já gravado pelo multer — evita carregar o upload inteiro em RAM. */
+  diskPath?: string;
   originalname: string;
   mimetype: string;
   size: number;
@@ -182,12 +184,12 @@ export class StorageService {
         const newFileName = `${baseName}_${timestamp}${fileExtension}`;
         const newFilePath = path.join(subscriberDir, newFileName);
         
-        fs.writeFileSync(newFilePath, file.buffer);
+        await this.writeUploadedFile(file, newFilePath);
         return newFilePath;
       }
 
       // Salvar arquivo
-      fs.writeFileSync(filePath, file.buffer);
+      await this.writeUploadedFile(file, filePath);
 
       // Definir permissões: arquivos 644 (rw-r--r--)
       try {
@@ -207,6 +209,18 @@ export class StorageService {
       logErrorSync('Erro ao salvar arquivo de mídia', error, { subscriberId, mediaName });
       throw new Error('Erro ao salvar arquivo');
     }
+  }
+
+  private async writeUploadedFile(file: FileInfo, targetPath: string): Promise<void> {
+    if (file.diskPath && fs.existsSync(file.diskPath)) {
+      await fs.promises.copyFile(file.diskPath, targetPath);
+      return;
+    }
+    if (file.buffer && file.buffer.length > 0) {
+      fs.writeFileSync(targetPath, file.buffer);
+      return;
+    }
+    throw new Error('Upload sem conteúdo (buffer ou diskPath ausente)');
   }
 
   /**
