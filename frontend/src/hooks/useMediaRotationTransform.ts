@@ -60,9 +60,50 @@ export function getMediaUiPreviewUndoRotation(media?: {
 
 export function resolveTotemDeliveryUiRotation(
   rotationDraft: number,
-  media?: { tags?: string[] | null; width?: number; height?: number },
+  media?: {
+    tags?: string[] | null;
+    width?: number;
+    height?: number;
+    deliveryPreviewRotation?: number | null;
+    delivery_preview_rotation?: number | null;
+  },
 ): number {
   return normalizeMediaRotation(rotationDraft + getMediaUiPreviewUndoRotation(media));
+}
+
+/** Hover vídeo 16:9 — replica thumbnail ffmpeg (contain + rotação + escala lateral). */
+function buildHoverDeliveryVideoSx(deg: number) {
+  const normalized = normalizeMediaRotation(deg);
+  const sideways = normalized === 90 || normalized === 270;
+
+  const base = {
+    position: 'absolute' as const,
+    display: 'block',
+    objectFit: 'contain' as const,
+    transformOrigin: 'center center',
+    backgroundColor: '#000',
+  };
+
+  if (sideways) {
+    return {
+      ...base,
+      top: '50%',
+      left: '50%',
+      width: '177.78%',
+      height: '100%',
+      maxWidth: 'none',
+      maxHeight: 'none',
+      transform: `translate(-50%, -50%) rotate(${normalized}deg)`,
+    };
+  }
+
+  return {
+    ...base,
+    inset: 0,
+    width: '100%',
+    height: '100%',
+    transform: normalized !== 0 ? `rotate(${normalized}deg)` : undefined,
+  };
 }
 
 /** Rotação efectiva: draft do utilizador + auto 90° para landscape em moldura 9:16. */
@@ -163,14 +204,7 @@ export function mediaTotemHoverVideoSx(
   }
   const deg = resolveTotemDeliveryUiRotation(rotationDegrees, media);
   return {
-    position: 'absolute' as const,
-    inset: 0,
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover' as const,
-    display: 'block',
-    transformOrigin: 'center center',
-    transform: deg !== 0 ? `rotate(${deg}deg)` : undefined,
+    ...buildHoverDeliveryVideoSx(deg),
     zIndex: 3,
     pointerEvents: 'none' as const,
   };
