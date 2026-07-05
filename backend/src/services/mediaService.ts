@@ -1514,30 +1514,6 @@ export class MediaService {
   }
 
   /**
-   * Gera thumbnail de imagem
-   */
-  private async generateThumbnail(buffer: Buffer, filePath: string): Promise<string> {
-    try {
-      if (fs.existsSync(filePath)) {
-        return await this.generatePortraitThumbnailFromImageFile(filePath);
-      }
-      const thumbnailPath = filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
-      await (sharp as any)(buffer)
-        .rotate()
-        .resize(TOTEM_THUMB_WIDTH, TOTEM_THUMB_HEIGHT, {
-          fit: 'contain',
-          background: { r: 0, g: 0, b: 0, alpha: 1 },
-        })
-        .jpeg({ quality: 82, progressive: true })
-        .toFile(thumbnailPath);
-      return thumbnailPath;
-    } catch (error: any) {
-      await logError('Erro ao gerar thumbnail', error, { filePath });
-      return filePath;
-    }
-  }
-
-  /**
    * Gera thumbnail de vídeo (frame em 9:16, alinhado ao ficheiro totem).
    */
   private async generateVideoThumbnail(_buffer: Buffer, filePath: string): Promise<string> {
@@ -1760,14 +1736,7 @@ export class MediaService {
           
           // Verificar se já existe
           if (!fs.existsSync(thumbnailPath) || options.generateThumbnail === true) {
-            await (sharp as any)(fileBuffer)
-              .resize(300, 300, {
-                fit: 'inside',
-                withoutEnlargement: true
-              })
-              .jpeg({ quality: 80, progressive: true })
-              .toFile(thumbnailPath);
-
+            await this.generatePortraitThumbnailFromImageFile(media.filePath);
             result.thumbnailUrl = generateThumbnailUrl(thumbnailPath, 'image');
             processed = true;
           } else {
