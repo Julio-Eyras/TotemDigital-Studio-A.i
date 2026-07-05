@@ -117,7 +117,7 @@ import { isSubscriberContractActiveForCampaign } from './subscriberContractHealt
 import { useAppSelector } from '../../store/hooks';
 import { getForeignTotemIdFromRow, getTotemIdFromRow, getTotemLocalIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
-import { useMediaRotationTransform, mediaPreviewRotationSx } from '../../hooks/useMediaRotationTransform';
+import { useMediaRotationTransform, mediaPortraitPreviewSx, mediaPortraitPreviewFrameSx } from '../../hooks/useMediaRotationTransform';
 import {
   billingIntervalLabel,
   contractEndDateHelperText,
@@ -3122,44 +3122,21 @@ const Subscribers: React.FC = () => {
                             boxShadow: theme.shadows[8],
                           },
                         }}>
-                          <Box
-                            sx={{
-                              position: 'relative',
-                              width: '100%',
-                              aspectRatio: '9 / 16',
-                              bgcolor: theme.palette.grey[100],
-                              overflow: 'hidden',
-                            }}
-                          >
+                          <Box sx={mediaPortraitPreviewFrameSx()}>
                             {!showPlaceholder && previewUrl && (media.media_type === 'image' || isThumbnailUrl) ? (
                               <Box
                                 component="img"
                                 key={`${media.media_id}-${mediaThumbVersion}`}
                                 src={previewUrl}
                                 alt={media.name}
-                                sx={{
-                                  width: '100%',
-                                  height: '100%',
-                                  objectFit: 'cover',
-                                  position: 'absolute',
-                                  inset: 0,
-                                  ...mediaPreviewRotationSx(getRotationDraft(media.media_id)),
-                                }}
+                                sx={mediaPortraitPreviewSx(getRotationDraft(media.media_id))}
                                 onError={() => setMediaPreviewFailed(prev => new Set(prev).add(media.media_id))}
                               />
                             ) : !showPlaceholder && previewUrl && media.media_type === 'video' && !isThumbnailUrl ? (
                               <Box
                                 component="video"
                                 src={previewUrl}
-                                sx={{
-                                  width: '100%',
-                                  height: '100%',
-                                  objectFit: 'cover',
-                                  position: 'absolute',
-                                  inset: 0,
-                                  bgcolor: 'grey.900',
-                                  ...mediaPreviewRotationSx(getRotationDraft(media.media_id)),
-                                }}
+                                sx={mediaPortraitPreviewSx(getRotationDraft(media.media_id))}
                                 muted
                                 onError={() => setMediaPreviewFailed(prev => new Set(prev).add(media.media_id))}
                                 onMouseEnter={(e: any) => e.target.play?.()}

@@ -1009,12 +1009,15 @@ export class MediaService {
     rotationDegrees: number,
     mimeType?: string
   ): Promise<void> {
-    let pipeline = (sharp as any)(sourcePath)
-      .rotate(rotationDegrees)
-      .resize(1080, 1920, {
-        fit: 'contain',
-        background: { r: 0, g: 0, b: 0, alpha: 1 },
-      });
+    // 1) Aplicar EXIF (como o browser na pré-visualização); 2) rotação escolhida; 3) encaixar 9:16.
+    let pipeline = (sharp as any)(sourcePath).rotate();
+    if (rotationDegrees !== 0) {
+      pipeline = pipeline.rotate(rotationDegrees);
+    }
+    pipeline = pipeline.resize(1080, 1920, {
+      fit: 'contain',
+      background: { r: 0, g: 0, b: 0, alpha: 1 },
+    });
 
     const ext = this.getImageOutputExtension(mimeType, outputPath);
     if (ext === '.png') {
@@ -1057,6 +1060,8 @@ export class MediaService {
       'copy',
       '-movflags',
       '+faststart',
+      '-metadata:s:v:0',
+      'rotate=0',
       outputPath,
     ]);
   }

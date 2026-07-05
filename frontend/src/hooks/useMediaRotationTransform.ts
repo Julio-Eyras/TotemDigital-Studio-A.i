@@ -6,12 +6,40 @@ export function normalizeMediaRotation(degrees: number): number {
   return ((degrees % 360) + 360) % 360;
 }
 
-export function mediaPreviewRotationSx(degrees: number) {
+export function mediaPortraitPreviewSx(rotationDegrees: number) {
+  const deg = normalizeMediaRotation(rotationDegrees);
+  const sideways = deg === 90 || deg === 270;
+
   return {
-    transform: `rotate(${degrees}deg)`,
-    transformOrigin: 'center',
+    display: 'block',
+    objectFit: 'contain' as const,
+    transform: deg !== 0 ? `rotate(${deg}deg)` : undefined,
+    transformOrigin: 'center center',
     transition: 'transform 0.2s ease',
+    maxWidth: '100%',
+    maxHeight: '100%',
+    width: sideways ? 'auto' : '100%',
+    height: '100%',
   } as const;
+}
+
+/** @deprecated use mediaPortraitPreviewSx */
+export function mediaPreviewRotationSx(degrees: number) {
+  return mediaPortraitPreviewSx(degrees);
+}
+
+/** Moldura 9:16 — mesma lógica do totem (contain + letterbox). */
+export function mediaPortraitPreviewFrameSx() {
+  return {
+    position: 'relative' as const,
+    width: '100%',
+    aspectRatio: '9 / 16',
+    bgcolor: '#000',
+    overflow: 'hidden',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  };
 }
 
 /**

@@ -52,7 +52,7 @@ import MediaDeleteConflictDialog from '../../components/MediaDeleteConflictDialo
 import MediaTransformActions from '../../components/Media/MediaTransformActions';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
-import { useMediaRotationTransform, mediaPreviewRotationSx } from '../../hooks/useMediaRotationTransform';
+import { useMediaRotationTransform, mediaPortraitPreviewSx, mediaPortraitPreviewFrameSx } from '../../hooks/useMediaRotationTransform';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { isStudioMode } from '../../config/studioMode';
 
@@ -645,13 +645,7 @@ const Media: React.FC = () => {
               }
             }}>
               <Box
-                sx={{
-                  position: 'relative',
-                  width: '100%',
-                  aspectRatio: '9 / 16',
-                  backgroundColor: theme.palette.grey[100],
-                  overflow: 'hidden',
-                }}
+                sx={mediaPortraitPreviewFrameSx()}
                 onMouseEnter={() => handlePreviewMouseEnter(media)}
                 onMouseLeave={handlePreviewMouseLeave}
               >
@@ -699,15 +693,7 @@ const Media: React.FC = () => {
                           key={`${media.media_id || media.id}-${thumbVersion}`}
                           src={finalPreviewUrl}
                           alt={media.name}
-                          sx={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover',
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            ...mediaPreviewRotationSx(getRotationDraft(media.media_id)),
-                          }}
+                          sx={mediaPortraitPreviewSx(getRotationDraft(media.media_id))}
                           onError={(e: any) => {
                             e.target.style.display = 'none';
                           }}
@@ -752,16 +738,9 @@ const Media: React.FC = () => {
                       loop
                       playsInline
                       sx={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
+                        ...mediaPortraitPreviewSx(getRotationDraft(media.media_id)),
                         zIndex: 2,
                         pointerEvents: 'none',
-                        backgroundColor: '#000',
-                        ...mediaPreviewRotationSx(getRotationDraft(media.media_id)),
                       }}
                     />
                   )}
