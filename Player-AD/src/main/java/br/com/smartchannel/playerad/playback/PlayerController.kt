@@ -74,6 +74,7 @@ class PlayerController(
 ) {
     private var restartRequested = false
     private var videoOrientationListener: Player.Listener? = null
+    private var pendingVideoOrientationReveal = false
 
     private enum class PlanSource { ONLINE, PERSISTED, FALLBACK_LOCAL }
 
@@ -1025,6 +1026,8 @@ class PlayerController(
         imageView.visibility = View.GONE
         imageView.setImageDrawable(null)
         playerView.visibility = View.VISIBLE
+        playerView.alpha = 0f
+        pendingVideoOrientationReveal = true
         playerView.post { FullscreenViewport.applyToPlayerView(playerView) }
         applyPlaybackVolumePolicy()
 
@@ -1064,6 +1067,12 @@ class PlayerController(
         attachVideoOrientationListener()
         exoPlayer.prepare()
         exoPlayer.play()
+        playerView.postDelayed({
+            if (pendingVideoOrientationReveal) {
+                PlayerAdLogger.w("DISPLAY", "Reveal vídeo sem onVideoSizeChanged (timeout)")
+                revealVideoAfterOrientation()
+            }
+        }, 800L)
 
         val playbackTimeoutMs = videoWatchdogTimeoutMs(item)
         val playedMs = withTimeoutOrNull(playbackTimeoutMs) {
@@ -1198,6 +1207,8 @@ class PlayerController(
 
     private fun resetMediaViewOrientation() {
         detachVideoOrientationListener()
+        pendingVideoOrientationReveal = false
+        playerView.alpha = 1f
         playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         exoPlayer.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT)
         MediaViewportRotation.resetPlayerView(playerView)
@@ -1223,21 +1234,33 @@ class PlayerController(
 
     private fun applyVideoOrientationCorrection(videoSize: VideoSize) {
         if (!AUTO_MEDIA_ORIENTATION) return
-        val (effectiveW, effectiveH) = MediaViewportRotation.effectiveVideoSize(videoSize)
-        val (rawW, rawH) = MediaViewportRotation.rawVideoSize(videoSize)
-        val rot = MediaViewportRotation.correctionRotation(displayRotation, effectiveW, effectiveH)
-        if (rot != 0f) {
-            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-            exoPlayer.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
-            PlayerAdLogger.i(
-                "DISPLAY",
-                "Correção orientação vídeo ${effectiveW}x${effectiveH} → ${rot.toInt()}° (mount=$displayRotation)",
-            )
-        } else {
+        try {
+            val (rawW, rawH) = MediaViewportRotation.rawVideoSize(videoSize)
+            val rot = MediaViewportRotation.correctionRotationForVideo(context, displayRotation, videoSize)
             playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             exoPlayer.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT)
+            if (rot != 0f) {
+                PlayerAdLogger.i(
+                    "DISPLAY",
+                    "Correção orientação vídeo eff=${MediaViewportRotation.effectiveVideoSize(videoSize).let { "${it.first}x${it.second}" }} " +
+                        "raw=${rawW}x${rawH} → ${rot.toInt()}° viewportPortrait=${MediaViewportRotation.isViewportPortrait(context)} " +
+                        "mount=$displayRotation metaRot=${videoSize.unappliedRotationDegrees}",
+                )
+            }
+            MediaViewportRotation.applyToPlayerView(playerView, rot, rawW, rawH)
+            revealVideoAfterOrientation()
+        } catch (e: Exception) {
+            PlayerAdLogger.e("DISPLAY", "Falha ao corrigir orientação do vídeo; mantém FIT", e)
+            MediaViewportRotation.resetPlayerView(playerView)
+            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            revealVideoAfterOrientation()
         }
-        MediaViewportRotation.applyToPlayerView(playerView, rot, rawW, rawH)
+    }
+
+    private fun revealVideoAfterOrientation() {
+        if (!pendingVideoOrientationReveal) return
+        pendingVideoOrientationReveal = false
+        playerView.alpha = 1f
     }
 
     private fun applyImageOrientationCorrection(bitmap: Bitmap, filePath: String?) {
@@ -1252,13 +1275,18 @@ class PlayerController(
         } else {
             bitmap.width to bitmap.height
         }
-        val rot = MediaViewportRotation.correctionRotation(displayRotation, w, h)
+        val rot = MediaViewportRotation.correctionRotation(context, displayRotation, w, h)
         val displayBitmap = if (rot != 0f) {
             PlayerAdLogger.i(
                 "DISPLAY",
-                "Correção orientação imagem ${w}x${h} → ${rot.toInt()}° (mount=$displayRotation)",
+                "Correção orientação imagem ${w}x${h} → ${rot.toInt()}° viewportPortrait=${MediaViewportRotation.isViewportPortrait(context)}",
             )
-            MediaViewportRotation.rotateBitmap(bitmap, rot)
+            try {
+                MediaViewportRotation.rotateBitmap(bitmap, rot)
+            } catch (e: Exception) {
+                PlayerAdLogger.e("DISPLAY", "Falha ao rodar bitmap; mantém original", e)
+                bitmap
+            }
         } else {
             bitmap
         }

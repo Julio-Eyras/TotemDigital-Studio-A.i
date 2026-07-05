@@ -1,5 +1,6 @@
 package br.com.smartchannel.playerad.util
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
@@ -11,13 +12,10 @@ import androidx.media3.common.VideoSize
 import androidx.media3.ui.PlayerView
 
 /**
- * Alinha orientação da mídia à montagem configurada ([displayRotation] portrait vs landscape).
+ * Alinha orientação da mídia ao **viewport real** (pixels do ecrã), não só à config.
  *
- * Vídeo landscape (16:9) num totem portrait → rotação + zoom para preencher o ecrã.
- * Mídia já portrait (9:16), incluindo vídeo pré-virado externamente → sem rotação extra.
- *
- * Vídeo: [TextureView.setTransform] — girar a [PlayerView] não altera o frame do ExoPlayer.
- * Imagem: rotação do bitmap antes de exibir.
+ * Evita rodar landscape→90° quando o painel ainda está em landscape (crash/launcher)
+ * ou quando o vídeo já tem metadados de rotação (pré-virado no servidor).
  */
 object MediaViewportRotation {
 
@@ -28,14 +26,18 @@ object MediaViewportRotation {
         return normalized == 0 || normalized == 2
     }
 
-    /** Dimensões brutas do stream (buffer, antes de metadados de rotação do container). */
+    /** Viewport efectivo = orientação que o utilizador vê agora. */
+    fun isViewportPortrait(context: Context): Boolean {
+        val dm = context.resources.displayMetrics
+        return dm.heightPixels > dm.widthPixels
+    }
+
     fun rawVideoSize(videoSize: VideoSize): Pair<Int, Int> {
         val w = videoSize.width
         val h = videoSize.height
         return if (w > 0 && h > 0) w to h else 0 to 0
     }
 
-    /** Dimensões visuais efectivas (considera rotação ainda não aplicada pelo decoder). */
     fun effectiveVideoSize(videoSize: VideoSize): Pair<Int, Int> {
         val (w, h) = rawVideoSize(videoSize)
         if (w <= 0 || h <= 0) return 0 to 0
@@ -58,17 +60,39 @@ object MediaViewportRotation {
         return w to h
     }
 
-    fun correctionRotation(displayRotation: Int, mediaWidth: Int, mediaHeight: Int): Float {
+    fun correctionRotation(
+        context: Context,
+        displayRotation: Int,
+        mediaWidth: Int,
+        mediaHeight: Int,
+    ): Float {
         if (mediaWidth <= 0 || mediaHeight <= 0) return 0f
-        val targetPortrait = isPortraitMount(displayRotation)
+        val viewportPortrait = isViewportPortrait(context)
         val mediaPortrait = mediaHeight > mediaWidth
-        if (targetPortrait == mediaPortrait) return 0f
+        if (viewportPortrait == mediaPortrait) return 0f
 
         val normalized = ((displayRotation % 4) + 4) % 4
         return when (normalized) {
             0, 1 -> 90f
             else -> 270f
         }
+    }
+
+    fun correctionRotationForVideo(
+        context: Context,
+        displayRotation: Int,
+        videoSize: VideoSize,
+    ): Float {
+        if (videoSize.unappliedRotationDegrees != 0) {
+            val (ew, eh) = effectiveVideoSize(videoSize)
+            val viewportPortrait = isViewportPortrait(context)
+            val effectivePortrait = eh > ew
+            if (viewportPortrait == effectivePortrait) {
+                return 0f
+            }
+        }
+        val (ew, eh) = effectiveVideoSize(videoSize)
+        return correctionRotation(context, displayRotation, ew, eh)
     }
 
     fun rotateBitmap(source: Bitmap, degrees: Float): Bitmap {
@@ -168,7 +192,7 @@ object MediaViewportRotation {
 
         val bufferRect = RectF(0f, 0f, srcW, srcH)
         bufferRect.offset(centerX - bufferRect.centerX(), centerY - bufferRect.centerY())
-        matrix.setRectToRect(viewRect, bufferRect, Matrix.ScaleToFit.FILL)
+        matrix.setRectToRect(viewRect, bufferRect, Matrix.ScaleToFit.CENTER)
         matrix.postRotate(rotationDegrees, centerX, centerY)
         textureView.setTransform(matrix)
     }
