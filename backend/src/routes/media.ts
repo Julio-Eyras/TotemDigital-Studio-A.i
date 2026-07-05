@@ -262,7 +262,8 @@ router.post('/upload', uploadLimiter,
     }
     
     // Tratar erros do multer antes de passar para validação
-    getMulterUpload().single('file')(req as any, res, async (err: any) => {
+    try {
+      getMulterUpload().single('file')(req as any, res, async (err: any) => {
       if (err) {
         await logError('Erro no multer', err, { code: err.code }).catch(() => {
           // Silenciosamente falhar - logging não disponível
@@ -300,6 +301,15 @@ router.post('/upload', uploadLimiter,
       
       return next();
     });
+      return;
+    } catch (multerSetupErr: any) {
+      await logError('Falha ao inicializar multer no upload', multerSetupErr).catch(() => {});
+      return res.status(500).json({
+        success: false,
+        error: 'Erro de configuração do servidor',
+        message: multerSetupErr?.message || 'Diretório de uploads indisponível',
+      });
+    }
   },
   body('name').optional({ nullable: true }).isString().isLength({ min: 1, max: 100 }),
   body('description').optional({ nullable: true }).isString(),

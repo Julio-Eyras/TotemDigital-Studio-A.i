@@ -137,6 +137,13 @@ export const validatePayloadSize = (maxSizeBytes?: number) => {
       return;
     }
 
+    // Upload multipart: limite vem do multer/nginx, não do Content-Length global
+    const contentType = req.get('content-type') || '';
+    if (contentType.includes('multipart/form-data')) {
+      next();
+      return;
+    }
+
     const contentLength = req.get('content-length');
 
     if (contentLength && parseInt(contentLength, 10) > resolved) {

@@ -684,8 +684,13 @@ export class MediaService {
         }
       }
 
-      // Metadados + thumbnail (vídeo usa original até concluir normalização em background)
-      const metadata = await this.processMedia(file.buffer ?? Buffer.alloc(0), storedMimeType, filePath);
+      // Metadados leves no upload; vídeo: sem ffmpeg síncrono (evita 502/OOM no servidor)
+      const metadata = await this.processMedia(
+        file.buffer ?? Buffer.alloc(0),
+        storedMimeType,
+        filePath,
+        { deferVideoFfmpeg: mediaType === 'video' }
+      );
       let storedSize = file.size;
       try {
         const st = await fs.promises.stat(filePath);
@@ -1480,7 +1485,12 @@ export class MediaService {
   /**
    * Processa mídia (extrai metadados, gera thumbnail)
    */
-  private async processMedia(buffer: Buffer, mimetype: string, filePath: string): Promise<{
+  private async processMedia(
+    buffer: Buffer,
+    mimetype: string,
+    filePath: string,
+    options?: { deferVideoFfmpeg?: boolean }
+  ): Promise<{
     width?: number;
     height?: number;
     durationSeconds?: number;
@@ -1523,10 +1533,12 @@ export class MediaService {
         }
 
         const thumbPath = filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
-        if (!fs.existsSync(thumbPath)) {
-          await this.generatePortraitThumbnailFromVideoFile(filePath);
+        if (!options?.deferVideoFfmpeg) {
+          if (!fs.existsSync(thumbPath)) {
+            await this.generatePortraitThumbnailFromVideoFile(filePath);
+          }
+          result.previewUrl = generateThumbnailUrl(thumbPath, 'video');
         }
-        result.previewUrl = generateThumbnailUrl(thumbPath, 'video');
 
       } else if (mimetype.startsWith('audio/')) {
         const probed = await this.probeMediaWithFfprobe(filePath, mimetype);
