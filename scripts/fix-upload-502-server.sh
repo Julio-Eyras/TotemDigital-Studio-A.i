@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Diagnóstico e correções comuns para 502 no POST /api/media/upload (Ubuntu + nginx + systemd)
+# Repara 502 no upload + 500/ciclo nginx no frontend (Ubuntu, layout /opt/smart-signage)
 set -euo pipefail
 
 RED='\033[0;31m'
@@ -7,92 +7,109 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-log() { echo -e "${GREEN}[fix-upload]${NC} $*"; }
-warn() { echo -e "${YELLOW}[fix-upload]${NC} $*"; }
-err() { echo -e "${RED}[fix-upload]${NC} $*" >&2; }
+log() { echo -e "${GREEN}[fix-server]${NC} $*"; }
+warn() { echo -e "${YELLOW}[fix-server]${NC} $*"; }
+err() { echo -e "${RED}[fix-server]${NC} $*" >&2; }
 
 INSTALL_DIR="${INSTALL_DIR:-$HOME/TotemDigital}"
 BACKEND_DIR="${INSTALL_DIR}/backend"
+FRONTEND_DIR="${INSTALL_DIR}/frontend"
+DEPLOY_FRONTEND="${DEPLOY_FRONTEND:-/opt/smart-signage/frontend/build}"
 NGINX_SITE="${NGINX_SITE:-/etc/nginx/sites-available/smart-signage}"
 SERVICE="${SERVICE:-smart-signage}"
 UPLOADS="${UPLOADS:-/opt/smart-signage/public/assets/uploads}"
+ASSETS="${ASSETS:-/opt/smart-signage/public/assets}"
 
-log "=== Diagnóstico upload / backend ==="
-log "INSTALL_DIR=$INSTALL_DIR"
+log "=== Diagnóstico (TotemDigital / Smart Signage) ==="
 
-echo "--- systemctl $SERVICE ---"
-systemctl is-active "$SERVICE" 2>/dev/null || warn "Serviço $SERVICE inactivo"
-systemctl status "$SERVICE" --no-pager -l 2>/dev/null | tail -15 || true
-
-echo "--- git HEAD ---"
+echo "--- git ---"
 if [[ -d "$INSTALL_DIR/.git" ]]; then
+  git -C "$INSTALL_DIR" fetch origin 2>/dev/null || true
   git -C "$INSTALL_DIR" log -1 --oneline 2>/dev/null || true
 else
-  warn "Repositório git não encontrado em $INSTALL_DIR"
+  warn "Sem git em $INSTALL_DIR"
 fi
 
-echo "--- API local ---"
-curl -s -o /dev/null -w "127.0.0.1:3000/api/health => HTTP %{http_code}\n" --max-time 5 http://127.0.0.1:3000/api/health || err "Backend não responde em :3000"
+echo "--- backend ---"
+systemctl is-active "$SERVICE" 2>/dev/null || warn "$SERVICE inactivo"
+curl -s -o /dev/null -w "127.0.0.1:3000/api/health => HTTP %{http_code}\n" --max-time 5 http://127.0.0.1:3000/api/health || warn "Backend não responde em :3000"
 
-echo "--- ffmpeg / uploads ---"
-command -v ffmpeg >/dev/null && log "ffmpeg: $(ffmpeg -version 2>/dev/null | head -1)" || warn "ffmpeg NÃO instalado (sudo apt install -y ffmpeg)"
-command -v ffprobe >/dev/null && log "ffprobe OK" || warn "ffprobe NÃO instalado"
-
-if [[ -d "$UPLOADS" ]]; then
-  if [[ -w "$UPLOADS" ]]; then
-    log "Uploads gravável: $UPLOADS"
-  else
-    warn "Sem permissão de escrita em $UPLOADS"
-  fi
+echo "--- frontend deploy ($DEPLOY_FRONTEND) ---"
+if [[ -f "$DEPLOY_FRONTEND/index.html" ]]; then
+  log "index.html OK ($(stat -c%s "$DEPLOY_FRONTEND/index.html" 2>/dev/null || stat -f%z "$DEPLOY_FRONTEND/index.html") bytes)"
 else
-  warn "Pasta uploads não existe: $UPLOADS"
+  warn "FALTA $DEPLOY_FRONTEND/index.html → nginx ciclo 500 em / e /subscribers"
 fi
 
-echo "--- nginx frontend (/) ---"
-if [[ -f "$NGINX_SITE" ]]; then
-  FRONT_ROOT=$(grep -E '^\s*root\s+' "$NGINX_SITE" | head -1 | awk '{print $2}' | tr -d ';' || true)
-  if [[ -n "$FRONT_ROOT" ]]; then
-    if [[ -f "$FRONT_ROOT/index.html" ]]; then
-      log "Frontend index: $FRONT_ROOT/index.html"
-    else
-      warn "index.html ausente em $FRONT_ROOT (nginx devolve 500 no /)"
-    fi
-  fi
-else
-  warn "Config nginx não encontrada: $NGINX_SITE"
+echo "--- uploads ($UPLOADS) ---"
+command -v ffmpeg >/dev/null && log "ffmpeg OK" || warn "Instale: sudo apt install -y ffmpeg"
+[[ -d "$UPLOADS" ]] || warn "Pasta uploads não existe"
+[[ -w "$UPLOADS" ]] 2>/dev/null && log "uploads gravável" || warn "uploads SEM escrita para $(whoami)"
+
+echo "--- últimos erros backend ---"
+journalctl -u "$SERVICE" -n 60 --no-pager 2>/dev/null | grep -iE 'error|fatal|killed|ENOMEM|heap|upload|ffmpeg|multer|uncaught' | tail -15 || true
+
+log "=== Correções ==="
+
+# 1) Código mais recente (upload sem ffmpeg síncrono)
+if [[ -d "$INSTALL_DIR/.git" ]]; then
+  log "git pull..."
+  git -C "$INSTALL_DIR" pull --ff-only || warn "git pull falhou — corrija conflitos manualmente"
 fi
 
-echo "--- journalctl (últimos erros) ---"
-journalctl -u "$SERVICE" -n 40 --no-pager 2>/dev/null | grep -iE 'error|fatal|ENOMEM|killed|upload|ffmpeg|multer' | tail -20 || true
+# 2) Permissões assets/uploads (backend grava como smartchannel)
+log "Permissões em $ASSETS..."
+sudo mkdir -p "$UPLOADS"
+sudo chown -R "$(whoami):$(whoami)" "$ASSETS" 2>/dev/null || sudo chmod -R u+rwX "$ASSETS"
 
-log "=== Aplicar correções ==="
-
-# Permissões uploads
-if [[ -d "$(dirname "$UPLOADS")" ]]; then
-  sudo mkdir -p "$UPLOADS"
-  sudo chown -R "${SUDO_USER:-$(whoami)}:${SUDO_USER:-$(whoami)}" "$(dirname "$UPLOADS")" 2>/dev/null || \
-    sudo chmod -R u+rwX "$UPLOADS" 2>/dev/null || true
-fi
-
-# Build + restart backend
+# 3) Build backend
 if [[ -d "$BACKEND_DIR" ]]; then
-  log "Compilando backend..."
+  log "npm run build (backend)..."
   (cd "$BACKEND_DIR" && npm run build)
   sudo systemctl restart "$SERVICE"
-  sleep 2
-  curl -s -o /dev/null -w "Após restart: /api/health => HTTP %{http_code}\n" --max-time 5 http://127.0.0.1:3000/api/health || err "Backend ainda não responde"
+  sleep 3
+  curl -s -o /dev/null -w "Após restart: health => HTTP %{http_code}\n" --max-time 8 http://127.0.0.1:3000/api/health || err "Backend ainda down — veja: sudo journalctl -u $SERVICE -n 80"
+fi
+
+# 4) Frontend: build local + deploy para /opt/smart-signage/frontend/build
+BUILD_SRC="$FRONTEND_DIR/build"
+if [[ ! -f "$BUILD_SRC/index.html" ]]; then
+  log "Build do frontend em $FRONTEND_DIR..."
+  if [[ -f "$FRONTEND_DIR/package.json" ]]; then
+    (cd "$FRONTEND_DIR" && npm ci && GENERATE_SOURCEMAP=false npm run build)
+  else
+    err "Frontend não encontrado em $FRONTEND_DIR"
+  fi
+fi
+
+if [[ -f "$BUILD_SRC/index.html" ]]; then
+  log "Copiar frontend → $DEPLOY_FRONTEND"
+  sudo mkdir -p "$DEPLOY_FRONTEND"
+  sudo rsync -a --delete "$BUILD_SRC/" "$DEPLOY_FRONTEND/" 2>/dev/null || \
+    sudo cp -a "$BUILD_SRC/." "$DEPLOY_FRONTEND/"
+  sudo chown -R "$(whoami):$(whoami)" "$(dirname "$DEPLOY_FRONTEND")" 2>/dev/null || true
+  sudo chmod -R a+rX "$DEPLOY_FRONTEND"
+  log "index.html deploy: $(ls -la "$DEPLOY_FRONTEND/index.html")"
 else
-  warn "Backend não encontrado em $BACKEND_DIR"
+  warn "Sem build do frontend — painel continuará com erro 500"
 fi
 
-# Patch nginx: timeouts + proxy_request_buffering para /api/
-if [[ -f "$NGINX_SITE" ]] && ! grep -q 'proxy_request_buffering off' "$NGINX_SITE" 2>/dev/null; then
-  warn "Considere adicionar em location ^~ /api/ do nginx:"
-  echo "    proxy_request_buffering off;"
-  echo "    proxy_read_timeout 600s;"
-  echo "    proxy_send_timeout 600s;"
+# 5) Nginx reload
+if sudo nginx -t 2>/dev/null; then
+  sudo systemctl reload nginx
+  log "Nginx recarregado"
+else
+  warn "nginx -t falhou — corrija $NGINX_SITE"
+  sudo nginx -t || true
 fi
 
-log "Concluído. Teste upload no painel e, se falhar:"
+# 6) Teste rápido
+HTTP_ROOT=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "http://127.0.0.1:8080/" 2>/dev/null || echo "000")
+HTTP_SUB=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "http://127.0.0.1:8080/subscribers" 2>/dev/null || echo "000")
+log "Teste local: / => HTTP $HTTP_ROOT | /subscribers => HTTP $HTTP_SUB (esperado 200)"
+
+log ""
+log "Próximo passo: tente upload no painel."
+log "Se 502 voltar, durante o upload execute noutro terminal:"
 log "  sudo journalctl -u $SERVICE -f"
-log "  sudo tail -f /var/log/nginx/error.log"
+log "  sudo dmesg | tail -5   # ver se OOM Killer matou o node"
