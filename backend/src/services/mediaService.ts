@@ -31,6 +31,12 @@ export { MediaInUseError };
 
 const execFileAsync = promisify(execFile);
 
+/** Formato canónico totem portrait (9:16 em pé, rotate=0). */
+const TOTEM_PORTRAIT_WIDTH = 1080;
+const TOTEM_PORTRAIT_HEIGHT = 1920;
+const TOTEM_THUMB_WIDTH = 540;
+const TOTEM_THUMB_HEIGHT = 960;
+
 export interface CreateMediaRequest {
   name: string;
   description?: string;
@@ -655,10 +661,37 @@ export class MediaService {
       const mediaType = this.getMediaType(file.mimetype);
 
       // Salvar arquivo
-      const filePath = await this.getStorageService().saveMediaFile(file, subscriberId, name);
+      let filePath = await this.getStorageService().saveMediaFile(file, subscriberId, name);
+      let storedMimeType = file.mimetype;
 
-      // Processar mídia (gerar thumbnail, extrair metadados)
-      const metadata = await this.processMedia(file.buffer, file.mimetype, filePath);
+      // Normalizar imagem/vídeo para 9:16 em pé (contrato totem) logo no upload
+      if (mediaType === 'image' || mediaType === 'video') {
+        try {
+          const normalized = await this.normalizeNewUploadToTotemPortrait(
+            filePath,
+            mediaType as 'image' | 'video',
+            file.mimetype
+          );
+          filePath = normalized.filePath;
+          storedMimeType = normalized.mimeType ?? storedMimeType;
+        } catch (normErr: any) {
+          await logWarn('Normalização 9:16 no upload falhou; mantém ficheiro original', {
+            filePath,
+            mediaType,
+            error: normErr?.message,
+          });
+        }
+      }
+
+      // Metadados + thumbnail (ficheiro já normalizado quando possível)
+      const metadata = await this.processMedia(file.buffer, storedMimeType, filePath);
+      let storedSize = file.size;
+      try {
+        const st = await fs.promises.stat(filePath);
+        storedSize = st.size;
+      } catch {
+        // mantém tamanho original
+      }
 
       // Processar tags (TEXT[] array)
       let processedTags: string[] | null = null;
@@ -688,11 +721,11 @@ export class MediaService {
         initialStatus,
         approvedByInitial,
         filePath,
-        file.originalname, // file_name
+        path.basename(filePath),
         mediaType,
         metadata.durationSeconds || null,
-        file.size,
-        file.mimetype,
+        storedSize,
+        storedMimeType,
         metadata.width || null,
         metadata.height || null
       ]);
@@ -868,28 +901,35 @@ export class MediaService {
       throw new Error('Transformação disponível apenas para imagens e vídeos');
     }
 
+    const displaySize =
+      mediaType === 'image'
+        ? await this.probeImageEffectiveSize(sourcePath)
+        : await this.probeVideoStreamInfo(sourcePath);
+    const resolvedRotation = this.resolveAutoRotationDegrees(
+      displaySize.displayWidth,
+      displaySize.displayHeight,
+      normalizedRotation,
+      fitPortrait
+    );
+
     const ext = mediaType === 'video' ? '.mp4' : this.getImageOutputExtension(media.mimeType, sourcePath);
     const outputPath = this.getTransformedOutputPath(sourcePath, ext);
     const thumbnailPath = outputPath.replace(/\.[^/.]+$/, '_thumb.jpg');
 
     try {
       if (mediaType === 'image') {
-        await this.transformImageToPortrait(sourcePath, outputPath, normalizedRotation, media.mimeType);
+        await this.normalizeImageToTotemPortrait(sourcePath, outputPath, resolvedRotation, media.mimeType);
       } else {
-        await this.transformVideoToPortrait(sourcePath, outputPath, normalizedRotation);
+        await this.normalizeVideoToTotemPortrait(sourcePath, outputPath, resolvedRotation);
       }
 
       const stats = await fs.promises.stat(outputPath);
-      const dimensions =
-        mediaType === 'image'
-          ? await (sharp as any)(outputPath).metadata()
-          : { width: 1080, height: 1920 };
+      const dimensions = { width: TOTEM_PORTRAIT_WIDTH, height: TOTEM_PORTRAIT_HEIGHT };
 
       if (mediaType === 'image') {
-        const outputBuffer = await fs.promises.readFile(outputPath);
-        await this.generateThumbnail(outputBuffer, outputPath);
+        await this.generatePortraitThumbnailFromImageFile(outputPath);
       } else {
-        await this.generateVideoThumbnail(Buffer.alloc(0), outputPath);
+        await this.generatePortraitThumbnailFromVideoFile(outputPath);
       }
 
       const nextMimeType = mediaType === 'video' ? 'video/mp4' : this.getImageMimeTypeFromExtension(ext);
@@ -912,8 +952,8 @@ export class MediaService {
         nextFileName,
         stats.size,
         nextMimeType,
-        dimensions.width || 1080,
-        dimensions.height || 1920,
+        dimensions.width,
+        dimensions.height,
         previewUrl,
         mediaId,
       ]);
@@ -923,7 +963,8 @@ export class MediaService {
 
       await this.getAuditService().log('media', 'transformed', updatedBy, {
         mediaId,
-        rotationDegrees: normalizedRotation,
+        rotationDegrees: resolvedRotation,
+        rotationRequested: normalizedRotation,
         fit: options.fit || '9:16',
         subscriberId: media.subscriberId,
       });
@@ -964,6 +1005,255 @@ export class MediaService {
     return [0, 90, 180, 270].includes(normalized) ? normalized : 0;
   }
 
+  /**
+   * Se pedido 9:16 sem rotação manual e o conteúdo efectivo é landscape, roda 90° para ficar em pé.
+   */
+  private resolveAutoRotationDegrees(
+    displayWidth: number,
+    displayHeight: number,
+    userRotationDegrees: number,
+    fitPortrait: boolean
+  ): number {
+    const user = this.normalizeRotation(userRotationDegrees);
+    if (!fitPortrait || user !== 0) return user;
+    if (displayWidth > 0 && displayHeight > 0 && displayWidth > displayHeight) {
+      return 90;
+    }
+    return 0;
+  }
+
+  private async probeImageEffectiveSize(
+    sourcePath: string
+  ): Promise<{ displayWidth: number; displayHeight: number }> {
+    try {
+      const meta = await (sharp as any)(sourcePath).rotate().metadata();
+      const w = meta.width ?? 0;
+      const h = meta.height ?? 0;
+      return { displayWidth: w, displayHeight: h };
+    } catch {
+      return { displayWidth: 0, displayHeight: 0 };
+    }
+  }
+
+  private async probeVideoStreamInfo(sourcePath: string): Promise<{
+    width: number;
+    height: number;
+    rotation: number;
+    displayWidth: number;
+    displayHeight: number;
+  }> {
+    let width = 0;
+    let height = 0;
+    let rotation = 0;
+    try {
+      const { stdout } = await execFileAsync(
+        'ffprobe',
+        [
+          '-v',
+          'error',
+          '-select_streams',
+          'v:0',
+          '-show_entries',
+          'stream=width,height',
+          '-show_entries',
+          'stream_tags=rotate',
+          '-of',
+          'json',
+          sourcePath,
+        ],
+        { timeout: 30_000 }
+      );
+      const stream = JSON.parse(stdout)?.streams?.[0];
+      width = Number(stream?.width) || 0;
+      height = Number(stream?.height) || 0;
+      const rotRaw = stream?.tags?.rotate ?? stream?.tags?.ROTATE;
+      if (rotRaw != null && String(rotRaw).trim() !== '') {
+        rotation = this.normalizeRotation(Number(rotRaw));
+      }
+    } catch {
+      // dimensões opcionais
+    }
+    let displayWidth = width;
+    let displayHeight = height;
+    if (rotation === 90 || rotation === 270) {
+      displayWidth = height;
+      displayHeight = width;
+    }
+    return { width, height, rotation, displayWidth, displayHeight };
+  }
+
+  /**
+   * Normaliza ficheiro recém-enviado in-place para 1080×1920 em pé (contrato totem).
+   */
+  private async normalizeNewUploadToTotemPortrait(
+    sourcePath: string,
+    mediaType: 'image' | 'video',
+    mimeType?: string
+  ): Promise<{ filePath: string; mimeType?: string }> {
+    const dir = path.dirname(sourcePath);
+    const stamp = Date.now();
+    const tempOut =
+      mediaType === 'video'
+        ? path.join(dir, `${path.basename(sourcePath, path.extname(sourcePath))}_totem_${stamp}.mp4`)
+        : path.join(
+            dir,
+            `${path.basename(sourcePath, path.extname(sourcePath))}_totem_${stamp}${path.extname(sourcePath) || '.jpg'}`
+          );
+
+    try {
+      if (mediaType === 'image') {
+        const { displayWidth, displayHeight } = await this.probeImageEffectiveSize(sourcePath);
+        const rotation = this.resolveAutoRotationDegrees(displayWidth, displayHeight, 0, true);
+        await this.normalizeImageToTotemPortrait(sourcePath, tempOut, rotation, mimeType);
+        await this.generatePortraitThumbnailFromImageFile(tempOut);
+      } else {
+        const info = await this.probeVideoStreamInfo(sourcePath);
+        const rotation = this.resolveAutoRotationDegrees(
+          info.displayWidth,
+          info.displayHeight,
+          0,
+          true
+        );
+        await this.normalizeVideoToTotemPortrait(sourcePath, tempOut, rotation);
+        await this.generatePortraitThumbnailFromVideoFile(tempOut);
+      }
+
+      await this.removeFileIfExists(sourcePath);
+      await this.removeFileIfExists(sourcePath.replace(/\.[^/.]+$/, '_thumb.jpg'));
+
+      const finalPath = mediaType === 'video'
+        ? sourcePath.replace(/\.[^/.]+$/, '.mp4')
+        : sourcePath;
+      if (finalPath !== tempOut) {
+        await fs.promises.rename(tempOut, finalPath);
+        const tempThumb = tempOut.replace(/\.[^/.]+$/, '_thumb.jpg');
+        const finalThumb = finalPath.replace(/\.[^/.]+$/, '_thumb.jpg');
+        if (tempThumb !== finalThumb && fs.existsSync(tempThumb)) {
+          await fs.promises.rename(tempThumb, finalThumb);
+        }
+      }
+
+      return {
+        filePath: finalPath,
+        mimeType: mediaType === 'video' ? 'video/mp4' : mimeType,
+      };
+    } catch (error) {
+      await this.removeFileIfExists(tempOut);
+      await this.removeFileIfExists(tempOut.replace(/\.[^/.]+$/, '_thumb.jpg'));
+      throw error;
+    }
+  }
+
+  private getTotemPortraitVideoFilterChain(
+    rotationDegrees: number,
+    targetW: number = TOTEM_PORTRAIT_WIDTH,
+    targetH: number = TOTEM_PORTRAIT_HEIGHT
+  ): string {
+    const rotationFilters = this.getFfmpegRotationFilters(rotationDegrees);
+    return [
+      ...rotationFilters,
+      `scale=${targetW}:${targetH}:force_original_aspect_ratio=decrease`,
+      `pad=${targetW}:${targetH}:(ow-iw)/2:(oh-ih)/2:black`,
+      'setsar=1',
+    ].join(',');
+  }
+
+  private async normalizeImageToTotemPortrait(
+    sourcePath: string,
+    outputPath: string,
+    rotationDegrees: number,
+    mimeType?: string
+  ): Promise<void> {
+    let pipeline = (sharp as any)(sourcePath).rotate();
+    if (rotationDegrees !== 0) {
+      pipeline = pipeline.rotate(rotationDegrees);
+    }
+    pipeline = pipeline.resize(TOTEM_PORTRAIT_WIDTH, TOTEM_PORTRAIT_HEIGHT, {
+      fit: 'contain',
+      background: { r: 0, g: 0, b: 0, alpha: 1 },
+    });
+
+    const ext = this.getImageOutputExtension(mimeType, outputPath);
+    if (ext === '.png') {
+      pipeline = pipeline.png({ compressionLevel: 9, adaptiveFiltering: true });
+    } else if (ext === '.webp') {
+      pipeline = pipeline.webp({ quality: 85 });
+    } else {
+      pipeline = pipeline.jpeg({ quality: 88, progressive: true });
+    }
+
+    await pipeline.toFile(outputPath);
+  }
+
+  private async normalizeVideoToTotemPortrait(
+    sourcePath: string,
+    outputPath: string,
+    rotationDegrees: number
+  ): Promise<void> {
+    const filters = this.getTotemPortraitVideoFilterChain(rotationDegrees);
+
+    await execFileAsync(
+      'ffmpeg',
+      [
+        '-y',
+        '-i',
+        sourcePath,
+        '-vf',
+        filters,
+        '-c:v',
+        'libx264',
+        '-preset',
+        'veryfast',
+        '-crf',
+        '23',
+        '-c:a',
+        'copy',
+        '-movflags',
+        '+faststart',
+        '-metadata:s:v:0',
+        'rotate=0',
+        outputPath,
+      ],
+      { timeout: 600_000 }
+    );
+  }
+
+  private async generatePortraitThumbnailFromImageFile(filePath: string): Promise<string> {
+    const thumbnailPath = filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
+    await (sharp as any)(filePath)
+      .resize(TOTEM_THUMB_WIDTH, TOTEM_THUMB_HEIGHT, {
+        fit: 'contain',
+        background: { r: 0, g: 0, b: 0, alpha: 1 },
+      })
+      .jpeg({ quality: 82, progressive: true })
+      .toFile(thumbnailPath);
+    return thumbnailPath;
+  }
+
+  private async generatePortraitThumbnailFromVideoFile(filePath: string): Promise<string> {
+    const thumbnailPath = filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
+    const filters = this.getTotemPortraitVideoFilterChain(0, TOTEM_THUMB_WIDTH, TOTEM_THUMB_HEIGHT);
+    await execFileAsync(
+      'ffmpeg',
+      [
+        '-y',
+        '-ss',
+        '00:00:01',
+        '-i',
+        filePath,
+        '-vframes',
+        '1',
+        '-vf',
+        filters,
+        '-q:v',
+        '3',
+        thumbnailPath,
+      ],
+      { timeout: 60_000 }
+    );
+    return thumbnailPath;
+  }
+
   private resolveExistingMediaPath(filePath: string): string | null {
     if (fs.existsSync(filePath)) return filePath;
     const altPath = filePath
@@ -1001,69 +1291,6 @@ export class MediaService {
       default:
         return 'image/jpeg';
     }
-  }
-
-  private async transformImageToPortrait(
-    sourcePath: string,
-    outputPath: string,
-    rotationDegrees: number,
-    mimeType?: string
-  ): Promise<void> {
-    // 1) Aplicar EXIF (como o browser na pré-visualização); 2) rotação escolhida; 3) encaixar 9:16.
-    let pipeline = (sharp as any)(sourcePath).rotate();
-    if (rotationDegrees !== 0) {
-      pipeline = pipeline.rotate(rotationDegrees);
-    }
-    pipeline = pipeline.resize(1080, 1920, {
-      fit: 'contain',
-      background: { r: 0, g: 0, b: 0, alpha: 1 },
-    });
-
-    const ext = this.getImageOutputExtension(mimeType, outputPath);
-    if (ext === '.png') {
-      pipeline = pipeline.png({ compressionLevel: 9, adaptiveFiltering: true });
-    } else if (ext === '.webp') {
-      pipeline = pipeline.webp({ quality: 85 });
-    } else {
-      pipeline = pipeline.jpeg({ quality: 88, progressive: true });
-    }
-
-    await pipeline.toFile(outputPath);
-  }
-
-  private async transformVideoToPortrait(
-    sourcePath: string,
-    outputPath: string,
-    rotationDegrees: number
-  ): Promise<void> {
-    const rotationFilters = this.getFfmpegRotationFilters(rotationDegrees);
-    const filters = [
-      ...rotationFilters,
-      'scale=1080:1920:force_original_aspect_ratio=decrease',
-      'pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black',
-      'setsar=1',
-    ].join(',');
-
-    await execFileAsync('ffmpeg', [
-      '-y',
-      '-i',
-      sourcePath,
-      '-vf',
-      filters,
-      '-c:v',
-      'libx264',
-      '-preset',
-      'veryfast',
-      '-crf',
-      '23',
-      '-c:a',
-      'copy',
-      '-movflags',
-      '+faststart',
-      '-metadata:s:v:0',
-      'rotate=0',
-      outputPath,
-    ]);
   }
 
   private getFfmpegRotationFilters(rotationDegrees: number): string[] {
@@ -1176,26 +1403,43 @@ export class MediaService {
       const result: any = {};
 
       if (mimetype.startsWith('image/')) {
-        // Processar imagem
-        const image = new sharp(buffer);
-        const metadata = await (image as any).metadata();
-        
-        result.width = metadata.width;
-        result.height = metadata.height;
+        const meta = await (sharp as any)(filePath).metadata().catch(async () =>
+          (sharp as any)(buffer).metadata()
+        );
+        const w = meta?.width ?? 0;
+        const h = meta?.height ?? 0;
+        if (w === TOTEM_PORTRAIT_WIDTH && h === TOTEM_PORTRAIT_HEIGHT) {
+          result.width = TOTEM_PORTRAIT_WIDTH;
+          result.height = TOTEM_PORTRAIT_HEIGHT;
+        } else {
+          const effective = await this.probeImageEffectiveSize(filePath);
+          result.width = effective.displayWidth || w;
+          result.height = effective.displayHeight || h;
+        }
 
-        // Gerar thumbnail
-        const thumbnailPath = await this.generateThumbnail(buffer, filePath);
-        result.previewUrl = generateThumbnailUrl(thumbnailPath, 'image');
+        const thumbPath = filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
+        if (!fs.existsSync(thumbPath)) {
+          await this.generatePortraitThumbnailFromImageFile(filePath);
+        }
+        result.previewUrl = generateThumbnailUrl(thumbPath, 'image');
 
       } else if (mimetype.startsWith('video/')) {
         const probed = await this.probeMediaWithFfprobe(filePath, mimetype);
         result.durationSeconds = probed.durationSeconds ?? 0;
-        result.width = probed.width ?? 1920;
-        result.height = probed.height ?? 1080;
+        if (probed.width === TOTEM_PORTRAIT_WIDTH && probed.height === TOTEM_PORTRAIT_HEIGHT) {
+          result.width = TOTEM_PORTRAIT_WIDTH;
+          result.height = TOTEM_PORTRAIT_HEIGHT;
+        } else {
+          const info = await this.probeVideoStreamInfo(filePath);
+          result.width = info.displayWidth || probed.width;
+          result.height = info.displayHeight || probed.height;
+        }
 
-        // Gerar thumbnail do vídeo
-        const thumbnailPath = await this.generateVideoThumbnail(buffer, filePath);
-        result.previewUrl = generateThumbnailUrl(thumbnailPath, 'video');
+        const thumbPath = filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
+        if (!fs.existsSync(thumbPath)) {
+          await this.generatePortraitThumbnailFromVideoFile(filePath);
+        }
+        result.previewUrl = generateThumbnailUrl(thumbPath, 'video');
 
       } else if (mimetype.startsWith('audio/')) {
         const probed = await this.probeMediaWithFfprobe(filePath, mimetype);
@@ -1274,15 +1518,19 @@ export class MediaService {
    */
   private async generateThumbnail(buffer: Buffer, filePath: string): Promise<string> {
     try {
+      if (fs.existsSync(filePath)) {
+        return await this.generatePortraitThumbnailFromImageFile(filePath);
+      }
       const thumbnailPath = filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
-      
-      await new sharp(buffer)
-        .resize(300, 300)
-        .jpeg({ quality: 80 })
+      await (sharp as any)(buffer)
+        .rotate()
+        .resize(TOTEM_THUMB_WIDTH, TOTEM_THUMB_HEIGHT, {
+          fit: 'contain',
+          background: { r: 0, g: 0, b: 0, alpha: 1 },
+        })
+        .jpeg({ quality: 82, progressive: true })
         .toFile(thumbnailPath);
-
       return thumbnailPath;
-
     } catch (error: any) {
       await logError('Erro ao gerar thumbnail', error, { filePath });
       return filePath;
@@ -1290,40 +1538,11 @@ export class MediaService {
   }
 
   /**
-   * Gera thumbnail de vídeo
-   * Nota: Requer ffmpeg instalado no sistema para funcionar completamente
+   * Gera thumbnail de vídeo (frame em 9:16, alinhado ao ficheiro totem).
    */
   private async generateVideoThumbnail(_buffer: Buffer, filePath: string): Promise<string> {
     try {
-      const thumbnailPath = filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
-      
-      // Verificar se ffmpeg está disponível
-      const { exec } = require('child_process');
-      const { promisify } = require('util');
-      const execAsync = promisify(exec);
-
-      try {
-        // Tentar usar ffmpeg para extrair frame do vídeo
-        // Extrai frame no segundo 1 do vídeo
-        await execAsync(`ffmpeg -i "${filePath}" -ss 00:00:01 -vframes 1 -vf "scale=300:300:force_original_aspect_ratio=decrease" "${thumbnailPath}"`);
-        
-        // Verificar se thumbnail foi criado
-        if (fs.existsSync(thumbnailPath)) {
-          return thumbnailPath;
-        }
-      } catch (ffmpegError: any) {
-        // ffmpeg não disponível ou erro na execução
-        await logWarn('ffmpeg não disponível. Thumbnail de vídeo não pode ser gerado', {
-          filePath,
-          suggestion: 'Instale ffmpeg para suporte completo: sudo apt-get install ffmpeg'
-        });
-        
-        // Retornar caminho original como fallback
-        return filePath;
-      }
-
-      return filePath;
-
+      return await this.generatePortraitThumbnailFromVideoFile(filePath);
     } catch (error: any) {
       await logError('Erro ao gerar thumbnail de vídeo', error, { filePath });
       return filePath;

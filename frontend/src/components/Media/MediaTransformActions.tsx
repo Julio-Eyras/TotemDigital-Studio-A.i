@@ -52,7 +52,11 @@ const MediaTransformActions: React.FC<MediaTransformActionsProps> = ({
           </IconButton>
         </span>
       </Tooltip>
-      <Tooltip title={isTransformable ? 'Adequar mídia para 9:16 (sem girar)' : 'Disponível para imagens e vídeos'}>
+      <Tooltip title={
+          isTransformable
+            ? 'Adequar para 9:16 em pé (roda landscape automaticamente se necessário)'
+            : 'Disponível para imagens e vídeos'
+        }>
         <span>
           <IconButton
             size="small"

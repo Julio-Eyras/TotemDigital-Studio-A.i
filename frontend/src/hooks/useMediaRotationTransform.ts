@@ -43,7 +43,8 @@ export function mediaPortraitPreviewFrameSx() {
 }
 
 /**
- * Pré-visualização local de rotação (90°) + confirmação grava no servidor em 9:16.
+ * Pré-visualização local de rotação (90° à esquerda) + confirmação grava no servidor em 9:16 em pé.
+ * Após gravar, o card mostra thumbnail/ficheiro final (sem CSS draft) — WYSIWYG com o totem.
  */
 export function useMediaRotationTransform(onTransformed: () => Promise<void> | void) {
   const [rotationDrafts, setRotationDrafts] = useState<Record<number, number>>({});
