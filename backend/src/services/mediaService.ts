@@ -37,6 +37,8 @@ const TOTEM_DELIVERY_HEIGHT = 1080;
 /** Pré-visualização UI / thumbnail: moldura 9:16 (WYSIWYG do totem). */
 const TOTEM_THUMB_WIDTH = 540;
 const TOTEM_THUMB_HEIGHT = 960;
+/** Desfaz rotação de entrega (90° CW) para thumbnail/preview em pé na UI. */
+const TOTEM_DELIVERY_PREVIEW_ROTATION = 270;
 
 export interface CreateMediaRequest {
   name: string;
@@ -958,11 +960,11 @@ export class MediaService {
 
     try {
       if (mediaType === 'image') {
-        await this.generatePreviewThumbnailFromImageSource(sourcePath, resolvedPreviewRotation);
         await this.normalizeImageToTotemDelivery(sourcePath, outputPath, resolvedDeliveryRotation, media.mimeType);
+        await this.generatePortraitThumbnailFromDeliveryImage(outputPath);
       } else {
-        await this.generatePreviewThumbnailFromVideoSource(sourcePath, resolvedPreviewRotation);
         await this.normalizeVideoToTotemDelivery(sourcePath, outputPath, resolvedDeliveryRotation);
+        await this.generatePortraitThumbnailFromDeliveryVideo(outputPath);
       }
 
       const stats = await fs.promises.stat(outputPath);
@@ -1173,6 +1175,9 @@ export class MediaService {
       const newPath = normalized.filePath;
       const stats = await fs.promises.stat(newPath);
       const thumbPath = newPath.replace(/\.[^/.]+$/, '_thumb.jpg');
+      if (!fs.existsSync(thumbPath)) {
+        await this.generatePortraitThumbnailFromDeliveryVideo(newPath);
+      }
       const previewUrl = generateThumbnailUrl(thumbPath, 'video');
 
       await this.db.executeRaw(
@@ -1241,23 +1246,15 @@ export class MediaService {
     try {
       if (mediaType === 'image') {
         const { displayWidth, displayHeight } = await this.probeImageEffectiveSize(sourcePath);
-        const previewRotation = this.resolvePreviewRotationDegrees(displayWidth, displayHeight, 0);
         const deliveryRotation = this.resolveDeliveryRotationDegrees(displayWidth, displayHeight, 0);
-        await this.generatePreviewThumbnailFromImageSource(sourcePath, previewRotation);
         await this.normalizeImageToTotemDelivery(sourcePath, tempOut, deliveryRotation, mimeType);
       } else {
         const info = await this.probeVideoStreamInfo(sourcePath);
-        const previewRotation = this.resolvePreviewRotationDegrees(
-          info.displayWidth,
-          info.displayHeight,
-          0
-        );
         const deliveryRotation = this.resolveDeliveryRotationDegrees(
           info.displayWidth,
           info.displayHeight,
           0
         );
-        await this.generatePreviewThumbnailFromVideoSource(sourcePath, previewRotation);
         await this.normalizeVideoToTotemDelivery(sourcePath, tempOut, deliveryRotation);
       }
 
@@ -1269,11 +1266,12 @@ export class MediaService {
         : sourcePath;
       if (finalPath !== tempOut) {
         await fs.promises.rename(tempOut, finalPath);
-        const tempThumb = tempOut.replace(/\.[^/.]+$/, '_thumb.jpg');
-        const finalThumb = finalPath.replace(/\.[^/.]+$/, '_thumb.jpg');
-        if (tempThumb !== finalThumb && fs.existsSync(tempThumb)) {
-          await fs.promises.rename(tempThumb, finalThumb);
-        }
+      }
+
+      if (mediaType === 'image') {
+        await this.generatePortraitThumbnailFromDeliveryImage(finalPath);
+      } else {
+        await this.generatePortraitThumbnailFromDeliveryVideo(finalPath);
       }
 
       return {
@@ -1417,15 +1415,36 @@ export class MediaService {
     return thumbnailPath;
   }
 
+  private isTotemDeliverySize(width: number, height: number): boolean {
+    return width === TOTEM_DELIVERY_WIDTH && height === TOTEM_DELIVERY_HEIGHT;
+  }
+
+  private async generatePortraitThumbnailFromDeliveryImage(filePath: string): Promise<string> {
+    return this.generatePreviewThumbnailFromImageSource(filePath, TOTEM_DELIVERY_PREVIEW_ROTATION);
+  }
+
+  private async generatePortraitThumbnailFromDeliveryVideo(filePath: string): Promise<string> {
+    return this.generatePreviewThumbnailFromVideoSource(filePath, TOTEM_DELIVERY_PREVIEW_ROTATION);
+  }
+
   /** Thumbnail 9:16 a partir do ficheiro original (antes da entrega 16:9). */
   private async generatePortraitThumbnailFromVideoFile(filePath: string): Promise<string> {
     const info = await this.probeVideoStreamInfo(filePath);
+    if (this.isTotemDeliverySize(info.width, info.height)) {
+      return this.generatePortraitThumbnailFromDeliveryVideo(filePath);
+    }
     const rotation = this.resolvePreviewRotationDegrees(info.displayWidth, info.displayHeight, 0);
     return this.generatePreviewThumbnailFromVideoSource(filePath, rotation);
   }
 
   private async generatePortraitThumbnailFromImageFile(filePath: string): Promise<string> {
     const { displayWidth, displayHeight } = await this.probeImageEffectiveSize(filePath);
+    const meta = await (sharp as any)(filePath).rotate().metadata().catch(() => null);
+    const w = meta?.width ?? displayWidth;
+    const h = meta?.height ?? displayHeight;
+    if (this.isTotemDeliverySize(w, h)) {
+      return this.generatePortraitThumbnailFromDeliveryImage(filePath);
+    }
     const rotation = this.resolvePreviewRotationDegrees(displayWidth, displayHeight, 0);
     return this.generatePreviewThumbnailFromImageSource(filePath, rotation);
   }
@@ -1762,30 +1781,14 @@ export class MediaService {
         return null;
       };
 
-      // 1) Se existir thumbnail ao lado do arquivo, usar
-      const siblingThumb = media.filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
-      const existingSiblingThumb = checkFilePath(siblingThumb);
-      if (existingSiblingThumb) {
-        return existingSiblingThumb;
-      }
-
-      // 2) Se arquivo original existir e for imagem, gerar thumbnail em cache temporário
+      // 1) Vídeo: gerar/regerar thumbnail 9:16 (corrige thumbs antigos de entrega 16:9)
       const existingFilePath = checkFilePath(media.filePath);
-      if (media.mediaType === 'image' && existingFilePath) {
-        if (fs.existsSync(generatedThumbPath)) {
-          return generatedThumbPath;
-        }
-        await (sharp as any)(existingFilePath)
-          .resize(320, 180, { fit: 'inside', withoutEnlargement: true })
-          .jpeg({ quality: 80, progressive: true })
-          .toFile(generatedThumbPath);
-        return generatedThumbPath;
-      }
-
-      // 2b) Vídeo: gerar _thumb.jpg ao lado do ficheiro (evita placeholder cinza no painel)
       if (media.mediaType === 'video' && existingFilePath) {
         try {
-          const thumbPath = await this.generatePortraitThumbnailFromVideoFile(existingFilePath);
+          const info = await this.probeVideoStreamInfo(existingFilePath);
+          const thumbPath = this.isTotemDeliverySize(info.width, info.height)
+            ? await this.generatePortraitThumbnailFromDeliveryVideo(existingFilePath)
+            : await this.generatePortraitThumbnailFromVideoFile(existingFilePath);
           if (thumbPath && fs.existsSync(thumbPath)) {
             return thumbPath;
           }
@@ -1797,7 +1800,42 @@ export class MediaService {
         }
       }
 
-      // 3) Fallback: placeholder
+      // 2) Thumbnail ao lado do ficheiro (imagens e fallback)
+      const siblingThumb = media.filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
+      const existingSiblingThumb = checkFilePath(siblingThumb);
+      if (existingSiblingThumb) {
+        return existingSiblingThumb;
+      }
+
+      // 3) Imagem: thumbnail 9:16 ao lado do ficheiro ou cache
+      if (media.mediaType === 'image' && existingFilePath) {
+        try {
+          const meta = await (sharp as any)(existingFilePath).rotate().metadata();
+          const w = meta?.width ?? 0;
+          const h = meta?.height ?? 0;
+          if (this.isTotemDeliverySize(w, h)) {
+            const thumbPath = await this.generatePortraitThumbnailFromDeliveryImage(existingFilePath);
+            if (thumbPath && fs.existsSync(thumbPath)) {
+              return thumbPath;
+            }
+          }
+        } catch {
+          /* tenta fallback abaixo */
+        }
+        if (fs.existsSync(generatedThumbPath)) {
+          return generatedThumbPath;
+        }
+        await (sharp as any)(existingFilePath)
+          .resize(TOTEM_THUMB_WIDTH, TOTEM_THUMB_HEIGHT, {
+            fit: 'contain',
+            background: { r: 0, g: 0, b: 0, alpha: 1 },
+          })
+          .jpeg({ quality: 82, progressive: true })
+          .toFile(generatedThumbPath);
+        return generatedThumbPath;
+      }
+
+      // 4) Fallback: placeholder
       return await this.ensurePlaceholderImage(placeholderPath);
     } catch (error: any) {
       await logError('Erro ao buscar thumbnail', error, { mediaId });

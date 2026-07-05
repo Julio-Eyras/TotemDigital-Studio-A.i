@@ -80,7 +80,39 @@ export function mediaPortraitPreviewSx(
   };
 }
 
-/** Thumbnail 9:16 na UI — já WYSIWYG; não aplicar rotação automática por dimensões da BD. */
+export const TOTEM_DELIVERY_WIDTH = 1920;
+export const TOTEM_DELIVERY_HEIGHT = 1080;
+
+export function isTotemDeliveryMedia(media?: { width?: number; height?: number }): boolean {
+  const w = Number(media?.width ?? 0);
+  const h = Number(media?.height ?? 0);
+  if (w === TOTEM_DELIVERY_WIDTH && h === TOTEM_DELIVERY_HEIGHT) return true;
+  return w > h && w > 0 && h > 0;
+}
+
+/** Preview na UI: ficheiro 16:9 de entrega precisa rotação CSS; thumbnail já vem em pé. */
+export function mediaTotemUiPreviewSx(
+  rotationDegrees: number,
+  media?: { width?: number; height?: number },
+) {
+  if (isTotemDeliveryMedia(media)) {
+    return mediaPortraitPreviewSx(rotationDegrees, { width: media?.width, height: media?.height });
+  }
+  return mediaThumbnailPortraitPreviewSx(rotationDegrees);
+}
+
+export function mediaTotemHoverVideoSx(
+  rotationDegrees: number,
+  media?: { width?: number; height?: number },
+) {
+  return {
+    ...mediaTotemUiPreviewSx(rotationDegrees, media),
+    zIndex: 3,
+    pointerEvents: 'none' as const,
+  };
+}
+
+/** Thumbnail 9:16 na UI — sem rotação automática quando já vem em pé do servidor. */
 export function mediaThumbnailPortraitPreviewSx(rotationDegrees: number) {
   const deg = normalizeMediaRotation(rotationDegrees);
   return {
@@ -112,8 +144,11 @@ export function mediaVideoPortraitPreviewSx(rotationDraft = 0) {
   };
 }
 
-export function mediaPortraitHoverVideoSx(rotationDegrees: number) {
-  return mediaVideoPortraitPreviewSx(rotationDegrees);
+export function mediaPortraitHoverVideoSx(
+  rotationDegrees: number,
+  media?: { width?: number; height?: number },
+) {
+  return mediaTotemHoverVideoSx(rotationDegrees, media);
 }
 
 /** @deprecated use mediaPortraitPreviewSx */

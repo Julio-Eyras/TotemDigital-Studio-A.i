@@ -117,7 +117,7 @@ import { isSubscriberContractActiveForCampaign } from './subscriberContractHealt
 import { useAppSelector } from '../../store/hooks';
 import { getForeignTotemIdFromRow, getTotemIdFromRow, getTotemLocalIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
-import { useMediaRotationTransform, mediaThumbnailPortraitPreviewSx, mediaPortraitPreviewFrameSx, mediaVideoPortraitPreviewSx, mediaPortraitHoverVideoSx } from '../../hooks/useMediaRotationTransform';
+import { useMediaRotationTransform, mediaThumbnailPortraitPreviewSx, mediaTotemUiPreviewSx, mediaPortraitPreviewFrameSx, mediaTotemHoverVideoSx } from '../../hooks/useMediaRotationTransform';
 import {
   billingIntervalLabel,
   contractEndDateHelperText,
@@ -3206,11 +3206,7 @@ const Subscribers: React.FC = () => {
                               <Box
                                 component="video"
                                 src={previewUrl}
-                                sx={mediaVideoPortraitPreviewSx(getRotationDraft(media.media_id))}
-                                muted
-                                onError={() => setMediaPreviewFailed(prev => new Set(prev).add(media.media_id))}
-                                onMouseEnter={(e: any) => e.target.play?.()}
-                                onMouseLeave={(e: any) => { e.target.pause?.(); e.target.currentTime = 0; }}
+                                sx={mediaTotemUiPreviewSx(getRotationDraft(media.media_id), media)}
                               />
                             ) : (
                               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
@@ -3229,7 +3225,7 @@ const Subscribers: React.FC = () => {
                                   muted
                                   loop
                                   playsInline
-                                  sx={mediaPortraitHoverVideoSx(getRotationDraft(media.media_id))}
+                                  sx={mediaTotemHoverVideoSx(getRotationDraft(media.media_id), media)}
                                 />
                               )}
                             <Box
