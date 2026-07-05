@@ -93,7 +93,7 @@ fi
 
 log "=== Build + deploy frontend ==="
 BUILD_SRC="$FRONTEND_DIR/build"
-if [[ ! -f "$BUILD_SRC/index.html" ]] && [[ -f "$FRONTEND_DIR/package.json" ]]; then
+if [[ -f "$FRONTEND_DIR/package.json" ]]; then
   log "npm run build (frontend)..."
   (cd "$FRONTEND_DIR" && {
     if [[ -f package-lock.json ]] && npm ci --no-audit --no-fund 2>/dev/null; then

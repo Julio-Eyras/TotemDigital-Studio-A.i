@@ -223,7 +223,13 @@ const SubscriberCard: React.FC<SubscriberCardProps> = ({
                       <Typography
                         variant="caption"
                         color="text.secondary"
-                        sx={{ display: 'block', lineHeight: 1.2, fontSize: '0.68rem' }}
+                        sx={{
+                          display: 'block',
+                          lineHeight: 1.25,
+                          fontSize: '0.72rem',
+                          fontWeight: 500,
+                          mt: 0.15,
+                        }}
                         noWrap
                       >
                         {item.detail}
