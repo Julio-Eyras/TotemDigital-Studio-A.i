@@ -95,7 +95,15 @@ log "=== Build + deploy frontend ==="
 BUILD_SRC="$FRONTEND_DIR/build"
 if [[ ! -f "$BUILD_SRC/index.html" ]] && [[ -f "$FRONTEND_DIR/package.json" ]]; then
   log "npm run build (frontend)..."
-  (cd "$FRONTEND_DIR" && npm ci && GENERATE_SOURCEMAP=false npm run build)
+  (cd "$FRONTEND_DIR" && {
+    if [[ -f package-lock.json ]] && npm ci --no-audit --no-fund 2>/dev/null; then
+      log "npm ci OK"
+    else
+      warn "npm ci falhou (lock dessincronizado) — usando npm install"
+      npm install --no-audit --no-fund
+    fi
+    GENERATE_SOURCEMAP=false npm run build
+  })
 fi
 
 if [[ -f "$BUILD_SRC/index.html" ]]; then
