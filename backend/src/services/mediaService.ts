@@ -31,9 +31,10 @@ export { MediaInUseError };
 
 const execFileAsync = promisify(execFile);
 
-/** Formato canónico totem portrait (9:16 em pé, rotate=0). */
-const TOTEM_PORTRAIT_WIDTH = 1080;
-const TOTEM_PORTRAIT_HEIGHT = 1920;
+/** Entrega totem: ficheiro 16:9 landscape (rotate=0); SO do totem põe em pé. */
+const TOTEM_DELIVERY_WIDTH = 1920;
+const TOTEM_DELIVERY_HEIGHT = 1080;
+/** Pré-visualização UI / thumbnail: moldura 9:16 (WYSIWYG do totem). */
 const TOTEM_THUMB_WIDTH = 540;
 const TOTEM_THUMB_HEIGHT = 960;
 
@@ -708,6 +709,8 @@ export class MediaService {
         if (fs.existsSync(thumbPath)) {
           metadata.previewUrl = generateThumbnailUrl(thumbPath, 'video');
         }
+        metadata.width = TOTEM_DELIVERY_WIDTH;
+        metadata.height = TOTEM_DELIVERY_HEIGHT;
       }
       let storedSize = file.size;
       try {
@@ -938,11 +941,15 @@ export class MediaService {
       mediaType === 'image'
         ? await this.probeImageEffectiveSize(sourcePath)
         : await this.probeVideoStreamInfo(sourcePath);
-    const resolvedRotation = this.resolveAutoRotationDegrees(
+    const resolvedPreviewRotation = this.resolvePreviewRotationDegrees(
       displaySize.displayWidth,
       displaySize.displayHeight,
-      normalizedRotation,
-      fitPortrait
+      normalizedRotation
+    );
+    const resolvedDeliveryRotation = this.resolveDeliveryRotationDegrees(
+      displaySize.displayWidth,
+      displaySize.displayHeight,
+      normalizedRotation
     );
 
     const ext = mediaType === 'video' ? '.mp4' : this.getImageOutputExtension(media.mimeType, sourcePath);
@@ -951,19 +958,15 @@ export class MediaService {
 
     try {
       if (mediaType === 'image') {
-        await this.normalizeImageToTotemPortrait(sourcePath, outputPath, resolvedRotation, media.mimeType);
+        await this.generatePreviewThumbnailFromImageSource(sourcePath, resolvedPreviewRotation);
+        await this.normalizeImageToTotemDelivery(sourcePath, outputPath, resolvedDeliveryRotation, media.mimeType);
       } else {
-        await this.normalizeVideoToTotemPortrait(sourcePath, outputPath, resolvedRotation);
+        await this.generatePreviewThumbnailFromVideoSource(sourcePath, resolvedPreviewRotation);
+        await this.normalizeVideoToTotemDelivery(sourcePath, outputPath, resolvedDeliveryRotation);
       }
 
       const stats = await fs.promises.stat(outputPath);
-      const dimensions = { width: TOTEM_PORTRAIT_WIDTH, height: TOTEM_PORTRAIT_HEIGHT };
-
-      if (mediaType === 'image') {
-        await this.generatePortraitThumbnailFromImageFile(outputPath);
-      } else {
-        await this.generatePortraitThumbnailFromVideoFile(outputPath);
-      }
+      const dimensions = { width: TOTEM_DELIVERY_WIDTH, height: TOTEM_DELIVERY_HEIGHT };
 
       const nextMimeType = mediaType === 'video' ? 'video/mp4' : this.getImageMimeTypeFromExtension(ext);
       const nextFileName = path.basename(outputPath);
@@ -996,8 +999,9 @@ export class MediaService {
 
       await this.getAuditService().log('media', 'transformed', updatedBy, {
         mediaId,
-        rotationDegrees: resolvedRotation,
+        rotationDegrees: resolvedDeliveryRotation,
         rotationRequested: normalizedRotation,
+        previewRotationDegrees: resolvedPreviewRotation,
         fit: options.fit || '9:16',
         subscriberId: media.subscriberId,
       });
@@ -1039,7 +1043,33 @@ export class MediaService {
   }
 
   /**
-   * Se pedido 9:16 sem rotação manual e o conteúdo efectivo é landscape, roda 90° para ficar em pé.
+   * Rotação para **thumbnail/preview** na UI (9:16 em pé — o que o cliente vê).
+   */
+  private resolvePreviewRotationDegrees(
+    displayWidth: number,
+    displayHeight: number,
+    userRotationDegrees: number
+  ): number {
+    return this.resolveAutoRotationDegrees(displayWidth, displayHeight, userRotationDegrees, true);
+  }
+
+  /**
+   * Rotação para **ficheiro de entrega** 16:9: conteúdo pré-rodado 90° à direita;
+   * o totem reproduz sem transformação em runtime.
+   */
+  private resolveDeliveryRotationDegrees(
+    displayWidth: number,
+    displayHeight: number,
+    userRotationDegrees: number
+  ): number {
+    const user = this.normalizeRotation(userRotationDegrees);
+    if (user !== 0) return user;
+    if (displayWidth <= 0 || displayHeight <= 0) return 90;
+    return 90;
+  }
+
+  /**
+   * Se pedido 9:16 sem rotação manual e o conteúdo efectivo é landscape, roda 90° para ficar em pé (só preview).
    */
   private resolveAutoRotationDegrees(
     displayWidth: number,
@@ -1163,8 +1193,8 @@ export class MediaService {
           path.basename(newPath),
           stats.size,
           normalized.mimeType ?? 'video/mp4',
-          TOTEM_PORTRAIT_WIDTH,
-          TOTEM_PORTRAIT_HEIGHT,
+          TOTEM_DELIVERY_WIDTH,
+          TOTEM_DELIVERY_HEIGHT,
           previewUrl,
           mediaId,
         ]
@@ -1191,7 +1221,7 @@ export class MediaService {
   }
 
   /**
-   * Normaliza ficheiro recém-enviado in-place para 1080×1920 em pé (contrato totem).
+   * Normaliza ficheiro recém-enviado para 1920×1080 landscape (entrega totem; rotate=0).
    */
   private async normalizeNewUploadToTotemPortrait(
     sourcePath: string,
@@ -1211,19 +1241,24 @@ export class MediaService {
     try {
       if (mediaType === 'image') {
         const { displayWidth, displayHeight } = await this.probeImageEffectiveSize(sourcePath);
-        const rotation = this.resolveAutoRotationDegrees(displayWidth, displayHeight, 0, true);
-        await this.normalizeImageToTotemPortrait(sourcePath, tempOut, rotation, mimeType);
-        await this.generatePortraitThumbnailFromImageFile(tempOut);
+        const previewRotation = this.resolvePreviewRotationDegrees(displayWidth, displayHeight, 0);
+        const deliveryRotation = this.resolveDeliveryRotationDegrees(displayWidth, displayHeight, 0);
+        await this.generatePreviewThumbnailFromImageSource(sourcePath, previewRotation);
+        await this.normalizeImageToTotemDelivery(sourcePath, tempOut, deliveryRotation, mimeType);
       } else {
         const info = await this.probeVideoStreamInfo(sourcePath);
-        const rotation = this.resolveAutoRotationDegrees(
+        const previewRotation = this.resolvePreviewRotationDegrees(
           info.displayWidth,
           info.displayHeight,
-          0,
-          true
+          0
         );
-        await this.normalizeVideoToTotemPortrait(sourcePath, tempOut, rotation);
-        await this.generatePortraitThumbnailFromVideoFile(tempOut);
+        const deliveryRotation = this.resolveDeliveryRotationDegrees(
+          info.displayWidth,
+          info.displayHeight,
+          0
+        );
+        await this.generatePreviewThumbnailFromVideoSource(sourcePath, previewRotation);
+        await this.normalizeVideoToTotemDelivery(sourcePath, tempOut, deliveryRotation);
       }
 
       await this.removeFileIfExists(sourcePath);
@@ -1252,10 +1287,10 @@ export class MediaService {
     }
   }
 
-  private getTotemPortraitVideoFilterChain(
+  private getTotemDeliveryVideoFilterChain(
     rotationDegrees: number,
-    targetW: number = TOTEM_PORTRAIT_WIDTH,
-    targetH: number = TOTEM_PORTRAIT_HEIGHT
+    targetW: number = TOTEM_DELIVERY_WIDTH,
+    targetH: number = TOTEM_DELIVERY_HEIGHT
   ): string {
     const rotationFilters = this.getFfmpegRotationFilters(rotationDegrees);
     return [
@@ -1266,7 +1301,15 @@ export class MediaService {
     ].join(',');
   }
 
-  private async normalizeImageToTotemPortrait(
+  private getTotemPreviewVideoFilterChain(
+    rotationDegrees: number,
+    targetW: number = TOTEM_THUMB_WIDTH,
+    targetH: number = TOTEM_THUMB_HEIGHT
+  ): string {
+    return this.getTotemDeliveryVideoFilterChain(rotationDegrees, targetW, targetH);
+  }
+
+  private async normalizeImageToTotemDelivery(
     sourcePath: string,
     outputPath: string,
     rotationDegrees: number,
@@ -1276,7 +1319,7 @@ export class MediaService {
     if (rotationDegrees !== 0) {
       pipeline = pipeline.rotate(rotationDegrees);
     }
-    pipeline = pipeline.resize(TOTEM_PORTRAIT_WIDTH, TOTEM_PORTRAIT_HEIGHT, {
+    pipeline = pipeline.resize(TOTEM_DELIVERY_WIDTH, TOTEM_DELIVERY_HEIGHT, {
       fit: 'contain',
       background: { r: 0, g: 0, b: 0, alpha: 1 },
     });
@@ -1293,12 +1336,12 @@ export class MediaService {
     await pipeline.toFile(outputPath);
   }
 
-  private async normalizeVideoToTotemPortrait(
+  private async normalizeVideoToTotemDelivery(
     sourcePath: string,
     outputPath: string,
     rotationDegrees: number
   ): Promise<void> {
-    const filters = this.getTotemPortraitVideoFilterChain(rotationDegrees);
+    const filters = this.getTotemDeliveryVideoFilterChain(rotationDegrees);
 
     await execFileAsync(
       'ffmpeg',
@@ -1328,9 +1371,16 @@ export class MediaService {
     );
   }
 
-  private async generatePortraitThumbnailFromImageFile(filePath: string): Promise<string> {
-    const thumbnailPath = filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
-    await (sharp as any)(filePath)
+  private async generatePreviewThumbnailFromImageSource(
+    sourcePath: string,
+    rotationDegrees: number
+  ): Promise<string> {
+    const thumbnailPath = sourcePath.replace(/\.[^/.]+$/, '_thumb.jpg');
+    let pipeline = (sharp as any)(sourcePath).rotate();
+    if (rotationDegrees !== 0) {
+      pipeline = pipeline.rotate(rotationDegrees);
+    }
+    await pipeline
       .resize(TOTEM_THUMB_WIDTH, TOTEM_THUMB_HEIGHT, {
         fit: 'contain',
         background: { r: 0, g: 0, b: 0, alpha: 1 },
@@ -1340,9 +1390,12 @@ export class MediaService {
     return thumbnailPath;
   }
 
-  private async generatePortraitThumbnailFromVideoFile(filePath: string): Promise<string> {
-    const thumbnailPath = filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
-    const filters = this.getTotemPortraitVideoFilterChain(0, TOTEM_THUMB_WIDTH, TOTEM_THUMB_HEIGHT);
+  private async generatePreviewThumbnailFromVideoSource(
+    sourcePath: string,
+    rotationDegrees: number
+  ): Promise<string> {
+    const thumbnailPath = sourcePath.replace(/\.[^/.]+$/, '_thumb.jpg');
+    const filters = this.getTotemPreviewVideoFilterChain(rotationDegrees);
     await execFileAsync(
       'ffmpeg',
       [
@@ -1350,7 +1403,7 @@ export class MediaService {
         '-ss',
         '00:00:01',
         '-i',
-        filePath,
+        sourcePath,
         '-vframes',
         '1',
         '-vf',
@@ -1362,6 +1415,19 @@ export class MediaService {
       { timeout: 60_000 }
     );
     return thumbnailPath;
+  }
+
+  /** Thumbnail 9:16 a partir do ficheiro original (antes da entrega 16:9). */
+  private async generatePortraitThumbnailFromVideoFile(filePath: string): Promise<string> {
+    const info = await this.probeVideoStreamInfo(filePath);
+    const rotation = this.resolvePreviewRotationDegrees(info.displayWidth, info.displayHeight, 0);
+    return this.generatePreviewThumbnailFromVideoSource(filePath, rotation);
+  }
+
+  private async generatePortraitThumbnailFromImageFile(filePath: string): Promise<string> {
+    const { displayWidth, displayHeight } = await this.probeImageEffectiveSize(filePath);
+    const rotation = this.resolvePreviewRotationDegrees(displayWidth, displayHeight, 0);
+    return this.generatePreviewThumbnailFromImageSource(filePath, rotation);
   }
 
   private resolveExistingMediaPath(filePath: string): string | null {
@@ -1523,9 +1589,9 @@ export class MediaService {
         );
         const w = meta?.width ?? 0;
         const h = meta?.height ?? 0;
-        if (w === TOTEM_PORTRAIT_WIDTH && h === TOTEM_PORTRAIT_HEIGHT) {
-          result.width = TOTEM_PORTRAIT_WIDTH;
-          result.height = TOTEM_PORTRAIT_HEIGHT;
+        if (w === TOTEM_DELIVERY_WIDTH && h === TOTEM_DELIVERY_HEIGHT) {
+          result.width = TOTEM_DELIVERY_WIDTH;
+          result.height = TOTEM_DELIVERY_HEIGHT;
         } else {
           const effective = await this.probeImageEffectiveSize(filePath);
           result.width = effective.displayWidth || w;
@@ -1541,9 +1607,9 @@ export class MediaService {
       } else if (mimetype.startsWith('video/')) {
         const probed = await this.probeMediaWithFfprobe(filePath, mimetype);
         result.durationSeconds = probed.durationSeconds ?? 0;
-        if (probed.width === TOTEM_PORTRAIT_WIDTH && probed.height === TOTEM_PORTRAIT_HEIGHT) {
-          result.width = TOTEM_PORTRAIT_WIDTH;
-          result.height = TOTEM_PORTRAIT_HEIGHT;
+        if (probed.width === TOTEM_DELIVERY_WIDTH && probed.height === TOTEM_DELIVERY_HEIGHT) {
+          result.width = TOTEM_DELIVERY_WIDTH;
+          result.height = TOTEM_DELIVERY_HEIGHT;
         } else {
           const info = await this.probeVideoStreamInfo(filePath);
           result.width = info.displayWidth || probed.width;

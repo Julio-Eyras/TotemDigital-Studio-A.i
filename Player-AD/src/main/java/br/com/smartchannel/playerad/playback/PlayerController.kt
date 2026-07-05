@@ -1026,8 +1026,8 @@ class PlayerController(
         imageView.visibility = View.GONE
         imageView.setImageDrawable(null)
         playerView.visibility = View.VISIBLE
-        playerView.alpha = 0f
-        pendingVideoOrientationReveal = true
+        playerView.alpha = 1f
+        pendingVideoOrientationReveal = false
         playerView.post { FullscreenViewport.applyToPlayerView(playerView) }
         applyPlaybackVolumePolicy()
 

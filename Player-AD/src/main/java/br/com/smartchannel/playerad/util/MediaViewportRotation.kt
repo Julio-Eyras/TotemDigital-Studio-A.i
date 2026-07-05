@@ -19,7 +19,8 @@ import androidx.media3.ui.PlayerView
  */
 object MediaViewportRotation {
 
-    const val ENABLED = true
+    /** Desactivado: ficheiros vêm do servidor em 16:9 pré-rodados; totem não transforma em runtime. */
+    const val ENABLED = false
 
     fun isPortraitMount(displayRotation: Int): Boolean {
         val normalized = ((displayRotation % 4) + 4) % 4
@@ -60,6 +61,15 @@ object MediaViewportRotation {
         return w to h
     }
 
+    /** Totem em pé (config ou viewport actual). */
+    fun isTargetPortrait(context: Context, displayRotation: Int): Boolean {
+        return isPortraitMount(displayRotation) || isViewportPortrait(context)
+    }
+
+    /**
+     * Roda só mídia **landscape** para caber em totem **portrait**.
+     * Nunca roda conteúdo já em pé (ex.: vídeo de telemóvel normalizado 9:16).
+     */
     fun correctionRotation(
         context: Context,
         displayRotation: Int,
@@ -67,9 +77,8 @@ object MediaViewportRotation {
         mediaHeight: Int,
     ): Float {
         if (mediaWidth <= 0 || mediaHeight <= 0) return 0f
-        val viewportPortrait = isViewportPortrait(context)
-        val mediaPortrait = mediaHeight > mediaWidth
-        if (viewportPortrait == mediaPortrait) return 0f
+        if (mediaHeight > mediaWidth) return 0f
+        if (!isTargetPortrait(context, displayRotation)) return 0f
 
         val normalized = ((displayRotation % 4) + 4) % 4
         return when (normalized) {
@@ -83,16 +92,18 @@ object MediaViewportRotation {
         displayRotation: Int,
         videoSize: VideoSize,
     ): Float {
-        if (videoSize.unappliedRotationDegrees != 0) {
-            val (ew, eh) = effectiveVideoSize(videoSize)
-            val viewportPortrait = isViewportPortrait(context)
-            val effectivePortrait = eh > ew
-            if (viewportPortrait == effectivePortrait) {
-                return 0f
-            }
+        val metaRot = normalizeRotationDegrees(videoSize.unappliedRotationDegrees)
+        if (metaRot != 0) {
+            // TextureView: ExoPlayer não aplica rotate= — só metadados, sem correção extra.
+            return metaRot.toFloat()
         }
         val (ew, eh) = effectiveVideoSize(videoSize)
         return correctionRotation(context, displayRotation, ew, eh)
+    }
+
+    private fun normalizeRotationDegrees(degrees: Int): Int {
+        val n = ((degrees / 90) * 90 % 360 + 360) % 360
+        return if (n in setOf(90, 180, 270)) n else 0
     }
 
     fun rotateBitmap(source: Bitmap, degrees: Float): Bitmap {

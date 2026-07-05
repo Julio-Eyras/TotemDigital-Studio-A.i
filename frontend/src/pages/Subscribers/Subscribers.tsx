@@ -117,7 +117,7 @@ import { isSubscriberContractActiveForCampaign } from './subscriberContractHealt
 import { useAppSelector } from '../../store/hooks';
 import { getForeignTotemIdFromRow, getTotemIdFromRow, getTotemLocalIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
-import { useMediaRotationTransform, mediaPortraitPreviewSx, mediaPortraitPreviewFrameSx, mediaPortraitHoverVideoSx, mediaPreviewDims } from '../../hooks/useMediaRotationTransform';
+import { useMediaRotationTransform, mediaThumbnailPortraitPreviewSx, mediaPortraitPreviewFrameSx, mediaVideoPortraitPreviewSx, mediaPortraitHoverVideoSx } from '../../hooks/useMediaRotationTransform';
 import {
   billingIntervalLabel,
   contractEndDateHelperText,
@@ -3199,14 +3199,14 @@ const Subscribers: React.FC = () => {
                                 key={`${media.media_id}-${mediaThumbVersion}`}
                                 src={previewUrl}
                                 alt={media.name}
-                                sx={mediaPortraitPreviewSx(getRotationDraft(media.media_id), mediaPreviewDims(media))}
+                                sx={mediaThumbnailPortraitPreviewSx(getRotationDraft(media.media_id))}
                                 onError={() => setMediaPreviewFailed(prev => new Set(prev).add(media.media_id))}
                               />
                             ) : !showPlaceholder && previewUrl && media.media_type === 'video' && !isThumbnailUrl ? (
                               <Box
                                 component="video"
                                 src={previewUrl}
-                                sx={mediaPortraitPreviewSx(getRotationDraft(media.media_id), mediaPreviewDims(media))}
+                                sx={mediaVideoPortraitPreviewSx(getRotationDraft(media.media_id))}
                                 muted
                                 onError={() => setMediaPreviewFailed(prev => new Set(prev).add(media.media_id))}
                                 onMouseEnter={(e: any) => e.target.play?.()}
@@ -3229,10 +3229,7 @@ const Subscribers: React.FC = () => {
                                   muted
                                   loop
                                   playsInline
-                                  sx={mediaPortraitHoverVideoSx(
-                                    getRotationDraft(media.media_id),
-                                    mediaPreviewDims(media, true),
-                                  )}
+                                  sx={mediaPortraitHoverVideoSx(getRotationDraft(media.media_id))}
                                 />
                               )}
                             <Box

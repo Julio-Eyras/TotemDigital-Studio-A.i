@@ -80,18 +80,40 @@ export function mediaPortraitPreviewSx(
   };
 }
 
-export function mediaPortraitHoverVideoSx(
-  rotationDegrees: number,
-  dims?: MediaPreviewDimensions,
-) {
+/** Thumbnail 9:16 na UI — já WYSIWYG; não aplicar rotação automática por dimensões da BD. */
+export function mediaThumbnailPortraitPreviewSx(rotationDegrees: number) {
+  const deg = normalizeMediaRotation(rotationDegrees);
   return {
-    ...mediaPortraitPreviewSx(rotationDegrees, {
-      ...dims,
-      assumeLandscapeIfUnknown: dims?.assumeLandscapeIfUnknown ?? true,
-    }),
+    position: 'absolute' as const,
+    inset: 0,
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover' as const,
+    display: 'block',
+    transformOrigin: 'center center',
+    transform: deg !== 0 ? `rotate(${deg}deg)` : undefined,
+  };
+}
+
+/** Vídeo cru na UI: sem rotação automática (ficheiro 16:9 de entrega). */
+export function mediaVideoPortraitPreviewSx(rotationDraft = 0) {
+  const deg = normalizeMediaRotation(rotationDraft);
+  return {
+    position: 'absolute' as const,
+    inset: 0,
+    width: '100%',
+    height: '100%',
+    objectFit: 'contain' as const,
+    display: 'block',
+    transformOrigin: 'center center',
+    transform: deg !== 0 ? `rotate(${deg}deg)` : undefined,
     zIndex: 3,
     pointerEvents: 'none' as const,
   };
+}
+
+export function mediaPortraitHoverVideoSx(rotationDegrees: number) {
+  return mediaVideoPortraitPreviewSx(rotationDegrees);
 }
 
 /** @deprecated use mediaPortraitPreviewSx */
