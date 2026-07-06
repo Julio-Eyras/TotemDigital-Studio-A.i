@@ -374,11 +374,7 @@ export class MediaService {
         const thumbnailUrl = item.id ? `/api/media/${item.id}/thumbnail` : (item.thumbnailUrl || item.thumbnailurl || (filePath ? generateThumbnailUrl(filePath, item.mediaType || 'image') : ''));
         
         const previewUrl = this.normalizePreviewUrl(item.previewUrl || item.previewurl, thumbnailUrl);
-        const deliveryPreview = this.enrichDeliveryPreviewFields(
-          processedTags,
-          item.width || null,
-          item.height || null
-        );
+        const deliveryPreview = this.enrichDeliveryPreviewFields(processedTags);
 
         return {
           id: item.id,
@@ -539,11 +535,7 @@ export class MediaService {
       const downloadUrl = media.id ? `/api/media/${media.id}/download` : (filePath ? normalizeDownloadUrl(filePath) : '');
       const thumbnailUrl = media.id ? `/api/media/${media.id}/thumbnail` : (media.thumbnailUrl || media.thumbnailurl || (filePath ? generateThumbnailUrl(filePath, media.mediaType || 'image') : ''));
       const previewUrl = this.normalizePreviewUrl(media.previewUrl || media.previewurl, thumbnailUrl);
-      const deliveryPreview = this.enrichDeliveryPreviewFields(
-        processedTags,
-        media.width || null,
-        media.height || null
-      );
+      const deliveryPreview = this.enrichDeliveryPreviewFields(processedTags);
 
       return {
         id: media.id,
@@ -1178,9 +1170,7 @@ export class MediaService {
   }
 
   private enrichDeliveryPreviewFields(
-    tags: string[] | null | undefined,
-    width?: number | null,
-    height?: number | null
+    tags: string[] | null | undefined
   ): { deliveryRotation: number | null; deliveryPreviewRotation: number | null } {
     const delivery = this.parseDeliveryRotationFromTags(tags);
     if (delivery == null) {
