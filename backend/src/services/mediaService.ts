@@ -960,7 +960,7 @@ export class MediaService {
     await this.db.executeRaw(
       `
       UPDATE medias
-      SET size_bytes = $1,
+      SET file_size_bytes = $1,
           mime_type = $2,
           updated_at = CURRENT_TIMESTAMP
       WHERE media_id = $3
