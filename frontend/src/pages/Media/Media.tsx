@@ -50,6 +50,7 @@ import { mediaApi, MediaItem, CreateMediaRequest, clientApi, Client, subscriberA
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 import MediaDeleteConflictDialog from '../../components/MediaDeleteConflictDialog/MediaDeleteConflictDialog';
 import MediaTransformActions from '../../components/Media/MediaTransformActions';
+import { MediaViewDialog } from '../../components/Media/MediaViewDialog';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { useMediaRotationTransform, mediaThumbnailPortraitPreviewSx, mediaPortraitPreviewFrameSx, mediaPortraitHoverVideoSx } from '../../hooks/useMediaRotationTransform';
@@ -67,6 +68,7 @@ const Media: React.FC = () => {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [mediaViewTarget, setMediaViewTarget] = useState<MediaItem | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [mediaTypeFilter, setMediaTypeFilter] = useState('all');
   const [subscriberFilter, setSubscriberFilter] = useState<number | 'all'>('all');
@@ -932,7 +934,7 @@ const Media: React.FC = () => {
                       );
                     })()}
                     <Tooltip title="Visualizar">
-                      <IconButton size="small">
+                      <IconButton size="small" onClick={() => setMediaViewTarget(media)}>
                         <Visibility />
                       </IconButton>
                     </Tooltip>
@@ -1066,6 +1068,12 @@ const Media: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      <MediaViewDialog
+        open={!!mediaViewTarget}
+        media={mediaViewTarget}
+        thumbnailSrc={mediaViewTarget ? getPreviewSrc(mediaViewTarget) : undefined}
+        onClose={() => setMediaViewTarget(null)}
+      />
       <MediaDeleteConflictDialog
         open={mediaDeleteConflictOpen}
         conflict={mediaDeleteConflict}

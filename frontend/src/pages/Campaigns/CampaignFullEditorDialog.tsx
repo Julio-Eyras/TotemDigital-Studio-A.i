@@ -56,6 +56,7 @@ import { isStudioMode } from '../../config/studioMode';
 import {DISABLE_DIRECT_CAMPAIGN_TOTEM} from '../../config/featureFlags';
 import { DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT_PT } from '../../constants/campaignUiMessages';
 import { SortableList } from '../../components/SortableList/SortableList';
+import { useMediaThumbnailUrls } from '../../hooks/useMediaThumbnailUrls';
 import {
   campaignTotemOptionLabel,
   compareByDisplayName,
@@ -130,6 +131,7 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
 
   const [playlists, setPlaylists] = useState<PlaylistItem[]>([]);
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+  const { getThumbnailSrc: getCampaignMediaThumb } = useMediaThumbnailUrls(mediaItems);
   const [publishers, setPublishers] = useState<Publisher[]>([]);
   const [accessiblePublishers, setAccessiblePublishers] = useState<AccessiblePublisher[]>([]);
 
@@ -1342,11 +1344,20 @@ const CampaignFullEditorDialog: React.FC<CampaignFullEditorDialogProps> = ({
                     <SortableList
                       items={orderedMediaIds.map((id) => {
                         const media = mediaItems.find((m) => m.media_id === id);
+                        const w = Number(media?.width ?? 0);
+                        const h = Number(media?.height ?? 0);
                         return {
                           id,
                           label: media?.name || `Mídia ${id}`,
+                          thumbnailSrc: media ? getCampaignMediaThumb(media) : undefined,
                           secondary: media
-                            ? `${media.fileName || ''} (${media.media_type || (media as any).mediaType || 'N/A'})`
+                            ? [
+                                media.fileName,
+                                media.media_type || (media as any).mediaType,
+                                w > 0 && h > 0 ? `${w}×${h}` : null,
+                              ]
+                                .filter(Boolean)
+                                .join(' · ')
                             : undefined,
                         };
                       })}

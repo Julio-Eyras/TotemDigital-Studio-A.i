@@ -108,6 +108,8 @@ import {
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 import MediaDeleteConflictDialog from '../../components/MediaDeleteConflictDialog/MediaDeleteConflictDialog';
 import MediaTransformActions from '../../components/Media/MediaTransformActions';
+import { MediaViewDialog } from '../../components/Media/MediaViewDialog';
+import { MediaEditDialog } from '../../components/Media/MediaEditDialog';
 import { SortableList } from '../../components/SortableList/SortableList';
 import { SubscriberCard, SubscriberDetails, SubscriberForm } from './components';
 import { PageHeader } from '../../components/DataDisplay';
@@ -117,7 +119,8 @@ import { isSubscriberContractActiveForCampaign } from './subscriberContractHealt
 import { useAppSelector } from '../../store/hooks';
 import { getForeignTotemIdFromRow, getTotemIdFromRow, getTotemLocalIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
-import { useMediaRotationTransform, mediaThumbnailPortraitPreviewSx, mediaTotemUiPreviewSx, mediaPortraitPreviewFrameSx, mediaTotemHoverVideoSx } from '../../hooks/useMediaRotationTransform';
+import { useMediaRotationTransform, mediaThumbnailPortraitPreviewSx, mediaPortraitPreviewFrameSx, mediaTotemHoverVideoSx } from '../../hooks/useMediaRotationTransform';
+import { useMediaThumbnailUrls } from '../../hooks/useMediaThumbnailUrls';
 import {
   billingIntervalLabel,
   contractEndDateHelperText,
@@ -336,13 +339,15 @@ const Subscribers: React.FC = () => {
   const [mediaPreviewFailed, setMediaPreviewFailed] = useState<Set<number>>(new Set());
   const [editPlaylists, setEditPlaylists] = useState<PlaylistItem[]>([]);
   const [editCampaigns, setEditCampaigns] = useState<Campaign[]>([]);
-  const [editingEditMediaIndex, setEditingEditMediaIndex] = useState<number | null>(null);
+  const [mediaViewTarget, setMediaViewTarget] = useState<MediaItem | null>(null);
+  const [mediaEditTarget, setMediaEditTarget] = useState<MediaItem | null>(null);
+  const { getThumbnailSrc, thumbVersion: subscriberMediaThumbVersion, bumpThumbVersion } =
+    useMediaThumbnailUrls(editMedias);
   const [processingMediaFitId, setProcessingMediaFitId] = useState<number | null>(null);
   const [mediaDeleteConflict, setMediaDeleteConflict] = useState<MediaInUseConflictPayload | null>(null);
   const [mediaDeleteConflictOpen, setMediaDeleteConflictOpen] = useState(false);
   const [mediaDeleteLoading, setMediaDeleteLoading] = useState(false);
   const [pendingMediaDeleteIndex, setPendingMediaDeleteIndex] = useState<number | null>(null);
-  const [mediaThumbVersion, setMediaThumbVersion] = useState(0);
   const HOVER_PREVIEW_MAX_BYTES = 30 * 1024 * 1024;
   const videoHoverBlobUrlsRef = useRef<Map<number, string>>(new Map());
   const hoverGenRef = useRef(0);
@@ -781,7 +786,7 @@ const Subscribers: React.FC = () => {
     handleConfirmRotation,
     processingRotationId,
   } = useMediaRotationTransform(async () => {
-    setMediaThumbVersion((v) => v + 1);
+    bumpThumbVersion();
     if (selectedSubscriber) {
       await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
     }
@@ -1296,7 +1301,7 @@ const Subscribers: React.FC = () => {
 
   const handleUploadMediaSuccess = async () => {
     setMediaPreviewFailed(new Set());
-    setMediaThumbVersion((v) => v + 1);
+    bumpThumbVersion();
     if (selectedSubscriber) {
       await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
     }
@@ -1355,27 +1360,26 @@ const Subscribers: React.FC = () => {
   }, []);
 
   const handleEditMedia = async () => {
-    if (!selectedSubscriber || editingEditMediaIndex === null) return;
-    
+    if (!selectedSubscriber || !mediaEditTarget) return;
+
     try {
-      const media = editMedias[editingEditMediaIndex];
-      await mediaApi.update(media.media_id, editMediaForm);
+      await mediaApi.update(mediaEditTarget.media_id, editMediaForm);
       await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
-      setEditingEditMediaIndex(null);
+      setMediaEditTarget(null);
       setEditMediaForm({ name: '', description: '', tags: [] });
+      bumpThumbVersion();
     } catch (error: any) {
       setError(pickApiErrorMessage(error, 'Erro ao atualizar mídia'));
     }
   };
 
-  const handleStartEditMedia = (index: number) => {
-    const media = editMedias[index];
+  const handleStartEditMedia = (media: MediaItem) => {
+    setMediaEditTarget(media);
     setEditMediaForm({
       name: media.name || '',
       description: media.description || '',
       tags: media.tags || [],
     });
-    setEditingEditMediaIndex(index);
   };
 
   const handleDeleteMedia = async (index: number) => {
@@ -1458,7 +1462,7 @@ const Subscribers: React.FC = () => {
         next.delete(mediaId);
         return next;
       });
-      setMediaThumbVersion((v) => v + 1);
+      bumpThumbVersion();
       await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);
     } catch (error: any) {
       setError(pickApiErrorMessage(error, 'Erro ao adequar mídia para 9:16'));
@@ -2043,7 +2047,8 @@ const Subscribers: React.FC = () => {
       setEditMedias([]);
       setEditPlaylists([]);
       setEditCampaigns([]);
-      setEditingEditMediaIndex(null);
+      setMediaEditTarget(null);
+      setMediaViewTarget(null);
       setEditingEditPlaylistIndex(null);
       setActiveContracts([]);
       setSelectedSubscriber(null);
@@ -2796,7 +2801,8 @@ const Subscribers: React.FC = () => {
           setEditMedias([]);
           setEditPlaylists([]);
           setEditCampaigns([]);
-          setEditingEditMediaIndex(null);
+          setMediaEditTarget(null);
+          setMediaViewTarget(null);
           setEditingEditPlaylistIndex(null);
           setEditSelectedContractId(null);
         }} 
@@ -3104,77 +3110,17 @@ const Subscribers: React.FC = () => {
                 </Button>
               </Box>
 
-              {editingEditMediaIndex !== null && (
-                <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1, bgcolor: alpha(theme.palette.primary.main, 0.05) }}>
-                  <Typography variant="subtitle2" sx={{ mb: 2 }}>Editar Mídia</Typography>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12}>
-                      <TextField
-                        fullWidth
-                        label="Nome *"
-                        value={editMediaForm.name}
-                        onChange={(e) => setEditMediaForm({ ...editMediaForm, name: e.target.value })}
-                        size="small"
-                        required
-                      />
-                    </Grid>
-                    <Grid item xs={12}>
-                      <TextField
-                        fullWidth
-                        label="Descrição"
-                        value={editMediaForm.description || ''}
-                        onChange={(e) => setEditMediaForm({ ...editMediaForm, description: e.target.value })}
-                        size="small"
-                        multiline
-                        rows={2}
-                      />
-                    </Grid>
-                    <Grid item xs={12}>
-                      <TextField
-                        fullWidth
-                        label="Tags (separadas por vírgula)"
-                        value={Array.isArray(editMediaForm.tags) ? editMediaForm.tags.join(', ') : ''}
-                        onChange={(e) => setEditMediaForm({ 
-                          ...editMediaForm, 
-                          tags: e.target.value.split(',').map(t => t.trim()).filter(Boolean) 
-                        })}
-                        size="small"
-                        helperText="Ex: promoção, verão, 2024"
-                      />
-                    </Grid>
-                    <Grid item xs={12}>
-                      <Button variant="contained" onClick={handleEditMedia} sx={{ mr: 1 }}>
-                        Salvar
-                      </Button>
-                      <Button variant="outlined" onClick={() => {
-                        setEditingEditMediaIndex(null);
-                        setEditMediaForm({ name: '', description: '', tags: [] });
-                      }}>
-                        Cancelar
-                      </Button>
-                    </Grid>
-                  </Grid>
-                </Box>
-              )}
-
               {editMedias.length > 0 ? (
                 <Grid container spacing={3}>
                   {editMedias.map((media, index) => {
-                    const apiThumbnail = media.media_id
-                      ? `${process.env.REACT_APP_API_URL || '/api'}/media/${media.media_id}/thumbnail?v=${mediaThumbVersion}`
-                      : null;
-                    let previewUrl: string | null = apiThumbnail || media.thumbnailUrl || media.previewUrl || media.file_path || null;
-                    if (previewUrl && previewUrl.startsWith('/opt/smart-signage/public/assets/')) {
-                      previewUrl = previewUrl.replace('/opt/smart-signage/public/assets/', '/assets/');
-                    }
-                    if (previewUrl && (previewUrl.startsWith('/assets/uploads/') || previewUrl.includes('assets/uploads/'))) {
-                      previewUrl = apiThumbnail;
-                    }
-                    const showPlaceholder = mediaPreviewFailed.has(media.media_id) || !previewUrl;
-                    const isThumbnailUrl = previewUrl?.includes('/thumbnail');
+                    const thumbnailSrc = getThumbnailSrc(media);
+                    const showPlaceholder = mediaPreviewFailed.has(media.media_id) || !thumbnailSrc;
                     const isTransformable = /^(image|video)$/i.test(String(media.media_type || ''));
                     const processingFit = processingMediaFitId === media.media_id;
                     const processingRotation = processingRotationId === media.media_id;
+                    const w = Number(media.width ?? 0);
+                    const h = Number(media.height ?? 0);
+                    const sizeBytes = Number((media as any).size_bytes ?? (media as any).fileSizeBytes ?? 0);
 
                     return (
                       <Grid item xs={12} sm={6} md={4} lg={3} key={media.media_id}>
@@ -3193,11 +3139,11 @@ const Subscribers: React.FC = () => {
                             onMouseEnter={() => handleMediaPreviewMouseEnter(media)}
                             onMouseLeave={handleMediaPreviewMouseLeave}
                           >
-                            {!showPlaceholder && previewUrl && (media.media_type === 'image' || isThumbnailUrl) ? (
+                            {!showPlaceholder && thumbnailSrc ? (
                               <Box
                                 component="img"
-                                key={`${media.media_id}-${mediaThumbVersion}`}
-                                src={previewUrl}
+                                key={`${media.media_id}-${subscriberMediaThumbVersion}`}
+                                src={thumbnailSrc}
                                 alt={media.name}
                                 sx={{
                                   ...mediaThumbnailPortraitPreviewSx(getRotationDraft(media.media_id)),
@@ -3205,12 +3151,6 @@ const Subscribers: React.FC = () => {
                                     videoHover.id === media.media_id && videoHover.url ? 0 : 1,
                                 }}
                                 onError={() => setMediaPreviewFailed(prev => new Set(prev).add(media.media_id))}
-                              />
-                            ) : !showPlaceholder && previewUrl && media.media_type === 'video' && !isThumbnailUrl ? (
-                              <Box
-                                component="video"
-                                src={previewUrl}
-                                sx={mediaTotemUiPreviewSx(getRotationDraft(media.media_id), media)}
                               />
                             ) : (
                               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
@@ -3238,31 +3178,18 @@ const Subscribers: React.FC = () => {
                                 inset: 0,
                                 pointerEvents: 'none',
                                 background: !showPlaceholder
-                                  ? 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.5) 100%)'
+                                  ? 'linear-gradient(to bottom, rgba(0,0,0,0.35) 0%, transparent 32%, transparent 68%, rgba(0,0,0,0.55) 100%)'
                                   : 'transparent',
                                 zIndex: 2,
                               }}
                             >
-                              <Avatar
-                                sx={{
-                                  position: 'absolute',
-                                  top: 16,
-                                  left: 16,
-                                  bgcolor: alpha(getMediaTypeColor(media.media_type), 0.85),
-                                  color: 'white',
-                                  width: 32,
-                                  height: 32,
-                                }}
-                              >
-                                {getMediaIcon(media.media_type)}
-                              </Avatar>
                               <Chip
                                 label={media.media_type?.toUpperCase() || 'MÍDIA'}
                                 size="small"
                                 sx={{
                                   position: 'absolute',
-                                  top: 16,
-                                  right: 16,
+                                  top: 12,
+                                  right: 12,
                                   bgcolor: alpha(getMediaTypeColor(media.media_type), 0.9),
                                   color: 'white',
                                   fontWeight: 'bold',
@@ -3271,82 +3198,35 @@ const Subscribers: React.FC = () => {
                               <Box
                                 sx={{
                                   position: 'absolute',
-                                  bottom: 16,
-                                  left: 16,
-                                  right: 16,
+                                  bottom: 12,
+                                  left: 12,
+                                  right: 12,
                                   display: 'flex',
                                   justifyContent: 'space-between',
                                   alignItems: 'center',
                                 }}
                               >
-                                <Typography
-                                  variant="caption"
-                                  sx={{
-                                    color: 'white',
-                                    textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
-                                    fontWeight: 'bold',
-                                  }}
-                                >
-                                  {formatFileSize(media.size_bytes ?? (media as any).fileSizeBytes)}
+                                <Typography variant="caption" sx={{ color: 'white', fontWeight: 'bold', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
+                                  {formatFileSize(sizeBytes)}
                                 </Typography>
-                                {media.duration_seconds && (
-                                  <Typography
-                                    variant="caption"
-                                    sx={{
-                                      color: 'white',
-                                      textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
-                                      fontWeight: 'bold',
-                                    }}
-                                  >
+                                {media.duration_seconds ? (
+                                  <Typography variant="caption" sx={{ color: 'white', fontWeight: 'bold', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }}>
                                     {formatDuration(media.duration_seconds)}
                                   </Typography>
-                                )}
+                                ) : null}
                               </Box>
                             </Box>
                           </Box>
-                          <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                            <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }} noWrap>
+                          <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', py: 1.5 }}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.5 }} noWrap title={media.name}>
                               {media.name}
                             </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                              {[w > 0 && h > 0 ? `${w}×${h}` : null, media.status || 'draft'].filter(Boolean).join(' · ')}
+                            </Typography>
                             {media.description && (
-                              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }} noWrap>
+                              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }} noWrap title={media.description}>
                                 {media.description}
-                              </Typography>
-                            )}
-                            <Box sx={{ mb: 1 }}>
-                              <Chip
-                                label={`Anunciante: ${selectedSubscriber.name}`}
-                                size="small"
-                                color="primary"
-                                variant="outlined"
-                                sx={{ fontSize: '0.7rem' }}
-                              />
-                            </Box>
-                            <Box sx={{ mb: 1, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                              <Chip
-                                label={media.status || 'draft'}
-                                size="small"
-                                color={
-                                  media.status === 'approved' ? 'success' :
-                                  media.status === 'rejected' ? 'error' :
-                                  media.status === 'pending_approval' ? 'warning' :
-                                  'default'
-                                }
-                                variant="outlined"
-                              />
-                              {media.approvalStatus && (
-                                <Chip
-                                  label={`Aprovação: ${media.approvalStatus}`}
-                                  size="small"
-                                  color={media.approvalStatus === 'approved' ? 'success' : 'default'}
-                                  variant="outlined"
-                                />
-                              )}
-                            </Box>
-                            {media.approvedByName && (
-                              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mb: 1 }}>
-                                Aprovado por: {media.approvedByName}
-                                {media.approvedAt && ` em ${new Date(media.approvedAt).toLocaleDateString('pt-BR')}`}
                               </Typography>
                             )}
                             {Array.isArray(media.tags) &&
@@ -3354,13 +3234,10 @@ const Subscribers: React.FC = () => {
                               <Box sx={{ mb: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                 {media.tags
                                   .filter((t) => !String(t).startsWith('_delivery_rotation:'))
-                                  .slice(0, 3)
+                                  .slice(0, 2)
                                   .map((tag, idx) => (
                                   <Chip key={idx} label={tag} size="small" sx={{ fontSize: '0.65rem', height: 20 }} />
                                 ))}
-                                {media.tags.filter((t) => !String(t).startsWith('_delivery_rotation:')).length > 3 && (
-                                  <Chip label={`+${media.tags.filter((t) => !String(t).startsWith('_delivery_rotation:')).length - 3}`} size="small" sx={{ fontSize: '0.65rem', height: 20 }} />
-                                )}
                               </Box>
                             )}
                             <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -3378,12 +3255,12 @@ const Subscribers: React.FC = () => {
                                   onFitPortrait={() => handleFitMediaToPortrait(media)}
                                 />
                                 <Tooltip title="Visualizar">
-                                  <IconButton size="small" color="primary">
+                                  <IconButton size="small" color="primary" onClick={() => setMediaViewTarget(media)}>
                                     <Visibility />
                                   </IconButton>
                                 </Tooltip>
                                 <Tooltip title="Editar">
-                                  <IconButton size="small" color="primary" onClick={() => handleStartEditMedia(index)}>
+                                  <IconButton size="small" color="primary" onClick={() => handleStartEditMedia(media)}>
                                     <Edit />
                                   </IconButton>
                                 </Tooltip>
@@ -4020,7 +3897,8 @@ const Subscribers: React.FC = () => {
             setEditMedias([]);
             setEditPlaylists([]);
             setEditCampaigns([]);
-            setEditingEditMediaIndex(null);
+            setMediaEditTarget(null);
+            setMediaViewTarget(null);
             setEditingEditPlaylistIndex(null);
             setEditMediaForm({ name: '', description: '', tags: [] });
             setEditPlaylistForm({ name: '', description: '', isActive: true });
@@ -4030,6 +3908,37 @@ const Subscribers: React.FC = () => {
         </DialogActions>
       </Dialog>
 
+      <MediaViewDialog
+        open={!!mediaViewTarget}
+        media={mediaViewTarget}
+        thumbnailSrc={mediaViewTarget ? getThumbnailSrc(mediaViewTarget) : undefined}
+        onClose={() => setMediaViewTarget(null)}
+      />
+      <MediaEditDialog
+        open={!!mediaEditTarget}
+        form={
+          mediaEditTarget
+            ? {
+                name: editMediaForm.name || '',
+                description: editMediaForm.description || '',
+                tags: Array.isArray(editMediaForm.tags) ? editMediaForm.tags : [],
+              }
+            : null
+        }
+        subscriberName={selectedSubscriber?.name}
+        onChange={(form) =>
+          setEditMediaForm({
+            name: form.name,
+            description: form.description,
+            tags: form.tags,
+          })
+        }
+        onClose={() => {
+          setMediaEditTarget(null);
+          setEditMediaForm({ name: '', description: '', tags: [] });
+        }}
+        onSave={handleEditMedia}
+      />
 
       {/* Details Dialog */}
       <SubscriberDetails

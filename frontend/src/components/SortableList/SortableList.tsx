@@ -31,10 +31,11 @@ interface SortableItemProps {
   id: string | number;
   label: string;
   secondary?: string;
+  thumbnailSrc?: string;
   onDelete?: (id: string | number) => void;
 }
 
-function SortableItem({ id, label, secondary, onDelete }: SortableItemProps) {
+function SortableItem({ id, label, secondary, thumbnailSrc, onDelete }: SortableItemProps) {
   const {
     attributes,
     listeners,
@@ -70,7 +71,7 @@ function SortableItem({ id, label, secondary, onDelete }: SortableItemProps) {
         )
       }
     >
-      <ListItemButton>
+      <ListItemButton sx={{ alignItems: 'center', py: 1 }}>
         <IconButton
           {...attributes}
           {...listeners}
@@ -79,6 +80,26 @@ function SortableItem({ id, label, secondary, onDelete }: SortableItemProps) {
         >
           <DragIndicator />
         </IconButton>
+        {thumbnailSrc ? (
+          <Box
+            sx={{
+              width: 44,
+              aspectRatio: '9 / 16',
+              borderRadius: 1,
+              overflow: 'hidden',
+              bgcolor: '#000',
+              flexShrink: 0,
+              mr: 1.5,
+            }}
+          >
+            <Box
+              component="img"
+              src={thumbnailSrc}
+              alt=""
+              sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+          </Box>
+        ) : null}
         <ListItemText primary={label} secondary={secondary} />
       </ListItemButton>
     </ListItem>
@@ -86,7 +107,7 @@ function SortableItem({ id, label, secondary, onDelete }: SortableItemProps) {
 }
 
 interface SortableListProps {
-  items: Array<{ id: string | number; label: string; secondary?: string }>;
+  items: Array<{ id: string | number; label: string; secondary?: string; thumbnailSrc?: string }>;
   onReorder: (newOrder: Array<string | number>) => void;
   onDelete?: (id: string | number) => void;
   emptyMessage?: string;
@@ -146,6 +167,7 @@ export function SortableList({
               id={item.id}
               label={item.label}
               secondary={item.secondary}
+              thumbnailSrc={item.thumbnailSrc}
               onDelete={onDelete}
             />
           ))}
