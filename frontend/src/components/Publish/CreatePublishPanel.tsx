@@ -63,6 +63,8 @@ export interface CreatePublishPanelProps {
   autoPublishReady?: boolean;
   autoPublishContext?: AutoPublishContext | null;
   onAutoPublished?: (payload: { mediaId: number; message: string }) => void;
+  /** Mídia HTML publish-board a substituir ao re-gerar (fluxo de edição). */
+  replaceMediaId?: number;
 }
 
 export const CreatePublishPanel: React.FC<CreatePublishPanelProps> = ({
@@ -77,6 +79,7 @@ export const CreatePublishPanel: React.FC<CreatePublishPanelProps> = ({
   autoPublishReady = false,
   autoPublishContext = null,
   onAutoPublished,
+  replaceMediaId,
 }) => {
   const [layout, setLayout] = useState<PublishBoardLayoutDto | null>(null);
   const [menuProducts, setMenuProducts] = useState<MenuProductDto[]>([]);
@@ -226,12 +229,16 @@ export const CreatePublishPanel: React.FC<CreatePublishPanelProps> = ({
       setRendering(true);
       setError(null);
       await publishBoardApi.saveLayout(subscriberId, preset, layoutPayload);
-      const res = await publishBoardApi.renderHtml(subscriberId, preset);
+      const res = await publishBoardApi.renderHtml(subscriberId, preset, replaceMediaId);
       const mediaId = res.data?.mediaId;
       if (!mediaId) throw new Error('Mídia não retornada');
       onMediaGenerated(mediaId);
       if (onTitleSuggestion && layout.boardTitle) onTitleSuggestion(layout.boardTitle);
-      setSuccess('Animação HTML gerada e selecionada para publicação.');
+      setSuccess(
+        res.data?.replaced
+          ? 'Animação HTML atualizada na mídia existente.'
+          : 'Animação HTML gerada e selecionada para publicação.'
+      );
     } catch (e) {
       setError(pickApiErrorMessage(e, 'Erro ao gerar animação HTML.'));
     } finally {
@@ -268,6 +275,7 @@ export const CreatePublishPanel: React.FC<CreatePublishPanelProps> = ({
         segmentLabel: segmentConfig.shortLabel,
         visualLanguage: segmentConfig.visualLanguage,
         ...layoutPayload,
+        replaceMediaId: replaceMediaId && replaceMediaId > 0 ? replaceMediaId : undefined,
       });
       const mediaId = res.data?.mediaId;
       if (!mediaId) throw new Error('Mídia não retornada pelo servidor');
@@ -406,7 +414,7 @@ export const CreatePublishPanel: React.FC<CreatePublishPanelProps> = ({
               borderColor: 'divider',
               bgcolor: '#000',
               aspectRatio: layout.preferredOrientation === 'portrait' ? '9/16' : '16/9',
-              maxHeight: 520,
+              maxHeight: 360,
             }}
           >
             {previewLoading && (

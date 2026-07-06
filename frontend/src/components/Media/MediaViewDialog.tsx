@@ -10,13 +10,18 @@ import {
   Button,
   Typography,
 } from '@mui/material';
-import { mediaApi } from '../../services/api';
+import { mediaApi, publishBoardApi } from '../../services/api';
 import {
   mediaPortraitPreviewFrameSx,
   mediaThumbnailPortraitPreviewSx,
   mediaTotemHoverVideoSx,
 } from '../../hooks/useMediaRotationTransform';
 import type { MediaItem } from '../../services/api';
+import {
+  isPublishBoardHtmlMedia,
+  parsePublishBoardPresetFromTags,
+} from '../../utils/publishBoardMedia';
+import { findPublishPreset } from '../../config/publishTemplates';
 
 function formatFileSize(bytes?: number | null): string {
   if (!bytes || bytes <= 0) return '—';
@@ -41,11 +46,13 @@ export interface MediaViewDialogProps {
 
 export function MediaViewDialog({ open, media, thumbnailSrc, onClose }: MediaViewDialogProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [htmlSrcDoc, setHtmlSrcDoc] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!open || !media?.media_id) {
       setPreviewUrl(null);
+      setHtmlSrcDoc(null);
       return;
     }
 
@@ -55,20 +62,62 @@ export function MediaViewDialog({ open, media, thumbnailSrc, onClose }: MediaVie
     const load = async () => {
       setLoading(true);
       try {
-        const isVideo = /^video$/i.test(String(media.media_type || ''));
-        if (isVideo) {
+        const mediaType = String(media.media_type || '').toLowerCase();
+        const isVideo = mediaType === 'video';
+        const isHtml = mediaType === 'html' || isPublishBoardHtmlMedia(media);
+
+        if (isHtml) {
+          const sid = Number(media.subscriberId || (media as { subscriber_id?: number }).subscriber_id || 0);
+          const boardPreset = parsePublishBoardPresetFromTags(media.tags);
+          if (sid > 0 && boardPreset) {
+            try {
+              const layoutRes = await publishBoardApi.getLayout(sid, boardPreset);
+              const preview = await publishBoardApi.previewHtml(sid, boardPreset, layoutRes.data);
+              if (!cancelled) {
+                setHtmlSrcDoc(preview.data?.html || '');
+                setPreviewUrl(null);
+              }
+            } catch {
+              const blob = await mediaApi.getFileBlob(media.media_id);
+              const text = await blob.text();
+              if (!cancelled) {
+                setHtmlSrcDoc(text);
+                setPreviewUrl(null);
+              }
+            }
+          } else {
+            const blob = await mediaApi.getFileBlob(media.media_id);
+            const text = await blob.text();
+            if (!cancelled) {
+              setHtmlSrcDoc(text);
+              setPreviewUrl(null);
+            }
+          }
+        } else if (isVideo) {
           const blob = await mediaApi.getFileBlob(media.media_id);
           objectUrl = URL.createObjectURL(blob);
-          if (!cancelled) setPreviewUrl(objectUrl);
+          if (!cancelled) {
+            setPreviewUrl(objectUrl);
+            setHtmlSrcDoc(null);
+          }
         } else if (thumbnailSrc) {
-          if (!cancelled) setPreviewUrl(thumbnailSrc);
+          if (!cancelled) {
+            setPreviewUrl(thumbnailSrc);
+            setHtmlSrcDoc(null);
+          }
         } else {
           const blob = await mediaApi.getThumbnailBlob(media.media_id);
           objectUrl = URL.createObjectURL(blob);
-          if (!cancelled) setPreviewUrl(objectUrl);
+          if (!cancelled) {
+            setPreviewUrl(objectUrl);
+            setHtmlSrcDoc(null);
+          }
         }
       } catch {
-        if (!cancelled) setPreviewUrl(thumbnailSrc || null);
+        if (!cancelled) {
+          setPreviewUrl(thumbnailSrc || null);
+          setHtmlSrcDoc(null);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -86,8 +135,9 @@ export function MediaViewDialog({ open, media, thumbnailSrc, onClose }: MediaVie
         }
       }
       setPreviewUrl(null);
+      setHtmlSrcDoc(null);
     };
-  }, [open, media?.media_id, media?.media_type, thumbnailSrc]);
+  }, [open, media?.media_id, media?.media_type, media?.tags, thumbnailSrc]);
 
   if (!media) return null;
 
@@ -95,17 +145,37 @@ export function MediaViewDialog({ open, media, thumbnailSrc, onClose }: MediaVie
   const h = Number(media.height ?? 0);
   const sizeBytes = Number((media as any).size_bytes ?? (media as any).fileSizeBytes ?? 0);
   const isVideo = /^video$/i.test(String(media.media_type || ''));
+  const isHtml = /^html$/i.test(String(media.media_type || '')) || isPublishBoardHtmlMedia(media);
+  const boardPreset = parsePublishBoardPresetFromTags(media.tags);
+  const boardLabel = boardPreset ? findPublishPreset(boardPreset).label : null;
+
+  const metaParts = [
+    (media.media_type || 'mídia').toUpperCase(),
+    boardLabel,
+    w > 0 && h > 0 ? `${w}×${h}` : null,
+    formatFileSize(sizeBytes),
+    media.duration_seconds ? formatDuration(media.duration_seconds) : null,
+  ].filter(Boolean);
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>{media.name || 'Visualizar mídia'}</DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-          <Box sx={{ ...mediaPortraitPreviewFrameSx(), width: 'min(100%, 220px)' }}>
+          <Box sx={{ ...mediaPortraitPreviewFrameSx(true), width: 'min(100%, 180px)' }}>
             {loading && (
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                 <CircularProgress size={32} />
               </Box>
+            )}
+            {!loading && htmlSrcDoc && (
+              <Box
+                component="iframe"
+                title="preview-html"
+                srcDoc={htmlSrcDoc}
+                sandbox="allow-scripts"
+                sx={{ width: '100%', height: '100%', border: 0, bgcolor: '#000' }}
+              />
             )}
             {!loading && previewUrl && isVideo && (
               <Box
@@ -119,7 +189,7 @@ export function MediaViewDialog({ open, media, thumbnailSrc, onClose }: MediaVie
                 sx={mediaTotemHoverVideoSx(0, media)}
               />
             )}
-            {!loading && previewUrl && !isVideo && (
+            {!loading && previewUrl && !isVideo && !htmlSrcDoc && (
               <Box
                 component="img"
                 src={previewUrl}
@@ -130,15 +200,9 @@ export function MediaViewDialog({ open, media, thumbnailSrc, onClose }: MediaVie
           </Box>
         </Box>
 
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 1.5 }}>
-          <Chip size="small" label={(media.media_type || 'mídia').toUpperCase()} />
-          {media.status && <Chip size="small" variant="outlined" label={media.status} />}
-          {w > 0 && h > 0 && <Chip size="small" variant="outlined" label={`${w}×${h}`} />}
-          <Chip size="small" variant="outlined" label={formatFileSize(sizeBytes)} />
-          {media.duration_seconds ? (
-            <Chip size="small" variant="outlined" label={formatDuration(media.duration_seconds)} />
-          ) : null}
-        </Box>
+        <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+          {metaParts.join(' · ')}
+        </Typography>
 
         {media.description && (
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
@@ -150,6 +214,9 @@ export function MediaViewDialog({ open, media, thumbnailSrc, onClose }: MediaVie
             Aprovado por {media.approvedByName}
             {media.approvedAt && ` em ${new Date(media.approvedAt).toLocaleDateString('pt-BR')}`}
           </Typography>
+        )}
+        {isHtml && (
+          <Chip size="small" label="Animação HTML ao vivo" sx={{ mt: 1 }} color="primary" variant="outlined" />
         )}
       </DialogContent>
       <DialogActions>

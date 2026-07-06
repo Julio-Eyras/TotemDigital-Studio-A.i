@@ -267,10 +267,12 @@ export function mediaPreviewRotationSx(degrees: number) {
 }
 
 /** Moldura 9:16 — mesma lógica do totem (cover + rotação landscape). */
-export function mediaPortraitPreviewFrameSx() {
+export function mediaPortraitPreviewFrameSx(compact = false) {
   return {
     position: 'relative' as const,
-    width: '100%',
+    width: compact ? '100%' : '100%',
+    maxWidth: compact ? 160 : undefined,
+    mx: compact ? 'auto' : undefined,
     aspectRatio: '9 / 16',
     bgcolor: '#000',
     overflow: 'hidden',

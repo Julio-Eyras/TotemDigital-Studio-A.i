@@ -37,6 +37,8 @@ export interface AutoPublishOrchestratorInput {
   description?: string;
   durationMs?: number;
   publishNow?: boolean;
+  /** Reutiliza mídia HTML existente em vez de criar duplicata com o mesmo nome. */
+  replaceMediaId?: number;
 }
 
 export interface AutoPublishOrchestratorResult {
@@ -108,7 +110,8 @@ export class AutoPublishOrchestratorService {
       input.subscriberId,
       preset,
       input.userId,
-      input.isAdmin
+      input.isAdmin,
+      input.replaceMediaId
     );
 
     const publishTitle = String(input.title || layout.boardTitle || '').trim();

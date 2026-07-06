@@ -71,6 +71,7 @@ import {
   QueueMusic,
   Description,
   OpenInNew,
+  AutoAwesome,
 } from '@mui/icons-material';
 import { 
   subscriberApi, 
@@ -121,6 +122,12 @@ import { getForeignTotemIdFromRow, getTotemIdFromRow, getTotemLocalIdFromRow } f
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { useMediaRotationTransform, mediaThumbnailPortraitPreviewSx, mediaPortraitPreviewFrameSx, mediaTotemHoverVideoSx } from '../../hooks/useMediaRotationTransform';
 import { useMediaThumbnailUrls } from '../../hooks/useMediaThumbnailUrls';
+import {
+  buildPublishBoardEditUrl,
+  isPublishBoardHtmlMedia,
+  parsePublishBoardPresetFromTags,
+} from '../../utils/publishBoardMedia';
+import { findPublishPreset } from '../../config/publishTemplates';
 import {
   billingIntervalLabel,
   contractEndDateHelperText,
@@ -1380,6 +1387,14 @@ const Subscribers: React.FC = () => {
       description: media.description || '',
       tags: media.tags || [],
     });
+  };
+
+  const handleEditPublishBoardContent = (media: MediaItem) => {
+    if (!selectedSubscriber) return;
+    const preset = parsePublishBoardPresetFromTags(media.tags);
+    if (!preset) return;
+    setEditDialogOpen(false);
+    navigate(buildPublishBoardEditUrl(selectedSubscriber.subscriber_id, preset, media.media_id));
   };
 
   const handleDeleteMedia = async (index: number) => {
@@ -3116,11 +3131,21 @@ const Subscribers: React.FC = () => {
                     const thumbnailSrc = getThumbnailSrc(media);
                     const showPlaceholder = mediaPreviewFailed.has(media.media_id) || !thumbnailSrc;
                     const isTransformable = /^(image|video)$/i.test(String(media.media_type || ''));
+                    const isPublishBoardHtml = isPublishBoardHtmlMedia(media);
+                    const boardPreset = parsePublishBoardPresetFromTags(media.tags);
+                    const boardPresetLabel = boardPreset ? findPublishPreset(boardPreset).label : null;
                     const processingFit = processingMediaFitId === media.media_id;
                     const processingRotation = processingRotationId === media.media_id;
                     const w = Number(media.width ?? 0);
                     const h = Number(media.height ?? 0);
                     const sizeBytes = Number((media as any).size_bytes ?? (media as any).fileSizeBytes ?? 0);
+                    const metaLine = [
+                      String(media.media_type || 'mídia').toUpperCase(),
+                      boardPresetLabel,
+                      w > 0 && h > 0 ? `${w}×${h}` : null,
+                      formatFileSize(sizeBytes),
+                      media.duration_seconds ? formatDuration(media.duration_seconds) : null,
+                    ].filter(Boolean).join(' · ');
 
                     return (
                       <Grid item xs={12} sm={6} md={4} lg={3} key={media.media_id}>
@@ -3135,7 +3160,7 @@ const Subscribers: React.FC = () => {
                           },
                         }}>
                           <Box
-                            sx={mediaPortraitPreviewFrameSx()}
+                            sx={mediaPortraitPreviewFrameSx(true)}
                             onMouseEnter={() => handleMediaPreviewMouseEnter(media)}
                             onMouseLeave={handleMediaPreviewMouseLeave}
                           >
@@ -3221,9 +3246,15 @@ const Subscribers: React.FC = () => {
                             <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.5 }} noWrap title={media.name}>
                               {media.name}
                             </Typography>
-                            <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-                              {[w > 0 && h > 0 ? `${w}×${h}` : null, media.status || 'draft'].filter(Boolean).join(' · ')}
+                            <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                              {metaLine}
                             </Typography>
+                            {media.approvedByName && (
+                              <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                                Aprovado por {media.approvedByName}
+                                {media.approvedAt && ` · ${new Date(media.approvedAt).toLocaleDateString('pt-BR')}`}
+                              </Typography>
+                            )}
                             {media.description && (
                               <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }} noWrap title={media.description}>
                                 {media.description}
@@ -3234,7 +3265,7 @@ const Subscribers: React.FC = () => {
                               <Box sx={{ mb: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                 {media.tags
                                   .filter((t) => !String(t).startsWith('_delivery_rotation:'))
-                                  .slice(0, 2)
+                                  .slice(0, 3)
                                   .map((tag, idx) => (
                                   <Chip key={idx} label={tag} size="small" sx={{ fontSize: '0.65rem', height: 20 }} />
                                 ))}
@@ -3242,6 +3273,17 @@ const Subscribers: React.FC = () => {
                             )}
                             <Box sx={{ mt: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexWrap: 'wrap' }}>
+                                {isPublishBoardHtml && boardPreset && (
+                                  <Tooltip title="Editar conteúdo (publicação automática)">
+                                    <IconButton
+                                      size="small"
+                                      color="secondary"
+                                      onClick={() => handleEditPublishBoardContent(media)}
+                                    >
+                                      <AutoAwesome fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                )}
                                 <MediaTransformActions
                                   isTransformable={isTransformable}
                                   rotationDraft={getRotationDraft(media.media_id)}
@@ -3259,7 +3301,7 @@ const Subscribers: React.FC = () => {
                                     <Visibility />
                                   </IconButton>
                                 </Tooltip>
-                                <Tooltip title="Editar">
+                                <Tooltip title={isPublishBoardHtml ? 'Renomear / metadados' : 'Editar'}>
                                   <IconButton size="small" color="primary" onClick={() => handleStartEditMedia(media)}>
                                     <Edit />
                                   </IconButton>

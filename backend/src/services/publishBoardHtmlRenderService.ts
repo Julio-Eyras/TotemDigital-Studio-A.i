@@ -4,6 +4,7 @@ import {
   orientationCss,
   wrapHtmlDocument,
   offlineCycleScript,
+  TOTEM_HTML_DELIVERY_ROTATE_DEG,
 } from './publishBoardHtmlRuntime';
 import { getMenuCatalogTriggerService } from './menuCatalogTriggerService';
 
@@ -11,7 +12,7 @@ function pad(portrait: boolean, portraitVal: string, landscapeVal: string): stri
   return portrait ? portraitVal : landscapeVal;
 }
 
-function buildPromotionHtml(input: PublishBoardRenderInput): string {
+function buildPromotionHtml(input: PublishBoardRenderInput, totemRotateDeg = 0): string {
   const { w, h, portrait } = orientationCss(input.orientation);
   const accent = escapeHtml(input.accentColor || '#e91e63');
   const headline = escapeHtml(input.content?.headline || input.boardTitle || 'Oferta em destaque');
@@ -20,12 +21,12 @@ function buildPromotionHtml(input: PublishBoardRenderInput): string {
   const urgency = escapeHtml(input.content?.urgency || '');
 
   const css = `
-.stage{background:radial-gradient(ellipse at 30% 20%,${accent}33,transparent 55%),radial-gradient(ellipse at 80% 80%,#8b5cf633,transparent 50%),#0a0a12;color:#fff;display:flex;flex-direction:column;justify-content:center;padding:${pad(portrait, '8%', '6%')};position:relative}
-.headline{font-size:${pad(portrait, '4.2rem', '5rem')};font-weight:900;line-height:1.05}
-.offer{font-size:${pad(portrait, '2.4rem', '2.8rem')};margin-top:1.2rem;font-weight:600}
-.price{font-size:${pad(portrait, '5.5rem', '6rem')};font-weight:900;color:${accent};margin-top:1.5rem}
-.urgency{font-size:${pad(portrait, '1.8rem', '2rem')};margin-top:1.5rem;opacity:.9}
-.bar{position:absolute;bottom:0;left:0;height:6px;background:${accent}}
+.stage{background:radial-gradient(ellipse at 30% 20%,${accent}33,transparent 55%),radial-gradient(ellipse at 80% 80%,#8b5cf633,transparent 50%),#0a0a12;color:#fff;display:flex;flex-direction:column;justify-content:space-evenly;padding:${pad(portrait, '6%', '5%')};position:relative}
+.headline{font-size:${pad(portrait, '6.2rem', '7.2rem')};font-weight:900;line-height:1.05;text-shadow:0 4px 24px rgba(0,0,0,.45)}
+.offer{font-size:${pad(portrait, '3.5rem', '4rem')};margin-top:1rem;font-weight:700}
+.price{font-size:${pad(portrait, '8rem', '8.8rem')};font-weight:900;color:${accent};margin-top:1.2rem;text-shadow:0 2px 16px ${accent}66}
+.urgency{font-size:${pad(portrait, '2.6rem', '2.9rem')};margin-top:1.2rem;opacity:.95;font-weight:600}
+.bar{position:absolute;bottom:0;left:0;height:8px;background:${accent}}
 `;
   const body = `<div class="stage" id="stage">
   <div class="headline anim-up" id="headline" style="animation-delay:.1s">${headline}</div>
@@ -39,10 +40,10 @@ function buildPromotionHtml(input: PublishBoardRenderInput): string {
   if (price) cycleSel.push('#price');
   if (urgency) cycleSel.push('#urgency');
   const script = offlineCycleScript(cycleSel);
-  return wrapHtmlDocument(headline, w, h, css, body, script);
+  return wrapHtmlDocument(headline, w, h, css, body, script, totemRotateDeg);
 }
 
-function buildAdHtml(input: PublishBoardRenderInput): string {
+function buildAdHtml(input: PublishBoardRenderInput, totemRotateDeg = 0): string {
   const { w, h, portrait } = orientationCss(input.orientation);
   const accent = escapeHtml(input.accentColor || '#1976d2');
   const headline = escapeHtml(input.content?.headline || input.boardTitle || 'Anúncio de impacto');
@@ -52,12 +53,12 @@ function buildAdHtml(input: PublishBoardRenderInput): string {
   const logoUrl = escapeHtml(input.content?.logoUrl || '');
 
   const css = `
-.stage{background:linear-gradient(135deg,#001a33 0%,#0d47a1 55%,#001428 100%);color:#fff;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;padding:${pad(portrait, '8%', '6%')};gap:1rem}
-.logo{max-height:${pad(portrait, '90px', '110px')};max-width:40%;object-fit:contain;margin-bottom:.5rem}
-.headline{font-size:${pad(portrait, '3.8rem', '4.6rem')};font-weight:900;line-height:1.08;max-width:92%}
-.brand{font-size:${pad(portrait, '2rem', '2.4rem')};font-weight:700;color:${accent};letter-spacing:.04em;text-transform:uppercase}
-.message{font-size:${pad(portrait, '1.9rem', '2.2rem')};line-height:1.35;max-width:88%;opacity:.92}
-.cta{display:inline-block;margin-top:1rem;padding:.85rem 2rem;background:${accent};border-radius:999px;font-size:${pad(portrait, '1.6rem', '1.9rem')};font-weight:800;box-shadow:0 8px 28px ${accent}55}
+.stage{background:linear-gradient(135deg,#001a33 0%,#0d47a1 55%,#001428 100%);color:#fff;display:flex;flex-direction:column;justify-content:space-evenly;align-items:flex-start;padding:${pad(portrait, '6%', '5%')};gap:.8rem}
+.logo{max-height:${pad(portrait, '120px', '140px')};max-width:45%;object-fit:contain;margin-bottom:.4rem}
+.headline{font-size:${pad(portrait, '5.6rem', '6.6rem')};font-weight:900;line-height:1.08;max-width:94%;text-shadow:0 3px 20px rgba(0,0,0,.4)}
+.brand{font-size:${pad(portrait, '3rem', '3.5rem')};font-weight:800;color:${accent};letter-spacing:.04em;text-transform:uppercase}
+.message{font-size:${pad(portrait, '2.8rem', '3.2rem')};line-height:1.32;max-width:90%;opacity:.95;font-weight:600}
+.cta{display:inline-block;margin-top:.6rem;padding:1rem 2.4rem;background:${accent};border-radius:999px;font-size:${pad(portrait, '2.4rem', '2.8rem')};font-weight:800;box-shadow:0 8px 28px ${accent}55}
 .glow{position:absolute;right:-10%;top:20%;width:45%;height:45%;background:radial-gradient(circle,${accent}33,transparent 70%);pointer-events:none}
 `;
   const body = `<div class="stage" id="stage">
@@ -68,10 +69,10 @@ function buildAdHtml(input: PublishBoardRenderInput): string {
   ${message ? `<div class="message anim-in" style="animation-delay:.55s">${message}</div>` : ''}
   <div class="cta anim-scale" style="animation-delay:.75s">${cta}</div>
 </div>`;
-  return wrapHtmlDocument(headline, w, h, css, body, offlineCycleScript(['.headline', '.brand', '.message', '.cta']));
+  return wrapHtmlDocument(headline, w, h, css, body, offlineCycleScript(['.headline', '.brand', '.message', '.cta']), totemRotateDeg);
 }
 
-function buildAnnouncementHtml(input: PublishBoardRenderInput): string {
+function buildAnnouncementHtml(input: PublishBoardRenderInput, totemRotateDeg = 0): string {
   const { w, h, portrait } = orientationCss(input.orientation);
   const accent = escapeHtml(input.accentColor || '#7b1fa2');
   const headline = escapeHtml(input.content?.headline || input.boardTitle || 'Comunicado importante');
@@ -79,11 +80,11 @@ function buildAnnouncementHtml(input: PublishBoardRenderInput): string {
   const eventInfo = escapeHtml(input.content?.eventInfo || '');
 
   const css = `
-.stage{background:linear-gradient(160deg,#160021 0%,#4a148c 50%,#1a0028 100%);color:#fff;display:flex;flex-direction:column;justify-content:center;padding:${pad(portrait, '8%', '6%')}}
-.badge{display:inline-block;background:${accent};padding:.45rem 1.1rem;border-radius:6px;font-size:${pad(portrait, '1.3rem', '1.5rem')};font-weight:700;margin-bottom:1.2rem;letter-spacing:.06em}
-.headline{font-size:${pad(portrait, '3.6rem', '4.2rem')};font-weight:800;line-height:1.12;margin-bottom:1rem}
-.message{font-size:${pad(portrait, '2rem', '2.35rem')};line-height:1.4;opacity:.95;max-width:92%}
-.event{margin-top:1.8rem;padding:1rem 1.2rem;border-left:5px solid ${accent};background:rgba(255,255,255,.08);font-size:${pad(portrait, '1.7rem', '2rem')};font-weight:600}
+.stage{background:linear-gradient(160deg,#160021 0%,#4a148c 50%,#1a0028 100%);color:#fff;display:flex;flex-direction:column;justify-content:space-evenly;padding:${pad(portrait, '6%', '5%')}}
+.badge{display:inline-block;background:${accent};padding:.55rem 1.3rem;border-radius:6px;font-size:${pad(portrait, '2rem', '2.2rem')};font-weight:800;margin-bottom:.8rem;letter-spacing:.06em}
+.headline{font-size:${pad(portrait, '5.2rem', '6rem')};font-weight:900;line-height:1.1;margin-bottom:.6rem;text-shadow:0 3px 18px rgba(0,0,0,.35)}
+.message{font-size:${pad(portrait, '2.9rem', '3.4rem')};line-height:1.35;opacity:.96;max-width:94%;font-weight:600}
+.event{margin-top:1.2rem;padding:1.1rem 1.3rem;border-left:6px solid ${accent};background:rgba(255,255,255,.1);font-size:${pad(portrait, '2.5rem', '2.9rem')};font-weight:700}
 `;
   const body = `<div class="stage" id="stage">
   <div class="badge anim-in" style="animation-delay:.1s">AVISO</div>
@@ -91,10 +92,10 @@ function buildAnnouncementHtml(input: PublishBoardRenderInput): string {
   ${message ? `<div class="message anim-slide" style="animation-delay:.45s">${message}</div>` : ''}
   ${eventInfo ? `<div class="event anim-scale" style="animation-delay:.65s">${eventInfo}</div>` : ''}
 </div>`;
-  return wrapHtmlDocument(headline, w, h, css, body, offlineCycleScript(['.badge', '.headline', '.message', '.event']));
+  return wrapHtmlDocument(headline, w, h, css, body, offlineCycleScript(['.badge', '.headline', '.message', '.event']), totemRotateDeg);
 }
 
-function buildInstitutionalHtml(input: PublishBoardRenderInput): string {
+function buildInstitutionalHtml(input: PublishBoardRenderInput, totemRotateDeg = 0): string {
   const { w, h, portrait } = orientationCss(input.orientation);
   const accent = escapeHtml(input.accentColor || '#2e7d32');
   const headline = escapeHtml(input.content?.headline || input.boardTitle || 'Presença de marca');
@@ -104,11 +105,11 @@ function buildInstitutionalHtml(input: PublishBoardRenderInput): string {
   const l3 = escapeHtml(input.content?.line3 || '');
 
   const css = `
-.stage{background:linear-gradient(145deg,#001f12 0%,#1b5e20 45%,#0a2e14 100%);color:#fff;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:${pad(portrait, '8%', '6%')}}
-.headline{font-size:${pad(portrait, '3.4rem', '4rem')};font-weight:800;margin-bottom:.6rem}
-.brand{font-size:${pad(portrait, '2.2rem', '2.6rem')};color:#a5d6a7;font-weight:600;margin-bottom:1.5rem}
-.line{font-size:${pad(portrait, '1.8rem', '2.1rem')};margin-top:.75rem;opacity:.92;max-width:85%}
-.accent-bar{width:120px;height:5px;background:${accent};margin:1rem auto 1.5rem;border-radius:3px}
+.stage{background:linear-gradient(145deg,#001f12 0%,#1b5e20 45%,#0a2e14 100%);color:#fff;display:flex;flex-direction:column;justify-content:space-evenly;align-items:center;text-align:center;padding:${pad(portrait, '6%', '5%')}}
+.headline{font-size:${pad(portrait, '5rem', '5.8rem')};font-weight:900;margin-bottom:.4rem;text-shadow:0 3px 16px rgba(0,0,0,.35)}
+.brand{font-size:${pad(portrait, '3.2rem', '3.8rem')};color:#a5d6a7;font-weight:700;margin-bottom:1rem}
+.line{font-size:${pad(portrait, '2.6rem', '3rem')};margin-top:.5rem;opacity:.95;max-width:88%;font-weight:600}
+.accent-bar{width:140px;height:6px;background:${accent};margin:.8rem auto 1rem;border-radius:3px}
 `;
   const lines = [l1, l2, l3]
     .filter(Boolean)
@@ -120,13 +121,14 @@ function buildInstitutionalHtml(input: PublishBoardRenderInput): string {
   <div class="accent-bar anim-scale" style="animation-delay:.38s"></div>
   ${lines}
 </div>`;
-  return wrapHtmlDocument(headline, w, h, css, body, offlineCycleScript(['.headline', '.brand', '.accent-bar', '.line']));
+  return wrapHtmlDocument(headline, w, h, css, body, offlineCycleScript(['.headline', '.brand', '.accent-bar', '.line']), totemRotateDeg);
 }
 
 function buildMenuHtml(
   input: PublishBoardRenderInput,
   subscriberId: number,
-  productOrder: number[]
+  productOrder: number[],
+  totemRotateDeg = 0
 ): string {
   const { w, h, portrait } = orientationCss(input.orientation);
   const accent = escapeHtml(input.accentColor || '#ff9800');
@@ -143,12 +145,12 @@ function buildMenuHtml(
 
   const css = `
 .stage{background:linear-gradient(180deg,#2b1400 0%,#1a0f00 100%);color:#fff;display:flex;flex-direction:column}
-.header{background:${accent};padding:${pad(portrait, '2.5%', '2%')} 5%;font-size:${pad(portrait, '2.8rem', '3rem')};font-weight:800;text-align:center}
-.list{flex:1;overflow:hidden;padding:3% 5%;display:flex;flex-direction:column;gap:.6rem}
-.item{opacity:0;display:flex;justify-content:space-between;align-items:baseline;gap:1rem;border-bottom:1px solid rgba(255,255,255,.12);padding-bottom:.4rem;animation:ss-fade-up .4s ease forwards}
-.name{font-size:${pad(portrait, '1.6rem', '1.9rem')};font-weight:700}
-.price{font-size:${pad(portrait, '1.5rem', '1.8rem')};color:#ffe082;font-weight:700;white-space:nowrap}
-.desc{font-size:${pad(portrait, '1.1rem', '1.2rem')};color:#f0e6d8;opacity:.85;margin-top:.15rem}
+.header{background:${accent};padding:${pad(portrait, '2.2%', '1.8%')} 5%;font-size:${pad(portrait, '4rem', '4.4rem')};font-weight:900;text-align:center}
+.list{flex:1;overflow:hidden;padding:2.5% 5%;display:flex;flex-direction:column;gap:.5rem;justify-content:flex-start}
+.item{opacity:0;display:flex;justify-content:space-between;align-items:baseline;gap:1rem;border-bottom:1px solid rgba(255,255,255,.14);padding-bottom:.35rem;animation:ss-fade-up .4s ease forwards}
+.name{font-size:${pad(portrait, '2.4rem', '2.8rem')};font-weight:800}
+.price{font-size:${pad(portrait, '2.2rem', '2.6rem')};color:#ffe082;font-weight:800;white-space:nowrap}
+.desc{font-size:${pad(portrait, '1.7rem', '1.9rem')};color:#f0e6d8;opacity:.9;margin-top:.1rem;font-weight:500}
 `;
   const body = `<div class="stage" id="stage">
   <div class="header anim-in" style="animation-delay:.05s">${title}</div>
@@ -195,27 +197,30 @@ function buildMenuHtml(
   }
   renderProducts(INITIAL);schedule(BASE_MS);
 })();`;
-  return wrapHtmlDocument(title, w, h, css, body, script);
+  return wrapHtmlDocument(title, w, h, css, body, script, totemRotateDeg);
 }
 
 export interface PublishBoardHtmlRenderInput extends PublishBoardRenderInput {
   subscriberId: number;
   productOrder?: number[];
+  /** HTML gravado para o totem — aplica rotação de entrega (+90°). */
+  forTotemDelivery?: boolean;
 }
 
 export function renderPublishBoardHtml(input: PublishBoardHtmlRenderInput): string {
+  const totemRotateDeg = input.forTotemDelivery ? TOTEM_HTML_DELIVERY_ROTATE_DEG : 0;
   switch (input.preset) {
     case 'promotion':
-      return buildPromotionHtml(input);
+      return buildPromotionHtml(input, totemRotateDeg);
     case 'menu':
-      return buildMenuHtml(input, input.subscriberId, input.productOrder || []);
+      return buildMenuHtml(input, input.subscriberId, input.productOrder || [], totemRotateDeg);
     case 'ad':
-      return buildAdHtml(input);
+      return buildAdHtml(input, totemRotateDeg);
     case 'announcement':
-      return buildAnnouncementHtml(input);
+      return buildAnnouncementHtml(input, totemRotateDeg);
     case 'institutional':
-      return buildInstitutionalHtml(input);
+      return buildInstitutionalHtml(input, totemRotateDeg);
     default:
-      return buildAdHtml(input);
+      return buildAdHtml(input, totemRotateDeg);
   }
 }

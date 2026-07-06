@@ -183,7 +183,7 @@ const PublishBoardStudio: React.FC = () => {
       const segment = searchParams.get('segment') || defaultSegmentForPreset(preset);
       const orientation = layout.preferredOrientation;
       navigate(
-        `/quick-publish?preset=${preset}&segment=${segment}&orientation=${orientation}&subscriber=${subscriberId}&mediaIds=${mediaId}`
+        `/quick-publish?mode=create&preset=${preset}&segment=${segment}&orientation=${orientation}&subscriber=${subscriberId}&mediaIds=${mediaId}`
       );
     } catch (e) {
       setError(pickApiErrorMessage(e, 'Erro ao gerar mídia.'));

@@ -41,11 +41,16 @@ import {
   QuickPublishPreset,
   quickPublishApi,
   mediaApi,
+  publishBoardApi,
   subscriberApi,
   Subscriber,
 } from '../../services/api';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { resolveMediaId, sanitizeMediaIdList } from '../../utils/mediaId';
+import {
+  isPublishBoardHtmlMedia,
+  parsePublishBoardPresetFromTags,
+} from '../../utils/publishBoardMedia';
 import {
   PUBLISH_SEGMENTS,
   buildTemplateDescription,
@@ -164,6 +169,7 @@ const QuickPublish: React.FC = () => {
   const uploadPreviewRevokeRef = useRef<(() => void) | null>(null);
   const autoTotemSelectionContractRef = useRef<number | null>(null);
   const selectedMediaPreviewUrlsRef = useRef<Map<number, string>>(new Map());
+  const selectedMediaHtmlDocsRef = useRef<Map<number, string>>(new Map());
   const [selectedMediaPreviewTick, setSelectedMediaPreviewTick] = useState(0);
   const [loadingSelectedMediaPreview, setLoadingSelectedMediaPreview] = useState(false);
   const [uploadName, setUploadName] = useState('');
@@ -215,6 +221,14 @@ const QuickPublish: React.FC = () => {
     [selectedMedias]
   );
 
+  const replacePublishBoardMediaId = useMemo(() => {
+    if (safeMediaIds.length !== 1) return undefined;
+    const id = safeMediaIds[0];
+    const media = selectedMedias.find((m) => resolveMediaId(m) === id);
+    if (media && isPublishBoardHtmlMedia(media)) return id;
+    return undefined;
+  }, [safeMediaIds, selectedMedias]);
+
   const getSelectedMediaPreviewSrc = useCallback((media: MediaItem): string | undefined => {
     const id = resolveMediaId(media);
     if (id && selectedMediaPreviewUrlsRef.current.has(id)) {
@@ -225,6 +239,12 @@ const QuickPublish: React.FC = () => {
     const url = media.previewUrl || media.thumbnailUrl;
     if (url && !isProtectedThumbnailUrl(url)) return url;
     return undefined;
+  }, [selectedMediaPreviewTick]);
+
+  const getSelectedMediaHtmlDoc = useCallback((media: MediaItem): string | undefined => {
+    const id = resolveMediaId(media);
+    if (!id) return undefined;
+    return selectedMediaHtmlDocsRef.current.get(id);
   }, [selectedMediaPreviewTick]);
 
   const selectedTotemNames = useMemo(
@@ -344,6 +364,7 @@ const QuickPublish: React.FC = () => {
         }
       });
       selectedMediaPreviewUrlsRef.current.clear();
+      selectedMediaHtmlDocsRef.current.clear();
     };
   }, []);
 
@@ -358,12 +379,21 @@ const QuickPublish: React.FC = () => {
     const toFetch = selectedMedias
       .map((media) => ({
         id: resolveMediaId(media),
+        media,
+        isHtml: isPublishBoardHtmlMedia(media),
         needsBlob:
-          !normalizePublicAssetUrl(media.file_path)
+          !isPublishBoardHtmlMedia(media)
+          && !normalizePublicAssetUrl(media.file_path)
           && isProtectedThumbnailUrl(media.thumbnailUrl || media.previewUrl),
       }))
-      .filter((item): item is { id: number; needsBlob: boolean } => item.id != null && item.needsBlob)
-      .filter((item) => !selectedMediaPreviewUrlsRef.current.has(item.id));
+      .filter((item): item is { id: number; media: MediaItem; isHtml: boolean; needsBlob: boolean } =>
+        item.id != null && (item.isHtml || item.needsBlob)
+      )
+      .filter((item) =>
+        item.isHtml
+          ? !selectedMediaHtmlDocsRef.current.has(item.id) && !selectedMediaPreviewUrlsRef.current.has(item.id)
+          : !selectedMediaPreviewUrlsRef.current.has(item.id)
+      );
 
     if (toFetch.length === 0) {
       setLoadingSelectedMediaPreview(false);
@@ -372,8 +402,30 @@ const QuickPublish: React.FC = () => {
 
     setLoadingSelectedMediaPreview(true);
     (async () => {
-      for (const { id } of toFetch) {
+      for (const { id, media, isHtml } of toFetch) {
         try {
+          if (isHtml) {
+            const sid = Number(media.subscriberId || 0);
+            const boardPreset = parsePublishBoardPresetFromTags(media.tags);
+            if (sid > 0 && boardPreset) {
+              try {
+                const layoutRes = await publishBoardApi.getLayout(sid, boardPreset);
+                const preview = await publishBoardApi.previewHtml(sid, boardPreset, layoutRes.data);
+                if (cancelled) continue;
+                selectedMediaHtmlDocsRef.current.set(id, preview.data?.html || '');
+                setSelectedMediaPreviewTick((v) => v + 1);
+                continue;
+              } catch {
+                /* tenta ficheiro abaixo */
+              }
+            }
+            const blob = await mediaApi.getFileBlob(id);
+            const text = await blob.text();
+            if (cancelled) continue;
+            selectedMediaHtmlDocsRef.current.set(id, text);
+            setSelectedMediaPreviewTick((v) => v + 1);
+            continue;
+          }
           const blob = await mediaApi.getThumbnailBlob(id);
           const objectUrl = URL.createObjectURL(blob);
           if (cancelled) {
@@ -383,7 +435,7 @@ const QuickPublish: React.FC = () => {
           selectedMediaPreviewUrlsRef.current.set(id, objectUrl);
           setSelectedMediaPreviewTick((v) => v + 1);
         } catch {
-          /* thumbnail opcional */
+          /* preview opcional */
         }
       }
       if (!cancelled) setLoadingSelectedMediaPreview(false);
@@ -465,8 +517,37 @@ const QuickPublish: React.FC = () => {
           approvedMedias.some((m) => m.media_id === id)
         );
         setMediaIds(validMedia);
-        if (validMedia.length > 0) {
-          setSuccess('Mídia do cardápio carregada — selecione contrato e telas para publicar.');
+        const urlMode = resolvePublishMode(searchParams.get('mode'));
+        const urlSegment = resolveSegment(searchParams.get('segment'));
+        const urlPreset = searchParams.get('preset')
+          ? resolvePublishPreset(searchParams.get('preset'))
+          : findPublishSegment(urlSegment).defaultPreset;
+        const selectedRows = approvedMedias.filter((m) => validMedia.includes(m.media_id));
+        const boardMedia = selectedRows.find((m) => isPublishBoardHtmlMedia(m));
+        if (urlMode === 'create' || boardMedia) {
+          setPublishMode('create');
+          const presetFromTag = boardMedia
+            ? parsePublishBoardPresetFromTags(boardMedia.tags)
+            : null;
+          const effectivePreset = presetFromTag || urlPreset;
+          if (presetFromTag) {
+            const tpl = findPublishPreset(presetFromTag);
+            setPreset(tpl.value);
+            setDurationMs(tpl.recommendedDurationMs);
+          }
+          const nextParams: Record<string, string> = {
+            mode: 'create',
+            subscriber: String(subscriberId),
+            preset: effectivePreset,
+            segment: urlSegment,
+          };
+          if (validMedia.length) nextParams.mediaIds = validMedia.join(',');
+          setSearchParams(nextParams, { replace: true });
+        }
+        if (validMedia.length > 0 && !boardMedia && urlMode !== 'create') {
+          setSuccess('Mídia carregada — selecione contrato e telas para publicar.');
+        } else if (validMedia.length > 0 && boardMedia) {
+          setSuccess('Conteúdo HTML carregado — edite no estúdio ou publique novamente.');
         }
       } catch (e) {
         setError(pickApiErrorMessage(e, 'Erro ao carregar dados do anunciante.'));
@@ -539,6 +620,8 @@ const QuickPublish: React.FC = () => {
   const setPublishParams = (nextPreset: QuickPublishPreset, nextSegment: string, mode = publishMode) => {
     const next: Record<string, string> = { preset: nextPreset, segment: nextSegment, mode };
     if (subscriberId) next.subscriber = String(subscriberId);
+    const ids = sanitizeMediaIdList(mediaIds);
+    if (ids.length) next.mediaIds = ids.join(',');
     setSearchParams(next, { replace: true });
   };
 
@@ -548,6 +631,8 @@ const QuickPublish: React.FC = () => {
     if (preset) nextParams.preset = preset;
     if (segment) nextParams.segment = segment;
     if (subscriberId) nextParams.subscriber = String(subscriberId);
+    const ids = sanitizeMediaIdList(mediaIds);
+    if (ids.length) nextParams.mediaIds = ids.join(',');
     setSearchParams(nextParams, { replace: true });
   };
 
@@ -1115,6 +1200,7 @@ const QuickPublish: React.FC = () => {
                     setPartialRegenWarning(null);
                     setError(null);
                   }}
+                  replaceMediaId={replacePublishBoardMediaId}
                 />
               </Grid>
             )}
@@ -1245,7 +1331,9 @@ const QuickPublish: React.FC = () => {
                         </Typography>
                         <Box
                           sx={{
-                            maxHeight: 280,
+                            maxHeight: 140,
+                            maxWidth: 360,
+                            mx: 'auto',
                             borderRadius: 1,
                             overflow: 'hidden',
                             bgcolor: 'action.hover',
@@ -1261,14 +1349,14 @@ const QuickPublish: React.FC = () => {
                               controls
                               muted
                               playsInline
-                              sx={{ maxWidth: '100%', maxHeight: 260 }}
+                              sx={{ maxWidth: '100%', maxHeight: 130 }}
                             />
                           ) : uploadFile.type.startsWith('image/') ? (
                             <Box
                               component="img"
                               src={uploadPreviewUrl}
                               alt={uploadFile.name}
-                              sx={{ maxWidth: '100%', maxHeight: 260, objectFit: 'contain' }}
+                              sx={{ maxWidth: '100%', maxHeight: 130, objectFit: 'contain' }}
                             />
                           ) : (
                             <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
@@ -1340,10 +1428,11 @@ const QuickPublish: React.FC = () => {
                       {selectedMedias.map((media) => {
                         const mediaId = resolveMediaId(media);
                         const previewSrc = getSelectedMediaPreviewSrc(media);
+                        const htmlDoc = getSelectedMediaHtmlDoc(media);
                         const mediaType = String(media.media_type || '').toLowerCase();
                         const isVideo = mediaType === 'video';
                         return (
-                          <Grid item xs={12} sm={6} md={4} key={mediaId ?? media.name}>
+                          <Grid item xs={12} sm={6} md={3} key={mediaId ?? media.name}>
                             <Box
                               sx={{
                                 border: '1px solid',
@@ -1351,30 +1440,39 @@ const QuickPublish: React.FC = () => {
                                 borderRadius: 1,
                                 overflow: 'hidden',
                                 bgcolor: 'action.hover',
+                                maxWidth: 220,
                               }}
                             >
                               <Box
                                 sx={{
                                   position: 'relative',
-                                  minHeight: 180,
-                                  maxHeight: 280,
+                                  minHeight: 100,
+                                  maxHeight: 140,
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
                                 }}
                               >
-                                {previewSrc && isVideo ? (
+                                {htmlDoc ? (
+                                  <Box
+                                    component="iframe"
+                                    title={`preview-${mediaId}`}
+                                    srcDoc={htmlDoc}
+                                    sandbox="allow-scripts"
+                                    sx={{ width: '100%', height: 140, border: 0, bgcolor: '#000' }}
+                                  />
+                                ) : previewSrc && isVideo ? (
                                   <>
                                     <Box
                                       component="img"
                                       src={previewSrc}
                                       alt={media.name}
-                                      sx={{ width: '100%', maxHeight: 280, objectFit: 'contain' }}
+                                      sx={{ width: '100%', maxHeight: 140, objectFit: 'contain' }}
                                     />
                                     <PlayCircleOutline
                                       sx={{
                                         position: 'absolute',
-                                        fontSize: 48,
+                                        fontSize: 36,
                                         color: 'rgba(255,255,255,0.92)',
                                         filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.45))',
                                       }}
@@ -1385,7 +1483,7 @@ const QuickPublish: React.FC = () => {
                                     component="img"
                                     src={previewSrc}
                                     alt={media.name}
-                                    sx={{ width: '100%', maxHeight: 280, objectFit: 'contain' }}
+                                    sx={{ width: '100%', maxHeight: 140, objectFit: 'contain' }}
                                   />
                                 ) : (
                                   <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: 'center' }}>

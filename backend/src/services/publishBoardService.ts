@@ -4,6 +4,9 @@ import { getMenuCatalogService } from './menuCatalogService';
 import { renderPublishBoardPng, PublishBoardPresetType } from './publishBoardRenderService';
 import { renderPublishBoardHtml } from './publishBoardHtmlRenderService';
 import { findPublishPreset } from '../config/publishBoardDefaults';
+import sharp from 'sharp';
+import fs from 'fs';
+import path from 'path';
 
 export interface PublishBoardLayout {
   subscriberId: number;
@@ -33,6 +36,51 @@ function parseJsonArray(raw: unknown): string[] {
 function parseProductOrder(raw: unknown): number[] {
   if (!Array.isArray(raw)) return [];
   return raw.map(Number).filter((n) => n > 0);
+}
+
+function escapeSvgText(value: string): string {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+async function generateHtmlBoardThumbnail(
+  htmlFilePath: string,
+  boardTitle: string,
+  accentColor: string,
+  presetLabel: string
+): Promise<string | null> {
+  try {
+    const thumbPath = htmlFilePath.replace(/\.[^/.]+$/, '_thumb.jpg');
+    const accent = accentColor && /^#[0-9a-fA-F]{3,8}$/.test(accentColor) ? accentColor : '#ff9800';
+    const title = escapeSvgText(boardTitle.slice(0, 48) || 'Conteúdo HTML');
+    const label = escapeSvgText(presetLabel.slice(0, 32));
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="640">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:${accent}"/>
+      <stop offset="100%" style="stop-color:#0d1117"/>
+    </linearGradient>
+  </defs>
+  <rect width="360" height="640" fill="url(#bg)"/>
+  <text x="180" y="290" font-family="Arial,Helvetica,sans-serif" font-size="26" font-weight="700" fill="#ffffff" text-anchor="middle">${title}</text>
+  <text x="180" y="340" font-family="Arial,Helvetica,sans-serif" font-size="15" fill="#f0f0f0" text-anchor="middle" opacity="0.9">${label}</text>
+  <text x="180" y="580" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#cccccc" text-anchor="middle">HTML ao vivo</text>
+</svg>`;
+    const dir = path.dirname(thumbPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    await (sharp as any)(Buffer.from(svg))
+      .resize(360, 640, { fit: 'cover' })
+      .jpeg({ quality: 86, progressive: true })
+      .toFile(thumbPath);
+    return thumbPath;
+  } catch {
+    return null;
+  }
 }
 
 function parseContent(raw: unknown): Record<string, string> {
@@ -169,8 +217,9 @@ export class PublishBoardService {
     subscriberId: number,
     presetInput: string,
     userId: number,
-    isAdmin: boolean
-  ): Promise<{ mediaId: number; name: string; mediaType: string }> {
+    isAdmin: boolean,
+    replaceMediaId?: number
+  ): Promise<{ mediaId: number; name: string; mediaType: string; replaced?: boolean }> {
     const preset = normalizePreset(presetInput);
     const layout = await this.getLayout(subscriberId, preset);
     const presetMeta = findPublishPreset(preset);
@@ -200,20 +249,105 @@ export class PublishBoardService {
       menuLines,
       subscriberId,
       productOrder: layout.productOrder,
+      forTotemDelivery: true,
     });
 
     const htmlBuffer = Buffer.from(html, 'utf-8');
+    const mediaName = `${layout.boardTitle} — ${presetMeta.label} (HTML)`;
+    const filePayload = {
+      buffer: htmlBuffer,
+      originalname: `board-${preset}-${subscriberId}-${Date.now()}.html`,
+      mimetype: 'text/html',
+      size: htmlBuffer.length,
+    };
+
+    let targetMediaId = replaceMediaId;
+    if (targetMediaId) {
+      const row = await this.db.findFirst(
+        `SELECT media_id FROM medias WHERE media_id = $1 AND subscriber_id = $2`,
+        [targetMediaId, subscriberId]
+      );
+      if (!row) targetMediaId = undefined;
+    }
+
+    if (!targetMediaId) {
+      const byName = await this.db.findFirst(
+        `
+        SELECT media_id FROM medias
+        WHERE subscriber_id = $1 AND name = $2 AND media_type = 'html'
+        ORDER BY media_id DESC
+        LIMIT 1
+      `,
+        [subscriberId, mediaName]
+      );
+      targetMediaId = byName?.media_id;
+    }
+
+    if (!targetMediaId) {
+      const candidates = await this.db.findMany(
+        `
+        SELECT media_id, tags FROM medias
+        WHERE subscriber_id = $1 AND media_type = 'html'
+        ORDER BY updated_at DESC NULLS LAST, media_id DESC
+        LIMIT 50
+      `,
+        [subscriberId]
+      );
+      const match = (candidates || []).find((row: { tags?: string[] }) => {
+        const tags = Array.isArray(row.tags) ? row.tags.map(String) : [];
+        return tags.includes('publish-board') && tags.includes(preset);
+      });
+      targetMediaId = match?.media_id;
+    }
+
+    if (targetMediaId) {
+      const media = await getMediaService().replaceMediaFileContent(
+        targetMediaId,
+        filePayload,
+        subscriberId,
+        isAdmin
+      );
+      await this.db.executeRaw(
+        `
+        UPDATE medias
+        SET status = 'approved',
+            approval_status = 'approved',
+            approved_by = $2,
+            approved_at = CURRENT_TIMESTAMP,
+            media_type = 'html',
+            name = $3,
+            description = $4,
+            tags = $5
+        WHERE media_id = $1
+      `,
+        [
+          media.id,
+          userId > 0 ? userId : null,
+          mediaName,
+          `Animação HTML ao vivo (${presetMeta.label}) — Publicar em Tela`,
+          ['publish-board', preset, 'html-live', 'auto-generated'],
+        ]
+      );
+
+      const filePath = media.filePath;
+      if (filePath) {
+        await generateHtmlBoardThumbnail(
+          filePath,
+          layout.boardTitle,
+          layout.accentColor,
+          presetMeta.label
+        );
+      }
+
+      return { mediaId: media.id, name: mediaName, mediaType: 'html', replaced: true };
+    }
+
     const media = await getMediaService().createMedia(
       {
-        name: `${layout.boardTitle} — ${presetMeta.label} (HTML)`,
+        name: mediaName,
         description: `Animação HTML ao vivo (${presetMeta.label}) — Publicar em Tela`,
         tags: ['publish-board', preset, 'html-live', 'auto-generated'],
-        file: {
-          buffer: htmlBuffer,
-          originalname: `board-${preset}-${subscriberId}-${Date.now()}.html`,
-          mimetype: 'text/html',
-          size: htmlBuffer.length,
-        },
+        file: filePayload,
         subscriberId,
         createdBy: userId,
       },
@@ -231,7 +365,17 @@ export class PublishBoardService {
       WHERE media_id = $1
     `, [media.id, userId > 0 ? userId : null]);
 
-    return { mediaId: media.id, name: media.name, mediaType: 'html' };
+    const filePath = media.filePath;
+    if (filePath) {
+      await generateHtmlBoardThumbnail(
+        filePath,
+        layout.boardTitle,
+        layout.accentColor,
+        presetMeta.label
+      );
+    }
+
+    return { mediaId: media.id, name: media.name, mediaType: 'html', replaced: false };
   }
 
   async renderToMedia(

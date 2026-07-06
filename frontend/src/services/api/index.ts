@@ -2259,11 +2259,17 @@ export const publishBoardApi = {
     const response = await api.post(`/subscribers/${subscriberId}/publish-board/${preset}/render`);
     return response.data as { success: boolean; data: { mediaId: number; name: string }; message?: string };
   },
-  renderHtml: async (subscriberId: number, preset: QuickPublishPreset) => {
-    const response = await api.post(`/subscribers/${subscriberId}/publish-board/${preset}/render-html`);
+  renderHtml: async (
+    subscriberId: number,
+    preset: QuickPublishPreset,
+    replaceMediaId?: number
+  ) => {
+    const response = await api.post(`/subscribers/${subscriberId}/publish-board/${preset}/render-html`, {
+      replaceMediaId: replaceMediaId && replaceMediaId > 0 ? replaceMediaId : undefined,
+    });
     return response.data as {
       success: boolean;
-      data: { mediaId: number; name: string; mediaType: string };
+      data: { mediaId: number; name: string; mediaType: string; replaced?: boolean };
       message?: string;
     };
   },
@@ -2345,6 +2351,7 @@ export const publishBoardApi = {
       blockOrder?: string[];
       productOrder?: number[];
       showPrices?: boolean;
+      replaceMediaId?: number;
     }
   ) => {
     const response = await api.post(

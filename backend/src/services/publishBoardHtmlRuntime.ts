@@ -28,13 +28,35 @@ export const OFFLINE_ANIM_CSS = `
 .cycle-hide{animation:ss-fade-out .55s ease forwards}
 `;
 
-export function offlineFitScript(w: number, h: number): string {
+/** Rotação extra no totem (framebuffer landscape + user_rotation portrait). */
+export const TOTEM_HTML_DELIVERY_ROTATE_DEG = 90;
+
+export function offlineFitScript(w: number, h: number, totemRotateDeg = 0): string {
+  const rot = Number(totemRotateDeg) || 0;
   return `(function(){
   function fit(){
     var s=document.getElementById('stage');
     if(!s)return;
-    var scale=Math.min(window.innerWidth/${w},window.innerHeight/${h});
-    s.style.transform='scale('+scale+')';
+    var W=${w},H=${h},rot=${rot};
+    var vw=window.innerWidth,vh=window.innerHeight;
+    if(rot===90||rot===270){
+      var scale=Math.min(vw/H,vh/W);
+      s.style.transformOrigin='top left';
+      s.style.transform='rotate('+rot+'deg) scale('+scale+')';
+      if(rot===90){
+        s.style.left=((vw-H*scale)/2)+'px';
+        s.style.top=((vh-W*scale)/2)+'px';
+      }else{
+        s.style.left=((vw-H*scale)/2)+'px';
+        s.style.top=((vh+W*scale)/2)+'px';
+      }
+    }else{
+      s.style.left='0';
+      s.style.top='0';
+      s.style.transformOrigin='top left';
+      var scale=Math.min(vw/W,vh/H);
+      s.style.transform='scale('+scale+')';
+    }
   }
   fit();window.addEventListener('resize',fit);
 })();`;
@@ -64,7 +86,8 @@ export function wrapHtmlDocument(
   h: number,
   extraCss: string,
   body: string,
-  extraScript = ''
+  extraScript = '',
+  totemRotateDeg = 0
 ): string {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -74,6 +97,7 @@ export function wrapHtmlDocument(
 <title>${title}</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
+html{font-size:22px}
 html,body{width:100%;height:100%;overflow:hidden;font-family:Inter,Arial,Helvetica,sans-serif}
 .stage{width:${w}px;height:${h}px;transform-origin:top left;position:absolute;top:0;left:0}
 ${OFFLINE_ANIM_CSS}
@@ -83,7 +107,7 @@ ${extraCss}
 <body>
 ${body}
 <script>
-${offlineFitScript(w, h)}
+${offlineFitScript(w, h, totemRotateDeg)}
 ${extraScript}
 <\/script>
 </body>

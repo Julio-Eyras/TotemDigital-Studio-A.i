@@ -930,6 +930,55 @@ export class MediaService {
   }
 
   /**
+   * Substitui o conteúdo do ficheiro de uma mídia existente (ex.: re-gerar HTML publish-board).
+   */
+  async replaceMediaFileContent(
+    mediaId: number,
+    file: { buffer: Buffer; mimetype: string; size: number },
+    requestSubscriberId?: number,
+    isAdmin: boolean = false
+  ): Promise<MediaResponse> {
+    const existingMedia = await this.getMediaById(mediaId, requestSubscriberId, isAdmin);
+    if (!existingMedia) {
+      throw new Error('Mídia não encontrada');
+    }
+    if (!isAdmin && requestSubscriberId && existingMedia.subscriberId !== requestSubscriberId) {
+      throw new Error('Acesso negado: mídia não pertence a este subscriber');
+    }
+    const rawPath = existingMedia.filePath || (existingMedia as any).file_path;
+    if (!rawPath || !fs.existsSync(rawPath)) {
+      throw new Error('Ficheiro da mídia não encontrado no servidor');
+    }
+
+    await fs.promises.writeFile(rawPath, file.buffer);
+    try {
+      fs.chmodSync(rawPath, 0o644);
+    } catch {
+      /* noop */
+    }
+
+    await this.db.executeRaw(
+      `
+      UPDATE medias
+      SET size_bytes = $1,
+          mime_type = $2,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE media_id = $3
+    `,
+      [file.size, file.mimetype, mediaId]
+    );
+
+    await getCacheService().invalidateEntity('media', mediaId).catch(() => {});
+    await getCacheService().invalidateEntity('subscriber', existingMedia.subscriberId).catch(() => {});
+
+    const updated = await this.getMediaById(mediaId, requestSubscriberId, isAdmin);
+    if (!updated) {
+      throw new Error('Erro ao buscar mídia atualizada');
+    }
+    return updated;
+  }
+
+  /**
    * Rotaciona a mídia e grava definitivamente em formato vertical 9:16.
    * Imagens usam sharp; vídeos usam ffmpeg instalado no sistema.
    */
@@ -2087,6 +2136,31 @@ export class MediaService {
           .jpeg({ quality: 82, progressive: true })
           .toFile(generatedThumbPath);
         return generatedThumbPath;
+      }
+
+      // 3b) HTML publish-board: thumbnail 9:16 ao lado do ficheiro
+      if (media.mediaType === 'html' && existingFilePath) {
+        const htmlThumb = existingFilePath.replace(/\.[^/.]+$/, '_thumb.jpg');
+        const existingHtmlThumb = checkFilePath(htmlThumb);
+        if (existingHtmlThumb) {
+          return existingHtmlThumb;
+        }
+        try {
+          const accent = '#ff9800';
+          const title = String(media.name || 'HTML').slice(0, 48).replace(/[<>&]/g, '');
+          const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="640">
+            <defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:${accent}"/><stop offset="100%" style="stop-color:#111"/>
+            </linearGradient></defs>
+            <rect width="360" height="640" fill="url(#g)"/>
+            <text x="180" y="300" font-family="Arial" font-size="22" font-weight="bold" fill="#fff" text-anchor="middle">${title}</text>
+            <text x="180" y="560" font-family="Arial" font-size="13" fill="#ccc" text-anchor="middle">HTML</text>
+          </svg>`;
+          await (sharp as any)(Buffer.from(svg)).jpeg({ quality: 82 }).toFile(htmlThumb);
+          if (fs.existsSync(htmlThumb)) return htmlThumb;
+        } catch {
+          /* fallback abaixo */
+        }
       }
 
       // 4) Fallback: placeholder

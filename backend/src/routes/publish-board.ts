@@ -197,6 +197,7 @@ router.post(
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing', 'editoracao']),
   param('subscriberId').isInt({ min: 1 }),
   param('preset').isIn(PRESETS),
+  body('replaceMediaId').optional({ nullable: true }).isInt({ min: 1 }),
   validate,
   async (req: Request & { user?: { id?: number; userId?: number; role?: string } }, res) => {
     try {
@@ -207,7 +208,8 @@ router.post(
         subscriberId,
         preset,
         Number(req.user?.id || req.user?.userId || 0),
-        isAdmin
+        isAdmin,
+        req.body.replaceMediaId ? Number(req.body.replaceMediaId) : undefined
       );
       return res.status(201).json({
         success: true,
@@ -282,6 +284,7 @@ router.post(
   body('blockOrder').optional().isArray(),
   body('productOrder').optional().isArray(),
   body('showPrices').optional().isBoolean(),
+  body('replaceMediaId').optional({ nullable: true }).isInt({ min: 1 }),
   validate,
   async (req: Request & { user?: { id?: number; userId?: number; role?: string } }, res) => {
     try {
@@ -297,6 +300,7 @@ router.post(
         preset: preset as any,
         userId,
         isAdmin,
+        replaceMediaId: req.body.replaceMediaId ? Number(req.body.replaceMediaId) : undefined,
         layout: {
           boardTitle: req.body.boardTitle,
           accentColor: req.body.accentColor,
