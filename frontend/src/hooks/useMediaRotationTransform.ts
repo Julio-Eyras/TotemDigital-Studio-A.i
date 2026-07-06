@@ -43,6 +43,8 @@ export function getMediaUiPreviewUndoRotation(media?: {
   tags?: string[] | null;
   width?: number;
   height?: number;
+  deliveryRotation?: number | null;
+  delivery_rotation?: number | null;
   deliveryPreviewRotation?: number | null;
   delivery_preview_rotation?: number | null;
 }): number {
@@ -50,6 +52,10 @@ export function getMediaUiPreviewUndoRotation(media?: {
     media?.deliveryPreviewRotation ?? media?.delivery_preview_rotation ?? null;
   if (fromApi != null && Number.isFinite(Number(fromApi))) {
     return normalizeMediaRotation(Number(fromApi));
+  }
+  const deliveryFromApi = media?.deliveryRotation ?? media?.delivery_rotation ?? null;
+  if (deliveryFromApi != null && Number.isFinite(Number(deliveryFromApi))) {
+    return normalizeMediaRotation(360 - Number(deliveryFromApi));
   }
   const delivery = parseDeliveryRotationFromTags(media?.tags);
   if (delivery != null) {

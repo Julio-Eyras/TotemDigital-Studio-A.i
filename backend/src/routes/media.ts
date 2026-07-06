@@ -706,6 +706,45 @@ router.post('/:id/transform',
 );
 
 /**
+ * @route POST /api/media/:id/reprocess-delivery
+ * @desc Re-aplica normalização totem (rotação ffmpeg + 1920×1080) num vídeo existente
+ * @access Private
+ */
+router.post('/:id/reprocess-delivery',
+  ...idParamValidatorDefault,
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const mediaId = parseInt(req.params.id);
+      const isAdmin = req.user?.role === 'admin' || req.user?.userType === 'system_user';
+      const requestSubscriberId = req.subscriberId || req.user?.subscriberId || req.user?.clientId;
+      const userId = req.user?.id || req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: 'Usuário não autenticado' });
+      }
+
+      const media = await getMediaService().reprocessTotemDelivery(
+        mediaId,
+        userId,
+        requestSubscriberId,
+        isAdmin
+      );
+
+      return res.json({ success: true, data: media });
+    } catch (error: any) {
+      const msg = error.message || '';
+      if (msg.includes('Acesso negado')) {
+        return res.status(403).json({ error: msg });
+      }
+      if (msg.includes('não encontrada') || msg.includes('não encontrado')) {
+        return res.status(404).json({ error: msg });
+      }
+      return res.status(400).json({ error: msg || 'Erro ao reprocessar entrega totem' });
+    }
+  }
+);
+
+/**
  * @route DELETE /api/media/:id
  * @desc Deletar arquivo de mídia
  * @access Private (Admin, Gerente Marketing, Editoração)

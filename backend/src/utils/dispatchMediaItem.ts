@@ -25,6 +25,25 @@ export function extractFileNameFromPath(filePath: string | null | undefined): st
   return base || undefined;
 }
 
+const DELIVERY_ROTATION_TAG_PREFIX = '_delivery_rotation:';
+
+function normalizeDeliveryRotation(degrees: number): number {
+  const n = Number(degrees);
+  if (!Number.isFinite(n)) return 0;
+  return ((Math.round(n / 90) * 90) % 360 + 360) % 360;
+}
+
+export function parseDeliveryRotationFromDispatchTags(tags?: unknown): number | null {
+  if (!Array.isArray(tags)) return null;
+  for (const tag of tags) {
+    const raw = String(tag);
+    if (!raw.startsWith(DELIVERY_ROTATION_TAG_PREFIX)) continue;
+    const parsed = Number(raw.slice(DELIVERY_ROTATION_TAG_PREFIX.length));
+    if (Number.isFinite(parsed)) return normalizeDeliveryRotation(parsed);
+  }
+  return null;
+}
+
 export function buildDispatchMediaItem(input: BuildDispatchMediaItemInput): DispatchMediaItem {
   const fileName = input.fileName?.trim() || extractFileNameFromPath(input.filePath) || undefined;
   const mediaType = resolveLogicalMediaType({
@@ -35,6 +54,7 @@ export function buildDispatchMediaItem(input: BuildDispatchMediaItemInput): Disp
   });
   const mediaName = input.name?.trim() || fileName;
   const filePath = input.filePath ?? undefined;
+  const deliveryRotation = parseDeliveryRotationFromDispatchTags(input.tags);
 
   return {
     mediaId: input.mediaId,
@@ -57,6 +77,7 @@ export function buildDispatchMediaItem(input: BuildDispatchMediaItemInput): Disp
       height: input.height ?? undefined,
       mimeType: input.mimeType ?? undefined,
       durationSeconds: positiveIntOrNull(input.durationSeconds) ?? undefined,
+      deliveryRotation: deliveryRotation ?? undefined,
     },
   };
 }

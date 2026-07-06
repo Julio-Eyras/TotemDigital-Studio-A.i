@@ -22,6 +22,23 @@ object MediaViewportRotation {
     /** Desactivado: ficheiros vêm do servidor em 16:9 pré-rodados; totem não transforma em runtime. */
     const val ENABLED = false
 
+    /**
+     * Totem Allwinner inverte faixas 16:9 horizontais (~180°). Compensa só ficheiros legacy
+     * com `_delivery_rotation:0` até serem reprocessados no servidor (entrega 180°).
+     */
+    const val LANDSCAPE_STRIP_FLIP_180 = true
+
+    fun landscapeStripPlaybackRotation(deliveryRotation: Int?, videoSize: VideoSize): Float {
+        if (!LANDSCAPE_STRIP_FLIP_180 || deliveryRotation != 0) return 0f
+        val (w, h) = rawVideoSize(videoSize)
+        if (w <= 0 || h <= 0 || w <= h) return 0f
+        return 180f
+    }
+
+    fun needsLandscapeStripFlip(deliveryRotation: Int?): Boolean {
+        return LANDSCAPE_STRIP_FLIP_180 && deliveryRotation == 0
+    }
+
     fun isPortraitMount(displayRotation: Int): Boolean {
         val normalized = ((displayRotation % 4) + 4) % 4
         return normalized == 0 || normalized == 2
@@ -141,7 +158,11 @@ object MediaViewportRotation {
 
     fun resetPlayerView(playerView: PlayerView) {
         resetView(playerView)
-        (playerView.videoSurfaceView as? TextureView)?.setTransform(Matrix())
+        try {
+            (playerView.videoSurfaceView as? TextureView)?.setTransform(Matrix())
+        } catch (_: Exception) {
+            // TextureView pode ainda não ter surface (Allwinner) — ignorar.
+        }
     }
 
     fun resetView(view: View) {

@@ -1096,7 +1096,8 @@ export class MediaService {
 
   /**
    * Telemóvel: pixels landscape + metadado rotate 90/270 → entrega 180°.
-   * Landscape nativo (16:9 horizontal) → entrega 270° (totem SO +90° = correcto).
+   * Landscape HD (≥1080px, filmado horizontal) → entrega 180° (totem inverte faixa).
+   * Landscape comprimido (WhatsApp 640×360, etc.) → entrega 90° (portrait no contentor).
    * Portrait nativo (9:16) → entrega 90°.
    */
   private resolveDeliveryRotationFromStream(
@@ -1116,7 +1117,8 @@ export class MediaService {
       return 180;
     }
     if (rawLandscape) {
-      return 270;
+      const maxDim = Math.max(rawWidth, rawHeight);
+      return maxDim >= 1080 ? 180 : 90;
     }
     return 90;
   }
@@ -1180,14 +1182,7 @@ export class MediaService {
     width?: number | null,
     height?: number | null
   ): { deliveryRotation: number | null; deliveryPreviewRotation: number | null } {
-    let delivery = this.parseDeliveryRotationFromTags(tags);
-    if (
-      delivery == null &&
-      width === TOTEM_DELIVERY_WIDTH &&
-      height === TOTEM_DELIVERY_HEIGHT
-    ) {
-      delivery = 90;
-    }
+    const delivery = this.parseDeliveryRotationFromTags(tags);
     if (delivery == null) {
       return { deliveryRotation: null, deliveryPreviewRotation: null };
     }
@@ -1202,13 +1197,18 @@ export class MediaService {
     for (const tag of tags) {
       if (!String(tag).startsWith(DELIVERY_ROTATION_TAG_PREFIX)) continue;
       const raw = String(tag).slice(DELIVERY_ROTATION_TAG_PREFIX.length);
-      const parsed = this.normalizeRotation(Number(raw));
-      if (parsed !== 0) return parsed;
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed)) {
+        return this.normalizeRotation(parsed);
+      }
     }
     return null;
   }
 
-  private async probeDeliveryRotationFromFile(filePath: string): Promise<number> {
+  private async probeDeliveryRotationFromFile(
+    filePath: string,
+    fallbackTagRotation?: number
+  ): Promise<number> {
     try {
       const { stdout } = await execFileAsync(
         'ffprobe',
@@ -1229,6 +1229,9 @@ export class MediaService {
       }
     } catch {
       /* metadado opcional */
+    }
+    if (fallbackTagRotation != null) {
+      return this.normalizeRotation(fallbackTagRotation);
     }
     return 90;
   }
@@ -1285,6 +1288,8 @@ export class MediaService {
           'stream=width,height',
           '-show_entries',
           'stream_tags=rotate',
+          '-show_entries',
+          'stream_side_data=rotation',
           '-of',
           'json',
           sourcePath,
@@ -1297,6 +1302,18 @@ export class MediaService {
       const rotRaw = stream?.tags?.rotate ?? stream?.tags?.ROTATE;
       if (rotRaw != null && String(rotRaw).trim() !== '') {
         rotation = this.normalizeRotation(Number(rotRaw));
+      }
+      if (rotation === 0) {
+        const sideList = stream?.side_data_list;
+        if (Array.isArray(sideList)) {
+          for (const side of sideList) {
+            const sideRot = side?.rotation ?? side?.rotate;
+            if (sideRot != null && String(sideRot).trim() !== '') {
+              rotation = this.normalizeRotation(Number(sideRot));
+              if (rotation !== 0) break;
+            }
+          }
+        }
       }
     } catch {
       // dimensões opcionais
@@ -1390,6 +1407,45 @@ export class MediaService {
         error: error?.message,
       });
     }
+  }
+
+  /**
+   * Re-aplica normalização totem (1920×1080 + rotação de entrega) num vídeo já existente.
+   * Útil quando a política de rotação muda sem re-upload manual.
+   */
+  async reprocessTotemDelivery(
+    mediaId: number,
+    updatedBy: number,
+    requestSubscriberId?: number,
+    isAdmin: boolean = false
+  ): Promise<MediaResponse> {
+    const media = await this.getMediaById(mediaId, requestSubscriberId, isAdmin);
+    if (!media) {
+      throw new Error('Mídia não encontrada');
+    }
+    if (!isAdmin && requestSubscriberId && media.subscriberId !== requestSubscriberId) {
+      throw new Error('Acesso negado: mídia não pertence a este subscriber');
+    }
+    if (media.mediaType !== 'video') {
+      throw new Error('Reprocessamento totem só está disponível para vídeos');
+    }
+    const filePath = this.resolveExistingMediaPath(media.filePath || '');
+    if (!filePath) {
+      throw new Error('Ficheiro de vídeo não encontrado no servidor');
+    }
+
+    await this.completeVideoPortraitNormalizationAfterUpload(
+      mediaId,
+      filePath,
+      media.mimeType || 'video/mp4',
+      updatedBy
+    );
+
+    const refreshed = await this.getMediaById(mediaId, requestSubscriberId, isAdmin);
+    if (!refreshed) {
+      throw new Error('Erro ao buscar mídia reprocessada');
+    }
+    return refreshed;
   }
 
   /**

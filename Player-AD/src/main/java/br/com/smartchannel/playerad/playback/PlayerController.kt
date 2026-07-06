@@ -96,6 +96,8 @@ class PlayerController(
         val label: String? = null,
         /** true quando o item veio marcado como vinheta no dispatch (tag/cacheBucket/caminho). */
         val isVinheta: Boolean = false,
+        /** Rotação pré-aplicada no servidor (_delivery_rotation:N). null = desconhecido. */
+        val deliveryRotation: Int? = null,
     )
 
     data class DispatchPlan(
@@ -194,6 +196,7 @@ class PlayerController(
                 url.substringAfterLast('/').substringBefore('?').ifBlank { null }
             }
             val isVinheta = isVinhetaDispatchJson(obj, url)
+            val deliveryRotation = parseDispatchDeliveryRotation(obj)
             items += DispatchMediaItem(
                 mediaId = mediaId,
                 url = apiClient.resolveUrl(url),
@@ -202,6 +205,7 @@ class PlayerController(
                 order = order,
                 label = label,
                 isVinheta = isVinheta,
+                deliveryRotation = deliveryRotation,
             )
         }
 
@@ -224,6 +228,32 @@ class PlayerController(
     }
 
     /** Alinhado ao backend (`cacheBucket`, tag `vinheta`, pasta `/vinhetas/`). */
+    private fun parseDispatchDeliveryRotation(obj: JSONObject): Int? {
+        val metadata = obj.optJSONObject("metadata")
+        val fromMeta = metadata?.optInt("deliveryRotation", -1)
+            ?.takeIf { it >= 0 }
+            ?: metadata?.optInt("delivery_rotation", -1)?.takeIf { it >= 0 }
+        if (fromMeta != null) return normalizeDispatchRotation(fromMeta)
+        return parseDeliveryRotationFromDispatchTags(obj)
+    }
+
+    private fun parseDeliveryRotationFromDispatchTags(obj: JSONObject): Int? {
+        val tagsArray = obj.optJSONArray("tags") ?: return null
+        for (i in 0 until tagsArray.length()) {
+            val tag = tagsArray.optString(i, "")
+            if (!tag.startsWith("_delivery_rotation:")) continue
+            val raw = tag.removePrefix("_delivery_rotation:").trim()
+            val parsed = raw.toIntOrNull() ?: continue
+            return normalizeDispatchRotation(parsed)
+        }
+        return null
+    }
+
+    private fun normalizeDispatchRotation(degrees: Int): Int {
+        val normalized = ((degrees / 90) * 90 % 360 + 360) % 360
+        return if (normalized in setOf(0, 90, 180, 270)) normalized else 0
+    }
+
     private fun isVinhetaDispatchJson(obj: JSONObject, url: String): Boolean {
         val bucket = firstNonBlankString(obj, "cacheBucket", "cache_bucket").lowercase()
         if (bucket == "vinhetas") return true
@@ -1064,7 +1094,7 @@ class PlayerController(
         exoPlayer.stop()
         exoPlayer.clearMediaItems()
         exoPlayer.setMediaItem(mediaItem)
-        attachVideoOrientationListener()
+        attachVideoOrientationListener(item.deliveryRotation)
         exoPlayer.prepare()
         exoPlayer.play()
         playerView.postDelayed({
@@ -1215,16 +1245,49 @@ class PlayerController(
         MediaViewportRotation.resetView(imageView)
     }
 
-    private fun attachVideoOrientationListener() {
-        if (!AUTO_MEDIA_ORIENTATION) return
+    private fun attachVideoOrientationListener(deliveryRotation: Int? = null) {
+        if (!AUTO_MEDIA_ORIENTATION && !MediaViewportRotation.needsLandscapeStripFlip(deliveryRotation)) {
+            return
+        }
         detachVideoOrientationListener()
         val listener = object : Player.Listener {
             override fun onVideoSizeChanged(videoSize: VideoSize) {
-                applyVideoOrientationCorrection(videoSize)
+                if (AUTO_MEDIA_ORIENTATION) {
+                    applyVideoOrientationCorrection(videoSize)
+                } else {
+                    applyLandscapeStripFlipIfNeeded(videoSize, deliveryRotation)
+                }
             }
         }
         videoOrientationListener = listener
         exoPlayer.addListener(listener)
+    }
+
+    private fun applyLandscapeStripFlipIfNeeded(videoSize: VideoSize, deliveryRotation: Int?) {
+        if (!MediaViewportRotation.needsLandscapeStripFlip(deliveryRotation)) return
+        try {
+            val (rawW, rawH) = MediaViewportRotation.rawVideoSize(videoSize)
+            val rot = MediaViewportRotation.landscapeStripPlaybackRotation(deliveryRotation, videoSize)
+            if (rot == 0f) return
+            playerView.post {
+                try {
+                    playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    exoPlayer.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT)
+                    PlayerAdLogger.i(
+                        "DISPLAY",
+                        "Flip faixa landscape ${rot.toInt()}° deliveryRotation=$deliveryRotation " +
+                            "vídeo ${rawW}x${rawH} metaRot=${videoSize.unappliedRotationDegrees}",
+                    )
+                    MediaViewportRotation.applyToPlayerView(playerView, rot, rawW, rawH)
+                } catch (e: Exception) {
+                    PlayerAdLogger.e("DISPLAY", "Falha flip faixa landscape; mantém FIT", e)
+                    MediaViewportRotation.resetPlayerView(playerView)
+                    playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                }
+            }
+        } catch (e: Exception) {
+            PlayerAdLogger.e("DISPLAY", "Falha ao agendar flip faixa landscape", e)
+        }
     }
 
     private fun detachVideoOrientationListener() {
