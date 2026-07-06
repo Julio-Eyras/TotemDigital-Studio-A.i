@@ -383,7 +383,7 @@ const QuickPublish: React.FC = () => {
         isHtml: isPublishBoardHtmlMedia(media),
         needsBlob:
           !isPublishBoardHtmlMedia(media)
-          && !!item.id
+          && resolveMediaId(media) != null
           && (
             isProtectedThumbnailUrl(media.thumbnailUrl || media.previewUrl)
             || !normalizePublicAssetUrl(media.file_path)
