@@ -35,7 +35,8 @@ router.get('/:id/thumbnail',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const mediaId = parseInt(req.params.id);
-      const thumbnail = await getMediaService().getThumbnail(mediaId);
+      const regenerate = String(req.query.regenerate || '') === '1';
+      const thumbnail = await getMediaService().getThumbnail(mediaId, { regenerate });
       if (!thumbnail) {
         return res.status(404).json({ error: 'Thumbnail não encontrado' });
       }

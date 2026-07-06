@@ -234,10 +234,10 @@ const QuickPublish: React.FC = () => {
     if (id && selectedMediaPreviewUrlsRef.current.has(id)) {
       return selectedMediaPreviewUrlsRef.current.get(id);
     }
-    const publicPath = normalizePublicAssetUrl(media.file_path);
-    if (publicPath) return publicPath;
     const url = media.previewUrl || media.thumbnailUrl;
     if (url && !isProtectedThumbnailUrl(url)) return url;
+    const publicPath = normalizePublicAssetUrl(media.file_path);
+    if (publicPath && !id) return publicPath;
     return undefined;
   }, [selectedMediaPreviewTick]);
 
@@ -383,8 +383,11 @@ const QuickPublish: React.FC = () => {
         isHtml: isPublishBoardHtmlMedia(media),
         needsBlob:
           !isPublishBoardHtmlMedia(media)
-          && !normalizePublicAssetUrl(media.file_path)
-          && isProtectedThumbnailUrl(media.thumbnailUrl || media.previewUrl),
+          && !!item.id
+          && (
+            isProtectedThumbnailUrl(media.thumbnailUrl || media.previewUrl)
+            || !normalizePublicAssetUrl(media.file_path)
+          ),
       }))
       .filter((item): item is { id: number; media: MediaItem; isHtml: boolean; needsBlob: boolean } =>
         item.id != null && (item.isHtml || item.needsBlob)

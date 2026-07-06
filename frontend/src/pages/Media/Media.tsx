@@ -657,10 +657,13 @@ const Media: React.FC = () => {
                   let previewUrl = getPreviewSrc(media);
                   const isVideo = /^video$/i.test(String(media.media_type || ''));
 
-                  // Para imagens: fallback em file_path público quando disponível.
+                  // Para imagens: fallback em file_path público só sem media_id (evita 404).
                   // Para vídeos: NUNCA usar /assets/ como video src (404 em dev); preferir thumbnail (blob) ou ícone.
                   if (!previewUrl && !isVideo) {
-                    previewUrl = normalizePublicAssetUrlFromFilePath(media.file_path);
+                    const mediaId = media.media_id || media.id;
+                    if (!mediaId) {
+                      previewUrl = normalizePublicAssetUrlFromFilePath(media.file_path);
+                    }
                   } else if (!previewUrl && isVideo) {
                     // Vídeo sem blob: mostrar ícone; não usar /assets/ (geralmente 404)
                     previewUrl = undefined;

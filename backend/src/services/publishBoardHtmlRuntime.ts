@@ -37,8 +37,17 @@ export function offlineFitScript(w: number, h: number, totemRotateDeg = 0): stri
   function fit(){
     var s=document.getElementById('stage');
     if(!s)return;
-    var W=${w},H=${h},rot=${rot};
+    var W=${w},H=${h},baseRot=${rot};
     var vw=window.innerWidth,vh=window.innerHeight;
+    var contentPortrait=H>W;
+    var viewportLandscape=vw>vh;
+    var rot=baseRot;
+    if(baseRot===90||baseRot===270){
+      if(contentPortrait&&viewportLandscape){rot=baseRot;}
+      else if(contentPortrait&&!viewportLandscape){rot=0;}
+      else if(!contentPortrait&&!viewportLandscape){rot=baseRot;}
+      else{rot=0;}
+    }
     if(rot===90||rot===270){
       var scale=Math.min(vw/H,vh/W);
       s.style.transformOrigin='top left';

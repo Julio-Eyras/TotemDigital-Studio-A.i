@@ -7,6 +7,7 @@ import {
   TOTEM_HTML_DELIVERY_ROTATE_DEG,
 } from './publishBoardHtmlRuntime';
 import { getMenuCatalogTriggerService } from './menuCatalogTriggerService';
+import { resolvePublishBoardAssetUrl } from '../utils/publishBoardAssetUrl';
 
 function pad(portrait: boolean, portraitVal: string, landscapeVal: string): string {
   return portrait ? portraitVal : landscapeVal;
@@ -50,7 +51,8 @@ function buildAdHtml(input: PublishBoardRenderInput, totemRotateDeg = 0): string
   const brand = escapeHtml(input.content?.brand || '');
   const message = escapeHtml(input.content?.message || '');
   const cta = escapeHtml(input.content?.cta || 'Saiba mais');
-  const logoUrl = escapeHtml(input.content?.logoUrl || '');
+  const logoUrlRaw = resolvePublishBoardAssetUrl(input.content?.logoUrl);
+  const logoUrl = logoUrlRaw ? escapeHtml(logoUrlRaw) : '';
 
   const css = `
 .stage{background:linear-gradient(135deg,#001a33 0%,#0d47a1 55%,#001428 100%);color:#fff;display:flex;flex-direction:column;justify-content:space-evenly;align-items:flex-start;padding:${pad(portrait, '6%', '5%')};gap:.8rem}

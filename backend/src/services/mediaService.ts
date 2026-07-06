@@ -20,6 +20,12 @@ import { normalizeDownloadUrl, generateThumbnailUrl } from '../utils/pathHelper'
 import { isStudioRuntime } from '../config/installationRuntime';
 import { getMediaTotemSyncService } from './mediaTotemSyncService';
 import {
+  htmlBoardThumbPathForFile,
+  writeHtmlBoardThumbnail,
+} from './htmlBoardThumbnail';
+import { findPublishPreset } from '../config/publishBoardDefaults';
+import type { PublishBoardPresetType } from './publishBoardRenderService';
+import {
   getMediaDeletionService,
   MediaInUseError,
   type ForceDeleteMediaResult,
@@ -975,6 +981,16 @@ export class MediaService {
     if (!updated) {
       throw new Error('Erro ao buscar mídia atualizada');
     }
+
+    await getMediaTotemSyncService()
+      .notifyAffectedTotems(mediaId, {
+        reason: 'file_content',
+        filePath: rawPath,
+        fileSizeBytes: file.size,
+        updatedAt: updated.updatedAt,
+      })
+      .catch((e) => logError('Falha ao notificar totens após substituir ficheiro', e, { mediaId }));
+
     return updated;
   }
 
@@ -2038,7 +2054,7 @@ export class MediaService {
    * Busca thumbnail de mídia
    * Compatível com caminhos antigos (client-X) e novos (subscriber-X)
    */
-  async getThumbnail(mediaId: number): Promise<string | null> {
+  async getThumbnail(mediaId: number, options?: { regenerate?: boolean }): Promise<string | null> {
     try {
       const tmpDir = path.join(os.tmpdir(), 'smartsignage', 'thumbnails');
       if (!fs.existsSync(tmpDir)) {
@@ -2105,9 +2121,37 @@ export class MediaService {
 
       // 2) Thumbnail ao lado do ficheiro (imagens e fallback)
       const siblingThumb = media.filePath.replace(/\.[^/.]+$/, '_thumb.jpg');
-      const existingSiblingThumb = checkFilePath(siblingThumb);
+      const existingSiblingThumb = options?.regenerate ? null : checkFilePath(siblingThumb);
       if (existingSiblingThumb) {
         return existingSiblingThumb;
+      }
+
+      // 3b) HTML publish-board: thumbnail 9:16 ao lado do ficheiro
+      if (media.mediaType === 'html' && existingFilePath) {
+        const htmlThumb = htmlBoardThumbPathForFile(existingFilePath);
+        if (options?.regenerate && fs.existsSync(htmlThumb)) {
+          try {
+            fs.unlinkSync(htmlThumb);
+          } catch {
+            /* noop */
+          }
+        }
+        const existingHtmlThumb = options?.regenerate ? null : checkFilePath(htmlThumb);
+        if (existingHtmlThumb) {
+          return existingHtmlThumb;
+        }
+        try {
+          const layoutMeta = await this.resolvePublishBoardThumbMeta(media);
+          const generated = await writeHtmlBoardThumbnail(htmlThumb, {
+            boardTitle: layoutMeta.boardTitle,
+            accentColor: layoutMeta.accentColor,
+            presetLabel: layoutMeta.presetLabel,
+            footerLabel: 'HTML ao vivo',
+          });
+          if (generated) return generated;
+        } catch {
+          /* fallback abaixo */
+        }
       }
 
       // 3) Imagem: thumbnail 9:16 ao lado do ficheiro ou cache
@@ -2138,31 +2182,6 @@ export class MediaService {
         return generatedThumbPath;
       }
 
-      // 3b) HTML publish-board: thumbnail 9:16 ao lado do ficheiro
-      if (media.mediaType === 'html' && existingFilePath) {
-        const htmlThumb = existingFilePath.replace(/\.[^/.]+$/, '_thumb.jpg');
-        const existingHtmlThumb = checkFilePath(htmlThumb);
-        if (existingHtmlThumb) {
-          return existingHtmlThumb;
-        }
-        try {
-          const accent = '#ff9800';
-          const title = String(media.name || 'HTML').slice(0, 48).replace(/[<>&]/g, '');
-          const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="640">
-            <defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" style="stop-color:${accent}"/><stop offset="100%" style="stop-color:#111"/>
-            </linearGradient></defs>
-            <rect width="360" height="640" fill="url(#g)"/>
-            <text x="180" y="300" font-family="Arial" font-size="22" font-weight="bold" fill="#fff" text-anchor="middle">${title}</text>
-            <text x="180" y="560" font-family="Arial" font-size="13" fill="#ccc" text-anchor="middle">HTML</text>
-          </svg>`;
-          await (sharp as any)(Buffer.from(svg)).jpeg({ quality: 82 }).toFile(htmlThumb);
-          if (fs.existsSync(htmlThumb)) return htmlThumb;
-        } catch {
-          /* fallback abaixo */
-        }
-      }
-
       // 4) Fallback: placeholder
       return await this.ensurePlaceholderImage(placeholderPath);
     } catch (error: any) {
@@ -2174,6 +2193,45 @@ export class MediaService {
   /**
    * Gera (ou reutiliza) um placeholder de thumbnail para evitar 404 no frontend.
    */
+  private async resolvePublishBoardThumbMeta(media: MediaResponse): Promise<{
+    boardTitle: string;
+    accentColor: string;
+    presetLabel: string;
+  }> {
+    const tags = Array.isArray(media.tags) ? media.tags.map(String) : [];
+    const presetTag = ['menu', 'promotion', 'ad', 'announcement', 'institutional'].find((p) =>
+      tags.includes(p)
+    );
+    const fallbackTitle = String(media.name || 'HTML')
+      .replace(/\s*—\s*[^—]+(\(HTML\))?$/i, '')
+      .trim() || String(media.name || 'HTML');
+
+    if (!media.subscriberId || !presetTag) {
+      return {
+        boardTitle: fallbackTitle,
+        accentColor: '#ff9800',
+        presetLabel: 'HTML',
+      };
+    }
+
+    const row = await this.db.findFirst(
+      `
+      SELECT board_title, accent_color, preset
+      FROM publish_board_layouts
+      WHERE subscriber_id = $1 AND preset = $2
+      LIMIT 1
+    `,
+      [media.subscriberId, presetTag]
+    );
+
+    const presetMeta = findPublishPreset(presetTag as PublishBoardPresetType);
+    return {
+      boardTitle: String(row?.board_title || fallbackTitle),
+      accentColor: String(row?.accent_color || '#ff9800'),
+      presetLabel: presetMeta.label,
+    };
+  }
+
   private async ensurePlaceholderImage(outputPath: string): Promise<string> {
     if (fs.existsSync(outputPath)) {
       return outputPath;

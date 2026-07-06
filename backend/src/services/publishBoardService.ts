@@ -4,9 +4,11 @@ import { getMenuCatalogService } from './menuCatalogService';
 import { renderPublishBoardPng, PublishBoardPresetType } from './publishBoardRenderService';
 import { renderPublishBoardHtml } from './publishBoardHtmlRenderService';
 import { findPublishPreset } from '../config/publishBoardDefaults';
-import sharp from 'sharp';
-import fs from 'fs';
-import path from 'path';
+import {
+  htmlBoardThumbPathForFile,
+  writeHtmlBoardThumbnail,
+} from './htmlBoardThumbnail';
+import { getMediaTotemSyncService } from './mediaTotemSyncService';
 
 export interface PublishBoardLayout {
   subscriberId: number;
@@ -38,49 +40,34 @@ function parseProductOrder(raw: unknown): number[] {
   return raw.map(Number).filter((n) => n > 0);
 }
 
-function escapeSvgText(value: string): string {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
 async function generateHtmlBoardThumbnail(
   htmlFilePath: string,
   boardTitle: string,
   accentColor: string,
   presetLabel: string
 ): Promise<string | null> {
-  try {
-    const thumbPath = htmlFilePath.replace(/\.[^/.]+$/, '_thumb.jpg');
-    const accent = accentColor && /^#[0-9a-fA-F]{3,8}$/.test(accentColor) ? accentColor : '#ff9800';
-    const title = escapeSvgText(boardTitle.slice(0, 48) || 'Conteúdo HTML');
-    const label = escapeSvgText(presetLabel.slice(0, 32));
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="640">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:${accent}"/>
-      <stop offset="100%" style="stop-color:#0d1117"/>
-    </linearGradient>
-  </defs>
-  <rect width="360" height="640" fill="url(#bg)"/>
-  <text x="180" y="290" font-family="Arial,Helvetica,sans-serif" font-size="26" font-weight="700" fill="#ffffff" text-anchor="middle">${title}</text>
-  <text x="180" y="340" font-family="Arial,Helvetica,sans-serif" font-size="15" fill="#f0f0f0" text-anchor="middle" opacity="0.9">${label}</text>
-  <text x="180" y="580" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#cccccc" text-anchor="middle">HTML ao vivo</text>
-</svg>`;
-    const dir = path.dirname(thumbPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    await (sharp as any)(Buffer.from(svg))
-      .resize(360, 640, { fit: 'cover' })
-      .jpeg({ quality: 86, progressive: true })
-      .toFile(thumbPath);
-    return thumbPath;
-  } catch {
-    return null;
-  }
+  return writeHtmlBoardThumbnail(htmlBoardThumbPathForFile(htmlFilePath), {
+    boardTitle,
+    accentColor,
+    presetLabel,
+    footerLabel: 'HTML ao vivo',
+  });
+}
+
+async function notifyHtmlMediaTotems(
+  mediaId: number,
+  userId: number,
+  filePath?: string | null,
+  fileSizeBytes?: number | null
+): Promise<void> {
+  await getMediaTotemSyncService()
+    .notifyAffectedTotems(mediaId, {
+      reason: 'file_content',
+      updatedBy: userId > 0 ? userId : undefined,
+      filePath: filePath ?? undefined,
+      fileSizeBytes: fileSizeBytes ?? undefined,
+    })
+    .catch(() => {});
 }
 
 function parseContent(raw: unknown): Record<string, string> {
@@ -339,6 +326,8 @@ export class PublishBoardService {
         );
       }
 
+      await notifyHtmlMediaTotems(media.id, userId, filePath, htmlBuffer.length);
+
       return { mediaId: media.id, name: mediaName, mediaType: 'html', replaced: true };
     }
 
@@ -374,6 +363,8 @@ export class PublishBoardService {
         presetMeta.label
       );
     }
+
+    await notifyHtmlMediaTotems(media.id, userId, filePath, htmlBuffer.length);
 
     return { mediaId: media.id, name: media.name, mediaType: 'html', replaced: false };
   }
