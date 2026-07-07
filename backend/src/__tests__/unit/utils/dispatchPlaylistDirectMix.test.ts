@@ -22,6 +22,8 @@ function row(
     height: null,
     mime_type: 'video/mp4',
     duration_seconds: 10,
+    updated_at: null,
+    file_size_bytes: null,
     source,
     source_priority: source === 'playlist' ? 0 : 1,
   };

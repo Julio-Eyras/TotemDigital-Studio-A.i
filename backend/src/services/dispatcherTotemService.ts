@@ -23,6 +23,7 @@ import { sumDispatchMediaItemsPlanDuration } from '../utils/dispatchItemDuration
 import { enrichDispatchPlanWithGlobalVinhetas } from './dispatchVinhetaEnrichment';
 import {
   DEFAULT_FALLBACK_PROPAGANDAS_PER_VINHETA,
+  DispatchConsolidatedRow,
   interleaveDirectAndPlaylistItems,
 } from '../utils/dispatchPlaylistDirectMix';
 import {
@@ -1997,24 +1998,7 @@ export class DispatcherTotemService {
     campaignId: number,
     mixRatio: number = DEFAULT_FALLBACK_PROPAGANDAS_PER_VINHETA
   ): Promise<{
-    items: Array<{
-      media_id: number;
-      order_index: number;
-      duration: number | null;
-      name: string | null;
-      file_name: string | null;
-      file_path: string | null;
-      media_type: string | null;
-      tags: any;
-      width: number | null;
-      height: number | null;
-      mime_type: string | null;
-      duration_seconds: number | null;
-      updated_at: string | Date | null;
-      file_size_bytes: number | null;
-      source: 'playlist' | 'campaign';
-      source_priority: number;
-    }>;
+    items: DispatchConsolidatedRow[];
     playlistItemsCount: number;
     campaignMediaCount: number;
     playlistDirectMixApplied: boolean;
@@ -2145,24 +2129,7 @@ export class DispatcherTotemService {
 
   /** Fallback quando só há playlistId (sem campanha) — mantém ordem linear da playlist. */
   private async getConsolidatedDispatchItemsFromPlaylistOnly(playlistId: number): Promise<{
-    items: Array<{
-      media_id: number;
-      order_index: number;
-      duration: number | null;
-      name: string | null;
-      file_name: string | null;
-      file_path: string | null;
-      media_type: string | null;
-      tags: any;
-      width: number | null;
-      height: number | null;
-      mime_type: string | null;
-      duration_seconds: number | null;
-      updated_at: string | Date | null;
-      file_size_bytes: number | null;
-      source: 'playlist' | 'campaign';
-      source_priority: number;
-    }>;
+    items: DispatchConsolidatedRow[];
     playlistItemsCount: number;
     campaignMediaCount: number;
     playlistDirectMixApplied: boolean;

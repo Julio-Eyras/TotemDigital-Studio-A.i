@@ -32,6 +32,8 @@ export interface ConsolidatedCampaignItem {
   height: number | null;
   mime_type: string | null;
   duration_seconds: number | null;
+  updated_at: string | Date | null;
+  file_size_bytes: number | null;
 }
 
 export class TotemSimpleMixService {

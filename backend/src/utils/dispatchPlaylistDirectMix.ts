@@ -17,6 +17,8 @@ export interface DispatchConsolidatedRow {
   height: number | null;
   mime_type: string | null;
   duration_seconds: number | null;
+  updated_at: string | Date | null;
+  file_size_bytes: number | null;
   source: 'playlist' | 'campaign';
   source_priority: number;
 }
