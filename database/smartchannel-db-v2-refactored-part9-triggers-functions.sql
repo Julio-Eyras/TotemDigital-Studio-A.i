@@ -554,7 +554,7 @@ BEGIN
     IF OLD.is_active = true AND NEW.is_active = false THEN
         UPDATE smart_tvs SET is_active = false, updated_at = CURRENT_TIMESTAMP
             WHERE totem_id = NEW.totem_id AND is_active = true;
-        UPDATE totem_playlists SET is_active = false, status = 'inactive', updated_at = CURRENT_TIMESTAMP
+        UPDATE totem_playlists SET is_active = false, status = 'invalidated', updated_at = CURRENT_TIMESTAMP
             WHERE totem_id = NEW.totem_id AND is_active = true;
         UPDATE campaign_totems SET is_active = false, updated_at = CURRENT_TIMESTAMP
             WHERE totem_id = NEW.totem_id AND is_active = true;

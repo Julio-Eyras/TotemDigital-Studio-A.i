@@ -71,6 +71,18 @@ if [[ -f "$INSTALL_DIR/scripts/apply-remote-command-types-compat.sh" ]]; then
   INSTALL_DIR="$INSTALL_DIR" bash "$INSTALL_DIR/scripts/apply-remote-command-types-compat.sh" || warn "compat remote_commands falhou"
 fi
 
+COMPAT_TP="$INSTALL_DIR/database/smartchannel-db-v2-compat-totem-playlist-deactivate-status.sql"
+if [[ -f "$COMPAT_TP" ]] && command -v psql >/dev/null 2>&1; then
+  log "Compat cascade_totem_deactivate (totem_playlists status)..."
+  set -a
+  # shellcheck disable=SC1090
+  [[ -f "$INSTALL_DIR/.env" ]] && source "$INSTALL_DIR/.env"
+  set +a
+  PGPASSWORD="${PGPASSWORD:-${DB_PASSWORD:-}}" psql -h "${DB_HOST:-localhost}" -p "${DB_PORT:-5432}" \
+    -U "${DB_USER:-postgres}" -d "${DB_NAME:-smartchannel_db}" -v ON_ERROR_STOP=1 -f "$COMPAT_TP" \
+    || warn "compat totem_playlist deactivate falhou"
+fi
+
 # 1) Diretórios ANTES de tudo (causa #1 do crash no upload)
 bootstrap_opt_dirs || exit 1
 
