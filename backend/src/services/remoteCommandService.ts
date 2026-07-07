@@ -4,6 +4,11 @@
  */
 
 import { getDatabase } from '../config/database';
+import { getDatabase as getPgPool } from '../config/database-pg';
+import {
+  ensureRemoteCommandTypesConstraint,
+  isRemoteCommandTypeConstraintError,
+} from '../config/schemaCompat';
 import { logInfo, logError, logWarn, logDebug } from '../utils/loggerHelper';
 import { getEventLogService, EventType } from './eventLogService';
 
@@ -82,19 +87,7 @@ export class RemoteCommandService {
         throw new Error('Totem não está ativo');
       }
 
-      // Inserir comando (tabela remote_commands: command_id, totem_id, user_id, command_type, status, parameters)
-      const result = await this.db.executeRaw(`
-        INSERT INTO remote_commands (
-          totem_id, user_id, command_type, status, parameters
-        )
-        VALUES ($1, $2, $3, 'pending', $4)
-        RETURNING *
-      `, [
-        request.totemId,
-        userId,
-        request.commandType,
-        request.commandData ? JSON.stringify(request.commandData) : null
-      ]);
+      const result = await this.insertRemoteCommandRow(request, userId);
 
       const command = result.rows[0];
       const commandId = command.command_id ?? command.id;
@@ -125,6 +118,39 @@ export class RemoteCommandService {
         commandType: request.commandType
       });
       throw error;
+    }
+  }
+
+  private async insertRemoteCommandRow(request: CreateCommandRequest, userId: number) {
+    const runInsert = () =>
+      this.db.executeRaw(
+        `
+        INSERT INTO remote_commands (
+          totem_id, user_id, command_type, status, parameters
+        )
+        VALUES ($1, $2, $3, 'pending', $4)
+        RETURNING *
+      `,
+        [
+          request.totemId,
+          userId,
+          request.commandType,
+          request.commandData ? JSON.stringify(request.commandData) : null,
+        ]
+      );
+
+    try {
+      return await runInsert();
+    } catch (error: unknown) {
+      if (!isRemoteCommandTypeConstraintError(error)) {
+        throw error;
+      }
+      await logWarn('chk_remote_command_type desatualizado — aplicando compat e repetindo insert', {
+        commandType: request.commandType,
+        totemId: request.totemId,
+      });
+      await ensureRemoteCommandTypesConstraint(getPgPool(), { strict: true });
+      return await runInsert();
     }
   }
 

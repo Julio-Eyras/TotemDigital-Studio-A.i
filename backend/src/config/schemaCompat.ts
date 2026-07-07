@@ -30,9 +30,12 @@ export const REMOTE_COMMAND_TYPES = [
 
 const REMOTE_COMMAND_TYPES_SQL = REMOTE_COMMAND_TYPES.map((t) => `'${t}'`).join(', ');
 
-export async function ensureRemoteCommandTypesConstraint(pool: {
-  query: (text: string) => Promise<unknown>;
-}): Promise<void> {
+export async function ensureRemoteCommandTypesConstraint(
+  pool: {
+    query: (text: string) => Promise<unknown>;
+  },
+  options?: { strict?: boolean }
+): Promise<boolean> {
   try {
     const exists = await pool.query(`
       SELECT EXISTS (
@@ -42,7 +45,7 @@ export async function ensureRemoteCommandTypesConstraint(pool: {
     `);
     const tableExists = Boolean((exists as { rows?: Array<{ exists?: boolean }> }).rows?.[0]?.exists);
     if (!tableExists) {
-      return;
+      return true;
     }
 
     await pool.query(`
@@ -56,9 +59,20 @@ export async function ensureRemoteCommandTypesConstraint(pool: {
     logInfoSync('Schema compat: chk_remote_command_type atualizado', {
       types: REMOTE_COMMAND_TYPES.length,
     });
+    return true;
   } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (options?.strict) {
+      throw error;
+    }
     logWarnSync('Schema compat: falha ao atualizar chk_remote_command_type', {
-      error: error instanceof Error ? error.message : String(error),
+      error: message,
     });
+    return false;
   }
+}
+
+export function isRemoteCommandTypeConstraintError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes('chk_remote_command_type');
 }
