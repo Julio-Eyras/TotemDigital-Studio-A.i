@@ -66,6 +66,11 @@ if [[ -d "$INSTALL_DIR/.git" ]]; then
   git -C "$INSTALL_DIR" log -1 --oneline 2>/dev/null || true
 fi
 
+if [[ -f "$INSTALL_DIR/scripts/apply-remote-command-types-compat.sh" ]]; then
+  log "Compat chk_remote_command_type (tipos sync P1)..."
+  INSTALL_DIR="$INSTALL_DIR" bash "$INSTALL_DIR/scripts/apply-remote-command-types-compat.sh" || warn "compat remote_commands falhou"
+fi
+
 # 1) Diretórios ANTES de tudo (causa #1 do crash no upload)
 bootstrap_opt_dirs || exit 1
 

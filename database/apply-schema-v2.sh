@@ -138,6 +138,7 @@ main() {
         "smartchannel-db-v2-compat-publisher-billing-overdue.sql|Compat: publisher_billing payment_status overdue"
         "smartchannel-db-v2-refactored-part5-tables-relationships.sql|Parte 5: Relacionamentos N:N"
         "smartchannel-db-v2-refactored-part6-tables-other.sql|Parte 6: Outras Tabelas"
+        "smartchannel-db-v2-compat-remote-command-types.sql|Compat: tipos remote_commands (P1 sync)"
         "seeds-publish-templates-vx4.sql|Seeds: Templates publicação rápida (Vx4)"
         "seeds-default-settings.sql|Seeds: Configurações Padrão do Sistema"
         "smartchannel-db-v2-refactored-part7-foreign-keys.sql|Parte 7: Foreign Keys"

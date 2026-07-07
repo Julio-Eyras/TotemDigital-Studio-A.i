@@ -201,6 +201,15 @@ fi
 
 run_predeploy_validation
 
+echo "[3b/7] Compat remote_commands (tipos P1)..."
+if [[ -f "$INSTALL_DIR/scripts/apply-remote-command-types-compat.sh" ]]; then
+  bash "$INSTALL_DIR/scripts/apply-remote-command-types-compat.sh" || {
+    echo "⚠️  Falha ao aplicar compat remote_commands — comandos sync podem falhar no painel."
+  }
+else
+  echo "⚠️  apply-remote-command-types-compat.sh não encontrado — ignorando."
+fi
+
 echo "[4/7] Build + sync + restart..."
 if [[ "$NO_BUILD" == "true" ]]; then
   bash "$INSTALL_DIR/scripts/deploy-backfront-build.sh" --no-build

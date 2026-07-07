@@ -392,8 +392,10 @@ CREATE TABLE IF NOT EXISTS remote_commands (
     user_id INTEGER NOT NULL, -- FK para users (quem criou o comando)
     
     command_type TEXT NOT NULL, 
-        -- restart, reboot, update, play, pause, 
-        -- load_playlist, clear_cache, ping
+        -- restart, restart_app, reboot, reset_board, screenshot, capture_screen,
+        -- invalidate_media, invalidate_playlist, invalidate_campaign,
+        -- refresh_dispatch, sync_now, content_version_check, purge_cache,
+        -- update, config, custom (+ legado: play, pause, load_playlist, clear_cache, ping)
     
     status TEXT DEFAULT 'pending', 
         -- pending, sent, executing, completed, failed, timeout
@@ -413,8 +415,15 @@ CREATE TABLE IF NOT EXISTS remote_commands (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     CONSTRAINT chk_remote_command_type 
-        CHECK (command_type IN ('restart', 'reboot', 'update', 'play', 'pause', 
-                                'load_playlist', 'request_playlist', 'clear_cache', 'ping', 'custom')),
+        CHECK (command_type IN (
+            'restart', 'restart_app', 'reboot', 'reset_board',
+            'screenshot', 'capture_screen',
+            'invalidate_media', 'invalidate_playlist', 'invalidate_campaign',
+            'refresh_dispatch', 'sync_now', 'content_version_check',
+            'purge_cache', 'clear_cache',
+            'update', 'config', 'custom',
+            'play', 'pause', 'load_playlist', 'request_playlist', 'ping'
+        )),
     CONSTRAINT chk_remote_command_status 
         CHECK (status IN ('pending', 'sent', 'executing', 'completed', 'failed', 'timeout'))
 );
