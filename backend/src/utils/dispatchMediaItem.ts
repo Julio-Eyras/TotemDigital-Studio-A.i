@@ -1,5 +1,6 @@
 import { DispatchMediaItem } from '../types/dispatcherTotem.types';
 import { resolveDispatchCacheBucket } from '../services/dispatchMediaBucket';
+import { buildMediaContentVersion } from '../services/mediaTotemSyncService';
 import { resolveDispatchItemDurationSeconds, positiveIntOrNull } from './dispatchItemDuration';
 import { resolveLogicalMediaType } from './mediaTypeUtils';
 import { normalizeDownloadUrl } from './pathHelper';
@@ -17,6 +18,9 @@ export interface BuildDispatchMediaItemInput {
   height?: number | null;
   mimeType?: string | null;
   tags?: unknown;
+  updatedAt?: string | Date | null;
+  fileSizeBytes?: number | null;
+  fileCrc?: string | null;
 }
 
 export function extractFileNameFromPath(filePath: string | null | undefined): string | undefined {
@@ -55,6 +59,13 @@ export function buildDispatchMediaItem(input: BuildDispatchMediaItemInput): Disp
   const mediaName = input.name?.trim() || fileName;
   const filePath = input.filePath ?? undefined;
   const deliveryRotation = parseDeliveryRotationFromDispatchTags(input.tags);
+  const contentVersion = buildMediaContentVersion({
+    updatedAt: input.updatedAt,
+    fileSizeBytes: input.fileSizeBytes,
+    filePath,
+    fileCrc: input.fileCrc,
+  });
+  const hasContentVersion = contentVersion.replace(/\|/g, '').length > 0;
 
   return {
     mediaId: input.mediaId,
@@ -78,6 +89,7 @@ export function buildDispatchMediaItem(input: BuildDispatchMediaItemInput): Disp
       mimeType: input.mimeType ?? undefined,
       durationSeconds: positiveIntOrNull(input.durationSeconds) ?? undefined,
       deliveryRotation: deliveryRotation ?? undefined,
+      contentVersion: hasContentVersion ? contentVersion : undefined,
     },
   };
 }

@@ -836,7 +836,7 @@ export class DispatcherTotemService {
 
       const mediaIds = [...new Set(items.map((i: any) => i.media_id))];
       const medias = await this.db.findMany(`
-        SELECT media_id, name, file_name, file_path, media_type, duration_seconds, width, height, mime_type, tags
+        SELECT media_id, name, file_name, file_path, media_type, duration_seconds, width, height, mime_type, tags, updated_at, file_size_bytes
         FROM medias
         WHERE media_id = ANY($1::int[]) AND is_active = true
       `, [mediaIds]);
@@ -861,6 +861,8 @@ export class DispatcherTotemService {
             height: m?.height,
             mimeType: m?.mime_type,
             tags: m?.tags,
+            updatedAt: m?.updated_at,
+            fileSizeBytes: m?.file_size_bytes,
           });
           if (!built.url) {
             built.url = `/api/media/${item.media_id}/stream`;
@@ -2008,6 +2010,8 @@ export class DispatcherTotemService {
       height: number | null;
       mime_type: string | null;
       duration_seconds: number | null;
+      updated_at: string | Date | null;
+      file_size_bytes: number | null;
       source: 'playlist' | 'campaign';
       source_priority: number;
     }>;
@@ -2032,6 +2036,8 @@ export class DispatcherTotemService {
         m.height,
         m.mime_type,
         m.duration_seconds,
+        m.updated_at,
+        m.file_size_bytes,
         cp.priority as playlist_priority,
         cp.created_at as playlist_linked_at,
         cp.playlist_id
@@ -2062,7 +2068,9 @@ export class DispatcherTotemService {
             m.width,
             m.height,
             m.mime_type,
-            m.duration_seconds
+            m.duration_seconds,
+            m.updated_at,
+            m.file_size_bytes
           FROM campaign_medias cm
           INNER JOIN medias m ON cm.media_id = m.media_id
           WHERE cm.campaign_id = $1
@@ -2087,6 +2095,8 @@ export class DispatcherTotemService {
       height: item.height,
       mime_type: item.mime_type,
       duration_seconds: item.duration_seconds,
+      updated_at: item.updated_at,
+      file_size_bytes: item.file_size_bytes,
       source: 'playlist' as const,
       source_priority: 0,
     }));
@@ -2104,6 +2114,8 @@ export class DispatcherTotemService {
       height: item.height,
       mime_type: item.mime_type,
       duration_seconds: item.duration_seconds,
+      updated_at: item.updated_at,
+      file_size_bytes: item.file_size_bytes,
       source: 'campaign' as const,
       source_priority: 1,
     }));
@@ -2146,6 +2158,8 @@ export class DispatcherTotemService {
       height: number | null;
       mime_type: string | null;
       duration_seconds: number | null;
+      updated_at: string | Date | null;
+      file_size_bytes: number | null;
       source: 'playlist' | 'campaign';
       source_priority: number;
     }>;
@@ -2171,7 +2185,9 @@ export class DispatcherTotemService {
         m.width,
         m.height,
         m.mime_type,
-        m.duration_seconds
+        m.duration_seconds,
+        m.updated_at,
+        m.file_size_bytes
       FROM playlist_items pi
       INNER JOIN medias m ON pi.media_id = m.media_id
       WHERE pi.playlist_id = $1
@@ -2197,6 +2213,8 @@ export class DispatcherTotemService {
       height: item.height,
       mime_type: item.mime_type,
       duration_seconds: item.duration_seconds,
+      updated_at: item.updated_at,
+      file_size_bytes: item.file_size_bytes,
       source: 'playlist' as const,
       source_priority: 0,
     }));
@@ -2243,7 +2261,9 @@ export class DispatcherTotemService {
           m.width,
           m.height,
           m.mime_type,
-          m.duration_seconds
+          m.duration_seconds,
+          m.updated_at,
+          m.file_size_bytes
         FROM medias m
         WHERE m.media_id = $1
       `, [mixItem.media_id]);
@@ -2266,6 +2286,8 @@ export class DispatcherTotemService {
             height: media.height,
             mimeType: media.mime_type,
             tags: media.tags,
+            updatedAt: media.updated_at,
+            fileSizeBytes: media.file_size_bytes,
           })
         );
       } else {
@@ -2442,6 +2464,8 @@ export class DispatcherTotemService {
         height: item.height,
         mimeType: item.mime_type,
         tags: item.tags,
+        updatedAt: item.updated_at,
+        fileSizeBytes: item.file_size_bytes,
       })
     );
 

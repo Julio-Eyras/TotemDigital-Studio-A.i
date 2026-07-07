@@ -54,6 +54,7 @@ class MediaCacheManager(
         /** Avaliação de orientação no cache concluída (com ou sem rotação). */
         val cacheOrientationReady: Boolean = false,
         val cacheRotated: Boolean = false,
+        val contentVersion: String? = null,
     )
 
     /**
@@ -98,6 +99,7 @@ class MediaCacheManager(
         mimeType: String?,
         cacheOrientationReady: Boolean = false,
         cacheRotated: Boolean = false,
+        contentVersion: String? = null,
     ) {
         val now = System.currentTimeMillis()
         val key = mediaId.toString()
@@ -117,6 +119,13 @@ class MediaCacheManager(
         obj.put("sum_play", sumPlay)
         obj.put("cacheOrientationReady", cacheOrientationReady)
         obj.put("cacheRotated", cacheRotated)
+        if (!contentVersion.isNullOrBlank()) {
+            obj.put("contentVersion", contentVersion)
+        } else {
+            existing?.optString("contentVersion", "")?.takeIf { it.isNotBlank() }?.let {
+                obj.put("contentVersion", it)
+            }
+        }
 
         metadata.put(key, obj)
         saveMetadataToDisk()
@@ -223,6 +232,7 @@ class MediaCacheManager(
                 sumPlay = sumPlayMap,
                 cacheOrientationReady = obj.optBoolean("cacheOrientationReady", false),
                 cacheRotated = obj.optBoolean("cacheRotated", false),
+                contentVersion = obj.optString("contentVersion", "").takeIf { it.isNotBlank() },
             )
         } catch (e: JSONException) {
             null

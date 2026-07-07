@@ -192,6 +192,8 @@ export class TotemSimpleMixService {
           height: row.height,
           mimeType: row.mime_type,
           tags: row.tags,
+          updatedAt: row.updated_at,
+          fileSizeBytes: row.file_size_bytes,
         })
       );
     }

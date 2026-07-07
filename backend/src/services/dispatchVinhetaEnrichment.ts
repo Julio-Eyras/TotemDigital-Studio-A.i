@@ -15,6 +15,8 @@ export interface GlobalVinhetaRow {
   width: number | null;
   height: number | null;
   tags: unknown;
+  updated_at?: string | Date | null;
+  file_size_bytes?: number | null;
 }
 
 /**
@@ -37,7 +39,9 @@ export async function fetchGlobalVinhetasForSubscriber(
       m.duration_seconds,
       m.width,
       m.height,
-      m.tags
+      m.tags,
+      m.updated_at,
+      m.file_size_bytes
     FROM medias m
     WHERE m.subscriber_id = $1
       AND COALESCE(m.is_active, true) = true
@@ -86,6 +90,8 @@ export function appendGlobalVinhetasToDispatchPlan(
         height: row.height,
         mimeType: row.mime_type,
         tags: row.tags,
+        updatedAt: row.updated_at,
+        fileSizeBytes: row.file_size_bytes,
       })
     );
   }

@@ -1,6 +1,6 @@
 /**
  * Totem Remote Control Component - Smart Signage v2.1
- * Componente para controle remoto de totens
+ * Componente para controle remoto de totens (Player-AD / TV Smart)
  */
 
 import React, { useState, useEffect } from 'react';
@@ -18,7 +18,6 @@ import {
   List,
   ListItem,
   ListItemText,
-  ListItemSecondaryAction,
   Chip,
   IconButton,
   CircularProgress,
@@ -28,6 +27,8 @@ import {
   ImageList,
   ImageListItem,
   Tooltip,
+  TextField,
+  Divider,
 } from '@mui/material';
 import {
   RestartAlt,
@@ -40,8 +41,15 @@ import {
   Error as ErrorIcon,
   Schedule,
   Terminal,
+  Sync,
+  DeleteSweep,
+  Cached,
+  PlaylistPlay,
+  Campaign,
+  PermMedia,
+  Verified,
 } from '@mui/icons-material';
-import { totemApi } from '../../services/api';
+import { totemApi, dispatcherTotemApi } from '../../services/api';
 import { useNotification } from '../../hooks/useNotification';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import TotemLogsViewer from '../TotemLogsViewer/TotemLogsViewer';
@@ -70,6 +78,15 @@ interface Screenshot {
   height?: number;
 }
 
+type SyncCommandType =
+  | 'refresh_dispatch'
+  | 'sync_now'
+  | 'content_version_check'
+  | 'invalidate_media'
+  | 'invalidate_playlist'
+  | 'invalidate_campaign'
+  | 'purge_cache';
+
 const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
   totemId,
   totemName,
@@ -82,12 +99,20 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
   const [loading, setLoading] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const [capturing, setCapturing] = useState(false);
+  const [syncLoading, setSyncLoading] = useState<SyncCommandType | null>(null);
   const [selectedScreenshot, setSelectedScreenshot] = useState<Screenshot | null>(null);
+  const [invalidateDialog, setInvalidateDialog] = useState<{
+    open: boolean;
+    type: 'invalidate_media' | 'invalidate_playlist' | 'invalidate_campaign';
+  }>({ open: false, type: 'invalidate_media' });
+  const [invalidateMediaIds, setInvalidateMediaIds] = useState('');
+  const [invalidatePlaylistId, setInvalidatePlaylistId] = useState('');
+  const [invalidateCampaignId, setInvalidateCampaignId] = useState('');
 
   useEffect(() => {
-    if (tabValue === 1) {
+    if (tabValue === 0) {
       loadCommands();
-    } else if (tabValue === 2) {
+    } else if (tabValue === 1) {
       loadScreenshots();
     }
   }, [tabValue, totemId]);
@@ -116,6 +141,114 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
     }
   };
 
+  const sendSyncCommand = async (
+    type: SyncCommandType,
+    data: Record<string, unknown> = {},
+    successMessage?: string
+  ) => {
+    try {
+      setSyncLoading(type);
+      await totemApi.sendCommand(totemId, type, data);
+      showSuccess(
+        successMessage || 'Comando enviado',
+        'O totem executará no próximo heartbeat (TV Smart / Player-AD)'
+      );
+      if (tabValue === 0) {
+        setTimeout(loadCommands, 2000);
+      }
+    } catch (error: any) {
+      showError(pickApiErrorMessage(error, 'Erro ao enviar comando'));
+    } finally {
+      setSyncLoading(null);
+    }
+  };
+
+  const handleRefreshDispatch = () =>
+    sendSyncCommand('refresh_dispatch', {}, 'Atualização de plano solicitada');
+
+  const handleSyncNow = () =>
+    sendSyncCommand('sync_now', {}, 'Sincronização imediata solicitada');
+
+  const handleContentVersionCheck = async () => {
+    try {
+      setSyncLoading('content_version_check');
+      const dispatch = await dispatcherTotemApi.dispatch(totemId);
+      const plan = dispatch?.data || dispatch?.dispatchPlan;
+      const mediaItems = plan?.mediaItems || (plan as any)?.media_items || [];
+      const items = mediaItems
+        .map((item: any) => ({
+          mediaId: Number(item.mediaId ?? item.media_id),
+          contentVersion: item.metadata?.contentVersion ?? item.metadata?.content_version,
+        }))
+        .filter((item: { mediaId: number; contentVersion?: string }) =>
+          Number.isFinite(item.mediaId) && item.mediaId > 0 && !!item.contentVersion
+        );
+
+      if (!items.length) {
+        showError('Plano atual sem contentVersion — republicar mídias ou atualizar o player');
+        return;
+      }
+
+      await totemApi.sendCommand(totemId, 'content_version_check', { items });
+      showSuccess(
+        'Verificação de versões enviada',
+        `${items.length} mídia(s) serão conferidas no cache da TV`
+      );
+      if (tabValue === 0) {
+        setTimeout(loadCommands, 2000);
+      }
+    } catch (error: any) {
+      showError(pickApiErrorMessage(error, 'Erro ao verificar versões no totem'));
+    } finally {
+      setSyncLoading(null);
+    }
+  };
+
+  const handlePurgeCache = async () => {
+    if (!window.confirm('Limpar todo o cache de propagandas nesta TV? O conteúdo será baixado novamente.')) {
+      return;
+    }
+    await sendSyncCommand('purge_cache', {}, 'Limpeza de cache solicitada');
+  };
+
+  const openInvalidateDialog = (type: typeof invalidateDialog.type) => {
+    setInvalidateDialog({ open: true, type });
+  };
+
+  const submitInvalidate = async () => {
+    const { type } = invalidateDialog;
+    let data: Record<string, unknown> = {};
+
+    if (type === 'invalidate_media') {
+      const ids = invalidateMediaIds
+        .split(/[,\s;]+/)
+        .map((v) => parseInt(v.trim(), 10))
+        .filter((id) => Number.isFinite(id) && id > 0);
+      if (!ids.length) {
+        showError('Informe ao menos um ID de mídia');
+        return;
+      }
+      data = { mediaIds: ids };
+    } else if (type === 'invalidate_playlist') {
+      const playlistId = parseInt(invalidatePlaylistId.trim(), 10);
+      if (!Number.isFinite(playlistId) || playlistId <= 0) {
+        showError('Informe o ID da playlist');
+        return;
+      }
+      data = { playlistId };
+    } else {
+      const campaignId = parseInt(invalidateCampaignId.trim(), 10);
+      if (!Number.isFinite(campaignId) || campaignId <= 0) {
+        showError('Informe o ID da campanha');
+        return;
+      }
+      data = { campaignId };
+    }
+
+    setInvalidateDialog({ open: false, type });
+    await sendSyncCommand(type, data, 'Invalidação de cache enviada');
+  };
+
   const handleRestart = async () => {
     if (!window.confirm('Tem certeza que deseja reiniciar este totem remotamente?')) {
       return;
@@ -123,10 +256,10 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
 
     try {
       setRestarting(true);
-      const result = await totemApi.restart(totemId);
+      await totemApi.restart(totemId);
       showSuccess('Comando de reinício enviado', 'O totem será reiniciado em breve');
       if (tabValue === 0) {
-        setTimeout(loadCommands, 2000); // Recarregar após 2 segundos
+        setTimeout(loadCommands, 2000);
       }
     } catch (error: any) {
       showError(pickApiErrorMessage(error, 'Erro ao enviar comando de reinício'));
@@ -138,10 +271,10 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
   const handleScreenshot = async () => {
     try {
       setCapturing(true);
-      const result = await totemApi.screenshot(totemId);
+      await totemApi.screenshot(totemId);
       showSuccess('Comando de screenshot enviado', 'O screenshot será capturado em breve');
       if (tabValue === 1) {
-        setTimeout(loadScreenshots, 3000); // Recarregar após 3 segundos
+        setTimeout(loadScreenshots, 3000);
       }
     } catch (error: any) {
       showError(pickApiErrorMessage(error, 'Erro ao solicitar screenshot'));
@@ -197,15 +330,44 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
   };
 
   const formatCommandType = (type: string) => {
-    const types: { [key: string]: string } = {
+    const types: Record<string, string> = {
       restart: 'Reinício',
+      restart_app: 'Reinício do app',
       screenshot: 'Captura de tela',
+      capture_screen: 'Captura de tela',
+      refresh_dispatch: 'Atualizar plano',
+      sync_now: 'Sincronizar agora',
+      content_version_check: 'Verificar versões',
+      invalidate_media: 'Invalidar mídia',
+      invalidate_playlist: 'Invalidar playlist',
+      invalidate_campaign: 'Invalidar campanha',
+      purge_cache: 'Limpar cache',
       update: 'Atualização',
       config: 'Configuração',
       custom: 'Personalizado',
     };
     return types[type] || type;
   };
+
+  const syncButton = (
+    label: string,
+    type: SyncCommandType,
+    icon: React.ReactNode,
+    onClick: () => void,
+    color: 'primary' | 'secondary' | 'warning' | 'error' | 'info' | 'success' = 'primary'
+  ) => (
+    <Button
+      fullWidth
+      variant="outlined"
+      color={color}
+      size="small"
+      startIcon={syncLoading === type ? <CircularProgress size={14} /> : icon}
+      onClick={onClick}
+      disabled={syncLoading !== null}
+    >
+      {syncLoading === type ? 'Enviando...' : label}
+    </Button>
+  );
 
   return (
     <Card>
@@ -221,8 +383,13 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
           )}
         </Box>
 
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Comandos de sincronização exigem <strong>Player-AD</strong> atualizado na TV Smart.
+          A execução ocorre no próximo heartbeat do player.
+        </Alert>
+
         {/* Ações Rápidas */}
-        <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid container spacing={2} sx={{ mb: 2 }}>
           <Grid item xs={12} sm={6}>
             <Button
               fullWidth
@@ -248,6 +415,55 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
             </Button>
           </Grid>
         </Grid>
+
+        <Typography variant="subtitle2" gutterBottom>
+          Sincronização — TV Smart / Player-AD
+        </Typography>
+        <Grid container spacing={1} sx={{ mb: 3 }}>
+          <Grid item xs={6} sm={4}>
+            {syncButton('Atualizar plano', 'refresh_dispatch', <Refresh />, handleRefreshDispatch)}
+          </Grid>
+          <Grid item xs={6} sm={4}>
+            {syncButton('Sincronizar agora', 'sync_now', <Sync />, handleSyncNow, 'success')}
+          </Grid>
+          <Grid item xs={6} sm={4}>
+            {syncButton('Verificar versões', 'content_version_check', <Verified />, handleContentVersionCheck, 'info')}
+          </Grid>
+          <Grid item xs={6} sm={4}>
+            {syncButton('Invalidar mídia', 'invalidate_media', <PermMedia />, () => openInvalidateDialog('invalidate_media'), 'warning')}
+          </Grid>
+          <Grid item xs={6} sm={4}>
+            {syncButton('Invalidar playlist', 'invalidate_playlist', <PlaylistPlay />, () => openInvalidateDialog('invalidate_playlist'), 'warning')}
+          </Grid>
+          <Grid item xs={6} sm={4}>
+            {syncButton('Invalidar campanha', 'invalidate_campaign', <Campaign />, () => openInvalidateDialog('invalidate_campaign'), 'warning')}
+          </Grid>
+          <Grid item xs={6} sm={4}>
+            {syncButton('Limpar cache', 'purge_cache', <DeleteSweep />, handlePurgeCache, 'error')}
+          </Grid>
+          <Grid item xs={6} sm={4}>
+            <Tooltip title="Limpa cache e solicita novo plano de exibição">
+              <Box>
+                {syncButton('Cache + plano', 'purge_cache', <Cached />, async () => {
+                  if (!window.confirm('Limpar cache e atualizar plano nesta TV Smart?')) return;
+                  setSyncLoading('purge_cache');
+                  try {
+                    await totemApi.sendCommand(totemId, 'purge_cache', {});
+                    await totemApi.sendCommand(totemId, 'refresh_dispatch', {});
+                    showSuccess('Cache limpo e plano atualizado', 'Comandos enfileirados para o Player-AD');
+                    if (tabValue === 0) setTimeout(loadCommands, 2000);
+                  } catch (error: any) {
+                    showError(pickApiErrorMessage(error, 'Erro ao enviar comandos'));
+                  } finally {
+                    setSyncLoading(null);
+                  }
+                }, 'secondary')}
+              </Box>
+            </Tooltip>
+          </Grid>
+        </Grid>
+
+        <Divider sx={{ mb: 2 }} />
 
         {/* Tabs */}
         <Tabs
@@ -351,7 +567,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
                       sx={{
                         position: 'relative',
                         width: '100%',
-                        paddingTop: '56.25%', // 16:9 aspect ratio
+                        paddingTop: '56.25%',
                         backgroundColor: 'grey.200',
                         borderRadius: 1,
                         overflow: 'hidden',
@@ -420,6 +636,59 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
         )}
       </CardContent>
 
+      {/* Dialog: Invalidação */}
+      <Dialog
+        open={invalidateDialog.open}
+        onClose={() => setInvalidateDialog({ open: false, type: invalidateDialog.type })}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>
+          {invalidateDialog.type === 'invalidate_media' && 'Invalidar mídias no cache'}
+          {invalidateDialog.type === 'invalidate_playlist' && 'Invalidar playlist no cache'}
+          {invalidateDialog.type === 'invalidate_campaign' && 'Invalidar campanha no cache'}
+        </DialogTitle>
+        <DialogContent>
+          {invalidateDialog.type === 'invalidate_media' && (
+            <TextField
+              fullWidth
+              margin="normal"
+              label="IDs de mídia"
+              placeholder="Ex.: 42, 58, 103"
+              value={invalidateMediaIds}
+              onChange={(e) => setInvalidateMediaIds(e.target.value)}
+              helperText="Separados por vírgula. O player apagará o cache e baixará de novo."
+            />
+          )}
+          {invalidateDialog.type === 'invalidate_playlist' && (
+            <TextField
+              fullWidth
+              margin="normal"
+              label="ID da playlist"
+              value={invalidatePlaylistId}
+              onChange={(e) => setInvalidatePlaylistId(e.target.value)}
+            />
+          )}
+          {invalidateDialog.type === 'invalidate_campaign' && (
+            <TextField
+              fullWidth
+              margin="normal"
+              label="ID da campanha"
+              value={invalidateCampaignId}
+              onChange={(e) => setInvalidateCampaignId(e.target.value)}
+            />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setInvalidateDialog({ open: false, type: invalidateDialog.type })}>
+            Cancelar
+          </Button>
+          <Button variant="contained" onClick={submitInvalidate}>
+            Enviar comando
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Dialog: Visualizar captura de tela */}
       <Dialog
         open={!!selectedScreenshot}
@@ -456,4 +725,3 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
 };
 
 export default TotemRemoteControl;
-

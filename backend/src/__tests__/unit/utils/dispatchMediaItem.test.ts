@@ -55,5 +55,19 @@ describe('dispatchMediaItem', () => {
       expect(item.mediaType).toBe('video');
       expect(item.duration).toBeNull();
     });
+
+    it('inclui contentVersion em metadata quando há dados de versão', () => {
+      const item = buildDispatchMediaItem({
+        mediaId: 13,
+        order: 1,
+        filePath: '/uploads/subscriber/1/banner.jpg',
+        updatedAt: '2026-06-23T12:00:00.000Z',
+        fileSizeBytes: 4096,
+      });
+
+      expect(item.metadata?.contentVersion).toBe(
+        '2026-06-23T12:00:00.000Z|4096|/uploads/subscriber/1/banner.jpg|'
+      );
+    });
   });
 });

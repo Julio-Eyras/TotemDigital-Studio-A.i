@@ -1899,6 +1899,15 @@ export const totemApi = {
     const response = await api.post(`/totems/${id}/screenshot`);
     return response.data;
   },
+
+  sendCommand: async (
+    id: number,
+    type: string,
+    data?: Record<string, unknown>
+  ): Promise<{ success: boolean; message: string; command: any }> => {
+    const response = await api.post(`/totems/${id}/commands`, { type, data: data ?? {} });
+    return response.data;
+  },
   
   getCommands: async (id: number, limit?: number): Promise<{ success: boolean; data: any[] }> => {
     const response = await api.get(`/totems/${id}/commands`, { params: { limit } });

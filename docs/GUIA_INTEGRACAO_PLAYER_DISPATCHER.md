@@ -222,6 +222,58 @@ O player deve:
 - Atualizar `token` se vier novo.
 - Executar comandos em `pendingCommands` e reportar IDs em `executedCommands` na próxima chamada.
 
+### 2.1 Comandos de sincronização (Player-AD / TV Smart)
+
+Tipos suportados pelo Player-AD (via `POST /api/totems/:id/commands`):
+
+| Tipo | Efeito no player |
+|------|------------------|
+| `refresh_dispatch` | Solicita novo GET dispatch **sem** apagar cache |
+| `sync_now` | Alias de `refresh_dispatch` |
+| `content_version_check` | Compara `contentVersion` esperado vs cache local |
+| `invalidate_media` | Remove cache das mídias indicadas + refresh dispatch |
+| `invalidate_playlist` | Remove cache das mídias da playlist + refresh |
+| `invalidate_campaign` | Remove cache das mídias da campanha + refresh |
+| `purge_cache` | Apaga ficheiros em `propagandas/` (mantém metadados inválidos) |
+
+**`content_version_check` — payload:**
+
+```json
+{
+  "items": [
+    { "mediaId": 42, "contentVersion": "2026-06-23T12:00:00.000Z|4096|/uploads/.../banner.html|" }
+  ]
+}
+```
+
+Alternativa com versão única:
+
+```json
+{
+  "mediaIds": [42, 43],
+  "contentVersion": "2026-06-23T12:00:00.000Z|4096|/uploads/.../banner.html|"
+}
+```
+
+**Resposta do player:**
+
+```json
+{
+  "checked": 2,
+  "invalidated": [42],
+  "unchanged": [43],
+  "missing": []
+}
+```
+
+**`metadata.contentVersion` em cada `mediaItem` do dispatch:**
+
+Formato: `updatedAt|fileSizeBytes|filePath|fileCrc` (mesmo de `buildMediaContentVersion` no backend).
+
+O player persiste em `propagandas/metadata.json` após download e revalida em `ensureCacheForPlan` — se divergir, apaga o ficheiro e baixa de novo.
+
+> Requer APK Player-AD atualizado. O painel web envia estes comandos em **Totens → Controle Remoto → Sincronização TV Smart**.
+
 ---
 
 ## 3. Fluxos por Tipo de Player

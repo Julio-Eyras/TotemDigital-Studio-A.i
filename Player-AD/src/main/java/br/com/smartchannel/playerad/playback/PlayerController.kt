@@ -98,6 +98,8 @@ class PlayerController(
         val isVinheta: Boolean = false,
         /** Rotação pré-aplicada no servidor (_delivery_rotation:N). null = desconhecido. */
         val deliveryRotation: Int? = null,
+        /** Versão de conteúdo do servidor (updatedAt|size|path|crc). */
+        val contentVersion: String? = null,
     )
 
     data class DispatchPlan(
@@ -197,6 +199,7 @@ class PlayerController(
             }
             val isVinheta = isVinhetaDispatchJson(obj, url)
             val deliveryRotation = parseDispatchDeliveryRotation(obj)
+            val contentVersion = parseDispatchContentVersion(obj)
             items += DispatchMediaItem(
                 mediaId = mediaId,
                 url = apiClient.resolveUrl(url),
@@ -206,6 +209,7 @@ class PlayerController(
                 label = label,
                 isVinheta = isVinheta,
                 deliveryRotation = deliveryRotation,
+                contentVersion = contentVersion,
             )
         }
 
@@ -225,6 +229,14 @@ class PlayerController(
         }
 
         return DispatchPlan(playlistId, playlistName, items, campaignId)
+    }
+
+    /** Alinhado ao backend (`cacheBucket`, tag `vinheta`, pasta `/vinhetas/`). */
+    private fun parseDispatchContentVersion(obj: JSONObject): String? {
+        val metadata = obj.optJSONObject("metadata") ?: return null
+        return metadata.optString("contentVersion", "")
+            .ifBlank { metadata.optString("content_version", "") }
+            .ifBlank { null }
     }
 
     /** Alinhado ao backend (`cacheBucket`, tag `vinheta`, pasta `/vinhetas/`). */
@@ -401,11 +413,18 @@ class PlayerController(
             if (item.url.startsWith("file://") || item.mediaId <= 0L) continue
             val meta = cacheManager.getMetadata(item.mediaId)
             val file = meta?.fileName?.let { File(propagandasDir, it) }
+            val versionOk =
+                item.contentVersion.isNullOrBlank() ||
+                meta?.contentVersion == item.contentVersion
             val hasValidCache =
                 meta?.valid == true &&
-                file != null && file.exists()
+                file != null && file.exists() &&
+                versionOk
 
             if (!hasValidCache) {
+                if (meta?.valid == true && file != null && file.exists() && !versionOk) {
+                    cacheManager.markAsRemoved(item.mediaId)
+                }
                 downloadToCache(item)
             } else if (
                 PortraitVideoCacheProcessor.isVideoFile(item.mediaType, item.url) &&
@@ -486,6 +505,7 @@ class PlayerController(
                 mimeType = item.mediaType,
                 cacheOrientationReady = orientationReady,
                 cacheRotated = rotated,
+                contentVersion = item.contentVersion,
             )
         } catch (e: Exception) {
             PlayerAdLogger.logDownloadFailed(item.mediaId, item.url, e)
@@ -759,7 +779,9 @@ class PlayerController(
                     status = "completed",
                     result = result
                 )
-                if (type == "invalidate_media" || type == "invalidate_playlist" || type == "invalidate_campaign") {
+                if (type == "invalidate_media" || type == "invalidate_playlist" || type == "invalidate_campaign" ||
+                    type == "refresh_dispatch" || type == "sync_now" || type == "content_version_check"
+                ) {
                     refreshDispatch = true
                 }
                 PlayerAdLogger.i("REMOTE_CMD", "Comando executado com sucesso: type=$type id=${cmd.id}")
@@ -789,11 +811,62 @@ class PlayerController(
             "invalidate_media" -> executeInvalidateMedia(data)
             "invalidate_playlist" -> executeInvalidatePlaylist(data)
             "invalidate_campaign" -> executeInvalidateCampaign(data)
+            "refresh_dispatch", "sync_now" -> executeRefreshDispatch()
+            "content_version_check" -> executeContentVersionCheck(data)
             "purge_cache" -> executePurgeCache()
             "restart_app", "restart" -> executeRestartApp()
             "reset_board", "reboot" -> executeResetBoard()
             "capture_screen", "screenshot" -> executeCaptureScreen()
             else -> throw IllegalArgumentException("Comando não suportado no Player-AD: $type")
+        }
+    }
+
+    private fun executeRefreshDispatch(): JSONObject {
+        return JSONObject().put("refreshed", true)
+    }
+
+    private fun executeContentVersionCheck(data: JSONObject?): JSONObject {
+        val checks = linkedMapOf<Long, String>()
+        val itemsArr = data?.optJSONArray("items")
+        if (itemsArr != null) {
+            for (i in 0 until itemsArr.length()) {
+                val obj = itemsArr.optJSONObject(i) ?: continue
+                val id = obj.optLong("mediaId", obj.optLong("media_id", 0L))
+                val ver = obj.optString("contentVersion", obj.optString("content_version", "")).trim()
+                if (id > 0L && ver.isNotBlank()) checks[id] = ver
+            }
+        } else {
+            val ver = data?.optString("contentVersion", data?.optString("content_version", "") ?: "")?.trim().orEmpty()
+            if (ver.isNotBlank()) {
+                extractMediaIds(data).forEach { id -> checks[id] = ver }
+            }
+        }
+        if (checks.isEmpty()) {
+            throw IllegalArgumentException("content_version_check sem items ou mediaIds+contentVersion")
+        }
+
+        val invalidated = JSONArray()
+        val unchanged = JSONArray()
+        val missing = JSONArray()
+        for ((id, expected) in checks) {
+            val meta = cacheManager.getMetadata(id)
+            if (meta == null || !meta.valid) {
+                missing.put(id)
+                continue
+            }
+            val stored = meta.contentVersion
+            if (stored.isNullOrBlank() || stored != expected) {
+                cacheManager.markAsRemoved(id)
+                invalidated.put(id)
+            } else {
+                unchanged.put(id)
+            }
+        }
+        return JSONObject().apply {
+            put("checked", checks.size)
+            put("invalidated", invalidated)
+            put("unchanged", unchanged)
+            put("missing", missing)
         }
     }
 
