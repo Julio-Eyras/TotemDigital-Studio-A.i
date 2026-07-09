@@ -844,13 +844,45 @@ export class SubscriberService {
     contracts?: Array<Record<string, unknown>>;
   }): Promise<Subscriber> {
     const db = getDatabase();
-    const pSubscriber = JSON.stringify(payload.subscriber);
+    const subscriber = { ...payload.subscriber };
+    const optionalTextFields = [
+      'contact_name',
+      'email',
+      'phone',
+      'whatsapp',
+      'address',
+      'category_segment',
+      'description',
+    ] as const;
+    for (const field of optionalTextFields) {
+      const value = subscriber[field];
+      if (value !== undefined && value !== null && String(value).trim() === '') {
+        (subscriber as Record<string, unknown>)[field] = null;
+      }
+    }
+
+    const pSubscriber = JSON.stringify(subscriber);
     const pContracts = JSON.stringify(payload.contracts ?? []);
 
-    const row = await db.findFirst(
-      `SELECT create_subscriber_with_contracts($1::jsonb, $2::jsonb) AS data`,
-      [pSubscriber, pContracts]
-    );
+    let row;
+    try {
+      row = await db.findFirst(
+        `SELECT create_subscriber_with_contracts($1::jsonb, $2::jsonb) AS data`,
+        [pSubscriber, pContracts]
+      );
+    } catch (error: any) {
+      if (error && (error.code === '23505' || String(error.message || '').includes('duplicate key'))) {
+        const msg = String(error.detail || error.message || '');
+        if (msg.includes('email')) {
+          throw new Error('Subscriber com este email já existe');
+        }
+        if (msg.includes('name')) {
+          throw new Error('Subscriber com este nome já existe');
+        }
+        throw new Error('Subscriber com valores duplicados (nome/email) já existe');
+      }
+      throw error;
+    }
     if (!row?.data) {
       throw new Error('Erro ao criar subscriber com contratos: procedimento não retornou dados');
     }

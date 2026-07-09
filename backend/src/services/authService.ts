@@ -112,7 +112,7 @@ export class AuthService {
         user = await this.db.findFirst(`
           SELECT u.*
           FROM users u 
-          WHERE u.username = ? AND u.is_active = true
+          WHERE u.username = $1 AND u.is_active = true
         `, [username]);
       }
 
@@ -240,7 +240,7 @@ export class AuthService {
 
       // Verificar se usuário já existe
       const existingUser = await this.db.findFirst(`
-        SELECT id FROM users WHERE username = ?
+        SELECT id FROM users WHERE username = $1
       `, [username]);
 
       if (existingUser) {

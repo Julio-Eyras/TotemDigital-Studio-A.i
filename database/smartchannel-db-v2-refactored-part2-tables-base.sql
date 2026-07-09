@@ -27,6 +27,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_subscribers_name_idx ON subscribers (name);
 -- A coluna email foi definida como UNIQUE na criação da tabela; garantimos índice único idempotente também
 CREATE UNIQUE INDEX IF NOT EXISTS uq_subscribers_email_idx ON subscribers (email);
 
+-- Normalizar emails vazios para NULL (UNIQUE permite vários NULL, mas só um '')
+DO $normalize_subscribers_email$
+BEGIN
+  IF to_regclass('public.subscribers') IS NOT NULL THEN
+    UPDATE subscribers SET email = NULL WHERE email IS NOT NULL AND TRIM(email) = '';
+  END IF;
+END;
+$normalize_subscribers_email$;
+
 COMMENT ON TABLE subscribers IS 'Anunciantes/Assinantes que compram espaço publicitário';
 COMMENT ON COLUMN subscribers.subscriber_id IS 'ID único do assinante (anunciante)';
 COMMENT ON COLUMN subscribers.name IS 'Nome/razão social do assinante';

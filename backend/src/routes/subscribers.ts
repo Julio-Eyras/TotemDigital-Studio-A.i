@@ -5,7 +5,7 @@ import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { protectContractValues } from '../middleware/contractValuesProtection.middleware';
 import { getSubscriberService } from '../services/subscriberService';
 import { logError } from '../utils/loggerHelper';
-import { isDatabaseError } from '../utils/dbErrors';
+import { isDatabaseError, isUniqueViolationError } from '../utils/dbErrors';
 import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
 import { 
   paginationValidators, 
@@ -199,7 +199,7 @@ router.post('/',
       return res.status(201).json(newSubscriber);
     } catch (error: any) {
       await logError('Erro ao criar subscriber', error);
-      const status = isDatabaseError(error) ? 500 : 400;
+      const status = isUniqueViolationError(error) || !isDatabaseError(error) ? 400 : 500;
       return res.status(status).json({ error: error.message || 'Erro ao criar subscriber' });
     }
   }

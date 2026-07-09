@@ -15,10 +15,22 @@ export function isMissingTableError(error: any): boolean {
 }
 
 /**
+ * Violação de unicidade (nome/email duplicado) — erro de validação, não 500.
+ */
+export function isUniqueViolationError(error: any): boolean {
+  if (!error) return false;
+  const code = error.code ?? (error as any).errno;
+  if (code === '23505') return true;
+  const msg = String(error.message || '').toLowerCase();
+  return msg.includes('duplicate key') || msg.includes('unique constraint');
+}
+
+/**
  * Indica se o erro é do PostgreSQL/banco (constraint, procedure, etc.).
  * Usado para devolver 500 em vez de 400 em falhas de procedure/constraint.
  */
 export function isDatabaseError(error: any): boolean {
+  if (isUniqueViolationError(error)) return false;
   if (!error) return false;
   const code = error.code ?? (error as any).errno;
   if (code != null && typeof code === 'string' && /^[0-9A-Z]{2,5}$/.test(code)) return true;

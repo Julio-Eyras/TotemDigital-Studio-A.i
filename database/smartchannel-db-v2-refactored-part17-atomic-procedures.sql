@@ -224,17 +224,17 @@ DECLARE
   v_contract_number text;
   v_result jsonb;
 BEGIN
-  -- 1. Inserir subscriber
+  -- 1. Inserir subscriber (email vazio normalizado a NULL para evitar violação de UNIQUE)
   INSERT INTO subscribers (name, contact_name, email, phone, whatsapp, address, category_segment, description, is_active, created_at, updated_at)
   VALUES (
     COALESCE(p_subscriber->>'name', ''),
-    p_subscriber->>'contact_name',
-    p_subscriber->>'email',
-    p_subscriber->>'phone',
-    p_subscriber->>'whatsapp',
-    p_subscriber->>'address',
-    p_subscriber->>'category_segment',
-    p_subscriber->>'description',
+    NULLIF(TRIM(COALESCE(p_subscriber->>'contact_name', '')), ''),
+    NULLIF(TRIM(COALESCE(p_subscriber->>'email', '')), ''),
+    NULLIF(TRIM(COALESCE(p_subscriber->>'phone', '')), ''),
+    NULLIF(TRIM(COALESCE(p_subscriber->>'whatsapp', '')), ''),
+    NULLIF(TRIM(COALESCE(p_subscriber->>'address', '')), ''),
+    NULLIF(TRIM(COALESCE(p_subscriber->>'category_segment', '')), ''),
+    NULLIF(TRIM(COALESCE(p_subscriber->>'description', '')), ''),
     COALESCE((p_subscriber->>'is_active')::boolean, true),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP

@@ -3,7 +3,7 @@
  * Smart Signage Pro - erros de banco para status 500 vs 400
  */
 
-import { isDatabaseError, isMissingTableError } from '../../../utils/dbErrors';
+import { isDatabaseError, isMissingTableError, isUniqueViolationError } from '../../../utils/dbErrors';
 
 describe('dbErrors', () => {
   describe('isMissingTableError', () => {
@@ -30,9 +30,27 @@ describe('dbErrors', () => {
     });
   });
 
+  describe('isUniqueViolationError', () => {
+    it('retorna true para código 23505', () => {
+      expect(isUniqueViolationError({ code: '23505' })).toBe(true);
+    });
+
+    it('retorna true quando message contém duplicate key', () => {
+      expect(isUniqueViolationError({ message: 'duplicate key value violates unique constraint' })).toBe(true);
+    });
+
+    it('retorna false para erro null/undefined', () => {
+      expect(isUniqueViolationError(null)).toBe(false);
+      expect(isUniqueViolationError(undefined)).toBe(false);
+    });
+  });
+
   describe('isDatabaseError', () => {
+    it('retorna false para violação de unicidade (23505)', () => {
+      expect(isDatabaseError({ code: '23505' })).toBe(false);
+    });
+
     it('retorna true para erro com code PostgreSQL (5 caracteres)', () => {
-      expect(isDatabaseError({ code: '23505' })).toBe(true);
       expect(isDatabaseError({ code: '42P01' })).toBe(true);
       expect(isDatabaseError({ code: '23000' })).toBe(true);
     });
@@ -49,12 +67,12 @@ describe('dbErrors', () => {
       expect(isDatabaseError({ message: 'constraint "xyz" failed' })).toBe(true);
     });
 
-    it('retorna true quando message contém "duplicate key"', () => {
-      expect(isDatabaseError({ message: 'duplicate key value' })).toBe(true);
+    it('retorna false quando message contém "duplicate key"', () => {
+      expect(isDatabaseError({ message: 'duplicate key value' })).toBe(false);
     });
 
-    it('retorna true quando message contém "unique constraint"', () => {
-      expect(isDatabaseError({ message: 'unique constraint violated' })).toBe(true);
+    it('retorna false quando message contém "unique constraint"', () => {
+      expect(isDatabaseError({ message: 'unique constraint violated' })).toBe(false);
     });
 
     it('retorna false para erro null/undefined', () => {
