@@ -19,12 +19,19 @@ import {
   Grid,
   IconButton,
   LinearProgress,
+  List,
+  ListItemButton,
+  ListItemText,
+  Menu,
+  MenuItem,
+  ListItemIcon,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
-import { Add, ContentCopy, Refresh, Settings, Tv } from '@mui/icons-material';
-import { totemApi, Player, CreatePlayerRequest } from '../../services/api';
+import { Add, CloudUpload, ContentCopy, PhotoLibrary, Refresh, Settings, Tv } from '@mui/icons-material';
+import { mediaApi, MediaItem, totemApi, totemDirectMediaApi, Player, CreatePlayerRequest } from '../../services/api';
+import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 import TotemRemoteControl from '../../components/TotemRemoteControl/TotemRemoteControl';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
@@ -54,6 +61,77 @@ const PublishTotem: React.FC = () => {
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [remoteTotem, setRemoteTotem] = useState<Player | null>(null);
+  const [mediaMenuAnchor, setMediaMenuAnchor] = useState<null | HTMLElement>(null);
+  const [mediaTargetTotemId, setMediaTargetTotemId] = useState<number | null>(null);
+  const [pickOpen, setPickOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [library, setLibrary] = useState<MediaItem[]>([]);
+  const [totemMediaIds, setTotemMediaIds] = useState<Set<number>>(new Set());
+  const [mediaActionLoading, setMediaActionLoading] = useState(false);
+
+  const libraryAvailable = useMemo(() => {
+    return library.filter((m) => m.media_id && !totemMediaIds.has(m.media_id));
+  }, [library, totemMediaIds]);
+
+  const mediaTargetTotem = useMemo(
+    () => totems.find((t) => getTotemIdFromRow(t) === mediaTargetTotemId) ?? null,
+    [totems, mediaTargetTotemId]
+  );
+
+  const loadLibraryForTotem = useCallback(async (totemId: number) => {
+    const [mediaList, playlist] = await Promise.all([
+      mediaApi.getAll({ limit: 500 }),
+      totemDirectMediaApi.list(totemId),
+    ]);
+    const lib = Array.isArray((mediaList as any)?.data)
+      ? (mediaList as any).data
+      : Array.isArray(mediaList)
+        ? mediaList
+        : [];
+    setLibrary(lib);
+    setTotemMediaIds(new Set(playlist.map((i) => i.media_id)));
+  }, []);
+
+  const openMediaMenu = (e: React.MouseEvent<HTMLElement>, totemId: number) => {
+    e.stopPropagation();
+    setMediaTargetTotemId(totemId);
+    setMediaMenuAnchor(e.currentTarget);
+  };
+
+  const closeMediaMenu = () => {
+    setMediaMenuAnchor(null);
+  };
+
+  const handlePickFromLibrary = async () => {
+    if (!mediaTargetTotemId) return;
+    closeMediaMenu();
+    try {
+      setMediaActionLoading(true);
+      await loadLibraryForTotem(mediaTargetTotemId);
+      setPickOpen(true);
+    } catch (e: any) {
+      setError(pickApiErrorMessage(e, 'Erro ao carregar biblioteca de mídias'));
+    } finally {
+      setMediaActionLoading(false);
+    }
+  };
+
+  const handleUploadFromDisk = () => {
+    closeMediaMenu();
+    setUploadOpen(true);
+  };
+
+  const handleAddMediaToTotem = async (mediaId: number) => {
+    if (!mediaTargetTotemId) return;
+    try {
+      await totemDirectMediaApi.add(mediaTargetTotemId, mediaId);
+      setPickOpen(false);
+      setSuccess('Mídia adicionada ao totem');
+      await loadTotems();
+    } catch (e: any) {
+      setError(pickApiErrorMessage(e, 'Erro ao adicionar mídia ao totem'));
+    }
+  };
 
   const loadTotems = useCallback(async () => {
     try {
@@ -179,6 +257,17 @@ const PublishTotem: React.FC = () => {
                           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                             {mediaCount} {mediaCount === 1 ? 'mídia' : 'mídias'}
                           </Typography>
+                          {totemId && (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<Add />}
+                              sx={{ mt: 1 }}
+                              onClick={(e) => openMediaMenu(e, totemId)}
+                            >
+                              Mídia
+                            </Button>
+                          )}
                           {activationCode && (
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1 }}>
                               <Typography variant="caption" color="text.secondary">
@@ -218,6 +307,88 @@ const PublishTotem: React.FC = () => {
           })
         )}
       </Grid>
+
+      <Menu
+        anchorEl={mediaMenuAnchor}
+        open={Boolean(mediaMenuAnchor)}
+        onClose={closeMediaMenu}
+      >
+        <MenuItem onClick={() => void handlePickFromLibrary()} disabled={mediaActionLoading}>
+          <ListItemIcon>
+            <PhotoLibrary fontSize="small" />
+          </ListItemIcon>
+          Da biblioteca
+        </MenuItem>
+        <MenuItem onClick={handleUploadFromDisk}>
+          <ListItemIcon>
+            <CloudUpload fontSize="small" />
+          </ListItemIcon>
+          Enviar do disco
+        </MenuItem>
+      </Menu>
+
+      <Dialog open={pickOpen} onClose={() => setPickOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          Adicionar mídia — {mediaTargetTotem?.name || mediaTargetTotem?.identifier || 'Totem'}
+        </DialogTitle>
+        <DialogContent dividers>
+          {libraryAvailable.length === 0 ? (
+            <Typography color="text.secondary">
+              Nenhuma mídia disponível na biblioteca. Use &quot;Enviar do disco&quot; para importar um arquivo.
+            </Typography>
+          ) : (
+            <List dense>
+              {libraryAvailable.map((m) => (
+                <ListItemButton key={m.media_id} onClick={() => void handleAddMediaToTotem(m.media_id!)}>
+                  <ListItemText primary={m.name} secondary={m.media_type} />
+                </ListItemButton>
+              ))}
+            </List>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setUploadOpen(true)} startIcon={<CloudUpload />}>
+            Enviar do disco
+          </Button>
+          <Button onClick={() => setPickOpen(false)}>Fechar</Button>
+        </DialogActions>
+      </Dialog>
+
+      <MediaUploadDialog
+        open={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        onSuccess={async (uploaded) => {
+          setUploadOpen(false);
+          if (!mediaTargetTotemId) return;
+
+          const mediaIds = (uploaded ?? [])
+            .map((m) => m.media_id ?? (m as { id?: number }).id)
+            .filter((id): id is number => typeof id === 'number' && id > 0);
+
+          if (mediaIds.length > 0) {
+            try {
+              for (const mediaId of mediaIds) {
+                await totemDirectMediaApi.add(mediaTargetTotemId, mediaId);
+              }
+              setSuccess(
+                mediaIds.length === 1
+                  ? 'Upload concluído e mídia adicionada ao totem.'
+                  : `${mediaIds.length} mídias enviadas e adicionadas ao totem.`
+              );
+              await loadTotems();
+            } catch (e: any) {
+              setError(pickApiErrorMessage(e, 'Upload concluído, mas falhou ao adicionar ao totem'));
+              await loadLibraryForTotem(mediaTargetTotemId);
+              setPickOpen(true);
+            }
+          } else {
+            await loadLibraryForTotem(mediaTargetTotemId);
+            setPickOpen(true);
+            setSuccess('Upload concluído. Selecione a mídia para adicionar ao totem.');
+          }
+        }}
+        isAdmin
+      />
 
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle>Novo totem</DialogTitle>

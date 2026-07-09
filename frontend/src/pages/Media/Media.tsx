@@ -513,6 +513,8 @@ const Media: React.FC = () => {
     void el.play().catch(() => {});
   }, [videoHover.id, videoHover.url]);
 
+  const canUploadMedia = isDirectTotemMode() || !isStudioMode();
+
   if (loading) {
     return (
       <Box sx={{ p: 3 }}>
@@ -531,16 +533,16 @@ const Media: React.FC = () => {
         subtitle="Gerencie seus arquivos de mídia"
         breadcrumbs={breadcrumbs}
         actions={
-          isStudioMode()
-            ? []
-            : [
+          canUploadMedia
+            ? [
                 {
-                  label: 'Criar Mídia',
-                  icon: <Add />,
+                  label: isDirectTotemMode() ? 'Nova mídia' : 'Criar Mídia',
+                  icon: <CloudUpload />,
                   onClick: () => setUploadDialogOpen(true),
                   variant: 'contained',
                 },
               ]
+            : []
         }
         onRefresh={loadMediaItems}
         loading={loading}
@@ -607,7 +609,7 @@ const Media: React.FC = () => {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} md={3}>
+            <Grid item xs={12} md={canUploadMedia ? 3 : 3}>
               <Button
                 fullWidth
                 variant="outlined"
@@ -617,6 +619,18 @@ const Media: React.FC = () => {
                 Atualizar
               </Button>
             </Grid>
+            {canUploadMedia && (
+              <Grid item xs={12} md={3}>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  startIcon={<CloudUpload />}
+                  onClick={() => setUploadDialogOpen(true)}
+                >
+                  Nova mídia
+                </Button>
+              </Grid>
+            )}
           </Grid>
         </CardContent>
       </Card>
@@ -976,13 +990,13 @@ const Media: React.FC = () => {
             <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 3 }}>
               Comece adicionando seus primeiros arquivos de mídia
         </Typography>
-            {!isStudioMode() && (
+            {canUploadMedia && (
               <Button
                 variant="contained"
-                startIcon={<Add />}
+                startIcon={<CloudUpload />}
                 onClick={() => setUploadDialogOpen(true)}
               >
-                Adicionar Primeira Mídia
+                Nova mídia
               </Button>
             )}
           </CardContent>
