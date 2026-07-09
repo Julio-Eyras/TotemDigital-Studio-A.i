@@ -15,6 +15,10 @@ export interface TotemDirectMediaItem {
   thumbnail_url?: string | null;
   duration_seconds?: number | null;
   mime_type?: string | null;
+  /** Item ativo na playlist deste totem */
+  is_active?: boolean;
+  /** Mídia ativa na biblioteca */
+  media_is_active?: boolean;
 }
 
 export class TotemDirectMediaService {
@@ -114,12 +118,12 @@ export class TotemDirectMediaService {
         m.file_path,
         m.thumbnail_url,
         m.duration_seconds,
-        m.mime_type
+        m.mime_type,
+        COALESCE(tpi.is_active, true) AS is_active,
+        COALESCE(m.is_active, true) AS media_is_active
       FROM totem_playlist_items tpi
       JOIN medias m ON m.media_id = tpi.media_id
       WHERE tpi.totem_playlist_id = $1
-        AND COALESCE(tpi.is_active, true) = true
-        AND COALESCE(m.is_active, true) = true
       ORDER BY tpi.order_index ASC, tpi.item_id ASC
     `,
       [playlistId]
@@ -134,7 +138,57 @@ export class TotemDirectMediaService {
       thumbnail_url: r.thumbnail_url,
       duration_seconds: r.duration_seconds != null ? Number(r.duration_seconds) : null,
       mime_type: r.mime_type,
+      is_active: r.is_active !== false,
+      media_is_active: r.media_is_active !== false,
     }));
+  }
+
+  async setTotemMediaActive(
+    totemId: number,
+    mediaId: number,
+    isActive: boolean
+  ): Promise<TotemDirectMediaItem[]> {
+    const playlistId = await this.ensureDirectPlaylist(totemId);
+    const row = await this.db.findFirst(
+      `
+      SELECT item_id, COALESCE(is_active, true) AS is_active
+      FROM totem_playlist_items
+      WHERE totem_playlist_id = $1 AND media_id = $2
+      ORDER BY item_id DESC
+      LIMIT 1
+    `,
+      [playlistId, mediaId]
+    );
+    if (!row?.item_id) {
+      throw new Error('Mídia não está vinculada a este totem');
+    }
+
+    if (isActive) {
+      const media = await this.db.findFirst(
+        `SELECT media_id, COALESCE(is_active, true) AS is_active FROM medias WHERE media_id = $1`,
+        [mediaId]
+      );
+      if (!media?.media_id) throw new Error('Mídia não encontrada');
+      if (media.is_active === false) {
+        throw new Error('Mídia desativada na biblioteca. Reative-a em Mídias primeiro.');
+      }
+    }
+
+    await this.db.executeRaw(
+      `
+      UPDATE totem_playlist_items
+      SET is_active = $3, updated_at = CURRENT_TIMESTAMP
+      WHERE totem_playlist_id = $1 AND media_id = $2
+    `,
+      [playlistId, mediaId, isActive]
+    );
+
+    await this.refreshPlaylistTotals(playlistId);
+    if (isActive) {
+      await this.reindexPlaylistItems(playlistId);
+    }
+    await this.notifyTotemContentChange(totemId, mediaId);
+    return this.listTotemMedias(totemId);
   }
 
   async addMediaToTotem(totemId: number, mediaId: number): Promise<TotemDirectMediaItem[]> {
@@ -156,13 +210,31 @@ export class TotemDirectMediaService {
     const playlistId = await this.ensureDirectPlaylist(totemId);
     const duplicate = await this.db.findFirst(
       `
-      SELECT item_id FROM totem_playlist_items
-      WHERE totem_playlist_id = $1 AND media_id = $2 AND COALESCE(is_active, true) = true
+      SELECT item_id, COALESCE(is_active, true) AS is_active
+      FROM totem_playlist_items
+      WHERE totem_playlist_id = $1 AND media_id = $2
+      ORDER BY item_id DESC
       LIMIT 1
     `,
       [playlistId, mediaId]
     );
-    if (duplicate) throw new Error('Mídia já está na playlist deste totem');
+    if (duplicate?.item_id && duplicate.is_active !== false) {
+      throw new Error('Mídia já está na playlist deste totem');
+    }
+    if (duplicate?.item_id && duplicate.is_active === false) {
+      await this.db.executeRaw(
+        `
+        UPDATE totem_playlist_items
+        SET is_active = true, updated_at = CURRENT_TIMESTAMP
+        WHERE item_id = $1
+      `,
+        [duplicate.item_id]
+      );
+      await this.refreshPlaylistTotals(playlistId);
+      await this.reindexPlaylistItems(playlistId);
+      await this.notifyTotemContentChange(totemId, mediaId);
+      return this.listTotemMedias(totemId);
+    }
 
     const orderRow = await this.db.findFirst(
       `
@@ -228,6 +300,16 @@ export class TotemDirectMediaService {
     );
   }
 
+  private parseFkReferencingTable(detail: string | undefined): string | null {
+    if (!detail) return null;
+    const match = detail.match(/referenced from table "([^"]+)"/i);
+    return match?.[1] ?? null;
+  }
+
+  private quoteSqlIdent(name: string): string {
+    return `"${name.replace(/"/g, '""')}"`;
+  }
+
   /**
    * Remove totem e dependências diretas (modo Publicar em Totem) — exclusão física.
    */
@@ -262,6 +344,7 @@ export class TotemDirectMediaService {
       );
       await run(`DELETE FROM dispatcher_events WHERE totem_id = $1`, [totemId]);
       await run(`DELETE FROM dispatcher_decisions WHERE totem_id = $1`, [totemId]);
+      await run(`DELETE FROM dispatcher_log WHERE totem_id = $1`, [totemId]);
 
       await run(`DELETE FROM remote_commands WHERE totem_id = $1`, [totemId]);
       await run(
@@ -280,10 +363,12 @@ export class TotemDirectMediaService {
 
       await run(`DELETE FROM totem_update_status WHERE totem_id = $1`, [totemId]);
       await run(`DELETE FROM fx_totem_sites WHERE totem_id = $1`, [totemId]);
+      await run(`DELETE FROM fx_telemetry WHERE totem_id = $1`, [totemId]);
       await run(`DELETE FROM totem_ml_config WHERE totem_id = $1`, [totemId]);
       await run(`DELETE FROM recognized_persons WHERE totem_id = $1`, [totemId]);
       await run(`DELETE FROM interaction_logs WHERE totem_id = $1`, [totemId]);
       await run(`DELETE FROM execution_logs WHERE totem_id = $1`, [totemId]);
+      await run(`DELETE FROM event_logs WHERE totem_id = $1`, [totemId]);
       await run(`DELETE FROM analytics_emotions WHERE totem_id = $1`, [totemId]);
       await run(`DELETE FROM analytics_gestures WHERE totem_id = $1`, [totemId]);
       await run(`DELETE FROM emotion_data WHERE totem_id = $1`, [totemId]);
@@ -291,11 +376,44 @@ export class TotemDirectMediaService {
       await run(`DELETE FROM behavior_data WHERE totem_id = $1`, [totemId]);
       await run(`DELETE FROM analytics_sessions WHERE totem_id = $1`, [totemId]);
 
-      const deleted = await client.query(`DELETE FROM totems WHERE totem_id = $1 RETURNING totem_id`, [totemId]);
-      if (!deleted.rowCount) {
-        throw new Error('Totem não encontrado');
+      await run(`UPDATE smart_playlists SET totem_id = NULL WHERE totem_id = $1`, [totemId]);
+      await run(`UPDATE publisher_billing SET totem_id = NULL WHERE totem_id = $1`, [totemId]);
+
+      let attempts = 0;
+      while (attempts < 30) {
+        try {
+          const deleted = await client.query(
+            `DELETE FROM totems WHERE totem_id = $1 RETURNING totem_id`,
+            [totemId]
+          );
+          if (!deleted.rowCount) {
+            throw new Error('Totem não encontrado');
+          }
+          return;
+        } catch (error: any) {
+          if (error?.code !== '23503' || attempts >= 29) {
+            throw error;
+          }
+          const table = this.parseFkReferencingTable(error?.detail);
+          if (!table) {
+            throw new Error(
+              `Falha ao remover totem: ainda existem registros vinculados (${error?.detail || error?.message})`
+            );
+          }
+          const quoted = this.quoteSqlIdent(table);
+          await client.query(`DELETE FROM ${quoted} WHERE totem_id = $1`, [totemId]);
+          attempts += 1;
+        }
       }
     });
+
+    const stillThere = await this.db.findFirst(
+      `SELECT totem_id FROM totems WHERE totem_id = $1`,
+      [totemId]
+    );
+    if (stillThere) {
+      throw new Error('Falha ao remover totem: registro ainda existe após exclusão');
+    }
 
     await logInfo('[DirectTotem] Totem e dependências removidos', { totemId });
   }

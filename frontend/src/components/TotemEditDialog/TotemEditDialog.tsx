@@ -5,6 +5,8 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
+  Switch,
   TextField,
   Typography,
 } from '@mui/material';
@@ -130,6 +132,16 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
           value={form.uin || ''}
           onChange={(e) => setForm((prev) => ({ ...prev, uin: e.target.value }))}
           helperText="Informe este código no player para vincular a tela a este totem"
+        />
+        <FormControlLabel
+          sx={{ mt: 1 }}
+          control={
+            <Switch
+              checked={form.isActive !== false}
+              onChange={(e) => setForm((prev) => ({ ...prev, isActive: e.target.checked }))}
+            />
+          }
+          label="Totem habilitado"
         />
       </DialogContent>
       <DialogActions>

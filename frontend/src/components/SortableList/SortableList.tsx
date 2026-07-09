@@ -25,17 +25,19 @@ import {
   Box,
   Paper,
 } from '@mui/material';
-import { DragIndicator, Delete } from '@mui/icons-material';
+import { DragIndicator, Delete, PowerSettingsNew } from '@mui/icons-material';
 
 interface SortableItemProps {
   id: string | number;
   label: string;
   secondary?: string;
   thumbnailSrc?: string;
+  active?: boolean;
   onDelete?: (id: string | number) => void;
+  onToggleActive?: (id: string | number) => void;
 }
 
-function SortableItem({ id, label, secondary, thumbnailSrc, onDelete }: SortableItemProps) {
+function SortableItem({ id, label, secondary, thumbnailSrc, active = true, onDelete, onToggleActive }: SortableItemProps) {
   const {
     attributes,
     listeners,
@@ -57,17 +59,32 @@ function SortableItem({ id, label, secondary, thumbnailSrc, onDelete }: Sortable
       style={style}
       component={Paper}
       elevation={isDragging ? 4 : 1}
-      sx={{ mb: 1, borderRadius: 1 }}
+      sx={{ mb: 1, borderRadius: 1, opacity: active ? 1 : 0.55 }}
       secondaryAction={
-        onDelete && (
-          <IconButton 
-            edge="end" 
-            onClick={() => onDelete(id)}
-            color="error"
-            size="small"
-          >
-            <Delete />
-          </IconButton>
+        (onDelete || onToggleActive) && (
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            {onToggleActive && (
+              <IconButton
+                edge="end"
+                size="small"
+                color={active ? 'warning' : 'success'}
+                onClick={() => onToggleActive(id)}
+                title={active ? 'Desabilitar' : 'Habilitar'}
+              >
+                <PowerSettingsNew fontSize="small" />
+              </IconButton>
+            )}
+            {onDelete && (
+              <IconButton
+                edge="end"
+                onClick={() => onDelete(id)}
+                color="error"
+                size="small"
+              >
+                <Delete />
+              </IconButton>
+            )}
+          </Box>
         )
       }
     >
@@ -107,9 +124,10 @@ function SortableItem({ id, label, secondary, thumbnailSrc, onDelete }: Sortable
 }
 
 interface SortableListProps {
-  items: Array<{ id: string | number; label: string; secondary?: string; thumbnailSrc?: string }>;
+  items: Array<{ id: string | number; label: string; secondary?: string; thumbnailSrc?: string; active?: boolean }>;
   onReorder: (newOrder: Array<string | number>) => void;
   onDelete?: (id: string | number) => void;
+  onToggleActive?: (id: string | number) => void;
   emptyMessage?: string;
 }
 
@@ -117,6 +135,7 @@ export function SortableList({
   items, 
   onReorder, 
   onDelete,
+  onToggleActive,
   emptyMessage = 'Nenhum item para exibir'
 }: SortableListProps) {
   const sensors = useSensors(
@@ -168,7 +187,9 @@ export function SortableList({
               label={item.label}
               secondary={item.secondary}
               thumbnailSrc={item.thumbnailSrc}
+              active={item.active !== false}
               onDelete={onDelete}
+              onToggleActive={onToggleActive}
             />
           ))}
         </List>

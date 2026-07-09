@@ -1,4 +1,5 @@
 import { getDatabase } from '../config/database';
+import { normalizeTotemUin } from '../utils/normalizeTotemUin';
 import { logError } from '../utils/loggerHelper';
 import crypto from 'crypto';
 
@@ -42,6 +43,7 @@ export class DeviceTokenService {
       userAgent = null,
       ttlMs = 3600000, // 1 hora padrão
     } = params;
+    const normalizedUin = uin ? normalizeTotemUin(uin) : null;
 
     const now = new Date();
     const expiresAt = new Date(now.getTime() + ttlMs);
@@ -49,13 +51,13 @@ export class DeviceTokenService {
 
     try {
       // Estratégia simples: invalidar tokens antigos para o mesmo UIN/device_id
-      if (uin || deviceId) {
+      if (normalizedUin || deviceId) {
         const conditions: string[] = [];
         const values: any[] = [];
 
-        if (uin) {
-          conditions.push('uin = $' + (values.length + 1));
-          values.push(uin);
+        if (normalizedUin) {
+          conditions.push(`UPPER(TRIM(COALESCE(uin, ''))) = UPPER($${values.length + 1})`);
+          values.push(normalizedUin);
         }
         if (deviceId) {
           conditions.push('device_id = $' + (values.length + 1));
@@ -101,7 +103,7 @@ export class DeviceTokenService {
           CURRENT_TIMESTAMP
         )
       `,
-        [totemId, smartTvId, uin, deviceId, platform, appVersion, token, ipAddress, userAgent, expiresAt],
+        [totemId, smartTvId, normalizedUin, deviceId, platform, appVersion, token, ipAddress, userAgent, expiresAt],
       );
 
       return { token, expiresAt };
@@ -126,15 +128,16 @@ export class DeviceTokenService {
     token: string,
     opts?: { deviceId?: string | null; ipAddress?: string | null; userAgent?: string | null },
   ): Promise<boolean> {
+    const normalizedUin = uin ? normalizeTotemUin(uin) : '';
     const { deviceId = null, ipAddress = null, userAgent = null } = opts || {};
 
     try {
       const conditions: string[] = ['token = $1', 'status = \'active\''];
       const values: any[] = [token];
 
-      if (uin) {
-        conditions.push('uin = $' + (values.length + 1));
-        values.push(uin);
+      if (normalizedUin) {
+        conditions.push(`UPPER(TRIM(COALESCE(uin, ''))) = UPPER($${values.length + 1})`);
+        values.push(normalizedUin);
       }
       if (deviceId) {
         conditions.push('device_id = $' + (values.length + 1));

@@ -15,6 +15,7 @@ import type { PoolClient } from 'pg';
 import { assertCompactOwnerPublisher } from '../utils/compactOwnerPublisher';
 import { isStudioRuntime } from '../config/installationRuntime';
 import { isDirectTotemMode } from '../config/directTotemMode';
+import { normalizeTotemUin } from '../utils/normalizeTotemUin';
 import { resolveCompactOwnerPublisherId } from '../utils/compactOwnerPublisher';
 import { userMayCreateTotem } from '../utils/totemCreateRoles';
 import { getTotemDirectMediaService } from './totemDirectMediaService';
@@ -170,7 +171,7 @@ export class TotemService {
   }
 
   private async resolveActivationCode(providedCode?: string): Promise<string> {
-    const normalizedProvidedCode = String(providedCode || '').trim();
+    const normalizedProvidedCode = normalizeTotemUin(String(providedCode || '').trim());
     if (normalizedProvidedCode) {
       return normalizedProvidedCode;
     }
@@ -248,12 +249,19 @@ export class TotemService {
       filters.requestPublisherId,
       Boolean(filters.isAdmin)
     );
+    const isActiveFilter = isDirectTotemMode()
+      ? undefined
+      : filters.status === 'active'
+        ? true
+        : filters.status === 'inactive'
+          ? false
+          : undefined;
     const result = await this.getTotems(
       filters.page || 1,
       filters.limit || 1000,
       {
         status: filters.status,
-        isActive: filters.status === 'active' ? true : filters.status === 'inactive' ? false : undefined,
+        isActive: isActiveFilter,
         search: filters.search,
         publisherId: scopedPublisherId ?? filters.publisherId
       }
@@ -405,6 +413,8 @@ export class TotemService {
    */
   async getTotemByUin(uin: string): Promise<TotemResponse | null> {
     try {
+      const lookup = normalizeTotemUin(String(uin || '').trim());
+      if (!lookup) return null;
       const totem = await this.db.findFirst(`
         SELECT
           t.totem_id as id,
@@ -430,8 +440,9 @@ export class TotemService {
         FROM totems t
         LEFT JOIN locals l ON t.local_id = l.local_id
         LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
-        WHERE t.uin = $1 OR t.identifier = $2
-      `, [uin, uin]);
+        WHERE UPPER(TRIM(COALESCE(t.uin, ''))) = UPPER($1)
+           OR UPPER(TRIM(COALESCE(t.identifier, ''))) = UPPER($1)
+      `, [lookup]);
 
       return this.normalizeTotemObject(totem);
     } catch (error: any) {
@@ -778,7 +789,7 @@ export class TotemService {
     // Verificar se UIN/código de ativação já existe
     if (activationCode) {
       const existingUin = await this.db.findFirst(`
-        SELECT totem_id FROM totems WHERE uin = $1
+        SELECT totem_id FROM totems WHERE UPPER(TRIM(COALESCE(uin, ''))) = UPPER($1)
       `, [activationCode]);
 
       if (existingUin) {
@@ -830,7 +841,13 @@ export class TotemService {
 
     // Executar operações críticas dentro de transação
     const isStockLocal = isStockLocalRecord(local);
-    const initialStatus = isStockLocal ? 'offline' : (isStudioRuntime() ? 'offline' : 'pending_approval');
+    const initialStatus = isStockLocal
+      ? 'offline'
+      : isDirectTotemMode()
+        ? 'offline'
+        : isStudioRuntime()
+          ? 'offline'
+          : 'pending_approval';
     const initialIsActive = isStockLocal ? false : Boolean(isActive);
     return await transaction(async (client) => {
       // Criar totem (dentro da transação)
@@ -983,15 +1000,18 @@ export class TotemService {
 
       // Verificar se UIN já existe (se estiver sendo alterado)
       if (data.uin !== undefined && data.uin !== existingTotem.uin) {
-        if (data.uin) {
+        const normalizedUin = data.uin ? normalizeTotemUin(String(data.uin)) : '';
+        if (normalizedUin) {
           const uinExists = await this.db.findFirst(`
-            SELECT totem_id FROM totems WHERE uin = $1 AND totem_id != $2
-          `, [data.uin, totemId]);
+            SELECT totem_id FROM totems
+            WHERE UPPER(TRIM(COALESCE(uin, ''))) = UPPER($1) AND totem_id != $2
+          `, [normalizedUin, totemId]);
 
           if (uinExists) {
             throw new Error('UIN já existe');
           }
         }
+        data.uin = normalizedUin || undefined;
       }
 
       // Verificar se device ID já existe (se estiver sendo alterado)
@@ -1812,7 +1832,7 @@ export class TotemService {
   }
 
   /**
-   * Remove totem (soft delete)
+   * Remove totem — exclusão física no modo direto; soft delete no modo legado.
    */
   async deleteTotem(totemId: number, deletedBy: number): Promise<void> {
     try {
@@ -1860,9 +1880,13 @@ export class TotemService {
 
       // Invalidar cache relacionado
       await this.cache.invalidateEntity('totem', totemId).catch(() => {});
-
-      } catch (error: any) {
+    } catch (error: any) {
       await logError('Erro ao remover totem', error);
+      if (error?.code === '23503') {
+        throw new Error(
+          `Falha ao remover totem: ainda existem registros vinculados (${error?.detail || error?.message})`
+        );
+      }
       throw error;
     }
   }

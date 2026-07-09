@@ -95,8 +95,15 @@ const TotemMediaPage: React.FC = () => {
       items.map((item) => ({
         id: item.media_id,
         label: item.name || `Mídia ${item.media_id}`,
-        secondary: item.media_type,
+        secondary: [
+          item.media_type,
+          item.is_active === false ? 'desabilitada neste totem' : null,
+          item.media_is_active === false ? 'desabilitada na biblioteca' : null,
+        ]
+          .filter(Boolean)
+          .join(' · '),
         thumbnailSrc: buildMediaThumbnailApiPath(item.media_id),
+        active: item.is_active !== false && item.media_is_active !== false,
       })),
     [items]
   );
@@ -125,6 +132,18 @@ const TotemMediaPage: React.FC = () => {
       setSuccess('Mídia adicionada ao totem');
     } catch (e: any) {
       setError(pickApiErrorMessage(e, 'Erro ao adicionar mídia'));
+    }
+  };
+
+  const handleToggleMediaActive = async (mediaId: number) => {
+    const current = items.find((i) => i.media_id === Number(mediaId));
+    const nextActive = !(current?.is_active !== false);
+    try {
+      const updated = await totemDirectMediaApi.setActive(totemId, Number(mediaId), nextActive);
+      setItems(updated);
+      setSuccess(nextActive ? 'Mídia habilitada neste totem' : 'Mídia desabilitada neste totem');
+    } catch (e: any) {
+      setError(pickApiErrorMessage(e, 'Erro ao alterar status da mídia'));
     }
   };
 
@@ -162,7 +181,8 @@ const TotemMediaPage: React.FC = () => {
   };
 
   const title = totem?.name || totem?.identifier || `Totem ${totemId}`;
-  const canDeleteTotem = items.length === 0;
+  const hasActiveMedia = items.some((i) => i.is_active !== false);
+  const canDeleteTotem = !hasActiveMedia;
 
   const handleDeleteTotem = async () => {
     if (!canDeleteTotem) {
@@ -246,6 +266,7 @@ const TotemMediaPage: React.FC = () => {
         items={sortableItems}
         onReorder={(order) => void handleReorder(order)}
         onDelete={(id) => void handleRemove(Number(id))}
+        onToggleActive={(id) => void handleToggleMediaActive(Number(id))}
         emptyMessage="Nenhuma mídia neste totem. Adicione ou envie uma mídia."
       />
 

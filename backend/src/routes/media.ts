@@ -645,7 +645,8 @@ router.put('/:id',
         tags: processedTags,
         status: req.body.status,
         approvalStatus: req.body.approvalStatus,
-        rejectionReason: req.body.rejectionReason
+        rejectionReason: req.body.rejectionReason,
+        isActive: req.body.isActive,
       };
       
       const media = await getMediaService().updateMedia(mediaId, mediaData, userId, requestSubscriberId, isAdmin);

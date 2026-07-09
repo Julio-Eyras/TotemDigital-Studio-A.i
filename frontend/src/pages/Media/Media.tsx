@@ -43,7 +43,7 @@ import {
   VideoLibrary,
   Image,
   AudioFile,
-  MoreVert,
+  PowerSettingsNew,
   Refresh,
 } from '@mui/icons-material';
 import { mediaApi, MediaItem, CreateMediaRequest, clientApi, Client, subscriberApi, Subscriber, MediaInUseConflictPayload, parseMediaInUseConflict } from '../../services/api';
@@ -92,6 +92,7 @@ const Media: React.FC = () => {
   const [mediaDeleteConflict, setMediaDeleteConflict] = useState<MediaInUseConflictPayload | null>(null);
   const [mediaDeleteConflictOpen, setMediaDeleteConflictOpen] = useState(false);
   const [mediaDeleteLoading, setMediaDeleteLoading] = useState(false);
+  const [togglingMediaId, setTogglingMediaId] = useState<number | null>(null);
   const [pendingMediaDeleteId, setPendingMediaDeleteId] = useState<number | null>(null);
 
   /** TotemDigital compacto: inferir subscriber para upload quando não há lista /api/subscribers */
@@ -337,6 +338,21 @@ const Media: React.FC = () => {
       loadMediaItems();
     } catch (e: any) {
       setError(pickApiErrorMessage(e, 'Erro ao atualizar mídia'));
+    }
+  };
+
+  const handleToggleMediaActive = async (media: MediaItem) => {
+    const id = media.media_id;
+    const currentActive = (media as any).isActive !== false && (media as any).is_active !== false;
+    try {
+      setTogglingMediaId(id);
+      setError(null);
+      await mediaApi.update(id, { isActive: !currentActive });
+      await loadMediaItems();
+    } catch (error) {
+      setError(pickApiErrorMessage(error, 'Erro ao alterar status da mídia'));
+    } finally {
+      setTogglingMediaId(null);
     }
   };
 
@@ -644,12 +660,15 @@ const Media: React.FC = () => {
 
       {/* Media Grid */}
       <Grid container spacing={3}>
-        {Array.isArray(mediaItems) && mediaItems.map((media) => (
+        {Array.isArray(mediaItems) && mediaItems.map((media) => {
+          const mediaActive = (media as any).isActive !== false && (media as any).is_active !== false;
+          return (
           <Grid item xs={12} sm={6} md={4} lg={3} key={media.media_id}>
             <Card sx={{ 
               height: '100%',
               display: 'flex',
               flexDirection: 'column',
+              opacity: mediaActive ? 1 : 0.72,
               transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
               '&:hover': {
                 transform: 'translateY(-4px)',
@@ -874,7 +893,7 @@ const Media: React.FC = () => {
                   </Box>
                 )}
                 {isDirectTotemMode() && (
-                  <Box sx={{ mb: 1 }}>
+                  <Box sx={{ mb: 1, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
                     <Chip
                       label={`${Number((media as any).totemCount ?? 0)} totem(ns)`}
                       size="small"
@@ -882,6 +901,9 @@ const Media: React.FC = () => {
                       variant="outlined"
                       sx={{ fontSize: '0.7rem' }}
                     />
+                    {!mediaActive && (
+                      <Chip label="Desabilitada" size="small" color="warning" sx={{ fontSize: '0.7rem' }} />
+                    )}
                   </Box>
                 )}
 
@@ -966,6 +988,20 @@ const Media: React.FC = () => {
                         <Edit />
                       </IconButton>
                     </Tooltip>
+                    {isDirectTotemMode() && (
+                      <Tooltip title={mediaActive ? 'Desabilitar mídia' : 'Habilitar mídia'}>
+                        <span>
+                          <IconButton
+                            size="small"
+                            color={mediaActive ? 'warning' : 'success'}
+                            disabled={togglingMediaId === media.media_id}
+                            onClick={() => void handleToggleMediaActive(media)}
+                          >
+                            <PowerSettingsNew />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    )}
                     <Tooltip title="Excluir">
                       <IconButton size="small" onClick={() => handleDeleteMedia(media.media_id)}>
                         <Delete />
@@ -976,7 +1012,7 @@ const Media: React.FC = () => {
               </CardContent>
             </Card>
           </Grid>
-        ))}
+        );})}
       </Grid>
 
       {/* Empty State */}

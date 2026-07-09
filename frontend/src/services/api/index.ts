@@ -973,6 +973,7 @@ export interface UpdateMediaRequest {
   status?: string; // draft, pending_approval, approved, rejected, archived
   approvalStatus?: string; // pending, approved, rejected
   rejectionReason?: string;
+  isActive?: boolean;
   // Deprecated
   title?: string; // Deprecated - usar name
 }
@@ -1962,6 +1963,8 @@ export interface TotemDirectMediaItem {
   thumbnail_url?: string | null;
   duration_seconds?: number | null;
   mime_type?: string | null;
+  is_active?: boolean;
+  media_is_active?: boolean;
 }
 
 export const totemDirectMediaApi = {
@@ -1986,6 +1989,10 @@ export const totemDirectMediaApi = {
   },
   reorder: async (totemId: number, mediaIds: number[]): Promise<TotemDirectMediaItem[]> => {
     const response = await api.put(`/totems/${totemId}/medias/reorder`, { mediaIds });
+    return response.data.data || [];
+  },
+  setActive: async (totemId: number, mediaId: number, isActive: boolean): Promise<TotemDirectMediaItem[]> => {
+    const response = await api.put(`/totems/${totemId}/medias/${mediaId}/active`, { isActive });
     return response.data.data || [];
   },
 };

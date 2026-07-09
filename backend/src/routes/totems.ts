@@ -22,6 +22,11 @@ import { getTotemCreateRoles } from '../utils/totemCreateRoles';
 
 const router = Router();
 
+function isTotemRowActive(t: any): boolean {
+  const active = t?.is_active ?? t?.active;
+  return active !== false && active !== 0 && active !== 'false' && active !== '0';
+}
+
 // Aplicar bloqueio de dados de clientes para OPERATOR
 // OPERATOR pode acessar apenas dados técnicos (restart, screenshot, logs, status)
 router.use(blockClientDataAccess);
@@ -81,8 +86,9 @@ router.get('/',
       });
       let totems = result.totems || [];
       const includeInactive = String(req.query.includeInactive || '') === '1';
-      if (isDirectTotemMode() && !includeInactive) {
-        totems = totems.filter((t: any) => t.is_active !== false && t.active !== false);
+      const onlyActive = String(req.query.onlyActive || '') === '1';
+      if (isDirectTotemMode() && onlyActive && !includeInactive) {
+        totems = totems.filter((t: any) => isTotemRowActive(t));
       }
       if (isDirectTotemMode() && totems.length > 0) {
         const db = getDatabase();
@@ -109,7 +115,7 @@ router.get('/',
       // Converter formato: { totems: [] } para { data: [] } para compatibilidade com frontend
       return res.json({
         data: totems,
-        total: isDirectTotemMode() && !includeInactive ? totems.length : result.total || 0,
+        total: isDirectTotemMode() && onlyActive && !includeInactive ? totems.length : result.total || 0,
         page: result.page || 1,
         limit: result.limit || 10
       });
@@ -274,6 +280,29 @@ router.put('/:id/medias/reorder',
     } catch (error: any) {
       await logError('Erro ao reordenar mídias do totem', error, { totemId: req.params.id });
       return res.status(400).json({ success: false, error: error.message || 'Erro ao reordenar' });
+    }
+  }
+);
+
+/**
+ * @route PUT /api/totems/:id/medias/:mediaId/active
+ * @desc Habilita/desabilita mídia na playlist do totem (modo direto)
+ */
+router.put('/:id/medias/:mediaId/active',
+  param('id').isInt({ min: 1 }),
+  param('mediaId').isInt({ min: 1 }),
+  body('isActive').isBoolean().withMessage('isActive deve ser boolean'),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const totemId = parseInt(req.params.id, 10);
+      const mediaId = parseInt(req.params.mediaId, 10);
+      const isActive = Boolean(req.body.isActive);
+      const items = await getTotemDirectMediaService().setTotemMediaActive(totemId, mediaId, isActive);
+      return res.json({ success: true, data: items });
+    } catch (error: any) {
+      await logError('Erro ao alterar status da mídia no totem', error, { totemId: req.params.id });
+      return res.status(400).json({ success: false, error: error.message || 'Erro ao alterar mídia' });
     }
   }
 );
@@ -595,6 +624,12 @@ router.delete('/:id',
         message.includes('Falha ao remover totem')
       ) {
         return res.status(400).json({ error: message });
+      }
+
+      if (error?.code === '23503') {
+        return res.status(400).json({
+          error: `Falha ao remover totem: ainda existem registros vinculados (${error?.detail || message})`,
+        });
       }
 
       return res.status(500).json({ error: message });

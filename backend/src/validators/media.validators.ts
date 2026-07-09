@@ -29,4 +29,5 @@ export const updateMediaValidators = [
   body('status').optional({ nullable: true }).isString().withMessage('Status deve ser uma string'),
   body('approvalStatus').optional({ nullable: true }).isIn(['pending', 'approved', 'rejected']).withMessage('approvalStatus deve ser: pending, approved ou rejected'),
   body('rejectionReason').optional({ nullable: true }).isString().withMessage('rejectionReason deve ser uma string'),
+  body('isActive').optional({ nullable: true }).isBoolean().withMessage('isActive deve ser boolean'),
 ];

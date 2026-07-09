@@ -29,7 +29,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { Add, CloudUpload, ContentCopy, Delete, Edit, PhotoLibrary, Refresh, Settings, Tv } from '@mui/icons-material';
+import { Add, CloudUpload, ContentCopy, Delete, Edit, PhotoLibrary, PowerSettingsNew, Refresh, Settings, Tv } from '@mui/icons-material';
 import { mediaApi, MediaItem, totemApi, totemDirectMediaApi, Player, CreatePlayerRequest } from '../../services/api';
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 import TotemEditDialog from '../../components/TotemEditDialog/TotemEditDialog';
@@ -37,6 +37,14 @@ import TotemRemoteControl from '../../components/TotemRemoteControl/TotemRemoteC
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { getTotemIdFromRow } from '../../utils/totemRowIds';
+
+function isTotemRowActive(row: unknown): boolean {
+  const r = row as Record<string, unknown> | null | undefined;
+  if (!r) return false;
+  const active = r.is_active ?? r.active;
+  if (active === false || active === 0 || active === 'false' || active === '0') return false;
+  return true;
+}
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
 function createActivationCode(): string {
@@ -66,6 +74,7 @@ const PublishTotem: React.FC = () => {
   const [deleteTarget, setDeleteTarget] = useState<Player | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [togglingTotemId, setTogglingTotemId] = useState<number | null>(null);
   const [mediaMenuAnchor, setMediaMenuAnchor] = useState<null | HTMLElement>(null);
   const [mediaTargetTotemId, setMediaTargetTotemId] = useState<number | null>(null);
   const [pickOpen, setPickOpen] = useState(false);
@@ -148,9 +157,7 @@ const PublishTotem: React.FC = () => {
         : Array.isArray(res)
           ? res
           : [];
-      setTotems(
-        list.filter((t: Player) => (t as any).is_active !== false && (t as any).active !== false)
-      );
+      setTotems(list);
     } catch (e: any) {
       setError(pickApiErrorMessage(e, 'Erro ao carregar totens'));
     } finally {
@@ -206,6 +213,24 @@ const PublishTotem: React.FC = () => {
 
   const getTotemMediaCount = (totem: Player) => Number((totem as any).media_count ?? 0);
 
+  const handleToggleTotemActive = async (totem: Player, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const totemId = getTotemIdFromRow(totem);
+    if (!totemId) return;
+    const nextActive = !isTotemRowActive(totem);
+    try {
+      setTogglingTotemId(totemId);
+      setError(null);
+      await totemApi.update(totemId, { isActive: nextActive });
+      setSuccess(nextActive ? 'Totem habilitado' : 'Totem desabilitado');
+      await loadTotems();
+    } catch (err: any) {
+      setError(pickApiErrorMessage(err, 'Erro ao alterar status do totem'));
+    } finally {
+      setTogglingTotemId(null);
+    }
+  };
+
   const handleDeleteTotem = async () => {
     const totemId = deleteTarget ? getTotemIdFromRow(deleteTarget) : undefined;
     if (!totemId) {
@@ -220,6 +245,7 @@ const PublishTotem: React.FC = () => {
       setDeleting(true);
       setDeleteError(null);
       await totemApi.delete(totemId);
+      setTotems((prev) => prev.filter((t) => getTotemIdFromRow(t) !== totemId));
       setSuccess('Totem excluído');
       setDeleteTarget(null);
       setDeleteError(null);
@@ -277,10 +303,11 @@ const PublishTotem: React.FC = () => {
             const op = getOperationalStatus(t);
             const mediaCount = getTotemMediaCount(t);
             const canDelete = mediaCount === 0;
+            const totemActive = isTotemRowActive(t);
             const activationCode = String((t as any).uin || '').trim();
             return (
               <Grid item xs={12} sm={6} md={4} key={String(totemId ?? idx)}>
-                <Card sx={{ height: '100%' }}>
+                <Card sx={{ height: '100%', opacity: totemActive ? 1 : 0.72 }}>
                   <CardActionArea
                     onClick={() => totemId && navigate(`/publish-totem/${totemId}`)}
                     sx={{ height: '100%' }}
@@ -295,6 +322,9 @@ const PublishTotem: React.FC = () => {
                             {title}
                           </Typography>
                           <Chip size="small" label={op.label} color={op.color} sx={{ mt: 0.5 }} />
+                          {!totemActive && (
+                            <Chip size="small" label="Desabilitado" color="warning" sx={{ mt: 0.5, ml: 0.5 }} />
+                          )}
                           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                             {mediaCount} {mediaCount === 1 ? 'mídia' : 'mídias'}
                           </Typography>
@@ -338,6 +368,18 @@ const PublishTotem: React.FC = () => {
                               >
                                 <Edit fontSize="small" />
                               </IconButton>
+                            </Tooltip>
+                            <Tooltip title={totemActive ? 'Desabilitar totem' : 'Habilitar totem'}>
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  color={totemActive ? 'warning' : 'success'}
+                                  disabled={togglingTotemId === totemId}
+                                  onClick={(e) => void handleToggleTotemActive(t, e)}
+                                >
+                                  <PowerSettingsNew fontSize="small" />
+                                </IconButton>
+                              </span>
                             </Tooltip>
                             <Tooltip title="Controle remoto">
                               <IconButton

@@ -70,6 +70,7 @@ export interface UpdateMediaRequest {
   status?: string; // draft, pending_approval, approved, rejected, archived
   approvalStatus?: string; // pending, approved, rejected
   rejectionReason?: string;
+  isActive?: boolean;
 }
 
 export interface MediaResponse {
@@ -275,8 +276,10 @@ export class MediaService {
         params.push(filters.createdTo);
       }
 
-      // Apenas mídias ativas
-      whereClause += ' AND m.is_active = true';
+      // Apenas mídias ativas (modo direto lista também inativas para reativar na UI)
+      if (!directMode) {
+        whereClause += ' AND m.is_active = true';
+      }
 
       // Subscribers ativos por padrão (modo legado)
       if (!directMode && !includeInactiveSubscribers) {
@@ -964,6 +967,11 @@ export class MediaService {
       if (data.rejectionReason !== undefined) {
         updates.push(`rejection_reason = $${paramIndex++}`);
         params.push(data.rejectionReason);
+      }
+
+      if (data.isActive !== undefined) {
+        updates.push(`is_active = $${paramIndex++}`);
+        params.push(Boolean(data.isActive));
       }
 
       if (updates.length === 0) {
