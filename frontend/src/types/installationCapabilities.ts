@@ -14,6 +14,7 @@ export interface InstallationCapabilities {
   subscriberPortal: boolean;
   smartDisplayFx: boolean;
   simpleTotemMode: boolean;
+  directTotemMode: boolean;
 }
 
 export interface DashboardUiContextResponse {
@@ -40,5 +41,6 @@ export function defaultInstallationCapabilities(): InstallationCapabilities {
     subscriberPortal: !compact,
     smartDisplayFx: !compact,
     simpleTotemMode: compact,
+    directTotemMode: process.env.REACT_APP_DIRECT_TOTEM_MODE !== 'false',
   };
 }

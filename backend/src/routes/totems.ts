@@ -3,6 +3,12 @@ import { getTotemService } from '../services/totemService';
 import { getRemoteCommandService } from '../services/remoteCommandService';
 import { getTotemLogService } from '../services/totemLogService';
 import { getSmartTvService } from '../services/smartTvService';
+import { getTotemDirectMediaService } from '../services/totemDirectMediaService';
+import { isDirectTotemMode } from '../config/directTotemMode';
+import {
+  ensureDefaultLocalForPublisher,
+  resolveSinglePublisherId,
+} from '../services/directTotemOrgService';
 import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { requireFlag } from '../middleware/flagAuth.middleware';
@@ -73,9 +79,32 @@ router.get('/',
         requestPublisherId,
         isAdmin
       });
+      let totems = result.totems || [];
+      if (isDirectTotemMode() && totems.length > 0) {
+        const db = getDatabase();
+        const ids = totems.map((t: any) => Number(t.totem_id ?? t.id)).filter((id: number) => id > 0);
+        const counts = await db.findMany(
+          `
+          SELECT tp.totem_id, COUNT(tpi.item_id)::int AS media_count
+          FROM totem_playlists tp
+          JOIN totem_playlist_items tpi ON tpi.totem_playlist_id = tp.totem_playlist_id
+          WHERE tp.totem_id = ANY($1::int[])
+            AND COALESCE(tp.is_active, true) = true
+            AND tp.status = 'active'
+            AND COALESCE(tpi.is_active, true) = true
+          GROUP BY tp.totem_id
+        `,
+          [ids]
+        );
+        const byTotem = new Map(counts.map((r: any) => [Number(r.totem_id), Number(r.media_count)]));
+        totems = totems.map((t: any) => ({
+          ...t,
+          media_count: byTotem.get(Number(t.totem_id ?? t.id)) ?? 0,
+        }));
+      }
       // Converter formato: { totems: [] } para { data: [] } para compatibilidade com frontend
       return res.json({
-        data: result.totems || [],
+        data: totems,
         total: result.total || 0,
         page: result.page || 1,
         limit: result.limit || 10
@@ -185,6 +214,93 @@ router.get('/stats/offline', async (_req: AuthenticatedRequest, res: Response): 
 });
 
 /**
+ * @route GET /api/totems/:id/medias
+ * @desc Lista mídias da playlist direta do totem (modo Publicar em Totem)
+ */
+router.get('/:id/medias',
+  param('id').isInt({ min: 1 }),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const totemId = parseInt(req.params.id, 10);
+      const items = await getTotemDirectMediaService().listTotemMedias(totemId);
+      return res.json({ success: true, data: items });
+    } catch (error: any) {
+      await logError('Erro ao listar mídias do totem', error, { totemId: req.params.id });
+      return res.status(400).json({ success: false, error: error.message || 'Erro ao listar mídias' });
+    }
+  }
+);
+
+/**
+ * @route POST /api/totems/:id/medias
+ * @desc Adiciona mídia à playlist direta do totem
+ */
+router.post('/:id/medias',
+  param('id').isInt({ min: 1 }),
+  body('mediaId').isInt({ min: 1 }).withMessage('mediaId é obrigatório'),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const totemId = parseInt(req.params.id, 10);
+      const mediaId = parseInt(req.body.mediaId, 10);
+      const items = await getTotemDirectMediaService().addMediaToTotem(totemId, mediaId);
+      return res.status(201).json({ success: true, data: items });
+    } catch (error: any) {
+      await logError('Erro ao adicionar mídia ao totem', error, { totemId: req.params.id });
+      return res.status(400).json({ success: false, error: error.message || 'Erro ao adicionar mídia' });
+    }
+  }
+);
+
+/**
+ * @route PUT /api/totems/:id/medias/reorder
+ * @desc Reordena mídias da playlist direta do totem
+ */
+router.put('/:id/medias/reorder',
+  param('id').isInt({ min: 1 }),
+  body('mediaIds').isArray({ min: 1 }).withMessage('mediaIds deve ser um array'),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const totemId = parseInt(req.params.id, 10);
+      const mediaIds = (req.body.mediaIds as unknown[]).map((v) => parseInt(String(v), 10));
+      const items = await getTotemDirectMediaService().reorderTotemMedias(totemId, mediaIds);
+      return res.json({ success: true, data: items });
+    } catch (error: any) {
+      await logError('Erro ao reordenar mídias do totem', error, { totemId: req.params.id });
+      return res.status(400).json({ success: false, error: error.message || 'Erro ao reordenar' });
+    }
+  }
+);
+
+/**
+ * @route DELETE /api/totems/:id/medias/:mediaId
+ * @desc Remove mídia da playlist do totem (não exclui arquivo)
+ */
+router.delete('/:id/medias/:mediaId',
+  param('id').isInt({ min: 1 }),
+  param('mediaId').isInt({ min: 1 }),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const totemId = parseInt(req.params.id, 10);
+      const mediaId = parseInt(req.params.mediaId, 10);
+      const result = await getTotemDirectMediaService().removeMediaFromTotem(totemId, mediaId);
+      return res.json({
+        success: true,
+        data: result.items,
+        mediaUsageCount: result.mediaUsageCount,
+        orphan: result.mediaUsageCount === 0,
+      });
+    } catch (error: any) {
+      await logError('Erro ao remover mídia do totem', error, { totemId: req.params.id });
+      return res.status(400).json({ success: false, error: error.message || 'Erro ao remover mídia' });
+    }
+  }
+);
+
+/**
  * @route GET /api/totems/:id
  * @desc Obter totem por ID
  * @access Private
@@ -285,9 +401,9 @@ router.post('/',
   body('name').optional({ nullable: true }).isString().isLength({ min: 2, max: 100 }),
   body('uin').optional({ nullable: true }).isString(),
   body('localId')
-    .notEmpty()
-    .withMessage('localId é obrigatório')
+    .optional({ nullable: true })
     .custom((value) => {
+      if (value === undefined || value === null || value === '') return true;
       const num = typeof value === 'string' ? parseInt(value, 10) : value;
       if (isNaN(num) || num < 1) {
         throw new Error('localId deve ser um número inteiro maior que 0');
@@ -318,8 +434,14 @@ router.post('/',
         });
       }
 
-      // Validar que localId foi fornecido
-      if (!localId) {
+      let resolvedLocalId = localId ? parseInt(String(localId), 10) : undefined;
+      if (!resolvedLocalId && isDirectTotemMode()) {
+        const publisherId = await resolveSinglePublisherId(req.user?.publisherId);
+        resolvedLocalId = await ensureDefaultLocalForPublisher(publisherId);
+      }
+
+      // Validar que localId foi fornecido (ou resolvido automaticamente)
+      if (!resolvedLocalId) {
         return res.status(400).json({ 
           error: 'localId é obrigatório',
           details: [{ msg: 'Totem deve pertencer a um local' }]
@@ -330,7 +452,7 @@ router.post('/',
         identifier: identifier || name,
         name: name || identifier,
         uin: uin || undefined,
-        localId: parseInt(localId),
+        localId: resolvedLocalId,
         contract_id: contract_id || undefined, // Opcional - para rastreabilidade
         deviceId: deviceId || undefined,
         location,

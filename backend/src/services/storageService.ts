@@ -156,6 +156,44 @@ export class StorageService {
     }
   }
 
+  async ensurePublisherUploadDirs(publisherId: number): Promise<void> {
+    const publisherDir = path.join(this.uploadsPath, `publisher-${publisherId}`, 'medias');
+    await this.ensureDirectoryExists(publisherDir);
+  }
+
+  /**
+   * Salva arquivo na biblioteca da organização (modo Publicar em Totem).
+   */
+  async savePublisherMediaFile(file: FileInfo, publisherId: number, mediaName: string): Promise<string> {
+    try {
+      const publisherDir = path.join(this.uploadsPath, `publisher-${publisherId}`, 'medias');
+      await this.ensureDirectoryExists(publisherDir);
+
+      const fileExtension = path.extname(file.originalname);
+      const fileName = this.sanitizeFileName(mediaName) + fileExtension;
+      const filePath = path.join(publisherDir, fileName);
+
+      if (fs.existsSync(filePath)) {
+        const timestamp = Date.now();
+        const baseName = path.basename(fileName, fileExtension);
+        const newFilePath = path.join(publisherDir, `${baseName}_${timestamp}${fileExtension}`);
+        await this.writeUploadedFile(file, newFilePath);
+        return newFilePath;
+      }
+
+      await this.writeUploadedFile(file, filePath);
+      try {
+        fs.chmodSync(filePath, 0o644);
+      } catch {
+        /* ignore */
+      }
+      return filePath;
+    } catch (error) {
+      logErrorSync('Erro ao salvar mídia da organização', error, { publisherId, mediaName });
+      throw error;
+    }
+  }
+
   /**
    * Salva arquivo de mídia
    */

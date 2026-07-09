@@ -18,6 +18,8 @@ import { getCacheService } from './cacheService';
 import { logError, logWarn } from '../utils/loggerHelper';
 import { normalizeDownloadUrl, generateThumbnailUrl } from '../utils/pathHelper';
 import { isStudioRuntime } from '../config/installationRuntime';
+import { isDirectTotemMode } from '../config/directTotemMode';
+import { resolveSinglePublisherId } from './directTotemOrgService';
 import { getMediaTotemSyncService } from './mediaTotemSyncService';
 import {
   htmlBoardThumbPathForFile,
@@ -56,7 +58,8 @@ export interface CreateMediaRequest {
     mimetype: string;
     size: number;
   };
-  subscriberId: number; // FK para subscribers (anunciante)
+  subscriberId?: number; // Legado Pro
+  publisherId?: number; // Biblioteca da organização (modo Publicar em Totem)
   createdBy: number; // User ID que está criando
 }
 
@@ -231,15 +234,18 @@ export class MediaService {
     try {
       const offset = (page - 1) * limit;
       const includeInactiveSubscribers = !!filters.includeInactiveSubscribers;
+      const directMode = isDirectTotemMode();
       let whereClause = 'WHERE 1=1';
       const params: any[] = [];
 
-      // Aplicar isolamento por subscriber (exceto para admin)
-      if (!isAdmin && requestSubscriberId) {
+      if (directMode) {
+        const publisherId = await resolveSinglePublisherId();
+        whereClause += ' AND m.publisher_id = $' + (params.length + 1);
+        params.push(publisherId);
+      } else if (!isAdmin && requestSubscriberId) {
         whereClause += ' AND m.subscriber_id = $' + (params.length + 1);
         params.push(requestSubscriberId);
       } else if (filters.subscriberId) {
-        // Se admin especificou um subscriberId, filtrar por ele
         whereClause += ' AND m.subscriber_id = $' + (params.length + 1);
         params.push(filters.subscriberId);
       }
@@ -272,18 +278,33 @@ export class MediaService {
       // Apenas mídias ativas
       whereClause += ' AND m.is_active = true';
 
-      // Subscribers ativos por padrão; em modo diagnóstico (includeInactiveSubscribers=true) permitimos inativos
-      if (!includeInactiveSubscribers) {
-        whereClause += ' AND s.is_active = true';
+      // Subscribers ativos por padrão (modo legado)
+      if (!directMode && !includeInactiveSubscribers) {
+        whereClause += ' AND (s.subscriber_id IS NULL OR s.is_active = true)';
       }
 
-      // Validação de campo de ordenação
+      const totemCountSelect = directMode
+        ? `, (
+            SELECT COUNT(DISTINCT tp.totem_id)::int
+            FROM totem_playlist_items tpi
+            JOIN totem_playlists tp ON tp.totem_playlist_id = tpi.totem_playlist_id
+            WHERE tpi.media_id = m.media_id
+              AND COALESCE(tpi.is_active, true) = true
+              AND COALESCE(tp.is_active, true) = true
+              AND tp.status = 'active'
+          ) AS "totemCount"`
+        : '';
+
+      const subscriberJoin = directMode
+        ? 'LEFT JOIN subscribers s ON m.subscriber_id = s.subscriber_id'
+        : 'JOIN subscribers s ON m.subscriber_id = s.subscriber_id';
+
       const validSortFields: { [key: string]: string } = {
-        'name': 'm.name',
-        'created_at': 'm.created_at',
-        'updated_at': 'm.updated_at',
-        'file_size_bytes': 'm.file_size_bytes',
-        'media_type': 'm.media_type'
+        name: 'm.name',
+        created_at: 'm.created_at',
+        updated_at: 'm.updated_at',
+        file_size_bytes: 'm.file_size_bytes',
+        media_type: 'm.media_type',
       };
       const sortBy = filters.sortBy || 'created_at';
       const sortField = validSortFields[sortBy] || 'm.created_at';
@@ -294,6 +315,7 @@ export class MediaService {
         SELECT 
           m.media_id as id,
           m.subscriber_id as "subscriberId",
+          m.publisher_id as "publisherId",
           m.name,
           m.description,
           m.tags,
@@ -316,16 +338,15 @@ export class MediaService {
           m.is_active as "isActive",
           m.created_at as "createdAt",
           m.updated_at as "updatedAt",
-          -- Dados do subscriber
           s.name as "subscriberName",
           s.email as "subscriberEmail",
           s.phone as "subscriberPhone",
           s.address as "subscriberAddress",
           s.is_active as "subscriberIsActive",
-          -- Dados do usuário que aprovou
           u.username as "approvedByName"
+          ${totemCountSelect}
         FROM medias m
-        JOIN subscribers s ON m.subscriber_id = s.subscriber_id
+        ${subscriberJoin}
         LEFT JOIN users u ON m.approved_by = u.id
         ${whereClause}
         ORDER BY ${sortField} ${orderDirection}
@@ -336,7 +357,7 @@ export class MediaService {
       const totalResult = await this.db.findFirst(`
         SELECT COUNT(*) as total
         FROM medias m
-        JOIN subscribers s ON m.subscriber_id = s.subscriber_id
+        ${subscriberJoin}
         ${whereClause}
       `, params);
 
@@ -459,10 +480,12 @@ export class MediaService {
    */
   async getMediaById(mediaId: number, requestSubscriberId?: number, isAdmin: boolean = false): Promise<MediaResponse | null> {
     try {
+      const directMode = isDirectTotemMode();
       const media = await this.db.findFirst(`
         SELECT 
           m.media_id as id,
           m.subscriber_id as "subscriberId",
+          m.publisher_id as "publisherId",
           m.name,
           m.description,
           m.tags,
@@ -503,8 +526,12 @@ export class MediaService {
         return null;
       }
 
-      // Validar ownership (exceto para admin)
-      if (!isAdmin && requestSubscriberId && media.subscriberId !== requestSubscriberId) {
+      if (directMode) {
+        const expectedPublisherId = await resolveSinglePublisherId();
+        if (media.publisherId && Number(media.publisherId) !== expectedPublisherId) {
+          throw new Error('Acesso negado: mídia não pertence à biblioteca desta organização');
+        }
+      } else if (!isAdmin && requestSubscriberId && media.subscriberId !== requestSubscriberId) {
         throw new Error('Acesso negado: mídia não pertence a este subscriber');
       }
 
@@ -595,37 +622,52 @@ export class MediaService {
    * @param isAdmin Se true, ignora validação de ownership
    */
   async createMultipleMedia(
-    files: any[], 
-    subscriberId: number, 
+    files: any[],
     createdBy: number,
-    requestSubscriberId?: number,
-    isAdmin: boolean = false
+    options: {
+      subscriberId?: number;
+      publisherId?: number;
+      requestSubscriberId?: number;
+      isAdmin?: boolean;
+    } = {}
   ): Promise<MediaResponse[]> {
     try {
-      // Validar ownership (exceto para admin)
-      if (!isAdmin && requestSubscriberId && subscriberId !== requestSubscriberId) {
-        throw new Error('Acesso negado: não é possível criar mídia para outro subscriber');
+      const { subscriberId, publisherId, requestSubscriberId, isAdmin = false } = options;
+      const directMode = isDirectTotemMode();
+
+      if (!directMode) {
+        if (!subscriberId || subscriberId <= 0) {
+          throw new Error('subscriber_id é obrigatório para criar mídia');
+        }
+        if (!isAdmin && requestSubscriberId && subscriberId !== requestSubscriberId) {
+          throw new Error('Acesso negado: não é possível criar mídia para outro subscriber');
+        }
       }
 
       const results: MediaResponse[] = [];
-      
+
       for (const file of files) {
         const mediaData: CreateMediaRequest = {
           name: file.originalname,
           description: '',
           tags: [],
-          file: file,
-          subscriberId: subscriberId,
-          createdBy: createdBy
+          file,
+          subscriberId,
+          publisherId,
+          createdBy,
         };
-        
+
         const media = await this.createMedia(mediaData, requestSubscriberId, isAdmin);
         results.push(media);
       }
-      
+
       return results;
     } catch (error: any) {
-      await logError('Erro ao criar múltiplas mídias', error, { count: files.length, subscriberId });
+      await logError('Erro ao criar múltiplas mídias', error, {
+        count: files.length,
+        subscriberId: options.subscriberId,
+        publisherId: options.publisherId,
+      });
       throw error;
     }
   }
@@ -642,45 +684,69 @@ export class MediaService {
     isAdmin: boolean = false
   ): Promise<MediaResponse> {
     try {
-      const { name, description, tags, file, subscriberId, createdBy } = data;
+      const { name, description, tags, file, subscriberId, publisherId, createdBy } = data;
+      const directMode = isDirectTotemMode();
+      let resolvedPublisherId = publisherId;
+      let resolvedSubscriberId = subscriberId;
 
-      // Validar que subscriberId foi fornecido
-      if (!subscriberId || subscriberId <= 0) {
-        throw new Error('subscriber_id é obrigatório para criar mídia');
+      if (directMode) {
+        resolvedPublisherId = resolvedPublisherId ?? (await resolveSinglePublisherId());
+        resolvedSubscriberId = undefined;
+        if (!resolvedPublisherId || resolvedPublisherId <= 0) {
+          throw new Error('publisher_id é obrigatório para criar mídia na biblioteca da organização');
+        }
+        const publisher = await this.db.findFirst(
+          `SELECT publisher_id, is_active FROM publishers WHERE publisher_id = $1`,
+          [resolvedPublisherId]
+        );
+        if (!publisher?.is_active) {
+          throw new Error('Organização não encontrada ou inativa');
+        }
+        const existingMedia = await this.db.findFirst(
+          `SELECT media_id FROM medias WHERE name = $1 AND publisher_id = $2 AND is_active = true`,
+          [name, resolvedPublisherId]
+        );
+        if (existingMedia) {
+          throw new Error('Nome de mídia já existe na biblioteca desta organização');
+        }
+      } else {
+        if (!resolvedSubscriberId || resolvedSubscriberId <= 0) {
+          throw new Error('subscriber_id é obrigatório para criar mídia');
+        }
+        if (!isAdmin && requestSubscriberId && resolvedSubscriberId !== requestSubscriberId) {
+          throw new Error('Acesso negado: não é possível criar mídia para outro subscriber');
+        }
+        const subscriber = await this.db.findFirst(
+          `SELECT subscriber_id, is_active FROM subscribers WHERE subscriber_id = $1`,
+          [resolvedSubscriberId]
+        );
+        if (!subscriber) {
+          throw new Error('Subscriber não encontrado');
+        }
+        if (!subscriber.is_active) {
+          throw new Error('Subscriber não está ativo');
+        }
+        const existingMedia = await this.db.findFirst(
+          `SELECT media_id FROM medias WHERE name = $1 AND subscriber_id = $2`,
+          [name, resolvedSubscriberId]
+        );
+        if (existingMedia) {
+          throw new Error('Nome de mídia já existe para este subscriber');
+        }
       }
 
-      // Validar ownership (exceto para admin)
-      if (!isAdmin && requestSubscriberId && subscriberId !== requestSubscriberId) {
+      // Validar ownership (exceto para admin) — modo legado já validado acima
+      if (!directMode && !isAdmin && requestSubscriberId && resolvedSubscriberId !== requestSubscriberId) {
         throw new Error('Acesso negado: não é possível criar mídia para outro subscriber');
-      }
-
-      // Verificar se subscriber existe e está ativo
-      const subscriber = await this.db.findFirst(`
-        SELECT subscriber_id, is_active FROM subscribers WHERE subscriber_id = $1
-      `, [subscriberId]);
-
-      if (!subscriber) {
-        throw new Error('Subscriber não encontrado');
-      }
-
-      if (!subscriber.is_active) {
-        throw new Error('Subscriber não está ativo');
-      }
-
-      // Verificar se nome já existe para o subscriber
-      const existingMedia = await this.db.findFirst(`
-        SELECT media_id FROM medias WHERE name = $1 AND subscriber_id = $2
-      `, [name, subscriberId]);
-
-      if (existingMedia) {
-        throw new Error('Nome de mídia já existe para este subscriber');
       }
 
       // Determinar tipo de mídia
       const mediaType = this.getMediaType(file.mimetype);
 
       // Salvar arquivo
-      let filePath = await this.getStorageService().saveMediaFile(file, subscriberId, name);
+      let filePath = directMode
+        ? await this.getStorageService().savePublisherMediaFile(file, resolvedPublisherId!, name)
+        : await this.getStorageService().saveMediaFile(file, resolvedSubscriberId!, name);
       let storedMimeType = file.mimetype;
 
       // Imagem: normalização 9:16 síncrona (sharp, rápido). Vídeo: ffmpeg em background (evita 502/timeout).
@@ -768,14 +834,15 @@ export class MediaService {
       // Criar registro no banco (schema v2). Trigger sync_media_approval_status preenche approval_status / approved_at.
       const result = await this.db.executeRaw(`
         INSERT INTO medias (
-          subscriber_id, name, description, tags,
+          subscriber_id, publisher_id, name, description, tags,
           preview_url, status, approved_by, file_path, file_name, media_type,
           duration_seconds, file_size_bytes, mime_type, width, height
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         RETURNING media_id
       `, [
-        subscriberId,
+        resolvedSubscriberId ?? null,
+        directMode ? resolvedPublisherId : null,
         name,
         description || null,
         processedTags,
@@ -809,12 +876,15 @@ export class MediaService {
         name: newMedia.name,
         mediaType: newMedia.mediaType,
         size: newMedia.fileSizeBytes,
-        subscriberId: subscriberId
+        subscriberId: directMode ? undefined : resolvedSubscriberId,
+        publisherId: directMode ? resolvedPublisherId : undefined,
       });
 
       // Invalidar cache
       await getCacheService().invalidateEntity('media', newMedia.id).catch(() => {});
-      await getCacheService().invalidateEntity('subscriber', subscriberId).catch(() => {});
+      if (resolvedSubscriberId) {
+        await getCacheService().invalidateEntity('subscriber', resolvedSubscriberId).catch(() => {});
+      }
 
       if (mediaType === 'video') {
         this.scheduleVideoPortraitNormalizationAfterUpload(

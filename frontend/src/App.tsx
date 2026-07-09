@@ -15,6 +15,7 @@ import { InstallationCapabilitiesProvider, useInstallationCapabilities } from '.
 import { canAccess } from './utils/rolePermissions';
 import { setTheme, setDarkTone } from './store/slices/uiSlice';
 import { isStudioMode } from './config/studioMode';
+import { getAppHomePath, isDirectTotemMode } from './config/directTotemMode';
 
 // Pages
 import LoginPage from './pages/Auth/LoginPage';
@@ -44,6 +45,8 @@ const Settings = React.lazy(() => import('./pages/Settings/Settings'));
 const AI = React.lazy(() => import('./pages/AI/AI'));
 const SmartPlaylist = React.lazy(() => import('./pages/SmartPlaylist/SmartPlaylist'));
 const Totems = React.lazy(() => import('./pages/Totems/Totems'));
+const PublishTotem = React.lazy(() => import('./pages/PublishTotem/PublishTotem'));
+const TotemMediaPage = React.lazy(() => import('./pages/PublishTotem/TotemMediaPage'));
 const TotemPlayList = React.lazy(() => import('./pages/TotemPlayList/TotemPlayList'));
 const Billing = React.lazy(() => import('./pages/Billing/Billing'));
 const QRCodes = React.lazy(() => import('./pages/QRCodes/QRCodes'));
@@ -97,7 +100,7 @@ const detectSubdomainType = (): 'publisher' | 'subscriber' | 'main' => {
 const SmartDisplayFxRoute: React.FC = () => {
   const caps = useInstallationCapabilities();
   if (!caps.smartDisplayFx) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={getAppHomePath()} replace />;
   }
   return <SmartDisplayFx />;
 };
@@ -197,10 +200,10 @@ const AppContent: React.FC = () => {
     const currentPath = location.pathname || '/';
 
     if (user?.role && !canAccess(user.role, currentPath, user.flags)) {
-      if (currentPath === '/dashboard') {
+      if (currentPath === '/dashboard' || currentPath === '/publish-totem') {
         return <Navigate to="/login" replace />;
       }
-      return <Navigate to="/dashboard" replace />;
+      return <Navigate to={getAppHomePath()} replace />;
     }
     
     if (installationCaps.subdomainTenancy && subdomainType === 'publisher') {
@@ -230,7 +233,7 @@ const AppContent: React.FC = () => {
 
   const SubscriberProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     if (!installationCaps.subscriberPortal) {
-      return <Navigate to="/dashboard" />;
+      return <Navigate to={getAppHomePath()} />;
     }
 
     if (loading) {
@@ -291,7 +294,7 @@ const AppContent: React.FC = () => {
             path="/login"
             element={
               isAuthenticated ? (
-                <Navigate to="/dashboard" />
+                <Navigate to={getAppHomePath()} />
               ) : (
                 <LoginPage onLoginSuccess={handleLoginSuccess} />
               )
@@ -301,7 +304,7 @@ const AppContent: React.FC = () => {
             path="/forgot-password"
             element={
               isAuthenticated ? (
-                <Navigate to="/dashboard" />
+                <Navigate to={getAppHomePath()} />
               ) : (
                 <ForgotPassword />
               )
@@ -311,7 +314,7 @@ const AppContent: React.FC = () => {
             path="/reset-password"
             element={
               isAuthenticated ? (
-                <Navigate to="/dashboard" />
+                <Navigate to={getAppHomePath()} />
               ) : (
                 <ResetPassword />
               )
@@ -357,7 +360,23 @@ const AppContent: React.FC = () => {
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <Dashboard />
+                {isDirectTotemMode() ? <Navigate to="/publish-totem" replace /> : <Dashboard />}
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/publish-totem"
+            element={
+              <ProtectedRoute>
+                <PublishTotem />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/publish-totem/:totemId"
+            element={
+              <ProtectedRoute>
+                <TotemMediaPage />
               </ProtectedRoute>
             }
           />
@@ -775,13 +794,13 @@ const AppContent: React.FC = () => {
           {/* Default redirect */}
           <Route
             path="/"
-            element={<Navigate to="/dashboard" />}
+            element={<Navigate to={getAppHomePath()} />}
           />
           
           {/* Catch all route */}
           <Route
             path="*"
-            element={<Navigate to="/dashboard" />}
+            element={<Navigate to={getAppHomePath()} />}
           />
         </Routes>
       </Suspense>

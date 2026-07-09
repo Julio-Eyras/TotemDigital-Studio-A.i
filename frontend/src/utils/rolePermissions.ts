@@ -47,9 +47,11 @@ export interface MenuItemPermission {
 export const menuPermissions: MenuItemPermission[] = [
   // Dashboard - Todos exceto client
   { path: '/dashboard', roles: ['owner_system', 'admin_sql', 'operator', 'admin', 'operador_tecnico', 'operador_faturamento', 'operador_comercial', 'gerente_marketing', 'editoracao', 'visualizador', 'publisher_user', 'subscriber_user'] },
+
+  { path: '/publish-totem', roles: ['owner_system', 'admin_sql', 'operator', 'admin', 'operador_tecnico', 'gerente_marketing', 'visualizador', 'publisher_user'] },
   
   // Mídia - Todos exceto operator e client
-  { path: '/media', roles: ['admin_sql', 'admin', 'gerente_marketing', 'editoracao', 'visualizador'], requiresClientAccess: true },
+  { path: '/media', roles: ['admin_sql', 'admin', 'gerente_marketing', 'editoracao', 'visualizador', 'owner_system', 'operador_tecnico', 'publisher_user'], requiresClientAccess: true },
   { path: '/vinhetas', roles: ['admin_sql', 'admin', 'gerente_marketing', 'editoracao', 'visualizador'], requiresClientAccess: true },
   { path: '/quick-publish', roles: ['admin_sql', 'admin', 'gerente_marketing', 'editoracao', 'subscriber_user'], requiresClientAccess: true },
   { path: '/menu-catalog', roles: ['admin_sql', 'admin', 'gerente_marketing', 'editoracao', 'subscriber_user'], requiresClientAccess: true },

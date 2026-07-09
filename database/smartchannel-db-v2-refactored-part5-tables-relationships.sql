@@ -425,7 +425,7 @@ CREATE TABLE IF NOT EXISTS totem_playlist_items (
     totem_playlist_id INTEGER NOT NULL, -- FK para totem_playlists
     media_id INTEGER NOT NULL, -- FK para medias
     campaign_id INTEGER, -- FK para campaigns (opcional, para rastreamento)
-    subscriber_id INTEGER NOT NULL, -- FK para subscribers (denormalizado)
+    subscriber_id INTEGER, -- FK para subscribers (opcional no modo Publicar em Totem)
     publisher_id INTEGER NOT NULL, -- FK para publishers (denormalizado)
     
     -- Ordem e prioridade
@@ -482,6 +482,8 @@ COMMENT ON COLUMN totem_playlist_items.commercial_tier IS
     'Tier comercial da campanha/mídia (premium, standard, remnant)';
 COMMENT ON COLUMN totem_playlist_items.time_share_percent IS 
     '% de share de tempo que esta mídia deve ocupar no mix';
+
+ALTER TABLE IF EXISTS totem_playlist_items ALTER COLUMN subscriber_id DROP NOT NULL;
 
 -- =============================================
 -- TOTEM_PLAYLIST_GENERATION_LOG (Log de Gerações)

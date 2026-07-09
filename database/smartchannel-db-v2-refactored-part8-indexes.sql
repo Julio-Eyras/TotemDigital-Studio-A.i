@@ -53,6 +53,7 @@ CREATE INDEX IF NOT EXISTS idx_campaigns_pending_approval ON campaigns(status) W
 
 -- Medias
 CREATE INDEX IF NOT EXISTS idx_medias_subscriber ON medias(subscriber_id);
+CREATE INDEX IF NOT EXISTS idx_medias_publisher ON medias(publisher_id) WHERE publisher_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_medias_status ON medias(status);
 CREATE INDEX IF NOT EXISTS idx_medias_approval_status ON medias(approval_status) WHERE approval_status = 'pending';
 CREATE INDEX IF NOT EXISTS idx_medias_active ON medias(is_active) WHERE is_active = true;

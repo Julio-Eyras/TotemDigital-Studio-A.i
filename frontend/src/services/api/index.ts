@@ -1952,6 +1952,44 @@ export const totemApi = {
   },
 };
 
+export interface TotemDirectMediaItem {
+  item_id: number;
+  media_id: number;
+  order_index: number;
+  name: string;
+  media_type: string;
+  file_path: string;
+  thumbnail_url?: string | null;
+  duration_seconds?: number | null;
+  mime_type?: string | null;
+}
+
+export const totemDirectMediaApi = {
+  list: async (totemId: number): Promise<TotemDirectMediaItem[]> => {
+    const response = await api.get(`/totems/${totemId}/medias`);
+    return response.data.data || [];
+  },
+  add: async (totemId: number, mediaId: number): Promise<TotemDirectMediaItem[]> => {
+    const response = await api.post(`/totems/${totemId}/medias`, { mediaId });
+    return response.data.data || [];
+  },
+  remove: async (
+    totemId: number,
+    mediaId: number
+  ): Promise<{ items: TotemDirectMediaItem[]; mediaUsageCount: number; orphan: boolean }> => {
+    const response = await api.delete(`/totems/${totemId}/medias/${mediaId}`);
+    return {
+      items: response.data.data || [],
+      mediaUsageCount: response.data.mediaUsageCount ?? 0,
+      orphan: Boolean(response.data.orphan),
+    };
+  },
+  reorder: async (totemId: number, mediaIds: number[]): Promise<TotemDirectMediaItem[]> => {
+    const response = await api.put(`/totems/${totemId}/medias/reorder`, { mediaIds });
+    return response.data.data || [];
+  },
+};
+
 // =============================================
 // TOTEM PLAYLIST API (Playlists Geradas por Totem)
 // =============================================

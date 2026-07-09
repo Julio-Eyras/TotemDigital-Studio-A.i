@@ -184,6 +184,21 @@ BEGIN
     END IF;
 END $$;
 
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_medias_publisher'
+        AND t.relname = 'medias'
+    ) THEN
+        ALTER TABLE medias
+            ADD CONSTRAINT fk_medias_publisher 
+            FOREIGN KEY (publisher_id) REFERENCES publishers(publisher_id) 
+            ON DELETE SET NULL;
+    END IF;
+END $$;
+
 -- =============================================
 -- FKs da tabela PLAYLISTS
 -- =============================================

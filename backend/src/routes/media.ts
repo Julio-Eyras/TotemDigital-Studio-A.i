@@ -12,6 +12,8 @@ import { getSubscriberService } from '../services/subscriberService';
 import { determineSubscriberId } from '../utils/subscriberHelper';
 import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
 import { isAdminRole } from '../utils/tenantScope';
+import { isDirectTotemMode } from '../config/directTotemMode';
+import { resolveSinglePublisherId } from '../services/directTotemOrgService';
 import { 
   paginationValidators, 
   searchValidators, 
@@ -343,74 +345,76 @@ router.post('/upload', uploadLimiter,
 
       // Determinar se é admin
       const isAdmin = req.user?.role === 'admin' || req.user?.userType === 'system_user';
-      
-      // Obter subscriberId do request (do middleware ou do body)
-      const requestSubscriberId = req.subscriberId || req.user?.subscriberId || req.user?.clientId;
-      
-      // Determinar subscriberId final
-      let finalSubscriberId: number | undefined = req.body.subscriberId ? parseInt(req.body.subscriberId) : undefined;
-      
-      // Se não foi fornecido e usuário não é admin, usar subscriberId do usuário
-      if (!finalSubscriberId && !isAdmin && requestSubscriberId) {
-        finalSubscriberId = requestSubscriberId;
-      }
-      
-      // Se admin não forneceu subscriberId, buscar primeiro subscriber ativo
-      if (!finalSubscriberId && isAdmin) {
-        try {
-          const db = require('../config/database').getDatabase();
-          const firstSubscriber = await db.findFirst(`
-            SELECT subscriber_id FROM subscribers WHERE is_active = true LIMIT 1
-          `);
-          if (firstSubscriber) {
-            finalSubscriberId = firstSubscriber.subscriber_id;
-            await logDebug('[Media] Admin usando primeiro subscriber ativo', { subscriberId: finalSubscriberId });
-          } else {
+      const directMode = isDirectTotemMode();
+
+      let finalSubscriberId: number | undefined;
+      let finalPublisherId: number | undefined;
+
+      if (directMode) {
+        finalPublisherId = await resolveSinglePublisherId(req.user?.publisherId);
+      } else {
+        const requestSubscriberId = req.subscriberId || req.user?.subscriberId || req.user?.clientId;
+        finalSubscriberId = req.body.subscriberId ? parseInt(req.body.subscriberId) : undefined;
+
+        if (!finalSubscriberId && !isAdmin && requestSubscriberId) {
+          finalSubscriberId = requestSubscriberId;
+        }
+
+        if (!finalSubscriberId && isAdmin) {
+          try {
+            const db = require('../config/database').getDatabase();
+            const firstSubscriber = await db.findFirst(`
+              SELECT subscriber_id FROM subscribers WHERE is_active = true LIMIT 1
+            `);
+            if (firstSubscriber) {
+              finalSubscriberId = firstSubscriber.subscriber_id;
+            } else {
+              return res.status(400).json({
+                success: false,
+                error: 'subscriberId é obrigatório',
+                message: 'É necessário fornecer subscriberId ou ter pelo menos um subscriber ativo',
+              });
+            }
+          } catch (dbError: any) {
+            await logError('Erro ao buscar subscriber', dbError);
             return res.status(400).json({
               success: false,
               error: 'subscriberId é obrigatório',
-              message: 'É necessário fornecer subscriberId ou ter pelo menos um subscriber ativo'
+              message: 'Não foi possível determinar o subscriber. Forneça subscriberId explicitamente.',
             });
           }
-        } catch (dbError: any) {
-          await logError('Erro ao buscar subscriber', dbError);
+        }
+
+        if (!finalSubscriberId || finalSubscriberId <= 0) {
           return res.status(400).json({
             success: false,
-            error: 'subscriberId é obrigatório',
-            message: 'Não foi possível determinar o subscriber. Forneça subscriberId explicitamente.'
+            error: 'subscriber_id é obrigatório',
+            message: 'Não foi possível determinar o subscriber. Forneça subscriberId explicitamente.',
           });
         }
       }
 
-      // Validar que finalSubscriberId foi definido
-      if (!finalSubscriberId || finalSubscriberId <= 0) {
-        return res.status(400).json({
-          success: false,
-          error: 'subscriber_id é obrigatório',
-          message: 'Não foi possível determinar o subscriber. Forneça subscriberId explicitamente.'
-        });
+      // Validar limites do plano antes de fazer upload (modo legado com subscriber)
+      if (!directMode && finalSubscriberId) {
+        try {
+          const subscriberService = getSubscriberService();
+          await subscriberService.validateStorageLimit(finalSubscriberId, req.file.size);
+          await subscriberService.validatePlanLimits(finalSubscriberId, 'media');
+        } catch (limitError: any) {
+          try {
+            fs.unlinkSync(req.file.path);
+          } catch {
+            /* ignore */
+          }
+          return res.status(400).json({
+            success: false,
+            error: 'Limite do plano excedido',
+            message: limitError.message || 'Limite do plano foi excedido',
+          });
+        }
       }
 
-      // Validar limites do plano antes de fazer upload
-      try {
-        const subscriberService = getSubscriberService();
-        // Validar limite de storage
-        await subscriberService.validateStorageLimit(finalSubscriberId, req.file.size);
-        // Validar limite de medias
-        await subscriberService.validatePlanLimits(finalSubscriberId, 'media');
-      } catch (limitError: any) {
-        // Remover arquivo temporário se validação falhar
-        try {
-          fs.unlinkSync(req.file.path);
-        } catch (unlinkError) {
-          // Ignorar erro ao remover arquivo temporário
-        }
-        return res.status(400).json({
-          success: false,
-          error: 'Limite do plano excedido',
-          message: limitError.message || 'Limite do plano foi excedido'
-        });
-      }
+      const requestSubscriberId = req.subscriberId || req.user?.subscriberId || req.user?.clientId;
 
       // Processar tags
       let processedTags: string[] = [];
@@ -426,6 +430,7 @@ router.post('/upload', uploadLimiter,
         description: req.body.description,
         tags: processedTags,
         subscriberId: finalSubscriberId,
+        publisherId: finalPublisherId,
         createdBy: req.user?.id || 0,
         file: {
           diskPath: req.file.path,
@@ -498,58 +503,62 @@ router.post('/upload-multiple',
         });
       }
 
-      // Determinar se é admin
       const isAdmin = req.user?.role === 'admin' || req.user?.userType === 'system_user';
-      
-      // Determinar subscriberId usando helper centralizado
-      const finalSubscriberId = await determineSubscriberId({
-        bodySubscriberId: req.body.subscriberId,
-        userSubscriberId: req.user?.subscriberId,
-        userClientId: req.user?.clientId,
-        requestSubscriberId: req.subscriberId,
-        isAdmin,
-        fallbackToFirstActive: isAdmin // Admin pode usar primeiro ativo como fallback
-      });
+      const directMode = isDirectTotemMode();
+      let finalSubscriberId: number | undefined;
+      let finalPublisherId: number | undefined;
 
-      // Validar que subscriberId foi determinado
-      if (!finalSubscriberId || finalSubscriberId <= 0) {
-        return res.status(400).json({
-          success: false,
-          error: 'subscriber_id é obrigatório',
-          message: 'Não foi possível determinar o subscriber. Forneça subscriberId explicitamente.'
+      if (directMode) {
+        finalPublisherId = await resolveSinglePublisherId(req.user?.publisherId);
+      } else {
+        finalSubscriberId = await determineSubscriberId({
+          bodySubscriberId: req.body.subscriberId,
+          userSubscriberId: req.user?.subscriberId,
+          userClientId: req.user?.clientId,
+          requestSubscriberId: req.subscriberId,
+          isAdmin,
+          fallbackToFirstActive: isAdmin,
         });
+
+        if (!finalSubscriberId || finalSubscriberId <= 0) {
+          return res.status(400).json({
+            success: false,
+            error: 'subscriber_id é obrigatório',
+            message: 'Não foi possível determinar o subscriber. Forneça subscriberId explicitamente.',
+          });
+        }
       }
 
-      // Validar limites de plano e storage antes de processar uploads
-      try {
-        const subscriberService = getSubscriberService();
-        // Calcular tamanho total dos arquivos
-        const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-        // Validar storage
-        await subscriberService.validateStorageLimit(finalSubscriberId, totalSize);
-        // Validar limite de medias (contar quantas serão criadas)
-        const currentCount = await subscriberService.getCurrentResourceCount(finalSubscriberId, 'media');
-        const limits = await subscriberService.getMaxLimits(finalSubscriberId);
-        const maxMedias = limits.medias;
-        if (maxMedias !== undefined && currentCount + files.length > maxMedias) {
-          throw new Error(`Limite de mídias excedido. Você pode criar no máximo ${maxMedias} mídias. Você já possui ${currentCount} e está tentando criar ${files.length} adicionais.`);
-        }
-      } catch (limitError: any) {
-        // Remover arquivos temporários se validação falhar
-        files.forEach(file => {
-          try {
-            if (file.path && fs.existsSync(file.path)) {
-              fs.unlinkSync(file.path);
-            }
-          } catch (unlinkError) {
-            // Ignorar erro ao remover arquivo temporário
+      // Validar limites de plano e storage antes de processar uploads (modo legado)
+      if (!directMode && finalSubscriberId) {
+        try {
+          const subscriberService = getSubscriberService();
+          const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+          await subscriberService.validateStorageLimit(finalSubscriberId, totalSize);
+          const currentCount = await subscriberService.getCurrentResourceCount(finalSubscriberId, 'media');
+          const limits = await subscriberService.getMaxLimits(finalSubscriberId);
+          const maxMedias = limits.medias;
+          if (maxMedias !== undefined && currentCount + files.length > maxMedias) {
+            throw new Error(
+              `Limite de mídias excedido. Você pode criar no máximo ${maxMedias} mídias. Você já possui ${currentCount} e está tentando criar ${files.length} adicionais.`
+            );
           }
-        });
-        return res.status(400).json({
-          success: false,
-          error: 'Limite do plano excedido',
-          message: limitError.message || 'Limite de storage ou mídias do plano foi excedido'
-        });
+        } catch (limitError: any) {
+          files.forEach((file) => {
+            try {
+              if (file.path && fs.existsSync(file.path)) {
+                fs.unlinkSync(file.path);
+              }
+            } catch {
+              // ignorar
+            }
+          });
+          return res.status(400).json({
+            success: false,
+            error: 'Limite do plano excedido',
+            message: limitError.message || 'Limite de storage ou mídias do plano foi excedido',
+          });
+        }
       }
 
       const created = await getMediaService().createMultipleMedia(
@@ -559,10 +568,13 @@ router.post('/upload-multiple',
           mimetype: file.mimetype,
           size: file.size,
         })),
-        finalSubscriberId,
         req.user?.id || 0,
-        req.subscriberId || req.user?.subscriberId || req.user?.clientId,
-        isAdmin
+        {
+          subscriberId: finalSubscriberId,
+          publisherId: finalPublisherId,
+          requestSubscriberId: req.subscriberId || req.user?.subscriberId || req.user?.clientId,
+          isAdmin,
+        }
       );
 
       files.forEach((file) => {

@@ -38,7 +38,10 @@ export const InstallationCapabilitiesProvider: React.FC<{
       try {
         const ctx = await dashboardApi.getUiContext();
         if (cancelled) return;
-        const caps = ctx.capabilities ?? defaultInstallationCapabilities();
+        const caps = {
+          ...defaultInstallationCapabilities(),
+          ...(ctx.capabilities ?? {}),
+        };
         setCapabilities(caps);
         setGlobalCapabilities(caps);
       } catch {

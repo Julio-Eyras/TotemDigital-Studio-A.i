@@ -55,6 +55,7 @@ import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { useMediaRotationTransform, mediaThumbnailPortraitPreviewSx, mediaPortraitPreviewFrameSx, mediaPortraitHoverVideoSx } from '../../hooks/useMediaRotationTransform';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { isDirectTotemMode } from '../../config/directTotemMode';
 import { isStudioMode } from '../../config/studioMode';
 
 const compareByDisplayName = (a?: string, b?: string) =>
@@ -103,7 +104,6 @@ const Media: React.FC = () => {
   }, [userSubscriberId, mediaItems]);
 
   useEffect(() => {
-    // Verificar se é admin e carregar subscribers
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const userRole = user?.role || '';
     const userType = user?.userType || '';
@@ -111,10 +111,9 @@ const Media: React.FC = () => {
     const canSelect = isTrueAdmin || userRole === 'gerente_marketing' || userRole === 'editoracao';
     setIsAdmin(isTrueAdmin);
     setCanSelectSubscriber(canSelect);
-    // Compat: user no localStorage pode vir em snake_case ou camelCase
     setUserSubscriberId(user?.subscriberId ?? user?.subscriber_id ?? user?.clientId);
 
-    if (canSelect && !isStudioMode()) {
+    if (canSelect && !isStudioMode() && !isDirectTotemMode()) {
       loadSubscribers();
     }
     loadMediaItems();
@@ -235,27 +234,24 @@ const Media: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      // Determinar subscriberId para filtro
       let subscriberId: number | undefined = undefined;
-      if (isStudioMode()) {
-        if (userSubscriberId) {
+      if (!isDirectTotemMode()) {
+        if (isStudioMode()) {
+          if (userSubscriberId) {
+            subscriberId = userSubscriberId;
+          } else if (canSelectSubscriber && subscriberFilter !== 'all' && typeof subscriberFilter === 'number') {
+            subscriberId = subscriberFilter;
+          }
+        } else if (userSubscriberId) {
           subscriberId = userSubscriberId;
-        } else if (canSelectSubscriber && subscriberFilter !== 'all' && typeof subscriberFilter === 'number') {
-          subscriberId = subscriberFilter;
-        }
-        // Admin monousuário: sem subscriber no token → lista global (subscriberId indefinido)
-      } else if (userSubscriberId) {
-        // Usuário "travado" em um subscriber (ex.: subscriber_user)
-        subscriberId = userSubscriberId;
-      } else if (canSelectSubscriber) {
-        // Usuário pode escolher subscriber (ex.: gerente_marketing/editoracao/admin)
-        if (subscriberFilter !== 'all' && typeof subscriberFilter === 'number') {
-          subscriberId = subscriberFilter;
-        } else if (!isAdmin) {
-          // Não-admin não pode listar sem subscriber definido (evita erro do backend)
-          setMediaItems([]);
-          setError('É necessário selecionar um subscriber (anunciante)');
-          return;
+        } else if (canSelectSubscriber) {
+          if (subscriberFilter !== 'all' && typeof subscriberFilter === 'number') {
+            subscriberId = subscriberFilter;
+          } else if (!isAdmin) {
+            setMediaItems([]);
+            setError('É necessário selecionar um subscriber (anunciante)');
+            return;
+          }
         }
       }
       
@@ -577,7 +573,7 @@ const Media: React.FC = () => {
                 }}
               />
             </Grid>
-            {canSelectSubscriber && !isStudioMode() && (
+            {canSelectSubscriber && !isStudioMode() && !isDirectTotemMode() && (
               <Grid item xs={12} md={3}>
                 <FormControl fullWidth>
                   <InputLabel>Anunciante</InputLabel>
@@ -852,13 +848,23 @@ const Media: React.FC = () => {
                   </Typography>
                 )}
 
-                {/* Dados do Anunciante */}
-                {media.subscriberName && (
+                {media.subscriberName && !isDirectTotemMode() && (
                   <Box sx={{ mb: 1 }}>
                     <Chip
                       label={`Anunciante: ${media.subscriberName}`}
                       size="small"
                       color="primary"
+                      variant="outlined"
+                      sx={{ fontSize: '0.7rem' }}
+                    />
+                  </Box>
+                )}
+                {isDirectTotemMode() && (
+                  <Box sx={{ mb: 1 }}>
+                    <Chip
+                      label={`${Number((media as any).totemCount ?? 0)} totem(ns)`}
+                      size="small"
+                      color="secondary"
                       variant="outlined"
                       sx={{ fontSize: '0.7rem' }}
                     />
@@ -989,10 +995,10 @@ const Media: React.FC = () => {
         onClose={() => setUploadDialogOpen(false)}
         onSuccess={handleUploadSuccess}
         isAdmin={isAdmin}
-        canSelectSubscriber={canSelectSubscriber}
-        subscribers={subscribers}
+        canSelectSubscriber={isDirectTotemMode() ? false : canSelectSubscriber}
+        subscribers={isDirectTotemMode() ? [] : subscribers}
         userSubscriberId={userSubscriberId}
-        fallbackSubscriberId={uploadFallbackSubscriberId}
+        fallbackSubscriberId={isDirectTotemMode() ? undefined : uploadFallbackSubscriberId}
       />
 
       {/* Edit Dialog */}

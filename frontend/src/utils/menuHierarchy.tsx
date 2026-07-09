@@ -41,6 +41,7 @@ import { UserRole, canAccess } from './rolePermissions';
 import { UserFlags } from '../store/slices/authSlice';
 import { DASHBOARD_COMMERCIAL_FOCUS } from '../config/featureFlags';
 import { getInstallationCapabilities, isSimpleTotemMode } from '../config/installationCapabilities';
+import { isDirectTotemMode } from '../config/directTotemMode';
 import { isStudioMode } from '../config/studioMode';
 import { getProductTerminology, isSingleOrganizationProfile } from '../config/productTerminology';
 
@@ -298,6 +299,14 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
   ];
 }
 
+function getDirectTotemMenu(): HierarchicalMenuItem[] {
+  return [
+    { text: 'Publicar em Totem', icon: <Tv />, path: '/publish-totem' },
+    { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
+    { text: 'Configurações', icon: <Settings />, path: '/settings' },
+  ];
+}
+
 /**
  * Estrutura hierárquica de menus por role (com filtragem de permissões)
  */
@@ -305,6 +314,10 @@ export const getMenuHierarchyByRole = (
   role: UserRole,
   userFlags?: UserFlags | null
 ): HierarchicalMenuItem[] => {
+  if (isDirectTotemMode()) {
+    return filterHierarchicalMenu(getDirectTotemMenu(), role, userFlags);
+  }
+
   if (isStudioMode()) {
     if (role === 'operador_tecnico' || role === 'operator') {
       return filterHierarchicalMenu(getOperadorTecnicoMenu(), role, userFlags);

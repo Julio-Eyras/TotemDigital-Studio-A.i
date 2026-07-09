@@ -17,6 +17,8 @@ export interface InstallationCapabilities {
   subscriberPortal: boolean;
   smartDisplayFx: boolean;
   simpleTotemMode: boolean;
+  /** Branch direc-totem: menu Publicar em Totem, uma organização. */
+  directTotemMode: boolean;
 }
 
 /** Perfil derivado do ambiente (build/deploy). DB pode refinir via installationProfileService. */
@@ -54,5 +56,7 @@ export function buildInstallationCapabilities(
   /** Studio/mono: menu oculto; rotas API mantidas para evolução futura. */
     smartDisplayFx: !single,
     simpleTotemMode: simple,
+    directTotemMode:
+      process.env.DIRECT_TOTEM_MODE !== 'false',
   };
 }

@@ -1,0 +1,270 @@
+/**
+ * Publicar em Totem — listagem em cards (modo direto)
+ */
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Alert,
+  Avatar,
+  Box,
+  Button,
+  Card,
+  CardActionArea,
+  CardContent,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Grid,
+  IconButton,
+  LinearProgress,
+  TextField,
+  Tooltip,
+  Typography,
+} from '@mui/material';
+import { Add, ContentCopy, Refresh, Settings, Tv } from '@mui/icons-material';
+import { totemApi, Player, CreatePlayerRequest } from '../../services/api';
+import TotemRemoteControl from '../../components/TotemRemoteControl/TotemRemoteControl';
+import { PageHeader } from '../../components/DataDisplay';
+import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
+import { getTotemIdFromRow } from '../../utils/totemRowIds';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+
+function createActivationCode(): string {
+  const segment = () => Math.random().toString(36).slice(2, 6).toUpperCase().padEnd(4, '0');
+  return `TD-${segment()}-${segment()}`;
+}
+
+function getOperationalStatus(totem: any): { label: string; color: 'default' | 'success' | 'warning' | 'error' } {
+  if (totem?.status === 'online') return { label: 'Online', color: 'success' };
+  if (totem?.status === 'error') return { label: 'Erro', color: 'error' };
+  if (totem?.status === 'pending_approval') return { label: 'Aguardando aprovação', color: 'warning' };
+  return { label: 'Offline', color: 'default' };
+}
+
+const PublishTotem: React.FC = () => {
+  const navigate = useNavigate();
+  const breadcrumbs = useBreadcrumbs();
+  const [totems, setTotems] = useState<Player[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [remoteTotem, setRemoteTotem] = useState<Player | null>(null);
+
+  const loadTotems = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await totemApi.getAll({ limit: 500 });
+      const list = Array.isArray((res as any)?.data) ? (res as any).data : [];
+      setTotems(list);
+    } catch (e: any) {
+      setError(pickApiErrorMessage(e, 'Erro ao carregar totens'));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadTotems();
+  }, [loadTotems]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return totems;
+    return totems.filter((t) => {
+      const name = String(t.name || t.identifier || '').toLowerCase();
+      const id = String(getTotemIdFromRow(t) || '');
+      return name.includes(q) || id.includes(q);
+    });
+  }, [totems, search]);
+
+  const handleCreate = async () => {
+    const name = newName.trim();
+    if (!name) {
+      setError('Informe o nome do totem');
+      return;
+    }
+    try {
+      const payload: CreatePlayerRequest = {
+        name,
+        identifier: name.replace(/\s+/g, '-').toLowerCase().slice(0, 80) || `totem-${Date.now()}`,
+        uin: createActivationCode(),
+        isActive: true,
+      } as CreatePlayerRequest;
+      await totemApi.create(payload);
+      setSuccess('Totem criado com sucesso');
+      setCreateOpen(false);
+      setNewName('');
+      await loadTotems();
+    } catch (e: any) {
+      setError(pickApiErrorMessage(e, 'Erro ao criar totem'));
+    }
+  };
+
+  const copyCode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setSuccess('Código copiado');
+    } catch {
+      setError('Não foi possível copiar o código');
+    }
+  };
+
+  return (
+    <Box>
+      <PageHeader title="Publicar em Totem" breadcrumbs={breadcrumbs} />
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+      {success && (
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>
+          {success}
+        </Alert>
+      )}
+
+      <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'center' }}>
+        <TextField
+          size="small"
+          label="Buscar totem"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          sx={{ minWidth: 220, flex: 1 }}
+        />
+        <Button variant="outlined" startIcon={<Refresh />} onClick={() => void loadTotems()}>
+          Atualizar
+        </Button>
+        <Button variant="contained" startIcon={<Add />} onClick={() => setCreateOpen(true)}>
+          Novo totem
+        </Button>
+      </Box>
+
+      {loading && <LinearProgress sx={{ mb: 2 }} />}
+
+      <Grid container spacing={2}>
+        {filtered.length === 0 && !loading ? (
+          <Grid item xs={12}>
+            <Alert severity="info">Nenhum totem cadastrado. Clique em &quot;Novo totem&quot; para começar.</Alert>
+          </Grid>
+        ) : (
+          filtered.map((t, idx) => {
+            const totemId = getTotemIdFromRow(t);
+            const title = t.name || t.identifier || (totemId ? `Totem ${totemId}` : 'Totem');
+            const op = getOperationalStatus(t);
+            const mediaCount = Number((t as any).media_count ?? 0);
+            const activationCode = String((t as any).uin || '').trim();
+            return (
+              <Grid item xs={12} sm={6} md={4} key={String(totemId ?? idx)}>
+                <Card sx={{ height: '100%' }}>
+                  <CardActionArea
+                    onClick={() => totemId && navigate(`/publish-totem/${totemId}`)}
+                    sx={{ height: '100%' }}
+                  >
+                    <CardContent>
+                      <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+                        <Avatar sx={{ bgcolor: op.color === 'success' ? 'success.main' : 'grey.600' }}>
+                          <Tv fontSize="small" />
+                        </Avatar>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography variant="subtitle1" fontWeight={700} noWrap>
+                            {title}
+                          </Typography>
+                          <Chip size="small" label={op.label} color={op.color} sx={{ mt: 0.5 }} />
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                            {mediaCount} {mediaCount === 1 ? 'mídia' : 'mídias'}
+                          </Typography>
+                          {activationCode && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1 }}>
+                              <Typography variant="caption" color="text.secondary">
+                                Ativação: {activationCode}
+                              </Typography>
+                              <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void copyCode(activationCode);
+                                }}
+                              >
+                                <ContentCopy fontSize="inherit" />
+                              </IconButton>
+                            </Box>
+                          )}
+                        </Box>
+                        {totemId && (
+                          <Tooltip title="Controle remoto">
+                            <IconButton
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRemoteTotem(t);
+                              }}
+                            >
+                              <Settings fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                      </Box>
+                    </CardContent>
+                  </CardActionArea>
+                </Card>
+              </Grid>
+            );
+          })
+        )}
+      </Grid>
+
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Novo totem</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            O totem será cadastrado na sua organização. Um código de ativação será gerado automaticamente.
+          </Typography>
+          <TextField
+            autoFocus
+            fullWidth
+            label="Nome do totem"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreateOpen(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={() => void handleCreate()}>
+            Criar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(remoteTotem)}
+        onClose={() => setRemoteTotem(null)}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle>
+          Controle remoto — {remoteTotem?.name || remoteTotem?.identifier || ''}
+        </DialogTitle>
+        <DialogContent>
+          {remoteTotem && getTotemIdFromRow(remoteTotem) ? (
+            <TotemRemoteControl
+              totemId={getTotemIdFromRow(remoteTotem)!}
+              totemName={remoteTotem.name || remoteTotem.identifier}
+              onClose={() => setRemoteTotem(null)}
+            />
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRemoteTotem(null)}>Fechar</Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+};
+
+export default PublishTotem;

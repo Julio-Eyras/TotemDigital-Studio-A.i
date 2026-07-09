@@ -234,7 +234,8 @@ COMMENT ON COLUMN campaigns.schedule_config IS 'Configuração detalhada de agen
 
 CREATE TABLE IF NOT EXISTS medias (
     media_id SERIAL PRIMARY KEY,
-    subscriber_id INTEGER NOT NULL, -- FK para subscribers (anunciante)
+    subscriber_id INTEGER, -- FK para subscribers (opcional no modo Publicar em Totem)
+    publisher_id INTEGER, -- FK para publishers (biblioteca da organização)
     
     name TEXT NOT NULL,
     description TEXT,
@@ -274,10 +275,29 @@ CREATE TABLE IF NOT EXISTS medias (
         CHECK (approval_status IS NULL OR approval_status IN ('pending', 'approved', 'rejected'))
 );
 
-COMMENT ON TABLE medias IS 'Mídias enviadas por subscribers (anunciantes)';
-COMMENT ON COLUMN medias.subscriber_id IS 'Subscriber (anunciante) dono da mídia';
+COMMENT ON TABLE medias IS 'Biblioteca de mídias (organização e/ou anunciante legado)';
+COMMENT ON COLUMN medias.subscriber_id IS 'Subscriber legado (modo Pro); NULL no modo Publicar em Totem';
+COMMENT ON COLUMN medias.publisher_id IS 'Organização dona da mídia no modo Publicar em Totem';
 COMMENT ON COLUMN medias.status IS 'Status da mídia no workflow de aprovação';
 COMMENT ON COLUMN medias.approved_by IS 'User (tenant) que aprovou a mídia';
+
+-- Compat: biblioteca por organização (modo Publicar em Totem)
+ALTER TABLE IF EXISTS medias ADD COLUMN IF NOT EXISTS publisher_id INTEGER;
+ALTER TABLE IF EXISTS medias ALTER COLUMN subscriber_id DROP NOT NULL;
+
+DO $medias_direct_totem$
+BEGIN
+  IF to_regclass('public.medias') IS NULL THEN
+    RETURN;
+  END IF;
+  UPDATE medias m
+  SET publisher_id = p.publisher_id
+  FROM publishers p
+  WHERE m.publisher_id IS NULL
+    AND p.is_active = true
+    AND p.publisher_id = (SELECT MIN(publisher_id) FROM publishers WHERE is_active = true);
+END;
+$medias_direct_totem$;
 
 -- =============================================
 -- PLAYLISTS (Playlists - Polimórfica)

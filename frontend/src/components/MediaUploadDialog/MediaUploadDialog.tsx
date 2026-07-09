@@ -34,11 +34,13 @@ import { validateFileSize, validateFileType, VALIDATION_CONSTANTS } from '../../
 import { useNotification } from '../../hooks/useNotification';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { isStudioMode } from '../../config/studioMode';
+import { isDirectTotemMode } from '../../config/directTotemMode';
+import type { MediaItem } from '../../services/api';
 
 interface UploadDialogProps {
   open: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (uploaded?: MediaItem[]) => void;
   isAdmin?: boolean;
   canSelectSubscriber?: boolean;
   subscribers?: (Client | Subscriber)[];
@@ -151,7 +153,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
     setFiles(prev => [...prev, ...validFiles]);
     
     // Validar limites e storage se subscriberId estiver definido (API Pro)
-    if (!isStudioMode() && formData.subscriberId && validFiles.length > 0) {
+    if (!isStudioMode() && !isDirectTotemMode() && formData.subscriberId && validFiles.length > 0) {
       try {
         // Validar storage (soma de todos os arquivos)
         const totalSize = validFiles.reduce((sum, file) => sum + file.size, 0);
@@ -200,13 +202,13 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
     }
 
     // Validar subscriberId (Pro); no compacto o backend pode aceitar só contexto admin
-    if (!formData.subscriberId && !isStudioMode()) {
+    if (!formData.subscriberId && !isStudioMode() && !isDirectTotemMode()) {
       setError('É necessário selecionar um subscriber (anunciante)');
       return;
     }
 
     // Validações prévias (API subscriber — não disponível no perfil compacto)
-    if (!isStudioMode() && formData.subscriberId) {
+    if (!isStudioMode() && !isDirectTotemMode() && formData.subscriberId) {
       try {
         const totalSize = files.reduce((sum, file) => sum + file.size, 0);
         const storageValidation = await subscriberApi.validateStorage(formData.subscriberId, totalSize);
@@ -251,7 +253,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
         return result;
       });
 
-      await Promise.all(uploadPromises);
+      const results = await Promise.all(uploadPromises);
       
       setUploadStatus('success');
       setUploadProgress(100);
@@ -259,7 +261,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
       // Limpar formulário após sucesso
       setTimeout(() => {
         handleClose();
-        onSuccess();
+        onSuccess(results);
       }, 2000);
 
     } catch (error: any) {
@@ -309,7 +311,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
         <Box sx={{ pt: 2 }}>
           {/* Informações gerais */}
           <Grid container spacing={2} sx={{ mb: 3 }}>
-            {canPickSubscriber && subscribers.length > 0 && (
+            {canPickSubscriber && subscribers.length > 0 && !isDirectTotemMode() && (
               <Grid item xs={12}>
                 <FormControl fullWidth>
                   <InputLabel>Anunciante *</InputLabel>
@@ -333,7 +335,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
                 </FormControl>
               </Grid>
             )}
-            {!canPickSubscriber && userSubscriberId && (
+            {!canPickSubscriber && userSubscriberId && !isDirectTotemMode() && (
               <Grid item xs={12}>
                 <TextField
                   fullWidth
