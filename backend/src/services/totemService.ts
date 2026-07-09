@@ -14,8 +14,10 @@ import { getTotemPlaylistMixService } from './totemPlaylistMixService';
 import type { PoolClient } from 'pg';
 import { assertCompactOwnerPublisher } from '../utils/compactOwnerPublisher';
 import { isStudioRuntime } from '../config/installationRuntime';
+import { isDirectTotemMode } from '../config/directTotemMode';
 import { resolveCompactOwnerPublisherId } from '../utils/compactOwnerPublisher';
 import { userMayCreateTotem } from '../utils/totemCreateRoles';
+import { getTotemDirectMediaService } from './totemDirectMediaService';
 
 function normalizeStockText(value: unknown): string {
   return String(value || '')
@@ -1821,16 +1823,26 @@ export class TotemService {
       }
 
       // Verificar se tem dados associados (PostgreSQL placeholders)
-      const hasCampaigns = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM campaign_totems WHERE totem_id = $1
-      `, [totemId]);
+      if (isDirectTotemMode()) {
+        const mediaCount = await getTotemDirectMediaService().countActiveMediasForTotem(totemId);
+        if (mediaCount > 0) {
+          throw new Error(
+            'Não é possível remover totem com mídias publicadas. Remova todas as mídias deste totem primeiro.'
+          );
+        }
+        await getTotemDirectMediaService().invalidateDirectPlaylistsForTotem(totemId);
+      } else {
+        const hasCampaigns = await this.db.findFirst(`
+          SELECT COUNT(*) as count FROM campaign_totems WHERE totem_id = $1
+        `, [totemId]);
 
-      const hasPlaylists = await this.db.findFirst(`
-        SELECT COUNT(*) as count FROM totem_playlists WHERE totem_id = $1
-      `, [totemId]);
+        const hasPlaylists = await this.db.findFirst(`
+          SELECT COUNT(*) as count FROM totem_playlists WHERE totem_id = $1
+        `, [totemId]);
 
-      if (hasCampaigns?.count > 0 || hasPlaylists?.count > 0) {
-        throw new Error('Não é possível remover totem com dados associados. Desative-o primeiro.');
+        if (hasCampaigns?.count > 0 || hasPlaylists?.count > 0) {
+          throw new Error('Não é possível remover totem com dados associados. Desative-o primeiro.');
+        }
       }
 
       // Desativar totem (soft delete) - PostgreSQL placeholders

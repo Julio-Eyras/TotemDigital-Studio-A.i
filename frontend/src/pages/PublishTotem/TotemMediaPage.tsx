@@ -17,8 +17,9 @@ import {
   ListItemButton,
   ListItemText,
   Typography,
+  Tooltip,
 } from '@mui/material';
-import { Add, ArrowBack, CloudUpload, Settings } from '@mui/icons-material';
+import { Add, ArrowBack, CloudUpload, Delete, Edit, Settings } from '@mui/icons-material';
 import {
   mediaApi,
   MediaItem,
@@ -30,6 +31,7 @@ import {
 import { SortableList } from '../../components/SortableList/SortableList';
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 import TotemRemoteControl from '../../components/TotemRemoteControl/TotemRemoteControl';
+import TotemEditDialog from '../../components/TotemEditDialog/TotemEditDialog';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { buildMediaThumbnailApiPath } from '../../utils/mediaPreviewUrl';
@@ -49,6 +51,9 @@ const TotemMediaPage: React.FC = () => {
   const [pickOpen, setPickOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [remoteOpen, setRemoteOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [orphanDialog, setOrphanDialog] = useState<{
     open: boolean;
     mediaId: number;
@@ -157,6 +162,24 @@ const TotemMediaPage: React.FC = () => {
   };
 
   const title = totem?.name || totem?.identifier || `Totem ${totemId}`;
+  const canDeleteTotem = items.length === 0;
+
+  const handleDeleteTotem = async () => {
+    if (!canDeleteTotem) {
+      setError('Remova todas as mídias deste totem antes de excluí-lo');
+      return;
+    }
+    try {
+      setDeleting(true);
+      await totemApi.delete(totemId);
+      navigate('/publish-totem');
+    } catch (e: any) {
+      setError(pickApiErrorMessage(e, 'Erro ao excluir totem'));
+    } finally {
+      setDeleting(false);
+      setDeleteOpen(false);
+    }
+  };
 
   return (
     <Box>
@@ -166,6 +189,28 @@ const TotemMediaPage: React.FC = () => {
         <Button startIcon={<ArrowBack />} onClick={() => navigate('/publish-totem')}>
           Voltar
         </Button>
+        <Button startIcon={<Edit />} variant="outlined" onClick={() => setEditOpen(true)}>
+          Editar totem
+        </Button>
+        <Tooltip
+          title={
+            canDeleteTotem
+              ? 'Excluir totem'
+              : 'Remova todas as mídias antes de excluir este totem'
+          }
+        >
+          <span>
+            <Button
+              startIcon={<Delete />}
+              variant="outlined"
+              color="error"
+              disabled={!canDeleteTotem}
+              onClick={() => setDeleteOpen(true)}
+            >
+              Excluir totem
+            </Button>
+          </span>
+        </Tooltip>
         <Button startIcon={<Settings />} variant="outlined" onClick={() => setRemoteOpen(true)}>
           Controle remoto
         </Button>
@@ -261,6 +306,33 @@ const TotemMediaPage: React.FC = () => {
           }
         }}
         isAdmin
+      />
+
+      <Dialog open={deleteOpen} onClose={() => !deleting && setDeleteOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Excluir totem?</DialogTitle>
+        <DialogContent>
+          <Typography>
+            O totem <strong>{title}</strong> será removido permanentemente. Esta ação não pode ser desfeita.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button disabled={deleting} onClick={() => setDeleteOpen(false)}>
+            Cancelar
+          </Button>
+          <Button color="error" variant="contained" disabled={deleting} onClick={() => void handleDeleteTotem()}>
+            Excluir
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <TotemEditDialog
+        open={editOpen}
+        totem={totem as unknown as Record<string, unknown> | null}
+        onClose={() => setEditOpen(false)}
+        onSaved={async () => {
+          setSuccess('Totem atualizado');
+          await loadAll();
+        }}
       />
 
       <Dialog open={remoteOpen} onClose={() => setRemoteOpen(false)} maxWidth="lg" fullWidth>

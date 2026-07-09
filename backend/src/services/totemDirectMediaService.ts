@@ -189,6 +189,44 @@ export class TotemDirectMediaService {
     return this.listTotemMedias(totemId);
   }
 
+  async countActiveMediasForTotem(totemId: number): Promise<number> {
+    const row = await this.db.findFirst(
+      `
+      SELECT COUNT(tpi.item_id)::int AS count
+      FROM totem_playlist_items tpi
+      JOIN totem_playlists tp ON tp.totem_playlist_id = tpi.totem_playlist_id
+      WHERE tp.totem_id = $1
+        AND COALESCE(tpi.is_active, true) = true
+        AND COALESCE(tp.is_active, true) = true
+        AND tp.status = 'active'
+    `,
+      [totemId]
+    );
+    return Number(row?.count || 0);
+  }
+
+  async invalidateDirectPlaylistsForTotem(totemId: number): Promise<void> {
+    await this.db.executeRaw(
+      `
+      UPDATE totem_playlist_items tpi
+      SET is_active = false, updated_at = CURRENT_TIMESTAMP
+      FROM totem_playlists tp
+      WHERE tpi.totem_playlist_id = tp.totem_playlist_id
+        AND tp.totem_id = $1
+        AND COALESCE(tpi.is_active, true) = true
+    `,
+      [totemId]
+    );
+    await this.db.executeRaw(
+      `
+      UPDATE totem_playlists
+      SET is_active = false, status = 'invalidated', last_updated_at = CURRENT_TIMESTAMP
+      WHERE totem_id = $1 AND COALESCE(is_active, true) = true
+    `,
+      [totemId]
+    );
+  }
+
   async removeMediaFromTotem(
     totemId: number,
     mediaId: number

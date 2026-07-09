@@ -29,9 +29,10 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { Add, CloudUpload, ContentCopy, PhotoLibrary, Refresh, Settings, Tv } from '@mui/icons-material';
+import { Add, CloudUpload, ContentCopy, Delete, Edit, PhotoLibrary, Refresh, Settings, Tv } from '@mui/icons-material';
 import { mediaApi, MediaItem, totemApi, totemDirectMediaApi, Player, CreatePlayerRequest } from '../../services/api';
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
+import TotemEditDialog from '../../components/TotemEditDialog/TotemEditDialog';
 import TotemRemoteControl from '../../components/TotemRemoteControl/TotemRemoteControl';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
@@ -61,6 +62,9 @@ const PublishTotem: React.FC = () => {
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [remoteTotem, setRemoteTotem] = useState<Player | null>(null);
+  const [editTotem, setEditTotem] = useState<Player | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Player | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [mediaMenuAnchor, setMediaMenuAnchor] = useState<null | HTMLElement>(null);
   const [mediaTargetTotemId, setMediaTargetTotemId] = useState<number | null>(null);
   const [pickOpen, setPickOpen] = useState(false);
@@ -193,6 +197,31 @@ const PublishTotem: React.FC = () => {
     }
   };
 
+  const getTotemMediaCount = (totem: Player) => Number((totem as any).media_count ?? 0);
+
+  const handleDeleteTotem = async () => {
+    const totemId = deleteTarget ? getTotemIdFromRow(deleteTarget) : undefined;
+    if (!totemId) {
+      setError('Totem inválido para exclusão');
+      return;
+    }
+    if (getTotemMediaCount(deleteTarget!) > 0) {
+      setError('Remova todas as mídias deste totem antes de excluí-lo');
+      return;
+    }
+    try {
+      setDeleting(true);
+      await totemApi.delete(totemId);
+      setSuccess('Totem excluído');
+      setDeleteTarget(null);
+      await loadTotems();
+    } catch (e: any) {
+      setError(pickApiErrorMessage(e, 'Erro ao excluir totem'));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <Box>
       <PageHeader title="Publicar em Totem" breadcrumbs={breadcrumbs} />
@@ -235,7 +264,8 @@ const PublishTotem: React.FC = () => {
             const totemId = getTotemIdFromRow(t);
             const title = t.name || t.identifier || (totemId ? `Totem ${totemId}` : 'Totem');
             const op = getOperationalStatus(t);
-            const mediaCount = Number((t as any).media_count ?? 0);
+            const mediaCount = getTotemMediaCount(t);
+            const canDelete = mediaCount === 0;
             const activationCode = String((t as any).uin || '').trim();
             return (
               <Grid item xs={12} sm={6} md={4} key={String(totemId ?? idx)}>
@@ -286,17 +316,51 @@ const PublishTotem: React.FC = () => {
                           )}
                         </Box>
                         {totemId && (
-                          <Tooltip title="Controle remoto">
-                            <IconButton
-                              size="small"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setRemoteTotem(t);
-                              }}
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                            <Tooltip title="Editar totem">
+                              <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditTotem(t);
+                                }}
+                              >
+                                <Edit fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Controle remoto">
+                              <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setRemoteTotem(t);
+                                }}
+                              >
+                                <Settings fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip
+                              title={
+                                canDelete
+                                  ? 'Excluir totem'
+                                  : 'Remova todas as mídias antes de excluir este totem'
+                              }
                             >
-                              <Settings fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  disabled={!canDelete}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (canDelete) setDeleteTarget(t);
+                                  }}
+                                >
+                                  <Delete fontSize="small" />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                          </Box>
                         )}
                       </Box>
                     </CardContent>
@@ -388,6 +452,39 @@ const PublishTotem: React.FC = () => {
           }
         }}
         isAdmin
+      />
+
+      <Dialog
+        open={Boolean(deleteTarget)}
+        onClose={() => !deleting && setDeleteTarget(null)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Excluir totem?</DialogTitle>
+        <DialogContent>
+          <Typography>
+            O totem <strong>{deleteTarget?.name || deleteTarget?.identifier}</strong> será removido
+            permanentemente. Esta ação não pode ser desfeita.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button disabled={deleting} onClick={() => setDeleteTarget(null)}>
+            Cancelar
+          </Button>
+          <Button color="error" variant="contained" disabled={deleting} onClick={() => void handleDeleteTotem()}>
+            Excluir
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <TotemEditDialog
+        open={Boolean(editTotem)}
+        totem={editTotem as unknown as Record<string, unknown> | null}
+        onClose={() => setEditTotem(null)}
+        onSaved={async () => {
+          setSuccess('Totem atualizado');
+          await loadTotems();
+        }}
       />
 
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="xs" fullWidth>

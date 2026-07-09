@@ -561,7 +561,7 @@ router.put('/:id',
  * @access Private (Admin only)
  */
 router.delete('/:id',
-  authorizeRole(['admin']),
+  authorizeRole(getTotemUpdateRoles()),
   param('id').isInt({ min: 1 }),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
