@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { getDatabase } from '../config/database';
+import { transaction } from '../config/database-pg';
 import { isDirectTotemMode } from '../config/directTotemMode';
 import { logError, logInfo } from '../utils/loggerHelper';
 import { getMediaTotemSyncService } from './mediaTotemSyncService';
@@ -225,6 +226,78 @@ export class TotemDirectMediaService {
     `,
       [totemId]
     );
+  }
+
+  /**
+   * Remove totem e dependências diretas (modo Publicar em Totem) — exclusão física.
+   */
+  async purgeDirectTotemAndDependencies(totemId: number): Promise<void> {
+    await transaction(async (client) => {
+      const run = async (sql: string, params: unknown[] = []) => {
+        try {
+          await client.query(sql, params);
+        } catch (error: any) {
+          if (error?.code === '42P01') return; // tabela opcional ausente
+          throw error;
+        }
+      };
+
+      await run(
+        `DELETE FROM totem_playlist_items
+         WHERE totem_playlist_id IN (SELECT totem_playlist_id FROM totem_playlists WHERE totem_id = $1)`,
+        [totemId]
+      );
+      await run(`DELETE FROM totem_playlist_generation_log WHERE totem_id = $1`, [totemId]);
+      await run(`DELETE FROM totem_playlists WHERE totem_id = $1`, [totemId]);
+
+      await run(
+        `DELETE FROM dispatcher_decision_items
+         WHERE decision_id IN (SELECT decision_id FROM dispatcher_decisions WHERE totem_id = $1)`,
+        [totemId]
+      );
+      await run(
+        `DELETE FROM dispatcher_decision_campaigns
+         WHERE decision_id IN (SELECT decision_id FROM dispatcher_decisions WHERE totem_id = $1)`,
+        [totemId]
+      );
+      await run(`DELETE FROM dispatcher_events WHERE totem_id = $1`, [totemId]);
+      await run(`DELETE FROM dispatcher_decisions WHERE totem_id = $1`, [totemId]);
+
+      await run(`DELETE FROM remote_commands WHERE totem_id = $1`, [totemId]);
+      await run(
+        `DELETE FROM device_tokens
+         WHERE smart_tv_id IN (SELECT smart_tv_id FROM smart_tvs WHERE totem_id = $1)`,
+        [totemId]
+      );
+      await run(`DELETE FROM device_tokens WHERE totem_id = $1`, [totemId]);
+      await run(`DELETE FROM smart_tvs WHERE totem_id = $1`, [totemId]);
+      await run(`DELETE FROM campaign_totems WHERE totem_id = $1`, [totemId]);
+
+      await run(`DELETE FROM playlist_mix_history WHERE totem_id = $1`, [totemId]);
+      await run(`DELETE FROM totem_playlist_mix WHERE totem_id = $1`, [totemId]);
+      await run(`DELETE FROM ai_context_data WHERE totem_id = $1`, [totemId]);
+      await run(`DELETE FROM playlist_mix_rules WHERE totem_id = $1`, [totemId]);
+
+      await run(`DELETE FROM totem_update_status WHERE totem_id = $1`, [totemId]);
+      await run(`DELETE FROM fx_totem_sites WHERE totem_id = $1`, [totemId]);
+      await run(`DELETE FROM totem_ml_config WHERE totem_id = $1`, [totemId]);
+      await run(`DELETE FROM recognized_persons WHERE totem_id = $1`, [totemId]);
+      await run(`DELETE FROM interaction_logs WHERE totem_id = $1`, [totemId]);
+      await run(`DELETE FROM execution_logs WHERE totem_id = $1`, [totemId]);
+      await run(`DELETE FROM analytics_emotions WHERE totem_id = $1`, [totemId]);
+      await run(`DELETE FROM analytics_gestures WHERE totem_id = $1`, [totemId]);
+      await run(`DELETE FROM emotion_data WHERE totem_id = $1`, [totemId]);
+      await run(`DELETE FROM gesture_data WHERE totem_id = $1`, [totemId]);
+      await run(`DELETE FROM behavior_data WHERE totem_id = $1`, [totemId]);
+      await run(`DELETE FROM analytics_sessions WHERE totem_id = $1`, [totemId]);
+
+      const deleted = await client.query(`DELETE FROM totems WHERE totem_id = $1 RETURNING totem_id`, [totemId]);
+      if (!deleted.rowCount) {
+        throw new Error('Totem não encontrado');
+      }
+    });
+
+    await logInfo('[DirectTotem] Totem e dependências removidos', { totemId });
   }
 
   async removeMediaFromTotem(

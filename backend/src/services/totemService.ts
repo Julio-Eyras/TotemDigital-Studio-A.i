@@ -1830,7 +1830,7 @@ export class TotemService {
             'Não é possível remover totem com mídias publicadas. Remova todas as mídias deste totem primeiro.'
           );
         }
-        await getTotemDirectMediaService().invalidateDirectPlaylistsForTotem(totemId);
+        await getTotemDirectMediaService().purgeDirectTotemAndDependencies(totemId);
       } else {
         const hasCampaigns = await this.db.findFirst(`
           SELECT COUNT(*) as count FROM campaign_totems WHERE totem_id = $1
@@ -1843,16 +1843,16 @@ export class TotemService {
         if (hasCampaigns?.count > 0 || hasPlaylists?.count > 0) {
           throw new Error('Não é possível remover totem com dados associados. Desative-o primeiro.');
         }
+
+        // Desativar totem (soft delete) — modo legado
+        await this.db.executeRaw(`
+          UPDATE totems 
+          SET is_active = false, status = 'offline', updated_at = CURRENT_TIMESTAMP
+          WHERE totem_id = $1
+        `, [totemId]);
       }
 
-      // Desativar totem (soft delete) - PostgreSQL placeholders
-      await this.db.executeRaw(`
-        UPDATE totems 
-        SET is_active = false, status = 'offline', updated_at = CURRENT_TIMESTAMP
-        WHERE totem_id = $1
-      `, [totemId]);
-
-      // Log de auditoria
+      // Log de auditoria (após remoção/desativação)
       await this.getAuditService().log('totem', 'deleted', deletedBy, {
         totemId,
         identifier: totem.identifier

@@ -80,6 +80,10 @@ router.get('/',
         isAdmin
       });
       let totems = result.totems || [];
+      const includeInactive = String(req.query.includeInactive || '') === '1';
+      if (isDirectTotemMode() && !includeInactive) {
+        totems = totems.filter((t: any) => t.is_active !== false && t.active !== false);
+      }
       if (isDirectTotemMode() && totems.length > 0) {
         const db = getDatabase();
         const ids = totems.map((t: any) => Number(t.totem_id ?? t.id)).filter((id: number) => id > 0);
@@ -105,7 +109,7 @@ router.get('/',
       // Converter formato: { totems: [] } para { data: [] } para compatibilidade com frontend
       return res.json({
         data: totems,
-        total: result.total || 0,
+        total: isDirectTotemMode() && !includeInactive ? totems.length : result.total || 0,
         page: result.page || 1,
         limit: result.limit || 10
       });
@@ -585,7 +589,11 @@ router.delete('/:id',
       if (message.includes('Totem não encontrado')) {
         return res.status(404).json({ error: message });
       }
-      if (message.includes('Não é possível remover totem com dados associados')) {
+      if (
+        message.includes('Não é possível remover totem com dados associados') ||
+        message.includes('Não é possível remover totem com mídias publicadas') ||
+        message.includes('Falha ao remover totem')
+      ) {
         return res.status(400).json({ error: message });
       }
 

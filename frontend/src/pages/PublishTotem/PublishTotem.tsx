@@ -64,6 +64,7 @@ const PublishTotem: React.FC = () => {
   const [remoteTotem, setRemoteTotem] = useState<Player | null>(null);
   const [editTotem, setEditTotem] = useState<Player | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Player | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [mediaMenuAnchor, setMediaMenuAnchor] = useState<null | HTMLElement>(null);
   const [mediaTargetTotemId, setMediaTargetTotemId] = useState<number | null>(null);
@@ -142,8 +143,14 @@ const PublishTotem: React.FC = () => {
       setLoading(true);
       setError(null);
       const res = await totemApi.getAll({ limit: 500 });
-      const list = Array.isArray((res as any)?.data) ? (res as any).data : [];
-      setTotems(list);
+      const list = Array.isArray((res as any)?.data)
+        ? (res as any).data
+        : Array.isArray(res)
+          ? res
+          : [];
+      setTotems(
+        list.filter((t: Player) => (t as any).is_active !== false && (t as any).active !== false)
+      );
     } catch (e: any) {
       setError(pickApiErrorMessage(e, 'Erro ao carregar totens'));
     } finally {
@@ -211,12 +218,16 @@ const PublishTotem: React.FC = () => {
     }
     try {
       setDeleting(true);
+      setDeleteError(null);
       await totemApi.delete(totemId);
       setSuccess('Totem excluído');
       setDeleteTarget(null);
+      setDeleteError(null);
       await loadTotems();
     } catch (e: any) {
-      setError(pickApiErrorMessage(e, 'Erro ao excluir totem'));
+      const msg = pickApiErrorMessage(e, 'Erro ao excluir totem');
+      setDeleteError(msg);
+      setError(msg);
     } finally {
       setDeleting(false);
     }
@@ -353,7 +364,10 @@ const PublishTotem: React.FC = () => {
                                   disabled={!canDelete}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    if (canDelete) setDeleteTarget(t);
+                                    if (canDelete) {
+                                      setDeleteError(null);
+                                      setDeleteTarget(t);
+                                    }
                                   }}
                                 >
                                   <Delete fontSize="small" />
@@ -456,16 +470,26 @@ const PublishTotem: React.FC = () => {
 
       <Dialog
         open={Boolean(deleteTarget)}
-        onClose={() => !deleting && setDeleteTarget(null)}
+        onClose={() => {
+          if (!deleting) {
+            setDeleteTarget(null);
+            setDeleteError(null);
+          }
+        }}
         maxWidth="xs"
         fullWidth
       >
         <DialogTitle>Excluir totem?</DialogTitle>
         <DialogContent>
-          <Typography>
+          <Typography sx={{ mb: deleteError ? 2 : 0 }}>
             O totem <strong>{deleteTarget?.name || deleteTarget?.identifier}</strong> será removido
             permanentemente. Esta ação não pode ser desfeita.
           </Typography>
+          {deleteError && (
+            <Alert severity="error" sx={{ mt: 1 }}>
+              {deleteError}
+            </Alert>
+          )}
         </DialogContent>
         <DialogActions>
           <Button disabled={deleting} onClick={() => setDeleteTarget(null)}>
