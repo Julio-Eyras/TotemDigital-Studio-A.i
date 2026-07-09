@@ -6,20 +6,8 @@ import br.com.smartchannel.playerad.util.AppDirs
 import java.io.File
 import java.io.FileOutputStream
 
-// FallbackSeeder – cópia do fallback embutido (APK assets) para o cache externo do app.
-//
-// Objetivo:
-// - Copiar:
-//   - assets/propagandas/*
-//   - assets/vinhetas/*
-// - Para:
-//   - <externalFilesDir>/propagandas/
-//   - <externalFilesDir>/vinhetas/
-//
-// Observação:
-// - Você precisa colocar os dois vídeos reais no:
-//   - Player-AD/src/main/assets/propagandas/
-//   - Player-AD/src/main/assets/vinhetas/
+// FallbackSeeder – cópia opcional de propagandas embutidas (APK assets) para o cache externo.
+// Vinhetas embutidas foram desativadas — conteúdo vem só do dispatch do servidor.
 class FallbackSeeder(
     private val context: Context,
     private val loggerTag: String = "Player-AD"
@@ -27,15 +15,11 @@ class FallbackSeeder(
 
     fun seedFromAssetsIfNeeded() {
         val propsDir = externalPropDir()
-        val vinsDir = externalVinDir()
 
-        // Se já existe algo nas pastas externas, não sobrescrevemos.
         val hasProps = propsDir.listFiles()?.any { it.isFile && it.length() > 0 } == true
-        val hasVins = vinsDir.listFiles()?.any { it.isFile && it.length() > 0 } == true
-        if (hasProps && hasVins) return
+        if (hasProps) return
 
         copyAssetFolderToExternal("propagandas", propsDir)
-        copyAssetFolderToExternal("vinhetas", vinsDir)
     }
 
     private fun copyAssetFolderToExternal(assetFolder: String, targetDir: File) {
@@ -78,6 +62,4 @@ class FallbackSeeder(
     }
 
     private fun externalPropDir(): File = AppDirs.propagandas(context)
-
-    private fun externalVinDir(): File = AppDirs.vinhetas(context)
 }

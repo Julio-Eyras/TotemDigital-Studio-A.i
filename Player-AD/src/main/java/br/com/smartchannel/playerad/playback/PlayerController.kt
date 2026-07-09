@@ -112,9 +112,6 @@ class PlayerController(
     private val propagandasDir: File
         get() = AppDirs.propagandas(context)
 
-    private val vinhetasDir: File
-        get() = AppDirs.vinhetas(context)
-
     private lateinit var eventsClient: PlayerEventsClient
 
     /**
@@ -150,7 +147,7 @@ class PlayerController(
                 throw e
             }
             PlayerAdLogger.logFallbackActivated(
-                "arranque offline — ${fallback.mediaItems.size} itens locais (propagandas/vinhetas), proporcao=${fallbackPropagandasPerVinheta}:1"
+                "arranque offline — ${fallback.mediaItems.size} itens locais (propagandas)"
             )
             fallback to PlanSource.FALLBACK_LOCAL
             }
@@ -286,76 +283,18 @@ class PlayerController(
     }
 
     /**
-     * Intercala o plano do dispatcher (propagandas/campanha) com vinhetas do plano e/ou pasta local,
-     * na proporção [fallbackPropagandasPerVinheta]:1 (ex.: 3 propagandas, 1 vinheta).
+     * Remove vinhetas do plano (tags/pasta vinhetas). Não intercala vinhetas locais/embutidas.
      */
     private fun applyVinhetaMixToDispatchPlan(plan: DispatchPlan): DispatchPlan {
-        val propagandas = plan.mediaItems.filter { !it.isVinheta }
-        val planVinhetas = plan.mediaItems.filter { it.isVinheta }
-        val vinhetaPool = buildVinhetaPlaybackPool(planVinhetas, collectFallbackVinhetas())
-
-        if (propagandas.isEmpty()) {
-            if (vinhetaPool.isEmpty()) return plan
-            return plan.copy(
-                playlistName = "${plan.playlistName} (somente vinhetas)",
-                mediaItems = vinhetaPool.mapIndexed { index, item -> item.copy(order = index + 1) },
-            )
-        }
-
-        if (vinhetaPool.isEmpty()) {
-            return plan.copy(mediaItems = propagandas.mapIndexed { index, item -> item.copy(order = index + 1) })
-        }
-
-        val ratio = fallbackPropagandasPerVinheta.coerceAtLeast(1)
-        val mixed = mutableListOf<DispatchMediaItem>()
-        var propsSinceVinheta = 0
-        var vinIdx = 0
-        for (prop in propagandas) {
-            mixed += prop.copy(order = mixed.size + 1)
-            propsSinceVinheta++
-            if (propsSinceVinheta >= ratio) {
-                val vin = vinhetaPool[vinIdx % vinhetaPool.size]
-                mixed += vin.copy(order = mixed.size + 1)
-                vinIdx++
-                propsSinceVinheta = 0
-            }
-        }
-
-        // Com poucas propagandas (< N), ainda inclui ao menos 1 vinheta no ciclo
-        if (vinIdx == 0 && vinhetaPool.isNotEmpty() && propagandas.isNotEmpty()) {
-            val vin = vinhetaPool[vinIdx % vinhetaPool.size]
-            mixed += vin.copy(order = mixed.size + 1)
-            vinIdx++
-        }
-
+        val withoutVinhetas = plan.mediaItems.filter { !it.isVinheta }
+        if (withoutVinhetas.size == plan.mediaItems.size) return plan
         PlayerAdLogger.i(
             "DISPATCH",
-            "Mix vinhetas ${ratio}:1 — campanha=${propagandas.size} vinhetas=${vinhetaPool.size} → reprodução=${mixed.size} itens"
+            "Vinhetas ignoradas — ${plan.mediaItems.size - withoutVinhetas.size} item(ns) removido(s) do plano"
         )
         return plan.copy(
-            playlistName = "${plan.playlistName} (mix ${ratio}:1)",
-            mediaItems = mixed,
+            mediaItems = withoutVinhetas.mapIndexed { index, item -> item.copy(order = index + 1) },
         )
-    }
-
-    private fun buildVinhetaPlaybackPool(
-        planVinhetas: List<DispatchMediaItem>,
-        localVinhetas: List<FallbackMediaSource>,
-    ): List<DispatchMediaItem> {
-        val seen = mutableSetOf<String>()
-        val out = mutableListOf<DispatchMediaItem>()
-        fun add(item: DispatchMediaItem) {
-            val key = item.url.ifBlank { "id:${item.mediaId}" }
-            if (!seen.add(key)) return
-            out += item
-        }
-        for (item in planVinhetas) add(item)
-        for (src in localVinhetas) {
-            add(
-                fallbackItemFromSource(src, out.size + 1).copy(isVinheta = true)
-            )
-        }
-        return out
     }
 
     /** Suporta `plan` na raiz ou dentro de `data` (proxies / versões antigas). */
@@ -642,20 +581,19 @@ class PlayerController(
                 currentPlan = shufflePlanForNewCycle(currentPlan)
                 PlayerAdLogger.i(
                     "PLAYBACK",
-                    "Ciclo completo — fila embaralhada (${currentPlan.mediaItems.size} itens); vinhetas ${fallbackPropagandasPerVinheta}:1 reaplicadas"
+                    "Ciclo completo — fila embaralhada (${currentPlan.mediaItems.size} itens)"
                 )
             }
         }
     }
 
-    /** Embaralha propagandas ao fim do ciclo e reaplica mix de vinhetas (sem novo dispatch). */
+    /** Embaralha itens ao fim do ciclo (sem vinhetas). */
     private fun shufflePlanForNewCycle(plan: DispatchPlan): DispatchPlan {
-        val propagandas = plan.mediaItems.filter { !it.isVinheta }
-        if (propagandas.size < 2) return plan
-        val shuffled = propagandas.shuffled().mapIndexed { idx, item ->
+        if (plan.mediaItems.size < 2) return plan
+        val shuffled = plan.mediaItems.shuffled().mapIndexed { idx, item ->
             item.copy(order = idx + 1)
         }
-        return applyVinhetaMixToDispatchPlan(plan.copy(mediaItems = shuffled))
+        return plan.copy(mediaItems = shuffled)
     }
 
     private data class HeartbeatOutcome(
@@ -755,7 +693,6 @@ class PlayerController(
             put("propagandasCount", listFallbackFiles(propagandasDir).size)
             put("propagandasCacheValidCount", cacheManager.listValidCachedMediaFiles().size)
             put("fallbackPropagandasEligibleCount", collectFallbackPropagandas().size)
-            put("vinhetasCount", listFallbackFiles(vinhetasDir).size)
             put("storageFreeBytes", root.freeSpace)
             put("storageTotalBytes", root.totalSpace)
             put("heapUsedBytes", runtime.totalMemory() - runtime.freeMemory())
@@ -1438,53 +1375,19 @@ class PlayerController(
     }
 
     /**
-     * Constrói um DispatchPlan sintético de fallback usando arquivos locais:
-     * - Propagandas: pasta `propagandas/` + cache válido (`metadata.json`, valid=true)
-     * - Vinhetas: pasta `vinhetas/`
-     * - Com ambos: intercala N propagandas + 1 vinheta (N = fallbackPropagandasPerVinheta)
-     * - Sem propagandas: só vinhetas (rotação)
-     * - Sem vinhetas: só propagandas (rotação)
+     * Plano sintético offline: apenas propagandas locais + cache válido (sem vinhetas embutidas).
      */
     private fun buildFallbackPlan(): DispatchPlan? {
         val propagandas = collectFallbackPropagandas()
-        val vinhetas = collectFallbackVinhetas()
+        if (propagandas.isEmpty()) return null
 
-        if (propagandas.isEmpty() && vinhetas.isEmpty()) return null
-
-        val items = mutableListOf<DispatchMediaItem>()
-        val propagandasPerVinheta = fallbackPropagandasPerVinheta.coerceAtLeast(1)
-
-        val playlistName = when {
-            propagandas.isEmpty() ->
-                "Fallback (somente vinhetas, ${vinhetas.size})"
-            vinhetas.isEmpty() ->
-                "Fallback (somente propagandas, ${propagandas.size})"
-            else ->
-                "Fallback (mix ${propagandasPerVinheta}:1, prop=${propagandas.size}, vin=${vinhetas.size})"
-        }
-
-        when {
-            propagandas.isEmpty() -> {
-                for (src in vinhetas) {
-                    items += fallbackItemFromSource(src, items.size + 1)
-                }
-            }
-            vinhetas.isEmpty() -> {
-                for (src in propagandas) {
-                    items += fallbackItemFromSource(src, items.size + 1)
-                }
-            }
-            else -> {
-                for (k in 0 until propagandasPerVinheta) {
-                    items += fallbackItemFromSource(propagandas[k % propagandas.size], items.size + 1)
-                }
-                items += fallbackItemFromSource(vinhetas[0], items.size + 1)
-            }
+        val items = propagandas.mapIndexed { index, src ->
+            fallbackItemFromSource(src, index + 1)
         }
 
         return DispatchPlan(
             playlistId = 0L,
-            playlistName = playlistName,
+            playlistName = "Fallback (propagandas locais, ${propagandas.size})",
             mediaItems = items,
             campaignId = null
         )
@@ -1524,16 +1427,6 @@ class PlayerController(
 
         return out.sortedBy { it.label.lowercase() }
     }
-
-    private fun collectFallbackVinhetas(): List<FallbackMediaSource> =
-        listFallbackFiles(vinhetasDir).map { file ->
-            FallbackMediaSource(
-                file = file,
-                mediaId = 0L,
-                mediaType = guessFallbackMediaType(file.name),
-                label = file.name
-            )
-        }
 
     private fun fallbackItemFromSource(src: FallbackMediaSource, order: Int): DispatchMediaItem {
         val durationSeconds = fallbackDurationForMediaType(src.mediaType)

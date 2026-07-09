@@ -1,4 +1,5 @@
 import { getDatabase } from '../config/database';
+import { isDirectTotemMode } from '../config/directTotemMode';
 import { DispatchMediaItem, DispatchPlan } from '../types/dispatcherTotem.types';
 import { buildDispatchMediaItem } from '../utils/dispatchMediaItem';
 import { sumDispatchMediaItemsPlanDuration } from '../utils/dispatchItemDuration';
@@ -115,6 +116,8 @@ export async function enrichDispatchPlanWithGlobalVinhetas(
   plan: DispatchPlan,
   subscriberIds: number[]
 ): Promise<DispatchPlan> {
+  if (isDirectTotemMode()) return plan;
+
   const unique = [...new Set(subscriberIds.filter((id) => Number.isFinite(id) && id > 0))];
   if (!unique.length) return plan;
 

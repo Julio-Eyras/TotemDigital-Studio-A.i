@@ -117,14 +117,15 @@ function createMulterConfig() {
     storage: storage,
     ...(multerLimits ? { limits: multerLimits } : {}),
     fileFilter: (_req, file, cb) => {
-      const extname = allowedTypesRegex.test(path.extname(file.originalname).toLowerCase());
+      const ext = path.extname(file.originalname).toLowerCase();
+      const extname = allowedTypesRegex.test(ext);
       const mimetype = allowedMimeTypes.includes(file.mimetype);
+      const movByExt = ext === '.mov' && allowedMimeTypes.includes('video/quicktime');
 
-      if (mimetype && extname) {
+      if ((mimetype && extname) || movByExt) {
         return cb(null, true);
-      } else {
-        cb(new Error(`Tipo de arquivo não permitido. Tipos permitidos: ${allowedMimeTypes.join(', ')}`));
       }
+      cb(new Error(`Tipo de arquivo não permitido. Tipos permitidos: ${allowedMimeTypes.join(', ')}`));
     }
   });
 }

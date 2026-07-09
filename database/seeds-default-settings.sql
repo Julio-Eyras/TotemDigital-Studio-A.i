@@ -301,13 +301,13 @@ VALUES
   ),
   (
     'media.upload.allowed_types',
-    'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/ogg,audio/mp3,audio/wav,audio/ogg',
+    'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/ogg,video/quicktime,audio/mp3,audio/wav,audio/ogg',
     'string',
     'media',
     'Tipos MIME permitidos (lista separada por vírgula; mesmo formato lido pelo backend em runtime)',
     false,
     true,
-    'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/ogg,audio/mp3,audio/wav,audio/ogg',
+    'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/ogg,video/quicktime,audio/mp3,audio/wav,audio/ogg',
     NULL,
     NULL
   ),

@@ -25,13 +25,17 @@ export function validateFileSize(file: File, maxSizeBytes: number): { valid: boo
  * Valida tipo de arquivo
  */
 export function validateFileType(file: File, allowedTypes: string[]): { valid: boolean; error?: string } {
-  if (!allowedTypes.includes(file.type)) {
-    return {
-      valid: false,
-      error: `Tipo de arquivo não permitido. Tipo: ${file.type}, Permitidos: ${allowedTypes.join(', ')}`,
-    };
+  if (allowedTypes.includes(file.type)) {
+    return { valid: true };
   }
-  return { valid: true };
+  const lowerName = file.name.toLowerCase();
+  if (lowerName.endsWith('.mov') && allowedTypes.includes('video/quicktime')) {
+    return { valid: true };
+  }
+  return {
+    valid: false,
+    error: `Tipo de arquivo não permitido. Tipo: ${file.type || '(desconhecido)'}, Permitidos: ${allowedTypes.join(', ')}`,
+  };
 }
 
 /**
@@ -161,7 +165,7 @@ export const VALIDATION_CONSTANTS = {
   /** 0 = não validar tamanho de payload JSON no cliente (o servidor usa MAX_PAYLOAD_SIZE; 0 = sem limite por Content-Length). */
   MAX_PAYLOAD_SIZE: 0,
   ALLOWED_IMAGE_TYPES: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
-  ALLOWED_VIDEO_TYPES: ['video/mp4', 'video/webm', 'video/ogg'],
+  ALLOWED_VIDEO_TYPES: ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'],
   ALLOWED_AUDIO_TYPES: ['audio/mp3', 'audio/wav', 'audio/ogg'],
   ALLOWED_FILE_TYPES: [
     'image/jpeg',
@@ -171,6 +175,7 @@ export const VALIDATION_CONSTANTS = {
     'video/mp4',
     'video/webm',
     'video/ogg',
+    'video/quicktime',
     'audio/mp3',
     'audio/wav',
     'audio/ogg',

@@ -136,7 +136,7 @@ export async function loadMediaConfig(): Promise<void> {
         nginxMaxSize: '2G',
         expressLimit: '2gb',
         proxyTimeout: 300,
-        allowedTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/ogg', 'audio/mp3', 'audio/wav', 'audio/ogg'],
+        allowedTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'audio/mp3', 'audio/wav', 'audio/ogg'],
         storagePath: '/opt/smart-signage/public/assets/uploads',
         quotaPerClient: 5 * 1024 * 1024 * 1024,
         autoCleanup: false,
@@ -190,7 +190,7 @@ export async function loadMediaConfig(): Promise<void> {
 
     const allowedTypes = effectiveAllowedTypes
       ? String(effectiveAllowedTypes.value).split(',').map((t) => t.trim()).filter(Boolean)
-      : ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/ogg', 'audio/mp3', 'audio/wav', 'audio/ogg'];
+      : ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'audio/mp3', 'audio/wav', 'audio/ogg'];
     const storagePath = storagePathSetting ? String(storagePathSetting.value) : '/opt/smart-signage/public/assets/uploads';
     const quotaParsed = quotaPerClientSetting ? parseSize(String(quotaPerClientSetting.value)) : 5 * 1024 * 1024 * 1024;
     const quotaPerClient = quotaParsed === 0 ? 0 : quotaParsed;
@@ -221,7 +221,7 @@ export async function loadMediaConfig(): Promise<void> {
       nginxMaxSize: '2G',
       expressLimit: '2gb',
       proxyTimeout: 300,
-      allowedTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/ogg', 'audio/mp3', 'audio/wav', 'audio/ogg'],
+      allowedTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'audio/mp3', 'audio/wav', 'audio/ogg'],
       storagePath: '/opt/smart-signage/public/assets/uploads',
       quotaPerClient: 5 * 1024 * 1024 * 1024,
       autoCleanup: false,
@@ -250,7 +250,7 @@ export function getMediaConfig() {
     nginxMaxSize: '2G',
     expressLimit: '2gb',
     proxyTimeout: 300,
-    allowedTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/ogg', 'audio/mp3', 'audio/wav', 'audio/ogg'],
+    allowedTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'audio/mp3', 'audio/wav', 'audio/ogg'],
     storagePath: '/opt/smart-signage/public/assets/uploads',
     quotaPerClient: 5 * 1024 * 1024 * 1024,
     autoCleanup: false,

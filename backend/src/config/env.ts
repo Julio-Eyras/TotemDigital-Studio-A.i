@@ -159,7 +159,7 @@ export const uploadConfig = {
   })(),
   path: getEnv('UPLOAD_PATH', './uploads'),
   mediaQuotaPerClient: parseSize(getEnv('MEDIA_QUOTA_PER_CLIENT', '5GB')),
-  allowedMimeTypes: getEnv('ALLOWED_FILE_TYPES', 'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/ogg,audio/mp3,audio/wav,audio/ogg').split(',')
+  allowedMimeTypes: getEnv('ALLOWED_FILE_TYPES', 'image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/ogg,video/quicktime,audio/mp3,audio/wav,audio/ogg').split(',')
 };
 
 /**

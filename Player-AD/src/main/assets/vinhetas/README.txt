@@ -1,6 +1,4 @@
-Coloque aqui o(s) vídeo(s) de vinheta embutidos no APK.
-Ex.: um arquivo mp4 (ex.: default_vinheta.mp4).
+Vinhetas embutidas desativadas.
 
-O Player-AD (FallbackSeeder) copia para:
-- <externalFilesDir>/vinhetas/
-
+O Player-AD não copia mais arquivos desta pasta para o dispositivo.
+Todo o conteúdo de exibição deve vir do dispatch do servidor (Publicar em Totem).
