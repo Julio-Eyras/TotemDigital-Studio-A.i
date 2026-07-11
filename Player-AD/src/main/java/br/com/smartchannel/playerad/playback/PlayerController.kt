@@ -225,7 +225,7 @@ class PlayerController(
             )
         }
 
-        return DispatchPlan(playlistId, playlistName, items, campaignId)
+        return DispatchPlan(playlistId, playlistName, items.sortedBy { it.order }, campaignId)
     }
 
     /** Alinhado ao backend (`cacheBucket`, tag `vinheta`, pasta `/vinhetas/`). */
@@ -578,22 +578,12 @@ class PlayerController(
 
             index = (index + 1) % currentPlan.mediaItems.size
             if (index == 0 && currentPlan.mediaItems.size > 1) {
-                currentPlan = shufflePlanForNewCycle(currentPlan)
                 PlayerAdLogger.i(
                     "PLAYBACK",
-                    "Ciclo completo — fila embaralhada (${currentPlan.mediaItems.size} itens)"
+                    "Ciclo completo — repetindo fila na mesma ordem (${currentPlan.mediaItems.size} itens)"
                 )
             }
         }
-    }
-
-    /** Embaralha itens ao fim do ciclo (sem vinhetas). */
-    private fun shufflePlanForNewCycle(plan: DispatchPlan): DispatchPlan {
-        if (plan.mediaItems.size < 2) return plan
-        val shuffled = plan.mediaItems.shuffled().mapIndexed { idx, item ->
-            item.copy(order = idx + 1)
-        }
-        return plan.copy(mediaItems = shuffled)
     }
 
     private data class HeartbeatOutcome(

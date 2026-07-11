@@ -39,7 +39,7 @@ export function parseDeliveryRotationFromTags(tags?: string[] | null): number | 
   return null;
 }
 
-export function getMediaUiPreviewUndoRotation(media?: {
+export type MediaDeliveryPreviewFields = {
   tags?: string[] | null;
   width?: number;
   height?: number;
@@ -47,7 +47,45 @@ export function getMediaUiPreviewUndoRotation(media?: {
   delivery_rotation?: number | null;
   deliveryPreviewRotation?: number | null;
   delivery_preview_rotation?: number | null;
-}): number {
+};
+
+/** URL da API de thumbnail (não confundir com blob do ficheiro de entrega). */
+export function isThumbnailApiUrl(url?: string | null): boolean {
+  if (!url) return false;
+  return /\/api\/media\/\d+\/thumbnail(\?|$)/i.test(url);
+}
+
+function isDeliveryAssetUrl(url?: string | null): boolean {
+  if (!url) return false;
+  return url.includes('/assets/') || url.includes('/uploads/');
+}
+
+export type MediaPreviewSource = 'thumbnail' | 'delivery';
+
+/**
+ * Preview na biblioteca alinhada ao totem:
+ * - thumbnail 9:16 do servidor → só draft do utilizador;
+ * - ficheiro de entrega 16:9 → undo de deliveryRotation (como hover de vídeo).
+ */
+export function mediaLibraryPreviewSx(
+  rotationDraft: number,
+  media?: MediaDeliveryPreviewFields,
+  options?: { previewUrl?: string | null; previewSource?: MediaPreviewSource },
+) {
+  const source =
+    options?.previewSource ??
+    (isDeliveryAssetUrl(options?.previewUrl)
+      ? 'delivery'
+      : isThumbnailApiUrl(options?.previewUrl)
+        ? 'thumbnail'
+        : 'thumbnail');
+  if (source === 'thumbnail') {
+    return mediaThumbnailPortraitPreviewSx(rotationDraft);
+  }
+  return mediaTotemUiPreviewSx(rotationDraft, media);
+}
+
+export function getMediaUiPreviewUndoRotation(media?: MediaDeliveryPreviewFields): number {
   const fromApi =
     media?.deliveryPreviewRotation ?? media?.delivery_preview_rotation ?? null;
   if (fromApi != null && Number.isFinite(Number(fromApi))) {
@@ -66,13 +104,7 @@ export function getMediaUiPreviewUndoRotation(media?: {
 
 export function resolveTotemDeliveryUiRotation(
   rotationDraft: number,
-  media?: {
-    tags?: string[] | null;
-    width?: number;
-    height?: number;
-    deliveryPreviewRotation?: number | null;
-    delivery_preview_rotation?: number | null;
-  },
+  media?: MediaDeliveryPreviewFields,
 ): number {
   return normalizeMediaRotation(rotationDraft + getMediaUiPreviewUndoRotation(media));
 }
@@ -183,7 +215,7 @@ export function isTotemDeliveryMedia(media?: { width?: number; height?: number }
 /** Preview na UI: ficheiro 16:9 de entrega precisa rotação CSS; thumbnail já vem em pé. */
 export function mediaTotemUiPreviewSx(
   rotationDegrees: number,
-  media?: { width?: number; height?: number },
+  media?: MediaDeliveryPreviewFields,
 ) {
   if (isTotemDeliveryMedia(media)) {
     return buildRotatedPortraitPreviewSx(resolveTotemDeliveryUiRotation(rotationDegrees, media));
@@ -193,13 +225,7 @@ export function mediaTotemUiPreviewSx(
 
 export function mediaTotemHoverVideoSx(
   rotationDegrees: number,
-  media?: {
-    tags?: string[] | null;
-    width?: number;
-    height?: number;
-    deliveryPreviewRotation?: number | null;
-    delivery_preview_rotation?: number | null;
-  },
+  media?: MediaDeliveryPreviewFields,
 ) {
   if (!isTotemDeliveryMedia(media)) {
     return {
@@ -250,13 +276,7 @@ export function mediaVideoPortraitPreviewSx(rotationDraft = 0) {
 
 export function mediaPortraitHoverVideoSx(
   rotationDegrees: number,
-  media?: {
-    tags?: string[] | null;
-    width?: number;
-    height?: number;
-    deliveryPreviewRotation?: number | null;
-    delivery_preview_rotation?: number | null;
-  },
+  media?: MediaDeliveryPreviewFields,
 ) {
   return mediaTotemHoverVideoSx(rotationDegrees, media);
 }

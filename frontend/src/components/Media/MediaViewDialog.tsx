@@ -13,7 +13,7 @@ import {
 import { mediaApi, publishBoardApi } from '../../services/api';
 import {
   mediaPortraitPreviewFrameSx,
-  mediaThumbnailPortraitPreviewSx,
+  mediaLibraryPreviewSx,
   mediaTotemHoverVideoSx,
 } from '../../hooks/useMediaRotationTransform';
 import type { MediaItem } from '../../services/api';
@@ -100,13 +100,8 @@ export function MediaViewDialog({ open, media, thumbnailSrc, onClose }: MediaVie
             setPreviewUrl(objectUrl);
             setHtmlSrcDoc(null);
           }
-        } else if (thumbnailSrc) {
-          if (!cancelled) {
-            setPreviewUrl(thumbnailSrc);
-            setHtmlSrcDoc(null);
-          }
         } else {
-          const blob = await mediaApi.getThumbnailBlob(media.media_id);
+          const blob = await mediaApi.getFileBlob(media.media_id);
           objectUrl = URL.createObjectURL(blob);
           if (!cancelled) {
             setPreviewUrl(objectUrl);
@@ -194,7 +189,7 @@ export function MediaViewDialog({ open, media, thumbnailSrc, onClose }: MediaVie
                 component="img"
                 src={previewUrl}
                 alt={media.name}
-                sx={mediaThumbnailPortraitPreviewSx(0)}
+                sx={mediaLibraryPreviewSx(0, media, { previewSource: 'delivery' })}
               />
             )}
           </Box>

@@ -53,7 +53,7 @@ import MediaTransformActions from '../../components/Media/MediaTransformActions'
 import { MediaViewDialog } from '../../components/Media/MediaViewDialog';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
-import { useMediaRotationTransform, mediaThumbnailPortraitPreviewSx, mediaPortraitPreviewFrameSx, mediaPortraitHoverVideoSx } from '../../hooks/useMediaRotationTransform';
+import { useMediaRotationTransform, mediaLibraryPreviewSx, mediaPortraitPreviewFrameSx, mediaPortraitHoverVideoSx, type MediaPreviewSource } from '../../hooks/useMediaRotationTransform';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { isDirectTotemMode } from '../../config/directTotemMode';
 import { isStudioMode } from '../../config/studioMode';
@@ -148,6 +148,17 @@ const Media: React.FC = () => {
     // Evitar que o browser tente carregar /api/media/:id/thumbnail sem Authorization (gera 401)
     if (isProtectedThumbnailUrl(url)) return undefined;
     return url;
+  };
+
+  const resolveCardPreviewSource = (media: any, previewUrl?: string): MediaPreviewSource => {
+    const id = media?.media_id || media?.id;
+    if (typeof id === 'number' && previewUrl && thumbObjectUrlsRef.current.get(id) === previewUrl) {
+      return 'thumbnail';
+    }
+    if (previewUrl && (previewUrl.includes('/assets/') || previewUrl.includes('/uploads/'))) {
+      return 'delivery';
+    }
+    return 'thumbnail';
   };
 
   const normalizePublicAssetUrlFromFilePath = (raw?: string | null): string | undefined => {
@@ -728,7 +739,10 @@ const Media: React.FC = () => {
                           src={finalPreviewUrl}
                           alt={media.name}
                           sx={{
-                            ...mediaThumbnailPortraitPreviewSx(getRotationDraft(media.media_id)),
+                            ...mediaLibraryPreviewSx(getRotationDraft(media.media_id), media, {
+                              previewUrl: finalPreviewUrl,
+                              previewSource: resolveCardPreviewSource(media, finalPreviewUrl),
+                            }),
                             opacity:
                               videoHover.id === media.media_id && videoHover.url ? 0 : 1,
                           }}

@@ -1439,7 +1439,7 @@ export class TotemService {
         media_id: item.media_id,
         playlist_id: item.playlist_id,
         campaign_id: item.campaign_id,
-        order_index: item.order_index || index + 1,
+        order_index: typeof item.order_index === 'number' ? item.order_index : index,
         duration: item.duration || 10,
         weight: item.weight,
         priority: item.priority,
