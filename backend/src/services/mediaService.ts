@@ -829,7 +829,7 @@ export class MediaService {
 
       if (mediaType === 'video') {
         try {
-          await this.generatePortraitThumbnailFromVideoFile(filePath);
+          await this.generatePortraitThumbnailFromVideoFile(filePath, processedTags);
         } catch (thumbErr: any) {
           await logWarn('Thumbnail de vídeo no upload falhou', {
             filePath,
@@ -1435,6 +1435,20 @@ export class MediaService {
     return deliveryMeta != null;
   }
 
+  /** Vídeo 1920×1080 de entrega totem (metadado no ficheiro ou tag _delivery_rotation). */
+  private async isTotemDeliveryVideoForThumbnail(
+    filePath: string,
+    width: number,
+    height: number,
+    tags?: string[] | null
+  ): Promise<boolean> {
+    if (await this.isNormalizedTotemDeliveryVideo(filePath, width, height)) return true;
+    return (
+      this.isTotemDeliverySize(width, height) &&
+      this.parseDeliveryRotationFromTags(tags) != null
+    );
+  }
+
   /**
    * Se pedido 9:16 sem rotação manual e o conteúdo efectivo é landscape, roda 90° para ficar em pé (só preview).
    */
@@ -1889,10 +1903,19 @@ export class MediaService {
   }
 
   /** Thumbnail 9:16 a partir do ficheiro original (antes da entrega 16:9). */
-  private async generatePortraitThumbnailFromVideoFile(filePath: string): Promise<string> {
+  private async generatePortraitThumbnailFromVideoFile(
+    filePath: string,
+    tags?: string[] | null
+  ): Promise<string> {
     const info = await this.probeVideoStreamInfo(filePath);
     if (await this.isNormalizedTotemDeliveryVideo(filePath, info.width, info.height)) {
       return this.generatePortraitThumbnailFromDeliveryVideo(filePath);
+    }
+    if (this.isTotemDeliverySize(info.width, info.height)) {
+      const fromTag = this.parseDeliveryRotationFromTags(tags);
+      if (fromTag != null) {
+        return this.generatePortraitThumbnailFromDeliveryVideo(filePath, fromTag);
+      }
     }
     // Telemóvel: pixels landscape + rotate metadata → usar display dims (já trocadas no probe)
     const rotation = this.resolvePreviewRotationDegrees(info.displayWidth, info.displayHeight, 0);
@@ -2251,7 +2274,14 @@ export class MediaService {
       if (media.mediaType === 'video' && existingFilePath) {
         try {
           const info = await this.probeVideoStreamInfo(existingFilePath);
-          if (await this.isNormalizedTotemDeliveryVideo(existingFilePath, info.width, info.height)) {
+          if (
+            await this.isTotemDeliveryVideoForThumbnail(
+              existingFilePath,
+              info.width,
+              info.height,
+              media.tags
+            )
+          ) {
             const fromTag = this.parseDeliveryRotationFromTags(media.tags);
             const fromFile = await this.readDeliveryRotationMetadata(existingFilePath);
             const delivery = fromTag ?? fromFile ?? 90;
@@ -2270,7 +2300,10 @@ export class MediaService {
               return thumbPath;
             }
           } else {
-            const thumbPath = await this.generatePortraitThumbnailFromVideoFile(existingFilePath);
+            const thumbPath = await this.generatePortraitThumbnailFromVideoFile(
+              existingFilePath,
+              media.tags
+            );
             if (thumbPath && fs.existsSync(thumbPath)) {
               return thumbPath;
             }

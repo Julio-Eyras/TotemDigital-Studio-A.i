@@ -53,7 +53,7 @@ import MediaTransformActions from '../../components/Media/MediaTransformActions'
 import { MediaViewDialog } from '../../components/Media/MediaViewDialog';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
-import { useMediaRotationTransform, mediaLibraryPreviewSx, mediaPortraitPreviewFrameSx, mediaPortraitHoverVideoSx, filterUserVisibleMediaTags, type MediaPreviewSource } from '../../hooks/useMediaRotationTransform';
+import { useMediaRotationTransform, mediaLibraryPreviewSx, mediaPortraitPreviewFrameSx, mediaPortraitHoverVideoSx, filterUserVisibleMediaTags, isTotemDeliveryMedia, type MediaPreviewSource } from '../../hooks/useMediaRotationTransform';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { isDirectTotemMode } from '../../config/directTotemMode';
 import { isStudioMode } from '../../config/studioMode';
@@ -87,7 +87,9 @@ const Media: React.FC = () => {
   const videoHoverBlobUrlsRef = useRef<Map<number, string>>(new Map());
   const hoverGenRef = useRef(0);
   const [videoHover, setVideoHover] = useState<{ id: number | null; url: string | null }>({ id: null, url: null });
+  const [videoPreviewVersion, setVideoPreviewVersion] = useState(0);
   const hoverVideoRef = useRef<HTMLVideoElement | null>(null);
+  const cardVideoRefs = useRef<Map<number, HTMLVideoElement>>(new Map());
   const [processingFitId, setProcessingFitId] = useState<number | null>(null);
   const [mediaDeleteConflict, setMediaDeleteConflict] = useState<MediaInUseConflictPayload | null>(null);
   const [mediaDeleteConflictOpen, setMediaDeleteConflictOpen] = useState(false);
@@ -138,6 +140,18 @@ const Media: React.FC = () => {
     if (!url) return false;
     // cobre relativo e absoluto; o que importa é o path conter /api/media/:id/thumbnail
     return /\/api\/media\/\d+\/thumbnail(\?|$)/.test(url);
+  };
+
+  const getVideoPreviewBlob = (mediaId?: number): string | undefined => {
+    if (typeof mediaId !== 'number') return undefined;
+    return videoHoverBlobUrlsRef.current.get(mediaId);
+  };
+
+  const shouldUseTotemVideoPreview = (media: MediaItem): boolean => {
+    if (!/^video$/i.test(String(media.media_type || ''))) return false;
+    if (!isTotemDeliveryMedia(media)) return false;
+    const bytes = Number((media as any).size_bytes ?? (media as any).fileSizeBytes ?? 0);
+    return bytes > 0 && bytes <= HOVER_PREVIEW_MAX_BYTES;
   };
 
   const getPreviewSrc = (media: any): string | undefined => {
@@ -207,7 +221,7 @@ const Media: React.FC = () => {
     (async () => {
       for (const { id } of toFetch) {
         try {
-          const regenKey = `media-thumb-regen-v2:${id}`;
+          const regenKey = `media-thumb-regen-v3:${id}`;
           const shouldRegen = !sessionStorage.getItem(regenKey);
           const blob = await mediaApi.getThumbnailBlob(id, { regenerate: shouldRegen });
           if (shouldRegen) {
@@ -222,6 +236,33 @@ const Media: React.FC = () => {
           setThumbVersion((v) => v + 1);
         } catch {
           // Se falhar (ex.: 401 por token inválido), mantém fallback normal.
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mediaItems]);
+
+  // Vídeos de entrega totem: pré-carregar ficheiro para preview estático = mesmo CSS do hover (sem rotação duplicada no thumb).
+  useEffect(() => {
+    if (!Array.isArray(mediaItems) || mediaItems.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      for (const media of mediaItems) {
+        if (!shouldUseTotemVideoPreview(media)) continue;
+        const id = media.media_id;
+        if (!id || videoHoverBlobUrlsRef.current.has(id)) continue;
+        try {
+          const blob = await mediaApi.getFileBlob(id);
+          if (cancelled) return;
+          videoHoverBlobUrlsRef.current.set(id, URL.createObjectURL(blob));
+          setVideoPreviewVersion((v) => v + 1);
+        } catch {
+          /* mantém fallback thumbnail */
         }
       }
     })();
@@ -523,6 +564,20 @@ const Media: React.FC = () => {
   const handlePreviewMouseEnter = async (media: MediaItem) => {
     const id = media.media_id;
     if (!id || !/^video$/i.test(String(media.media_type || ''))) return;
+
+    if (shouldUseTotemVideoPreview(media)) {
+      const url = getVideoPreviewBlob(id);
+      if (url) {
+        setVideoHover({ id, url });
+        const el = cardVideoRefs.current.get(id);
+        if (el) {
+          el.currentTime = 0;
+          void el.play().catch(() => {});
+        }
+        return;
+      }
+    }
+
     const bytes = Number((media as any).size_bytes ?? (media as any).fileSizeBytes ?? 0);
     if (bytes > HOVER_PREVIEW_MAX_BYTES) return;
     const gen = ++hoverGenRef.current;
@@ -544,10 +599,15 @@ const Media: React.FC = () => {
 
   const handlePreviewMouseLeave = () => {
     hoverGenRef.current += 1;
-    try {
-      hoverVideoRef.current?.pause();
-    } catch {
-      /* noop */
+    const playingId = videoHover.id;
+    if (playingId != null) {
+      const el = cardVideoRefs.current.get(playingId) ?? hoverVideoRef.current;
+      try {
+        el?.pause();
+        if (el) el.currentTime = 0;
+      } catch {
+        /* noop */
+      }
     }
     setVideoHover({ id: null, url: null });
   };
@@ -712,12 +772,36 @@ const Media: React.FC = () => {
               >
                 {/* Preview da Mídia */}
                 {(() => {
-                  // Construir URL do preview/thumbnail
                   let previewUrl = getPreviewSrc(media);
                   const isVideo = /^video$/i.test(String(media.media_type || ''));
+                  const totemVideoUrl =
+                    shouldUseTotemVideoPreview(media) && media.media_id
+                      ? getVideoPreviewBlob(media.media_id)
+                      : undefined;
+                  // Força rerender quando blobs de vídeo totem ficam prontos
+                  void videoPreviewVersion;
 
-                  // Para imagens: fallback em file_path público só sem media_id (evita 404).
-                  // Para vídeos: NUNCA usar /assets/ como video src (404 em dev); preferir thumbnail (blob) ou ícone.
+                  if (totemVideoUrl) {
+                    return (
+                      <Box
+                        component="video"
+                        ref={(el: HTMLVideoElement | null) => {
+                          if (el && media.media_id) {
+                            cardVideoRefs.current.set(media.media_id, el);
+                          }
+                        }}
+                        src={totemVideoUrl}
+                        muted
+                        loop
+                        playsInline
+                        sx={mediaPortraitHoverVideoSx(
+                          getRotationDraft(media.media_id),
+                          media,
+                        )}
+                      />
+                    );
+                  }
+
                   if (!previewUrl && !isVideo) {
                     const mediaId = media.media_id || media.id;
                     if (!mediaId) {
@@ -799,6 +883,7 @@ const Media: React.FC = () => {
                 })()}
 
                 {/^video$/i.test(String(media.media_type || '')) &&
+                  !shouldUseTotemVideoPreview(media) &&
                   videoHover.id === media.media_id &&
                   videoHover.url && (
                     <Box
