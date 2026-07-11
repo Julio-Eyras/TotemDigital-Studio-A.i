@@ -59,7 +59,14 @@ function SortableItem({ id, label, secondary, thumbnailSrc, active = true, onDel
       style={style}
       component={Paper}
       elevation={isDragging ? 4 : 1}
-      sx={{ mb: 1, borderRadius: 1, opacity: active ? 1 : 0.55 }}
+      sx={{
+        mb: 1,
+        borderRadius: 1,
+        opacity: active ? 1 : 0.55,
+        overflow: 'hidden',
+        alignItems: 'center',
+        py: 0.5,
+      }}
       secondaryAction={
         (onDelete || onToggleActive) && (
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -88,11 +95,11 @@ function SortableItem({ id, label, secondary, thumbnailSrc, active = true, onDel
         )
       }
     >
-      <ListItemButton sx={{ alignItems: 'center', py: 1 }}>
+      <ListItemButton sx={{ alignItems: 'center', py: 1, overflow: 'hidden', minWidth: 0, pr: 10 }}>
         <IconButton
           {...attributes}
           {...listeners}
-          sx={{ cursor: isDragging ? 'grabbing' : 'grab', mr: 1, color: 'text.secondary' }}
+          sx={{ cursor: isDragging ? 'grabbing' : 'grab', mr: 1, color: 'text.secondary', flexShrink: 0 }}
           size="small"
         >
           <DragIndicator />
@@ -100,8 +107,12 @@ function SortableItem({ id, label, secondary, thumbnailSrc, active = true, onDel
         {thumbnailSrc ? (
           <Box
             sx={{
-              width: 44,
-              aspectRatio: '9 / 16',
+              position: 'relative',
+              width: '40px',
+              height: '71px',
+              minWidth: '40px',
+              maxWidth: '40px',
+              maxHeight: '71px',
               borderRadius: 1,
               overflow: 'hidden',
               bgcolor: '#000',
@@ -113,11 +124,26 @@ function SortableItem({ id, label, secondary, thumbnailSrc, active = true, onDel
               component="img"
               src={thumbnailSrc}
               alt=""
-              sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              sx={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                display: 'block',
+                maxWidth: '100%',
+                maxHeight: '100%',
+              }}
             />
           </Box>
         ) : null}
-        <ListItemText primary={label} secondary={secondary} />
+        <ListItemText
+          primary={label}
+          secondary={secondary}
+          sx={{ minWidth: 0, overflow: 'hidden' }}
+          primaryTypographyProps={{ noWrap: true }}
+          secondaryTypographyProps={{ noWrap: true }}
+        />
       </ListItemButton>
     </ListItem>
   );

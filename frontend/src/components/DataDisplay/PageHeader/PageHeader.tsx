@@ -96,7 +96,11 @@ const PageHeader: React.FC<PageHeaderProps> = ({
       {normalizedBreadcrumbs.length > 0 && (
         <Breadcrumbs
           separator={<NavigateNext fontSize="small" />}
-          sx={{ marginBottom: 1 }}
+          sx={{
+            marginBottom: 1,
+            maxWidth: '100%',
+            '& .MuiBreadcrumbs-ol': { flexWrap: 'wrap' },
+          }}
         >
           {normalizedBreadcrumbs.map((item, index) => {
             const isLast = index === normalizedBreadcrumbs.length - 1;

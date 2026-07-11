@@ -167,3 +167,32 @@ export function buildAutoOpenMenus(
   visit(items);
   return state;
 }
+
+type MenuTitleItem = {
+  text: string;
+  path: string;
+  children?: MenuTitleItem[];
+};
+
+/** Título da AppBar para rotas filhas (ex.: /publish-totem/2 → Publicar em Totem). */
+export function resolveMenuTitleForPath(
+  items: MenuTitleItem[],
+  pathname: string
+): string | null {
+  let best: { text: string; path: string } | null = null;
+
+  const visit = (list: MenuTitleItem[]) => {
+    for (const item of list) {
+      const itemPath = item.path.split('?')[0];
+      if (pathname === itemPath || pathname.startsWith(`${itemPath}/`)) {
+        if (!best || itemPath.length > best.path.length) {
+          best = { text: item.text, path: itemPath };
+        }
+      }
+      if (item.children?.length) visit(item.children);
+    }
+  };
+
+  visit(items);
+  return best?.text ?? null;
+}

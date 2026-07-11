@@ -266,7 +266,7 @@ const PublishTotem: React.FC = () => {
   };
 
   return (
-    <Box>
+    <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
       <PageHeader title="Publicar em Totem" breadcrumbs={breadcrumbs} />
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>

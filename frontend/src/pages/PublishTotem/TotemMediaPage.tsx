@@ -223,7 +223,7 @@ const TotemMediaPage: React.FC = () => {
   };
 
   return (
-    <Box>
+    <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
       <PageHeader title={`Mídias — ${title}`} breadcrumbs={breadcrumbs} />
 
       <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
