@@ -303,7 +303,7 @@ export function mediaPortraitPreviewFrameSx(compact = false) {
  * Pré-visualização local de rotação (90° à esquerda) + confirmação grava no servidor em 9:16 em pé.
  * Após gravar, o card mostra thumbnail/ficheiro final (sem CSS draft) — WYSIWYG com o totem.
  */
-export function useMediaRotationTransform(onTransformed: () => Promise<void> | void) {
+export function useMediaRotationTransform(onTransformed: (mediaId: number) => Promise<void> | void) {
   const [rotationDrafts, setRotationDrafts] = useState<Record<number, number>>({});
   const [processingRotationId, setProcessingRotationId] = useState<number | null>(null);
 
@@ -341,7 +341,7 @@ export function useMediaRotationTransform(onTransformed: () => Promise<void> | v
           delete next[mediaId];
           return next;
         });
-        await onTransformed();
+        await onTransformed(mediaId);
         return null;
       } catch (error: unknown) {
         return pickApiErrorMessage(error, 'Erro ao rotacionar e converter mídia');

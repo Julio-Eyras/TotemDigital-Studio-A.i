@@ -1,7 +1,7 @@
 {
   "serverUrl": "http://217.216.91.135:8080",
-  "uin": "T01",
-  "deviceId": "T01",
+  "uin": "Tv-001",
+  "deviceId": "Tv-001",
   "kioskMode": "strong",
   "displayRotation": 0,
   "screenOrientation": "portrait",

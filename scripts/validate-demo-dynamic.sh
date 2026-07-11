@@ -45,7 +45,7 @@ echo
 
 PLANS="$(q "SELECT COUNT(*) FROM plans WHERE slug IN ('bronze','silver','gold');")"
 LOCALS="$(q "SELECT COUNT(*) FROM locals WHERE name LIKE 'Local Demo %';")"
-TOTEMS_ACTIVE="$(q "SELECT COUNT(*) FROM totems WHERE identifier LIKE 'demo-totem-%' AND is_active=true;")"
+TOTEMS_ACTIVE="$(q "SELECT COUNT(*) FROM totems WHERE identifier ~ '^Tv-[0-9]+$' AND is_active=true;")"
 TOTEMS_STOCK="$(q "SELECT COUNT(*) FROM totems WHERE identifier LIKE 'demo-stock-%' AND is_active=false;")"
 SUBS="$(q "SELECT COUNT(*) FROM subscribers WHERE email LIKE 'subscriber.demo.%@totemdigital.local';")"
 CONTRACTS_TOTAL="$(q "SELECT COUNT(*) FROM subscriber_contracts WHERE contract_number LIKE 'SUB-%';")"

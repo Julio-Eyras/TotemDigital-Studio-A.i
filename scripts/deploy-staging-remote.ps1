@@ -8,13 +8,15 @@ param(
     [string]$User,
     [string]$StagingHost = '217.216.91.135',
     [string]$InstallDir = '/opt/smart-signage',
-    [string]$Branch = 'Smart-Signage-Studio-Vx5'
+    # Vazio = usa a branch atualmente em checkout no servidor (ex.: SmartSignage-direc-totem)
+    [string]$Branch = ''
 )
 
 $ErrorActionPreference = 'Stop'
 
 Write-Host "== Deploy staging: ${User}@${StagingHost} ==" -ForegroundColor Cyan
-Write-Host "INSTALL_DIR=$InstallDir  BRANCH=$Branch"
+$branchLabel = if ($Branch) { $Branch } else { '(branch atual do servidor)' }
+Write-Host "INSTALL_DIR=$InstallDir  BRANCH=$branchLabel"
 
 $remoteCmd = @"
 set -euo pipefail

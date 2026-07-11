@@ -289,7 +289,18 @@ const Media: React.FC = () => {
     handleRotatePreview,
     handleConfirmRotation,
     processingRotationId,
-  } = useMediaRotationTransform(async () => {
+  } = useMediaRotationTransform(async (mediaId) => {
+    const thumbUrl = thumbObjectUrlsRef.current.get(mediaId);
+    if (thumbUrl) {
+      try { URL.revokeObjectURL(thumbUrl); } catch { /* noop */ }
+      thumbObjectUrlsRef.current.delete(mediaId);
+    }
+    const hoverUrl = videoHoverBlobUrlsRef.current.get(mediaId);
+    if (hoverUrl) {
+      try { URL.revokeObjectURL(hoverUrl); } catch { /* noop */ }
+      videoHoverBlobUrlsRef.current.delete(mediaId);
+    }
+    setVideoHover((prev) => (prev.id === mediaId ? { id: null, url: null } : prev));
     setThumbVersion((v) => v + 1);
     await loadMediaItems();
   });
@@ -909,7 +920,7 @@ const Media: React.FC = () => {
                 {isDirectTotemMode() && (
                   <Box sx={{ mb: 1, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
                     <Chip
-                      label={`${Number((media as any).totemCount ?? 0)} totem(ns)`}
+                      label={`${Number(media.totemCount ?? 0)} totem(ns)`}
                       size="small"
                       color="secondary"
                       variant="outlined"

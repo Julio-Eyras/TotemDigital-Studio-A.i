@@ -13,6 +13,7 @@
 import { getDatabase } from '../config/database';
 import { DISABLE_DIRECT_CAMPAIGN_TOTEM } from '../config/featureFlags';
 import { isStudioRuntime } from '../config/installationRuntime';
+import { isDirectTotemMode } from '../config/directTotemMode';
 import { logError, logDebug } from '../utils/loggerHelper';
 import { getCacheService } from './cacheService';
 import { getTotemPlaylistMixService, TotemPlaylistMix } from './totemPlaylistMixService';
@@ -810,6 +811,7 @@ export class DispatcherTotemService {
    */
   async getFallbackPlanFromTotemPlaylist(totemId: number, timestamp: Date): Promise<DispatchPlan | null> {
     try {
+      const directOnly = isDirectTotemMode();
       const tp = await this.db.findFirst(`
         SELECT 
           tp.totem_playlist_id, 
@@ -821,9 +823,10 @@ export class DispatcherTotemService {
         WHERE tp.totem_id = $1
           AND COALESCE(tp.is_active, true) = true
           AND COALESCE(tp.status, 'active') = 'active'
+          AND ($2::boolean = false OR COALESCE(tp.metadata->>'source', '') = 'direct_totem')
         ORDER BY tp.generated_at DESC NULLS LAST, tp.totem_playlist_id DESC
         LIMIT 1
-      `, [totemId]);
+      `, [totemId, directOnly]);
       if (!tp || !tp.totem_playlist_id) return null;
 
       const items = await this.db.findMany(`
@@ -866,7 +869,7 @@ export class DispatcherTotemService {
             fileSizeBytes: m?.file_size_bytes,
           });
           if (!built.url) {
-            built.url = `/api/media/${item.media_id}/stream`;
+            built.url = `/api/media/${item.media_id}/download`;
           }
           return built;
         });

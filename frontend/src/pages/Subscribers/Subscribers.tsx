@@ -792,7 +792,7 @@ const Subscribers: React.FC = () => {
     handleRotatePreview,
     handleConfirmRotation,
     processingRotationId,
-  } = useMediaRotationTransform(async () => {
+  } = useMediaRotationTransform(async (_mediaId) => {
     bumpThumbVersion();
     if (selectedSubscriber) {
       await loadSubscriberDataForEdit(selectedSubscriber.subscriber_id);

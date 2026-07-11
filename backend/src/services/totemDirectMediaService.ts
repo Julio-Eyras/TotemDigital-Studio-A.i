@@ -4,6 +4,7 @@ import { transaction } from '../config/database-pg';
 import { isDirectTotemMode } from '../config/directTotemMode';
 import { logError, logInfo } from '../utils/loggerHelper';
 import { getMediaTotemSyncService } from './mediaTotemSyncService';
+import { getRemoteCommandService } from './remoteCommandService';
 
 export interface TotemDirectMediaItem {
   item_id: number;
@@ -531,7 +532,20 @@ export class TotemDirectMediaService {
           totemTargets: [{ totemId, identifier: String(totemId), online: true }],
         });
       } else {
-        await logInfo('[DirectTotem] Playlist reordenada', { totemId });
+        await getMediaTotemSyncService().invalidateTotemDispatchCaches([totemId]);
+        try {
+          await getRemoteCommandService().createCommand(
+            {
+              totemId,
+              commandType: 'refresh_dispatch',
+              commandData: { reason: 'playlist_reorder' },
+            },
+            0
+          );
+        } catch (cmdError: any) {
+          await logError('[DirectTotem] Falha ao enfileirar refresh_dispatch após reorder', cmdError, { totemId });
+        }
+        await logInfo('[DirectTotem] Playlist reordenada — cache dispatch invalidado', { totemId });
       }
     } catch (error) {
       await logError('[DirectTotem] Falha ao notificar totem', error, { totemId, mediaId });

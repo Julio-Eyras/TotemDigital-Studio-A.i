@@ -121,6 +121,8 @@ export interface MediaResponse {
   deliveryRotation?: number | null;
   /** Graus para desfazer na UI (hover/preview CSS). */
   deliveryPreviewRotation?: number | null;
+  /** Nº de totens que usam esta mídia (só preenchido no modo direct totem). */
+  totemCount?: number;
 }
 
 export interface MediaStats {
@@ -443,6 +445,7 @@ export class MediaService {
           thumbnailUrlComputed: thumbnailUrl,
           deliveryRotation: deliveryPreview.deliveryRotation,
           deliveryPreviewRotation: deliveryPreview.deliveryPreviewRotation,
+          ...(directMode ? { totemCount: Number(item.totemCount ?? item.totemcount ?? 0) } : {}),
         } as MediaResponse;
       });
 
@@ -831,8 +834,8 @@ export class MediaService {
       // Processar tags (TEXT[] array) — processedTags já inicializado acima para vídeo/imagem
 
       // Modo TotemDigital compacto: mídia entra já aprovada (menos passos no PoC / instalação única).
-      const initialStatus = isStudioRuntime() ? 'approved' : 'draft';
-      const approvedByInitial = isStudioRuntime() ? createdBy : null;
+      const initialStatus = directMode || isStudioRuntime() ? 'approved' : 'draft';
+      const approvedByInitial = directMode || isStudioRuntime() ? createdBy : null;
 
       // Criar registro no banco (schema v2). Trigger sync_media_approval_status preenche approval_status / approved_at.
       const result = await this.db.executeRaw(`
@@ -1721,9 +1724,23 @@ export class MediaService {
         '-threads',
         '2',
         '-crf',
-        '23',
+        '28',
+        '-maxrate',
+        '4M',
+        '-bufsize',
+        '8M',
+        '-pix_fmt',
+        'yuv420p',
+        '-profile:v',
+        'main',
+        '-level',
+        '4.0',
         '-c:a',
-        'copy',
+        'aac',
+        '-b:a',
+        '128k',
+        '-ac',
+        '2',
         '-movflags',
         '+faststart',
         '-metadata:s:v:0',

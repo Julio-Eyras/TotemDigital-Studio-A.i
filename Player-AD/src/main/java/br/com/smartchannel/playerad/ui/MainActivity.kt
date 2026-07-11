@@ -24,6 +24,7 @@ import br.com.smartchannel.playerad.util.PlayerAdLogger
 import br.com.smartchannel.playerad.util.PlayerAdPrefs
 import android.webkit.WebView
 import android.widget.ImageView
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -224,7 +225,12 @@ class MainActivity : AppCompatActivity() {
 
         cacheManager = (application as PlayerAdApplication).mediaCacheManager
 
-        exoPlayer = ExoPlayer.Builder(this).build()
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(15_000, 50_000, 2_500, 5_000)
+            .build()
+        exoPlayer = ExoPlayer.Builder(this)
+            .setLoadControl(loadControl)
+            .build()
         playerView.player = exoPlayer
         playerView.useController = false
         playerView.controllerHideOnTouch = false

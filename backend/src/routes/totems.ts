@@ -34,6 +34,30 @@ router.use(blockClientDataAccess);
 const isAdminRole = (role?: string) =>
   ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial'].includes(role || '');
 
+async function requireScopedTotem(
+  totemId: number,
+  req: AuthenticatedRequest
+): Promise<
+  | { ok: true }
+  | { ok: false; status: number; body: Record<string, unknown> }
+> {
+  const isAdmin = isAdminRole(req.user?.role);
+  const requestPublisherId = req.user?.publisherId || undefined;
+  try {
+    const totem = await getTotemService().getTotemByIdScoped(totemId, requestPublisherId, isAdmin);
+    if (!totem) {
+      return { ok: false, status: 404, body: { success: false, error: 'Totem não encontrado' } };
+    }
+    return { ok: true };
+  } catch (error: any) {
+    const message = error?.message || 'Acesso negado';
+    if (message.includes('Acesso negado') || message.includes('Modo compacto')) {
+      return { ok: false, status: 403, body: { success: false, error: message } };
+    }
+    throw error;
+  }
+}
+
 const getTotemApproveRoles = () =>
   isStudioRuntime()
     ? ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial', 'publisher_user']
@@ -233,6 +257,10 @@ router.get('/:id/medias',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.id, 10);
+      const scoped = await requireScopedTotem(totemId, req);
+      if (!scoped.ok) {
+        return res.status(scoped.status).json(scoped.body);
+      }
       const items = await getTotemDirectMediaService().listTotemMedias(totemId);
       return res.json({ success: true, data: items });
     } catch (error: any) {
@@ -253,6 +281,10 @@ router.post('/:id/medias',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.id, 10);
+      const scoped = await requireScopedTotem(totemId, req);
+      if (!scoped.ok) {
+        return res.status(scoped.status).json(scoped.body);
+      }
       const mediaId = parseInt(req.body.mediaId, 10);
       const items = await getTotemDirectMediaService().addMediaToTotem(totemId, mediaId);
       return res.status(201).json({ success: true, data: items });
@@ -270,10 +302,15 @@ router.post('/:id/medias',
 router.put('/:id/medias/reorder',
   param('id').isInt({ min: 1 }),
   body('mediaIds').isArray({ min: 1 }).withMessage('mediaIds deve ser um array'),
+  body('mediaIds.*').isInt({ min: 1 }).withMessage('mediaIds deve conter IDs numéricos válidos'),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.id, 10);
+      const scoped = await requireScopedTotem(totemId, req);
+      if (!scoped.ok) {
+        return res.status(scoped.status).json(scoped.body);
+      }
       const mediaIds = (req.body.mediaIds as unknown[]).map((v) => parseInt(String(v), 10));
       const items = await getTotemDirectMediaService().reorderTotemMedias(totemId, mediaIds);
       return res.json({ success: true, data: items });
@@ -296,6 +333,10 @@ router.put('/:id/medias/:mediaId/active',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.id, 10);
+      const scoped = await requireScopedTotem(totemId, req);
+      if (!scoped.ok) {
+        return res.status(scoped.status).json(scoped.body);
+      }
       const mediaId = parseInt(req.params.mediaId, 10);
       const isActive = Boolean(req.body.isActive);
       const items = await getTotemDirectMediaService().setTotemMediaActive(totemId, mediaId, isActive);
@@ -318,6 +359,10 @@ router.delete('/:id/medias/:mediaId',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = parseInt(req.params.id, 10);
+      const scoped = await requireScopedTotem(totemId, req);
+      if (!scoped.ok) {
+        return res.status(scoped.status).json(scoped.body);
+      }
       const mediaId = parseInt(req.params.mediaId, 10);
       const result = await getTotemDirectMediaService().removeMediaFromTotem(totemId, mediaId);
       return res.json({
@@ -603,6 +648,11 @@ router.delete('/:id',
       const userId = req.user?.id || req.user?.userId;
       if (!userId) {
         return res.status(401).json({ error: 'Usuário não autenticado' });
+      }
+
+      const scoped = await requireScopedTotem(totemId, req);
+      if (!scoped.ok) {
+        return res.status(scoped.status).json(scoped.body);
       }
 
       await getTotemService().deleteTotem(totemId, userId);

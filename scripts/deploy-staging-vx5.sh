@@ -11,7 +11,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BRANCH="${BRANCH:-Smart-Signage-Studio-Vx5}"
+# BRANCH vazio = usa a branch atualmente em checkout no servidor (resolvida após localizar INSTALL_DIR)
+BRANCH="${BRANCH:-}"
 NO_PULL=false
 NO_BUILD=false
 INSTALL_DIR="${INSTALL_DIR:-}"
@@ -22,7 +23,8 @@ Uso: deploy-staging-vx5.sh [opções]
 
 Opções:
   --dir PATH       Diretório da instalação (default: auto ou INSTALL_DIR)
-  --branch NAME    Branch git (default: Smart-Signage-Studio-Vx5)
+  --branch NAME    Branch git (default: branch atual do repositório no servidor;
+                   ex.: --branch SmartSignage-direc-totem)
   --no-pull        Pula git fetch/checkout/pull
   --no-build       Pula compilação (delega sync+restart ao deploy-backfront-build --no-build)
   -h, --help       Esta ajuda
@@ -110,7 +112,7 @@ warn_env_keys() {
   local env_file="$INSTALL_DIR/.env"
   [[ -f "$env_file" ]] || return 0
   local missing=()
-  for key in TOTEMDIGITAL_COMPACT MENU_LIVE_REFRESH_SECONDS TOTEM_SECRET_KEY; do
+  for key in TOTEMDIGITAL_COMPACT MENU_LIVE_REFRESH_SECONDS TOTEM_SECRET_KEY DIRECT_TOTEM_MODE REACT_APP_DIRECT_TOTEM_MODE; do
     if ! grep -qE "^${key}=" "$env_file" 2>/dev/null; then
       missing+=("$key")
     fi
@@ -167,6 +169,15 @@ health_smoke() {
 
 resolve_install_dir
 cd "$INSTALL_DIR"
+
+if [[ -z "$BRANCH" ]]; then
+  BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  if [[ -z "$BRANCH" || "$BRANCH" == "HEAD" ]]; then
+    echo "Erro: não foi possível detectar a branch atual (detached HEAD?). Use --branch NAME."
+    exit 1
+  fi
+  echo "Branch não informada — usando a branch atual do servidor: $BRANCH"
+fi
 
 echo "============================================================"
 echo " TotemDigital — Deploy staging Vx5 (Publicar em Tela)"

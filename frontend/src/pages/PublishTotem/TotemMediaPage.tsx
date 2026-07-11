@@ -34,6 +34,7 @@ import TotemRemoteControl from '../../components/TotemRemoteControl/TotemRemoteC
 import TotemEditDialog from '../../components/TotemEditDialog/TotemEditDialog';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
+import { useMediaThumbnailUrls } from '../../hooks/useMediaThumbnailUrls';
 import { buildMediaThumbnailApiPath } from '../../utils/mediaPreviewUrl';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
@@ -62,7 +63,11 @@ const TotemMediaPage: React.FC = () => {
   const [deletingPermanent, setDeletingPermanent] = useState(false);
 
   const loadAll = useCallback(async () => {
-    if (!Number.isFinite(totemId) || totemId < 1) return;
+    if (!Number.isFinite(totemId) || totemId < 1) {
+      setLoading(false);
+      setError('Totem inválido');
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -90,6 +95,16 @@ const TotemMediaPage: React.FC = () => {
     void loadAll();
   }, [loadAll]);
 
+  const thumbMediaItems = useMemo(
+    () =>
+      items.map((item) => ({
+        media_id: item.media_id,
+        thumbnailUrl: buildMediaThumbnailApiPath(item.media_id),
+      })),
+    [items]
+  );
+  const { getThumbnailSrc } = useMediaThumbnailUrls(thumbMediaItems);
+
   const sortableItems = useMemo(
     () =>
       items.map((item) => ({
@@ -102,15 +117,21 @@ const TotemMediaPage: React.FC = () => {
         ]
           .filter(Boolean)
           .join(' · '),
-        thumbnailSrc: buildMediaThumbnailApiPath(item.media_id),
+        thumbnailSrc: getThumbnailSrc({ media_id: item.media_id }),
         active: item.is_active !== false && item.media_is_active !== false,
       })),
-    [items]
+    [items, getThumbnailSrc]
   );
 
   const libraryAvailable = useMemo(() => {
     const inPlaylist = new Set(items.map((i) => i.media_id));
-    return library.filter((m) => m.media_id && !inPlaylist.has(m.media_id));
+    return library.filter(
+      (m) =>
+        m.media_id &&
+        !inPlaylist.has(m.media_id) &&
+        (m as { isActive?: boolean; is_active?: boolean }).isActive !== false &&
+        (m as { is_active?: boolean }).is_active !== false
+    );
   }, [items, library]);
 
   const handleReorder = async (newOrder: Array<string | number>) => {

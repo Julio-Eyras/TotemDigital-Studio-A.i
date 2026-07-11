@@ -1,7 +1,7 @@
 {
   "serverUrl": "http://217.216.91.135:8080",
-  "uin": "DEMO-UIN-001",
-  "deviceId": "DEMO-UIN-001",
+  "uin": "Tv-001",
+  "deviceId": "Tv-001",
   "kioskMode": "strong",
   "screenOrientation": "portrait",
   "fallbackPropagandasPerVinheta": 3,

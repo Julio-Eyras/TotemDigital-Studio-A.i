@@ -111,9 +111,17 @@ DELETE FROM system_settings WHERE setting_key = 'media.allowed_types';
 -- OBS: username "totemdigital.admin" é placeholder dinâmico (install → SYSTEM_OWNER_ADMIN_USERNAME).
 -- =============================================
 INSERT INTO users (username, email, password_hash, first_name, last_name, name, phone, role, user_type, is_tenant_user, publisher_id, subscriber_id, is_active, email_verified) VALUES
-('totemdigital.admin', 'admin@smartsignage.local', '$2a$12$eenSYwwg9qOkcleFuH2lrOL5u3nAMN8MqQlsOQJh59mg16gcBu5A2', 'Admin', 'Sistema', 'Admin Sistema', NULL, 'admin', 'system_user', true, NULL, NULL, true, true)
+('totemdigital.admin', 'admin@smartsignage.local', '$2a$12$eenSYwwg9qOkcleFuH2lrOL5u3nAMN8MqQlsOQJh59mg16gcBu5A2', 'Admin', 'Sistema', 'Admin Sistema', NULL, 'owner_system', 'system_user', true, NULL, NULL, true, true)
 
-ON CONFLICT (username) DO NOTHING;
+ON CONFLICT (username) DO UPDATE SET
+  role = 'owner_system',
+  user_type = 'system_user',
+  is_tenant_user = true,
+  publisher_id = NULL,
+  subscriber_id = NULL,
+  is_active = true,
+  email_verified = true,
+  updated_at = CURRENT_TIMESTAMP;
 
 INSERT INTO user_flags (user_id, flag_smart_0, flag_smart_1, flag_smart_2, flag_smart_3, flag_smart_4, flag_smart_5, flag_smart_6, flag_smart_7, flag_smart_8, flag_smart_9) VALUES
 ((SELECT id FROM users WHERE username = 'totemdigital.admin'), true, true, true, true, true, true, true, true, true, true)

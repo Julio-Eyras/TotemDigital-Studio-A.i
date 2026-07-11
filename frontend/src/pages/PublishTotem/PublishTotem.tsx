@@ -84,7 +84,13 @@ const PublishTotem: React.FC = () => {
   const [mediaActionLoading, setMediaActionLoading] = useState(false);
 
   const libraryAvailable = useMemo(() => {
-    return library.filter((m) => m.media_id && !totemMediaIds.has(m.media_id));
+    return library.filter(
+      (m) =>
+        m.media_id &&
+        !totemMediaIds.has(m.media_id) &&
+        (m as { isActive?: boolean; is_active?: boolean }).isActive !== false &&
+        (m as { is_active?: boolean }).is_active !== false
+    );
   }, [library, totemMediaIds]);
 
   const mediaTargetTotem = useMemo(

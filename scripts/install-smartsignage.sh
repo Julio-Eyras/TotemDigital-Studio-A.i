@@ -178,6 +178,10 @@ MQTT_WS_URL_DEFAULT="ws://localhost:9001"
 INSTALL_TOTEMDIGITAL_COMPACT="${INSTALL_TOTEMDIGITAL_COMPACT:-true}"
 TOTEMDIGITAL_PROFILE_CLI_SET=false
 
+# Modo Publicar em Totem (branch SmartSignage-direc-totem) — gravado em .env como DIRECT_TOTEM_MODE / REACT_APP_DIRECT_TOTEM_MODE.
+# Backend lê em runtime; frontend em build-time (alterar exige rebuild do frontend). Default true neste branch.
+INSTALL_DIRECT_TOTEM_MODE="${INSTALL_DIRECT_TOTEM_MODE:-true}"
+
 # Dados do proprietário (owner) usados no seed compacto (sem hardcode fixo de "totem digital")
 SYSTEM_OWNER_NAME="${SYSTEM_OWNER_NAME:-Totem Digital}"
 SYSTEM_OWNER_CONTACT_NAME="${SYSTEM_OWNER_CONTACT_NAME:-}"
@@ -189,11 +193,12 @@ SYSTEM_OWNER_PLAN_NAME="${SYSTEM_OWNER_PLAN_NAME:-}"
 SYSTEM_OWNER_PLAN_SLUG="${SYSTEM_OWNER_PLAN_SLUG:-}"
 SYSTEM_DEMO_TARGET_PUBLISHER_ID="${SYSTEM_DEMO_TARGET_PUBLISHER_ID:-1}"
 
-# Carga demo dinâmica (PRO/Compact)
-DEMO_LOCALS_COUNT="${DEMO_LOCALS_COUNT:-6}"
-DEMO_TOTEMS_ACTIVE="${DEMO_TOTEMS_ACTIVE:-12}"
-DEMO_TOTEMS_STOCK="${DEMO_TOTEMS_STOCK:-1}"
-DEMO_SUBSCRIBERS_COUNT="${DEMO_SUBSCRIBERS_COUNT:-5}"
+# Carga demo dinâmica (PRO/Compact) — só aplicada quando DIRECT_TOTEM_MODE=false.
+# Modo direct totem: apenas publisher owner + limits.defaults (sem planos/locais/totens/subscribers demo).
+DEMO_LOCALS_COUNT="${DEMO_LOCALS_COUNT:-}"
+DEMO_TOTEMS_ACTIVE="${DEMO_TOTEMS_ACTIVE:-}"
+DEMO_TOTEMS_STOCK="${DEMO_TOTEMS_STOCK:-}"
+DEMO_SUBSCRIBERS_COUNT="${DEMO_SUBSCRIBERS_COUNT:-}"
 
 # Limites padrão (system_settings limits.defaults.* e JSON dos planos demo). Inteiros >= 0; 0 = ilimitado no backend.
 # Sobrescreva antes do install, ex.: export LIMITS_DEFAULT_STORAGE_GB=200
@@ -331,6 +336,25 @@ sanitize_limits_defaults() {
     [[ "$LIMITS_DEMO_GOLD_CAMPAIGNS" =~ ^[0-9]+$ ]] || LIMITS_DEMO_GOLD_CAMPAIGNS=120
 }
 
+# Volume da carga demo dinâmica (ignorada quando INSTALL_DIRECT_TOTEM_MODE=true).
+# Demo completa padrão: 6 locais, 12 totens ativos, 1 estoque, 5 subscribers.
+# Sobrescreva DEMO_* no ambiente para forçar outro volume.
+resolve_demo_seed_profile() {
+    DEMO_LOCALS_COUNT="${DEMO_LOCALS_COUNT:-6}"
+    DEMO_TOTEMS_ACTIVE="${DEMO_TOTEMS_ACTIVE:-12}"
+    DEMO_TOTEMS_STOCK="${DEMO_TOTEMS_STOCK:-1}"
+    DEMO_SUBSCRIBERS_COUNT="${DEMO_SUBSCRIBERS_COUNT:-5}"
+    [[ "$DEMO_LOCALS_COUNT" =~ ^[0-9]+$ ]] || DEMO_LOCALS_COUNT=1
+    [[ "$DEMO_TOTEMS_ACTIVE" =~ ^[0-9]+$ ]] || DEMO_TOTEMS_ACTIVE=1
+    [[ "$DEMO_TOTEMS_STOCK" =~ ^[0-9]+$ ]] || DEMO_TOTEMS_STOCK=0
+    [[ "$DEMO_SUBSCRIBERS_COUNT" =~ ^[0-9]+$ ]] || DEMO_SUBSCRIBERS_COUNT=0
+    # O SQL gerado usa "(i - 1) % DEMO_LOCALS_COUNT" — evita módulo por zero quando há totens sem locais
+    if [[ "$DEMO_LOCALS_COUNT" -eq 0 && "$DEMO_TOTEMS_ACTIVE" -gt 0 ]]; then
+        DEMO_LOCALS_COUNT=1
+    fi
+    log "Carga demo: locais=$DEMO_LOCALS_COUNT totens=$DEMO_TOTEMS_ACTIVE estoque=$DEMO_TOTEMS_STOCK subscribers=$DEMO_SUBSCRIBERS_COUNT"
+}
+
 ask_owner_profile() {
     sanitize_owner_profile_defaults
     sanitize_limits_defaults
@@ -441,14 +465,67 @@ prepare_seed_with_owner_profile() {
     [[ "$target_publisher_id" =~ ^[0-9]+$ ]] || target_publisher_id=1
     local is_compact_sql="false"
     [[ "${INSTALL_TOTEMDIGITAL_COMPACT}" == "true" ]] && is_compact_sql="true"
+    local is_direct_sql="false"
+    [[ "${INSTALL_DIRECT_TOTEM_MODE:-true}" == "true" ]] && is_direct_sql="true"
 
-    cat >> "$output_seed_file" <<EOF
+    if [[ "$is_direct_sql" == "true" ]]; then
+        log "Modo direct totem: carga demo omitida (sem planos/locais/totens/subscribers demo)"
+        cat >> "$output_seed_file" <<EOF
 
 -- =============================================
--- CARGA DEMO DINÂMICA (PRO/COMPACT)
--- 3 planos (bronze/silver/gold), 6 locais, 13 totems (12 ativos + estoque inativo),
--- 5 subscribers com 3 contratos por subscriber (active + draft + cancelled)
--- Faturas demo: overdue / a vencer / paga + exibidor (semáforo financeiro)
+-- DIRECT TOTEM — seed mínimo (sem demo operacional)
+-- Totens/locais são criados pela UI; local padrão sob demanda (ensureDefaultLocalForPublisher).
+-- =============================================
+DO \$\$
+DECLARE
+    v_target_publisher_id INTEGER := ${target_publisher_id};
+    v_is_compact BOOLEAN := ${is_compact_sql};
+BEGIN
+    IF v_is_compact THEN
+        SELECT publisher_id INTO v_target_publisher_id
+        FROM publishers
+        WHERE is_active = true
+        ORDER BY publisher_id ASC
+        LIMIT 1;
+    ELSE
+        IF NOT EXISTS (
+            SELECT 1 FROM publishers WHERE publisher_id = v_target_publisher_id AND is_active = true
+        ) THEN
+            SELECT publisher_id INTO v_target_publisher_id
+            FROM publishers
+            WHERE is_active = true
+            ORDER BY publisher_id ASC
+            LIMIT 1;
+        END IF;
+    END IF;
+
+    IF v_target_publisher_id IS NULL THEN
+        RAISE NOTICE 'Seed direct totem: nenhum publisher ativo — bloco mínimo ignorado.';
+        RETURN;
+    END IF;
+
+    IF v_is_compact THEN
+        UPDATE publishers SET is_system_owner = false, updated_at = CURRENT_TIMESTAMP
+        WHERE is_system_owner = true AND publisher_id IS DISTINCT FROM v_target_publisher_id;
+        UPDATE publishers SET is_system_owner = true, updated_at = CURRENT_TIMESTAMP
+        WHERE publisher_id = v_target_publisher_id;
+        INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description)
+        VALUES ('installation.profile', 'single_publisher', 'string', 'system', 'Perfil de instalação (mono/direct totem)')
+        ON CONFLICT (setting_key) DO UPDATE SET
+            setting_value = EXCLUDED.setting_value,
+            updated_at = CURRENT_TIMESTAMP;
+    END IF;
+END
+\$\$;
+EOF
+    else
+        resolve_demo_seed_profile
+        cat >> "$output_seed_file" <<EOF
+
+-- =============================================
+-- CARGA DEMO DINÂMICA (PRO/COMPACT) — volume via DEMO_* (resolve_demo_seed_profile)
+-- Demo completa: 3 planos, ${DEMO_LOCALS_COUNT} locais, ${DEMO_TOTEMS_ACTIVE} totems ativos + ${DEMO_TOTEMS_STOCK} estoque,
+-- ${DEMO_SUBSCRIBERS_COUNT} subscribers com 3 contratos cada (active + draft + cancelled)
 -- =============================================
 DO \$\$
 DECLARE
@@ -666,9 +743,9 @@ BEGIN
         INSERT INTO totems (
             identifier, uin, device_id, local_id, name, description, status, last_heartbeat, heartbeat_interval, network_info, capabilities, is_active
         ) VALUES (
-            format('demo-totem-%s', lpad(i::TEXT, 3, '0')),
-            format('DEMO-UIN-%s', lpad(i::TEXT, 3, '0')),
-            format('DEMO-DEV-%s', lpad(i::TEXT, 3, '0')),
+            format('Tv-%s', lpad(i::TEXT, 3, '0')),
+            format('Tv-%s', lpad(i::TEXT, 3, '0')),
+            format('Tv-%s', lpad(i::TEXT, 3, '0')),
             v_local_ids[((i - 1) % ${DEMO_LOCALS_COUNT}) + 1],
             v_totem_name,
             'Totem demo dinâmico ativo',
@@ -851,7 +928,7 @@ BEGIN
       AND sc.status = 'active'
       AND sc.contract_number LIKE '%-BRONZE';
 
-    -- Mensalidade do exibidor (incoming) vencida
+    -- Mensalidade do exibidor (incoming) vencida — demo financeira
     INSERT INTO publisher_billing (
         publisher_id, billing_type, amount, currency, direction,
         description, invoice_number, payment_method, payment_status, due_date, is_active
@@ -870,6 +947,10 @@ BEGIN
         updated_at = CURRENT_TIMESTAMP;
 END
 \$\$;
+EOF
+    fi
+
+    cat >> "$output_seed_file" <<EOF
 
 -- Limites padrão no banco (variáveis LIMITS_DEFAULT_* do instalador). 0 = ilimitado no backend.
 UPDATE system_settings SET setting_value = '${lim_d_storage}', default_value = '${lim_d_storage}', updated_at = CURRENT_TIMESTAMP WHERE setting_key = 'limits.defaults.storage_gb';
@@ -884,6 +965,10 @@ EOF
 # Mapeamento seed v6.3: 10 subscribers (subscriber-1 a subscriber-10) - Cestto, Bourbon, Panvel, Fruteira, Fashion, Beleza, Check-up, Super Promo, Smartsignage, Menu Executivo
 # Origem: player-web/propagandas (e player-web/vinhetas se existir)
 install_demo_media_files() {
+    if [[ "${INSTALL_DIRECT_TOTEM_MODE:-true}" == "true" ]]; then
+        log "ℹ️  Modo direct totem: cópia de mídias demo (subscriber-1..10) ignorada."
+        return 0
+    fi
     local install_dir="${INSTALL_DIR:-$(pwd)}"
     local src_dir=""
     local vinhetas_dir=""
@@ -1809,6 +1894,14 @@ parse_arguments() {
                 TOTEMDIGITAL_PROFILE_CLI_SET=true
                 shift
                 ;;
+            --direct-totem)
+                INSTALL_DIRECT_TOTEM_MODE=true
+                shift
+                ;;
+            --no-direct-totem)
+                INSTALL_DIRECT_TOTEM_MODE=false
+                shift
+                ;;
             --help|-h)
                 echo "Smart Signage Pro v2.0 - Script de Instalação"
                 echo ""
@@ -1850,6 +1943,8 @@ parse_arguments() {
                 echo "  --totemdigital-compact  Gera .env com TOTEMDIGITAL_COMPACT=true (modo compacto = mono; padrão neste repositório)"
                 echo "  --smartsignage-pro   Gera .env com TOTEMDIGITAL_COMPACT=false (multi-agência / Pro completo)"
                 echo "                       Também pode definir INSTALL_TOTEMDIGITAL_COMPACT=true|false no ambiente antes de executar o script."
+                echo "  --direct-totem       Gera .env com DIRECT_TOTEM_MODE=true / REACT_APP_DIRECT_TOTEM_MODE=true (modo Publicar em Totem; padrão)"
+                echo "  --no-direct-totem    Gera .env com DIRECT_TOTEM_MODE=false (desliga UI/API do modo Publicar em Totem)"
                 echo "  --help               Mostra esta ajuda"
                 exit 0
                 ;;
@@ -5661,9 +5756,143 @@ SQL
     return 1
 }
 
+# Garantir usuário owner_system com username informado na instalação (SYSTEM_OWNER_ADMIN_USERNAME).
+ensure_owner_system_user() {
+    sanitize_owner_profile_defaults
+    log "Garantindo usuário owner_system (${SYSTEM_OWNER_ADMIN_USERNAME})..."
+
+    local target_db="${PRIMARY_DB_NAME:-smartsignage}"
+    local owner_password="admin123"
+    local owner_hash=""
+    local owner_username
+    local owner_email
+
+    owner_username="$(echo "${SYSTEM_OWNER_ADMIN_USERNAME}" | xargs)"
+    [[ -z "$owner_username" ]] && owner_username="Owner"
+    owner_email="$(echo "${SYSTEM_OWNER_EMAIL:-${owner_username}@smartsignage.local}" | xargs)"
+
+    if command -v node >/dev/null 2>&1; then
+        owner_hash=$(node - <<NODE 2>/dev/null
+const password = 'admin123';
+let hash = '';
+try {
+  const path = require('path');
+  const backendBcrypt = path.resolve(process.env.INSTALL_DIR || process.cwd(), 'backend', 'node_modules', 'bcryptjs');
+  let bcrypt;
+  try { bcrypt = require(backendBcrypt); } catch (e) { bcrypt = require('bcryptjs'); }
+  hash = bcrypt.hashSync(password, 12);
+} catch (err) {
+  process.stderr.write(err?.message || String(err));
+}
+if (hash) process.stdout.write(hash);
+NODE
+)
+        owner_hash=$(echo -n "$owner_hash" | tr -d '\r')
+    fi
+    if [[ -z "$owner_hash" || ${#owner_hash} -ne 60 ]]; then
+        owner_hash='$2a$12$eenSYwwg9qOkcleFuH2lrOL5u3nAMN8MqQlsOQJh59mg16gcBu5A2'
+    fi
+    if [[ "$owner_hash" == \$2y\$* ]]; then
+        owner_hash="\$2b\$${owner_hash:4}"
+    fi
+
+    local psql_cmd=""
+    if [[ -n "${DATABASE_URL:-}" && "${DATABASE_URL}" == postgresql://* ]]; then
+        psql_cmd="psql \"${DATABASE_URL}\""
+    elif command -v sudo >/dev/null 2>&1; then
+        psql_cmd="sudo -u postgres psql -d \"${target_db}\""
+    else
+        psql_cmd="psql -d \"${target_db}\""
+    fi
+
+    local safe_username safe_email safe_name
+    safe_username="$(escape_sql_literal "${owner_username}")"
+    safe_email="$(escape_sql_literal "${owner_email}")"
+    safe_name="$(escape_sql_literal "${SYSTEM_OWNER_NAME}")"
+
+    local tmp_sql
+    tmp_sql="$(mktemp)"
+    cat >"$tmp_sql" <<SQL
+WITH role_owner AS (
+  SELECT role_id FROM roles WHERE name = 'owner_system' LIMIT 1
+), upsert_user AS (
+  INSERT INTO users (
+    username, email, password_hash,
+    first_name, last_name, name, phone,
+    role, user_type, is_tenant_user,
+    publisher_id, subscriber_id,
+    is_active, email_verified,
+    last_login, created_at, updated_at
+  )
+  VALUES (
+    '${safe_username}', '${safe_email}', '${owner_hash}',
+    'Owner', 'System', '${safe_name}', NULL,
+    'owner_system', 'system_user', true,
+    NULL, NULL,
+    true, true,
+    NOW(), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+  )
+  ON CONFLICT (username) DO UPDATE SET
+    email = EXCLUDED.email,
+    password_hash = EXCLUDED.password_hash,
+    first_name = EXCLUDED.first_name,
+    last_name = EXCLUDED.last_name,
+    name = EXCLUDED.name,
+    role = 'owner_system',
+    user_type = 'system_user',
+    is_tenant_user = true,
+    publisher_id = NULL,
+    subscriber_id = NULL,
+    is_active = true,
+    email_verified = true,
+    updated_at = CURRENT_TIMESTAMP
+  RETURNING id
+), role_link AS (
+  INSERT INTO user_roles (user_id, role_id, assigned_by)
+  SELECT uu.id, ro.role_id, uu.id
+  FROM upsert_user uu
+  CROSS JOIN role_owner ro
+  ON CONFLICT DO NOTHING
+), flag_upsert AS (
+  INSERT INTO user_flags (
+    user_id,
+    flag_smart_0, flag_smart_1, flag_smart_2, flag_smart_3, flag_smart_4,
+    flag_smart_5, flag_smart_6, flag_smart_7, flag_smart_8, flag_smart_9
+  )
+  SELECT uu.id, true, true, true, true, true, true, true, true, true, true
+  FROM upsert_user uu
+  ON CONFLICT (user_id) DO UPDATE SET
+    flag_smart_0 = true, flag_smart_1 = true, flag_smart_2 = true, flag_smart_3 = true, flag_smart_4 = true,
+    flag_smart_5 = true, flag_smart_6 = true, flag_smart_7 = true, flag_smart_8 = true, flag_smart_9 = true,
+    updated_at = CURRENT_TIMESTAMP
+)
+SELECT (SELECT id FROM upsert_user LIMIT 1) AS owner_user_id;
+SQL
+
+    local ensure_out
+    if ! ensure_out=$(eval "$psql_cmd -v ON_ERROR_STOP=1 -f \"$tmp_sql\"" 2>&1); then
+        rm -f "$tmp_sql"
+        error "❌ Falha ao garantir usuário owner_system: $ensure_out"
+        return 1
+    fi
+    rm -f "$tmp_sql"
+
+    if ! eval "$psql_cmd -tAc \"SELECT 1 FROM users WHERE username='${safe_username}' AND role='owner_system' AND is_active=true\"" | tr -d ' \r\n' | grep -q "^1$"; then
+        error "❌ Usuário owner_system não encontrado após tentativa de criação (${owner_username})"
+        return 1
+    fi
+
+    log "✅ Usuário owner_system garantido: ${owner_username} (senha padrão: ${owner_password})"
+    return 0
+}
+
 # Garantir usuário publisher_user vinculado ao publisher owner no modo compacto
 ensure_owner_publisher_user() {
     if [[ "${INSTALL_TOTEMDIGITAL_COMPACT}" != "true" ]]; then
+        return 0
+    fi
+    if [[ "${INSTALL_DIRECT_TOTEM_MODE:-true}" == "true" ]]; then
+        log "Modo direct totem: usuário publisher_user demo omitido (apenas admin + owner_system)."
         return 0
     fi
 
@@ -6023,6 +6252,10 @@ CORS_ORIGIN=http://localhost:3000,http://localhost:3001${CORS_SPLIT_ORIGIN}
 TOTEMDIGITAL_COMPACT=$INSTALL_TOTEMDIGITAL_COMPACT
 REACT_APP_TOTEMDIGITAL_COMPACT=$INSTALL_TOTEMDIGITAL_COMPACT
 
+# Modo Publicar em Totem — --direct-totem / --no-direct-totem (frontend lê em build-time; alterar exige rebuild)
+DIRECT_TOTEM_MODE=$INSTALL_DIRECT_TOTEM_MODE
+REACT_APP_DIRECT_TOTEM_MODE=$INSTALL_DIRECT_TOTEM_MODE
+
 # Dados do proprietário (owner) para seed dinâmico no modo compacto
 SYSTEM_OWNER_NAME=$SYSTEM_OWNER_NAME
 SYSTEM_OWNER_CONTACT_NAME=$SYSTEM_OWNER_CONTACT_NAME
@@ -6107,6 +6340,10 @@ CORS_ORIGIN=http://localhost:3000,http://localhost:3001${CORS_SPLIT_ORIGIN}
 # TotemDigital modo compacto (= mono) vs Pro — menu de instalação ou --totemdigital-compact / --smartsignage-pro
 TOTEMDIGITAL_COMPACT=$INSTALL_TOTEMDIGITAL_COMPACT
 REACT_APP_TOTEMDIGITAL_COMPACT=$INSTALL_TOTEMDIGITAL_COMPACT
+
+# Modo Publicar em Totem — --direct-totem / --no-direct-totem (frontend lê em build-time; alterar exige rebuild)
+DIRECT_TOTEM_MODE=$INSTALL_DIRECT_TOTEM_MODE
+REACT_APP_DIRECT_TOTEM_MODE=$INSTALL_DIRECT_TOTEM_MODE
 
 # Dados do proprietário (owner) para seed dinâmico no modo compacto
 SYSTEM_OWNER_NAME=$SYSTEM_OWNER_NAME
@@ -6686,6 +6923,10 @@ export_frontend_build_env() {
         if grep -qE '^REACT_APP_TOTEMDIGITAL_COMPACT=' "$env_file" 2>/dev/null; then
             export REACT_APP_TOTEMDIGITAL_COMPACT=$(grep -E '^REACT_APP_TOTEMDIGITAL_COMPACT=' "$env_file" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs)
             [[ -n "$REACT_APP_TOTEMDIGITAL_COMPACT" ]] && log "Build do frontend: REACT_APP_TOTEMDIGITAL_COMPACT=$REACT_APP_TOTEMDIGITAL_COMPACT"
+        fi
+        if grep -qE '^REACT_APP_DIRECT_TOTEM_MODE=' "$env_file" 2>/dev/null; then
+            export REACT_APP_DIRECT_TOTEM_MODE=$(grep -E '^REACT_APP_DIRECT_TOTEM_MODE=' "$env_file" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs)
+            [[ -n "$REACT_APP_DIRECT_TOTEM_MODE" ]] && log "Build do frontend: REACT_APP_DIRECT_TOTEM_MODE=$REACT_APP_DIRECT_TOTEM_MODE"
         fi
         if grep -qE '^REACT_APP_DASHBOARD_COMMERCIAL_FOCUS=' "$env_file" 2>/dev/null; then
             export REACT_APP_DASHBOARD_COMMERCIAL_FOCUS=$(grep -E '^REACT_APP_DASHBOARD_COMMERCIAL_FOCUS=' "$env_file" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs)
@@ -11402,6 +11643,10 @@ setup_first_boot() {
         error "❌ Não foi possível garantir usuário admin após aplicação do schema e seeds"
         exit 1
     fi
+    if ! ensure_owner_system_user; then
+        error "❌ Não foi possível garantir usuário owner_system após aplicação do schema e seeds"
+        exit 1
+    fi
     if [[ "${INSTALL_TOTEMDIGITAL_COMPACT}" == "true" ]]; then
         if ! ensure_owner_publisher_user; then
             error "❌ Não foi possível garantir usuário publisher do owner no modo compacto"
@@ -13795,6 +14040,10 @@ main() {
 
         if ! ensure_admin_user; then
             error "❌ Não foi possível garantir usuário admin após seeds"
+            exit 1
+        fi
+        if ! ensure_owner_system_user; then
+            error "❌ Não foi possível garantir usuário owner_system após seeds"
             exit 1
         fi
         if [[ "${INSTALL_TOTEMDIGITAL_COMPACT}" == "true" ]]; then

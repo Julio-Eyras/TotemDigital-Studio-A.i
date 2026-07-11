@@ -78,7 +78,7 @@ class PlayerController(
 
     private enum class PlanSource { ONLINE, PERSISTED, FALLBACK_LOCAL }
 
-    private val DEFAULT_IMAGE_DURATION_SECONDS = 20L
+    private val DEFAULT_IMAGE_DURATION_SECONDS = 10L
     /** Cardápio HTML ao vivo: poll default 30s — exposição mínima 60s. */
     private val DEFAULT_HTML_DURATION_SECONDS = 60L
     private val MIN_HTML_DURATION_SECONDS = 30L
@@ -473,6 +473,7 @@ class PlayerController(
         var lastHeartbeatAtMs = System.currentTimeMillis()
         var lastDispatchAtMs = System.currentTimeMillis()
         var index = 0
+        var planSignature = planContentSignature(plan)
         applyPlaybackVolumePolicy()
         while (true) {
             val nowMs = System.currentTimeMillis()
@@ -492,6 +493,7 @@ class PlayerController(
                         index = refreshed.third
                         currentPlanSource = PlanSource.ONLINE
                         lastDispatchAtMs = System.currentTimeMillis()
+                        planSignature = planContentSignature(currentPlan)
                     }
                     PlayerAdLogger.i(
                         "HEARTBEAT",
@@ -512,7 +514,14 @@ class PlayerController(
                 try {
                     val refreshed = fetchDispatchPlan(currentToken, "checagem_temporal")
                     currentToken = refreshed.token
-                    currentPlan = refreshed.plan
+                    val newPlan = refreshed.plan
+                    val newSignature = planContentSignature(newPlan)
+                    if (newSignature != planSignature) {
+                        index = 0
+                        planSignature = newSignature
+                        PlayerAdLogger.i("DISPATCH", "Plano alterado — reiniciando fila do início")
+                    }
+                    currentPlan = newPlan
                     currentPlanSource = PlanSource.ONLINE
                     updatePlanSource(currentPlanSource, "Fonte do plano alterada")
                     if (index >= currentPlan.mediaItems.size) index = 0
@@ -586,6 +595,10 @@ class PlayerController(
         }
     }
 
+    /** Assinatura do plano para detectar reorder/conteúdo novo. */
+    private fun planContentSignature(plan: DispatchPlan): String =
+        plan.mediaItems.joinToString("|") { "${it.mediaId}:${it.order}:${it.contentVersion.orEmpty()}" }
+
     private data class HeartbeatOutcome(
         val token: String,
         val refreshDispatch: Boolean
@@ -607,8 +620,7 @@ class PlayerController(
         logSource: String
     ): Triple<String, DispatchPlan, Int> {
         val refreshed = fetchDispatchPlan(currentToken, logSource)
-        var index = currentIndex
-        if (index >= refreshed.plan.mediaItems.size) index = 0
+        val index = 0
         updatePlanSource(PlanSource.ONLINE, "Fonte do plano alterada")
         PlayerAdLogger.i(
             "DISPATCH",
@@ -959,11 +971,30 @@ class PlayerController(
 
         val meta = if (!isFileUrl) cacheManager.getMetadata(item.mediaId) else null
         val file = meta?.fileName?.let { File(propagandasDir, it) }
-        val hasValidCache =
+        val versionOk =
+            item.contentVersion.isNullOrBlank() ||
+                meta?.contentVersion == item.contentVersion
+        var hasValidCache =
             !isFileUrl &&
                 meta?.valid == true &&
                 file != null &&
-                file.exists()
+                file.exists() &&
+                versionOk
+        var playFile = file
+
+        if (isVideo && !isFileUrl && !hasValidCache) {
+            downloadToCache(item)
+            val metaAfter = cacheManager.getMetadata(item.mediaId)
+            val cached = metaAfter?.fileName?.let { File(propagandasDir, it) }
+            val versionOkAfter =
+                item.contentVersion.isNullOrBlank() ||
+                    metaAfter?.contentVersion == item.contentVersion
+            if (metaAfter?.valid == true && cached != null && cached.exists() && versionOkAfter) {
+                hasValidCache = true
+                playFile = cached
+                PlayerAdLogger.i("CACHE", "Vídeo mediaId=${item.mediaId} obtido em cache antes da reprodução")
+            }
+        }
 
         if (isHtml) {
             return playHtmlItem(plan, item, t, isFileUrl, hasValidCache, file, today)
@@ -1070,9 +1101,9 @@ class PlayerController(
 
         val mediaItem: MediaItem = when {
             isFileUrl -> MediaItem.fromUri(Uri.parse(item.url))
-            hasValidCache -> {
+            hasValidCache && playFile != null -> {
                 cacheManager.onPlayFromCache(item.mediaId, today)
-                MediaItem.fromUri(Uri.fromFile(file))
+                MediaItem.fromUri(Uri.fromFile(playFile))
             }
             else -> MediaItem.fromUri(Uri.parse(item.url))
         }

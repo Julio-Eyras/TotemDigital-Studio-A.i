@@ -315,6 +315,10 @@ export const getMenuHierarchyByRole = (
   userFlags?: UserFlags | null
 ): HierarchicalMenuItem[] => {
   if (isDirectTotemMode()) {
+    const directTotemRoles: UserRole[] = ['owner_system', 'admin_sql', 'admin'];
+    if (!directTotemRoles.includes(role)) {
+      return [];
+    }
     return filterHierarchicalMenu(getDirectTotemMenu(), role, userFlags);
   }
 

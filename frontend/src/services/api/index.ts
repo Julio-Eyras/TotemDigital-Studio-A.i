@@ -928,6 +928,8 @@ export interface MediaItem {
   height?: number;
   deliveryRotation?: number | null;
   deliveryPreviewRotation?: number | null;
+  /** Nº de totens que usam esta mídia (modo direct totem). */
+  totemCount?: number;
   
   // URLs
   thumbnailUrl?: string;
