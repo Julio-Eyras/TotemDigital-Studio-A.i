@@ -7,6 +7,7 @@ import { useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BreadcrumbItem } from '../components/DataDisplay/PageHeader';
 import { getProductTerminology, getPublishersPageTitle } from '../config/productTerminology';
+import { isDirectTotemMode } from '../config/directTotemMode';
 
 export interface BreadcrumbConfig {
   path: string;
@@ -87,10 +88,13 @@ export function useBreadcrumbs(customItems?: BreadcrumbItem[]): BreadcrumbItem[]
 
       const config = breadcrumbConfig.find((c) => c.path === currentPath);
       if (config) {
-        const label =
+        let label =
           currentPath === '/billing'
             ? billingBreadcrumbLabel(location.search)
             : resolveBreadcrumbLabel(currentPath, config.label);
+        if (currentPath === '/media' && isDirectTotemMode()) {
+          label = 'Biblioteca Mídias';
+        }
         items.push({
           label,
           path: currentPath + (currentPath === '/billing' ? location.search : ''),

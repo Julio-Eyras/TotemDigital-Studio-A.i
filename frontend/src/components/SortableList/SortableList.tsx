@@ -26,18 +26,30 @@ import {
   Paper,
 } from '@mui/material';
 import { DragIndicator, Delete, PowerSettingsNew } from '@mui/icons-material';
+import { MediaPortraitThumb } from '../Media/MediaPortraitThumb';
 
 interface SortableItemProps {
   id: string | number;
   label: string;
   secondary?: string;
+  thumbnail?: React.ReactNode;
+  /** @deprecated prefer thumbnail — mantido para listas sem metadados de rotação */
   thumbnailSrc?: string;
   active?: boolean;
   onDelete?: (id: string | number) => void;
   onToggleActive?: (id: string | number) => void;
 }
 
-function SortableItem({ id, label, secondary, thumbnailSrc, active = true, onDelete, onToggleActive }: SortableItemProps) {
+function SortableItem({
+  id,
+  label,
+  secondary,
+  thumbnail,
+  thumbnailSrc,
+  active = true,
+  onDelete,
+  onToggleActive,
+}: SortableItemProps) {
   const {
     attributes,
     listeners,
@@ -104,39 +116,7 @@ function SortableItem({ id, label, secondary, thumbnailSrc, active = true, onDel
         >
           <DragIndicator />
         </IconButton>
-        {thumbnailSrc ? (
-          <Box
-            sx={{
-              position: 'relative',
-              width: '40px',
-              height: '71px',
-              minWidth: '40px',
-              maxWidth: '40px',
-              maxHeight: '71px',
-              borderRadius: 1,
-              overflow: 'hidden',
-              bgcolor: '#000',
-              flexShrink: 0,
-              mr: 1.5,
-            }}
-          >
-            <Box
-              component="img"
-              src={thumbnailSrc}
-              alt=""
-              sx={{
-                position: 'absolute',
-                inset: 0,
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                display: 'block',
-                maxWidth: '100%',
-                maxHeight: '100%',
-              }}
-            />
-          </Box>
-        ) : null}
+        {thumbnail ?? (thumbnailSrc ? <MediaPortraitThumb src={thumbnailSrc} /> : null)}
         <ListItemText
           primary={label}
           secondary={secondary}
@@ -150,7 +130,14 @@ function SortableItem({ id, label, secondary, thumbnailSrc, active = true, onDel
 }
 
 interface SortableListProps {
-  items: Array<{ id: string | number; label: string; secondary?: string; thumbnailSrc?: string; active?: boolean }>;
+  items: Array<{
+    id: string | number;
+    label: string;
+    secondary?: string;
+    thumbnail?: React.ReactNode;
+    thumbnailSrc?: string;
+    active?: boolean;
+  }>;
   onReorder: (newOrder: Array<string | number>) => void;
   onDelete?: (id: string | number) => void;
   onToggleActive?: (id: string | number) => void;
@@ -212,6 +199,7 @@ export function SortableList({
               id={item.id}
               label={item.label}
               secondary={item.secondary}
+              thumbnail={item.thumbnail}
               thumbnailSrc={item.thumbnailSrc}
               active={item.active !== false}
               onDelete={onDelete}

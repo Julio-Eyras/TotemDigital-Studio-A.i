@@ -35,6 +35,8 @@ import TotemEditDialog from '../../components/TotemEditDialog/TotemEditDialog';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { useMediaThumbnailUrls } from '../../hooks/useMediaThumbnailUrls';
+import { useTotemDeliveryVideoPreviewUrls } from '../../hooks/useTotemDeliveryVideoPreviewUrls';
+import { MediaPortraitThumb } from '../../components/Media/MediaPortraitThumb';
 import { buildMediaThumbnailApiPath } from '../../utils/mediaPreviewUrl';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
@@ -105,22 +107,69 @@ const TotemMediaPage: React.FC = () => {
   );
   const { getThumbnailSrc } = useMediaThumbnailUrls(thumbMediaItems);
 
+  const libraryById = useMemo(() => {
+    const map = new Map<number, MediaItem>();
+    for (const m of library) {
+      if (m.media_id) map.set(m.media_id, m);
+    }
+    return map;
+  }, [library]);
+
+  const previewMediaItems = useMemo(
+    () =>
+      items.map((item) => {
+        const lib = libraryById.get(item.media_id);
+        return {
+          media_id: item.media_id,
+          media_type: item.media_type,
+          width: lib?.width,
+          height: lib?.height,
+          size_bytes: (lib as any)?.size_bytes ?? (lib as any)?.fileSizeBytes,
+          fileSizeBytes: (lib as any)?.fileSizeBytes,
+        };
+      }),
+    [items, libraryById],
+  );
+  const { getVideoPreviewUrl, videoPreviewVersion } = useTotemDeliveryVideoPreviewUrls(previewMediaItems);
+
   const sortableItems = useMemo(
     () =>
-      items.map((item) => ({
-        id: item.media_id,
-        label: item.name || `Mídia ${item.media_id}`,
-        secondary: [
-          item.media_type,
-          item.is_active === false ? 'desabilitada neste totem' : null,
-          item.media_is_active === false ? 'desabilitada na biblioteca' : null,
-        ]
-          .filter(Boolean)
-          .join(' · '),
-        thumbnailSrc: getThumbnailSrc({ media_id: item.media_id }),
-        active: item.is_active !== false && item.media_is_active !== false,
-      })),
-    [items, getThumbnailSrc]
+      items.map((item) => {
+        const lib = libraryById.get(item.media_id);
+        const thumbSrc = getThumbnailSrc({ media_id: item.media_id });
+        void videoPreviewVersion;
+        return {
+          id: item.media_id,
+          label: item.name || `Mídia ${item.media_id}`,
+          secondary: [
+            item.media_type,
+            item.is_active === false ? 'desabilitada neste totem' : null,
+            item.media_is_active === false ? 'desabilitada na biblioteca' : null,
+          ]
+            .filter(Boolean)
+            .join(' · '),
+          thumbnail: (
+            <MediaPortraitThumb
+              src={thumbSrc}
+              videoSrc={getVideoPreviewUrl(item.media_id)}
+              media={
+                lib
+                  ? {
+                      media_type: lib.media_type,
+                      width: lib.width,
+                      height: lib.height,
+                      tags: lib.tags,
+                      deliveryRotation: lib.deliveryRotation,
+                      deliveryPreviewRotation: lib.deliveryPreviewRotation,
+                    }
+                  : { media_type: item.media_type }
+              }
+            />
+          ),
+          active: item.is_active !== false && item.media_is_active !== false,
+        };
+      }),
+    [items, libraryById, getThumbnailSrc, getVideoPreviewUrl, videoPreviewVersion],
   );
 
   const libraryAvailable = useMemo(() => {

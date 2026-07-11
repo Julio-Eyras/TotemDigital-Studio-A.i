@@ -302,7 +302,7 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
 function getDirectTotemMenu(): HierarchicalMenuItem[] {
   return [
     { text: 'Publicar em Totem', icon: <Tv />, path: '/publish-totem' },
-    { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
+    { text: 'Biblioteca Mídias', icon: <VideoLibrary />, path: '/media' },
     { text: 'Configurações', icon: <Settings />, path: '/settings' },
   ];
 }

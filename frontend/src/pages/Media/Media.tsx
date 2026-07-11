@@ -635,7 +635,7 @@ const Media: React.FC = () => {
   return (
     <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50], minHeight: '100vh' }}>
       <PageHeader
-        title="Biblioteca de Mídia"
+        title={isDirectTotemMode() ? 'Biblioteca Mídias' : 'Biblioteca de Mídia'}
         subtitle="Gerencie seus arquivos de mídia"
         breadcrumbs={breadcrumbs}
         actions={
