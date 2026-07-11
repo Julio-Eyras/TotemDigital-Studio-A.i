@@ -930,6 +930,8 @@ export interface MediaItem {
   deliveryPreviewRotation?: number | null;
   /** Nº de totens que usam esta mídia (modo direct totem). */
   totemCount?: number;
+  /** Nomes dos totens que usam esta mídia (modo direct totem). */
+  totemNames?: string[];
   
   // URLs
   thumbnailUrl?: string;
@@ -1088,6 +1090,12 @@ export const mediaApi = {
         deliveryRotation: item.deliveryRotation ?? item.delivery_rotation ?? null,
         deliveryPreviewRotation:
           item.deliveryPreviewRotation ?? item.delivery_preview_rotation ?? null,
+        totemCount: item.totemCount ?? item.totem_count ?? undefined,
+        totemNames: Array.isArray(item.totemNames)
+          ? item.totemNames
+          : Array.isArray(item.totem_names)
+            ? item.totem_names
+            : undefined,
         
         // URLs
         thumbnailUrl: thumbnailUrl,
@@ -1177,9 +1185,13 @@ export const mediaApi = {
 
   /**
    * Busca thumbnail como Blob usando Authorization header (necessário porque <img src> não envia Bearer token).
+   * @param regenerate se true, força o backend a recriar o JPEG 9:16 (corrige thumbs desalinhados).
    */
-  getThumbnailBlob: async (id: number): Promise<Blob> => {
-    const response = await api.get(`/media/${id}/thumbnail`, { responseType: 'blob' });
+  getThumbnailBlob: async (id: number, options?: { regenerate?: boolean }): Promise<Blob> => {
+    const response = await api.get(`/media/${id}/thumbnail`, {
+      responseType: 'blob',
+      params: options?.regenerate ? { regenerate: '1' } : undefined,
+    });
     return response.data as Blob;
   },
 

@@ -29,6 +29,12 @@ export function mediaPreviewDims(
 export const TOTEM_DELIVERY_UI_PREVIEW_ROTATION_LEGACY = 270;
 const DELIVERY_ROTATION_TAG_PREFIX = '_delivery_rotation:';
 
+/** Tags visíveis na UI (oculta metadados técnicos de entrega). */
+export function filterUserVisibleMediaTags(tags?: string[] | null): string[] {
+  if (!tags?.length) return [];
+  return tags.filter((tag) => !String(tag).startsWith(DELIVERY_ROTATION_TAG_PREFIX));
+}
+
 export function parseDeliveryRotationFromTags(tags?: string[] | null): number | null {
   if (!tags?.length) return null;
   for (const tag of tags) {
@@ -64,25 +70,33 @@ export type MediaPreviewSource = 'thumbnail' | 'delivery';
 
 /**
  * Preview na biblioteca alinhada ao totem:
- * - thumbnail 9:16 do servidor → só draft do utilizador;
+ * - thumbnail (API/blob) → já deve vir 9:16 em pé do servidor (sem undo CSS);
  * - ficheiro de entrega 16:9 → undo de deliveryRotation (como hover de vídeo).
+ *
+ * Importante: URLs /assets/.../_thumb.jpg também são thumbnail (não aplicar undo de entrega).
  */
 export function mediaLibraryPreviewSx(
   rotationDraft: number,
   media?: MediaDeliveryPreviewFields,
   options?: { previewUrl?: string | null; previewSource?: MediaPreviewSource },
 ) {
+  const url = options?.previewUrl;
   const source =
     options?.previewSource ??
-    (isDeliveryAssetUrl(options?.previewUrl)
-      ? 'delivery'
-      : isThumbnailApiUrl(options?.previewUrl)
-        ? 'thumbnail'
+    (isThumbnailApiUrl(url) || isSiblingThumbUrl(url)
+      ? 'thumbnail'
+      : isDeliveryAssetUrl(url)
+        ? 'delivery'
         : 'thumbnail');
   if (source === 'thumbnail') {
     return mediaThumbnailPortraitPreviewSx(rotationDraft);
   }
   return mediaTotemUiPreviewSx(rotationDraft, media);
+}
+
+function isSiblingThumbUrl(url?: string | null): boolean {
+  if (!url) return false;
+  return /_thumb\.(jpe?g|png|webp)(\?|$)/i.test(url);
 }
 
 export function getMediaUiPreviewUndoRotation(media?: MediaDeliveryPreviewFields): number {

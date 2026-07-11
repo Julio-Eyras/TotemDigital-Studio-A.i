@@ -123,6 +123,8 @@ export interface MediaResponse {
   deliveryPreviewRotation?: number | null;
   /** Nº de totens que usam esta mídia (só preenchido no modo direct totem). */
   totemCount?: number;
+  /** Nomes dos totens que usam esta mídia (modo direct totem). */
+  totemNames?: string[];
 }
 
 export interface MediaStats {
@@ -297,7 +299,28 @@ export class MediaService {
               AND COALESCE(tpi.is_active, true) = true
               AND COALESCE(tp.is_active, true) = true
               AND tp.status = 'active'
-          ) AS "totemCount"`
+          ) AS "totemCount",
+          (
+            SELECT COALESCE(
+              json_agg(sorted.name ORDER BY sorted.name),
+              '[]'::json
+            )
+            FROM (
+              SELECT DISTINCT COALESCE(
+                NULLIF(TRIM(t.name), ''),
+                NULLIF(TRIM(t.identifier), ''),
+                NULLIF(TRIM(t.uin), ''),
+                'Totem'
+              ) AS name
+              FROM totem_playlist_items tpi
+              JOIN totem_playlists tp ON tp.totem_playlist_id = tpi.totem_playlist_id
+              JOIN totems t ON t.totem_id = tp.totem_id
+              WHERE tpi.media_id = m.media_id
+                AND COALESCE(tpi.is_active, true) = true
+                AND COALESCE(tp.is_active, true) = true
+                AND tp.status = 'active'
+            ) sorted
+          ) AS "totemNames"`
         : '';
 
       const subscriberJoin = directMode
@@ -408,6 +431,20 @@ export class MediaService {
         const previewUrl = this.normalizePreviewUrl(item.previewUrl || item.previewurl, thumbnailUrl);
         const deliveryPreview = this.enrichDeliveryPreviewFields(processedTags);
 
+        let totemNames: string[] = [];
+        if (directMode && item.totemNames != null) {
+          if (Array.isArray(item.totemNames)) {
+            totemNames = item.totemNames.map(String).filter(Boolean);
+          } else if (typeof item.totemNames === 'string') {
+            try {
+              const parsed = JSON.parse(item.totemNames);
+              if (Array.isArray(parsed)) totemNames = parsed.map(String).filter(Boolean);
+            } catch {
+              totemNames = [];
+            }
+          }
+        }
+
         return {
           id: item.id,
           subscriberId: item.subscriberId || item.subscriber_id,
@@ -445,7 +482,12 @@ export class MediaService {
           thumbnailUrlComputed: thumbnailUrl,
           deliveryRotation: deliveryPreview.deliveryRotation,
           deliveryPreviewRotation: deliveryPreview.deliveryPreviewRotation,
-          ...(directMode ? { totemCount: Number(item.totemCount ?? item.totemcount ?? 0) } : {}),
+          ...(directMode
+            ? {
+                totemCount: Number(item.totemCount ?? item.totemcount ?? 0),
+                totemNames,
+              }
+            : {}),
         } as MediaResponse;
       });
 
@@ -1345,6 +1387,16 @@ export class MediaService {
     filePath: string,
     fallbackTagRotation?: number
   ): Promise<number> {
+    const fromFile = await this.readDeliveryRotationMetadata(filePath);
+    if (fromFile != null) return fromFile;
+    if (fallbackTagRotation != null) {
+      return this.normalizeRotation(fallbackTagRotation);
+    }
+    return 90;
+  }
+
+  /** Lê só o metadado delivery_rotation do ficheiro; null se ausente. */
+  private async readDeliveryRotationMetadata(filePath: string): Promise<number | null> {
     try {
       const { stdout } = await execFileAsync(
         'ffprobe',
@@ -1366,10 +1418,21 @@ export class MediaService {
     } catch {
       /* metadado opcional */
     }
-    if (fallbackTagRotation != null) {
-      return this.normalizeRotation(fallbackTagRotation);
-    }
-    return 90;
+    return null;
+  }
+
+  /**
+   * Entrega totem = 1920×1080 com metadado delivery_rotation (pixels já rodados).
+   * Não confundir com vídeo de telemóvel 1920×1080 + stream rotate=90/270.
+   */
+  private async isNormalizedTotemDeliveryVideo(
+    filePath: string,
+    width: number,
+    height: number
+  ): Promise<boolean> {
+    if (!this.isTotemDeliverySize(width, height)) return false;
+    const deliveryMeta = await this.readDeliveryRotationMetadata(filePath);
+    return deliveryMeta != null;
   }
 
   /**
@@ -1491,9 +1554,7 @@ export class MediaService {
       const newPath = normalized.filePath;
       const stats = await fs.promises.stat(newPath);
       const thumbPath = newPath.replace(/\.[^/.]+$/, '_thumb.jpg');
-      if (!fs.existsSync(thumbPath)) {
-        await this.generatePortraitThumbnailFromDeliveryVideo(newPath, normalized.deliveryRotation);
-      }
+      await this.generatePortraitThumbnailFromDeliveryVideo(newPath, normalized.deliveryRotation);
       const previewUrl = generateThumbnailUrl(thumbPath, 'video');
       const current = await this.getMediaById(mediaId);
       const nextTags = this.mergeDeliveryRotationTag(current?.tags, normalized.deliveryRotation);
@@ -1713,6 +1774,7 @@ export class MediaService {
       'ffmpeg',
       [
         '-y',
+        '-noautorotate',
         '-i',
         sourcePath,
         '-vf',
@@ -1777,11 +1839,14 @@ export class MediaService {
     rotationDegrees: number
   ): Promise<string> {
     const thumbnailPath = sourcePath.replace(/\.[^/.]+$/, '_thumb.jpg');
+    await this.removeFileIfExists(thumbnailPath);
     const filters = this.getTotemPreviewVideoFilterChain(rotationDegrees);
     await execFileAsync(
       'ffmpeg',
       [
         '-y',
+        // Evita rotação automática do metadado rotate=90 do telemóvel em cima do transpose explícito
+        '-noautorotate',
         '-ss',
         '00:00:01',
         '-i',
@@ -1826,11 +1891,15 @@ export class MediaService {
   /** Thumbnail 9:16 a partir do ficheiro original (antes da entrega 16:9). */
   private async generatePortraitThumbnailFromVideoFile(filePath: string): Promise<string> {
     const info = await this.probeVideoStreamInfo(filePath);
-    if (this.isTotemDeliverySize(info.width, info.height)) {
+    if (await this.isNormalizedTotemDeliveryVideo(filePath, info.width, info.height)) {
       return this.generatePortraitThumbnailFromDeliveryVideo(filePath);
     }
+    // Telemóvel: pixels landscape + rotate metadata → usar display dims (já trocadas no probe)
     const rotation = this.resolvePreviewRotationDegrees(info.displayWidth, info.displayHeight, 0);
-    return this.generatePreviewThumbnailFromVideoSource(filePath, rotation);
+    // Se o stream tem rotate, o conteúdo efectivo já está em display*; com -noautorotate
+    // precisamos aplicar a rotação do stream + auto portrait.
+    const streamAwareRotation = this.normalizeRotation(info.rotation + rotation);
+    return this.generatePreviewThumbnailFromVideoSource(filePath, streamAwareRotation);
   }
 
   private async generatePortraitThumbnailFromImageFile(filePath: string): Promise<string> {
@@ -2182,11 +2251,11 @@ export class MediaService {
       if (media.mediaType === 'video' && existingFilePath) {
         try {
           const info = await this.probeVideoStreamInfo(existingFilePath);
-          if (this.isTotemDeliverySize(info.width, info.height)) {
+          if (await this.isNormalizedTotemDeliveryVideo(existingFilePath, info.width, info.height)) {
             const fromTag = this.parseDeliveryRotationFromTags(media.tags);
-            let delivery =
-              fromTag ?? (await this.probeDeliveryRotationFromFile(existingFilePath));
-            if (fromTag == null && delivery !== 90) {
+            const fromFile = await this.readDeliveryRotationMetadata(existingFilePath);
+            const delivery = fromTag ?? fromFile ?? 90;
+            if (fromTag == null && fromFile != null) {
               const nextTags = this.mergeDeliveryRotationTag(media.tags, delivery);
               await this.db.executeRaw(
                 `UPDATE medias SET tags = $1, updated_at = CURRENT_TIMESTAMP WHERE media_id = $2`,

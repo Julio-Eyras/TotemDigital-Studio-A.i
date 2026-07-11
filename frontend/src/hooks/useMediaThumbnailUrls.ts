@@ -27,7 +27,16 @@ export function useMediaThumbnailUrls(
     (async () => {
       for (const id of ids) {
         try {
-          const blob = await mediaApi.getThumbnailBlob(id);
+          const regenKey = `media-thumb-regen-v2:${id}`;
+          const shouldRegen = typeof sessionStorage !== 'undefined' && !sessionStorage.getItem(regenKey);
+          const blob = await mediaApi.getThumbnailBlob(id, { regenerate: shouldRegen });
+          if (shouldRegen) {
+            try {
+              sessionStorage.setItem(regenKey, '1');
+            } catch {
+              /* noop */
+            }
+          }
           const objectUrl = URL.createObjectURL(blob);
           if (cancelled) {
             try {

@@ -53,7 +53,7 @@ import MediaTransformActions from '../../components/Media/MediaTransformActions'
 import { MediaViewDialog } from '../../components/Media/MediaViewDialog';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
-import { useMediaRotationTransform, mediaLibraryPreviewSx, mediaPortraitPreviewFrameSx, mediaPortraitHoverVideoSx, type MediaPreviewSource } from '../../hooks/useMediaRotationTransform';
+import { useMediaRotationTransform, mediaLibraryPreviewSx, mediaPortraitPreviewFrameSx, mediaPortraitHoverVideoSx, filterUserVisibleMediaTags, type MediaPreviewSource } from '../../hooks/useMediaRotationTransform';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { isDirectTotemMode } from '../../config/directTotemMode';
 import { isStudioMode } from '../../config/studioMode';
@@ -155,6 +155,9 @@ const Media: React.FC = () => {
     if (typeof id === 'number' && previewUrl && thumbObjectUrlsRef.current.get(id) === previewUrl) {
       return 'thumbnail';
     }
+    if (previewUrl && /_thumb\.(jpe?g|png|webp)(\?|$)/i.test(previewUrl)) {
+      return 'thumbnail';
+    }
     if (previewUrl && (previewUrl.includes('/assets/') || previewUrl.includes('/uploads/'))) {
       return 'delivery';
     }
@@ -204,7 +207,12 @@ const Media: React.FC = () => {
     (async () => {
       for (const { id } of toFetch) {
         try {
-          const blob = await mediaApi.getThumbnailBlob(id);
+          const regenKey = `media-thumb-regen-v2:${id}`;
+          const shouldRegen = !sessionStorage.getItem(regenKey);
+          const blob = await mediaApi.getThumbnailBlob(id, { regenerate: shouldRegen });
+          if (shouldRegen) {
+            try { sessionStorage.setItem(regenKey, '1'); } catch { /* noop */ }
+          }
           const objectUrl = URL.createObjectURL(blob);
           if (cancelled) {
             try { URL.revokeObjectURL(objectUrl); } catch { /* noop */ }
@@ -340,10 +348,10 @@ const Media: React.FC = () => {
         tags: Array.isArray(editForm.tags) && editForm.tags.length > 0 
           ? editForm.tags.join(',') 
           : undefined,
-        status: isStudioMode() ? 'approved' : editForm.status,
+        status: isStudioMode() || isDirectTotemMode() ? 'approved' : editForm.status,
       };
 
-      if (isStudioMode()) {
+      if (isStudioMode() || isDirectTotemMode()) {
         updateData.approvalStatus = 'approved';
       } else if (editForm.status === 'approved') {
         updateData.approvalStatus = 'approved';
@@ -918,24 +926,46 @@ const Media: React.FC = () => {
                   </Box>
                 )}
                 {isDirectTotemMode() && (
-                  <Box sx={{ mb: 1, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                    <Chip
-                      label={`${Number(media.totemCount ?? 0)} totem(ns)`}
-                      size="small"
-                      color="secondary"
-                      variant="outlined"
-                      sx={{ fontSize: '0.7rem' }}
-                    />
-                    {!mediaActive && (
-                      <Chip label="Desabilitada" size="small" color="warning" sx={{ fontSize: '0.7rem' }} />
-                    )}
+                  <Box sx={{ mb: 1 }}>
+                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                      <Chip
+                        label={`${Number(media.totemCount ?? 0)} totem(ns)`}
+                        size="small"
+                        color="secondary"
+                        variant="outlined"
+                        sx={{ fontSize: '0.7rem' }}
+                      />
+                      {!mediaActive && (
+                        <Chip label="Desabilitada" size="small" color="warning" sx={{ fontSize: '0.7rem' }} />
+                      )}
+                    </Box>
+                    {Array.isArray(media.totemNames) && media.totemNames.length > 0 ? (
+                      <Typography
+                        variant="caption"
+                        component="div"
+                        sx={{ mt: 0.5, color: theme.palette.text.secondary, lineHeight: 1.35 }}
+                      >
+                        {media.totemNames.map((totemName, idx) => (
+                          <Box key={`${media.media_id}-totem-${idx}`} component="span" sx={{ display: 'block' }}>
+                            {totemName}
+                          </Box>
+                        ))}
+                      </Typography>
+                    ) : Number(media.totemCount ?? 0) === 0 ? (
+                      <Typography variant="caption" sx={{ mt: 0.5, display: 'block', color: theme.palette.text.disabled }}>
+                        Nenhum totem usando esta mídia
+                      </Typography>
+                    ) : null}
                   </Box>
                 )}
 
-                {/* Tags */}
-                {media.tags && media.tags.length > 0 && (
+                {/* Tags (sem metadados técnicos _delivery_rotation) */}
+                {(() => {
+                  const visibleTags = filterUserVisibleMediaTags(media.tags);
+                  if (visibleTags.length === 0) return null;
+                  return (
                   <Box sx={{ mb: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                    {media.tags.slice(0, 3).map((tag, idx) => (
+                    {visibleTags.slice(0, 3).map((tag, idx) => (
                       <Chip
                         key={idx}
                         label={tag}
@@ -943,17 +973,19 @@ const Media: React.FC = () => {
                         sx={{ fontSize: '0.65rem', height: '20px' }}
                       />
                     ))}
-                    {media.tags.length > 3 && (
+                    {visibleTags.length > 3 && (
                       <Chip
-                        label={`+${media.tags.length - 3}`}
+                        label={`+${visibleTags.length - 3}`}
                         size="small"
                         sx={{ fontSize: '0.65rem', height: '20px' }}
                       />
                     )}
                   </Box>
-                )}
+                  );
+                })()}
 
-                {/* Status e Aprovação */}
+                {/* Status e Aprovação — oculto no direct totem (sempre aprovado) */}
+                {!isDirectTotemMode() && (
                 <Box sx={{ mb: 1, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
                   <Chip
                     label={media.status || 'draft'}
@@ -975,9 +1007,10 @@ const Media: React.FC = () => {
                     />
                   )}
                 </Box>
+                )}
 
                 {/* Informações de aprovação */}
-                {media.approvedByName && (
+                {!isDirectTotemMode() && media.approvedByName && (
                   <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mb: 1 }}>
                     Aprovado por: {media.approvedByName}
                     {media.approvedAt && ` em ${new Date(media.approvedAt).toLocaleDateString('pt-BR')}`}
@@ -1119,7 +1152,7 @@ const Media: React.FC = () => {
                 margin="normal"
                 placeholder="tag1, tag2, tag3"
               />
-              {!isStudioMode() ? (
+              {!isStudioMode() && !isDirectTotemMode() ? (
                 <FormControl fullWidth margin="normal">
                   <InputLabel>Status</InputLabel>
                   <Select
@@ -1136,7 +1169,9 @@ const Media: React.FC = () => {
                 </FormControl>
               ) : (
                 <Alert severity="info" sx={{ mt: 1 }}>
-                  Modo compacto: a mídia permanece <strong>aprovada</strong> (novos uploads já entram aprovados no servidor).
+                  {isDirectTotemMode()
+                    ? 'Modo Publicar em Totem: a mídia permanece sempre aprovada.'
+                    : <>Modo compacto: a mídia permanece <strong>aprovada</strong> (novos uploads já entram aprovados no servidor).</>}
                 </Alert>
               )}
               {selectedMedia?.subscriberName && (
