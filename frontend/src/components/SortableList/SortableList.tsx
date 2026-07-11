@@ -26,14 +26,23 @@ import {
   Paper,
 } from '@mui/material';
 import { DragIndicator, Delete, PowerSettingsNew } from '@mui/icons-material';
-import { MediaPortraitThumb } from '../Media/MediaPortraitThumb';
+import { MediaPortraitThumb, type MediaPortraitThumbProps } from '../Media/MediaPortraitThumb';
+
+export type SortableListPreview = {
+  mediaId: number;
+  thumbSrc?: string;
+  videoSrc?: string;
+  media?: MediaPortraitThumbProps['media'];
+  previewKey?: string;
+};
 
 interface SortableItemProps {
   id: string | number;
   label: string;
   secondary?: string;
   thumbnail?: React.ReactNode;
-  /** @deprecated prefer thumbnail — mantido para listas sem metadados de rotação */
+  preview?: SortableListPreview;
+  /** @deprecated prefer preview/thumbnail */
   thumbnailSrc?: string;
   active?: boolean;
   onDelete?: (id: string | number) => void;
@@ -45,6 +54,7 @@ function SortableItem({
   label,
   secondary,
   thumbnail,
+  preview,
   thumbnailSrc,
   active = true,
   onDelete,
@@ -116,7 +126,15 @@ function SortableItem({
         >
           <DragIndicator />
         </IconButton>
-        {thumbnail ?? (thumbnailSrc ? <MediaPortraitThumb src={thumbnailSrc} /> : null)}
+        {preview ? (
+          <MediaPortraitThumb
+            src={preview.thumbSrc}
+            videoSrc={preview.videoSrc}
+            media={preview.media}
+          />
+        ) : (
+          thumbnail ?? (thumbnailSrc ? <MediaPortraitThumb src={thumbnailSrc} /> : null)
+        )}
         <ListItemText
           primary={label}
           secondary={secondary}
@@ -135,6 +153,7 @@ interface SortableListProps {
     label: string;
     secondary?: string;
     thumbnail?: React.ReactNode;
+    preview?: SortableListPreview;
     thumbnailSrc?: string;
     active?: boolean;
   }>;
@@ -195,11 +214,12 @@ export function SortableList({
         <List sx={{ p: 0 }}>
           {items.map((item) => (
             <SortableItem
-              key={item.id}
+              key={`${item.id}-${item.preview?.previewKey ?? ''}`}
               id={item.id}
               label={item.label}
               secondary={item.secondary}
               thumbnail={item.thumbnail}
+              preview={item.preview}
               thumbnailSrc={item.thumbnailSrc}
               active={item.active !== false}
               onDelete={onDelete}

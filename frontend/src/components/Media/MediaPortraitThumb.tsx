@@ -50,19 +50,30 @@ export function MediaPortraitThumb({ src, videoSrc, media, width = 52 }: MediaPo
     );
   }
 
-  if (!src) return null;
+  if (src) {
+    return (
+      <Box sx={frameSx}>
+        <Box
+          component="img"
+          src={src}
+          alt=""
+          sx={mediaLibraryPreviewSx(0, media, {
+            previewUrl: src,
+            previewSource: 'thumbnail',
+          })}
+        />
+      </Box>
+    );
+  }
 
   return (
-    <Box sx={frameSx}>
-      <Box
-        component="img"
-        src={src}
-        alt=""
-        sx={mediaLibraryPreviewSx(0, media, {
-          previewUrl: src,
-          previewSource: 'thumbnail',
-        })}
-      />
-    </Box>
+    <Box
+      sx={{
+        ...frameSx,
+        bgcolor: 'grey.900',
+        border: '1px solid',
+        borderColor: 'divider',
+      }}
+    />
   );
 }

@@ -36,7 +36,6 @@ import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { useMediaThumbnailUrls } from '../../hooks/useMediaThumbnailUrls';
 import { useTotemDeliveryVideoPreviewUrls } from '../../hooks/useTotemDeliveryVideoPreviewUrls';
-import { MediaPortraitThumb } from '../../components/Media/MediaPortraitThumb';
 import { buildMediaThumbnailApiPath } from '../../utils/mediaPreviewUrl';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 
@@ -105,7 +104,7 @@ const TotemMediaPage: React.FC = () => {
       })),
     [items]
   );
-  const { getThumbnailSrc } = useMediaThumbnailUrls(thumbMediaItems);
+  const { getThumbnailSrc, thumbVersion, invalidateThumbnail } = useMediaThumbnailUrls(thumbMediaItems);
 
   const libraryById = useMemo(() => {
     const map = new Map<number, MediaItem>();
@@ -130,14 +129,28 @@ const TotemMediaPage: React.FC = () => {
       }),
     [items, libraryById],
   );
-  const { getVideoPreviewUrl, videoPreviewVersion } = useTotemDeliveryVideoPreviewUrls(previewMediaItems);
+  const { getVideoPreviewUrl, videoPreviewVersion, invalidateVideoPreview } =
+    useTotemDeliveryVideoPreviewUrls(previewMediaItems);
 
   const sortableItems = useMemo(
     () =>
       items.map((item) => {
         const lib = libraryById.get(item.media_id);
-        const thumbSrc = getThumbnailSrc({ media_id: item.media_id });
-        void videoPreviewVersion;
+        const thumbSrc = getThumbnailSrc({
+          media_id: item.media_id,
+          thumbnailUrl: buildMediaThumbnailApiPath(item.media_id),
+        });
+        const videoSrc = getVideoPreviewUrl(item.media_id);
+        const previewMedia = lib
+          ? {
+              media_type: lib.media_type,
+              width: lib.width,
+              height: lib.height,
+              tags: lib.tags,
+              deliveryRotation: lib.deliveryRotation,
+              deliveryPreviewRotation: lib.deliveryPreviewRotation,
+            }
+          : { media_type: item.media_type };
         return {
           id: item.media_id,
           label: item.name || `Mídia ${item.media_id}`,
@@ -148,28 +161,17 @@ const TotemMediaPage: React.FC = () => {
           ]
             .filter(Boolean)
             .join(' · '),
-          thumbnail: (
-            <MediaPortraitThumb
-              src={thumbSrc}
-              videoSrc={getVideoPreviewUrl(item.media_id)}
-              media={
-                lib
-                  ? {
-                      media_type: lib.media_type,
-                      width: lib.width,
-                      height: lib.height,
-                      tags: lib.tags,
-                      deliveryRotation: lib.deliveryRotation,
-                      deliveryPreviewRotation: lib.deliveryPreviewRotation,
-                    }
-                  : { media_type: item.media_type }
-              }
-            />
-          ),
+          preview: {
+            mediaId: item.media_id,
+            thumbSrc,
+            videoSrc,
+            media: previewMedia,
+            previewKey: `${thumbVersion}:${videoPreviewVersion}:${thumbSrc ?? ''}:${videoSrc ?? ''}:${lib?.width ?? ''}:${lib?.height ?? ''}`,
+          },
           active: item.is_active !== false && item.media_is_active !== false,
         };
       }),
-    [items, libraryById, getThumbnailSrc, getVideoPreviewUrl, videoPreviewVersion],
+    [items, libraryById, getThumbnailSrc, getVideoPreviewUrl, thumbVersion, videoPreviewVersion],
   );
 
   const libraryAvailable = useMemo(() => {
@@ -374,12 +376,14 @@ const TotemMediaPage: React.FC = () => {
 
           if (mediaIds.length > 0) {
             try {
-              let updated = items;
               for (const mediaId of mediaIds) {
-                updated = await totemDirectMediaApi.add(totemId, mediaId);
+                await totemDirectMediaApi.add(totemId, mediaId);
               }
-              setItems(updated);
               await loadAll();
+              for (const mediaId of mediaIds) {
+                invalidateVideoPreview(mediaId);
+                await invalidateThumbnail(mediaId);
+              }
               setSuccess(
                 mediaIds.length === 1
                   ? 'Upload concluído e mídia adicionada ao totem.'

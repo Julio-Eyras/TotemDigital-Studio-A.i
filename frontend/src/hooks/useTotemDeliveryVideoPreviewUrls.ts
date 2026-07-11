@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { mediaApi } from '../services/api';
 import { isTotemDeliveryMedia } from './useMediaRotationTransform';
 
@@ -14,7 +14,8 @@ export function shouldUseTotemDeliveryVideoPreview(media: {
   if (!/^video$/i.test(String(media.media_type || ''))) return false;
   if (!isTotemDeliveryMedia(media)) return false;
   const bytes = Number(media.size_bytes ?? media.fileSizeBytes ?? 0);
-  return bytes > 0 && bytes <= TOTEM_VIDEO_PREVIEW_MAX_BYTES;
+  if (bytes > TOTEM_VIDEO_PREVIEW_MAX_BYTES) return false;
+  return true;
 }
 
 /** Pré-carrega blobs de vídeo de entrega totem para preview estático (mesma lógica da biblioteca). */
@@ -30,6 +31,23 @@ export function useTotemDeliveryVideoPreviewUrls(
 ) {
   const blobUrlsRef = useRef<Map<number, string>>(new Map());
   const [version, setVersion] = useState(0);
+
+  const previewSignature = useMemo(
+    () =>
+      mediaItems
+        .map((m) =>
+          [
+            m.media_id ?? '',
+            m.media_type ?? '',
+            m.width ?? '',
+            m.height ?? '',
+            m.size_bytes ?? '',
+            m.fileSizeBytes ?? '',
+          ].join(':'),
+        )
+        .join('|'),
+    [mediaItems],
+  );
 
   useEffect(() => {
     if (!Array.isArray(mediaItems) || mediaItems.length === 0) return;
@@ -54,7 +72,7 @@ export function useTotemDeliveryVideoPreviewUrls(
     return () => {
       cancelled = true;
     };
-  }, [mediaItems]);
+  }, [previewSignature]);
 
   useEffect(() => {
     return () => {
@@ -78,5 +96,18 @@ export function useTotemDeliveryVideoPreviewUrls(
     [version],
   );
 
-  return { getVideoPreviewUrl, videoPreviewVersion: version };
+  const invalidateVideoPreview = useCallback((mediaId: number) => {
+    const existing = blobUrlsRef.current.get(mediaId);
+    if (existing) {
+      try {
+        URL.revokeObjectURL(existing);
+      } catch {
+        /* noop */
+      }
+      blobUrlsRef.current.delete(mediaId);
+    }
+    setVersion((v) => v + 1);
+  }, []);
+
+  return { getVideoPreviewUrl, videoPreviewVersion: version, invalidateVideoPreview };
 }
