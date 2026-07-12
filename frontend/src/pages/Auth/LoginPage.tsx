@@ -205,9 +205,13 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             src="/logo-smart-signage.png"
             alt="Totem Digital"
             sx={{
-              width: 72,
-              height: 72,
+              width: '100%',
+              maxWidth: 176,
+              height: 'auto',
+              maxHeight: 176,
               objectFit: 'contain',
+              display: 'block',
+              mx: 'auto',
               mb: 2,
             }}
           />
