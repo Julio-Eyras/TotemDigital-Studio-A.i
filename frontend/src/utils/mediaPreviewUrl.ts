@@ -48,3 +48,28 @@ export function resolveMediaListThumbnailUrl(
   if (id) return buildMediaThumbnailApiPath(id, thumbVersion);
   return normalizePublicMediaAssetUrl(media.file_path);
 }
+
+/**
+ * URL segura para <img>: nunca expõe /api/media/:id/thumbnail sem blob autenticado.
+ * Usado na biblioteca e na lista de mídias do totem.
+ */
+export function resolveMediaThumbnailDisplayUrl(
+  media: {
+    media_id?: number;
+    thumbnailUrl?: string | null;
+    previewUrl?: string | null;
+    file_path?: string | null;
+  },
+  blobUrl?: string | null,
+): string | undefined {
+  if (blobUrl) return blobUrl;
+
+  const url = media.thumbnailUrl || media.previewUrl || undefined;
+  if (url && !isProtectedMediaThumbnailUrl(url)) {
+    return normalizePublicMediaAssetUrl(url) || url;
+  }
+
+  if (media.media_id) return undefined;
+
+  return normalizePublicMediaAssetUrl(media.file_path);
+}

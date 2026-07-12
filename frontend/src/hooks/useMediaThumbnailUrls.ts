@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { mediaApi } from '../services/api';
-import {
-  isProtectedMediaThumbnailUrl,
-  normalizePublicMediaAssetUrl,
-} from '../utils/mediaPreviewUrl';
+import { resolveMediaThumbnailDisplayUrl } from '../utils/mediaPreviewUrl';
 
 export function useMediaThumbnailUrls(
   mediaItems: Array<{ media_id?: number; thumbnailUrl?: string | null; previewUrl?: string | null }>,
@@ -89,15 +86,7 @@ export function useMediaThumbnailUrls(
     }): string | undefined => {
       const id = media.media_id;
       const cached = typeof id === 'number' ? thumbObjectUrlsRef.current.get(id) : undefined;
-      if (cached) return cached;
-
-      const url = media.thumbnailUrl || media.previewUrl || undefined;
-      if (url && !isProtectedMediaThumbnailUrl(url)) {
-        return normalizePublicMediaAssetUrl(url) || url;
-      }
-      // Não expor URL /api/media/:id/thumbnail em <img> — aguardar blob autenticado
-      if (id) return undefined;
-      return normalizePublicMediaAssetUrl(media.file_path);
+      return resolveMediaThumbnailDisplayUrl(media, cached);
     },
     [thumbVersion],
   );

@@ -63,7 +63,7 @@ import { useFlags } from '../../hooks/useFlags';
 import NotificationCenter from '../Notification/NotificationCenter';
 import { isStudioMode } from '../../config/studioMode';
 import {APP_DISPLAY_NAME} from '../../config/featureFlags';
-import { buildAutoOpenMenus, menuKeyFromText, menuPathMatches, resolveMenuTitleForPath } from '../../utils/menuPathMatch';
+import { buildAutoOpenMenus, menuKeyFromText, menuPathMatches, resolveAppBarTitle, resolveMenuTitleForPath, pathnameMatchesMenuBase } from '../../utils/menuPathMatch';
 import { leaveAdminSessionViewport } from '../../utils/appViewport';
 import { ADMIN_DRAWER_WIDTH } from '../../config/adminLayout';
 
@@ -377,9 +377,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </IconButton>
           
           <Typography variant="subtitle1" noWrap component="div" sx={{ flexGrow: 1, fontWeight: 600 }}>
-            {resolveMenuTitleForPath(menuItems, location.pathname) ||
-              menuItems.find((item) => item.path === location.pathname)?.text ||
-              'Dashboard'}
+            {resolveAppBarTitle(menuItems, location.pathname) || 'Dashboard'}
           </Typography>
 
           {/* Notification Center */}

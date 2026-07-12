@@ -174,6 +174,25 @@ type MenuTitleItem = {
   children?: MenuTitleItem[];
 };
 
+/** Prefixo de rota com limite de segmento (/media não casa /media-archive). */
+export function pathnameMatchesMenuBase(pathname: string, menuPathname: string): boolean {
+  const base = menuPathname.split('?')[0];
+  if (!base || base === '/') return false;
+  return pathname === base || pathname.startsWith(`${base}/`);
+}
+
+function flattenMenuTitleItems(items: MenuTitleItem[]): MenuTitleItem[] {
+  const flat: MenuTitleItem[] = [];
+  const visit = (list: MenuTitleItem[]) => {
+    for (const item of list) {
+      flat.push(item);
+      if (item.children?.length) visit(item.children);
+    }
+  };
+  visit(items);
+  return flat;
+}
+
 /** Título da AppBar para rotas filhas (ex.: /publish-totem/2 → Publicar em Totem). */
 export function resolveMenuTitleForPath(
   items: MenuTitleItem[],
@@ -181,18 +200,25 @@ export function resolveMenuTitleForPath(
 ): string | null {
   let best: { text: string; path: string } | null = null;
 
-  const visit = (list: MenuTitleItem[]) => {
-    for (const item of list) {
-      const itemPath = item.path.split('?')[0];
-      if (pathname === itemPath || pathname.startsWith(`${itemPath}/`)) {
-        if (!best || itemPath.length > best.path.length) {
-          best = { text: item.text, path: itemPath };
-        }
-      }
-      if (item.children?.length) visit(item.children);
+  for (const item of flattenMenuTitleItems(items)) {
+    const itemPath = item.path.split('?')[0];
+    if (!pathnameMatchesMenuBase(pathname, itemPath)) continue;
+    if (!best || itemPath.length > best.path.length) {
+      best = { text: item.text, path: itemPath };
     }
-  };
+  }
 
-  visit(items);
   return best?.text ?? null;
+}
+
+/** Título da AppBar: rota filha → item pai; senão match exato; senão null. */
+export function resolveAppBarTitle(
+  items: MenuTitleItem[],
+  pathname: string
+): string | null {
+  return (
+    resolveMenuTitleForPath(items, pathname) ??
+    items.find((item) => item.path.split('?')[0] === pathname)?.text ??
+    null
+  );
 }

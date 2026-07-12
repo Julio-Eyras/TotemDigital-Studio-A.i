@@ -1,6 +1,70 @@
-import { menuPathMatches, buildAutoOpenMenus, menuKeyFromText } from './menuPathMatch';
+import {
+  menuPathMatches,
+  buildAutoOpenMenus,
+  menuKeyFromText,
+  resolveMenuTitleForPath,
+  resolveAppBarTitle,
+  pathnameMatchesMenuBase,
+} from './menuPathMatch';
 
 const loc = (pathname: string, search = '') => ({ pathname, search });
+
+const directTotemMenu = [
+  { text: 'Publicar em Totem', path: '/publish-totem' },
+  { text: 'Biblioteca Mídias', path: '/media' },
+  { text: 'Configurações', path: '/settings' },
+];
+
+describe('pathnameMatchesMenuBase', () => {
+  it('casa rota exata e filhos', () => {
+    expect(pathnameMatchesMenuBase('/publish-totem', '/publish-totem')).toBe(true);
+    expect(pathnameMatchesMenuBase('/publish-totem/2', '/publish-totem')).toBe(true);
+    expect(pathnameMatchesMenuBase('/publish-totem/2/medias', '/publish-totem')).toBe(true);
+  });
+
+  it('não casa prefixo ambíguo nem raiz', () => {
+    expect(pathnameMatchesMenuBase('/media-archive', '/media')).toBe(false);
+    expect(pathnameMatchesMenuBase('/publish-totemX', '/publish-totem')).toBe(false);
+    expect(pathnameMatchesMenuBase('/dashboard', '/')).toBe(false);
+  });
+});
+
+describe('resolveMenuTitleForPath', () => {
+  it('direct totem: rotas aninhadas usam título do menu pai', () => {
+    expect(resolveMenuTitleForPath(directTotemMenu, '/publish-totem')).toBe('Publicar em Totem');
+    expect(resolveMenuTitleForPath(directTotemMenu, '/publish-totem/2')).toBe('Publicar em Totem');
+    expect(resolveMenuTitleForPath(directTotemMenu, '/publish-totem/99/edit')).toBe('Publicar em Totem');
+    expect(resolveMenuTitleForPath(directTotemMenu, '/media')).toBe('Biblioteca Mídias');
+    expect(resolveMenuTitleForPath(directTotemMenu, '/settings/general')).toBe('Configurações');
+  });
+
+  it('escolhe o prefixo mais específico em menus hierárquicos', () => {
+    const items = [
+      {
+        text: 'Admin',
+        path: '/admin',
+        children: [
+          { text: 'Totens', path: '/totems' },
+          { text: 'Totem detalhe', path: '/totems/manage' },
+        ],
+      },
+    ];
+    expect(resolveMenuTitleForPath(items, '/totems/42')).toBe('Totens');
+    expect(resolveMenuTitleForPath(items, '/totems/manage/7')).toBe('Totem detalhe');
+  });
+
+  it('retorna null para rota desconhecida', () => {
+    expect(resolveMenuTitleForPath(directTotemMenu, '/dashboard')).toBeNull();
+    expect(resolveMenuTitleForPath(directTotemMenu, '/foo/bar')).toBeNull();
+  });
+});
+
+describe('resolveAppBarTitle', () => {
+  it('prioriza rota filha e cai no match exato', () => {
+    expect(resolveAppBarTitle(directTotemMenu, '/publish-totem/2')).toBe('Publicar em Totem');
+    expect(resolveAppBarTitle(directTotemMenu, '/media')).toBe('Biblioteca Mídias');
+  });
+});
 
 describe('menuPathMatches', () => {
   it('destaca Visão geral só em /billing sem query de foco', () => {
