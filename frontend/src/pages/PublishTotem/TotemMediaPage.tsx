@@ -43,7 +43,7 @@ const TotemMediaPage: React.FC = () => {
   const { totemId: totemIdParam } = useParams<{ totemId: string }>();
   const totemId = Number(totemIdParam);
   const navigate = useNavigate();
-  const breadcrumbs = useBreadcrumbs();
+  const defaultBreadcrumbs = useBreadcrumbs();
   const [totem, setTotem] = useState<Player | null>(null);
   const [items, setItems] = useState<TotemDirectMediaItem[]>([]);
   const [library, setLibrary] = useState<MediaItem[]>([]);
@@ -255,6 +255,15 @@ const TotemMediaPage: React.FC = () => {
   const title = totem?.name || totem?.identifier || `Totem ${totemId}`;
   const hasActiveMedia = items.some((i) => i.is_active !== false);
   const canDeleteTotem = !hasActiveMedia;
+
+  const breadcrumbs = useMemo(() => {
+    if (defaultBreadcrumbs.length === 0) return defaultBreadcrumbs;
+    const count = items.length;
+    const label = `${count} ${count === 1 ? 'mídia' : 'mídias'}`;
+    const next = [...defaultBreadcrumbs];
+    next[next.length - 1] = { ...next[next.length - 1], label };
+    return next;
+  }, [defaultBreadcrumbs, items.length]);
 
   const handleDeleteTotem = async () => {
     if (!canDeleteTotem) {
