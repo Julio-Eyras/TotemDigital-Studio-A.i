@@ -168,6 +168,13 @@ function formatSettingValueForEdit(s: SystemSetting): string {
 }
 
 function parseSettingValueForSave(s: SystemSetting): any {
+  if (s.type === 'boolean') {
+    return s.value === true || s.value === 'true' || s.value === '1' || s.value === 1;
+  }
+  if (s.type === 'number') {
+    const n = typeof s.value === 'number' ? s.value : parseFloat(String(s.value ?? '').trim());
+    return Number.isFinite(n) ? n : 0;
+  }
   if ((s.type === 'json' || s.type === 'array') && typeof s.value === 'string') {
     const trimmed = s.value.trim();
     if (!trimmed) return s.type === 'array' ? [] : {};

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Drawer,
@@ -154,14 +154,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     setOpenMenus((prev) => ({ ...prev, ...auto }));
   }, [location.pathname, location.search, user?.role]);
 
-  const compactOwnerDisplayName = useMemo(() => {
-    if (!isStudioMode()) return APP_DISPLAY_NAME;
-    if (user?.role !== 'owner_system') return APP_DISPLAY_NAME;
-
-    const fullName = [user?.first_name, user?.last_name].filter(Boolean).join(' ').trim();
-    return user?.name || fullName || user?.username || APP_DISPLAY_NAME;
-  }, [user]);
-
   const handleToggleMenu = (menuKey: string) => {
     setOpenMenus((prev) => ({
       ...prev,
@@ -300,40 +292,38 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   const drawer = (
-    <Box>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Logo Section */}
-      <Box sx={{ p: 1.5, textAlign: 'center', borderBottom: `1px solid ${theme.palette.divider}` }}>
+      <Box sx={{ px: 2, py: 2.5, textAlign: 'center', borderBottom: `1px solid ${theme.palette.divider}` }}>
         <Box
           component="img"
           src="/logo-smart-signage.png"
-          alt="Smart Signage"
+          alt={APP_DISPLAY_NAME}
           sx={{
-            width: 52,
-            height: 52,
+            width: '100%',
+            maxWidth: 184,
+            height: 'auto',
+            maxHeight: 104,
             mx: 'auto',
-            mb: 1,
-            objectFit: 'cover',
-            borderRadius: 1.5,
-            border: `1px solid ${theme.palette.divider}`,
+            mb: 1.25,
+            objectFit: 'contain',
+            display: 'block',
           }}
         />
-        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: theme.palette.primary.main, lineHeight: 1.2 }}>
-          {compactOwnerDisplayName}
-        </Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35 }}>
           Sistema de Sinalização Digital
         </Typography>
       </Box>
 
       {/* Navigation Menu - Hierárquico */}
-      <List sx={{ px: 1, py: 0.5 }}>
+      <List sx={{ px: 1, py: 0.5, flex: 1 }}>
         {menuItems.map((item) => renderMenuItem(item))}
       </List>
 
       <Divider sx={{ mx: 2 }} />
 
       {/* User Info */}
-      <Box sx={{ p: 2, mt: 'auto' }}>
+      <Box sx={{ p: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2 }}>
           <Avatar sx={{ backgroundColor: theme.palette.secondary.main }}>
             <AccountCircle />
