@@ -71,6 +71,27 @@ export class AuthService {
     return getAuditServiceInstance();
   }
 
+  private mapUserForClient(user: any, extras: Record<string, any> = {}) {
+    const first = String(user.first_name ?? '').trim();
+    const last = String(user.last_name ?? '').trim();
+    const fullFromParts = [first, last].filter(Boolean).join(' ').trim();
+    const name = String(user.name ?? '').trim() || fullFromParts || user.username;
+
+    return {
+      id: user.id,
+      username: user.username,
+      email: user.email || '',
+      name,
+      first_name: first || undefined,
+      last_name: last || undefined,
+      role: user.role,
+      user_type: user.user_type,
+      publisherId: user.publisher_id ?? user.publisherId,
+      subscriberId: user.subscriber_id ?? user.subscriberId,
+      ...extras,
+    };
+  }
+
   /**
    * Autentica usuário
    */
@@ -157,16 +178,7 @@ export class AuthService {
         return {
           success: true,
           requiresTwoFactor: true,
-          user: {
-            id: user.id,
-            username: user.username,
-            email: user.email || '',
-            role: user.role,
-            // clientId removido - usar subscriberId
-            user_type: user.user_type, // NOVO: Incluir user_type
-            publisherId: user.publisher_id,
-            subscriberId: user.subscriber_id
-          }
+          user: this.mapUserForClient(user),
         };
       }
 
@@ -200,17 +212,7 @@ export class AuthService {
         success: true,
         token,
         refreshToken,
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email || '',
-          role: user.role,
-          // clientId removido - usar subscriberId
-          user_type: user.user_type, // NOVO: Incluir user_type para detecção automática
-          publisherId: user.publisher_id, // NOVO: Incluir publisherId se existir
-          subscriberId: user.subscriber_id, // NOVO: Incluir subscriberId se existir (derivado)
-          flags: effectiveFlags
-        }
+        user: this.mapUserForClient(user, { flags: effectiveFlags }),
       };
 
     } catch (error: any) {
@@ -300,13 +302,7 @@ export class AuthService {
         success: true,
         token,
         refreshToken,
-        user: {
-          id: newUser.id,
-          username: newUser.username,
-          email: newUser.email || '',
-          role: newUser.role,
-          // clientId removido - usar subscriberId
-        }
+        user: this.mapUserForClient(newUser),
       };
 
     } catch (error: any) {
@@ -358,13 +354,7 @@ export class AuthService {
       return {
         success: true,
         token: newToken,
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email || '',
-          role: user.role,
-          // clientId removido - usar subscriberId
-        }
+        user: this.mapUserForClient(user),
       };
 
     } catch (error: any) {
@@ -470,14 +460,10 @@ export class AuthService {
         return {
           success: true,
           requiresTwoFactor: true,
-          user: {
-            id: authenticatedUser.id,
-            username: authenticatedUser.username,
-            email: authenticatedUser.email || '',
-            role: authenticatedUser.role,
+          user: this.mapUserForClient(authenticatedUser, {
             subscriberId: subscriber.subscriber_id,
-            publisherId: publisher.publisher_id
-          }
+            publisherId: publisher.publisher_id,
+          }),
         };
       }
 
@@ -509,16 +495,11 @@ export class AuthService {
         success: true,
         token,
         refreshToken,
-        user: {
-          id: authenticatedUser.id,
-          username: authenticatedUser.username,
-          email: authenticatedUser.email || '',
-          role: authenticatedUser.role,
+        user: this.mapUserForClient(authenticatedUser, {
           subscriberId: subscriber.subscriber_id,
           publisherId: publisher.publisher_id,
           subscriberName: subscriber.name,
-          // clientId removido - usar subscriberId
-        }
+        }),
       };
 
     } catch (error: any) {

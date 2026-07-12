@@ -7,6 +7,7 @@ import {
   sanitizeUpdateUserPayload,
   userTypeForRole,
   validateCreateUserPayload,
+  resolveLoggedUserDisplayName,
 } from './userRoleUserType';
 import type { CreateUserRequest } from '../services/api';
 
@@ -99,6 +100,15 @@ describe('sanitizeUpdateUserPayload', () => {
 describe('getRoleLabel', () => {
   it('resolve rótulo da função selecionada', () => {
     expect(getRoleLabel('operador_faturamento')).toBe('Operador Faturamento');
+  });
+});
+
+describe('resolveLoggedUserDisplayName', () => {
+  it('usa somente first_name', () => {
+    expect(resolveLoggedUserDisplayName({ first_name: 'Ismael', name: 'Ismael Silva', username: 'ismael' })).toBe('Ismael');
+    expect(resolveLoggedUserDisplayName({ firstName: 'Admin' })).toBe('Admin');
+    expect(resolveLoggedUserDisplayName({ username: 'ismael' })).toBe('—');
+    expect(resolveLoggedUserDisplayName(null)).toBe('—');
   });
 });
 

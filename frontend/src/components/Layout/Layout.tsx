@@ -61,8 +61,8 @@ import { setDarkTone, setTheme } from '../../store/slices/uiSlice';
 import { useSystemAlerts } from '../../services/api/queries';
 import { useFlags } from '../../hooks/useFlags';
 import NotificationCenter from '../Notification/NotificationCenter';
-import { isStudioMode } from '../../config/studioMode';
-import {APP_DISPLAY_NAME} from '../../config/featureFlags';
+import { APP_DISPLAY_NAME} from '../../config/featureFlags';
+import { resolveLoggedUserDisplayName } from '../../utils/userRoleUserType';
 import { buildAutoOpenMenus, menuKeyFromText, menuPathMatches, resolveAppBarTitle, resolveMenuTitleForPath, pathnameMatchesMenuBase } from '../../utils/menuPathMatch';
 import { leaveAdminSessionViewport } from '../../utils/appViewport';
 import { ADMIN_DRAWER_WIDTH } from '../../config/adminLayout';
@@ -330,7 +330,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </Avatar>
           <Box sx={{ flexGrow: 1, minWidth: 0 }}>
             <Typography variant="subtitle2" noWrap>
-              {user?.name || 'Usuário'}
+              {`Usuário: ${resolveLoggedUserDisplayName(user)}`}
             </Typography>
             <Typography variant="caption" color="text.secondary" noWrap>
               {user?.role || 'user'}
