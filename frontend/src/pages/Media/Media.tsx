@@ -334,12 +334,7 @@ const Media: React.FC = () => {
     }
   };
 
-  const {
-    getRotationDraft,
-    handleRotatePreview,
-    handleConfirmRotation,
-    processingRotationId,
-  } = useMediaRotationTransform(async (mediaId) => {
+  const refreshPreviewAfterTransform = async (mediaId: number) => {
     const thumbUrl = thumbObjectUrlsRef.current.get(mediaId);
     if (thumbUrl) {
       try { URL.revokeObjectURL(thumbUrl); } catch { /* noop */ }
@@ -351,9 +346,47 @@ const Media: React.FC = () => {
       videoHoverBlobUrlsRef.current.delete(mediaId);
     }
     setVideoHover((prev) => (prev.id === mediaId ? { id: null, url: null } : prev));
+
+    try {
+      sessionStorage.removeItem(`media-thumb-regen-v3:${mediaId}`);
+    } catch { /* noop */ }
+
+    // Força regenerar o JPEG 9:16 no backend — sem isto o thumb cacheado permanece até remount.
+    try {
+      const blob = await mediaApi.getThumbnailBlob(mediaId, { regenerate: true });
+      const objectUrl = URL.createObjectURL(blob);
+      thumbObjectUrlsRef.current.set(mediaId, objectUrl);
+      try {
+        sessionStorage.setItem(`media-thumb-regen-v3:${mediaId}`, '1');
+      } catch { /* noop */ }
+    } catch {
+      /* efeito de prefetch tenta de novo se a lista ainda tiver o id */
+    }
+
+    const current = mediaItems.find((m) => m.media_id === mediaId);
+    if (current && /^video$/i.test(String(current.media_type || ''))) {
+      try {
+        const fileBlob = await mediaApi.getFileBlob(mediaId);
+        videoHoverBlobUrlsRef.current.set(mediaId, URL.createObjectURL(fileBlob));
+      } catch {
+        /* mantém sem preview de vídeo até próximo hover/prefetch */
+      }
+    }
+
     setThumbVersion((v) => v + 1);
+    setVideoPreviewVersion((v) => v + 1);
     await loadMediaItems();
+  };
+
+  const {
+    getRotationDraft,
+    handleRotatePreview,
+    handleConfirmRotation,
+    processingRotationId,
+  } = useMediaRotationTransform(async (mediaId) => {
+    await refreshPreviewAfterTransform(mediaId);
   });
+
 
   useEffect(() => {
     loadMediaItems();
@@ -498,20 +531,7 @@ const Media: React.FC = () => {
         rotationDegrees: 0,
         fit: '9:16',
       });
-
-      const thumbUrl = thumbObjectUrlsRef.current.get(mediaId);
-      if (thumbUrl) {
-        try { URL.revokeObjectURL(thumbUrl); } catch { /* noop */ }
-        thumbObjectUrlsRef.current.delete(mediaId);
-      }
-      const hoverUrl = videoHoverBlobUrlsRef.current.get(mediaId);
-      if (hoverUrl) {
-        try { URL.revokeObjectURL(hoverUrl); } catch { /* noop */ }
-        videoHoverBlobUrlsRef.current.delete(mediaId);
-      }
-      setVideoHover((prev) => (prev.id === mediaId ? { id: null, url: null } : prev));
-      setThumbVersion((v) => v + 1);
-      await loadMediaItems();
+      await refreshPreviewAfterTransform(mediaId);
     } catch (error) {
       setError(pickApiErrorMessage(error, 'Erro ao adequar mídia para 9:16'));
     } finally {
