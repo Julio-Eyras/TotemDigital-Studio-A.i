@@ -267,11 +267,16 @@ export function validateCreateUserPayload(user: CreateUserRequest): string | nul
   return null;
 }
 
-/** Primeiro nome do usuário logado (sidebar). */
+/** Nome do usuário logado (sidebar): first_name → name → username. */
 export function resolveLoggedUserDisplayName(
   user: Record<string, unknown> | null | undefined
 ): string {
   if (!user) return '—';
   const firstName = String(user.first_name ?? user.firstName ?? '').trim();
-  return firstName || '—';
+  if (firstName) return firstName;
+  const name = String(user.name ?? '').trim();
+  if (name) return name;
+  const username = String(user.username ?? '').trim();
+  if (username) return username;
+  return '—';
 }

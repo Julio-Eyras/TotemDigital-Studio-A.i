@@ -40,6 +40,7 @@ import {
   BugReport,
   ViewTimeline,
   Payment,
+  Business,
 } from '@mui/icons-material';
 import { settingsApi, SystemSetting, logsApi, LogRotationConfig, LogFileInfo, DiskSpaceInfo, RotationStatus, authApi } from '../../services/api';
 import TwoFactor from './TwoFactor';
@@ -48,6 +49,8 @@ import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { Link as RouterLink } from 'react-router-dom';
 import { useAppSelector } from '../../store';
 import { canAccess } from '../../utils/rolePermissions';
+import { isDirectTotemMode } from '../../config/directTotemMode';
+import { getPublishersPageTitle } from '../../config/productTerminology';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -198,15 +201,17 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
-const SETTINGS_SECTIONS = [
-  { label: 'Geral', icon: SettingsIcon },
-  { label: 'Financeiro', icon: Payment },
-  { label: 'Logs', icon: Storage },
-  { label: 'Mídias', icon: VideoLibrary },
-  { label: 'Dispatcher', icon: MonitorHeart },
-  { label: '2FA', icon: Security },
-  { label: 'Senha', icon: Security },
+const ALL_SETTINGS_SECTIONS = [
+  { id: 'general', label: 'Geral', icon: SettingsIcon },
+  { id: 'financial', label: 'Financeiro', icon: Payment },
+  { id: 'logs', label: 'Logs', icon: Storage },
+  { id: 'media', label: 'Mídias', icon: VideoLibrary },
+  { id: 'dispatcher', label: 'Dispatcher', icon: MonitorHeart },
+  { id: '2fa', label: '2FA', icon: Security },
+  { id: 'password', label: 'Senha', icon: Security },
 ] as const;
+
+type SettingsSectionId = (typeof ALL_SETTINGS_SECTIONS)[number]['id'];
 
 const FINANCIAL_SETTINGS_ORDER: string[] = [
   'financial.worker_enabled',
@@ -237,6 +242,18 @@ const Settings: React.FC = () => {
   const theme = useTheme();
   const isMobileNav = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
   const { user } = useAppSelector((state) => state.auth);
+  const directTotem = isDirectTotemMode();
+  const settingsSections = useMemo(
+    () => ALL_SETTINGS_SECTIONS.filter((section) => !(directTotem && section.id === 'financial')),
+    [directTotem]
+  );
+  const sectionIndex = useMemo(() => {
+    const map: Partial<Record<SettingsSectionId, number>> = {};
+    settingsSections.forEach((section, index) => {
+      map[section.id] = index;
+    });
+    return map;
+  }, [settingsSections]);
   const canDispatcherHub =
     !!user?.role && canAccess(user.role, '/dispatcher-monitor', user.flags ?? undefined);
   const [tabValue, setTabValue] = useState(0);
@@ -263,12 +280,20 @@ const Settings: React.FC = () => {
     confirmPassword: '',
   });
 
+  const activeSectionId = settingsSections[tabValue]?.id ?? 'general';
+
+  useEffect(() => {
+    if (tabValue >= settingsSections.length) {
+      setTabValue(0);
+    }
+  }, [settingsSections.length, tabValue]);
+
   useEffect(() => {
     loadSettings();
-    if (tabValue === 2) {
+    if (activeSectionId === 'logs') {
       loadLogsInfo();
     }
-  }, [tabValue]);
+  }, [tabValue, activeSectionId]);
   
   const handleApplyMediaConfig = async (rebuild: boolean = false) => {
     try {
@@ -386,15 +411,15 @@ const Settings: React.FC = () => {
     try {
       setError(null);
       let settingsToSave: SystemSetting[] = [];
-      if (tabValue === 0) {
+      if (activeSectionId === 'general') {
         settingsToSave = generalSettings.filter((s) => s?.key && !isSettingReadOnly(s));
-      } else if (tabValue === 1) {
+      } else if (activeSectionId === 'financial') {
         settingsToSave = financialSettings.filter((s) => s?.key && !isSettingReadOnly(s));
-      } else if (tabValue === 2) {
+      } else if (activeSectionId === 'logs') {
         settingsToSave = Array.isArray(logSettings)
           ? logSettings.filter((s) => s?.key && !isSettingReadOnly(s))
           : [];
-      } else if (tabValue === 3) {
+      } else if (activeSectionId === 'media') {
         settingsToSave = Array.isArray(mediaSettings)
           ? mediaSettings.filter((s) => s?.key && !isSettingReadOnly(s))
           : [];
@@ -413,7 +438,7 @@ const Settings: React.FC = () => {
       await settingsApi.updateMultiple(settingsObj);
       
       // Recarregar logger se foram alteradas configurações de logs
-      if (tabValue === 2) {
+      if (activeSectionId === 'logs') {
         await logsApi.reload();
         await loadLogsInfo();
       }
@@ -542,7 +567,7 @@ const Settings: React.FC = () => {
 
       <Paper sx={{ mb: 3, overflow: 'hidden' }}>
         <ResponsiveSectionNav
-          sections={SETTINGS_SECTIONS}
+          sections={settingsSections}
           value={tabValue}
           onChange={setTabValue}
           isMobileNav={isMobileNav}
@@ -550,7 +575,25 @@ const Settings: React.FC = () => {
         />
       </Paper>
 
-      <TabPanel value={tabValue} index={0}>
+      <TabPanel value={tabValue} index={sectionIndex.general ?? 0}>
+        {directTotem && (
+          <Card variant="outlined" sx={{ mb: 3 }}>
+            <CardActionArea component={RouterLink} to="/publishers">
+              <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Business color="primary" />
+                <Box>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                    {getPublishersPageTitle()}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Edite nome, contato e e-mail da organização única deste totem.
+                  </Typography>
+                </Box>
+              </CardContent>
+            </CardActionArea>
+          </Card>
+        )}
+        {!directTotem && (
         <Card variant="outlined" sx={{ mb: 3 }}>
           <CardContent>
             <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
@@ -567,6 +610,7 @@ const Settings: React.FC = () => {
             </Typography>
           </CardContent>
         </Card>
+        )}
 
         <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
           <Button startIcon={<Refresh />} variant="outlined" onClick={loadSettings}>Recarregar</Button>
@@ -597,7 +641,8 @@ const Settings: React.FC = () => {
         </Grid>
       </TabPanel>
 
-      <TabPanel value={tabValue} index={1}>
+      {sectionIndex.financial != null && (
+      <TabPanel value={tabValue} index={sectionIndex.financial}>
         <Card variant="outlined" sx={{ mb: 3 }}>
           <CardContent>
             <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
@@ -661,8 +706,9 @@ const Settings: React.FC = () => {
           ))}
         </Grid>
       </TabPanel>
+      )}
 
-      <TabPanel value={tabValue} index={2}>
+      <TabPanel value={tabValue} index={sectionIndex.logs ?? -1}>
         <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
           <Button startIcon={<Refresh />} variant="outlined" onClick={loadLogsInfo} disabled={loadingLogs}>
             Atualizar Informações
@@ -846,7 +892,7 @@ const Settings: React.FC = () => {
         </Card>
       </TabPanel>
 
-      <TabPanel value={tabValue} index={3}>
+      <TabPanel value={tabValue} index={sectionIndex.media ?? -1}>
         <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
           <Button startIcon={<Refresh />} variant="outlined" onClick={loadSettings}>
             Recarregar
@@ -961,7 +1007,7 @@ const Settings: React.FC = () => {
         )}
       </TabPanel>
 
-      <TabPanel value={tabValue} index={4}>
+      <TabPanel value={tabValue} index={sectionIndex.dispatcher ?? -1}>
         <Typography variant="body2" color="text.secondary" paragraph sx={{ maxWidth: 720 }}>
           Aceda às ferramentas do dispatcher para acompanhar mensagens, pedidos e ficheiros entre o servidor e os
           totens, e o fluxo ligado a playlists e publicidades. Cada cartão abre a área dedicada (e mantém o menu
@@ -1038,11 +1084,11 @@ const Settings: React.FC = () => {
         )}
       </TabPanel>
 
-      <TabPanel value={tabValue} index={5}>
+      <TabPanel value={tabValue} index={sectionIndex['2fa'] ?? -1}>
         <TwoFactor />
       </TabPanel>
 
-      <TabPanel value={tabValue} index={6}>
+      <TabPanel value={tabValue} index={sectionIndex.password ?? -1}>
         {passwordSuccess && (
           <Alert severity="success" sx={{ mb: 2 }} onClose={() => setPasswordSuccess(null)}>
             {passwordSuccess}

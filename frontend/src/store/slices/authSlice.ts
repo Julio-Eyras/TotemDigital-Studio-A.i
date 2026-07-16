@@ -18,6 +18,10 @@ export interface UserFlags {
 export interface User {
   id: number;
   name: string;
+  /** Primeiro nome (API: first_name) — preferido na sidebar. */
+  first_name?: string;
+  firstName?: string;
+  username?: string;
   email: string;
   role: 'owner_system' | 'admin' | 'admin_sql' | 'manager' | 'operator' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'publisher_user' | 'subscriber_user';
   isActive: boolean;
@@ -54,6 +58,22 @@ function parseStoredUser(): User | null {
   } catch {
     return null;
   }
+}
+
+function pickDisplayNameFields(apiUser: Record<string, unknown>): {
+  name: string;
+  first_name?: string;
+  username?: string;
+} {
+  const first =
+    String(apiUser.first_name ?? apiUser.firstName ?? '').trim() || undefined;
+  const username = String(apiUser.username ?? '').trim() || undefined;
+  const name =
+    String(apiUser.name ?? '').trim() ||
+    first ||
+    username ||
+    '';
+  return { name, first_name: first, username };
 }
 
 const storedToken = localStorage.getItem('token');
@@ -229,9 +249,12 @@ const authSlice = createSlice({
           ((apiUser as any).userType === 'system_user')
         );
         
+        const displayNames = pickDisplayNameFields(apiUser as any);
         state.user = {
           id: userId,
-          name: (apiUser as any).name || (apiUser as any).username || '',
+          name: displayNames.name,
+          first_name: displayNames.first_name,
+          username: displayNames.username,
           email: (apiUser as any).email || '',
           role: mappedRole,
           isActive: (apiUser as any).is_active !== undefined ? (apiUser as any).is_active : (apiUser as any).isActive !== undefined ? (apiUser as any).isActive : true,
@@ -331,9 +354,12 @@ const authSlice = createSlice({
           ((apiUser as any).user_type === 'system_user') ??
           ((apiUser as any).userType === 'system_user')
         );
+        const displayNames = pickDisplayNameFields(apiUser as any);
         state.user = {
           id: apiUser.user_id || 0,
-          name: apiUser.name || '',
+          name: displayNames.name,
+          first_name: displayNames.first_name,
+          username: displayNames.username,
           email: apiUser.email || '',
           role: apiUser.role === 'admin'
             ? 'admin' as const
@@ -380,9 +406,12 @@ const authSlice = createSlice({
           ((apiUser as any).userType === 'system_user') ??
           (state.user?.isTenantUser ?? state.user?.is_tenant_user)
         );
+        const displayNames = pickDisplayNameFields(apiUser as any);
         state.user = {
           id: apiUser.user_id || state.user?.id || 0,
-          name: apiUser.name || state.user?.name || '',
+          name: displayNames.name || state.user?.name || '',
+          first_name: displayNames.first_name || state.user?.first_name,
+          username: displayNames.username || state.user?.username,
           email: apiUser.email || state.user?.email || '',
           role: apiUser.role === 'admin' 
             ? 'admin' as const

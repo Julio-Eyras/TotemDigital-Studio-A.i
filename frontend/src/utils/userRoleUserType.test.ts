@@ -97,18 +97,20 @@ describe('sanitizeUpdateUserPayload', () => {
   });
 });
 
-describe('getRoleLabel', () => {
-  it('resolve rótulo da função selecionada', () => {
-    expect(getRoleLabel('operador_faturamento')).toBe('Operador Faturamento');
+describe('resolveLoggedUserDisplayName', () => {
+  it('prioriza first_name, depois name e username', () => {
+    expect(resolveLoggedUserDisplayName({ first_name: 'Ismael', name: 'Ismael Silva', username: 'ismael' })).toBe('Ismael');
+    expect(resolveLoggedUserDisplayName({ firstName: 'Admin' })).toBe('Admin');
+    expect(resolveLoggedUserDisplayName({ name: 'Maria Souza', username: 'maria' })).toBe('Maria Souza');
+    expect(resolveLoggedUserDisplayName({ username: 'ismael' })).toBe('ismael');
+    expect(resolveLoggedUserDisplayName(null)).toBe('—');
   });
 });
 
-describe('resolveLoggedUserDisplayName', () => {
-  it('usa somente first_name', () => {
-    expect(resolveLoggedUserDisplayName({ first_name: 'Ismael', name: 'Ismael Silva', username: 'ismael' })).toBe('Ismael');
-    expect(resolveLoggedUserDisplayName({ firstName: 'Admin' })).toBe('Admin');
-    expect(resolveLoggedUserDisplayName({ username: 'ismael' })).toBe('—');
-    expect(resolveLoggedUserDisplayName(null)).toBe('—');
+describe('getRoleLabel', () => {
+  it('resolve rótulo da função selecionada', () => {
+    expect(getRoleLabel('operador_faturamento')).toBe('Operador Faturamento');
+    expect(getRoleLabel('owner_system')).toBe('Owner System');
   });
 });
 
