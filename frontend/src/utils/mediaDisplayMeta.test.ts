@@ -1,6 +1,8 @@
 import {
   buildMediaMetaSummary,
+  buildMediaSizeDurationDateLine,
   formatMediaApprovalLine,
+  formatMediaDate,
   formatMediaDuration,
   formatMediaFileSize,
   formatMediaOrientation,
@@ -39,6 +41,30 @@ describe('mediaDisplayMeta', () => {
         durationSeconds: 25,
       })
     ).toBe('VIDEO · 1920×1080 · 4.54 MB · 0:25');
+  });
+
+  it('omite tamanho e duração na 1.ª linha (lista totem mobile)', () => {
+    expect(
+      buildMediaMetaSummary({
+        mediaType: 'video',
+        width: 1920,
+        height: 1080,
+        sizeBytes: 769.6 * 1024,
+        durationSeconds: 6,
+        omitSizeAndDuration: true,
+      })
+    ).toBe('VIDEO · 1920×1080');
+  });
+
+  it('monta 2.ª linha com tamanho, duração e data', () => {
+    expect(
+      buildMediaSizeDurationDateLine({
+        sizeBytes: 769.6 * 1024,
+        durationSeconds: 6,
+        uploadedAt: '2026-07-16T12:00:00.000Z',
+      })
+    ).toMatch(/^769\.6 KB · 0:06 · /);
+    expect(formatMediaDate('2026-07-16T12:00:00.000Z')).toMatch(/\d{2}\/\d{2}\/2026/);
   });
 
   it('formata aprovação', () => {

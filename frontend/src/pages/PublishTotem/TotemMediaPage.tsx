@@ -38,7 +38,7 @@ import { useMediaThumbnailUrls } from '../../hooks/useMediaThumbnailUrls';
 import { useTotemDeliveryVideoPreviewUrls } from '../../hooks/useTotemDeliveryVideoPreviewUrls';
 import { buildMediaThumbnailApiPath } from '../../utils/mediaPreviewUrl';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
-import { buildMediaMetaSummary, formatMediaApprovalLine } from '../../utils/mediaDisplayMeta';
+import { buildMediaMetaSummary, buildMediaSizeDurationDateLine } from '../../utils/mediaDisplayMeta';
 
 const TotemMediaPage: React.FC = () => {
   const { totemId: totemIdParam } = useParams<{ totemId: string }>();
@@ -156,22 +156,31 @@ const TotemMediaPage: React.FC = () => {
           id: item.media_id,
           label: item.name || `Mídia ${item.media_id}`,
           secondary: (() => {
+            const sizeBytes =
+              item.file_size_bytes ?? (lib as any)?.size_bytes ?? (lib as any)?.fileSizeBytes;
+            const durationSeconds = item.duration_seconds ?? lib?.duration_seconds;
+            const uploadedAt =
+              item.created_at ??
+              (lib as any)?.createdAt ??
+              (lib as any)?.created_at ??
+              item.approved_at ??
+              (lib as any)?.approvedAt;
             const metaLine = buildMediaMetaSummary({
               mediaType: item.media_type || lib?.media_type,
-              durationSeconds: item.duration_seconds ?? lib?.duration_seconds,
               width: item.width ?? lib?.width,
               height: item.height ?? lib?.height,
-              sizeBytes: item.file_size_bytes ?? (lib as any)?.size_bytes ?? (lib as any)?.fileSizeBytes,
+              omitSizeAndDuration: true,
               extras: [
                 item.is_active === false ? 'desabilitada neste totem' : null,
                 item.media_is_active === false ? 'desabilitada na biblioteca' : null,
               ],
             });
-            const approvalLine = formatMediaApprovalLine(
-              item.approved_by_name ?? (lib as any)?.approvedByName,
-              item.approved_at ?? (lib as any)?.approvedAt
-            );
-            if (!metaLine && !approvalLine) return undefined;
+            const detailLine = buildMediaSizeDurationDateLine({
+              sizeBytes,
+              durationSeconds,
+              uploadedAt,
+            });
+            if (!metaLine && !detailLine) return undefined;
             return (
               <Box>
                 {metaLine ? (
@@ -179,9 +188,9 @@ const TotemMediaPage: React.FC = () => {
                     {metaLine}
                   </Typography>
                 ) : null}
-                {approvalLine ? (
+                {detailLine ? (
                   <Typography variant="caption" color="text.secondary" component="div" noWrap>
-                    {approvalLine}
+                    {detailLine}
                   </Typography>
                 ) : null}
               </Box>

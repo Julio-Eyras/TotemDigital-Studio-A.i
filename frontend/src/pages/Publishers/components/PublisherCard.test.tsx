@@ -57,4 +57,12 @@ describe('PublisherCard', () => {
     viewButton.click();
     expect(onView).toHaveBeenCalledWith(mockPublisher);
   });
+
+  it('deve exibir quantidade de totens no cartão', () => {
+    renderWithTheme(
+      <PublisherCard publisher={{ ...mockPublisher, totems_count: 3, category_segment: 'Totens' }} />
+    );
+    expect(screen.getByText('3 totens')).toBeInTheDocument();
+    expect(screen.queryByText('Totens')).not.toBeInTheDocument();
+  });
 });

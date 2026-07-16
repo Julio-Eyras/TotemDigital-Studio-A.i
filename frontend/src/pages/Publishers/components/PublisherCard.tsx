@@ -66,6 +66,13 @@ const PublisherCard: React.FC<PublisherCardProps> = ({
   onDelete,
   onView,
 }) => {
+  const totemsCount = Number(publisher.totems_count ?? 0);
+  const localsCount = Number(publisher.locals_count ?? 0);
+  const category = String(publisher.category_segment || '').trim();
+  // Evita confundir o segmento genérico "Totens" com a contagem de dispositivos.
+  const showCategory =
+    category.length > 0 && !/^totens?$/i.test(category);
+
   return (
     <Card
       sx={{
@@ -132,14 +139,24 @@ const PublisherCard: React.FC<PublisherCardProps> = ({
             </Box>
           )}
 
-          {publisher.category_segment && (
+          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 1 }}>
             <Chip
-              label={publisher.category_segment}
+              label={`${totemsCount} ${totemsCount === 1 ? 'totem' : 'totens'}`}
               size="small"
+              color="primary"
               variant="outlined"
-              sx={{ alignSelf: 'flex-start', mt: 1 }}
             />
-          )}
+            {localsCount > 0 && (
+              <Chip
+                label={`${localsCount} ${localsCount === 1 ? 'local' : 'locais'}`}
+                size="small"
+                variant="outlined"
+              />
+            )}
+            {showCategory && (
+              <Chip label={category} size="small" variant="outlined" />
+            )}
+          </Box>
         </Stack>
       </CardContent>
 

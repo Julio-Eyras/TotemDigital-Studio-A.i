@@ -50,6 +50,13 @@ export function formatMediaApprovalLine(
   return `Aprovado por ${name}${datePart}`;
 }
 
+export function formatMediaDate(value?: string | Date | null): string {
+  if (!value) return '';
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('pt-BR');
+}
+
 export interface MediaDisplayMetaInput {
   mediaType?: string | null;
   durationSeconds?: number | null;
@@ -62,6 +69,8 @@ export interface MediaDisplayMetaInput {
   extras?: Array<string | null | undefined>;
   /** Inclui retrato/paisagem (desligado por omissão — alinhado à biblioteca/dialog). */
   includeOrientation?: boolean;
+  /** Omite tamanho e duração (úteis na 2.ª linha no mobile). */
+  omitSizeAndDuration?: boolean;
 }
 
 /**
@@ -86,16 +95,34 @@ export function buildMediaMetaSummary(input: MediaDisplayMetaInput): string {
     if (orientation) parts.push(orientation);
   }
 
-  const size = formatMediaFileSize(input.sizeBytes);
-  if (size) parts.push(size);
+  if (!input.omitSizeAndDuration) {
+    const size = formatMediaFileSize(input.sizeBytes);
+    if (size) parts.push(size);
 
-  const duration = formatMediaDuration(input.durationSeconds);
-  if (duration) parts.push(duration);
+    const duration = formatMediaDuration(input.durationSeconds);
+    if (duration) parts.push(duration);
+  }
 
   for (const extra of input.extras || []) {
     const t = String(extra || '').trim();
     if (t) parts.push(t);
   }
 
+  return parts.join(' · ');
+}
+
+/** 2.ª linha mobile/lista totem: `769.6 KB · 0:06 · 16/07/2026` */
+export function buildMediaSizeDurationDateLine(input: {
+  sizeBytes?: number | null;
+  durationSeconds?: number | null;
+  uploadedAt?: string | Date | null;
+}): string {
+  const parts: string[] = [];
+  const size = formatMediaFileSize(input.sizeBytes);
+  if (size) parts.push(size);
+  const duration = formatMediaDuration(input.durationSeconds);
+  if (duration) parts.push(duration);
+  const date = formatMediaDate(input.uploadedAt);
+  if (date) parts.push(date);
   return parts.join(' · ');
 }

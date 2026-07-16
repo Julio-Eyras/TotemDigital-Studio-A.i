@@ -1984,6 +1984,7 @@ export interface TotemDirectMediaItem {
   media_is_active?: boolean;
   approved_by_name?: string | null;
   approved_at?: string | null;
+  created_at?: string | null;
 }
 
 export const totemDirectMediaApi = {
@@ -3538,6 +3539,9 @@ export interface Publisher {
   /** Status ativo: backend retorna is_active (snake_case), normalizamos para active no getAll */
   active?: boolean;
   is_active?: boolean;
+  /** Contagens agregadas na listagem */
+  locals_count?: number;
+  totems_count?: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -3602,6 +3606,18 @@ export const publisherApi = {
     const normalized = list.map((p: any) => ({
       ...p,
       active: p.active !== undefined ? p.active : (p.is_active !== undefined ? p.is_active : true),
+      locals_count:
+        p.locals_count != null
+          ? Number(p.locals_count)
+          : p.localsCount != null
+            ? Number(p.localsCount)
+            : undefined,
+      totems_count:
+        p.totems_count != null
+          ? Number(p.totems_count)
+          : p.totemsCount != null
+            ? Number(p.totemsCount)
+            : undefined,
     }));
     if (Array.isArray(raw)) {
       return { data: normalized, total: normalized.length } as PublisherListResponse;

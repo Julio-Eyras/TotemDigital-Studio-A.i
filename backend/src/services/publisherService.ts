@@ -140,7 +140,7 @@ export class PublisherService {
       const sortField = validSortFields[sortBy] || 'p.created_at';
       const orderDirection = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
-      // Buscar publishers
+      // Buscar publishers (com contagens para o cartão da lista)
       const publishers = await this.db.findMany(`
         SELECT 
           p.publisher_id,
@@ -156,7 +156,20 @@ export class PublisherService {
           p.client_type,
           p.is_active,
           p.created_at,
-          p.updated_at
+          p.updated_at,
+          (
+            SELECT COUNT(*)::int
+            FROM locals l
+            WHERE l.publisher_id = p.publisher_id
+              AND COALESCE(l.is_active, true) = true
+          ) AS locals_count,
+          (
+            SELECT COUNT(*)::int
+            FROM totems t
+            JOIN locals l ON t.local_id = l.local_id
+            WHERE l.publisher_id = p.publisher_id
+              AND COALESCE(t.is_active, true) = true
+          ) AS totems_count
         FROM publishers p
         ${whereClause}
         ORDER BY ${sortField} ${orderDirection}

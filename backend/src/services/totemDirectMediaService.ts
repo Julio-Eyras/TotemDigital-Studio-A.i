@@ -26,6 +26,7 @@ export interface TotemDirectMediaItem {
   media_is_active?: boolean;
   approved_by_name?: string | null;
   approved_at?: string | null;
+  created_at?: string | null;
 }
 
 export class TotemDirectMediaService {
@@ -132,7 +133,8 @@ export class TotemDirectMediaService {
         COALESCE(tpi.is_active, true) AS is_active,
         COALESCE(m.is_active, true) AS media_is_active,
         u.username AS approved_by_name,
-        m.approved_at
+        m.approved_at,
+        m.created_at
       FROM totem_playlist_items tpi
       JOIN medias m ON m.media_id = tpi.media_id
       LEFT JOIN users u ON m.approved_by = u.id
@@ -158,6 +160,7 @@ export class TotemDirectMediaService {
       media_is_active: r.media_is_active !== false,
       approved_by_name: r.approved_by_name ? String(r.approved_by_name) : null,
       approved_at: r.approved_at ? String(r.approved_at) : null,
+      created_at: r.created_at ? String(r.created_at) : null,
     }));
   }
 
