@@ -5831,7 +5831,7 @@ WITH role_owner AS (
   )
   VALUES (
     '${safe_username}', '${safe_email}', '${owner_hash}',
-    'Owner', 'System', '${safe_name}', NULL,
+    '${safe_username}', 'System', '${safe_name}', NULL,
     'owner_system', 'system_user', true,
     NULL, NULL,
     true, true,

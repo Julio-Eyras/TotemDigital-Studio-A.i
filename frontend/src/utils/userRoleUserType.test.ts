@@ -98,11 +98,17 @@ describe('sanitizeUpdateUserPayload', () => {
 });
 
 describe('resolveLoggedUserDisplayName', () => {
-  it('prioriza first_name, depois name e username', () => {
-    expect(resolveLoggedUserDisplayName({ first_name: 'Ismael', name: 'Ismael Silva', username: 'ismael' })).toBe('Ismael');
+  it('prioriza username (login), depois first_name e name', () => {
+    expect(
+      resolveLoggedUserDisplayName({
+        username: 'ismael',
+        first_name: 'Ismael',
+        name: 'Ismael Silva',
+      })
+    ).toBe('ismael');
     expect(resolveLoggedUserDisplayName({ firstName: 'Admin' })).toBe('Admin');
-    expect(resolveLoggedUserDisplayName({ name: 'Maria Souza', username: 'maria' })).toBe('Maria Souza');
-    expect(resolveLoggedUserDisplayName({ username: 'ismael' })).toBe('ismael');
+    expect(resolveLoggedUserDisplayName({ name: 'Maria Souza' })).toBe('Maria Souza');
+    expect(resolveLoggedUserDisplayName({ username: 'Owner' })).toBe('Owner');
     expect(resolveLoggedUserDisplayName(null)).toBe('—');
   });
 });

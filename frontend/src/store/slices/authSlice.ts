@@ -250,11 +250,12 @@ const authSlice = createSlice({
         );
         
         const displayNames = pickDisplayNameFields(apiUser as any);
+        const loginUsername = String(action.meta.arg?.username ?? '').trim() || undefined;
         state.user = {
           id: userId,
           name: displayNames.name,
           first_name: displayNames.first_name,
-          username: displayNames.username,
+          username: displayNames.username || loginUsername,
           email: (apiUser as any).email || '',
           role: mappedRole,
           isActive: (apiUser as any).is_active !== undefined ? (apiUser as any).is_active : (apiUser as any).isActive !== undefined ? (apiUser as any).isActive : true,
