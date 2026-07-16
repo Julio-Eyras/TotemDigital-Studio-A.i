@@ -22,6 +22,7 @@ import { isTotemSimpleModeEnabled } from './totemSimpleModeService';
 import { buildDispatchMediaItem } from '../utils/dispatchMediaItem';
 import { sumDispatchMediaItemsPlanDuration } from '../utils/dispatchItemDuration';
 import { enrichDispatchPlanWithGlobalVinhetas } from './dispatchVinhetaEnrichment';
+import { getMediaService } from './mediaService';
 import {
   DEFAULT_FALLBACK_PROPAGANDAS_PER_VINHETA,
   DispatchConsolidatedRow,
@@ -845,11 +846,19 @@ export class DispatcherTotemService {
         WHERE media_id = ANY($1::int[]) AND is_active = true
       `, [mediaIds]);
       const mediaMap = new Map(medias.map((m: any) => [m.media_id, m]));
+      const mediaService = getMediaService();
 
       const now = timestamp || new Date();
       const validityEnd = new Date(now.getTime() + 24 * 60 * 60 * 1000);
       const mediaItems: DispatchMediaItem[] = items
-        .filter((item: any) => mediaMap.has(item.media_id))
+        .filter((item: any) => {
+          const m = mediaMap.get(item.media_id);
+          if (!m) return false;
+          // Adequação ainda a correr: não enviar ficheiro original virado ao player.
+          if (mediaService.isTotemDeliveryPending(m.tags)) return false;
+          if (mediaService.hasPendingDeliveryNormalization(Number(item.media_id))) return false;
+          return true;
+        })
         .map((item: any, index: number) => {
           const m = mediaMap.get(item.media_id);
           const built = buildDispatchMediaItem({

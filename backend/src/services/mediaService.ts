@@ -46,6 +46,8 @@ const TOTEM_DELIVERY_HEIGHT = 1080;
 const TOTEM_THUMB_WIDTH = 540;
 const TOTEM_THUMB_HEIGHT = 960;
 const DELIVERY_ROTATION_TAG_PREFIX = '_delivery_rotation:';
+/** Vídeo ainda em re-encode de entrega — não enviar ao player / não tratar como 16:9 final. */
+const TOTEM_DELIVERY_PENDING_TAG = '_totem_delivery_pending';
 
 export interface CreateMediaRequest {
   name: string;
@@ -823,7 +825,9 @@ export class MediaService {
         }
       }
 
-      // Vídeo: thumbnail rápido (1 frame ffmpeg) — leve; normalização 9:16 completa fica em background.
+      // Vídeo: thumbnail rápido em pé a partir do original; adequação 16:9 fica em background.
+      // Não marcar como entrega final (1920×1080 / _delivery_rotation) antes do re-encode —
+      // isso evitava thumbs/CSS e o player a mostrarem o ficheiro virado.
       let processedTags: string[] | null = null;
       if (tags && tags.length > 0) {
         processedTags = Array.isArray(tags) ? tags : [tags];
@@ -841,17 +845,8 @@ export class MediaService {
             error: thumbErr?.message,
           });
         }
-        try {
-          const info = await this.probeVideoStreamInfo(filePath);
-          const delivery = this.resolveDeliveryRotationFromStream(
-            info.width,
-            info.height,
-            info.rotation,
-            0
-          );
-          processedTags = this.mergeDeliveryRotationTag(processedTags, delivery);
-        } catch {
-          /* tag opcional no insert */
+        if (directMode) {
+          processedTags = this.withTotemDeliveryPendingTag(processedTags);
         }
       }
 
@@ -867,8 +862,8 @@ export class MediaService {
         if (fs.existsSync(thumbPath)) {
           metadata.previewUrl = generateThumbnailUrl(thumbPath, 'video');
         }
-        metadata.width = TOTEM_DELIVERY_WIDTH;
-        metadata.height = TOTEM_DELIVERY_HEIGHT;
+        // Mantém width/height reais do ficheiro até completeVideoPortraitNormalization.
+        // (Antes forçava 1920×1080 cedo → UI/player tratavam original como entrega final.)
       }
       let storedSize = file.size;
       try {
@@ -1357,9 +1352,25 @@ export class MediaService {
     deliveryRotation: number
   ): string[] {
     const filtered = (existingTags || []).filter(
-      (t) => !String(t).startsWith(DELIVERY_ROTATION_TAG_PREFIX)
+      (t) =>
+        !String(t).startsWith(DELIVERY_ROTATION_TAG_PREFIX) &&
+        String(t) !== TOTEM_DELIVERY_PENDING_TAG
     );
     return [...filtered, `${DELIVERY_ROTATION_TAG_PREFIX}${this.normalizeRotation(deliveryRotation)}`];
+  }
+
+  private withTotemDeliveryPendingTag(existingTags: string[] | null | undefined): string[] {
+    const filtered = (existingTags || []).filter((t) => String(t) !== TOTEM_DELIVERY_PENDING_TAG);
+    return [...filtered, TOTEM_DELIVERY_PENDING_TAG];
+  }
+
+  private withoutTotemDeliveryPendingTag(existingTags: string[] | null | undefined): string[] {
+    return (existingTags || []).filter((t) => String(t) !== TOTEM_DELIVERY_PENDING_TAG);
+  }
+
+  /** True se a mídia ainda não está pronta para o player (adequação de entrega em curso). */
+  isTotemDeliveryPending(tags?: string[] | null): boolean {
+    return (tags || []).some((t) => String(t) === TOTEM_DELIVERY_PENDING_TAG);
   }
 
   private enrichDeliveryPreviewFields(
@@ -1583,6 +1594,16 @@ export class MediaService {
     return this.pendingDeliveryNormalization.has(mediaId);
   }
 
+  /**
+   * False se a adequação de entrega ainda não terminou (memória ou tag persistida).
+   * Usado para não notificar o player com o ficheiro original virado.
+   */
+  async isTotemDeliveryReadyForPlayer(mediaId: number): Promise<boolean> {
+    if (this.hasPendingDeliveryNormalization(mediaId)) return false;
+    const row = await this.db.findFirst(`SELECT tags FROM medias WHERE media_id = $1`, [mediaId]);
+    return !this.isTotemDeliveryPending(row?.tags);
+  }
+
   private async completeVideoPortraitNormalizationAfterUpload(
     mediaId: number,
     filePath: string,
@@ -1597,7 +1618,10 @@ export class MediaService {
       await this.generatePortraitThumbnailFromDeliveryVideo(newPath, normalized.deliveryRotation);
       const previewUrl = generateThumbnailUrl(thumbPath, 'video');
       const current = await this.getMediaById(mediaId);
-      const nextTags = this.mergeDeliveryRotationTag(current?.tags, normalized.deliveryRotation);
+      const nextTags = this.mergeDeliveryRotationTag(
+        this.withoutTotemDeliveryPendingTag(current?.tags),
+        normalized.deliveryRotation
+      );
 
       await this.db.executeRaw(
         `
@@ -1643,6 +1667,16 @@ export class MediaService {
         filePath,
         error: error?.message,
       });
+      try {
+        const current = await this.getMediaById(mediaId);
+        const cleared = this.withoutTotemDeliveryPendingTag(current?.tags);
+        await this.db.executeRaw(
+          `UPDATE medias SET tags = $1, updated_at = CURRENT_TIMESTAMP WHERE media_id = $2`,
+          [cleared, mediaId]
+        );
+      } catch {
+        /* ignore */
+      }
       // Mesmo com falha: se já estiver na playlist do totem, o player precisa do 1º plano.
       await getMediaTotemSyncService()
         .notifyAffectedTotems(mediaId, {

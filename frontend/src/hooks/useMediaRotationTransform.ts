@@ -28,11 +28,20 @@ export function mediaPreviewDims(
 /** Desfaz rotação de entrega na UI — inverso do valor gravado no ficheiro/tag. */
 export const TOTEM_DELIVERY_UI_PREVIEW_ROTATION_LEGACY = 270;
 const DELIVERY_ROTATION_TAG_PREFIX = '_delivery_rotation:';
+const TOTEM_DELIVERY_PENDING_TAG = '_totem_delivery_pending';
 
 /** Tags visíveis na UI (oculta metadados técnicos de entrega). */
 export function filterUserVisibleMediaTags(tags?: string[] | null): string[] {
   if (!tags?.length) return [];
-  return tags.filter((tag) => !String(tag).startsWith(DELIVERY_ROTATION_TAG_PREFIX));
+  return tags.filter(
+    (tag) =>
+      !String(tag).startsWith(DELIVERY_ROTATION_TAG_PREFIX) &&
+      String(tag) !== TOTEM_DELIVERY_PENDING_TAG
+  );
+}
+
+export function isTotemDeliveryPending(tags?: string[] | null): boolean {
+  return (tags || []).some((tag) => String(tag) === TOTEM_DELIVERY_PENDING_TAG);
 }
 
 export function parseDeliveryRotationFromTags(tags?: string[] | null): number | null {
@@ -219,11 +228,16 @@ function buildRotatedPortraitPreviewSx(deg: number) {
 export const TOTEM_DELIVERY_WIDTH = 1920;
 export const TOTEM_DELIVERY_HEIGHT = 1080;
 
-export function isTotemDeliveryMedia(media?: { width?: number; height?: number }): boolean {
+export function isTotemDeliveryMedia(media?: {
+  width?: number;
+  height?: number;
+  tags?: string[] | null;
+}): boolean {
+  if (isTotemDeliveryPending(media?.tags)) return false;
   const w = Number(media?.width ?? 0);
   const h = Number(media?.height ?? 0);
   if (w === TOTEM_DELIVERY_WIDTH && h === TOTEM_DELIVERY_HEIGHT) return true;
-  return w > h && w > 0 && h > 0;
+  return w > h && w > 0 && h > 0 && parseDeliveryRotationFromTags(media?.tags) != null;
 }
 
 /** Preview na UI: ficheiro 16:9 de entrega precisa rotação CSS; thumbnail já vem em pé. */

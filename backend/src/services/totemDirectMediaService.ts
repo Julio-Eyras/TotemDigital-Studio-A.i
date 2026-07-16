@@ -558,7 +558,7 @@ export class TotemDirectMediaService {
       if (mediaId) {
         // Não bloqueia o HTTP: se o tratamento de entrega ainda corre, o player
         // só é notificado quando completeVideoPortraitNormalization terminar (reason=process).
-        if (getMediaService().hasPendingDeliveryNormalization(mediaId)) {
+        if (!(await getMediaService().isTotemDeliveryReadyForPlayer(mediaId))) {
           await logInfo(
             '[DirectTotem] Notify adiado até fim do tratamento de entrega (playlist-ad atualiza quando pronto)',
             { totemId, mediaId }

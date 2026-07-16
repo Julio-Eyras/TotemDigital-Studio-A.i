@@ -29,7 +29,9 @@ describe('parseDeliveryRotationFromTags', () => {
 
 describe('filterUserVisibleMediaTags', () => {
   it('oculta metadados técnicos de entrega', () => {
-    expect(filterUserVisibleMediaTags(['promo', '_delivery_rotation:90'])).toEqual(['promo']);
+    expect(
+      filterUserVisibleMediaTags(['promo', '_delivery_rotation:90', '_totem_delivery_pending'])
+    ).toEqual(['promo']);
   });
 });
 
@@ -48,10 +50,20 @@ describe('getMediaUiPreviewUndoRotation', () => {
 });
 
 describe('isTotemDeliveryMedia', () => {
-  it('identifica ficheiro 1920×1080 e landscape genérico', () => {
+  it('identifica entrega 1920×1080; landscape genérico só com tag de rotação', () => {
     expect(isTotemDeliveryMedia({ width: 1920, height: 1080 })).toBe(true);
-    expect(isTotemDeliveryMedia({ width: 1280, height: 720 })).toBe(true);
+    expect(isTotemDeliveryMedia({ width: 1280, height: 720 })).toBe(false);
+    expect(
+      isTotemDeliveryMedia({ width: 1280, height: 720, tags: ['_delivery_rotation:90'] })
+    ).toBe(true);
     expect(isTotemDeliveryMedia({ width: 1080, height: 1920 })).toBe(false);
+    expect(
+      isTotemDeliveryMedia({
+        width: 1920,
+        height: 1080,
+        tags: ['_totem_delivery_pending'],
+      })
+    ).toBe(false);
   });
 });
 
