@@ -754,11 +754,13 @@ export class MediaService {
           throw new Error('Organização não encontrada ou inativa');
         }
         const existingMedia = await this.db.findFirst(
-          `SELECT media_id FROM medias WHERE name = $1 AND publisher_id = $2 AND is_active = true`,
+          `SELECT media_id, name FROM medias WHERE name = $1 AND publisher_id = $2 AND is_active = true`,
           [name, resolvedPublisherId]
         );
         if (existingMedia) {
-          throw new Error('Nome de mídia já existe na biblioteca desta organização');
+          throw new Error(
+            `Nome de mídia «${name}» já existe na biblioteca desta organização`
+          );
         }
       } else {
         if (!resolvedSubscriberId || resolvedSubscriberId <= 0) {
@@ -778,11 +780,11 @@ export class MediaService {
           throw new Error('Subscriber não está ativo');
         }
         const existingMedia = await this.db.findFirst(
-          `SELECT media_id FROM medias WHERE name = $1 AND subscriber_id = $2`,
+          `SELECT media_id, name FROM medias WHERE name = $1 AND subscriber_id = $2`,
           [name, resolvedSubscriberId]
         );
         if (existingMedia) {
-          throw new Error('Nome de mídia já existe para este subscriber');
+          throw new Error(`Nome de mídia «${name}» já existe para este subscriber`);
         }
       }
 

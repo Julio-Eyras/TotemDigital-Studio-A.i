@@ -144,11 +144,13 @@ const PublishTotem: React.FC = () => {
   const handleAddMediaToTotem = async (mediaId: number) => {
     if (!mediaTargetTotemId) return;
     try {
+      setError(null);
       await totemDirectMediaApi.add(mediaTargetTotemId, mediaId);
       setPickOpen(false);
       setSuccess('Mídia adicionada ao totem');
       await loadTotems();
     } catch (e: any) {
+      setSuccess(null);
       setError(pickApiErrorMessage(e, 'Erro ao adicionar mídia ao totem'));
     }
   };
@@ -493,6 +495,7 @@ const PublishTotem: React.FC = () => {
 
           if (mediaIds.length > 0) {
             try {
+              setError(null);
               for (const mediaId of mediaIds) {
                 await totemDirectMediaApi.add(mediaTargetTotemId, mediaId);
               }
@@ -503,6 +506,7 @@ const PublishTotem: React.FC = () => {
               );
               await loadTotems();
             } catch (e: any) {
+              setSuccess(null);
               setError(pickApiErrorMessage(e, 'Upload concluído, mas falhou ao adicionar ao totem'));
               await loadLibraryForTotem(mediaTargetTotemId);
               setPickOpen(true);

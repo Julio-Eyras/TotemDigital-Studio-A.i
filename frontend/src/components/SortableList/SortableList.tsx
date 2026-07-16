@@ -4,6 +4,7 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragEndEvent,
@@ -19,7 +20,6 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   List,
   ListItem,
-  ListItemButton,
   ListItemText,
   IconButton,
   Box,
@@ -117,15 +117,33 @@ function SortableItem({
         )
       }
     >
-      <ListItemButton sx={{ alignItems: 'center', py: 1, overflow: 'hidden', minWidth: 0, pr: 10 }}>
-        <IconButton
-          {...attributes}
-          {...listeners}
-          sx={{ cursor: isDragging ? 'grabbing' : 'grab', mr: 1, color: 'text.secondary', flexShrink: 0 }}
-          size="small"
-        >
-          <DragIndicator />
-        </IconButton>
+      <IconButton
+        {...attributes}
+        {...listeners}
+        aria-label="Arrastar para reordenar"
+        sx={{
+          cursor: isDragging ? 'grabbing' : 'grab',
+          mr: 1,
+          color: 'text.secondary',
+          flexShrink: 0,
+          alignSelf: 'center',
+          touchAction: 'none',
+        }}
+        size="small"
+      >
+        <DragIndicator />
+      </IconButton>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          flex: 1,
+          minWidth: 0,
+          py: 1,
+          pr: onDelete || onToggleActive ? 10 : 1,
+          overflow: 'hidden',
+        }}
+      >
         {preview ? (
           <MediaPortraitThumb
             src={preview.thumbSrc}
@@ -138,7 +156,7 @@ function SortableItem({
         <ListItemText
           primary={label}
           secondary={secondary}
-          sx={{ minWidth: 0, overflow: 'hidden' }}
+          sx={{ minWidth: 0, overflow: 'hidden', ml: 1 }}
           primaryTypographyProps={{ noWrap: true }}
           secondaryTypographyProps={
             typeof secondary === 'string'
@@ -146,7 +164,7 @@ function SortableItem({
               : { component: 'div', sx: { mt: 0.25 } }
           }
         />
-      </ListItemButton>
+      </Box>
     </ListItem>
   );
 }
@@ -177,7 +195,12 @@ export function SortableList({
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, // Requer movimento de 8px antes de iniciar drag
+        distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        distance: 8,
       },
     }),
     useSensor(KeyboardSensor, {

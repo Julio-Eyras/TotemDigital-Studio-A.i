@@ -226,6 +226,12 @@ export class TotemDirectMediaService {
     }
 
     const playlistId = await this.ensureDirectPlaylist(totemId);
+    const mediaNameRow = await this.db.findFirst(
+      `SELECT name FROM medias WHERE media_id = $1`,
+      [mediaId]
+    );
+    const mediaLabel = String(mediaNameRow?.name || `mídia #${mediaId}`).trim();
+
     const duplicate = await this.db.findFirst(
       `
       SELECT item_id, COALESCE(is_active, true) AS is_active
@@ -237,7 +243,13 @@ export class TotemDirectMediaService {
       [playlistId, mediaId]
     );
     if (duplicate?.item_id && duplicate.is_active !== false) {
-      throw new Error('Mídia já está na playlist deste totem');
+      // Idempotente: já na playlist ativa — devolve lista sem erro (evita falso negativo em lote).
+      await logInfo('[DirectTotem] Mídia já na playlist — add ignorado', {
+        totemId,
+        mediaId,
+        mediaName: mediaLabel,
+      });
+      return this.listTotemMedias(totemId);
     }
     if (duplicate?.item_id && duplicate.is_active === false) {
       await this.db.executeRaw(

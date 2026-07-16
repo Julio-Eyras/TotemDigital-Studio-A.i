@@ -232,38 +232,88 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
       setError(null);
       setUploadProgress(0);
 
-      const uploadPromises = files.map(async (file, index) => {
+      const mediaStem = (fileName: string) => {
+        const base = fileName.replace(/\.[^/.]+$/, '').trim();
+        return base || fileName;
+      };
+
+      /** Garante nomes únicos no lote (evita colisão se "Nome da Mídia" for partilhado). */
+      const usedNames = new Set<string>();
+      const uniqueNameFor = (preferred: string, file: File, index: number): string => {
+        let base = preferred.trim() || mediaStem(file.name);
+        if (!base) base = `midia-${index + 1}`;
+        let candidate = base;
+        let n = 2;
+        while (usedNames.has(candidate.toLowerCase())) {
+          candidate = `${base} (${n})`;
+          n += 1;
+        }
+        usedNames.add(candidate.toLowerCase());
+        return candidate;
+      };
+
+      const sharedName = formData.name.trim();
+      const uploaded: MediaItem[] = [];
+      const failures: string[] = [];
+
+      // Sequencial: evita race no check de nome único e permite listar falhas por ficheiro.
+      for (let index = 0; index < files.length; index++) {
+        const file = files[index];
+        const baseName =
+          files.length === 1
+            ? sharedName || mediaStem(file.name)
+            : sharedName || mediaStem(file.name);
+        const mediaName = uniqueNameFor(baseName, file, index);
+
         const mediaData: CreateMediaRequest = {
-          name: formData.name || file.name.split('.')[0],
+          name: mediaName,
           description: formData.description,
           tags: Array.from(
             new Set([
               ...defaultTags.map((t) => t.trim()).filter(Boolean),
-              ...(formData.tags ? formData.tags.split(',').map(tag => tag.trim()).filter(Boolean) : []),
+              ...(formData.tags ? formData.tags.split(',').map((tag) => tag.trim()).filter(Boolean) : []),
             ])
           ),
           ...(formData.subscriberId != null ? { subscriberId: formData.subscriberId } : {}),
         } as CreateMediaRequest;
 
-        const result = await mediaApi.upload(file, mediaData);
-        
-        // Atualizar progresso
+        try {
+          const result = await mediaApi.upload(file, mediaData);
+          uploaded.push(result);
+        } catch (fileErr: any) {
+          const detail = pickApiErrorMessage(fileErr, 'falha no upload');
+          failures.push(`«${mediaName}» (${file.name}): ${detail}`);
+        }
         setUploadProgress(((index + 1) / files.length) * 100);
-        
-        return result;
-      });
+      }
 
-      const results = await Promise.all(uploadPromises);
-      
+      if (uploaded.length === 0) {
+        setUploadStatus('error');
+        setError(
+          failures.length > 0
+            ? `Nenhuma mídia enviada.\n${failures.join('\n')}`
+            : 'Erro ao fazer upload dos arquivos'
+        );
+        return;
+      }
+
+      if (failures.length > 0) {
+        setUploadStatus('error');
+        setError(
+          `${uploaded.length} enviada(s) com sucesso; ${failures.length} falhou(aram):\n${failures.join('\n')}`
+        );
+        // Mesmo com falhas parciais, devolve as que entraram (ex.: add ao totem).
+        onSuccess(uploaded);
+        return;
+      }
+
       setUploadStatus('success');
       setUploadProgress(100);
-      
-      // Limpar formulário após sucesso
+
       setTimeout(() => {
         handleClose();
-        onSuccess(results);
+        onSuccess(uploaded);
       }, 2000);
-
     } catch (error: any) {
       setError(pickApiErrorMessage(error, 'Erro ao fazer upload dos arquivos'));
       setUploadStatus('error');
@@ -508,7 +558,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
 
           {/* Mensagens de erro */}
           {error && (
-            <Alert severity="error" sx={{ mb: 3 }}>
+            <Alert severity="error" sx={{ mb: 3, whiteSpace: 'pre-line' }}>
               {error}
             </Alert>
           )}
