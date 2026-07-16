@@ -300,9 +300,11 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
 }
 
 function getDirectTotemMenu(): HierarchicalMenuItem[] {
+  const t = getProductTerminology();
   return [
     { text: 'Publicar em Totem', icon: <Tv />, path: '/publish-totem' },
     { text: 'Biblioteca Mídias', icon: <VideoLibrary />, path: '/media' },
+    { text: t.yourOrganization, icon: <Business />, path: '/publishers' },
     { text: 'Configurações', icon: <Settings />, path: '/settings' },
   ];
 }

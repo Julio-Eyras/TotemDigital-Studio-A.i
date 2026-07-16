@@ -12,6 +12,7 @@ const loc = (pathname: string, search = '') => ({ pathname, search });
 const directTotemMenu = [
   { text: 'Publicar em Totem', path: '/publish-totem' },
   { text: 'Biblioteca Mídias', path: '/media' },
+  { text: 'Sua organização', path: '/publishers' },
   { text: 'Configurações', path: '/settings' },
 ];
 
@@ -35,6 +36,7 @@ describe('resolveMenuTitleForPath', () => {
     expect(resolveMenuTitleForPath(directTotemMenu, '/publish-totem/2')).toBe('Publicar em Totem');
     expect(resolveMenuTitleForPath(directTotemMenu, '/publish-totem/99/edit')).toBe('Publicar em Totem');
     expect(resolveMenuTitleForPath(directTotemMenu, '/media')).toBe('Biblioteca Mídias');
+    expect(resolveMenuTitleForPath(directTotemMenu, '/publishers')).toBe('Sua organização');
     expect(resolveMenuTitleForPath(directTotemMenu, '/settings/general')).toBe('Configurações');
   });
 

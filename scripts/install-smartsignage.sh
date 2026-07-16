@@ -366,7 +366,12 @@ ask_owner_profile() {
 
     echo
     echo -e "${CYAN}Dados do proprietário do sistema (owner) — primeira etapa${NC}"
-    echo -e "${YELLOW}Esses dados serão usados para gerar seed dinâmico (publisher/plano/admin) no modo compacto.${NC}"
+    if [[ "${INSTALL_TOTEMDIGITAL_COMPACT}" == "true" ]]; then
+        echo -e "${YELLOW}Esses dados definem a organização única (publisher owner), mesmo com --no-seeds.${NC}"
+        echo -e "${YELLOW}Depois da instalação, edite em: menu «Sua organização».${NC}"
+    else
+        echo -e "${YELLOW}Esses dados serão usados para gerar seed dinâmico (publisher/plano/admin).${NC}"
+    fi
 
     local input=""
     read -p "Usuário Dono, Admin, publisher [${SYSTEM_OWNER_ADMIN_USERNAME}]: " input
@@ -1935,7 +1940,7 @@ parse_arguments() {
                 echo "  --frontend-only      Apenas frontend: parar Nginx, npm install + build React, reiniciar Nginx (sem banco/backend)"
                 echo "  --backfront-build    Build backend + frontend (deps + TypeScript + React), depois iniciar backend e Nginx (sem banco)"
                 echo "  --load-seeds         Carrega dados de demonstração automaticamente (sem prompt). Usa database/carga-inicial-v6.sql"
-                echo "  --no-seeds           Não carrega dados de demonstração"
+                echo "  --no-seeds           Não carrega dados de demonstração (organização owner ainda é criada no modo compacto/direct-totem)"
                 echo "  --compact-merge-locals Opcional: colapsa vários locais num único (SQL: database/compact-merge-locals-to-single.sql). O compacto admite vários locais; use só se quiser essa limpeza. Backup; se houver >1 publisher ativo, edite target_publisher_id no SQL."
                 echo "  --starttotem         Após instalar, abre 2 players web (/player) com UINs de totens demo para laboratório"
                 echo "  --skip-players       Com --skip-menu: não copia players (webOS, Android, Tizen, etc.); só servidor + build"
@@ -5886,13 +5891,123 @@ SQL
     return 0
 }
 
+# Organização (publisher) mínima para modo compacto / direct-totem — mesmo com --no-seeds.
+# Sem isto resolveSinglePublisherId / is_system_owner falham e o painel não funciona.
+ensure_minimal_owner_organization() {
+    if [[ "${INSTALL_TOTEMDIGITAL_COMPACT}" != "true" ]]; then
+        return 0
+    fi
+
+    sanitize_owner_profile_defaults
+    log "Garantindo organização owner (publisher) no modo compacto..."
+
+    local target_db="${PRIMARY_DB_NAME:-smartsignage}"
+    local owner_name_escaped owner_email_escaped owner_contact_escaped owner_description_escaped
+    owner_name_escaped="$(escape_sql_literal "${SYSTEM_OWNER_NAME}")"
+    owner_email_escaped="$(escape_sql_literal "${SYSTEM_OWNER_EMAIL}")"
+    owner_contact_escaped="$(escape_sql_literal "${SYSTEM_OWNER_CONTACT_NAME:-Contato ${SYSTEM_OWNER_NAME}}")"
+    owner_description_escaped="$(escape_sql_literal "Organização owner ${SYSTEM_OWNER_NAME} (modo compacto/direct-totem)")"
+
+    local psql_cmd=""
+    if [[ -n "${DATABASE_URL:-}" && "${DATABASE_URL}" == postgresql://* ]]; then
+        psql_cmd="psql \"${DATABASE_URL}\""
+    elif command -v sudo >/dev/null 2>&1; then
+        psql_cmd="sudo -u postgres psql -d \"${target_db}\""
+    else
+        psql_cmd="psql -d \"${target_db}\""
+    fi
+
+    local tmp_sql
+    tmp_sql="$(mktemp)"
+    cat >"$tmp_sql" <<SQL
+DO \$\$
+DECLARE
+  v_publisher_id INTEGER;
+BEGIN
+  SELECT publisher_id INTO v_publisher_id
+  FROM publishers
+  WHERE is_active = true
+    AND (
+      is_system_owner = true
+      OR LOWER(name) = LOWER('${owner_name_escaped}')
+      OR LOWER(COALESCE(email, '')) = LOWER('${owner_email_escaped}')
+    )
+  ORDER BY
+    CASE WHEN is_system_owner = true THEN 0 ELSE 1 END,
+    publisher_id ASC
+  LIMIT 1;
+
+  IF v_publisher_id IS NULL THEN
+    INSERT INTO publishers (
+      name, contact_name, email, phone, whatsapp,
+      category_segment, description, is_subscriber, is_publisher, client_type, is_active, is_system_owner
+    ) VALUES (
+      '${owner_name_escaped}',
+      '${owner_contact_escaped}',
+      '${owner_email_escaped}',
+      NULL, NULL,
+      'Totens',
+      '${owner_description_escaped}',
+      false, true, 'publisher', true, true
+    )
+    RETURNING publisher_id INTO v_publisher_id;
+  ELSE
+    UPDATE publishers SET
+      name = '${owner_name_escaped}',
+      contact_name = '${owner_contact_escaped}',
+      email = '${owner_email_escaped}',
+      description = COALESCE(NULLIF(TRIM(description), ''), '${owner_description_escaped}'),
+      is_publisher = true,
+      client_type = 'publisher',
+      is_active = true,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE publisher_id = v_publisher_id;
+  END IF;
+
+  UPDATE publishers SET is_system_owner = false, updated_at = CURRENT_TIMESTAMP
+  WHERE is_system_owner = true AND publisher_id IS DISTINCT FROM v_publisher_id;
+
+  UPDATE publishers SET is_system_owner = true, updated_at = CURRENT_TIMESTAMP
+  WHERE publisher_id = v_publisher_id;
+
+  INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description)
+  VALUES ('installation.profile', 'single_publisher', 'string', 'system', 'Perfil de instalação (mono/direct totem)')
+  ON CONFLICT (setting_key) DO UPDATE SET
+    setting_value = EXCLUDED.setting_value,
+    updated_at = CURRENT_TIMESTAMP;
+END
+\$\$;
+SQL
+
+    if ! eval "$psql_cmd -v ON_ERROR_STOP=1 -f \"$tmp_sql\"" >/dev/null 2>&1; then
+        rm -f "$tmp_sql"
+        error "❌ Falha ao garantir organização owner (publisher)"
+        return 1
+    fi
+    rm -f "$tmp_sql"
+
+    local pub_id
+    pub_id=$(eval "$psql_cmd -tAc \"SELECT publisher_id FROM publishers WHERE is_system_owner = true AND is_active = true ORDER BY publisher_id ASC LIMIT 1\"" | tr -d ' \r\n')
+    if [[ -z "$pub_id" ]]; then
+        error "❌ Organização owner não encontrada após ensure_minimal_owner_organization"
+        return 1
+    fi
+
+    log "✅ Organização owner garantida (publisher_id=${pub_id}, nome=${SYSTEM_OWNER_NAME})"
+    return 0
+}
+
 # Garantir usuário publisher_user vinculado ao publisher owner no modo compacto
 ensure_owner_publisher_user() {
     if [[ "${INSTALL_TOTEMDIGITAL_COMPACT}" != "true" ]]; then
         return 0
     fi
+    # Sempre provisiona a organização; no direct-totem não cria user publisher_user demo.
+    if ! ensure_minimal_owner_organization; then
+        return 1
+    fi
     if [[ "${INSTALL_DIRECT_TOTEM_MODE:-true}" == "true" ]]; then
-        log "Modo direct totem: usuário publisher_user demo omitido (apenas admin + owner_system)."
+        log "Modo direct totem: usuário publisher_user demo omitido (apenas admin + owner_system + organização)."
         return 0
     fi
 
@@ -11094,7 +11209,8 @@ load_database_seeds() {
     local TARGET_DB="${PRIMARY_DB_NAME:-smartsignage}"
 
     if [[ "$LOAD_SEEDS" != "true" ]]; then
-        log "Seeds de demonstração foram ignorados (opção selecionada)."
+        log "Seeds de demonstração foram ignorados (opção --no-seeds)."
+        log "Nota: no modo compacto/direct-totem a organização owner ainda será criada por ensure_minimal_owner_organization."
         return 0
     fi
 
