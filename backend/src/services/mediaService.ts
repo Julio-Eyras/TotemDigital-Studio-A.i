@@ -140,6 +140,9 @@ export interface MediaStats {
 }
 
 export class MediaService {
+  /** Re-encode totem em curso (vídeo após upload). Chave = media_id. */
+  private pendingDeliveryNormalization = new Map<number, Promise<void>>();
+
   private get db() {
     return getDatabase();
   }
@@ -1541,7 +1544,8 @@ export class MediaService {
   }
 
   /**
-   * Re-encode de vídeo para 9:16 após o upload responder (ffmpeg é pesado para pedido HTTP síncrono).
+   * Re-encode de vídeo para entrega totem após o upload responder (ffmpeg é pesado no HTTP síncrono).
+   * Regista a Promise de imediato: ao adicionar ao totem o notify do player é adiado até este trabalho terminar.
    */
   private scheduleVideoPortraitNormalizationAfterUpload(
     mediaId: number,
@@ -1549,12 +1553,32 @@ export class MediaService {
     mimeType: string,
     updatedBy: number
   ): void {
-    setImmediate(() => {
-      this.completeVideoPortraitNormalizationAfterUpload(mediaId, filePath, mimeType, updatedBy).catch(
-        (error) =>
-          logError('Normalização 9:16 de vídeo em background falhou', error, { mediaId, filePath })
-      );
+    const existing = this.pendingDeliveryNormalization.get(mediaId);
+    if (existing) {
+      return;
+    }
+
+    const work = new Promise<void>((resolve) => {
+      setImmediate(() => {
+        this.completeVideoPortraitNormalizationAfterUpload(mediaId, filePath, mimeType, updatedBy)
+          .catch((error) =>
+            logError('Normalização 9:16 de vídeo em background falhou', error, { mediaId, filePath })
+          )
+          .finally(() => resolve());
+      });
     });
+
+    this.pendingDeliveryNormalization.set(mediaId, work);
+    void work.finally(() => {
+      if (this.pendingDeliveryNormalization.get(mediaId) === work) {
+        this.pendingDeliveryNormalization.delete(mediaId);
+      }
+    });
+  }
+
+  /** True enquanto o re-encode/rotação de entrega ainda corre (após upload de vídeo). */
+  hasPendingDeliveryNormalization(mediaId: number): boolean {
+    return this.pendingDeliveryNormalization.has(mediaId);
   }
 
   private async completeVideoPortraitNormalizationAfterUpload(
@@ -1617,6 +1641,16 @@ export class MediaService {
         filePath,
         error: error?.message,
       });
+      // Mesmo com falha: se já estiver na playlist do totem, o player precisa do 1º plano.
+      await getMediaTotemSyncService()
+        .notifyAffectedTotems(mediaId, {
+          reason: 'process',
+          updatedBy,
+          filePath,
+        })
+        .catch((e) =>
+          logError('Falha ao notificar totens após falha na normalização de vídeo', e, { mediaId })
+        );
     }
   }
 

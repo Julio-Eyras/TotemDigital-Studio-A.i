@@ -38,7 +38,7 @@ import { useMediaThumbnailUrls } from '../../hooks/useMediaThumbnailUrls';
 import { useTotemDeliveryVideoPreviewUrls } from '../../hooks/useTotemDeliveryVideoPreviewUrls';
 import { buildMediaThumbnailApiPath } from '../../utils/mediaPreviewUrl';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
-import { buildMediaMetaSummary } from '../../utils/mediaDisplayMeta';
+import { buildMediaMetaSummary, formatMediaApprovalLine } from '../../utils/mediaDisplayMeta';
 
 const TotemMediaPage: React.FC = () => {
   const { totemId: totemIdParam } = useParams<{ totemId: string }>();
@@ -155,18 +155,38 @@ const TotemMediaPage: React.FC = () => {
         return {
           id: item.media_id,
           label: item.name || `Mídia ${item.media_id}`,
-          secondary: buildMediaMetaSummary({
-            orderIndex: item.order_index,
-            mediaType: item.media_type || lib?.media_type,
-            durationSeconds: item.duration_seconds ?? lib?.duration_seconds,
-            width: item.width ?? lib?.width,
-            height: item.height ?? lib?.height,
-            sizeBytes: item.file_size_bytes ?? (lib as any)?.size_bytes ?? (lib as any)?.fileSizeBytes,
-            extras: [
-              item.is_active === false ? 'desabilitada neste totem' : null,
-              item.media_is_active === false ? 'desabilitada na biblioteca' : null,
-            ],
-          }),
+          secondary: (() => {
+            const metaLine = buildMediaMetaSummary({
+              mediaType: item.media_type || lib?.media_type,
+              durationSeconds: item.duration_seconds ?? lib?.duration_seconds,
+              width: item.width ?? lib?.width,
+              height: item.height ?? lib?.height,
+              sizeBytes: item.file_size_bytes ?? (lib as any)?.size_bytes ?? (lib as any)?.fileSizeBytes,
+              extras: [
+                item.is_active === false ? 'desabilitada neste totem' : null,
+                item.media_is_active === false ? 'desabilitada na biblioteca' : null,
+              ],
+            });
+            const approvalLine = formatMediaApprovalLine(
+              item.approved_by_name ?? (lib as any)?.approvedByName,
+              item.approved_at ?? (lib as any)?.approvedAt
+            );
+            if (!metaLine && !approvalLine) return undefined;
+            return (
+              <Box>
+                {metaLine ? (
+                  <Typography variant="body2" color="text.secondary" component="div" noWrap>
+                    {metaLine}
+                  </Typography>
+                ) : null}
+                {approvalLine ? (
+                  <Typography variant="caption" color="text.secondary" component="div" noWrap>
+                    {approvalLine}
+                  </Typography>
+                ) : null}
+              </Box>
+            );
+          })(),
           preview: {
             mediaId: item.media_id,
             thumbSrc,
@@ -397,14 +417,13 @@ const TotemMediaPage: React.FC = () => {
 
           if (mediaIds.length > 0) {
             try {
+              // add responde na hora; player só atualiza quando o tratamento de entrega terminar.
               for (const mediaId of mediaIds) {
                 await totemDirectMediaApi.add(totemId, mediaId);
-              }
-              await loadAll();
-              for (const mediaId of mediaIds) {
                 invalidateVideoPreview(mediaId);
                 await invalidateThumbnail(mediaId);
               }
+              await loadAll();
               setSuccess(
                 mediaIds.length === 1
                   ? 'Upload concluído e mídia adicionada ao totem.'

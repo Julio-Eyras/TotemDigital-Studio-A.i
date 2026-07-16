@@ -1982,6 +1982,8 @@ export interface TotemDirectMediaItem {
   file_size_bytes?: number | null;
   is_active?: boolean;
   media_is_active?: boolean;
+  approved_by_name?: string | null;
+  approved_at?: string | null;
 }
 
 export const totemDirectMediaApi = {

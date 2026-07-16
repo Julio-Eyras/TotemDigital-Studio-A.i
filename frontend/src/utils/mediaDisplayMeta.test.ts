@@ -1,5 +1,6 @@
 import {
   buildMediaMetaSummary,
+  formatMediaApprovalLine,
   formatMediaDuration,
   formatMediaFileSize,
   formatMediaOrientation,
@@ -22,14 +23,28 @@ describe('mediaDisplayMeta', () => {
       width: 1080,
       height: 1920,
       sizeBytes: 1.02 * 1024 * 1024,
+      includeOrientation: true,
       extras: ['desabilitada neste totem'],
     });
-    expect(line).toContain('#1');
-    expect(line).toContain('VIDEO');
-    expect(line).toContain('0:05');
-    expect(line).toContain('1080×1920');
-    expect(line).toContain('retrato');
-    expect(line).toContain('1.02 MB');
-    expect(line).toContain('desabilitada neste totem');
+    expect(line).toBe('#1 · VIDEO · 1080×1920 · retrato · 1.02 MB · 0:05 · desabilitada neste totem');
+  });
+
+  it('monta linha no formato da biblioteca (sem orientação)', () => {
+    expect(
+      buildMediaMetaSummary({
+        mediaType: 'video',
+        width: 1920,
+        height: 1080,
+        sizeBytes: 4.54 * 1024 * 1024,
+        durationSeconds: 25,
+      })
+    ).toBe('VIDEO · 1920×1080 · 4.54 MB · 0:25');
+  });
+
+  it('formata aprovação', () => {
+    expect(formatMediaApprovalLine('ismael', '2026-07-15T12:00:00.000Z')).toMatch(
+      /^Aprovado por ismael em /
+    );
+    expect(formatMediaApprovalLine('', null)).toBe('');
   });
 });

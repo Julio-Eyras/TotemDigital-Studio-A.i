@@ -3,6 +3,7 @@ import { getDatabase } from '../config/database';
 import { transaction } from '../config/database-pg';
 import { isDirectTotemMode } from '../config/directTotemMode';
 import { logError, logInfo } from '../utils/loggerHelper';
+import { getMediaService } from './mediaService';
 import { getMediaTotemSyncService } from './mediaTotemSyncService';
 import { getRemoteCommandService } from './remoteCommandService';
 
@@ -23,6 +24,8 @@ export interface TotemDirectMediaItem {
   is_active?: boolean;
   /** Mídia ativa na biblioteca */
   media_is_active?: boolean;
+  approved_by_name?: string | null;
+  approved_at?: string | null;
 }
 
 export class TotemDirectMediaService {
@@ -127,9 +130,12 @@ export class TotemDirectMediaService {
         m.height,
         m.file_size_bytes,
         COALESCE(tpi.is_active, true) AS is_active,
-        COALESCE(m.is_active, true) AS media_is_active
+        COALESCE(m.is_active, true) AS media_is_active,
+        u.username AS approved_by_name,
+        m.approved_at
       FROM totem_playlist_items tpi
       JOIN medias m ON m.media_id = tpi.media_id
+      LEFT JOIN users u ON m.approved_by = u.id
       WHERE tpi.totem_playlist_id = $1
       ORDER BY tpi.order_index ASC, tpi.item_id ASC
     `,
@@ -150,6 +156,8 @@ export class TotemDirectMediaService {
       file_size_bytes: r.file_size_bytes != null ? Number(r.file_size_bytes) : null,
       is_active: r.is_active !== false,
       media_is_active: r.media_is_active !== false,
+      approved_by_name: r.approved_by_name ? String(r.approved_by_name) : null,
+      approved_at: r.approved_at ? String(r.approved_at) : null,
     }));
   }
 
@@ -536,6 +544,15 @@ export class TotemDirectMediaService {
   private async notifyTotemContentChange(totemId: number, mediaId?: number): Promise<void> {
     try {
       if (mediaId) {
+        // Não bloqueia o HTTP: se o tratamento de entrega ainda corre, o player
+        // só é notificado quando completeVideoPortraitNormalization terminar (reason=process).
+        if (getMediaService().hasPendingDeliveryNormalization(mediaId)) {
+          await logInfo(
+            '[DirectTotem] Notify adiado até fim do tratamento de entrega (playlist-ad atualiza quando pronto)',
+            { totemId, mediaId }
+          );
+          return;
+        }
         await getMediaTotemSyncService().notifyAffectedTotems(mediaId, {
           reason: 'metadata',
           totemTargets: [{ totemId, identifier: String(totemId), online: true }],
@@ -561,7 +578,6 @@ export class TotemDirectMediaService {
     }
   }
 }
-
 let instance: TotemDirectMediaService | null = null;
 
 export function getTotemDirectMediaService(): TotemDirectMediaService {

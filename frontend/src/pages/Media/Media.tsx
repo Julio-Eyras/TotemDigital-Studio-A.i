@@ -1126,9 +1126,9 @@ const Media: React.FC = () => {
                 )}
 
                 {/* Informações de aprovação */}
-                {!isDirectTotemMode() && media.approvedByName && (
+                {media.approvedByName && (
                   <Typography variant="caption" sx={{ color: theme.palette.text.secondary, mb: 1 }}>
-                    Aprovado por: {media.approvedByName}
+                    Aprovado por {media.approvedByName}
                     {media.approvedAt && ` em ${new Date(media.approvedAt).toLocaleDateString('pt-BR')}`}
                   </Typography>
                 )}

@@ -34,6 +34,22 @@ export function formatMediaOrientation(width?: number | null, height?: number | 
   return 'quadrado';
 }
 
+export function formatMediaApprovalLine(
+  approvedByName?: string | null,
+  approvedAt?: string | Date | null
+): string {
+  const name = String(approvedByName || '').trim();
+  if (!name) return '';
+  let datePart = '';
+  if (approvedAt) {
+    const d = approvedAt instanceof Date ? approvedAt : new Date(approvedAt);
+    if (!Number.isNaN(d.getTime())) {
+      datePart = ` em ${d.toLocaleDateString('pt-BR')}`;
+    }
+  }
+  return `Aprovado por ${name}${datePart}`;
+}
+
 export interface MediaDisplayMetaInput {
   mediaType?: string | null;
   durationSeconds?: number | null;
@@ -44,11 +60,13 @@ export interface MediaDisplayMetaInput {
   orderIndex?: number | null;
   /** Partes extras (ex.: “desabilitada neste totem”). */
   extras?: Array<string | null | undefined>;
+  /** Inclui retrato/paisagem (desligado por omissão — alinhado à biblioteca/dialog). */
   includeOrientation?: boolean;
 }
 
 /**
- * Linha compacta: `#2 · VIDEO · 0:05 · 1080×1920 · retrato · 1.02 MB`
+ * Linha compacta alinhada à biblioteca: `VIDEO · 1920×1080 · 4.54 MB · 0:25`
+ * (opcional: `#2 · … · paisagem · desabilitada neste totem`)
  */
 export function buildMediaMetaSummary(input: MediaDisplayMetaInput): string {
   const parts: string[] = [];
@@ -60,19 +78,19 @@ export function buildMediaMetaSummary(input: MediaDisplayMetaInput): string {
   const type = String(input.mediaType || '').trim();
   if (type) parts.push(type.toUpperCase());
 
-  const duration = formatMediaDuration(input.durationSeconds);
-  if (duration) parts.push(duration);
-
   const resolution = formatMediaResolution(input.width, input.height);
   if (resolution) parts.push(resolution);
 
-  if (input.includeOrientation !== false) {
+  if (input.includeOrientation === true) {
     const orientation = formatMediaOrientation(input.width, input.height);
     if (orientation) parts.push(orientation);
   }
 
   const size = formatMediaFileSize(input.sizeBytes);
   if (size) parts.push(size);
+
+  const duration = formatMediaDuration(input.durationSeconds);
+  if (duration) parts.push(duration);
 
   for (const extra of input.extras || []) {
     const t = String(extra || '').trim();

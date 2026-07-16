@@ -39,7 +39,7 @@ export type SortableListPreview = {
 interface SortableItemProps {
   id: string | number;
   label: string;
-  secondary?: string;
+  secondary?: React.ReactNode;
   thumbnail?: React.ReactNode;
   preview?: SortableListPreview;
   /** @deprecated prefer preview/thumbnail */
@@ -140,7 +140,11 @@ function SortableItem({
           secondary={secondary}
           sx={{ minWidth: 0, overflow: 'hidden' }}
           primaryTypographyProps={{ noWrap: true }}
-          secondaryTypographyProps={{ noWrap: true }}
+          secondaryTypographyProps={
+            typeof secondary === 'string'
+              ? { noWrap: true }
+              : { component: 'div', sx: { mt: 0.25 } }
+          }
         />
       </ListItemButton>
     </ListItem>
@@ -151,7 +155,7 @@ interface SortableListProps {
   items: Array<{
     id: string | number;
     label: string;
-    secondary?: string;
+    secondary?: React.ReactNode;
     thumbnail?: React.ReactNode;
     preview?: SortableListPreview;
     thumbnailSrc?: string;
