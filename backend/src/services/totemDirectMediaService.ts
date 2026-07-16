@@ -16,6 +16,9 @@ export interface TotemDirectMediaItem {
   thumbnail_url?: string | null;
   duration_seconds?: number | null;
   mime_type?: string | null;
+  width?: number | null;
+  height?: number | null;
+  file_size_bytes?: number | null;
   /** Item ativo na playlist deste totem */
   is_active?: boolean;
   /** Mídia ativa na biblioteca */
@@ -120,6 +123,9 @@ export class TotemDirectMediaService {
         m.thumbnail_url,
         m.duration_seconds,
         m.mime_type,
+        m.width,
+        m.height,
+        m.file_size_bytes,
         COALESCE(tpi.is_active, true) AS is_active,
         COALESCE(m.is_active, true) AS media_is_active
       FROM totem_playlist_items tpi
@@ -139,6 +145,9 @@ export class TotemDirectMediaService {
       thumbnail_url: r.thumbnail_url,
       duration_seconds: r.duration_seconds != null ? Number(r.duration_seconds) : null,
       mime_type: r.mime_type,
+      width: r.width != null ? Number(r.width) : null,
+      height: r.height != null ? Number(r.height) : null,
+      file_size_bytes: r.file_size_bytes != null ? Number(r.file_size_bytes) : null,
       is_active: r.is_active !== false,
       media_is_active: r.media_is_active !== false,
     }));

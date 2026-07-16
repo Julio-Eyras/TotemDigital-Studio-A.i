@@ -1977,6 +1977,9 @@ export interface TotemDirectMediaItem {
   thumbnail_url?: string | null;
   duration_seconds?: number | null;
   mime_type?: string | null;
+  width?: number | null;
+  height?: number | null;
+  file_size_bytes?: number | null;
   is_active?: boolean;
   media_is_active?: boolean;
 }

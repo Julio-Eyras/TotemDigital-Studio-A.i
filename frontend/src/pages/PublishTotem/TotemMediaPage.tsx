@@ -38,6 +38,7 @@ import { useMediaThumbnailUrls } from '../../hooks/useMediaThumbnailUrls';
 import { useTotemDeliveryVideoPreviewUrls } from '../../hooks/useTotemDeliveryVideoPreviewUrls';
 import { buildMediaThumbnailApiPath } from '../../utils/mediaPreviewUrl';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { buildMediaMetaSummary } from '../../utils/mediaDisplayMeta';
 
 const TotemMediaPage: React.FC = () => {
   const { totemId: totemIdParam } = useParams<{ totemId: string }>();
@@ -154,13 +155,18 @@ const TotemMediaPage: React.FC = () => {
         return {
           id: item.media_id,
           label: item.name || `Mídia ${item.media_id}`,
-          secondary: [
-            item.media_type,
-            item.is_active === false ? 'desabilitada neste totem' : null,
-            item.media_is_active === false ? 'desabilitada na biblioteca' : null,
-          ]
-            .filter(Boolean)
-            .join(' · '),
+          secondary: buildMediaMetaSummary({
+            orderIndex: item.order_index,
+            mediaType: item.media_type || lib?.media_type,
+            durationSeconds: item.duration_seconds ?? lib?.duration_seconds,
+            width: item.width ?? lib?.width,
+            height: item.height ?? lib?.height,
+            sizeBytes: item.file_size_bytes ?? (lib as any)?.size_bytes ?? (lib as any)?.fileSizeBytes,
+            extras: [
+              item.is_active === false ? 'desabilitada neste totem' : null,
+              item.media_is_active === false ? 'desabilitada na biblioteca' : null,
+            ],
+          }),
           preview: {
             mediaId: item.media_id,
             thumbSrc,
@@ -362,7 +368,13 @@ const TotemMediaPage: React.FC = () => {
                 <ListItemButton key={m.media_id} onClick={() => void handleAddMedia(m.media_id!)}>
                   <ListItemText
                     primary={m.name}
-                    secondary={m.media_type}
+                    secondary={buildMediaMetaSummary({
+                      mediaType: m.media_type,
+                      durationSeconds: m.duration_seconds,
+                      width: m.width,
+                      height: m.height,
+                      sizeBytes: (m as any).size_bytes ?? m.fileSizeBytes,
+                    })}
                   />
                 </ListItemButton>
               ))}

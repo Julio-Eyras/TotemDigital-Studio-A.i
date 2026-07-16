@@ -57,6 +57,7 @@ import { useMediaRotationTransform, mediaLibraryPreviewSx, mediaPortraitPreviewF
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { isDirectTotemMode } from '../../config/directTotemMode';
 import { isStudioMode } from '../../config/studioMode';
+import { buildMediaMetaSummary, formatMediaDuration, formatMediaFileSize } from '../../utils/mediaDisplayMeta';
 
 const compareByDisplayName = (a?: string, b?: string) =>
   String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
@@ -546,20 +547,9 @@ const Media: React.FC = () => {
     }
   };
 
-  const formatFileSize = (bytes?: number | null) => {
-    if (!bytes || bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
+  const formatFileSize = (bytes?: number | null) => formatMediaFileSize(bytes) || '—';
 
-  const formatDuration = (seconds?: number) => {
-    if (!seconds) return 'N/A';
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+  const formatDuration = (seconds?: number) => formatMediaDuration(seconds) || '—';
 
   const handlePreviewMouseEnter = async (media: MediaItem) => {
     const id = media.media_id;
@@ -989,9 +979,30 @@ const Media: React.FC = () => {
               </Box>
 
               <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }} noWrap>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 0.5 }} noWrap>
                   {media.name}
                 </Typography>
+
+                {(() => {
+                  const metaLine = buildMediaMetaSummary({
+                    mediaType: media.media_type,
+                    durationSeconds: media.duration_seconds,
+                    width: media.width,
+                    height: media.height,
+                    sizeBytes: media.size_bytes ?? media.fileSizeBytes,
+                    extras: !mediaActive ? ['desabilitada'] : [],
+                  });
+                  if (!metaLine) return null;
+                  return (
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ mb: 1, lineHeight: 1.35 }}
+                    >
+                      {metaLine}
+                    </Typography>
+                  );
+                })()}
       
                 {media.description && (
                   <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1 }} noWrap>
