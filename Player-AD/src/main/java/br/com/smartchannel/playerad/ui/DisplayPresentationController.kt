@@ -34,20 +34,12 @@ object DisplayPresentationController {
             return
         }
 
-        val alreadyAligned = SystemDisplayRotation.isUserRotationAligned(activity, config.displayRotation)
-        val systemResult = if (alreadyAligned) {
-            SystemDisplayRotation.ApplyResult(
-                userRotation = PlayerConfigLoader.displayRotationToUserRotation(config.displayRotation),
-                rotationApplied = true,
-                settingsWritten = false,
-                displayEffective = true,
-                accelerometerLocked = true
-            )
-        } else {
-            SystemDisplayRotation.apply(activity, config.displayRotation)
-        }
-        val needsVisualFallback = !systemResult.displayEffective &&
-            !SystemDisplayRotation.isUserRotationAligned(activity, config.displayRotation)
+        val systemResult = SystemDisplayRotation.apply(activity, config.displayRotation)
+        // Fallback visual se o viewport real não bate com a montagem (Allwinner: settings OK, métricas landscape).
+        val needsVisualFallback = !SystemDisplayRotation.isViewportMatchingMount(
+            activity,
+            config.displayRotation,
+        )
         ViewDisplayRotation.apply(
             activity = activity,
             root = playbackHost,
@@ -55,7 +47,12 @@ object DisplayPresentationController {
             enabled = needsVisualFallback
         )
 
-        logPresentationState(activity, config, systemResult.displayEffective, needsVisualFallback)
+        logPresentationState(
+            activity,
+            config,
+            systemResult.displayEffective,
+            needsVisualFallback,
+        )
     }
 
     private fun logPresentationState(

@@ -13,7 +13,7 @@ import java.io.File
 /**
  * Aplica rotação no Android (user_rotation) — necessário em TV boxes para girar a tela de fato.
  * Tenta Settings API e, se falhar, `su -c settings put` (TV_BOX_3 tem su).
- * [rotationApplied] só é true se o framebuffer realmente mudou (não basta gravar settings).
+ * [rotationApplied] só é true se o framebuffer / viewport realmente mudou (não basta gravar settings).
  */
 object SystemDisplayRotation {
 
@@ -49,20 +49,33 @@ object SystemDisplayRotation {
 
     data class ApplyResult(
         val userRotation: Int,
-        /** True apenas se [Display.getRotation] confirma a orientação pedida. */
+        /** True apenas se o viewport/framebuffer confirma a orientação pedida. */
         val rotationApplied: Boolean,
         val settingsWritten: Boolean,
         val displayEffective: Boolean,
         val accelerometerLocked: Boolean
     )
 
+    /**
+     * Viewport (width/height) coincide com a montagem pedida?
+     * Em Allwinner, `user_rotation` pode estar correcto nas settings e o app
+     * continuar a receber métricas landscape — aí a mídia portrait sai deitada.
+     */
+    fun isViewportMatchingMount(context: Context, displayRotation: Int): Boolean {
+        val dm = context.resources.displayMetrics
+        val portraitViewport = dm.heightPixels > dm.widthPixels
+        val portraitMount = MediaViewportRotation.isPortraitMount(displayRotation)
+        return portraitViewport == portraitMount
+    }
+
     fun isDisplayRotationEffective(context: Context, displayRotation: Int): Boolean {
-        if (isUserRotationAligned(context, displayRotation)) {
+        // Settings sozinhas NÃO bastam — validar viewport real.
+        if (isViewportMatchingMount(context, displayRotation)) {
             return true
         }
         val display = resolveDisplay(context) ?: return false
         val expected = displayRotationToSurfaceRotation(displayRotation)
-        return display.rotation == expected
+        return display.rotation == expected && isViewportMatchingMount(context, displayRotation)
     }
 
     /** TV boxes costumam aplicar user_rotation mas [Display.getRotation] continua em 0. */

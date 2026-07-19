@@ -67,6 +67,19 @@ object PortraitVideoCacheProcessor {
             return Result(file, file.length(), rotated = false, orientationReady = true)
         }
 
+        // Se o SO ainda reporta landscape mas a montagem é portrait, o ViewDisplayRotation
+        // trata do ecrã — NÃO gravar rotação extra no ficheiro de cache (evita dupla rotação).
+        val portraitMount = MediaViewportRotation.isPortraitMount(displayRotation)
+        val viewportPortrait = MediaViewportRotation.isViewportPortrait(context)
+        if (portraitMount && !viewportPortrait) {
+            PlayerAdLogger.i(
+                "CACHE",
+                "Skip normalização cache ${file.name}: viewport landscape + mount portrait " +
+                    "(fallback visual no ecrã) ${width}x${height}",
+            )
+            return Result(file, file.length(), rotated = false, orientationReady = true)
+        }
+
         PlayerAdLogger.i(
             "CACHE",
             "A normalizar cache ${file.name} ${width}x${height} → ${degrees.toInt()}° mount=$displayRotation",
