@@ -8,8 +8,8 @@ import androidx.media3.ui.PlayerView
 
 /**
  * Garante content frame do ExoPlayer em MATCH_PARENT (viewport = ecrã inteiro).
- * O aspect ratio correcto (cover sem esticar) é aplicado via TextureView matrix
- * em [MediaViewportRotation] — não pelo AspectRatioFrameLayout.ZOOM.
+ * O aspect ratio correcto (contain / barras pretas) é aplicado via TextureView matrix
+ * em [MediaViewportRotation] — não pelo AspectRatioFrameLayout sozinho.
  */
 object FullscreenViewport {
 

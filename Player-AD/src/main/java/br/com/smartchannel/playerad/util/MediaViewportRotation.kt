@@ -8,6 +8,7 @@ import android.media.ExifInterface
 import android.view.TextureView
 import android.view.View
 import androidx.media3.common.VideoSize
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 
 /**
@@ -231,7 +232,7 @@ object MediaViewportRotation {
         rotationDegrees: Float,
         videoWidth: Int,
         videoHeight: Int,
-        scaleMode: VideoScaleMode = VideoScaleMode.ZOOM,
+        scaleMode: VideoScaleMode = VideoScaleMode.FIT,
     ) {
         if (videoWidth <= 0 || videoHeight <= 0) {
             resetPlayerView(playerView)
@@ -240,6 +241,8 @@ object MediaViewportRotation {
         runWhenSized(playerView) {
             val texture = playerView.videoSurfaceView as? TextureView
             if (texture == null) {
+                // Sem TextureView: ExoPlayer FIT evita stretch até haver surface
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                 if (rotationDegrees == 0f) {
                     resetView(playerView)
                 } else {
@@ -247,7 +250,14 @@ object MediaViewportRotation {
                 }
                 return@runWhenSized
             }
+            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             applyTextureTransform(texture, rotationDegrees, videoWidth, videoHeight, scaleMode)
+            // Reaplicar após layout tardio (Allwinner / ViewDisplayRotation)
+            texture.postDelayed({
+                if (texture.width > 0 && texture.height > 0) {
+                    applyTextureTransform(texture, rotationDegrees, videoWidth, videoHeight, scaleMode)
+                }
+            }, 200L)
             PlayerAdLogger.i(
                 "DISPLAY",
                 "TextureView ${scaleMode.name} ${rotationDegrees.toInt()}° " +
@@ -313,7 +323,7 @@ object MediaViewportRotation {
         rotationDegrees: Float,
         videoWidth: Int,
         videoHeight: Int,
-        scaleMode: VideoScaleMode = VideoScaleMode.ZOOM,
+        scaleMode: VideoScaleMode = VideoScaleMode.FIT,
     ) {
         val viewW = textureView.width.toFloat()
         val viewH = textureView.height.toFloat()
