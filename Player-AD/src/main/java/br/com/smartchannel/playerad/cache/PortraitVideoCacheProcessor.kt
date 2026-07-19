@@ -13,6 +13,7 @@ import androidx.media3.transformer.Effects
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
+import br.com.smartchannel.playerad.util.MediaViewportRotation
 import br.com.smartchannel.playerad.util.PlayerAdLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -22,23 +23,17 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /**
- * Normaliza vídeos **landscape** (16:9) uma única vez ao gravar no cache, em totem portrait.
- * Vídeos 9:16 do servidor não são alterados.
- *
- * Playback = ficheiro já correto, sem matriz/rotação em runtime.
+ * Cache local já adequado ao [displayRotation] do totem (bake v3 neutro no servidor).
  */
 @UnstableApi
 object PortraitVideoCacheProcessor {
 
-    private const val ROTATION_DEGREES = 90f
     private val mainHandler = Handler(Looper.getMainLooper())
 
     data class Result(
         val file: File,
         val sizeBytes: Long,
-        /** true se correu transformação (rotação). */
         val rotated: Boolean,
-        /** true se avaliado (com ou sem rotação) — não repetir. */
         val orientationReady: Boolean,
     )
 
@@ -63,17 +58,18 @@ object PortraitVideoCacheProcessor {
             return Result(file, file.length(), rotated = false, orientationReady = false)
         }
 
-        if (!needsPortraitCacheRotation(displayRotation, width, height)) {
+        val degrees = MediaViewportRotation.mountCorrectionDegrees(displayRotation, width, height)
+        if (degrees == 0f) {
             PlayerAdLogger.i(
                 "CACHE",
-                "Cache OK sem rotação ${file.name} ${width}x${height} (landscape/deitado)",
+                "Cache OK sem rotação ${file.name} ${width}x${height} mount=$displayRotation",
             )
             return Result(file, file.length(), rotated = false, orientationReady = true)
         }
 
         PlayerAdLogger.i(
             "CACHE",
-            "A normalizar portrait ${file.name} ${width}x${height} → rotação ${ROTATION_DEGREES.toInt()}° (uma vez)",
+            "A normalizar cache ${file.name} ${width}x${height} → ${degrees.toInt()}° mount=$displayRotation",
         )
 
         val tempOut = File(file.parent, "${file.nameWithoutExtension}_norm.mp4")
@@ -81,7 +77,7 @@ object PortraitVideoCacheProcessor {
             withContext(Dispatchers.IO) {
                 if (tempOut.exists()) tempOut.delete()
             }
-            transcodeRotated(context, file, tempOut, ROTATION_DEGREES)
+            transcodeRotated(context, file, tempOut, degrees)
             withContext(Dispatchers.IO) {
                 if (!file.delete()) {
                     PlayerAdLogger.w("CACHE", "Falha ao remover original ${file.name} após normalização")
@@ -93,7 +89,7 @@ object PortraitVideoCacheProcessor {
                 }
                 PlayerAdLogger.i(
                     "CACHE",
-                    "Portrait normalizado ${finalFile.name} (${finalFile.length()} bytes)",
+                    "Cache normalizado ${finalFile.name} (${finalFile.length()} bytes)",
                 )
                 Result(finalFile, finalFile.length(), rotated = true, orientationReady = true)
             }
@@ -101,7 +97,7 @@ object PortraitVideoCacheProcessor {
             withContext(Dispatchers.IO) {
                 tempOut.delete()
             }
-            PlayerAdLogger.e("CACHE", "Falha ao normalizar portrait ${file.name}; mantém original", e)
+            PlayerAdLogger.e("CACHE", "Falha ao normalizar cache ${file.name}; mantém original", e)
             Result(file, file.length(), rotated = false, orientationReady = true)
         }
     }
@@ -113,12 +109,9 @@ object PortraitVideoCacheProcessor {
         return path.endsWith(".mp4") || path.endsWith(".webm") || path.endsWith(".mkv")
     }
 
-    /**
-     * Rotação no cache desactivada — [MediaViewportRotation] trata landscape em runtime
-     * (mais leve na TV box). Vídeos já 9:16 ou pré-virados externamente não são alterados.
-     */
-    @Suppress("UNUSED_PARAMETER")
-    fun needsPortraitCacheRotation(displayRotation: Int, width: Int, height: Int): Boolean = false
+    fun needsPortraitCacheRotation(displayRotation: Int, width: Int, height: Int): Boolean {
+        return MediaViewportRotation.mountCorrectionDegrees(displayRotation, width, height) != 0f
+    }
 
     fun probeVideoSize(file: File): Pair<Int, Int> {
         val retriever = MediaMetadataRetriever()
@@ -146,7 +139,6 @@ object PortraitVideoCacheProcessor {
         }
     }
 
-    /** Media3 Transformer exige create/start/cancel na main thread. */
     private suspend fun transcodeRotated(
         context: Context,
         input: File,
