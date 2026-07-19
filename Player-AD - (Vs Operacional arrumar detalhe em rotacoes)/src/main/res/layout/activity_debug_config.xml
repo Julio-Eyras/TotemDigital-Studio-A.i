@@ -1,0 +1,596 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    android:orientation="vertical">
+
+    <!-- Barra fixa: não roda com o preview — orientação e gravar sempre visíveis -->
+    <LinearLayout
+        android:id="@+id/configActionBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#121212"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <LinearLayout
+            android:id="@+id/panelOrientation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#1A237E"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Virar tela / Montagem do painel"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:lineSpacingExtra="2dp"
+                android:text="Escolha a orientação. A área abaixo gira como preview. Use ▲▼ no controle para rolar. «Aplicar e iniciar» fica sempre aqui."
+                android:textColor="#C5CAE9"
+                android:textSize="12sp"/>
+
+            <Spinner
+                android:id="@+id/spinnerScreenOrientation"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:minHeight="44dp"/>
+
+            <TextView
+                android:id="@+id/textOrientationDegrees"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="0° — retrato (portrait)"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnApplyAndStart"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Aplicar e iniciar"/>
+
+            <Button
+                android:id="@+id/btnStartWithoutSave"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:layout_weight="1"
+                android:text="Iniciar sem salvar"/>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/textStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:ellipsize="end"
+            android:maxLines="4"
+            android:text="Status..."
+            android:textColor="#FFFFFF"
+            android:textSize="11sp"/>
+    </LinearLayout>
+
+    <br.com.smartchannel.playerad.ui.ConfigContentHost
+        android:id="@+id/configContentHost"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipChildren="false"
+        android:clipToPadding="false">
+
+        <ScrollView
+            android:id="@+id/configScrollView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#000000"
+            android:fillViewport="true"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:scrollbars="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+        <TextView
+            android:id="@+id/textReason"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:text="Configuração do Player"/>
+
+        <LinearLayout
+            android:id="@+id/panelSuSetup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="#1E2A1E"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/su_section_title"
+                android:textColor="#A5D6A7"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:lineSpacingExtra="3dp"
+                android:text="@string/su_section_hint"
+                android:textColor="#C8E6C9"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/textSuStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/su_status_pending"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btnRequestSu"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/su_btn_request" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Na configuração inicial, «Aplicar e iniciar» (barra fixa no topo) fica ativo com serverUrl, uin e deviceId preenchidos."
+            android:textColor="#BDBDBD"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:textColor="#FFFFFF"
+            android:text="serverUrl"/>
+
+        <EditText
+            android:id="@+id/editServerUrl"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textUri"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#777777"
+            android:hint="http://217.216.91.135:8080"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textColor="#FFFFFF"
+            android:text="uin"/>
+
+        <EditText
+            android:id="@+id/editUin"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="text"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#777777"
+            android:hint="DEMO-UIN-001"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textColor="#FFFFFF"
+            android:text="deviceId"/>
+
+        <EditText
+            android:id="@+id/editDeviceId"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="text"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#777777"
+            android:hint="DEMO-UIN-001"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:textColor="#FFFFFF"
+            android:text="Aceitar imagens na playlist"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#BDBDBD"
+            android:textSize="12sp"
+            android:text="Desligado: itens de imagem são ignorados (só vídeo)."/>
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/switchAcceptImages"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:checked="true"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:textColor="#FFFFFF"
+            android:text="Áudio na reprodução (vídeo)"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#BDBDBD"
+            android:textSize="12sp"
+            android:text="Desligado: mute permanente no totem (ExoPlayer volume 0). Ligado: som conforme a mídia."/>
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/switchAllowPlaybackAudio"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:checked="true"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:textColor="#FFFFFF"
+            android:text="Kiosk forte (bloqueio HOME/recents)"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#BDBDBD"
+            android:textSize="12sp"
+            android:text="Ligado: lock task + teclas de sistema bloqueadas. Desligado: só fullscreen imersivo. Nesta tela de debug o kiosk fica sempre relaxado."/>
+
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/switchStrongKiosk"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:checked="true"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textColor="#FFFFFF"
+            android:text="Provisionamento do sistema (ADB)"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#BDBDBD"
+            android:textSize="12sp"
+            android:text="Somente leitura. Portrait no SO e launcher exigem install-player-adb.ps1 no PC com depuração USB."/>
+
+        <TextView
+            android:id="@+id/textSystemProvisioning"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="#9E9E9E"
+            android:textSize="11sp"
+            android:fontFamily="monospace"
+            android:text="A carregar..."/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:textColor="#FFFFFF"
+            android:text="Batimento cardiaco (segundos)"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#BDBDBD"
+            android:textSize="12sp"
+            android:text="Intervalo do heartbeat: comandos remotos, OTA, presença online. Sem pedir dispatch. Mínimo: 10s (recomendado: 120s)."/>
+
+        <EditText
+            android:id="@+id/editBatimentoCardiaco"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:inputType="number"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#777777"
+            android:hint="120"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:textColor="#FFFFFF"
+            android:text="Atualizar plano / dispatch (segundos)"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#BDBDBD"
+            android:textSize="12sp"
+            android:text="Intervalo para GET /dispatch (plano de mídia). Independente do fim de ciclo. Mínimo: 10s (recomendado: 600s)."/>
+
+        <EditText
+            android:id="@+id/editMaxSecondsWithoutServerCheck"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:inputType="number"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#777777"
+            android:hint="60"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:textColor="#FFFFFF"
+            android:text="Armazenamento (mídias / cache)"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#BDBDBD"
+            android:textSize="12sp"
+            android:text="auto = preferir volume removível (USB/SD) se o Android expuser em getExternalFilesDirs; path_override = pasta absoluta."/>
+
+        <Spinner
+            android:id="@+id/spinnerStorage"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:text="Caminho (só se path_override)"/>
+
+        <EditText
+            android:id="@+id/editStoragePath"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textUri"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#777777"
+            android:hint="/storage/.../Android/data/.../files"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:text="Rede local (IPv4)"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="#BDBDBD"
+            android:textSize="12sp"
+            android:text="Interfaces detectadas neste aparelho (eth/en = cabo, wlan = Wi‑Fi)."/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:textColor="#9CCC65"
+            android:textSize="12sp"
+            android:text="Ethernet"/>
+
+        <TextView
+            android:id="@+id/textIpEthernet"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:fontFamily="monospace"
+            android:text="—"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:textColor="#64B5F6"
+            android:textSize="12sp"
+            android:text="Wi‑Fi"/>
+
+        <TextView
+            android:id="@+id/textIpWifi"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:fontFamily="monospace"
+            android:text="—"/>
+
+        <TextView
+            android:id="@+id/labelIpOther"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:textColor="#BDBDBD"
+            android:textSize="12sp"
+            android:visibility="gone"
+            android:text="Outras interfaces"/>
+
+        <TextView
+            android:id="@+id/textIpOther"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:fontFamily="monospace"
+            android:visibility="gone"
+            android:text=""/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:text="Estado offline"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="#BDBDBD"
+            android:textSize="11sp"
+            android:text="Fonte do plano, último DispatchPlan persistido e total de mídias locais (propagandas/vinhetas)."/>
+
+        <TextView
+            android:id="@+id/textOfflineState"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="#E0E0E0"
+            android:textSize="12sp"
+            android:fontFamily="monospace"
+            android:text="(carregar...)"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="18dp">
+
+            <Button
+                android:id="@+id/btnRegisterActivation"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Vincular código ao hardware"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnTestHeartbeat"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Teste heartbeat"/>
+
+            <Button
+                android:id="@+id/btnTestDispatch"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="12dp"
+                android:text="DispatchPlan"/>
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="Registo operacional"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="#BDBDBD"
+            android:textSize="11sp"
+            android:text="Ações, erros e recebimento de DispatchPlan (data/hora). Ficheiro privado em filesDir do app."/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="10dp">
+
+            <Button
+                android:id="@+id/btnRefreshOperationalLog"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Atualizar registo"/>
+
+            <Button
+                android:id="@+id/btnClearOperationalLog"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="12dp"
+                android:text="Limpar registo"/>
+        </LinearLayout>
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="320dp"
+            android:layout_marginTop="8dp"
+            android:fillViewport="true"
+            android:background="#1A1A1A">
+
+            <TextView
+                android:id="@+id/textOperationalLog"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="10dp"
+                android:textColor="#E0E0E0"
+                android:textSize="10sp"
+                android:fontFamily="monospace"
+                android:textIsSelectable="true"
+                android:text="(carregar…)"/>
+        </ScrollView>
+
+            </LinearLayout>
+        </ScrollView>
+    </br.com.smartchannel.playerad.ui.ConfigContentHost>
+</LinearLayout>
+
