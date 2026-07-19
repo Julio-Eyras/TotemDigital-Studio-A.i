@@ -3181,6 +3181,7 @@ setup_project() {
                 [[ -d "$SOURCE_DIR/docker" ]] && rsync -av --delete "$SOURCE_DIR/docker/" "$INSTALL_DIR/docker/"
                 [[ -d "$SOURCE_DIR/nginx" ]] && rsync -av --delete "$SOURCE_DIR/nginx/" "$INSTALL_DIR/nginx/"
                 [[ -d "$SOURCE_DIR/totemdigital.site" ]] && rsync -av --delete "$SOURCE_DIR/totemdigital.site/" "$INSTALL_DIR/totemdigital.site/"
+                [[ -d "$SOURCE_DIR/logos-icons" ]] && rsync -av --delete "$SOURCE_DIR/logos-icons/" "$INSTALL_DIR/logos-icons/"
                 [[ -d "$SOURCE_DIR/corporate-site" ]] && rsync -av --delete "$SOURCE_DIR/corporate-site/" "$INSTALL_DIR/corporate-site/"
                 
                 log "✅ Cópia recursiva completa com rsync concluída"
@@ -3212,6 +3213,10 @@ setup_project() {
                 if [[ -d "$SOURCE_DIR/totemdigital.site" ]]; then
                     rm -rf "$INSTALL_DIR/totemdigital.site" 2>/dev/null || true
                     cp -a "$SOURCE_DIR/totemdigital.site" "$INSTALL_DIR/"
+                fi
+                if [[ -d "$SOURCE_DIR/logos-icons" ]]; then
+                    rm -rf "$INSTALL_DIR/logos-icons" 2>/dev/null || true
+                    cp -a "$SOURCE_DIR/logos-icons" "$INSTALL_DIR/"
                 fi
                 if [[ -d "$SOURCE_DIR/corporate-site" ]]; then
                     rm -rf "$INSTALL_DIR/corporate-site" 2>/dev/null || true
@@ -7232,6 +7237,42 @@ sync_corporate_site_to_webroot() {
         sudo cp -a "${src}/." "${dest_root}/"
     fi
 
+    # Logos/ícones ficam em ~/TotemDigital/logos-icons — publicar em CORPORATE_WEB_ROOT/logos-icons
+    # e ajustar HTML (../logos-icons → logos-icons) para a raiz do Nginx.
+    local logos_src=""
+    for logos_src in \
+        "${SOURCE_DIR:-}/logos-icons" \
+        "${INSTALL_DIR:-}/logos-icons" \
+        "$(dirname "$src")/logos-icons"
+    do
+        [[ -n "$logos_src" && -d "$logos_src" ]] && break
+        logos_src=""
+    done
+    if [[ -n "$logos_src" && -d "$logos_src" ]]; then
+        log "Site corporativo: a sincronizar logos '${logos_src}' → '${dest_root}/logos-icons'"
+        sudo mkdir -p "${dest_root}/logos-icons"
+        if command -v rsync &>/dev/null; then
+            sudo rsync -a --delete "${logos_src}/" "${dest_root}/logos-icons/"
+        else
+            sudo rm -rf "${dest_root}/logos-icons" 2>/dev/null || true
+            sudo mkdir -p "${dest_root}/logos-icons"
+            sudo cp -a "${logos_src}/." "${dest_root}/logos-icons/"
+        fi
+        # No repo o HTML usa ../logos-icons/ (pasta irmã). No webroot vira logos-icons/.
+        if command -v find &>/dev/null; then
+            while IFS= read -r -d '' htmlf; do
+                sudo sed -i \
+                    -e 's|src="\.\./logos-icons/|src="logos-icons/|g' \
+                    -e "s|src='\\.\\./logos-icons/|src='logos-icons/|g" \
+                    -e 's|url("\.\./logos-icons/|url("logos-icons/|g' \
+                    -e "s|url('\\.\\./logos-icons/|url('logos-icons/|g" \
+                    "$htmlf" 2>/dev/null || true
+            done < <(find "$dest_root" -maxdepth 1 -type f \( -name '*.html' -o -name '*.htm' \) -print0 2>/dev/null || true)
+        fi
+    else
+        warn "Site corporativo: pasta logos-icons não encontrada (esperado em SOURCE_DIR/logos-icons)."
+    fi
+
     if id www-data &>/dev/null; then
         sudo chown -R www-data:www-data "$dest_root" 2>/dev/null || true
     else
@@ -7244,8 +7285,8 @@ sync_corporate_site_to_webroot() {
         error "Site corporativo: index.html em falta em ${dest_root} após sync."
         return 1
     fi
-    if [[ ! -f "${dest_root}/logo-totem-digital.png" ]]; then
-        warn "Site corporativo: logo-totem-digital.png em falta em ${dest_root} (referenciado pelo index.html)."
+    if [[ ! -f "${dest_root}/logos-icons/Icon-logo-Azul.png" ]]; then
+        warn "Site corporativo: logos-icons/Icon-logo-Azul.png em falta em ${dest_root}."
     fi
 
     log "✅ Site corporativo instalado em ${dest_root} (origem: $(basename "$src")) — HTTP :${CORPORATE_HTTP_PORT:-80}"
