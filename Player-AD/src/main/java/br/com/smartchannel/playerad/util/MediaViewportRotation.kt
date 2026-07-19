@@ -315,9 +315,14 @@ object MediaViewportRotation {
             }
         }
 
-        // contain (FIT): preencher o menor lado — sem zoom/crop. maxOf seria cover/ZOOM.
+        // contain (FIT): escalar pelo menor lado e centrar — evita zoom e desvio para baixo/cima
         val scale = minOf(viewW / srcW, viewH / srcH)
-        matrix.setScale(scale, scale, centerX, centerY)
+        val scaledW = srcW * scale
+        val scaledH = srcH * scale
+        val dx = (viewW - scaledW) / 2f
+        val dy = (viewH - scaledH) / 2f
+        matrix.setScale(scale, scale)
+        matrix.postTranslate(dx, dy)
         matrix.postRotate(rotationDegrees, centerX, centerY)
         textureView.setTransform(matrix)
     }

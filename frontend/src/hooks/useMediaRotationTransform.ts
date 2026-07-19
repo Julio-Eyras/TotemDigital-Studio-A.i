@@ -223,17 +223,21 @@ function buildRotatedPortraitPreviewSx(deg: number) {
   const base = {
     position: 'absolute' as const,
     display: 'block',
-    objectFit: 'cover' as const,
+    objectFit: 'contain' as const,
+    objectPosition: 'center center',
     transformOrigin: 'center center',
     transition: 'transform 0.2s ease',
   };
 
   if (sideways) {
+    // Caixa landscape centrada, depois roda 90° — contain evita zoom e desvio vertical
     return {
       ...base,
+      objectFit: 'contain' as const,
+      objectPosition: 'center center',
       top: '50%',
       left: '50%',
-      width: '178%',
+      width: '177.78%',
       height: '100%',
       maxWidth: 'none',
       maxHeight: 'none',
@@ -243,6 +247,8 @@ function buildRotatedPortraitPreviewSx(deg: number) {
 
   return {
     ...base,
+    objectFit: 'contain' as const,
+    objectPosition: 'center center',
     inset: 0,
     width: '100%',
     height: '100%',
@@ -306,7 +312,7 @@ export function mediaTotemHoverVideoSx(
   };
 }
 
-/** Thumbnail 9:16 na UI — sem rotação automática quando já vem em pé do servidor. */
+/** Thumbnail 9:16 na UI — contain (sem zoom); alinhado ao totem FIT. */
 export function mediaThumbnailPortraitPreviewSx(rotationDegrees: number) {
   const deg = normalizeMediaRotation(rotationDegrees);
   return {
@@ -314,7 +320,8 @@ export function mediaThumbnailPortraitPreviewSx(rotationDegrees: number) {
     inset: 0,
     width: '100%',
     height: '100%',
-    objectFit: 'cover' as const,
+    objectFit: 'contain' as const,
+    objectPosition: 'center center',
     display: 'block',
     transformOrigin: 'center center',
     transform: deg !== 0 ? `rotate(${deg}deg)` : undefined,

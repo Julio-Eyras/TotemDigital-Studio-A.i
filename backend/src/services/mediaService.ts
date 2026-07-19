@@ -1974,11 +1974,11 @@ export class MediaService {
     targetH: number = TOTEM_LANDSCAPE_HEIGHT
   ): string {
     const rotationFilters = this.getFfmpegRotationFilters(rotationDegrees);
-    // contain: escala com decrease + pad (sem crop/zoom); barras pretas se o aspect não for 9:16/16:9
+    // contain: escala com decrease + pad centrado (sem crop/zoom)
     return [
       ...rotationFilters,
       `scale=${targetW}:${targetH}:force_original_aspect_ratio=decrease`,
-      `pad=${targetW}:${targetH}:(ow-iw)/2:(oh-ih)/2:black`,
+      `pad=${targetW}:${targetH}:-1:-1:black`,
       'setsar=1',
     ].join(',');
   }
