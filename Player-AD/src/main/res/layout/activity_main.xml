@@ -26,7 +26,7 @@
                 android:layout_height="match_parent"
                 android:fitsSystemWindows="false"
                 app:use_controller="false"
-                app:resize_mode="fit"
+                app:resize_mode="zoom"
                 app:surface_type="texture_view" />
 
             <ImageView
@@ -36,7 +36,7 @@
                 android:adjustViewBounds="false"
                 android:background="@android:color/transparent"
                 android:contentDescription="@string/app_name"
-                android:scaleType="fitCenter"
+                android:scaleType="centerCrop"
                 android:visibility="gone" />
 
             <WebView

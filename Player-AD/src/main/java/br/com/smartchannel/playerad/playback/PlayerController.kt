@@ -1488,14 +1488,15 @@ class PlayerController(
         applyFullscreenVideoScale()
         MediaViewportRotation.resetPlayerView(playerView)
         MediaViewportRotation.resetView(imageView)
-        // Imagens: FIT_CENTER — sem zoom; o ecrã mostra a imagem completa.
-        imageView.scaleType = ImageView.ScaleType.FIT_CENTER
+        // Imagens: CENTER_CROP preenche o ecrã portrait do totem.
+        imageView.scaleType = ImageView.ScaleType.CENTER_CROP
     }
 
     private fun applyFullscreenVideoScale() {
-        // FIT = contain: vídeo inteiro visível, sem crop/zoom (barras pretas se necessário).
-        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-        exoPlayer.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT)
+        // ZOOM = preenche o viewport portrait (totem fullscreen). O “zoom excessivo”
+        // vinha de rotação/pivot errados; com fallback centrado isto preenche sem deslocar.
+        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+        exoPlayer.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
         playerView.post { FullscreenViewport.applyToPlayerView(playerView) }
     }
 
@@ -1658,9 +1659,8 @@ class PlayerController(
             upright
         }
 
-        // 3) FIT_CENTER: mostra a imagem completa (bake contain + este mode = sem zoom além das bordas)
-        //    Após EXIF+mount correctos, 9:16 preenchido no ecrã portrait sem “estourar”.
-        imageView.scaleType = ImageView.ScaleType.FIT_CENTER
+        // CENTER_CROP: preenche o totem (após EXIF + montagem correctos).
+        imageView.scaleType = ImageView.ScaleType.CENTER_CROP
         imageView.setImageBitmap(displayBitmap)
         MediaViewportRotation.applyToImageView(imageView, 0f)
     }
