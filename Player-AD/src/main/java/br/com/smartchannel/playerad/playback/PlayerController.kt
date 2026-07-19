@@ -1488,7 +1488,9 @@ class PlayerController(
         applyFullscreenVideoScale()
         MediaViewportRotation.resetPlayerView(playerView)
         MediaViewportRotation.resetView(imageView)
-        imageView.scaleType = ImageView.ScaleType.CENTER_CROP
+        // Imagens: FIT_CENTER — o bake cover no servidor já preenche 9:16;
+        // CENTER_CROP voltava a zoomar e “estourava” as bordas.
+        imageView.scaleType = ImageView.ScaleType.FIT_CENTER
     }
 
     private fun applyFullscreenVideoScale() {
@@ -1620,7 +1622,8 @@ class PlayerController(
         deliveryRotation: Int? = null,
         deliveryBakeVersion: Int? = null,
     ) {
-        imageView.scaleType = ImageView.ScaleType.CENTER_CROP
+        // FIT_CENTER: full frame sem zoom extra (cover do servidor + CROP = cortava a mais)
+        imageView.scaleType = ImageView.ScaleType.FIT_CENTER
         if (!AUTO_MEDIA_ORIENTATION) {
             imageView.setImageBitmap(bitmap)
             return
@@ -1660,7 +1663,7 @@ class PlayerController(
         } else {
             bitmap
         }
-        imageView.scaleType = ImageView.ScaleType.CENTER_CROP
+        imageView.scaleType = ImageView.ScaleType.FIT_CENTER
         imageView.setImageBitmap(displayBitmap)
         MediaViewportRotation.applyToImageView(imageView, 0f)
     }
