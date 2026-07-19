@@ -114,12 +114,12 @@ object MediaViewportRotation {
         val mount = ((displayRotation % 4) + 4) % 4
         val portraitMedia = mediaHeight >= mediaWidth
         return when (mount) {
-            // Retrato normal
-            0 -> if (portraitMedia) 0f else 90f
+            // Retrato normal — landscape 16:9 permanece horizontal (FIT largura + letterbox Y)
+            0 -> if (portraitMedia) 0f else 0f
             // Paisagem (HDMI 0°)
             1 -> if (portraitMedia) 270f else 0f
             // Retrato invertido
-            2 -> if (portraitMedia) 180f else 270f
+            2 -> if (portraitMedia) 180f else 180f
             // Paisagem invertida
             3 -> if (portraitMedia) 90f else 180f
             else -> 0f

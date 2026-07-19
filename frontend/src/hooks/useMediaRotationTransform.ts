@@ -120,6 +120,16 @@ export function parseDeliveryBakeVersionFromTags(tags?: string[] | null): number
   return null;
 }
 
+/** Legado ≤ bake2: entrega 16:9 com undo CSS; bake v3+ landscape usa contain directo. */
+function shouldUseLegacyLandscapeDeliveryPreview(media?: MediaDeliveryPreviewFields): boolean {
+  const bake = parseDeliveryBakeVersionFromTags(media?.tags);
+  if (bake != null && bake >= 3) return false;
+  const w = Number(media?.width ?? 0);
+  const h = Number(media?.height ?? 0);
+  if (w <= h) return false;
+  return getMediaUiPreviewUndoRotation(media) !== 0;
+}
+
 export function getMediaUiPreviewUndoRotation(media?: MediaDeliveryPreviewFields): number {
   // Bake v3+: ficheiro já “em pé”; UI não desfaz rotação de montagem
   const bake =
@@ -160,6 +170,51 @@ export function resolveTotemDeliveryUiRotation(
 /** Hover vídeo 16:9 — cover centrado; rotação lateral usa caixa 16:9 (não quadrado). */
 function buildHoverDeliveryVideoSx(deg: number) {
   return buildCoverPortraitMediaSx(deg);
+}
+
+/**
+ * Preview contain na moldura 9:16 — landscape 16:9 ocupa largura total; letterbox cima/baixo.
+ * Alinhado ao totem (FIT matrix), sem cover que corta ou pillarbox lateral.
+ */
+function buildFitLandscapeInPortraitFrameSx(deg: number) {
+  const normalized = normalizeMediaRotation(deg);
+  const sideways = normalized === 90 || normalized === 270;
+
+  const base = {
+    position: 'absolute' as const,
+    display: 'block',
+    objectFit: 'contain' as const,
+    objectPosition: 'center center',
+    transformOrigin: 'center center',
+    backgroundColor: '#000',
+  };
+
+  if (sideways) {
+    return {
+      ...base,
+      top: '50%',
+      left: '50%',
+      width: '177.778%',
+      height: '56.25%',
+      maxWidth: 'none',
+      maxHeight: 'none',
+      transform: `translate(-50%, -50%) rotate(${normalized}deg)`,
+    };
+  }
+
+  return {
+    ...base,
+    top: '50%',
+    left: '50%',
+    width: '100%',
+    height: 'auto',
+    maxWidth: '100%',
+    maxHeight: '100%',
+    transform:
+      normalized !== 0
+        ? `translate(-50%, -50%) rotate(${normalized}deg)`
+        : 'translate(-50%, -50%)',
+  };
 }
 
 /**
@@ -258,7 +313,7 @@ export function isTotemDeliveryMedia(media?: {
   return w > h && w > 0 && h > 0 && parseDeliveryRotationFromTags(media?.tags) != null;
 }
 
-/** Preview na UI: bake v3 portrait = cover directo; legado 16:9 pode precisar undo CSS. */
+/** Preview na UI: bake v3+ portrait = cover; landscape 16:9 = contain largura cheia. */
 export function mediaTotemUiPreviewSx(
   rotationDegrees: number,
   media?: MediaDeliveryPreviewFields,
@@ -267,6 +322,14 @@ export function mediaTotemUiPreviewSx(
     const bake = parseDeliveryBakeVersionFromTags(media?.tags);
     const w = Number(media?.width ?? 0);
     const h = Number(media?.height ?? 0);
+    if (w > h) {
+      if (shouldUseLegacyLandscapeDeliveryPreview(media)) {
+        return buildRotatedPortraitPreviewSx(
+          resolveTotemDeliveryUiRotation(rotationDegrees, media),
+        );
+      }
+      return buildFitLandscapeInPortraitFrameSx(rotationDegrees);
+    }
     if ((bake != null && bake >= 3) || (h >= w && w > 0)) {
       return mediaThumbnailPortraitPreviewSx(rotationDegrees);
     }
@@ -282,6 +345,15 @@ export function mediaTotemHoverVideoSx(
   if (!isTotemDeliveryMedia(media)) {
     return {
       ...mediaThumbnailPortraitPreviewSx(rotationDegrees),
+      zIndex: 3,
+      pointerEvents: 'none' as const,
+    };
+  }
+  const w = Number(media?.width ?? 0);
+  const h = Number(media?.height ?? 0);
+  if (w > h && !shouldUseLegacyLandscapeDeliveryPreview(media)) {
+    return {
+      ...buildFitLandscapeInPortraitFrameSx(rotationDegrees),
       zIndex: 3,
       pointerEvents: 'none' as const,
     };

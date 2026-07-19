@@ -93,16 +93,16 @@ describe('mediaTotemHoverVideoSx', () => {
     expect(sx.height).toBe('56.25%');
   });
 
-  it('bake v3+ landscape fica cover centrado sem rotação de undo', () => {
+  it('bake v3+ landscape usa contain largura cheia sem rotação de undo', () => {
     const sx = mediaTotemHoverVideoSx(0, {
       width: 1920,
       height: 1080,
       tags: ['_delivery_bake:4', '_delivery_rotation:0'],
       deliveryRotation: 0,
     });
-    expect(sx.objectFit).toBe('cover');
+    expect(sx.objectFit).toBe('contain');
     expect(sx.width).toBe('100%');
-    expect(sx.height).toBe('100%');
+    expect(sx.height).toBe('auto');
     expect(String(sx.transform || '')).not.toContain('rotate');
   });
 });

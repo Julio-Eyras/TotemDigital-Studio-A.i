@@ -1488,13 +1488,12 @@ class PlayerController(
         applyFullscreenVideoScale()
         MediaViewportRotation.resetPlayerView(playerView)
         MediaViewportRotation.resetView(imageView)
-        // Imagens: CENTER_CROP preenche o ecrã portrait do totem.
-        imageView.scaleType = ImageView.ScaleType.CENTER_CROP
+        imageView.scaleType = ImageView.ScaleType.FIT_CENTER
     }
 
     private fun applyFullscreenVideoScale() {
         // FILL no AspectRatioFrameLayout: surface = viewport inteiro.
-        // Cover (escala uniforme max) via matrix ZOOM em MediaViewportRotation.
+        // FIT (escala uniforme min, largura cheia em landscape) via matrix em MediaViewportRotation.
         // Sem matrix uniforme o TextureView em FILL estica (círculos → ovais).
         playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
         exoPlayer.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT)
@@ -1513,7 +1512,7 @@ class PlayerController(
         val listener = object : Player.Listener {
             override fun onVideoSizeChanged(videoSize: VideoSize) {
                 if (cacheAlreadyRotated) {
-                    // Cache local já adequado a displayRotation — cover sem esticar
+                    // Cache local já adequado a displayRotation — FIT sem esticar
                     applyFullscreenVideoScale()
                     val (rawW, rawH) = MediaViewportRotation.rawVideoSize(videoSize)
                     MediaViewportRotation.applyToPlayerView(
@@ -1521,7 +1520,7 @@ class PlayerController(
                         0f,
                         rawW,
                         rawH,
-                        VIDEO_COVER_SCALE,
+                        VIDEO_VIEWPORT_SCALE,
                     )
                     revealVideoAfterOrientation()
                     return
@@ -1560,10 +1559,10 @@ class PlayerController(
                         rot,
                         rawW,
                         rawH,
-                        VIDEO_COVER_SCALE,
+                        VIDEO_VIEWPORT_SCALE,
                     )
                 } catch (e: Exception) {
-                    PlayerAdLogger.e("DISPLAY", "Falha flip faixa landscape; mantém ZOOM", e)
+                    PlayerAdLogger.e("DISPLAY", "Falha flip faixa landscape; mantém FIT matrix", e)
                     MediaViewportRotation.resetPlayerView(playerView)
                     applyFullscreenVideoScale()
                 }
@@ -1605,7 +1604,7 @@ class PlayerController(
                 "Correção orientação vídeo deliveryRotation=$deliveryRotation " +
                     "bake=$deliveryBakeVersion viewMount=$viewMountApplied " +
                     "eff=${MediaViewportRotation.effectiveVideoSize(videoSize).let { "${it.first}x${it.second}" }} " +
-                    "raw=${rawW}x${rawH} → ${rot.toInt()}° mount=$displayRotation ZOOM",
+                    "raw=${rawW}x${rawH} → ${rot.toInt()}° mount=$displayRotation FIT",
             )
             // Sempre aplicar matrix (incl. 0°): corrige stretch do TextureView em FILL
             MediaViewportRotation.applyToPlayerView(
@@ -1613,11 +1612,11 @@ class PlayerController(
                 rot,
                 rawW,
                 rawH,
-                VIDEO_COVER_SCALE,
+                VIDEO_VIEWPORT_SCALE,
             )
             revealVideoAfterOrientation()
         } catch (e: Exception) {
-            PlayerAdLogger.e("DISPLAY", "Falha ao corrigir orientação do vídeo; mantém ZOOM matrix", e)
+            PlayerAdLogger.e("DISPLAY", "Falha ao corrigir orientação do vídeo; mantém FIT matrix", e)
             try {
                 val (w, h) = MediaViewportRotation.rawVideoSize(videoSize)
                 applyFullscreenVideoScale()
@@ -1626,7 +1625,7 @@ class PlayerController(
                     0f,
                     w,
                     h,
-                    VIDEO_COVER_SCALE,
+                    VIDEO_VIEWPORT_SCALE,
                 )
             } catch (_: Exception) {
                 MediaViewportRotation.resetPlayerView(playerView)
@@ -1694,8 +1693,12 @@ class PlayerController(
             upright
         }
 
-        // CENTER_CROP: preenche o totem (após EXIF + montagem correctos).
-        imageView.scaleType = ImageView.ScaleType.CENTER_CROP
+        val landscapeContent = w > h
+        imageView.scaleType = if (landscapeContent) {
+            ImageView.ScaleType.FIT_CENTER
+        } else {
+            ImageView.ScaleType.CENTER_CROP
+        }
         imageView.setImageBitmap(displayBitmap)
         MediaViewportRotation.applyToImageView(imageView, 0f)
     }
@@ -2013,8 +2016,8 @@ class PlayerController(
     companion object {
         /** SUSPENSO v1.55 — orientação/resolução vêm do servidor. */
         private const val AUTO_MEDIA_ORIENTATION = MediaViewportRotation.ENABLED
-        /** Alinhado ao preview da biblioteca: cover (max scale uniforme), sem stretch. */
-        private val VIDEO_COVER_SCALE = MediaViewportRotation.VideoScaleMode.ZOOM
+        /** Largura cheia em landscape 16:9; letterbox Y se sobrar altura — sem stretch. */
+        private val VIDEO_VIEWPORT_SCALE = MediaViewportRotation.VideoScaleMode.FIT
         private const val VIDEO_WATCHDOG_MIN_MS = 30_000L
         private const val VIDEO_WATCHDOG_GRACE_MS = 15_000L
         /** Quando duração desconhecida — fallback curto (não 15 min). */
