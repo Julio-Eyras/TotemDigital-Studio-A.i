@@ -1567,16 +1567,23 @@ export class MediaService {
           'stream_tags=rotate',
           '-show_entries',
           'stream_side_data=rotation',
+          '-show_entries',
+          'format_tags=rotate',
           '-of',
           'json',
           sourcePath,
         ],
         { timeout: 30_000 }
       );
-      const stream = JSON.parse(stdout)?.streams?.[0];
+      const parsed = JSON.parse(stdout);
+      const stream = parsed?.streams?.[0];
       width = Number(stream?.width) || 0;
       height = Number(stream?.height) || 0;
-      const rotRaw = stream?.tags?.rotate ?? stream?.tags?.ROTATE;
+      const rotRaw =
+        stream?.tags?.rotate ??
+        stream?.tags?.ROTATE ??
+        parsed?.format?.tags?.rotate ??
+        parsed?.format?.tags?.ROTATE;
       if (rotRaw != null && String(rotRaw).trim() !== '') {
         rotation = this.normalizeRotation(Number(rotRaw));
       }
@@ -2020,34 +2027,39 @@ export class MediaService {
   }
 
   /**
-   * Bake v3 vídeo: aplica só stream/EXIF (ou rotação UI) → cover portrait/landscape.
-   * Metadado delivery_rotation=0 (montagem fica no Player-AD).
+   * Bake v3 vídeo: ffmpeg **autorotate** (rotate/matrix do telemóvel) uma vez,
+   * depois cover para canvas portrait (9:16) ou landscape (16:9).
+   * NÃO usar -noautorotate + transpose do stream (causava letterbox / conteúdo deitado).
+   * userOrDeliveryRotationDegrees = rotação extra da UI (transform manual).
    */
   private async normalizeVideoToTotemDelivery(
     sourcePath: string,
     outputPath: string,
     userOrDeliveryRotationDegrees: number,
-    streamRotationDegrees: number = 0,
+    _streamRotationDegrees: number = 0,
     _applyDeliveryOnPixels: boolean = true
   ): Promise<{ width: number; height: number }> {
     const userRot = this.normalizeRotation(userOrDeliveryRotationDegrees);
-    const stream = this.normalizeRotation(streamRotationDegrees);
-    // Neutro: stream (EXIF) + rotação manual UI; sem política de montagem 90/180.
-    const bakeRotation = this.normalizeRotation(stream + userRot);
-
     const info = await this.probeVideoStreamInfo(sourcePath);
+
     let dispW = info.displayWidth || info.width;
     let dispH = info.displayHeight || info.height;
-    // Se vamos aplicar bakeRotation que inclui stream, display* do probe já reflecte stream
-    // para escolha de canvas; se userRot extra, ajustar.
     if (userRot === 90 || userRot === 270) {
       const t = dispW;
       dispW = dispH;
       dispH = t;
     }
-    const canvas = this.resolveDeliveryCanvas(dispW, dispH);
+
+    // Telemóvel em portrait: pixels landscape + rotate 90/270 → forçar canvas 9:16
+    const phonePortraitMeta =
+      (info.rotation === 90 || info.rotation === 270) && info.width >= info.height;
+    const canvas = phonePortraitMeta
+      ? { width: TOTEM_PORTRAIT_WIDTH, height: TOTEM_PORTRAIT_HEIGHT, portrait: true }
+      : this.resolveDeliveryCanvas(dispW, dispH);
+
+    // Só transpose extra da UI; a orientação do telemóvel vem do autorotate do ffmpeg
     const filters = this.getTotemDeliveryVideoFilterChain(
-      bakeRotation,
+      userRot,
       canvas.width,
       canvas.height
     );
@@ -2056,7 +2068,6 @@ export class MediaService {
       'ffmpeg',
       [
         '-y',
-        '-noautorotate',
         '-i',
         sourcePath,
         '-vf',
@@ -2125,27 +2136,28 @@ export class MediaService {
   ): Promise<string> {
     const thumbnailPath = sourcePath.replace(/\.[^/.]+$/, '_thumb.jpg');
     await this.removeFileIfExists(thumbnailPath);
-    const filters = this.getTotemPreviewVideoFilterChain(rotationDegrees);
-    await execFileAsync(
-      'ffmpeg',
-      [
-        '-y',
-        // Evita rotação automática do metadado rotate=90 do telemóvel em cima do transpose explícito
-        '-noautorotate',
-        '-ss',
-        '00:00:01',
-        '-i',
-        sourcePath,
-        '-vframes',
-        '1',
-        '-vf',
-        filters,
-        '-q:v',
-        '3',
-        thumbnailPath,
-      ],
-      { timeout: 60_000 }
+    const rot = this.normalizeRotation(rotationDegrees);
+    const filters = this.getTotemPreviewVideoFilterChain(rot);
+    // rotationDegrees==0 → deixar ffmpeg autorotar metadado do telemóvel
+    // rotationDegrees!=0 → -noautorotate (transpose explícito da UI / landscape→thumb)
+    const args = ['-y'];
+    if (rot !== 0) {
+      args.push('-noautorotate');
+    }
+    args.push(
+      '-ss',
+      '00:00:01',
+      '-i',
+      sourcePath,
+      '-vframes',
+      '1',
+      '-vf',
+      filters,
+      '-q:v',
+      '3',
+      thumbnailPath
     );
+    await execFileAsync('ffmpeg', args, { timeout: 60_000 });
     return thumbnailPath;
   }
 
@@ -2194,12 +2206,8 @@ export class MediaService {
         return this.generatePortraitThumbnailFromDeliveryVideo(filePath, fromTag);
       }
     }
-    // Telemóvel: pixels landscape + rotate metadata → usar display dims (já trocadas no probe)
-    const rotation = this.resolvePreviewRotationDegrees(info.displayWidth, info.displayHeight, 0);
-    // Se o stream tem rotate, o conteúdo efectivo já está em display*; com -noautorotate
-    // precisamos aplicar a rotação do stream + auto portrait.
-    const streamAwareRotation = this.normalizeRotation(info.rotation + rotation);
-    return this.generatePreviewThumbnailFromVideoSource(filePath, streamAwareRotation);
+    // Telemóvel: deixar autorotate do ffmpeg + cover 9:16 (sem somar stream+preview)
+    return this.generatePreviewThumbnailFromVideoSource(filePath, 0);
   }
 
   private async generatePortraitThumbnailFromImageFile(filePath: string): Promise<string> {
