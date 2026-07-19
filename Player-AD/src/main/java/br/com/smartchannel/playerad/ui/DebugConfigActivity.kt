@@ -19,6 +19,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.lifecycle.lifecycleScope
+import br.com.smartchannel.playerad.BuildConfig
 import br.com.smartchannel.playerad.R
 import br.com.smartchannel.playerad.api.DispatcherApiClient
 import br.com.smartchannel.playerad.config.PlayerConfig
@@ -65,6 +66,7 @@ class DebugConfigActivity : AppCompatActivity() {
     private lateinit var btnStartWithoutSave: Button
 
     private lateinit var textReason: TextView
+    private lateinit var textPlayerVersion: TextView
     private lateinit var textStatus: TextView
     private lateinit var textIpEthernet: TextView
     private lateinit var textIpWifi: TextView
@@ -115,6 +117,7 @@ class DebugConfigActivity : AppCompatActivity() {
         btnStartWithoutSave = findViewById(R.id.btnStartWithoutSave)
 
         textReason = findViewById(R.id.textReason)
+        textPlayerVersion = findViewById(R.id.textPlayerVersion)
         textStatus = findViewById(R.id.textStatus)
         textIpEthernet = findViewById(R.id.textIpEthernet)
         textIpWifi = findViewById(R.id.textIpWifi)
@@ -129,6 +132,7 @@ class DebugConfigActivity : AppCompatActivity() {
         configScrollView = findViewById(R.id.configScrollView)
 
         bindLocalIps()
+        textPlayerVersion.text = installedVersionLabel()
 
         val reason = intent.getStringExtra(EXTRA_REASON) ?: "manual"
         textReason.text = if (onboarding) {
@@ -798,6 +802,23 @@ class DebugConfigActivity : AppCompatActivity() {
 
     private fun saveConfigInternal(cfg: PlayerConfig) {
         PlayerConfigStore.save(this, cfg)
+    }
+
+    /** Versão instalada no aparelho (PackageManager, com fallback BuildConfig). */
+    private fun installedVersionLabel(): String {
+        return try {
+            val info = packageManager.getPackageInfo(packageName, 0)
+            val name = info.versionName?.takeIf { it.isNotBlank() } ?: BuildConfig.VERSION_NAME
+            val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                info.longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                info.versionCode.toLong()
+            }
+            "Player-AD v$name (build $code)"
+        } catch (_: Exception) {
+            "Player-AD v${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})"
+        }
     }
 
     companion object {
