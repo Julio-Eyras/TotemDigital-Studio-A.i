@@ -26,6 +26,7 @@ import { twoFactorApi } from '../../services/api/twoFactorApi';
 import { APP_DISPLAY_NAME } from '../../config/featureFlags';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { enterAdminSessionViewport, leaveAdminSessionViewport } from '../../utils/appViewport';
+import AppVersionLines from '../../components/AppVersionLines/AppVersionLines';
 
 interface LoginFormData {
   username: string;
@@ -221,6 +222,7 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           <Typography variant="body2" sx={{ opacity: 0.9 }}>
             Sistema de Sinalização Digital
           </Typography>
+          <AppVersionLines sx={{ color: 'rgba(255,255,255,0.85)', mt: 1 }} />
         </Box>
 
         <CardContent sx={{ p: 4 }}>
@@ -413,9 +415,6 @@ const LoginPage: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
           {/* Footer */}
           <Box sx={{ textAlign: 'center', mt: 4 }}>
-            <Typography variant="body2" color="text.secondary">
-              {APP_DISPLAY_NAME} v2.0
-            </Typography>
             <Typography variant="caption" color="text.secondary">
               © 2024 - Sistema de Sinalização Digital
             </Typography>

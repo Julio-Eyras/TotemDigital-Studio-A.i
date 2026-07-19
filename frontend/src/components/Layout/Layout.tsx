@@ -66,6 +66,7 @@ import { getRoleLabel, resolveLoggedUserDisplayName } from '../../utils/userRole
 import { buildAutoOpenMenus, menuKeyFromText, menuPathMatches, resolveAppBarTitle, resolveMenuTitleForPath, pathnameMatchesMenuBase } from '../../utils/menuPathMatch';
 import { leaveAdminSessionViewport } from '../../utils/appViewport';
 import { ADMIN_DRAWER_WIDTH } from '../../config/adminLayout';
+import AppVersionLines from '../AppVersionLines/AppVersionLines';
 
 const drawerWidth = ADMIN_DRAWER_WIDTH;
 
@@ -313,6 +314,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35 }}>
           Sistema de Sinalização Digital
         </Typography>
+        <AppVersionLines />
       </Box>
 
       {/* Navigation Menu - Hierárquico */}
