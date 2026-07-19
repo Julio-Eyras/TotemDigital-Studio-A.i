@@ -83,6 +83,21 @@ object MediaViewportRotation {
         return w to h
     }
 
+    /**
+     * BitmapFactory **não** aplica EXIF. Rodar pixels para “em pé” antes da montagem do totem.
+     * Evita imagem de lado + zoom errado em fotos de telemóvel.
+     */
+    fun applyExifToBitmap(bitmap: Bitmap, path: String?): Bitmap {
+        if (path.isNullOrBlank()) return bitmap
+        val degrees = readExifOrientationDegrees(path).toFloat()
+        if (degrees == 0f) return bitmap
+        return try {
+            rotateBitmap(bitmap, degrees)
+        } catch (_: Exception) {
+            bitmap
+        }
+    }
+
     fun isTargetPortrait(context: Context, displayRotation: Int): Boolean {
         return isPortraitMount(displayRotation) || isViewportPortrait(context)
     }

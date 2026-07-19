@@ -1622,20 +1622,14 @@ class PlayerController(
         deliveryRotation: Int? = null,
         deliveryBakeVersion: Int? = null,
     ) {
-        // FIT_CENTER: full frame sem zoom extra (cover do servidor + CROP = cortava a mais)
-        imageView.scaleType = ImageView.ScaleType.FIT_CENTER
-        if (!AUTO_MEDIA_ORIENTATION) {
-            imageView.setImageBitmap(bitmap)
-            return
-        }
-        val (w, h) = if (!filePath.isNullOrBlank()) {
-            val fromExif = MediaViewportRotation.readImageEffectiveSize(filePath)
-            if (fromExif.first > 0 && fromExif.second > 0) fromExif else bitmap.width to bitmap.height
-        } else {
-            bitmap.width to bitmap.height
-        }
+        // 1) EXIF → pixels upright (BitmapFactory ignora orientação)
+        val upright = MediaViewportRotation.applyExifToBitmap(bitmap, filePath)
+        val w = upright.width
+        val h = upright.height
+
+        // 2) Montagem do totem (só se viewport ainda não foi rodado pelo fallback)
         val viewMountApplied = isViewDisplayRotationActive()
-        val rot = if (viewMountApplied) {
+        val mountRot = if (!AUTO_MEDIA_ORIENTATION || viewMountApplied) {
             0f
         } else {
             MediaViewportRotation.playbackCorrectionDegrees(
@@ -1648,21 +1642,24 @@ class PlayerController(
                 isVideo = false,
             )
         }
-        val displayBitmap = if (rot != 0f) {
+        val displayBitmap = if (mountRot != 0f) {
             PlayerAdLogger.i(
                 "DISPLAY",
-                "Correção orientação imagem ${w}x${h} → ${rot.toInt()}° " +
+                "Correção orientação imagem ${w}x${h} → ${mountRot.toInt()}° " +
                     "deliveryRotation=$deliveryRotation bake=$deliveryBakeVersion mount=$displayRotation",
             )
             try {
-                MediaViewportRotation.rotateBitmap(bitmap, rot)
+                MediaViewportRotation.rotateBitmap(upright, mountRot)
             } catch (e: Exception) {
-                PlayerAdLogger.e("DISPLAY", "Falha ao rodar bitmap; mantém original", e)
-                bitmap
+                PlayerAdLogger.e("DISPLAY", "Falha ao rodar bitmap; mantém upright", e)
+                upright
             }
         } else {
-            bitmap
+            upright
         }
+
+        // 3) FIT_CENTER: mostra a imagem completa (bake contain + este mode = sem zoom além das bordas)
+        //    Após EXIF+mount correctos, 9:16 preenchido no ecrã portrait sem “estourar”.
         imageView.scaleType = ImageView.ScaleType.FIT_CENTER
         imageView.setImageBitmap(displayBitmap)
         MediaViewportRotation.applyToImageView(imageView, 0f)
@@ -1873,16 +1870,19 @@ class PlayerController(
      * Suspende até o ExoPlayer sinalizar fim ou erro, retornando a posição tocada em ms.
      */
     /**
-     * Limite do maior lado do bitmap em px (ligado ao ecrã, com teto para 4K).
+     * Limite do maior lado do bitmap em px.
+     * Usa o máximo entre viewport e 1920 para não “subamostrar” imagens 1080×1920 /
+     * 1920×1080 (zoom/qualidade inconsistente em fotos mais pequenas ou maiores).
      */
     private fun targetMaxBitmapSidePx(): Int {
         val viewport = (context as? android.app.Activity)?.findViewById<View>(R.id.portraitViewport)
-        if (viewport != null && viewport.width > 0 && viewport.height > 0) {
-            return maxOf(viewport.width, viewport.height).coerceIn(720, 3840)
+        val viewportLongest = if (viewport != null && viewport.width > 0 && viewport.height > 0) {
+            maxOf(viewport.width, viewport.height)
+        } else {
+            val dm = context.resources.displayMetrics
+            maxOf(dm.widthPixels, dm.heightPixels)
         }
-        val dm = context.resources.displayMetrics
-        val longest = maxOf(dm.widthPixels, dm.heightPixels)
-        return longest.coerceIn(720, 3840)
+        return maxOf(viewportLongest, 1920).coerceIn(1080, 3840)
     }
 
     private fun calculateInSampleSizeForMaxSide(bounds: BitmapFactory.Options, maxSide: Int): Int {

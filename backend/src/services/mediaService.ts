@@ -1989,42 +1989,53 @@ export class MediaService {
     return this.getTotemDeliveryVideoFilterChain(rotationDegrees, targetW, targetH);
   }
 
-  /**
-   * Bake v3 imagem: EXIF uma vez (+ rotação UI opcional) → cover portrait ou landscape.
-   * Sem bake de montagem Allwinner (deliveryRotation=0).
-   */
-  private async normalizeImageToTotemDelivery(
-    sourcePath: string,
-    outputPath: string,
-    rotationDegrees: number,
-    mimeType?: string
-  ): Promise<{ width: number; height: number }> {
-    const userRot = this.normalizeRotation(rotationDegrees);
-    let pipeline = (sharp as any)(sourcePath).rotate();
-    if (userRot !== 0) {
-      pipeline = pipeline.rotate(userRot);
+    /**
+     * Bake v3 imagem: EXIF uma vez (+ rotação UI) → canvas portrait/landscape com **contain**
+     * (sem cortar o assunto). Telemóvel EXIF 90/270 → canvas 9:16.
+     */
+    private async normalizeImageToTotemDelivery(
+      sourcePath: string,
+      outputPath: string,
+      rotationDegrees: number,
+      mimeType?: string
+    ): Promise<{ width: number; height: number }> {
+      const userRot = this.normalizeRotation(rotationDegrees);
+      const probe = await this.probeImageStreamInfo(sourcePath);
+      let pipeline = (sharp as any)(sourcePath).rotate();
+      if (userRot !== 0) {
+        pipeline = pipeline.rotate(userRot);
+      }
+      const oriented = await pipeline.toBuffer();
+      const meta = await (sharp as any)(oriented).metadata();
+      const ow = Number(meta?.width ?? 0);
+      const oh = Number(meta?.height ?? 0);
+
+      // Telemóvel portrait (EXIF 90/270) → sempre 1080×1920
+      const phonePortraitMeta =
+        (probe.rotation === 90 || probe.rotation === 270) && probe.width >= probe.height;
+      const canvas = phonePortraitMeta
+        ? { width: TOTEM_PORTRAIT_WIDTH, height: TOTEM_PORTRAIT_HEIGHT, portrait: true }
+        : this.resolveDeliveryCanvas(ow, oh);
+
+      // contain: imagem completa no canvas (barras pretas se necessário) — evita crop agressivo
+      let out = (sharp as any)(oriented).resize(canvas.width, canvas.height, {
+        fit: 'contain',
+        background: { r: 0, g: 0, b: 0, alpha: 1 },
+        position: 'centre',
+      });
+
+      const ext = this.getImageOutputExtension(mimeType, outputPath);
+      if (ext === '.png') {
+        out = out.png({ compressionLevel: 9, adaptiveFiltering: true });
+      } else if (ext === '.webp') {
+        out = out.webp({ quality: 85 });
+      } else {
+        out = out.jpeg({ quality: 88, progressive: true });
+      }
+
+      await out.toFile(outputPath);
+      return { width: canvas.width, height: canvas.height };
     }
-    const oriented = await pipeline.toBuffer();
-    const meta = await (sharp as any)(oriented).metadata();
-    const canvas = this.resolveDeliveryCanvas(meta?.width ?? 0, meta?.height ?? 0);
-
-    let out = (sharp as any)(oriented).resize(canvas.width, canvas.height, {
-      fit: 'cover',
-      position: 'centre',
-    });
-
-    const ext = this.getImageOutputExtension(mimeType, outputPath);
-    if (ext === '.png') {
-      out = out.png({ compressionLevel: 9, adaptiveFiltering: true });
-    } else if (ext === '.webp') {
-      out = out.webp({ quality: 85 });
-    } else {
-      out = out.jpeg({ quality: 88, progressive: true });
-    }
-
-    await out.toFile(outputPath);
-    return { width: canvas.width, height: canvas.height };
-  }
 
   /**
    * Bake v3 vídeo: ffmpeg **autorotate** (rotate/matrix do telemóvel) uma vez,
@@ -2122,7 +2133,8 @@ export class MediaService {
     }
     await pipeline
       .resize(TOTEM_THUMB_WIDTH, TOTEM_THUMB_HEIGHT, {
-        fit: 'cover',
+        fit: 'contain',
+        background: { r: 0, g: 0, b: 0, alpha: 1 },
         position: 'centre',
       })
       .jpeg({ quality: 82, progressive: true })
