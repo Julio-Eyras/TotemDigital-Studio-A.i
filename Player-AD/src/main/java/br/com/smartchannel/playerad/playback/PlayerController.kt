@@ -1493,10 +1493,12 @@ class PlayerController(
     }
 
     private fun applyFullscreenVideoScale() {
-        // ZOOM = preenche o viewport portrait (totem fullscreen). O “zoom excessivo”
-        // vinha de rotação/pivot errados; com fallback centrado isto preenche sem deslocar.
-        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-        exoPlayer.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
+        // FILL no AspectRatioFrameLayout: surface = viewport inteiro.
+        // O aspect correcto (cover sem esticar) fica a cargo do TextureView matrix
+        // em MediaViewportRotation — ZOOM do FrameLayout + TextureView esticado
+        // (Allwinner / ViewDisplayRotation) produzia ovais.
+        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+        exoPlayer.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT)
         playerView.post { FullscreenViewport.applyToPlayerView(playerView) }
     }
 
@@ -1512,9 +1514,16 @@ class PlayerController(
         val listener = object : Player.Listener {
             override fun onVideoSizeChanged(videoSize: VideoSize) {
                 if (cacheAlreadyRotated) {
-                    // Cache local já adequado a displayRotation — só fullscreen
+                    // Cache local já adequado a displayRotation — cover sem esticar
                     applyFullscreenVideoScale()
-                    MediaViewportRotation.resetPlayerView(playerView)
+                    val (rawW, rawH) = MediaViewportRotation.rawVideoSize(videoSize)
+                    MediaViewportRotation.applyToPlayerView(
+                        playerView,
+                        0f,
+                        rawW,
+                        rawH,
+                        MediaViewportRotation.VideoScaleMode.ZOOM,
+                    )
                     revealVideoAfterOrientation()
                     return
                 }
@@ -1543,7 +1552,13 @@ class PlayerController(
                         "Flip faixa landscape ${rot.toInt()}° deliveryRotation=$deliveryRotation " +
                             "vídeo ${rawW}x${rawH} metaRot=${videoSize.unappliedRotationDegrees}",
                     )
-                    MediaViewportRotation.applyToPlayerView(playerView, rot, rawW, rawH)
+                    MediaViewportRotation.applyToPlayerView(
+                        playerView,
+                        rot,
+                        rawW,
+                        rawH,
+                        MediaViewportRotation.VideoScaleMode.ZOOM,
+                    )
                 } catch (e: Exception) {
                     PlayerAdLogger.e("DISPLAY", "Falha flip faixa landscape; mantém FIT", e)
                     MediaViewportRotation.resetPlayerView(playerView)
@@ -1582,21 +1597,38 @@ class PlayerController(
                 )
             }
             applyFullscreenVideoScale()
-            if (rot != 0f) {
-                PlayerAdLogger.i(
-                    "DISPLAY",
-                    "Correção orientação vídeo deliveryRotation=$deliveryRotation " +
-                        "bake=$deliveryBakeVersion viewMount=$viewMountApplied " +
-                        "eff=${MediaViewportRotation.effectiveVideoSize(videoSize).let { "${it.first}x${it.second}" }} " +
-                        "raw=${rawW}x${rawH} → ${rot.toInt()}° mount=$displayRotation",
-                )
-            }
-            MediaViewportRotation.applyToPlayerView(playerView, rot, rawW, rawH)
+            PlayerAdLogger.i(
+                "DISPLAY",
+                "Correção orientação vídeo deliveryRotation=$deliveryRotation " +
+                    "bake=$deliveryBakeVersion viewMount=$viewMountApplied " +
+                    "eff=${MediaViewportRotation.effectiveVideoSize(videoSize).let { "${it.first}x${it.second}" }} " +
+                    "raw=${rawW}x${rawH} → ${rot.toInt()}° mount=$displayRotation ZOOM",
+            )
+            // Sempre aplicar matrix (incl. 0°): corrige stretch do TextureView em FILL
+            MediaViewportRotation.applyToPlayerView(
+                playerView,
+                rot,
+                rawW,
+                rawH,
+                MediaViewportRotation.VideoScaleMode.ZOOM,
+            )
             revealVideoAfterOrientation()
         } catch (e: Exception) {
-            PlayerAdLogger.e("DISPLAY", "Falha ao corrigir orientação do vídeo; mantém FIT", e)
-            MediaViewportRotation.resetPlayerView(playerView)
-            applyFullscreenVideoScale()
+            PlayerAdLogger.e("DISPLAY", "Falha ao corrigir orientação do vídeo; mantém ZOOM matrix", e)
+            try {
+                val (w, h) = MediaViewportRotation.rawVideoSize(videoSize)
+                applyFullscreenVideoScale()
+                MediaViewportRotation.applyToPlayerView(
+                    playerView,
+                    0f,
+                    w,
+                    h,
+                    MediaViewportRotation.VideoScaleMode.ZOOM,
+                )
+            } catch (_: Exception) {
+                MediaViewportRotation.resetPlayerView(playerView)
+                applyFullscreenVideoScale()
+            }
             revealVideoAfterOrientation()
         }
     }

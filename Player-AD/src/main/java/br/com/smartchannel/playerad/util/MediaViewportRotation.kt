@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
-import android.graphics.RectF
 import android.media.ExifInterface
 import android.view.TextureView
 import android.view.View
@@ -222,23 +221,46 @@ object MediaViewportRotation {
         return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
     }
 
-    fun applyToPlayerView(playerView: PlayerView, rotationDegrees: Float, videoWidth: Int, videoHeight: Int) {
-        if (rotationDegrees == 0f) {
+    /**
+     * Aplica transform no TextureView preservando aspect ratio.
+     * Mesmo com [rotationDegrees]=0 é obrigatório: com surface FILL o ExoPlayer
+     * estica o frame ao viewport — sem matrix uniforme círculos viram ovais.
+     */
+    fun applyToPlayerView(
+        playerView: PlayerView,
+        rotationDegrees: Float,
+        videoWidth: Int,
+        videoHeight: Int,
+        scaleMode: VideoScaleMode = VideoScaleMode.ZOOM,
+    ) {
+        if (videoWidth <= 0 || videoHeight <= 0) {
             resetPlayerView(playerView)
             return
         }
         runWhenSized(playerView) {
             val texture = playerView.videoSurfaceView as? TextureView
             if (texture == null) {
-                applyViewRotation(playerView, rotationDegrees)
+                if (rotationDegrees == 0f) {
+                    resetView(playerView)
+                } else {
+                    applyViewRotation(playerView, rotationDegrees)
+                }
                 return@runWhenSized
             }
-            applyTextureTransform(texture, rotationDegrees, videoWidth, videoHeight)
+            applyTextureTransform(texture, rotationDegrees, videoWidth, videoHeight, scaleMode)
             PlayerAdLogger.i(
                 "DISPLAY",
-                "TextureView transform ${rotationDegrees.toInt()}° vídeo ${videoWidth}x${videoHeight} view=${texture.width}x${texture.height}",
+                "TextureView ${scaleMode.name} ${rotationDegrees.toInt()}° " +
+                    "vídeo ${videoWidth}x${videoHeight} view=${texture.width}x${texture.height}",
             )
         }
+    }
+
+    enum class VideoScaleMode {
+        /** Cover: preenche o viewport, corta excedente (totem fullscreen). */
+        ZOOM,
+        /** Contain: vídeo inteiro visível, barras se necessário. */
+        FIT,
     }
 
     fun applyToImageView(imageView: View, rotationDegrees: Float) {
@@ -291,39 +313,45 @@ object MediaViewportRotation {
         rotationDegrees: Float,
         videoWidth: Int,
         videoHeight: Int,
+        scaleMode: VideoScaleMode = VideoScaleMode.ZOOM,
     ) {
         val viewW = textureView.width.toFloat()
         val viewH = textureView.height.toFloat()
         if (viewW <= 0f || viewH <= 0f || videoWidth <= 0 || videoHeight <= 0) return
 
         val matrix = Matrix()
-        val viewRect = RectF(0f, 0f, viewW, viewH)
-        val centerX = viewRect.centerX()
-        val centerY = viewRect.centerY()
+        val centerX = viewW / 2f
+        val centerY = viewH / 2f
         val degrees = ((rotationDegrees.toInt() % 360) + 360) % 360
 
-        val srcW: Float
-        val srcH: Float
+        // Surface FILL: textura = vídeo esticado em viewW×viewH.
+        // 1) Escala uniforme para o tamanho pós-rotação (ZOOM/FIT)
+        // 2) Roda em torno do centro
+        val postW: Float
+        val postH: Float
         when (degrees) {
             90, 270 -> {
-                srcW = videoHeight.toFloat()
-                srcH = videoWidth.toFloat()
+                postW = videoHeight.toFloat()
+                postH = videoWidth.toFloat()
             }
             else -> {
-                srcW = videoWidth.toFloat()
-                srcH = videoHeight.toFloat()
+                postW = videoWidth.toFloat()
+                postH = videoHeight.toFloat()
             }
         }
-
-        // contain (FIT): escalar pelo menor lado e centrar — evita zoom e desvio para baixo/cima
-        val scale = minOf(viewW / srcW, viewH / srcH)
-        val scaledW = srcW * scale
-        val scaledH = srcH * scale
-        val dx = (viewW - scaledW) / 2f
-        val dy = (viewH - scaledH) / 2f
-        matrix.setScale(scale, scale)
-        matrix.postTranslate(dx, dy)
-        matrix.postRotate(rotationDegrees, centerX, centerY)
+        val targetScale = when (scaleMode) {
+            VideoScaleMode.ZOOM -> maxOf(viewW / postW, viewH / postH)
+            VideoScaleMode.FIT -> minOf(viewW / postW, viewH / postH)
+        }
+        // Tamanho do vídeo nativo (ainda sem rotação) com essa escala
+        val correctW = videoWidth * targetScale
+        val correctH = videoHeight * targetScale
+        val sx = correctW / viewW
+        val sy = correctH / viewH
+        matrix.setScale(sx, sy, centerX, centerY)
+        if (degrees != 0) {
+            matrix.postRotate(rotationDegrees, centerX, centerY)
+        }
         textureView.setTransform(matrix)
     }
 

@@ -234,7 +234,8 @@ class MainActivity : AppCompatActivity() {
         playerView.player = exoPlayer
         playerView.useController = false
         playerView.controllerHideOnTouch = false
-        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+        // FILL + matrix ZOOM no PlayerController (preserva aspect; ver MediaViewportRotation)
+        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
         playerView.setKeepContentOnPlayerReset(true)
         playerView.setShutterBackgroundColor(Color.TRANSPARENT)
         playerView.post { FullscreenViewport.applyToPlayerView(playerView) }

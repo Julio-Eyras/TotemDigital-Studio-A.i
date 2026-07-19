@@ -157,8 +157,17 @@ export function resolveTotemDeliveryUiRotation(
   return normalizeMediaRotation(rotationDraft + getMediaUiPreviewUndoRotation(media));
 }
 
-/** Hover vídeo 16:9 — replica thumbnail ffmpeg (contain + rotação + escala lateral). */
+/** Hover vídeo 16:9 — contain centrado; rotação lateral usa caixa 16:9 (não quadrado). */
 function buildHoverDeliveryVideoSx(deg: number) {
+  return buildContainPortraitMediaSx(deg);
+}
+
+/**
+ * Preview sem distorção na moldura 9:16.
+ * Evita width+height 100% (object-fit fill por omissão → ovais).
+ * Lateral 90/270: caixa pré-rotação 16:9 (177.778% × 56.25%), não quadrado 177%×100%.
+ */
+function buildContainPortraitMediaSx(deg: number) {
   const normalized = normalizeMediaRotation(deg);
   const sideways = normalized === 90 || normalized === 270;
 
@@ -166,29 +175,38 @@ function buildHoverDeliveryVideoSx(deg: number) {
     position: 'absolute' as const,
     display: 'block',
     objectFit: 'contain' as const,
+    objectPosition: 'center center',
     transformOrigin: 'center center',
     backgroundColor: '#000',
   };
 
   if (sideways) {
+    // Moldura W×H (9:16). Caixa H×W (16:9) = 177.778% × 56.25% — após rotate preenche sem esticar.
     return {
       ...base,
       top: '50%',
       left: '50%',
-      width: '177.78%',
-      height: '100%',
+      width: '177.778%',
+      height: '56.25%',
       maxWidth: 'none',
       maxHeight: 'none',
       transform: `translate(-50%, -50%) rotate(${normalized}deg)`,
     };
   }
 
+  // Contain intrínseco: o browser dimensiona pelo aspect do media, nunca estica.
   return {
     ...base,
-    inset: 0,
-    width: '100%',
-    height: '100%',
-    transform: normalized !== 0 ? `rotate(${normalized}deg)` : undefined,
+    top: '50%',
+    left: '50%',
+    width: 'auto',
+    height: 'auto',
+    maxWidth: '100%',
+    maxHeight: '100%',
+    transform:
+      normalized !== 0
+        ? `translate(-50%, -50%) rotate(${normalized}deg)`
+        : 'translate(-50%, -50%)',
   };
 }
 
@@ -218,42 +236,7 @@ export function mediaPortraitPreviewSx(
 }
 
 function buildRotatedPortraitPreviewSx(deg: number) {
-  const sideways = deg === 90 || deg === 270;
-
-  const base = {
-    position: 'absolute' as const,
-    display: 'block',
-    objectFit: 'contain' as const,
-    objectPosition: 'center center',
-    transformOrigin: 'center center',
-    transition: 'transform 0.2s ease',
-  };
-
-  if (sideways) {
-    // Caixa landscape centrada, depois roda 90° — contain evita zoom e desvio vertical
-    return {
-      ...base,
-      objectFit: 'contain' as const,
-      objectPosition: 'center center',
-      top: '50%',
-      left: '50%',
-      width: '177.78%',
-      height: '100%',
-      maxWidth: 'none',
-      maxHeight: 'none',
-      transform: `translate(-50%, -50%) rotate(${deg}deg)`,
-    };
-  }
-
-  return {
-    ...base,
-    objectFit: 'contain' as const,
-    objectPosition: 'center center',
-    inset: 0,
-    width: '100%',
-    height: '100%',
-    transform: deg !== 0 ? `rotate(${deg}deg)` : undefined,
-  };
+  return buildContainPortraitMediaSx(deg);
 }
 
 export const TOTEM_DELIVERY_WIDTH = 1920;
@@ -312,34 +295,15 @@ export function mediaTotemHoverVideoSx(
   };
 }
 
-/** Thumbnail 9:16 na UI — contain (sem zoom); alinhado ao totem FIT. */
+/** Thumbnail 9:16 na UI — contain centrado (sem zoom/esticar). */
 export function mediaThumbnailPortraitPreviewSx(rotationDegrees: number) {
-  const deg = normalizeMediaRotation(rotationDegrees);
-  return {
-    position: 'absolute' as const,
-    inset: 0,
-    width: '100%',
-    height: '100%',
-    objectFit: 'contain' as const,
-    objectPosition: 'center center',
-    display: 'block',
-    transformOrigin: 'center center',
-    transform: deg !== 0 ? `rotate(${deg}deg)` : undefined,
-  };
+  return buildContainPortraitMediaSx(rotationDegrees);
 }
 
 /** Vídeo cru na UI: sem rotação automática (ficheiro 16:9 de entrega). */
 export function mediaVideoPortraitPreviewSx(rotationDraft = 0) {
-  const deg = normalizeMediaRotation(rotationDraft);
   return {
-    position: 'absolute' as const,
-    inset: 0,
-    width: '100%',
-    height: '100%',
-    objectFit: 'contain' as const,
-    display: 'block',
-    transformOrigin: 'center center',
-    transform: deg !== 0 ? `rotate(${deg}deg)` : undefined,
+    ...buildContainPortraitMediaSx(rotationDraft),
     zIndex: 3,
     pointerEvents: 'none' as const,
   };
