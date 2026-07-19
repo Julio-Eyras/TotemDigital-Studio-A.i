@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<!-- saved from url=(0073)file:///C:/TotemDigital/totemdigital.site/Home-Land%20(TotemDigital).html -->
+<html lang="pt-BR"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Apresentação SmartSignage | Totem Digital</title>
+
+  <style>
+    :root {
+      --preto: #03070b;
+      --preto-azulado: #06131b;
+      --azul: #008cff;
+      --azul-claro: #00c8ff;
+      --amarelo: #ffc400;
+      --amarelo-claro: #ffe45c;
+      --branco: #ffffff;
+      --cinza: #aebbc5;
+      --cinza-escuro: #1b2b34;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: #222;
+      color: var(--branco);
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.5;
+    }
+
+    .pagina {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 20px auto;
+      position: relative;
+      overflow: hidden;
+      background: var(--preto);
+      page-break-after: always;
+      box-shadow: 0 0 25px rgba(0, 0, 0, .5);
+    }
+
+    .pagina:last-child {
+      page-break-after: auto;
+    }
+
+    .conteudo {
+      position: relative;
+      z-index: 2;
+      padding: 18mm 18mm;
+    }
+
+    .logo {
+      width: 125px;
+      max-height: 115px;
+      object-fit: contain;
+      object-position: center;
+    }
+
+    .logo-capa {
+      width: 180px;
+      max-height: 155px;
+      object-fit: contain;
+      object-position: center;
+    }
+
+    .barra-topo {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(0, 200, 255, .35);
+      padding-bottom: 12px;
+      margin-bottom: 36px;
+    }
+
+    .marca-texto {
+      color: var(--amarelo);
+      font-size: 11px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .capa {
+      background:
+        linear-gradient(90deg, rgba(3, 7, 11, .94) 0%, rgba(3, 7, 11, .70) 48%, rgba(3, 7, 11, .18) 100%),
+        url("../logos-icons/Icon-logo-Azul.png") center center / cover no-repeat;
+    }
+
+    .capa::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 75% 45%, rgba(0, 140, 255, .30), transparent 33%),
+        linear-gradient(135deg, rgba(0, 200, 255, .10), transparent 45%);
+      pointer-events: none;
+    }
+
+    .capa .conteudo {
+      min-height: 297mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .capa-superior {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .capa-principal {
+      max-width: 115mm;
+      margin-top: 42mm;
+    }
+
+    .etiqueta {
+      display: inline-block;
+      border: 1px solid var(--azul-claro);
+      border-radius: 30px;
+      color: var(--azul-claro);
+      font-size: 11px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      margin-bottom: 22px;
+      padding: 8px 16px;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      color: var(--branco);
+      font-size: 47px;
+      line-height: 1.04;
+      margin-bottom: 20px;
+    }
+
+    h1 span {
+      color: var(--azul-claro);
+    }
+
+    .subtitulo-capa {
+      color: var(--cinza);
+      font-size: 18px;
+      max-width: 105mm;
+    }
+
+    .rodape-capa {
+      color: var(--cinza);
+      font-size: 11px;
+      letter-spacing: .5px;
+    }
+
+    .rodape-capa strong {
+      color: var(--amarelo);
+    }
+
+    .titulo-secao {
+      color: var(--azul-claro);
+      font-size: 30px;
+      line-height: 1.15;
+      margin-bottom: 10px;
+    }
+
+    .linha-destaque {
+      background: var(--amarelo);
+      height: 4px;
+      margin: 14px 0 28px;
+      width: 55px;
+    }
+
+    .texto-introducao {
+      color: var(--cinza);
+      font-size: 16px;
+      max-width: 170mm;
+    }
+
+    .bloco-destaque {
+      background: linear-gradient(135deg, rgba(0, 140, 255, .20), rgba(0, 200, 255, .04));
+      border: 1px solid rgba(0, 200, 255, .35);
+      border-left: 5px solid var(--azul-claro);
+      border-radius: 10px;
+      margin: 30px 0;
+      padding: 22px;
+    }
+
+    .bloco-destaque h3 {
+      color: var(--branco);
+      font-size: 20px;
+      margin-bottom: 8px;
+    }
+
+    .bloco-destaque p {
+      color: var(--cinza);
+    }
+
+    .grade {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 18px;
+      margin-top: 30px;
+    }
+
+    .cartao {
+      background: rgba(9, 25, 34, .88);
+      border: 1px solid rgba(0, 200, 255, .24);
+      border-radius: 10px;
+      min-height: 125px;
+      padding: 20px;
+    }
+
+    .cartao h3 {
+      color: var(--amarelo);
+      font-size: 17px;
+      margin-bottom: 8px;
+    }
+
+    .cartao p,
+    .cartao li {
+      color: var(--cinza);
+      font-size: 13px;
+    }
+
+    .cartao ul {
+      padding-left: 18px;
+    }
+
+    .numero {
+      align-items: center;
+      background: var(--azul);
+      border-radius: 50%;
+      color: white;
+      display: flex;
+      font-size: 17px;
+      font-weight: bold;
+      height: 35px;
+      justify-content: center;
+      margin-bottom: 12px;
+      width: 35px;
+    }
+
+    .lista-beneficios {
+      display: grid;
+      gap: 16px;
+      margin-top: 30px;
+    }
+
+    .beneficio {
+      align-items: flex-start;
+      display: flex;
+      gap: 15px;
+    }
+
+    .check {
+      align-items: center;
+      background: var(--amarelo);
+      border-radius: 50%;
+      color: var(--preto);
+      display: flex;
+      flex: 0 0 25px;
+      font-weight: bold;
+      height: 25px;
+      justify-content: center;
+      margin-top: 2px;
+      width: 25px;
+    }
+
+    .beneficio h3 {
+      color: var(--branco);
+      font-size: 17px;
+      margin-bottom: 3px;
+    }
+
+    .beneficio p {
+      color: var(--cinza);
+      font-size: 13px;
+    }
+
+    .fluxo {
+      align-items: stretch;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+      margin-top: 35px;
+    }
+
+    .etapa {
+      background: var(--preto-azulado);
+      border-top: 4px solid var(--azul-claro);
+      border-radius: 8px;
+      padding: 20px 15px;
+      text-align: center;
+    }
+
+    .etapa:nth-child(2) {
+      border-top-color: var(--amarelo);
+    }
+
+    .etapa:nth-child(3) {
+      border-top-color: #8d62ff;
+    }
+
+    .etapa h3 {
+      color: var(--branco);
+      font-size: 16px;
+      margin-bottom: 8px;
+    }
+
+    .etapa p {
+      color: var(--cinza);
+      font-size: 12px;
+    }
+
+    .contato {
+      background:
+        linear-gradient(135deg, rgba(0, 140, 255, .88), rgba(3, 7, 11, .96)),
+        url("../logos-icons/Icon-logo-Azul.png") center / cover no-repeat;
+      min-height: 297mm;
+    }
+
+    .contato .conteudo {
+      min-height: 297mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .contato-centro {
+      margin-top: 25mm;
+      max-width: 135mm;
+    }
+
+    .contato-centro h2 {
+      font-size: 40px;
+      line-height: 1.1;
+      margin-bottom: 18px;
+    }
+
+    .contato-centro p {
+      color: #e0f5ff;
+      font-size: 17px;
+      margin-bottom: 28px;
+    }
+
+    .dados-contato {
+      background: rgba(0, 0, 0, .32);
+      border: 1px solid rgba(255, 255, 255, .25);
+      border-radius: 12px;
+      padding: 22px;
+    }
+
+    .item-contato {
+      border-bottom: 1px solid rgba(255, 255, 255, .18);
+      padding: 12px 0;
+    }
+
+    .item-contato:last-child {
+      border-bottom: 0;
+    }
+
+    .item-contato small {
+      color: var(--amarelo-claro);
+      display: block;
+      font-size: 10px;
+      font-weight: bold;
+      letter-spacing: 1.5px;
+      margin-bottom: 3px;
+      text-transform: uppercase;
+    }
+
+    .item-contato a,
+    .item-contato span {
+      color: var(--branco);
+      font-size: 17px;
+      text-decoration: none;
+    }
+
+    .observacao {
+      color: #c6e9f5;
+      font-size: 11px;
+      margin-top: 14px;
+    }
+
+    .rodape {
+      border-top: 1px solid rgba(0, 200, 255, .25);
+      color: var(--cinza);
+      font-size: 10px;
+      padding-top: 12px;
+    }
+
+    @media print {
+      body {
+        background: white;
+      }
+
+      .pagina {
+        box-shadow: none;
+        margin: 0;
+      }
+    }
+
+    @page {
+      size: A4;
+      margin: 0;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- PÁGINA 1 — CAPA -->
+  <section class="pagina capa">
+    <div class="conteudo">
+
+      <div class="capa-superior">
+        <img src="./Apresentação SmartSignage _ Totem Digital_files/Icon-logo-Azul.png" alt="Logo Totem Digital" class="logo-capa">
+
+        <div class="marca-texto">
+          Eyras Desenvolvimento
+        </div>
+      </div>
+
+      <div class="capa-principal">
+        <div class="etiqueta">Apresentação institucional</div>
+
+        <h1>
+          Comunicação que<br>
+          <span>conecta e transforma.</span>
+        </h1>
+
+        <p class="subtitulo-capa">
+          Soluções inteligentes de SmartSignage para empresas que desejam
+          comunicar melhor, informar com agilidade e valorizar seus espaços.
+        </p>
+      </div>
+
+      <div class="rodape-capa">
+        <strong>SMARTSIGNAGE</strong>
+        &nbsp; | &nbsp;
+        Tecnologia para uma comunicação mais dinâmica.
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- PÁGINA 2 — APRESENTAÇÃO -->
+  <section class="pagina">
+    <div class="conteudo">
+
+      <div class="barra-topo">
+        <img src="./Apresentação SmartSignage _ Totem Digital_files/Icon-logo-Azul.png" alt="Logo Totem Digital" class="logo">
+
+        <div class="marca-texto">
+          SmartSignage
+        </div>
+      </div>
+
+      <h2 class="titulo-secao">Uma nova forma de comunicar</h2>
+      <div class="linha-destaque"></div>
+
+      <p class="texto-introducao">
+        A <strong>Totem Digital</strong>, desenvolvida pela
+        <strong>Eyras Desenvolvimento</strong>, oferece soluções de
+        comunicação visual digital para empresas, instituições e
+        estabelecimentos que precisam transmitir informações de forma
+        moderna, organizada e eficiente.
+      </p>
+
+      <div class="bloco-destaque">
+        <h3>O que é SmartSignage?</h3>
+
+        <p>
+          SmartSignage é uma solução de sinalização digital que permite
+          exibir conteúdos como vídeos, imagens, avisos, campanhas,
+          cardápios, comunicados e informações institucionais em telas
+          estrategicamente posicionadas.
+        </p>
+      </div>
+
+      <h2 class="titulo-secao">Para quem é a solução?</h2>
+
+      <div class="grade">
+        <article class="cartao">
+          <div class="numero">01</div>
+          <h3>Empresas e escritórios</h3>
+          <p>
+            Comunicação interna, avisos, indicadores, campanhas e
+            informações para colaboradores e visitantes.
+          </p>
+        </article>
+
+        <article class="cartao">
+          <div class="numero">02</div>
+          <h3>Comércio e varejo</h3>
+          <p>
+            Divulgação de produtos, ofertas, lançamentos, preços e
+            campanhas promocionais.
+          </p>
+        </article>
+
+        <article class="cartao">
+          <div class="numero">03</div>
+          <h3>Restaurantes e alimentação</h3>
+          <p>
+            Cardápios digitais, promoções, informações nutricionais e
+            comunicação dinâmica no ponto de atendimento.
+          </p>
+        </article>
+
+        <article class="cartao">
+          <div class="numero">04</div>
+          <h3>Clínicas e instituições</h3>
+          <p>
+            Orientações, chamadas, informações de atendimento e conteúdos
+            para pacientes, alunos e visitantes.
+          </p>
+        </article>
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- PÁGINA 3 — SOLUÇÃO -->
+  <section class="pagina">
+    <div class="conteudo">
+
+      <div class="barra-topo">
+        <img src="./Apresentação SmartSignage _ Totem Digital_files/Icon-logo-Azul.png" alt="Logo Totem Digital" class="logo">
+
+        <div class="marca-texto">
+          Eyras Desenvolvimento
+        </div>
+      </div>
+
+      <h2 class="titulo-secao">Uma solução completa para sua comunicação</h2>
+      <div class="linha-destaque"></div>
+
+      <p class="texto-introducao">
+        O SmartSignage transforma telas comuns em canais estratégicos de
+        comunicação. O conteúdo pode ser planejado, atualizado e organizado
+        conforme o perfil de cada ambiente.
+      </p>
+
+      <div class="lista-beneficios">
+
+        <div class="beneficio">
+          <div class="check">✓</div>
+          <div>
+            <h3>Conteúdo dinâmico</h3>
+            <p>
+              Exiba imagens, vídeos, textos, comunicados, campanhas e
+              informações em diferentes formatos.
+            </p>
+          </div>
+        </div>
+
+        <div class="beneficio">
+          <div class="check">✓</div>
+          <div>
+            <h3>Atualização simplificada</h3>
+            <p>
+              Altere as informações exibidas de maneira rápida, sem a
+              necessidade de substituir materiais impressos.
+            </p>
+          </div>
+        </div>
+
+        <div class="beneficio">
+          <div class="check">✓</div>
+          <div>
+            <h3>Comunicação segmentada</h3>
+            <p>
+              Organize conteúdos diferentes para ambientes, setores,
+              unidades ou públicos específicos.
+            </p>
+          </div>
+        </div>
+
+        <div class="beneficio">
+          <div class="check">✓</div>
+          <div>
+            <h3>Mais impacto visual</h3>
+            <p>
+              Utilize imagens, cores, movimento e vídeos para chamar
+              atenção e melhorar a experiência do público.
+            </p>
+          </div>
+        </div>
+
+        <div class="beneficio">
+          <div class="check">✓</div>
+          <div>
+            <h3>Comunicação profissional</h3>
+            <p>
+              Fortaleça a identidade da empresa e mantenha uma apresentação
+              visual moderna e padronizada.
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="bloco-destaque">
+        <h3>Mais que uma tela: uma experiência de comunicação</h3>
+
+        <p>
+          O SmartSignage aproxima sua empresa do público, reduz a dependência
+          de materiais impressos e permite que a informação esteja sempre
+          atualizada, clara e disponível.
+        </p>
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- PÁGINA 4 — FUNCIONAMENTO -->
+  <section class="pagina">
+    <div class="conteudo">
+
+      <div class="barra-topo">
+        <img src="./Apresentação SmartSignage _ Totem Digital_files/Icon-logo-Azul.png" alt="Logo Totem Digital" class="logo">
+
+        <div class="marca-texto">
+          Como funciona
+        </div>
+      </div>
+
+      <h2 class="titulo-secao">Comunicação simples, organizada e eficiente</h2>
+      <div class="linha-destaque"></div>
+
+      <p class="texto-introducao">
+        A implantação da solução pode ser adaptada à realidade de cada
+        negócio, considerando o ambiente, a quantidade de telas e os tipos
+        de conteúdo que serão exibidos.
+      </p>
+
+      <div class="fluxo">
+
+        <article class="etapa">
+          <h3>Planejamento</h3>
+          <p>
+            Entendimento da necessidade, do público e dos espaços onde a
+            comunicação será exibida.
+          </p>
+        </article>
+
+        <article class="etapa">
+          <h3>Configuração</h3>
+          <p>
+            Organização dos conteúdos e definição da programação visual
+            adequada para cada tela.
+          </p>
+        </article>
+
+        <article class="etapa">
+          <h3>Exibição</h3>
+          <p>
+            Comunicação digital funcionando de forma contínua, moderna e
+            alinhada aos objetivos da empresa.
+          </p>
+        </article>
+
+      </div>
+
+      <div style="height: 34px;"></div>
+
+      <h2 class="titulo-secao">Possibilidades de aplicação</h2>
+      <div class="linha-destaque"></div>
+
+      <div class="grade">
+
+        <article class="cartao">
+          <h3>Comunicação interna</h3>
+          <ul>
+            <li>Avisos e comunicados</li>
+            <li>Campanhas internas</li>
+            <li>Informações corporativas</li>
+          </ul>
+        </article>
+
+        <article class="cartao">
+          <h3>Publicidade e promoções</h3>
+          <ul>
+            <li>Ofertas e descontos</li>
+            <li>Lançamentos de produtos</li>
+            <li>Campanhas sazonais</li>
+          </ul>
+        </article>
+
+        <article class="cartao">
+          <h3>Orientação ao público</h3>
+          <ul>
+            <li>Informações de atendimento</li>
+            <li>Direcionamento de pessoas</li>
+            <li>Horários e procedimentos</li>
+          </ul>
+        </article>
+
+        <article class="cartao">
+          <h3>Conteúdo institucional</h3>
+          <ul>
+            <li>Apresentação da empresa</li>
+            <li>Valores e diferenciais</li>
+            <li>Projetos e resultados</li>
+          </ul>
+        </article>
+
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- PÁGINA 5 — CONTATO -->
+  <section class="pagina contato">
+    <div class="conteudo">
+
+      <div class="barra-topo">
+        <img src="./Apresentação SmartSignage _ Totem Digital_files/Icon-logo-Azul.png" alt="Logo Totem Digital" class="logo">
+
+        <div class="marca-texto">
+          Totem Digital
+        </div>
+      </div>
+
+      <div class="contato-centro">
+        <div class="etiqueta">Fale conosco</div>
+
+        <h2>
+          Leve sua comunicação<br>
+          para o próximo nível.
+        </h2>
+
+        <p>
+          Entre em contato para conhecer as possibilidades do SmartSignage
+          para sua empresa.
+        </p>
+
+        <div class="dados-contato">
+
+          <div class="item-contato">
+            <small>WhatsApp</small>
+            <a href="https://wa.me/5548999034237" target="_blank">
+              (48) 99903-4237
+            </a>
+          </div>
+
+          <div class="item-contato">
+            <small>E-mail</small>
+            <a href="mailto:contato@totemdigital.app.br">
+              contato@totemdigital.app.br
+            </a>
+          </div>
+
+          <div class="item-contato">
+            <small>Site</small>
+            <a href="https://totemdigital.app.br/" target="_blank">
+              totemdigital.app.br
+            </a>
+          </div>
+
+          <p class="observacao">
+            Atendimento pelo número informado exclusivamente via WhatsApp.
+          </p>
+
+        </div>
+      </div>
+
+      <div class="rodape">
+        <strong>Totem Digital</strong>
+        &nbsp; | &nbsp;
+        Uma solução da Eyras Desenvolvimento para comunicação digital
+        inteligente.
+      </div>
+
+    </div>
+  </section>
+
+
+
+</body></html>
