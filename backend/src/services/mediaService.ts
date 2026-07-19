@@ -45,8 +45,6 @@ const TOTEM_PORTRAIT_HEIGHT = 1920;
 const TOTEM_LANDSCAPE_WIDTH = 1920;
 const TOTEM_LANDSCAPE_HEIGHT = 1080;
 /** Legado (bake ≤2): canvas único 16:9. */
-const TOTEM_DELIVERY_WIDTH = TOTEM_LANDSCAPE_WIDTH;
-const TOTEM_DELIVERY_HEIGHT = TOTEM_LANDSCAPE_HEIGHT;
 /** Bake v3: UI sempre portrait; cada totem aplica displayRotation + cache local. */
 const DELIVERY_BAKE_VERSION_TAG = '_delivery_bake:3';
 const DELIVERY_BAKE_VERSION = 3;
@@ -1459,18 +1457,6 @@ export class MediaService {
       }
     }
     return null;
-  }
-
-  private async probeDeliveryRotationFromFile(
-    filePath: string,
-    fallbackTagRotation?: number
-  ): Promise<number> {
-    const fromFile = await this.readDeliveryRotationMetadata(filePath);
-    if (fromFile != null) return fromFile;
-    if (fallbackTagRotation != null) {
-      return this.normalizeRotation(fallbackTagRotation);
-    }
-    return 90;
   }
 
   /** Lê só o metadado delivery_rotation do ficheiro; null se ausente. */
