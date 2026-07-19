@@ -174,23 +174,25 @@ object MediaViewportRotation {
         deliveryRotation: Int? = null,
         deliveryBakeVersion: Int? = null,
     ): Float {
-        val (w, h) = rawVideoSize(videoSize)
+        // Dimensões “em pé” (após metadado rotate do telemóvel) para decidir portrait vs landscape
+        val (ew, eh) = effectiveVideoSize(videoSize)
         if (deliveryRotation != null || isNeutralBake(deliveryBakeVersion)) {
             return playbackCorrectionDegrees(
                 context,
                 displayRotation,
-                w,
-                h,
+                ew,
+                eh,
                 deliveryRotation,
                 deliveryBakeVersion,
                 isVideo = true,
             )
         }
         val metaRot = normalizeRotationDegrees(videoSize.unappliedRotationDegrees)
-        if (metaRot != 0) {
-            return metaRot.toFloat()
+        if (metaRot != 0 && !isNeutralBake(deliveryBakeVersion)) {
+            // Legado: ExoPlayer ainda tem rotate; combinar com montagem se necessário
+            val mount = mountCorrectionDegrees(displayRotation, ew, eh)
+            return ((metaRot + mount) % 360f + 360f) % 360f
         }
-        val (ew, eh) = effectiveVideoSize(videoSize)
         return correctionRotation(context, displayRotation, ew, eh)
     }
 

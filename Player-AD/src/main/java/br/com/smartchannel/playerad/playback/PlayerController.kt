@@ -1272,7 +1272,12 @@ class PlayerController(
 
             if (bitmap != null) {
                 val imagePath = if (imageUri.scheme == "file") imageUri.path else null
-                applyImageOrientationCorrection(bitmap, imagePath, item.deliveryRotation)
+                applyImageOrientationCorrection(
+                    bitmap,
+                    imagePath,
+                    item.deliveryRotation,
+                    item.deliveryBakeVersion,
+                )
             } else {
                 imageView.setImageDrawable(null)
                 resetMediaViewOrientation()
@@ -1328,7 +1333,13 @@ class PlayerController(
         exoPlayer.stop()
         exoPlayer.clearMediaItems()
         exoPlayer.setMediaItem(mediaItem)
-        attachVideoOrientationListener(item.deliveryRotation, item.deliveryBakeVersion)
+        val cacheAlreadyRotated =
+            hasValidCache && (cacheManager.getMetadata(item.mediaId)?.cacheRotated == true)
+        attachVideoOrientationListener(
+            item.deliveryRotation,
+            item.deliveryBakeVersion,
+            cacheAlreadyRotated = cacheAlreadyRotated,
+        )
         exoPlayer.prepare()
         exoPlayer.play()
         playerView.postDelayed({
@@ -1489,6 +1500,7 @@ class PlayerController(
     private fun attachVideoOrientationListener(
         deliveryRotation: Int? = null,
         deliveryBakeVersion: Int? = null,
+        cacheAlreadyRotated: Boolean = false,
     ) {
         if (!AUTO_MEDIA_ORIENTATION && !MediaViewportRotation.needsLandscapeStripFlip(deliveryRotation)) {
             return
@@ -1496,6 +1508,13 @@ class PlayerController(
         detachVideoOrientationListener()
         val listener = object : Player.Listener {
             override fun onVideoSizeChanged(videoSize: VideoSize) {
+                if (cacheAlreadyRotated) {
+                    // Cache local já adequado a displayRotation — só fullscreen
+                    applyFullscreenVideoScale()
+                    MediaViewportRotation.resetPlayerView(playerView)
+                    revealVideoAfterOrientation()
+                    return
+                }
                 if (AUTO_MEDIA_ORIENTATION) {
                     applyVideoOrientationCorrection(videoSize, deliveryRotation, deliveryBakeVersion)
                 } else {
@@ -1546,19 +1565,25 @@ class PlayerController(
         if (!AUTO_MEDIA_ORIENTATION) return
         try {
             val (rawW, rawH) = MediaViewportRotation.rawVideoSize(videoSize)
-            val rot = MediaViewportRotation.correctionRotationForVideo(
-                context,
-                displayRotation,
-                videoSize,
-                deliveryRotation,
-                deliveryBakeVersion,
-            )
+            val viewMountApplied = isViewDisplayRotationActive()
+            val rot = if (viewMountApplied) {
+                // contentHost já rodou o viewport; não aplicar segunda rotação na TextureView
+                0f
+            } else {
+                MediaViewportRotation.correctionRotationForVideo(
+                    context,
+                    displayRotation,
+                    videoSize,
+                    deliveryRotation,
+                    deliveryBakeVersion,
+                )
+            }
             applyFullscreenVideoScale()
             if (rot != 0f) {
                 PlayerAdLogger.i(
                     "DISPLAY",
                     "Correção orientação vídeo deliveryRotation=$deliveryRotation " +
-                        "bake=$deliveryBakeVersion " +
+                        "bake=$deliveryBakeVersion viewMount=$viewMountApplied " +
                         "eff=${MediaViewportRotation.effectiveVideoSize(videoSize).let { "${it.first}x${it.second}" }} " +
                         "raw=${rawW}x${rawH} → ${rot.toInt()}° mount=$displayRotation",
                 )
@@ -1573,6 +1598,16 @@ class PlayerController(
         }
     }
 
+    /** True se [ViewDisplayRotation] já rodou o contentHost (fallback quando SO não aplica user_rotation). */
+    private fun isViewDisplayRotationActive(): Boolean {
+        return try {
+            val host = (context as? android.app.Activity)?.findViewById<View>(R.id.contentHost)
+            host != null && kotlin.math.abs(host.rotation) > 0.5f
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     private fun revealVideoAfterOrientation() {
         if (!pendingVideoOrientationReveal) return
         pendingVideoOrientationReveal = false
@@ -1583,6 +1618,7 @@ class PlayerController(
         bitmap: Bitmap,
         filePath: String?,
         deliveryRotation: Int? = null,
+        deliveryBakeVersion: Int? = null,
     ) {
         imageView.scaleType = ImageView.ScaleType.CENTER_CROP
         if (!AUTO_MEDIA_ORIENTATION) {
@@ -1595,20 +1631,25 @@ class PlayerController(
         } else {
             bitmap.width to bitmap.height
         }
-        val rot = MediaViewportRotation.playbackCorrectionDegrees(
-            context,
-            displayRotation,
-            w,
-            h,
-            deliveryRotation,
-            deliveryBakeVersion = null,
-            isVideo = false,
-        )
+        val viewMountApplied = isViewDisplayRotationActive()
+        val rot = if (viewMountApplied) {
+            0f
+        } else {
+            MediaViewportRotation.playbackCorrectionDegrees(
+                context,
+                displayRotation,
+                w,
+                h,
+                deliveryRotation,
+                deliveryBakeVersion,
+                isVideo = false,
+            )
+        }
         val displayBitmap = if (rot != 0f) {
             PlayerAdLogger.i(
                 "DISPLAY",
                 "Correção orientação imagem ${w}x${h} → ${rot.toInt()}° " +
-                    "deliveryRotation=$deliveryRotation mount=$displayRotation",
+                    "deliveryRotation=$deliveryRotation bake=$deliveryBakeVersion mount=$displayRotation",
             )
             try {
                 MediaViewportRotation.rotateBitmap(bitmap, rot)
