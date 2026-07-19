@@ -157,31 +157,31 @@ export function resolveTotemDeliveryUiRotation(
   return normalizeMediaRotation(rotationDraft + getMediaUiPreviewUndoRotation(media));
 }
 
-/** Hover vídeo 16:9 — contain centrado; rotação lateral usa caixa 16:9 (não quadrado). */
+/** Hover vídeo 16:9 — cover centrado; rotação lateral usa caixa 16:9 (não quadrado). */
 function buildHoverDeliveryVideoSx(deg: number) {
-  return buildContainPortraitMediaSx(deg);
+  return buildCoverPortraitMediaSx(deg);
 }
 
 /**
- * Preview sem distorção na moldura 9:16.
- * Evita width+height 100% (object-fit fill por omissão → ovais).
+ * Preview cover na moldura 9:16 (object-fit: cover / scale max uniforme).
+ * Evita width+height 100% sem object-fit (fill → ovais).
  * Lateral 90/270: caixa pré-rotação 16:9 (177.778% × 56.25%), não quadrado 177%×100%.
  */
-function buildContainPortraitMediaSx(deg: number) {
+function buildCoverPortraitMediaSx(deg: number) {
   const normalized = normalizeMediaRotation(deg);
   const sideways = normalized === 90 || normalized === 270;
 
   const base = {
     position: 'absolute' as const,
     display: 'block',
-    objectFit: 'contain' as const,
+    objectFit: 'cover' as const,
     objectPosition: 'center center',
     transformOrigin: 'center center',
     backgroundColor: '#000',
   };
 
   if (sideways) {
-    // Moldura W×H (9:16). Caixa H×W (16:9) = 177.778% × 56.25% — após rotate preenche sem esticar.
+    // Moldura W×H (9:16). Caixa H×W (16:9) — após rotate preenche viewport (cover).
     return {
       ...base,
       top: '50%',
@@ -194,15 +194,14 @@ function buildContainPortraitMediaSx(deg: number) {
     };
   }
 
-  // Contain intrínseco: o browser dimensiona pelo aspect do media, nunca estica.
   return {
     ...base,
     top: '50%',
     left: '50%',
-    width: 'auto',
-    height: 'auto',
-    maxWidth: '100%',
-    maxHeight: '100%',
+    width: '100%',
+    height: '100%',
+    maxWidth: 'none',
+    maxHeight: 'none',
     transform:
       normalized !== 0
         ? `translate(-50%, -50%) rotate(${normalized}deg)`
@@ -236,7 +235,7 @@ export function mediaPortraitPreviewSx(
 }
 
 function buildRotatedPortraitPreviewSx(deg: number) {
-  return buildContainPortraitMediaSx(deg);
+  return buildCoverPortraitMediaSx(deg);
 }
 
 export const TOTEM_DELIVERY_WIDTH = 1920;
@@ -295,15 +294,15 @@ export function mediaTotemHoverVideoSx(
   };
 }
 
-/** Thumbnail 9:16 na UI — contain centrado (sem zoom/esticar). */
+/** Thumbnail 9:16 na UI — cover centrado (sem zoom não-uniforme/esticar). */
 export function mediaThumbnailPortraitPreviewSx(rotationDegrees: number) {
-  return buildContainPortraitMediaSx(rotationDegrees);
+  return buildCoverPortraitMediaSx(rotationDegrees);
 }
 
 /** Vídeo cru na UI: sem rotação automática (ficheiro 16:9 de entrega). */
 export function mediaVideoPortraitPreviewSx(rotationDraft = 0) {
   return {
-    ...buildContainPortraitMediaSx(rotationDraft),
+    ...buildCoverPortraitMediaSx(rotationDraft),
     zIndex: 3,
     pointerEvents: 'none' as const,
   };

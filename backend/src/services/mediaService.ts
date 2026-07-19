@@ -39,16 +39,16 @@ export { MediaInUseError };
 
 const execFileAsync = promisify(execFile);
 
-/** Entrega neutra (bake v4): pixels em pé; canvas portrait/landscape com contain (sem crop). */
+/** Entrega neutra (bake v5): pixels em pé; canvas portrait/landscape com cover (crop, sem pad). */
 const TOTEM_PORTRAIT_WIDTH = 1080;
 const TOTEM_PORTRAIT_HEIGHT = 1920;
 const TOTEM_LANDSCAPE_WIDTH = 1920;
 const TOTEM_LANDSCAPE_HEIGHT = 1080;
 /** Legado (bake ≤2): canvas único 16:9. */
 /** Bake ≥3: UI sempre portrait; cada totem aplica displayRotation + cache local. */
-/** Bake ≥4: vídeo em contain (pad) em vez de cover (crop). */
-const DELIVERY_BAKE_VERSION_TAG = '_delivery_bake:4';
-const DELIVERY_BAKE_VERSION = 4;
+/** Bake ≥5: vídeo/imagem em cover (crop) em vez de contain (pad com barras). */
+const DELIVERY_BAKE_VERSION_TAG = '_delivery_bake:5';
+const DELIVERY_BAKE_VERSION = 5;
 /** Pré-visualização UI / thumbnail: moldura 9:16 (WYSIWYG do totem). */
 const TOTEM_THUMB_WIDTH = 540;
 const TOTEM_THUMB_HEIGHT = 960;
@@ -1974,11 +1974,11 @@ export class MediaService {
     targetH: number = TOTEM_LANDSCAPE_HEIGHT
   ): string {
     const rotationFilters = this.getFfmpegRotationFilters(rotationDegrees);
-    // contain: escala com decrease + pad centrado (sem crop/zoom)
+    // cover: escala com increase + crop centrado (sem pad/letterbox no ficheiro)
     return [
       ...rotationFilters,
-      `scale=${targetW}:${targetH}:force_original_aspect_ratio=decrease`,
-      `pad=${targetW}:${targetH}:-1:-1:black`,
+      `scale=${targetW}:${targetH}:force_original_aspect_ratio=increase`,
+      `crop=${targetW}:${targetH}`,
       'setsar=1',
     ].join(',');
   }
@@ -1992,8 +1992,8 @@ export class MediaService {
   }
 
     /**
-     * Bake v3 imagem: EXIF uma vez (+ rotação UI) → canvas portrait/landscape com **contain**
-     * (sem cortar o assunto). Telemóvel EXIF 90/270 → canvas 9:16.
+     * Bake v3+ imagem: EXIF uma vez (+ rotação UI) → canvas portrait/landscape com **cover**
+     * (preenche canvas; corta excedente — sem barras pretas baked).
      */
     private async normalizeImageToTotemDelivery(
       sourcePath: string,
@@ -2019,10 +2019,9 @@ export class MediaService {
         ? { width: TOTEM_PORTRAIT_WIDTH, height: TOTEM_PORTRAIT_HEIGHT, portrait: true }
         : this.resolveDeliveryCanvas(ow, oh);
 
-      // contain: imagem completa no canvas (barras pretas se necessário) — evita crop agressivo
+      // cover: preenche o canvas (sem letterbox permanente no ficheiro)
       let out = (sharp as any)(oriented).resize(canvas.width, canvas.height, {
-        fit: 'contain',
-        background: { r: 0, g: 0, b: 0, alpha: 1 },
+        fit: 'cover',
         position: 'centre',
       });
 
@@ -2040,8 +2039,8 @@ export class MediaService {
     }
 
   /**
-   * Bake v3 vídeo: ffmpeg **autorotate** (rotate/matrix do telemóvel) uma vez,
-   * depois contain (pad) para canvas portrait (9:16) ou landscape (16:9).
+   * Bake v3+ vídeo: ffmpeg **autorotate** (rotate/matrix do telemóvel) uma vez,
+   * depois cover (crop) para canvas portrait (9:16) ou landscape (16:9).
    * NÃO usar -noautorotate + transpose do stream (causava letterbox / conteúdo deitado).
    * userOrDeliveryRotationDegrees = rotação extra da UI (transform manual).
    */
@@ -2135,8 +2134,7 @@ export class MediaService {
     }
     await pipeline
       .resize(TOTEM_THUMB_WIDTH, TOTEM_THUMB_HEIGHT, {
-        fit: 'contain',
-        background: { r: 0, g: 0, b: 0, alpha: 1 },
+        fit: 'cover',
         position: 'centre',
       })
       .jpeg({ quality: 82, progressive: true })

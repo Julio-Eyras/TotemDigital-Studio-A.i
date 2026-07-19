@@ -232,7 +232,7 @@ object MediaViewportRotation {
         rotationDegrees: Float,
         videoWidth: Int,
         videoHeight: Int,
-        scaleMode: VideoScaleMode = VideoScaleMode.FIT,
+        scaleMode: VideoScaleMode = VideoScaleMode.ZOOM,
     ) {
         if (videoWidth <= 0 || videoHeight <= 0) {
             resetPlayerView(playerView)
@@ -241,8 +241,8 @@ object MediaViewportRotation {
         runWhenSized(playerView) {
             val texture = playerView.videoSurfaceView as? TextureView
             if (texture == null) {
-                // Sem TextureView: ExoPlayer FIT evita stretch até haver surface
-                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                // Sem TextureView: ExoPlayer ZOOM (cover) evita stretch até haver surface
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                 if (rotationDegrees == 0f) {
                     resetView(playerView)
                 } else {
@@ -323,7 +323,7 @@ object MediaViewportRotation {
         rotationDegrees: Float,
         videoWidth: Int,
         videoHeight: Int,
-        scaleMode: VideoScaleMode = VideoScaleMode.FIT,
+        scaleMode: VideoScaleMode = VideoScaleMode.ZOOM,
     ) {
         val viewW = textureView.width.toFloat()
         val viewH = textureView.height.toFloat()

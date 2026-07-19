@@ -1494,7 +1494,7 @@ class PlayerController(
 
     private fun applyFullscreenVideoScale() {
         // FILL no AspectRatioFrameLayout: surface = viewport inteiro.
-        // Contain (aspect preservado, barras pretas) via matrix FIT em MediaViewportRotation.
+        // Cover (escala uniforme max) via matrix ZOOM em MediaViewportRotation.
         // Sem matrix uniforme o TextureView em FILL estica (círculos → ovais).
         playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
         exoPlayer.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT)
@@ -1513,7 +1513,7 @@ class PlayerController(
         val listener = object : Player.Listener {
             override fun onVideoSizeChanged(videoSize: VideoSize) {
                 if (cacheAlreadyRotated) {
-                    // Cache local já adequado a displayRotation — contain sem esticar
+                    // Cache local já adequado a displayRotation — cover sem esticar
                     applyFullscreenVideoScale()
                     val (rawW, rawH) = MediaViewportRotation.rawVideoSize(videoSize)
                     MediaViewportRotation.applyToPlayerView(
@@ -1521,7 +1521,7 @@ class PlayerController(
                         0f,
                         rawW,
                         rawH,
-                        VIDEO_CONTAIN_SCALE,
+                        VIDEO_COVER_SCALE,
                     )
                     revealVideoAfterOrientation()
                     return
@@ -1560,10 +1560,10 @@ class PlayerController(
                         rot,
                         rawW,
                         rawH,
-                        VIDEO_CONTAIN_SCALE,
+                        VIDEO_COVER_SCALE,
                     )
                 } catch (e: Exception) {
-                    PlayerAdLogger.e("DISPLAY", "Falha flip faixa landscape; mantém FIT", e)
+                    PlayerAdLogger.e("DISPLAY", "Falha flip faixa landscape; mantém ZOOM", e)
                     MediaViewportRotation.resetPlayerView(playerView)
                     applyFullscreenVideoScale()
                 }
@@ -1605,7 +1605,7 @@ class PlayerController(
                 "Correção orientação vídeo deliveryRotation=$deliveryRotation " +
                     "bake=$deliveryBakeVersion viewMount=$viewMountApplied " +
                     "eff=${MediaViewportRotation.effectiveVideoSize(videoSize).let { "${it.first}x${it.second}" }} " +
-                    "raw=${rawW}x${rawH} → ${rot.toInt()}° mount=$displayRotation FIT",
+                    "raw=${rawW}x${rawH} → ${rot.toInt()}° mount=$displayRotation ZOOM",
             )
             // Sempre aplicar matrix (incl. 0°): corrige stretch do TextureView em FILL
             MediaViewportRotation.applyToPlayerView(
@@ -1613,11 +1613,11 @@ class PlayerController(
                 rot,
                 rawW,
                 rawH,
-                VIDEO_CONTAIN_SCALE,
+                VIDEO_COVER_SCALE,
             )
             revealVideoAfterOrientation()
         } catch (e: Exception) {
-            PlayerAdLogger.e("DISPLAY", "Falha ao corrigir orientação do vídeo; mantém FIT matrix", e)
+            PlayerAdLogger.e("DISPLAY", "Falha ao corrigir orientação do vídeo; mantém ZOOM matrix", e)
             try {
                 val (w, h) = MediaViewportRotation.rawVideoSize(videoSize)
                 applyFullscreenVideoScale()
@@ -1626,7 +1626,7 @@ class PlayerController(
                     0f,
                     w,
                     h,
-                    VIDEO_CONTAIN_SCALE,
+                    VIDEO_COVER_SCALE,
                 )
             } catch (_: Exception) {
                 MediaViewportRotation.resetPlayerView(playerView)
@@ -2013,8 +2013,8 @@ class PlayerController(
     companion object {
         /** SUSPENSO v1.55 — orientação/resolução vêm do servidor. */
         private const val AUTO_MEDIA_ORIENTATION = MediaViewportRotation.ENABLED
-        /** Alinhado ao preview da biblioteca: contain, barras pretas, sem stretch. */
-        private val VIDEO_CONTAIN_SCALE = MediaViewportRotation.VideoScaleMode.FIT
+        /** Alinhado ao preview da biblioteca: cover (max scale uniforme), sem stretch. */
+        private val VIDEO_COVER_SCALE = MediaViewportRotation.VideoScaleMode.ZOOM
         private const val VIDEO_WATCHDOG_MIN_MS = 30_000L
         private const val VIDEO_WATCHDOG_GRACE_MS = 15_000L
         /** Quando duração desconhecida — fallback curto (não 15 min). */

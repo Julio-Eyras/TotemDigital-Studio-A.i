@@ -63,9 +63,9 @@ describe('mediaLibraryPreviewSx', () => {
       previewSource: 'thumbnail',
     });
     expect(sx).toEqual(mediaThumbnailPortraitPreviewSx(0));
-    expect(sx.objectFit).toBe('contain');
-    expect(sx.maxWidth).toBe('100%');
-    expect(sx.maxHeight).toBe('100%');
+    expect(sx.objectFit).toBe('cover');
+    expect(sx.width).toBe('100%');
+    expect(sx.height).toBe('100%');
     expect(String(sx.transform || '')).not.toContain('rotate');
   });
 
@@ -81,28 +81,28 @@ describe('mediaLibraryPreviewSx', () => {
 });
 
 describe('mediaTotemHoverVideoSx', () => {
-  it('vídeo entrega usa contain + caixa 16:9 lateral (sem quadrado esticado)', () => {
+  it('vídeo entrega usa cover + caixa 16:9 lateral (sem quadrado esticado)', () => {
     const sx = mediaTotemHoverVideoSx(0, {
       width: 1920,
       height: 1080,
       deliveryPreviewRotation: 270,
     });
-    expect(sx.objectFit).toBe('contain');
+    expect(sx.objectFit).toBe('cover');
     expect(sx.transform).toContain('rotate(270deg)');
     expect(sx.width).toBe('177.778%');
     expect(sx.height).toBe('56.25%');
   });
 
-  it('bake v3+ landscape fica contain centrado sem rotação de undo', () => {
+  it('bake v3+ landscape fica cover centrado sem rotação de undo', () => {
     const sx = mediaTotemHoverVideoSx(0, {
       width: 1920,
       height: 1080,
       tags: ['_delivery_bake:4', '_delivery_rotation:0'],
       deliveryRotation: 0,
     });
-    expect(sx.objectFit).toBe('contain');
-    expect(sx.maxWidth).toBe('100%');
-    expect(sx.maxHeight).toBe('100%');
+    expect(sx.objectFit).toBe('cover');
+    expect(sx.width).toBe('100%');
+    expect(sx.height).toBe('100%');
     expect(String(sx.transform || '')).not.toContain('rotate');
   });
 });
