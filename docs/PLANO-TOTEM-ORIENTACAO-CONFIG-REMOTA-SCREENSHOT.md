@@ -1,9 +1,22 @@
 # Plano — Orientação por totem, config remota e controlo operacional
 
-**Estado:** código A–D + OTA stubs implementados — **2026-07-19** (falta validação em hardware; OTA completo Fase E)  
+**Estado:** código A–D + OTA stubs + bake mídia v3 + defaults instalação Player-AD — **2026-07-19**  
 **Data:** 2026-07-17 · **Actualizado:** 2026-07-19  
 **Público:** equipa de desenvolvimento  
-**Continuidade:** validar em totem real; aplicar schema se DB antiga; OTA install/rollback real só quando priorizado
+**Continuidade:** validar em totem real; reprocessar mídias de telemóvel; OTA install/rollback real só quando priorizado
+
+### Defaults de instalação Player-AD (kit ADB / pendrive)
+
+| Campo | Valor padrão |
+|-------|----------------|
+| `uin` | `T1000` |
+| `deviceId` (nome no painel) | `T1000 - Exterminator` |
+| `allowPlaybackAudio` | `false` (áudio desligado) |
+| `batimentoCardiaco` | `15` (segundos) |
+| `displayRotation` | `0` (retrato) |
+| `serverUrl` | `http://217.216.91.135:8080` |
+
+Fonte: `install-pendrive/config/exemplo-player-config.json` + defaults em `PlayerConfig` / `PlayerConfigLoader`.
 
 
 Documentos relacionados:
@@ -243,8 +256,7 @@ Histórico no **servidor** (quem / quando / versão pedida) pode ficar só em `r
 - [x] Config remota `config` / orientação na UI
 - [x] Now playing no heartbeat + chip no painel
 - [x] OTA stubs (`update` / `ota_rollback`) + pasta `files/OTA` (máx. 3 backups)
-- [ ] Validar em hardware real: screenshot, orientação 0 vs 2, config remota
-- [ ] Fase E OTA completa (instalação + rollback real) — baixa prioridade
+- [ ] Defaults kit: `uin=T1000`, `deviceId=T1000 - Exterminator`, áudio off, heartbeat 15s
 
 ---
 
@@ -256,4 +268,4 @@ Histórico no **servidor** (quem / quando / versão pedida) pode ficar só em `r
 
 ---
 
-*Última actualização: 2026-07-19 — A–D implementados no código; OTA em stubs/mocks + backup local 3 APKs; validar schema em ambiente.*
+*Última actualização: 2026-07-19 — defaults instalação T1000 / Exterminator / áudio off / heartbeat 15s; bake v3 + Player-AD; validar em hardware.*

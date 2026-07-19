@@ -10,7 +10,7 @@ data class PlayerConfig(
      * Se false, o ExoPlayer fica sempre em volume 0 (mute) para vídeo/áudio.
      * Imagens já não têm som; o interruptor só afeta mídia tocada pelo player.
      */
-    val allowPlaybackAudio: Boolean = true,
+    val allowPlaybackAudio: Boolean = false,
     /** Quantas propagandas/campanha tocar antes de inserir 1 vinheta (dispatch online e fallback local). */
     val fallbackPropagandasPerVinheta: Int = 3,
     /**
@@ -18,7 +18,7 @@ data class PlayerConfig(
      * OTA, token e presença online — sem solicitar dispatch/plano.
      * Campo JSON: `batimentoCardiaco`.
      */
-    val batimentoCardiaco: Int = 120,
+    val batimentoCardiaco: Int = 15,
     /**
      * Intervalo (segundos) para atualizar o plano de mídia (GET /dispatch).
      * Independente do fim de ciclo de reprodução.

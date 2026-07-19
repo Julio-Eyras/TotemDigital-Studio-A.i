@@ -63,10 +63,10 @@ class PlayerController(
     private val htmlWebView: WebView,
     private val acceptImagesInPlaylist: Boolean = true,
     /** Se false, [exoPlayer] permanece em volume 0 durante vídeo/áudio. */
-    private val allowPlaybackAudio: Boolean = true,
+    private val allowPlaybackAudio: Boolean = false,
     private val fallbackPropagandasPerVinheta: Int = 3,
     /** Intervalo do batimento cardiaco (segundos) — heartbeat sem dispatch. */
-    private val batimentoCardiaco: Int = 120,
+    private val batimentoCardiaco: Int = 15,
     /** Intervalo (segundos) para atualizar dispatch/plano — independente do ciclo de reprodução. */
     private val maxSecondsWithoutServerCheck: Int = 60,
     /** Montagem do painel (0=portrait … 3=landscape invertido) — alinha orientação da mídia. */

@@ -1,11 +1,12 @@
 {
   "serverUrl": "http://217.216.91.135:8080",
-  "uin": "Tv-001",
-  "deviceId": "Tv-001",
+  "uin": "T1000",
+  "deviceId": "T1000 - Exterminator",
   "kioskMode": "strong",
   "displayRotation": 0,
   "screenOrientation": "portrait",
+  "allowPlaybackAudio": false,
   "fallbackPropagandasPerVinheta": 3,
-  "batimentoCardiaco": 120,
+  "batimentoCardiaco": 15,
   "maxSecondsWithoutServerCheck": 60
 }

@@ -31,15 +31,15 @@ class PlayerConfigLoader(private val context: Context) {
             parseConfigFile(external)?.let { return it }
         }
 
-        // 3) defaults seguros (substituir depois via config real)
+        // 3) defaults de instalação (alinhar com install-pendrive/config/exemplo-player-config.json)
         return PlayerConfig(
             serverUrl = "http://217.216.91.135:8080",
-            uin = "DEMO-UIN-001",
-            deviceId = "DEMO-UIN-001",
+            uin = "T1000",
+            deviceId = "T1000 - Exterminator",
             acceptImagesInPlaylist = true,
-            allowPlaybackAudio = true,
+            allowPlaybackAudio = false,
             fallbackPropagandasPerVinheta = 3,
-            batimentoCardiaco = 120,
+            batimentoCardiaco = 15,
             maxSecondsWithoutServerCheck = 60,
             storageMode = PlayerStorageMode.AUTO,
             storagePathOverride = null,
@@ -59,10 +59,10 @@ class PlayerConfigLoader(private val context: Context) {
                 null
             } else {
                 val acceptImages = json.optBoolean("acceptImagesInPlaylist", true)
-                val allowAudio = json.optBoolean("allowPlaybackAudio", true)
+                val allowAudio = json.optBoolean("allowPlaybackAudio", false)
                 val fallbackRatioRaw = json.optInt("fallbackPropagandasPerVinheta", 3)
                 val fallbackRatio = fallbackRatioRaw.coerceAtLeast(1)
-                val batimentoRaw = json.optInt("batimentoCardiaco", 120)
+                val batimentoRaw = json.optInt("batimentoCardiaco", 15)
                 val batimento = batimentoRaw.coerceAtLeast(10)
                 val maxSecondsRaw = json.optInt("maxSecondsWithoutServerCheck", 60)
                 val maxSeconds = maxSecondsRaw.coerceAtLeast(10)

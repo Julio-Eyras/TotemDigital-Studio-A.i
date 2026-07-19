@@ -128,8 +128,8 @@ Preencha pelo menos:
 | Campo | O que colocar | Exemplo |
 |-------|---------------|---------|
 | **URL do servidor** (`serverUrl`) | Endereço do backend, sem barra no fim | `http://217.216.91.135:8080` |
-| **UIN / ativação** (`uin`) | Código copiado do painel web | `Tv-001` ou código gerado |
-| **ID do dispositivo** (`deviceId`) | Em geral o **mesmo** que o UIN | `Tv-001` |
+| **UIN / ativação** (`uin`) | Código copiado do painel web | `T1000` ou código gerado |
+| **ID do dispositivo** (`deviceId`) | Nome amigável do totem | `T1000 - Exterminator` |
 
 Depois:
 
@@ -181,16 +181,16 @@ Exemplo mínimo:
 ```json
 {
   "serverUrl": "http://217.216.91.135:8080",
-  "uin": "CODIGO-DE-ATIVACAO",
-  "deviceId": "CODIGO-DE-ATIVACAO",
+  "uin": "T1000",
+  "deviceId": "T1000 - Exterminator",
   "kioskMode": "strong",
   "displayRotation": 0,
   "screenOrientation": "portrait",
   "acceptImagesInPlaylist": true,
-  "allowPlaybackAudio": true,
+  "allowPlaybackAudio": false,
   "fallbackPropagandasPerVinheta": 3,
-  "batimentoCardiaco": 120,
-  "maxSecondsWithoutServerCheck": 600
+  "batimentoCardiaco": 15,
+  "maxSecondsWithoutServerCheck": 60
 }
 ```
 
