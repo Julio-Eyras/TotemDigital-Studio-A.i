@@ -4,7 +4,7 @@
 # Smart Signage Pro - Script de Auto-Instalação para Ubuntu
 # =============================================================================
 # Versão do Sistema: 2.1.0
-# Versão do Script: 2.1.11
+# Versão do Script: 2.1.13
 # =============================================================================
 # Este script instala automaticamente o Smart Signage Pro em sistemas Ubuntu
 # Suporta modos de instalação e perfil MQTT para single-server:
@@ -17,10 +17,10 @@
 
 # Versões (podem ser diferentes)
 SYSTEM_VERSION="2.1.0"
-SCRIPT_VERSION="2.1.12"
+SCRIPT_VERSION="2.1.13"
 #
 # OPÇÕES:
-#   --fresh              Instalação COMPLETA do zero (apaga TUDO, incluindo volumes)
+#   --fresh              Instalação COMPLETA do zero (single-server por defeito; com --mode docker limpa Compose)
 #   --rebuild            Rebuild containers preservando dados (volumes mantidos)
 #   --rebuild-cache      Rebuild SEM cache do Docker (mais lento, mais garantido)
 #   --rebuild-only       Apenas rebuild, não inicia serviços
@@ -1736,11 +1736,12 @@ parse_arguments() {
     while [[ $# -gt 0 ]]; do
         case $1 in
             --fresh)
+                # Fresh = instalação do zero. Padrão: single-server (não Docker).
+                # Para Docker: --fresh --mode docker
                 FRESH_MODE=true
-                REBUILD_MODE=true
-                FORCE_REBUILD=true
                 SKIP_MENU=true
-                INSTALL_MODE="docker"
+                RESET_DATABASE=true
+                PRESERVE_DB=false
                 shift
                 ;;
             --rebuild)
@@ -2632,6 +2633,60 @@ install_nodejs() {
     exit 1
 }
 
+# Resolver comando Docker Compose (plugin v2 ou binário legado)
+resolve_compose_cmd() {
+    if command -v docker &> /dev/null && docker compose version &> /dev/null; then
+        COMPOSE_CMD="docker compose"
+        return 0
+    fi
+    if command -v docker-compose &> /dev/null && docker-compose --version &> /dev/null; then
+        COMPOSE_CMD="docker-compose"
+        return 0
+    fi
+    return 1
+}
+
+# Garantir Docker Compose disponível (plugin apt ou binário)
+ensure_docker_compose() {
+    if resolve_compose_cmd; then
+        log "Docker Compose disponível: $COMPOSE_CMD"
+        return 0
+    fi
+
+    log "Docker Compose não encontrado — a instalar..."
+
+    if command -v apt-get &> /dev/null; then
+        sudo apt-get update -y >/dev/null 2>&1 || true
+        if sudo apt-get install -y docker-compose-plugin 2>/dev/null; then
+            if resolve_compose_cmd; then
+                log "Docker Compose (plugin) instalado: $COMPOSE_CMD"
+                return 0
+            fi
+        fi
+        if sudo apt-get install -y docker-compose 2>/dev/null; then
+            if resolve_compose_cmd; then
+                log "Docker Compose (apt) instalado: $COMPOSE_CMD"
+                return 0
+            fi
+        fi
+    fi
+
+    local tag
+    tag=$(curl -fsSL https://api.github.com/repos/docker/compose/releases/latest 2>/dev/null | grep -oP '"tag_name": "\K(.*)(?=")' | head -1 || true)
+    tag="${tag:-v2.29.7}"
+    sudo curl -fsSL "https://github.com/docker/compose/releases/download/${tag}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    sudo chmod +x /usr/local/bin/docker-compose
+
+    if resolve_compose_cmd; then
+        log "Docker Compose (binário) instalado: $COMPOSE_CMD"
+        return 0
+    fi
+
+    error "Docker Compose não encontrado e a instalação automática falhou!"
+    error "No Ubuntu 24.04 execute: sudo apt install -y docker-compose-plugin"
+    return 1
+}
+
 # Instalar Docker (opcional)
 install_docker() {
     if [[ "$INSTALL_MODE" == "docker" ]]; then
@@ -2640,9 +2695,8 @@ install_docker() {
         # Verificar se Docker já está instalado e funcionando
         if command -v docker &> /dev/null && systemctl is-active --quiet docker; then
             log "Docker já está instalado e funcionando!"
-            # Verificar se Docker Compose está instalado
-            if command -v docker-compose &> /dev/null; then
-                log "Docker Compose já está instalado!"
+            if resolve_compose_cmd; then
+                log "Docker Compose já está instalado ($COMPOSE_CMD)!"
                 return
             fi
         else
@@ -2666,21 +2720,7 @@ install_docker() {
             log "Docker $(docker --version) instalado com sucesso!"
         fi
         
-        # Instalar Docker Compose
-        if ! command -v docker-compose &> /dev/null; then
-            log "Instalando Docker Compose..."
-            DOCKER_COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")')
-            sudo curl -L "https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-            sudo chmod +x /usr/local/bin/docker-compose
-            
-            # Verificar instalação
-            if ! docker-compose --version &> /dev/null; then
-                error "Falha ao instalar Docker Compose!"
-                exit 1
-            fi
-            
-            log "Docker Compose $(docker-compose --version) instalado com sucesso!"
-        fi
+        ensure_docker_compose || exit 1
         
         # Aplicar grupo docker imediatamente
         newgrp docker << EONG
@@ -2779,10 +2819,16 @@ detect_and_remove_previous_installation() {
                 echo -e "${RED}⚠️  ESTA AÇÃO É IRREVERSÍVEL!${NC}"
                 echo
                 if [[ "$SKIP_MENU" == "true" ]]; then
-                    log "Modo --skip-menu: a manter instalação anterior em $INSTALL_DIR_CHECK (sem remover)."
-                    continue
+                    if [[ "$FRESH_MODE" == "true" ]]; then
+                        log "Modo --fresh: remoção automática da instalação anterior em $INSTALL_DIR_CHECK"
+                        confirm_remove="s"
+                    else
+                        log "Modo --skip-menu: a manter instalação anterior em $INSTALL_DIR_CHECK (sem remover)."
+                        continue
+                    fi
+                else
+                    read -p "Deseja REMOVER COMPLETAMENTE a instalação anterior? (s/N): " confirm_remove
                 fi
-                read -p "Deseja REMOVER COMPLETAMENTE a instalação anterior? (s/N): " confirm_remove
                 
                 if [[ "$confirm_remove" =~ ^[Ss]$ ]]; then
                     log "Removendo instalação anterior de $INSTALL_DIR_CHECK..."
@@ -13256,15 +13302,8 @@ rebuild_fresh() {
     
     cd "$INSTALL_DIR" || { error "Diretório $INSTALL_DIR não encontrado!"; exit 1; }
     
-    # Determinar comando compose
-    if command -v docker &> /dev/null && docker compose version &> /dev/null; then
-        COMPOSE_CMD="docker compose"
-    elif command -v docker-compose &> /dev/null; then
-        COMPOSE_CMD="docker-compose"
-    else
-        error "Docker Compose não encontrado!"
-        exit 1
-    fi
+    # Determinar comando compose (instalar se faltar)
+    ensure_docker_compose || exit 1
     
     # Parar e remover TUDO
     log_progress "Parando e removendo containers..."
@@ -14061,6 +14100,17 @@ main() {
     # Mostrar modo selecionado se aplicável
     if [[ "$FRESH_MODE" == "true" ]]; then
         echo -e "${RED}⚠️  MODO FRESH ATIVADO - Instalação completa do zero${NC}"
+        # Padrão single-server; Docker só com --mode docker (antes ou depois de --fresh)
+        if [[ -z "$INSTALL_MODE" ]]; then
+            INSTALL_MODE="single-server"
+        fi
+        RESET_DATABASE=true
+        PRESERVE_DB=false
+        if [[ "$INSTALL_MODE" == "docker" ]]; then
+            REBUILD_MODE=true
+            FORCE_REBUILD=true
+        fi
+        echo -e "${CYAN}ℹ️  Modo de instalação fresh: $INSTALL_MODE${NC}"
         echo
     elif [[ "$REBUILD_MODE" == "true" ]]; then
         echo -e "${YELLOW}🔄 MODO REBUILD ATIVADO - Rebuild preservando dados${NC}"
@@ -14335,8 +14385,14 @@ main() {
             cd "$INSTALL_DIR" 2>/dev/null || true
             
             if [[ "$FRESH_MODE" == "true" ]]; then
-                rebuild_fresh
-                # Após rebuild fresh, continuar instalação normalmente
+                if [[ "$INSTALL_MODE" == "docker" ]]; then
+                    rebuild_fresh
+                    # Após rebuild fresh Docker, continuar instalação normalmente
+                else
+                    log "Modo --fresh (single-server): a recriar banco e instalação completa (sem Docker Compose)."
+                    RESET_DATABASE=true
+                    PRESERVE_DB=false
+                fi
             elif check_rebuild_needed || [[ "$FORCE_REBUILD" == "true" ]]; then
                 rebuild_preserve_data
                 # rebuild_preserve_data já reinicia containers se REBUILD_ONLY não estiver ativo
