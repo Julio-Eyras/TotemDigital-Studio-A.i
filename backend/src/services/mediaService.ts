@@ -42,6 +42,8 @@ const execFileAsync = promisify(execFile);
 /** Entrega totem: ficheiro 16:9 landscape (rotate=0); SO do totem põe em pé. */
 const TOTEM_DELIVERY_WIDTH = 1920;
 const TOTEM_DELIVERY_HEIGHT = 1080;
+/** Bake com stream+delivery (paridade sharp EXIF) + cover fullscreen. */
+const DELIVERY_BAKE_VERSION_TAG = '_delivery_bake:2';
 /** Pré-visualização UI / thumbnail: moldura 9:16 (WYSIWYG do totem). */
 const TOTEM_THUMB_WIDTH = 540;
 const TOTEM_THUMB_HEIGHT = 960;
@@ -833,7 +835,9 @@ export class MediaService {
         processedTags = Array.isArray(tags) ? tags : [tags];
       }
       if (uploadDeliveryRotation != null) {
-        processedTags = this.mergeDeliveryRotationTag(processedTags, uploadDeliveryRotation);
+        processedTags = this.mergeDeliveryBakeVersionTag(
+          this.mergeDeliveryRotationTag(processedTags, uploadDeliveryRotation)
+        );
       }
 
       if (mediaType === 'video') {
@@ -1197,13 +1201,20 @@ export class MediaService {
         await this.normalizeImageToTotemDelivery(sourcePath, outputPath, resolvedDeliveryRotation, media.mimeType);
         await this.generatePortraitThumbnailFromDeliveryImage(outputPath, resolvedDeliveryRotation);
       } else {
-        await this.normalizeVideoToTotemDelivery(sourcePath, outputPath, resolvedDeliveryRotation);
+        await this.normalizeVideoToTotemDelivery(
+          sourcePath,
+          outputPath,
+          resolvedDeliveryRotation,
+          streamInfo.rotation
+        );
         await this.generatePortraitThumbnailFromDeliveryVideo(outputPath, resolvedDeliveryRotation);
       }
 
       const stats = await fs.promises.stat(outputPath);
       const dimensions = { width: TOTEM_DELIVERY_WIDTH, height: TOTEM_DELIVERY_HEIGHT };
-      const nextTags = this.mergeDeliveryRotationTag(media.tags, resolvedDeliveryRotation);
+      const nextTags = this.mergeDeliveryBakeVersionTag(
+        this.mergeDeliveryRotationTag(media.tags, resolvedDeliveryRotation)
+      );
 
       const nextMimeType = mediaType === 'video' ? 'video/mp4' : this.getImageMimeTypeFromExtension(ext);
       const nextFileName = path.basename(outputPath);
@@ -1375,6 +1386,17 @@ export class MediaService {
         String(t) !== TOTEM_DELIVERY_PENDING_TAG
     );
     return [...filtered, `${DELIVERY_ROTATION_TAG_PREFIX}${this.normalizeRotation(deliveryRotation)}`];
+  }
+
+  private mergeDeliveryBakeVersionTag(existingTags: string[] | null | undefined): string[] {
+    const filtered = (existingTags || []).filter(
+      (t) => !String(t).startsWith('_delivery_bake:')
+    );
+    return [...filtered, DELIVERY_BAKE_VERSION_TAG];
+  }
+
+  private hasDeliveryBakeV2(tags: string[] | null | undefined): boolean {
+    return (tags || []).some((t) => String(t) === DELIVERY_BAKE_VERSION_TAG);
   }
 
   private withTotemDeliveryPendingTag(existingTags: string[] | null | undefined): string[] {
@@ -1629,16 +1651,20 @@ export class MediaService {
     updatedBy: number
   ): Promise<void> {
     try {
-      const normalized = await this.normalizeNewUploadToTotemPortrait(filePath, 'video', mimeType);
+      const normalized = await this.normalizeNewUploadToTotemPortrait(filePath, 'video', mimeType, {
+        existingTags: (await this.getMediaById(mediaId))?.tags,
+      });
       const newPath = normalized.filePath;
       const stats = await fs.promises.stat(newPath);
       const thumbPath = newPath.replace(/\.[^/.]+$/, '_thumb.jpg');
       await this.generatePortraitThumbnailFromDeliveryVideo(newPath, normalized.deliveryRotation);
       const previewUrl = generateThumbnailUrl(thumbPath, 'video');
       const current = await this.getMediaById(mediaId);
-      const nextTags = this.mergeDeliveryRotationTag(
-        this.withoutTotemDeliveryPendingTag(current?.tags),
-        normalized.deliveryRotation
+      const nextTags = this.mergeDeliveryBakeVersionTag(
+        this.mergeDeliveryRotationTag(
+          this.withoutTotemDeliveryPendingTag(current?.tags),
+          normalized.deliveryRotation
+        )
       );
 
       await this.db.executeRaw(
@@ -1709,8 +1735,9 @@ export class MediaService {
   }
 
   /**
-   * Re-aplica normalização totem (1920×1080 + rotação de entrega) num vídeo já existente.
-   * Útil quando a política de rotação muda sem re-upload manual.
+   * Re-aplica normalização totem (1920×1080 cover + rotação de entrega).
+   * Vídeo: se já é entrega v1 (sem stream EXIF no bake), aplica +stream residual típico (90°)
+   * para paridade com imagens e marca `_delivery_bake:2`.
    */
   async reprocessTotemDelivery(
     mediaId: number,
@@ -1725,20 +1752,24 @@ export class MediaService {
     if (!isAdmin && requestSubscriberId && media.subscriberId !== requestSubscriberId) {
       throw new Error('Acesso negado: mídia não pertence a este subscriber');
     }
-    if (media.mediaType !== 'video') {
-      throw new Error('Reprocessamento totem só está disponível para vídeos');
+    if (media.mediaType !== 'video' && media.mediaType !== 'image') {
+      throw new Error('Reprocessamento totem só está disponível para imagem ou vídeo');
     }
     const filePath = this.resolveExistingMediaPath(media.filePath || '');
     if (!filePath) {
-      throw new Error('Ficheiro de vídeo não encontrado no servidor');
+      throw new Error('Ficheiro de mídia não encontrado no servidor');
     }
 
-    await this.completeVideoPortraitNormalizationAfterUpload(
-      mediaId,
-      filePath,
-      media.mimeType || 'video/mp4',
-      updatedBy
-    );
+    if (media.mediaType === 'video') {
+      await this.completeVideoPortraitNormalizationAfterUpload(
+        mediaId,
+        filePath,
+        media.mimeType || 'video/mp4',
+        updatedBy
+      );
+    } else {
+      await this.reprocessImageTotemDelivery(mediaId, filePath, media.mimeType, updatedBy);
+    }
 
     const refreshed = await this.getMediaById(mediaId, requestSubscriberId, isAdmin);
     if (!refreshed) {
@@ -1747,13 +1778,101 @@ export class MediaService {
     return refreshed;
   }
 
+  /** Re-bake imagem já existente com cover fullscreen (rotação de entrega preservada). */
+  private async reprocessImageTotemDelivery(
+    mediaId: number,
+    filePath: string,
+    mimeType: string | undefined,
+    updatedBy: number
+  ): Promise<void> {
+    const probe = await this.probeImageStreamInfo(filePath);
+    const existingDelivery =
+      this.parseDeliveryRotationFromTags(
+        (await this.getMediaById(mediaId))?.tags
+      ) ?? (await this.readDeliveryRotationMetadata(filePath));
+    const deliveryRotation =
+      existingDelivery ??
+      this.resolveDeliveryRotationFromStream(probe.width, probe.height, probe.rotation, 0);
+
+    const dir = path.dirname(filePath);
+    const stamp = Date.now();
+    const tempOut = path.join(
+      dir,
+      `${path.basename(filePath, path.extname(filePath))}_totem_${stamp}${path.extname(filePath) || '.jpg'}`
+    );
+
+    // Já é canvas de entrega: só re-aplica cover (sem segunda rotação de stream).
+    // Ainda não é entrega: usa pipeline normal (EXIF + delivery).
+    if (this.isTotemDeliverySize(probe.width, probe.height) && existingDelivery != null) {
+      await this.normalizeImageToTotemDelivery(filePath, tempOut, 0, mimeType);
+    } else {
+      await this.normalizeImageToTotemDelivery(filePath, tempOut, deliveryRotation, mimeType);
+    }
+
+    await this.removeFileIfExists(filePath);
+    await this.removeFileIfExists(filePath.replace(/\.[^/.]+$/, '_thumb.jpg'));
+    const finalPath = filePath;
+    if (tempOut !== finalPath) {
+      await fs.promises.rename(tempOut, finalPath);
+    }
+
+    await this.generatePortraitThumbnailFromDeliveryImage(finalPath, deliveryRotation);
+    const stats = await fs.promises.stat(finalPath);
+    const current = await this.getMediaById(mediaId);
+    const nextTags = this.mergeDeliveryBakeVersionTag(
+      this.mergeDeliveryRotationTag(current?.tags, deliveryRotation)
+    );
+    const previewUrl = generateThumbnailUrl(
+      finalPath.replace(/\.[^/.]+$/, '_thumb.jpg'),
+      'image'
+    );
+
+    await this.db.executeRaw(
+      `
+      UPDATE medias
+      SET file_path = $1,
+          file_name = $2,
+          file_size_bytes = $3,
+          width = $4,
+          height = $5,
+          preview_url = $6,
+          tags = $7,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE media_id = $8
+    `,
+      [
+        finalPath,
+        path.basename(finalPath),
+        stats.size,
+        TOTEM_DELIVERY_WIDTH,
+        TOTEM_DELIVERY_HEIGHT,
+        previewUrl,
+        nextTags,
+        mediaId,
+      ]
+    );
+
+    await getCacheService().invalidateEntity('media', mediaId).catch(() => {});
+    const refreshed = await this.getMediaById(mediaId);
+    await getMediaTotemSyncService()
+      .notifyAffectedTotems(mediaId, {
+        reason: 'process',
+        updatedBy,
+        updatedAt: refreshed?.updatedAt,
+        filePath: finalPath,
+        fileSizeBytes: stats.size,
+      })
+      .catch((e) => logError('Falha ao notificar totens após reprocessar imagem', e, { mediaId }));
+  }
+
   /**
    * Normaliza ficheiro recém-enviado para 1920×1080 landscape (entrega totem; rotate=0).
    */
   private async normalizeNewUploadToTotemPortrait(
     sourcePath: string,
     mediaType: 'image' | 'video',
-    mimeType?: string
+    mimeType?: string,
+    options?: { existingTags?: string[] | null }
   ): Promise<{ filePath: string; mimeType?: string; deliveryRotation: number }> {
     // Guard: não re-aplicar rotate+contain em entrega 1920×1080 já normalizada
     if (mediaType === 'image') {
@@ -1800,13 +1919,40 @@ export class MediaService {
         await this.normalizeImageToTotemDelivery(sourcePath, tempOut, deliveryRotation, mimeType);
       } else {
         const info = await this.probeVideoStreamInfo(sourcePath);
-        deliveryRotation = this.resolveDeliveryRotationFromStream(
-          info.width,
-          info.height,
-          info.rotation,
-          0
-        );
-        await this.normalizeVideoToTotemDelivery(sourcePath, tempOut, deliveryRotation);
+        const existingDelivery = await this.readDeliveryRotationMetadata(sourcePath);
+        const alreadyDelivery = this.isTotemDeliverySize(info.width, info.height);
+
+        if (alreadyDelivery && existingDelivery != null) {
+          // Reprocess de entrega v1: faltava stream EXIF no bake. Compensa +90° (caso telemóvel
+          // landscape+rotate→delivery 180) e aplica cover; bake v2 não volta a compensar.
+          deliveryRotation = existingDelivery;
+          const streamParityFix =
+            !this.hasDeliveryBakeV2(options?.existingTags) &&
+            existingDelivery === 180 &&
+            info.rotation === 0
+              ? 90
+              : 0;
+          await this.normalizeVideoToTotemDelivery(
+            sourcePath,
+            tempOut,
+            deliveryRotation,
+            streamParityFix,
+            /* applyDeliveryOnPixels */ false
+          );
+        } else {
+          deliveryRotation = this.resolveDeliveryRotationFromStream(
+            info.width,
+            info.height,
+            info.rotation,
+            0
+          );
+          await this.normalizeVideoToTotemDelivery(
+            sourcePath,
+            tempOut,
+            deliveryRotation,
+            info.rotation
+          );
+        }
       }
 
       await this.removeFileIfExists(sourcePath);
@@ -1845,8 +1991,9 @@ export class MediaService {
     const rotationFilters = this.getFfmpegRotationFilters(rotationDegrees);
     return [
       ...rotationFilters,
-      `scale=${targetW}:${targetH}:force_original_aspect_ratio=decrease`,
-      `pad=${targetW}:${targetH}:(ow-iw)/2:(oh-ih)/2:black`,
+      // cover: preenche 1920×1080 sem letterbox (corta laterais se necessário)
+      `scale=${targetW}:${targetH}:force_original_aspect_ratio=increase`,
+      `crop=${targetW}:${targetH}`,
       'setsar=1',
     ].join(',');
   }
@@ -1869,9 +2016,10 @@ export class MediaService {
     if (rotationDegrees !== 0) {
       pipeline = pipeline.rotate(rotationDegrees);
     }
+    // cover: ocupa 100% do canvas 1920×1080 (sem barras pretas bakeadas)
     pipeline = pipeline.resize(TOTEM_DELIVERY_WIDTH, TOTEM_DELIVERY_HEIGHT, {
-      fit: 'contain',
-      background: { r: 0, g: 0, b: 0, alpha: 1 },
+      fit: 'cover',
+      position: 'centre',
     });
 
     const ext = this.getImageOutputExtension(mimeType, outputPath);
@@ -1886,12 +2034,24 @@ export class MediaService {
     await pipeline.toFile(outputPath);
   }
 
+  /**
+   * Bake vídeo totem. Por omissão aplica streamRotation (como sharp EXIF) + deliveryRotation.
+   * Com applyDeliveryOnPixels=false (reprocess v1), só aplica streamRotationDegrees nos pixels
+   * e grava deliveryRotation no metadado/tag (já presente no canvas).
+   */
   private async normalizeVideoToTotemDelivery(
     sourcePath: string,
     outputPath: string,
-    rotationDegrees: number
+    deliveryRotationDegrees: number,
+    streamRotationDegrees: number = 0,
+    applyDeliveryOnPixels: boolean = true
   ): Promise<void> {
-    const filters = this.getTotemDeliveryVideoFilterChain(rotationDegrees);
+    const delivery = this.normalizeRotation(deliveryRotationDegrees);
+    const stream = this.normalizeRotation(streamRotationDegrees);
+    const bakeRotation = applyDeliveryOnPixels
+      ? this.normalizeRotation(stream + delivery)
+      : stream;
+    const filters = this.getTotemDeliveryVideoFilterChain(bakeRotation);
 
     await execFileAsync(
       'ffmpeg',
@@ -1931,7 +2091,7 @@ export class MediaService {
         '-metadata:s:v:0',
         'rotate=0',
         '-metadata',
-        `delivery_rotation=${this.normalizeRotation(rotationDegrees)}`,
+        `delivery_rotation=${delivery}`,
         outputPath,
       ],
       { timeout: 600_000 }
@@ -1949,8 +2109,8 @@ export class MediaService {
     }
     await pipeline
       .resize(TOTEM_THUMB_WIDTH, TOTEM_THUMB_HEIGHT, {
-        fit: 'contain',
-        background: { r: 0, g: 0, b: 0, alpha: 1 },
+        fit: 'cover',
+        position: 'centre',
       })
       .jpeg({ quality: 82, progressive: true })
       .toFile(thumbnailPath);
@@ -2480,8 +2640,8 @@ export class MediaService {
         }
         await (sharp as any)(existingFilePath)
           .resize(TOTEM_THUMB_WIDTH, TOTEM_THUMB_HEIGHT, {
-            fit: 'contain',
-            background: { r: 0, g: 0, b: 0, alpha: 1 },
+            fit: 'cover',
+            position: 'centre',
           })
           .jpeg({ quality: 82, progressive: true })
           .toFile(generatedThumbPath);

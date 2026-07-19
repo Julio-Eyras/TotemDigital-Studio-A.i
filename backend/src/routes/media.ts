@@ -722,7 +722,7 @@ router.post('/:id/transform',
 
 /**
  * @route POST /api/media/:id/reprocess-delivery
- * @desc Re-aplica normalização totem (rotação ffmpeg + 1920×1080) num vídeo existente
+ * @desc Re-aplica normalização totem (cover + rotação) em imagem ou vídeo existente
  * @access Private
  */
 router.post('/:id/reprocess-delivery',

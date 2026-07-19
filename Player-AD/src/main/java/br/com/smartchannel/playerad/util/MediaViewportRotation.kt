@@ -90,6 +90,9 @@ object MediaViewportRotation {
     /**
      * Ângulo de playback considerando montagem do totem + bake de entrega do servidor.
      * Bake standard assume displayRotation=0 (retrato). Montagens invertidas → +180°.
+     *
+     * Vídeos bake v1 (<2): ffmpeg só aplicava deliveryRotation (sem stream/EXIF), ao contrário
+     * das imagens (sharp.rotate EXIF + delivery). Compensa +90° quando delivery=180.
      */
     fun playbackCorrectionDegrees(
         context: Context,
@@ -97,16 +100,16 @@ object MediaViewportRotation {
         mediaWidth: Int,
         mediaHeight: Int,
         deliveryRotation: Int? = null,
+        deliveryBakeVersion: Int? = null,
+        isVideo: Boolean = false,
     ): Float {
         if (!ENABLED) return 0f
         val mount = ((displayRotation % 4) + 4) % 4
         if (deliveryRotation != null) {
-            // Ficheiro já preparado para montagem standard; compensar invertidos
             var deg = when (mount) {
                 2, 3 -> 180f
                 else -> 0f
             }
-            // Legacy `_delivery_rotation:0` em faixa landscape Allwinner
             if (
                 LANDSCAPE_STRIP_FLIP_180 &&
                 deliveryRotation == 0 &&
@@ -114,9 +117,19 @@ object MediaViewportRotation {
             ) {
                 deg = (deg + 180f) % 360f
             }
+            if (isVideo && needsV1VideoStreamParityFix(deliveryRotation, deliveryBakeVersion)) {
+                deg = (deg + 90f) % 360f
+            }
             return deg
         }
         return correctionRotation(context, displayRotation, mediaWidth, mediaHeight)
+    }
+
+    /** Bake v1 de vídeo com delivery 180° (telemóvel) sem stream EXIF no ffmpeg. */
+    fun needsV1VideoStreamParityFix(deliveryRotation: Int?, deliveryBakeVersion: Int?): Boolean {
+        if (deliveryRotation != 180) return false
+        val ver = deliveryBakeVersion ?: 1
+        return ver < 2
     }
 
     /**
@@ -144,10 +157,19 @@ object MediaViewportRotation {
         displayRotation: Int,
         videoSize: VideoSize,
         deliveryRotation: Int? = null,
+        deliveryBakeVersion: Int? = null,
     ): Float {
         if (deliveryRotation != null) {
             val (w, h) = rawVideoSize(videoSize)
-            return playbackCorrectionDegrees(context, displayRotation, w, h, deliveryRotation)
+            return playbackCorrectionDegrees(
+                context,
+                displayRotation,
+                w,
+                h,
+                deliveryRotation,
+                deliveryBakeVersion,
+                isVideo = true,
+            )
         }
         val metaRot = normalizeRotationDegrees(videoSize.unappliedRotationDegrees)
         if (metaRot != 0) {
@@ -261,9 +283,9 @@ object MediaViewportRotation {
             }
         }
 
-        val bufferRect = RectF(0f, 0f, srcW, srcH)
-        bufferRect.offset(centerX - bufferRect.centerX(), centerY - bufferRect.centerY())
-        matrix.setRectToRect(viewRect, bufferRect, Matrix.ScaleToFit.CENTER)
+        // Cover sem distorção: escala pelo maior eixo e corta o excedente
+        val scale = maxOf(viewW / srcW, viewH / srcH)
+        matrix.setScale(scale, scale, centerX, centerY)
         matrix.postRotate(rotationDegrees, centerX, centerY)
         textureView.setTransform(matrix)
     }

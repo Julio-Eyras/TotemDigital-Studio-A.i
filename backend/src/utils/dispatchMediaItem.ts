@@ -48,6 +48,17 @@ export function parseDeliveryRotationFromDispatchTags(tags?: unknown): number | 
   return null;
 }
 
+export function parseDeliveryBakeVersionFromDispatchTags(tags?: unknown): number | null {
+  if (!Array.isArray(tags)) return null;
+  for (const tag of tags) {
+    const raw = String(tag);
+    if (!raw.startsWith('_delivery_bake:')) continue;
+    const parsed = Number(raw.slice('_delivery_bake:'.length));
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return null;
+}
+
 export function buildDispatchMediaItem(input: BuildDispatchMediaItemInput): DispatchMediaItem {
   const fileName = input.fileName?.trim() || extractFileNameFromPath(input.filePath) || undefined;
   const mediaType = resolveLogicalMediaType({
@@ -59,6 +70,7 @@ export function buildDispatchMediaItem(input: BuildDispatchMediaItemInput): Disp
   const mediaName = input.name?.trim() || fileName;
   const filePath = input.filePath ?? undefined;
   const deliveryRotation = parseDeliveryRotationFromDispatchTags(input.tags);
+  const deliveryBakeVersion = parseDeliveryBakeVersionFromDispatchTags(input.tags);
   const contentVersion = buildMediaContentVersion({
     updatedAt: input.updatedAt,
     fileSizeBytes: input.fileSizeBytes,
@@ -89,6 +101,7 @@ export function buildDispatchMediaItem(input: BuildDispatchMediaItemInput): Disp
       mimeType: input.mimeType ?? undefined,
       durationSeconds: positiveIntOrNull(input.durationSeconds) ?? undefined,
       deliveryRotation: deliveryRotation ?? undefined,
+      deliveryBakeVersion: deliveryBakeVersion ?? undefined,
       contentVersion: hasContentVersion ? contentVersion : undefined,
     },
   };

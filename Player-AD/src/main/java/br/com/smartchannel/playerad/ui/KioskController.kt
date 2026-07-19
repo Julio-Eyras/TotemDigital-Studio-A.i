@@ -11,6 +11,7 @@ import android.view.WindowManager
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import br.com.smartchannel.playerad.R
 import br.com.smartchannel.playerad.config.KioskMode
 import br.com.smartchannel.playerad.config.PlayerConfig
 import br.com.smartchannel.playerad.util.PlayerAdLogger
@@ -73,6 +74,27 @@ object KioskController {
                     View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
                     View.SYSTEM_UI_FLAG_FULLSCREEN or
                     View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+        }
+        hideMouseCursor(activity)
+    }
+
+    /** Esconde cursor do rato (mouse USB / air mouse em TV BOX). */
+    private fun hideMouseCursor(activity: Activity) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
+        try {
+            val nullIcon = android.view.PointerIcon.getSystemIcon(
+                activity,
+                android.view.PointerIcon.TYPE_NULL,
+            )
+            activity.window.decorView.pointerIcon = nullIcon
+            activity.findViewById<View>(android.R.id.content)?.pointerIcon = nullIcon
+            activity.findViewById<View>(R.id.root)?.pointerIcon = nullIcon
+            activity.findViewById<View>(R.id.contentHost)?.pointerIcon = nullIcon
+            activity.findViewById<View>(R.id.portraitViewport)?.pointerIcon = nullIcon
+            activity.findViewById<View>(R.id.playerView)?.pointerIcon = nullIcon
+            activity.findViewById<View>(R.id.imageView)?.pointerIcon = nullIcon
+        } catch (e: Exception) {
+            Log.w("Player-AD", "Não foi possível esconder cursor: ${e.message}")
         }
     }
 

@@ -101,6 +101,8 @@ class PlayerController(
         val isVinheta: Boolean = false,
         /** Rotação pré-aplicada no servidor (_delivery_rotation:N). null = desconhecido. */
         val deliveryRotation: Int? = null,
+        /** Versão do bake de entrega (_delivery_bake:N). <2 = vídeo v1 sem stream EXIF. */
+        val deliveryBakeVersion: Int? = null,
         /** Versão de conteúdo do servidor (updatedAt|size|path|crc). */
         val contentVersion: String? = null,
     )
@@ -199,6 +201,7 @@ class PlayerController(
             }
             val isVinheta = isVinhetaDispatchJson(obj, url)
             val deliveryRotation = parseDispatchDeliveryRotation(obj)
+            val deliveryBakeVersion = parseDispatchDeliveryBakeVersion(obj)
             val contentVersion = parseDispatchContentVersion(obj)
             items += DispatchMediaItem(
                 mediaId = mediaId,
@@ -209,6 +212,7 @@ class PlayerController(
                 label = label,
                 isVinheta = isVinheta,
                 deliveryRotation = deliveryRotation,
+                deliveryBakeVersion = deliveryBakeVersion,
                 contentVersion = contentVersion,
             )
         }
@@ -247,6 +251,21 @@ class PlayerController(
             ?: metadata?.optInt("delivery_rotation", -1)?.takeIf { it >= 0 }
         if (fromMeta != null) return normalizeDispatchRotation(fromMeta)
         return parseDeliveryRotationFromDispatchTags(obj)
+    }
+
+    private fun parseDispatchDeliveryBakeVersion(obj: JSONObject): Int? {
+        val metadata = obj.optJSONObject("metadata")
+        val fromMeta = metadata?.optInt("deliveryBakeVersion", -1)?.takeIf { it > 0 }
+            ?: metadata?.optInt("delivery_bake_version", -1)?.takeIf { it > 0 }
+        if (fromMeta != null) return fromMeta
+        val tagsArray = obj.optJSONArray("tags") ?: return null
+        for (i in 0 until tagsArray.length()) {
+            val tag = tagsArray.optString(i, "")
+            if (!tag.startsWith("_delivery_bake:")) continue
+            val parsed = tag.removePrefix("_delivery_bake:").trim().toIntOrNull() ?: continue
+            if (parsed > 0) return parsed
+        }
+        return null
     }
 
     private fun parseDeliveryRotationFromDispatchTags(obj: JSONObject): Int? {
@@ -743,6 +762,7 @@ class PlayerController(
             put("playlistName", playlistName ?: "")
             put("at", System.currentTimeMillis())
             if (item.deliveryRotation != null) put("deliveryRotation", item.deliveryRotation)
+            if (item.deliveryBakeVersion != null) put("deliveryBakeVersion", item.deliveryBakeVersion)
         }
     }
 
@@ -1308,7 +1328,7 @@ class PlayerController(
         exoPlayer.stop()
         exoPlayer.clearMediaItems()
         exoPlayer.setMediaItem(mediaItem)
-        attachVideoOrientationListener(item.deliveryRotation)
+        attachVideoOrientationListener(item.deliveryRotation, item.deliveryBakeVersion)
         exoPlayer.prepare()
         exoPlayer.play()
         playerView.postDelayed({
@@ -1454,13 +1474,22 @@ class PlayerController(
         detachVideoOrientationListener()
         pendingVideoOrientationReveal = false
         playerView.alpha = 1f
-        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-        exoPlayer.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT)
+        applyFullscreenVideoScale()
         MediaViewportRotation.resetPlayerView(playerView)
         MediaViewportRotation.resetView(imageView)
+        imageView.scaleType = ImageView.ScaleType.CENTER_CROP
     }
 
-    private fun attachVideoOrientationListener(deliveryRotation: Int? = null) {
+    private fun applyFullscreenVideoScale() {
+        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+        exoPlayer.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
+        playerView.post { FullscreenViewport.applyToPlayerView(playerView) }
+    }
+
+    private fun attachVideoOrientationListener(
+        deliveryRotation: Int? = null,
+        deliveryBakeVersion: Int? = null,
+    ) {
         if (!AUTO_MEDIA_ORIENTATION && !MediaViewportRotation.needsLandscapeStripFlip(deliveryRotation)) {
             return
         }
@@ -1468,7 +1497,7 @@ class PlayerController(
         val listener = object : Player.Listener {
             override fun onVideoSizeChanged(videoSize: VideoSize) {
                 if (AUTO_MEDIA_ORIENTATION) {
-                    applyVideoOrientationCorrection(videoSize, deliveryRotation)
+                    applyVideoOrientationCorrection(videoSize, deliveryRotation, deliveryBakeVersion)
                 } else {
                     applyLandscapeStripFlipIfNeeded(videoSize, deliveryRotation)
                 }
@@ -1486,8 +1515,7 @@ class PlayerController(
             if (rot == 0f) return
             playerView.post {
                 try {
-                    playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    exoPlayer.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT)
+                    applyFullscreenVideoScale()
                     PlayerAdLogger.i(
                         "DISPLAY",
                         "Flip faixa landscape ${rot.toInt()}° deliveryRotation=$deliveryRotation " +
@@ -1495,9 +1523,9 @@ class PlayerController(
                     )
                     MediaViewportRotation.applyToPlayerView(playerView, rot, rawW, rawH)
                 } catch (e: Exception) {
-                    PlayerAdLogger.e("DISPLAY", "Falha flip faixa landscape; mantém FIT", e)
+                    PlayerAdLogger.e("DISPLAY", "Falha flip faixa landscape; mantém ZOOM", e)
                     MediaViewportRotation.resetPlayerView(playerView)
-                    playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    applyFullscreenVideoScale()
                 }
             }
         } catch (e: Exception) {
@@ -1510,7 +1538,11 @@ class PlayerController(
         videoOrientationListener = null
     }
 
-    private fun applyVideoOrientationCorrection(videoSize: VideoSize, deliveryRotation: Int? = null) {
+    private fun applyVideoOrientationCorrection(
+        videoSize: VideoSize,
+        deliveryRotation: Int? = null,
+        deliveryBakeVersion: Int? = null,
+    ) {
         if (!AUTO_MEDIA_ORIENTATION) return
         try {
             val (rawW, rawH) = MediaViewportRotation.rawVideoSize(videoSize)
@@ -1519,13 +1551,14 @@ class PlayerController(
                 displayRotation,
                 videoSize,
                 deliveryRotation,
+                deliveryBakeVersion,
             )
-            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            exoPlayer.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT)
+            applyFullscreenVideoScale()
             if (rot != 0f) {
                 PlayerAdLogger.i(
                     "DISPLAY",
                     "Correção orientação vídeo deliveryRotation=$deliveryRotation " +
+                        "bake=$deliveryBakeVersion " +
                         "eff=${MediaViewportRotation.effectiveVideoSize(videoSize).let { "${it.first}x${it.second}" }} " +
                         "raw=${rawW}x${rawH} → ${rot.toInt()}° mount=$displayRotation",
                 )
@@ -1533,9 +1566,9 @@ class PlayerController(
             MediaViewportRotation.applyToPlayerView(playerView, rot, rawW, rawH)
             revealVideoAfterOrientation()
         } catch (e: Exception) {
-            PlayerAdLogger.e("DISPLAY", "Falha ao corrigir orientação do vídeo; mantém FIT", e)
+            PlayerAdLogger.e("DISPLAY", "Falha ao corrigir orientação do vídeo; mantém ZOOM", e)
             MediaViewportRotation.resetPlayerView(playerView)
-            playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            applyFullscreenVideoScale()
             revealVideoAfterOrientation()
         }
     }
@@ -1551,8 +1584,8 @@ class PlayerController(
         filePath: String?,
         deliveryRotation: Int? = null,
     ) {
+        imageView.scaleType = ImageView.ScaleType.CENTER_CROP
         if (!AUTO_MEDIA_ORIENTATION) {
-            imageView.scaleType = ImageView.ScaleType.FIT_CENTER
             imageView.setImageBitmap(bitmap)
             return
         }
@@ -1568,6 +1601,8 @@ class PlayerController(
             w,
             h,
             deliveryRotation,
+            deliveryBakeVersion = null,
+            isVideo = false,
         )
         val displayBitmap = if (rot != 0f) {
             PlayerAdLogger.i(
