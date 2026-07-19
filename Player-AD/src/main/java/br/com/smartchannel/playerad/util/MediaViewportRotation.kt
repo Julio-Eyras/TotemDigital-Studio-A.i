@@ -12,25 +12,22 @@ import androidx.media3.common.VideoSize
 import androidx.media3.ui.PlayerView
 
 /**
- * Alinha orientação da mídia ao **viewport real** (pixels do ecrã), não só à config.
+ * Alinha orientação da mídia ao **viewport / montagem do totem**.
  *
- * Evita rodar landscape→90° quando o painel ainda está em landscape (crash/launcher)
- * ou quando o vídeo já tem metadados de rotação (pré-virado no servidor).
+ * Bake v3+ (servidor): ficheiro neutro (EXIF/stream já aplicado, portrait ou landscape).
+ * Cada totem aplica [displayRotation] e pode cachear o resultado.
+ *
+ * Bake ≤2 (legado): entrega 16:9 com `_delivery_rotation` de montagem — compensações legacy.
  */
 object MediaViewportRotation {
 
-    /**
-     * Activo: cada totem corrige conforme [displayRotation].
-     * Com `_delivery_rotation` (bake servidor para montagem standard) → compensar invertidos.
-     * Sem tag → landscape em portrait aplica 90°/270° (legado).
-     */
     const val ENABLED = true
 
-    /**
-     * Totem Allwinner inverte faixas 16:9 horizontais (~180°). Compensa só ficheiros legacy
-     * com `_delivery_rotation:0` até serem reprocessados no servidor (entrega 180°).
-     */
+    /** Compensa faixas 16:9 legacy com `_delivery_rotation:0` (Allwinner). */
     const val LANDSCAPE_STRIP_FLIP_180 = true
+
+    /** Bake neutro: UI portrait; player resolve montagem. */
+    const val NEUTRAL_BAKE_VERSION = 3
 
     fun landscapeStripPlaybackRotation(deliveryRotation: Int?, videoSize: VideoSize): Float {
         if (!LANDSCAPE_STRIP_FLIP_180 || deliveryRotation != 0) return 0f
@@ -39,8 +36,13 @@ object MediaViewportRotation {
         return 180f
     }
 
-    fun needsLandscapeStripFlip(deliveryRotation: Int?): Boolean {
+    fun needsLandscapeStripFlip(deliveryRotation: Int?, deliveryBakeVersion: Int? = null): Boolean {
+        if (isNeutralBake(deliveryBakeVersion)) return false
         return LANDSCAPE_STRIP_FLIP_180 && deliveryRotation == 0
+    }
+
+    fun isNeutralBake(deliveryBakeVersion: Int?): Boolean {
+        return (deliveryBakeVersion ?: 0) >= NEUTRAL_BAKE_VERSION
     }
 
     fun isPortraitMount(displayRotation: Int): Boolean {
@@ -48,7 +50,6 @@ object MediaViewportRotation {
         return normalized == 0 || normalized == 2
     }
 
-    /** Viewport efectivo = orientação que o utilizador vê agora. */
     fun isViewportPortrait(context: Context): Boolean {
         val dm = context.resources.displayMetrics
         return dm.heightPixels > dm.widthPixels
@@ -82,18 +83,34 @@ object MediaViewportRotation {
         return w to h
     }
 
-    /** Totem em pé (config ou viewport actual). */
     fun isTargetPortrait(context: Context, displayRotation: Int): Boolean {
         return isPortraitMount(displayRotation) || isViewportPortrait(context)
     }
 
     /**
-     * Ângulo de playback considerando montagem do totem + bake de entrega do servidor.
-     * Bake standard assume displayRotation=0 (retrato). Montagens invertidas → +180°.
-     *
-     * Vídeos bake v1 (<2): ffmpeg só aplicava deliveryRotation (sem stream/EXIF), ao contrário
-     * das imagens (sharp.rotate EXIF + delivery). Compensa +90° quando delivery=180.
+     * Ângulo que este totem deve aplicar à mídia neutra (ou legado) para bater certo no ecrã.
      */
+    fun mountCorrectionDegrees(
+        displayRotation: Int,
+        mediaWidth: Int,
+        mediaHeight: Int,
+    ): Float {
+        if (mediaWidth <= 0 || mediaHeight <= 0) return 0f
+        val mount = ((displayRotation % 4) + 4) % 4
+        val portraitMedia = mediaHeight >= mediaWidth
+        return when (mount) {
+            // Retrato normal
+            0 -> if (portraitMedia) 0f else 90f
+            // Paisagem (HDMI 0°)
+            1 -> if (portraitMedia) 270f else 0f
+            // Retrato invertido
+            2 -> if (portraitMedia) 180f else 270f
+            // Paisagem invertida
+            3 -> if (portraitMedia) 90f else 180f
+            else -> 0f
+        }
+    }
+
     fun playbackCorrectionDegrees(
         context: Context,
         displayRotation: Int,
@@ -104,8 +121,15 @@ object MediaViewportRotation {
         isVideo: Boolean = false,
     ): Float {
         if (!ENABLED) return 0f
+
+        // Bake v3+: ficheiro neutro — cada totem resolve a montagem
+        if (isNeutralBake(deliveryBakeVersion)) {
+            return mountCorrectionDegrees(displayRotation, mediaWidth, mediaHeight)
+        }
+
         val mount = ((displayRotation % 4) + 4) % 4
         if (deliveryRotation != null) {
+            // Legado bake ≤2: ficheiro preparado para montagem 0
             var deg = when (mount) {
                 2, 3 -> 180f
                 else -> 0f
@@ -125,16 +149,13 @@ object MediaViewportRotation {
         return correctionRotation(context, displayRotation, mediaWidth, mediaHeight)
     }
 
-    /** Bake v1 de vídeo com delivery 180° (telemóvel) sem stream EXIF no ffmpeg. */
     fun needsV1VideoStreamParityFix(deliveryRotation: Int?, deliveryBakeVersion: Int?): Boolean {
+        if (isNeutralBake(deliveryBakeVersion)) return false
         if (deliveryRotation != 180) return false
         val ver = deliveryBakeVersion ?: 1
         return ver < 2
     }
 
-    /**
-     * Roda só mídia **landscape** para caber em totem **portrait** (legado sem delivery tag).
-     */
     fun correctionRotation(
         context: Context,
         displayRotation: Int,
@@ -142,14 +163,8 @@ object MediaViewportRotation {
         mediaHeight: Int,
     ): Float {
         if (mediaWidth <= 0 || mediaHeight <= 0) return 0f
-        if (mediaHeight > mediaWidth) return 0f
-        if (!isTargetPortrait(context, displayRotation)) return 0f
-
-        val normalized = ((displayRotation % 4) + 4) % 4
-        return when (normalized) {
-            0, 1 -> 90f
-            else -> 270f
-        }
+        // Preferir modelo por montagem (funciona para portrait e landscape media)
+        return mountCorrectionDegrees(displayRotation, mediaWidth, mediaHeight)
     }
 
     fun correctionRotationForVideo(
@@ -159,8 +174,8 @@ object MediaViewportRotation {
         deliveryRotation: Int? = null,
         deliveryBakeVersion: Int? = null,
     ): Float {
-        if (deliveryRotation != null) {
-            val (w, h) = rawVideoSize(videoSize)
+        val (w, h) = rawVideoSize(videoSize)
+        if (deliveryRotation != null || isNeutralBake(deliveryBakeVersion)) {
             return playbackCorrectionDegrees(
                 context,
                 displayRotation,
@@ -283,7 +298,6 @@ object MediaViewportRotation {
             }
         }
 
-        // Cover sem distorção: escala pelo maior eixo e corta o excedente
         val scale = maxOf(viewW / srcW, viewH / srcH)
         matrix.setScale(scale, scale, centerX, centerY)
         matrix.postRotate(rotationDegrees, centerX, centerY)

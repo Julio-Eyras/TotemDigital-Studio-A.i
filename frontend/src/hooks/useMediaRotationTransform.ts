@@ -29,6 +29,7 @@ export function mediaPreviewDims(
 export const TOTEM_DELIVERY_UI_PREVIEW_ROTATION_LEGACY = 270;
 const DELIVERY_ROTATION_TAG_PREFIX = '_delivery_rotation:';
 const TOTEM_DELIVERY_PENDING_TAG = '_totem_delivery_pending';
+const DELIVERY_BAKE_TAG_PREFIX = '_delivery_bake:';
 
 /** Tags visíveis na UI (oculta metadados técnicos de entrega). */
 export function filterUserVisibleMediaTags(tags?: string[] | null): string[] {
@@ -36,6 +37,7 @@ export function filterUserVisibleMediaTags(tags?: string[] | null): string[] {
   return tags.filter(
     (tag) =>
       !String(tag).startsWith(DELIVERY_ROTATION_TAG_PREFIX) &&
+      !String(tag).startsWith(DELIVERY_BAKE_TAG_PREFIX) &&
       String(tag) !== TOTEM_DELIVERY_PENDING_TAG
   );
 }
@@ -108,18 +110,41 @@ function isSiblingThumbUrl(url?: string | null): boolean {
   return /_thumb\.(jpe?g|png|webp)(\?|$)/i.test(url);
 }
 
+export function parseDeliveryBakeVersionFromTags(tags?: string[] | null): number | null {
+  if (!tags?.length) return null;
+  for (const tag of tags) {
+    if (!String(tag).startsWith(DELIVERY_BAKE_TAG_PREFIX)) continue;
+    const raw = Number(String(tag).slice(DELIVERY_BAKE_TAG_PREFIX.length));
+    if (Number.isFinite(raw) && raw > 0) return raw;
+  }
+  return null;
+}
+
 export function getMediaUiPreviewUndoRotation(media?: MediaDeliveryPreviewFields): number {
+  // Bake v3+: ficheiro já “em pé”; UI não desfaz rotação de montagem
+  const bake =
+    parseDeliveryBakeVersionFromTags(media?.tags) ??
+    (media as { deliveryBakeVersion?: number | null })?.deliveryBakeVersion ??
+    null;
+  if (bake != null && Number(bake) >= 3) {
+    return 0;
+  }
+  const deliveryFromApi = media?.deliveryRotation ?? media?.delivery_rotation ?? null;
+  if (deliveryFromApi != null && Number(deliveryFromApi) === 0 && bake != null) {
+    return 0;
+  }
+
   const fromApi =
     media?.deliveryPreviewRotation ?? media?.delivery_preview_rotation ?? null;
   if (fromApi != null && Number.isFinite(Number(fromApi))) {
     return normalizeMediaRotation(Number(fromApi));
   }
-  const deliveryFromApi = media?.deliveryRotation ?? media?.delivery_rotation ?? null;
   if (deliveryFromApi != null && Number.isFinite(Number(deliveryFromApi))) {
     return normalizeMediaRotation(360 - Number(deliveryFromApi));
   }
   const delivery = parseDeliveryRotationFromTags(media?.tags);
   if (delivery != null) {
+    if (delivery === 0) return 0;
     return normalizeMediaRotation(360 - delivery);
   }
   return TOTEM_DELIVERY_UI_PREVIEW_ROTATION_LEGACY;
@@ -227,6 +252,8 @@ function buildRotatedPortraitPreviewSx(deg: number) {
 
 export const TOTEM_DELIVERY_WIDTH = 1920;
 export const TOTEM_DELIVERY_HEIGHT = 1080;
+export const TOTEM_PORTRAIT_WIDTH = 1080;
+export const TOTEM_PORTRAIT_HEIGHT = 1920;
 
 export function isTotemDeliveryMedia(media?: {
   width?: number;
@@ -237,15 +264,24 @@ export function isTotemDeliveryMedia(media?: {
   const w = Number(media?.width ?? 0);
   const h = Number(media?.height ?? 0);
   if (w === TOTEM_DELIVERY_WIDTH && h === TOTEM_DELIVERY_HEIGHT) return true;
+  if (w === TOTEM_PORTRAIT_WIDTH && h === TOTEM_PORTRAIT_HEIGHT) return true;
+  // Bake v3 portrait/landscape com tag
+  if (parseDeliveryBakeVersionFromTags(media?.tags) != null && w > 0 && h > 0) return true;
   return w > h && w > 0 && h > 0 && parseDeliveryRotationFromTags(media?.tags) != null;
 }
 
-/** Preview na UI: ficheiro 16:9 de entrega precisa rotação CSS; thumbnail já vem em pé. */
+/** Preview na UI: bake v3 portrait = cover directo; legado 16:9 pode precisar undo CSS. */
 export function mediaTotemUiPreviewSx(
   rotationDegrees: number,
   media?: MediaDeliveryPreviewFields,
 ) {
   if (isTotemDeliveryMedia(media)) {
+    const bake = parseDeliveryBakeVersionFromTags(media?.tags);
+    const w = Number(media?.width ?? 0);
+    const h = Number(media?.height ?? 0);
+    if ((bake != null && bake >= 3) || (h >= w && w > 0)) {
+      return mediaThumbnailPortraitPreviewSx(rotationDegrees);
+    }
     return buildRotatedPortraitPreviewSx(resolveTotemDeliveryUiRotation(rotationDegrees, media));
   }
   return mediaThumbnailPortraitPreviewSx(rotationDegrees);
