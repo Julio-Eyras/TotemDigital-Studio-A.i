@@ -4,7 +4,7 @@
 # Smart Signage Pro - Script de Auto-Instalação para Ubuntu
 # =============================================================================
 # Versão do Sistema: 2.1.0
-# Versão do Script: 2.1.14
+# Versão do Script: 2.1.15
 # =============================================================================
 # Este script instala automaticamente o Smart Signage Pro em sistemas Ubuntu
 # Suporta modos de instalação e perfil MQTT para single-server:
@@ -17,10 +17,11 @@
 
 # Versões (podem ser diferentes)
 SYSTEM_VERSION="2.1.0"
-SCRIPT_VERSION="2.1.14"
+SCRIPT_VERSION="2.1.15"
 #
 # OPÇÕES:
 #   --fresh              Instalação COMPLETA do zero (single-server por defeito; com --mode docker limpa Compose)
+#   --sync-corporate-site  Só sincroniza totemdigital.site + logos-icons para a raiz HTTP corporativa (:80)
 #   --rebuild            Rebuild containers preservando dados (volumes mantidos)
 #   --rebuild-cache      Rebuild SEM cache do Docker (mais lento, mais garantido)
 #   --rebuild-only       Apenas rebuild, não inicia serviços
@@ -219,6 +220,7 @@ LIMITS_DEMO_GOLD_CAMPAIGNS="${LIMITS_DEMO_GOLD_CAMPAIGNS:-120}"
 # Modos especiais (operações focadas)
 DB_ONLY_MODE=false                # Reinstala apenas o banco (drop + schema + seeds), sem rebuild de backend/frontend
 SEEDS_ONLY_MODE=false             # Aplica apenas seeds dinâmicos + usuários (sem drop/schema)
+CORPORATE_SITE_SYNC_ONLY=false    # Só sync totemdigital.site + logos-icons → CORPORATE_WEB_ROOT (porta 80)
 BACKEND_BUILD_ONLY=false          # Faz apenas build do backend (sem mexer em banco/Nginx/etc.)
 FRONTEND_BUILD_ONLY=false         # Faz apenas build do frontend (sem mexer em banco/backend/etc.)
 BACKFRONT_BUILD_ONLY=false        # Faz build do backend e do frontend (deps + TypeScript + React), sem tocar no banco
@@ -1852,6 +1854,12 @@ parse_arguments() {
                 SKIP_MENU=true
                 shift
                 ;;
+            --sync-corporate-site|--sync-site-corporativo)
+                # Apenas publica totemdigital.site + logos-icons na raiz HTTP corporativa.
+                CORPORATE_SITE_SYNC_ONLY=true
+                SKIP_MENU=true
+                shift
+                ;;
             --backend-only)
                 # Apenas instala dependências e compila o backend
                 BACKEND_BUILD_ONLY=true
@@ -1940,6 +1948,7 @@ parse_arguments() {
                 echo "  --preserve-db        Preserva o banco de dados existente durante reinstalação"
                 echo "  --db-only            Reinstala APENAS o banco (drop + schema + seeds), sem rebuild de backend/frontend"
                 echo "  --seeds-only         Aplica seeds dinâmicos (owner/planos/totens demo) sem drop nem schema"
+                echo "  --sync-corporate-site  Só sync do site corporativo (totemdigital.site + logos-icons → /var/www/corporate-site)"
                 echo "  --backend-only       Apenas backend: parar serviço, npm install + tsc, iniciar backend (sem banco/Nginx/frontend)"
                 echo "  --frontend-only      Apenas frontend: parar Nginx, npm install + build React, reiniciar Nginx (sem banco/backend)"
                 echo "  --backfront-build    Build backend + frontend (deps + TypeScript + React), depois iniciar backend e Nginx (sem banco)"
@@ -14276,6 +14285,54 @@ main() {
     # =========================================================================
     # Modos especiais: apenas banco ou apenas builds (não removem instalação)
     # =========================================================================
+
+    # 0) Sync APENAS do site corporativo (totemdigital.site + logos-icons → :80)
+    if [[ "$CORPORATE_SITE_SYNC_ONLY" == "true" ]]; then
+        log "Modo especial: sync APENAS do site corporativo (--sync-corporate-site)..."
+
+        detect_project_directory
+        INSTALL_DIR="${INSTALL_DIR:-$SOURCE_DIR}"
+        apply_split_layout_from_environment
+
+        CORPORATE_WEB_ROOT="${CORPORATE_WEB_ROOT:-/var/www/corporate-site}"
+        CORPORATE_HTTP_PORT="${CORPORATE_HTTP_PORT:-80}"
+
+        if [[ -f "${INSTALL_DIR}/.env" ]]; then
+            set -a
+            # shellcheck disable=SC1090
+            source "${INSTALL_DIR}/.env" 2>/dev/null || true
+            set +a
+            [[ -n "${SMARTSIGNAGE_CORPORATE_WEB_ROOT:-}" ]] && CORPORATE_WEB_ROOT="${SMARTSIGNAGE_CORPORATE_WEB_ROOT}"
+            [[ -n "${SMARTSIGNAGE_CORPORATE_HTTP_PORT:-}" ]] && CORPORATE_HTTP_PORT="${SMARTSIGNAGE_CORPORATE_HTTP_PORT}"
+        fi
+
+        log "Origem: ${SOURCE_DIR}/totemdigital.site (+ logos-icons)"
+        log "Destino: ${CORPORATE_WEB_ROOT} (HTTP :${CORPORATE_HTTP_PORT})"
+
+        if ! sync_corporate_site_to_webroot "$CORPORATE_WEB_ROOT"; then
+            error "❌ Falha ao sincronizar site corporativo para ${CORPORATE_WEB_ROOT}"
+            exit 1
+        fi
+
+        if command -v nginx &>/dev/null; then
+            if sudo nginx -t 2>/dev/null; then
+                sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload 2>/dev/null || true
+                log "✅ Nginx recarregado"
+            else
+                warn "nginx -t falhou — ficheiros syncados; verifique a config Nginx manualmente."
+            fi
+        fi
+
+        local _probe_host="127.0.0.1"
+        if curl -fsS -o /dev/null -I --max-time 5 "http://${_probe_host}:${CORPORATE_HTTP_PORT}/" 2>/dev/null; then
+            log "✅ Site corporativo a responder em http://${_probe_host}:${CORPORATE_HTTP_PORT}/"
+        else
+            warn "Não foi possível validar HTTP :${CORPORATE_HTTP_PORT} (Nginx pode estar noutro host/porta)."
+        fi
+
+        log "✅ Sync do site corporativo concluído (modo --sync-corporate-site)."
+        return 0
+    fi
 
     # 1) Reinstalar APENAS o banco (drop + schema + seeds), sem rebuild de backend/frontend
     if [[ "$DB_ONLY_MODE" == "true" ]]; then
