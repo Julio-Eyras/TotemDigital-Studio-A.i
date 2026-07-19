@@ -1,12 +1,15 @@
-# SmartSignage Player-AD
+# SmartSignage Player-AD — Notas técnicas de instalação
 
-Guia completo de instalacao e atualizacao  
-Versao do app de referencia no kit atual: `1.2` (`versionCode=3`)  
-Data: 2026-04-07
+> **Manual do utilizador (instalação + configuração):**  
+> [MANUAL-USUARIO-PLAYER-AD.md](./MANUAL-USUARIO-PLAYER-AD.md)  
+> Cópia canónica no repositório: `Player-AD/docs/MANUAL-USUARIO-INSTALACAO-CONFIGURACAO.md`
+
+Versão do app de referência: `1.67` (`versionCode=68`)  
+Data: 2026-07-16
 
 ## 1) Objetivo
 
-Este documento centraliza o procedimento para:
+Este documento (técnico) complementa o manual do utilizador e centraliza:
 
 - montar o pendrive de instalacao;
 - instalar via ADB (PC + cabo USB/OTG);
@@ -100,7 +103,7 @@ Exemplo:
 
 ```json
 {
-  "serverUrl": "http://192.168.1.110",
+  "serverUrl": "http://217.216.91.135:8080",
   "uin": "tot001",
   "deviceId": "android-tv-tot001",
   "fallbackPropagandasPerVinheta": 3

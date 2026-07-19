@@ -8,6 +8,6 @@ ALTER TABLE IF EXISTS remote_commands ADD CONSTRAINT chk_remote_command_type
         'invalidate_media', 'invalidate_playlist', 'invalidate_campaign',
         'refresh_dispatch', 'sync_now', 'content_version_check',
         'purge_cache', 'clear_cache',
-        'update', 'config', 'custom',
+        'update', 'config', 'apply_player_config', 'ota_rollback', 'custom',
         'play', 'pause', 'load_playlist', 'request_playlist', 'ping'
     ));

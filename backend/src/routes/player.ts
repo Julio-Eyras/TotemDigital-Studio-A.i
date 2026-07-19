@@ -531,22 +531,18 @@ router.get('/validate',
 
       // OBS (schema v2): colunas blocked/blocked_until não existem no schema atual.
 
-      // Buscar comandos remotos pendentes (schema: command_id como PK; parameters como command_data)
-      let pendingCommands = [];
+      // Buscar comandos remotos pendentes e marcar como sent (anti-duplicado)
+      let pendingCommands: any[] = [];
       try {
-        pendingCommands = await db.findMany(`
-          SELECT 
-            rc.command_id as request_id,
-            rc.command_type,
-            rc.parameters as command_data,
-            rc.created_at,
-            rc.status
-          FROM remote_commands rc
-          WHERE rc.totem_id = ? 
-            AND rc.status = 'pending'
-          ORDER BY rc.created_at ASC
-          LIMIT 10
-        `, [totemId]);
+        const remoteCommandService = getRemoteCommandService();
+        const claimed = await remoteCommandService.claimPendingCommands(totemId, 10);
+        pendingCommands = claimed.map((cmd) => ({
+          request_id: cmd.id,
+          command_type: cmd.commandType,
+          command_data: cmd.commandData,
+          created_at: cmd.createdAt,
+          status: cmd.status,
+        }));
       } catch (cmdError: any) {
         await logError(`[${transactionId}] Erro ao buscar comandos remotos`, cmdError, { totemId, transactionId });
         // Continuar mesmo se houver erro ao buscar comandos
@@ -1673,17 +1669,46 @@ router.post('/command-result',
       if (status === 'completed') {
         await remoteCommandService.markCommandAsCompleted(command.id, result);
         
-        // Se for screenshot/capture_screen, salvar arquivo se fornecido
-        if ((command.command_type === 'screenshot' || command.command_type === 'capture_screen') && result?.filePath) {
-          await remoteCommandService.saveScreenshot(
-            totem.totem_id,
-            result.filePath,
-            result.fileSize || 0,
-            result.width || 0,
-            result.height || 0,
-            result.format || 'png',
-            command.id
+        // Screenshot: preferir imageBase64 (ficheiro no servidor); legacy filePath Android é ignorado para disco
+        if (command.command_type === 'screenshot' || command.command_type === 'capture_screen') {
+          const { decodeScreenshotPayload, saveRemoteScreenshotFile } = await import(
+            '../services/remoteScreenshotStorage'
           );
+          const decoded = decodeScreenshotPayload(result);
+          if (decoded) {
+            const saved = await saveRemoteScreenshotFile({
+              totemId: totem.totem_id,
+              commandId: command.id,
+              buffer: decoded.buffer,
+              format: decoded.format,
+            });
+            await remoteCommandService.saveScreenshot(
+              totem.totem_id,
+              saved.filePath,
+              saved.fileSize,
+              decoded.width,
+              decoded.height,
+              saved.format,
+              command.id
+            );
+          } else if (result?.filePath && !String(result.filePath).includes('/Android/') && !String(result.filePath).startsWith('/data/')) {
+            // Só aceitar path se já for path de servidor (não path do device)
+            await remoteCommandService.saveScreenshot(
+              totem.totem_id,
+              result.filePath,
+              result.fileSize || 0,
+              result.width || 0,
+              result.height || 0,
+              result.format || 'png',
+              command.id
+            );
+          } else {
+            await logWarn('Screenshot completado sem imageBase64 — ficheiro não gravado no servidor', {
+              commandId: command.id,
+              totemId: totem.totem_id,
+              hasFilePath: !!result?.filePath,
+            });
+          }
         }
       } else {
         await remoteCommandService.markCommandAsFailed(command.id, error || 'Comando falhou');

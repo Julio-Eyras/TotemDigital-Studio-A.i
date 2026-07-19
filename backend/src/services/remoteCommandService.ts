@@ -28,6 +28,8 @@ export type CommandType =
   | 'purge_cache'
   | 'update'
   | 'config'
+  | 'apply_player_config'
+  | 'ota_rollback'
   | 'custom';
 
 export interface RemoteCommand {
@@ -151,6 +153,48 @@ export class RemoteCommandService {
       });
       await ensureRemoteCommandTypesConstraint(getPgPool(), { strict: true });
       return await runInsert();
+    }
+  }
+
+  /**
+   * Obtém comandos pendentes para um totem e marca-os como sent/executing
+   * para evitar reentrega no próximo heartbeat.
+   */
+  async claimPendingCommands(totemId: number, limit: number = 10): Promise<RemoteCommand[]> {
+    try {
+      const claimed = await this.db.executeRaw(
+        `
+        UPDATE remote_commands
+        SET status = 'sent',
+            sent_at = COALESCE(sent_at, CURRENT_TIMESTAMP),
+            executed_at = COALESCE(executed_at, CURRENT_TIMESTAMP),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE command_id IN (
+          SELECT command_id
+          FROM remote_commands
+          WHERE totem_id = $1 AND status = 'pending'
+          ORDER BY created_at ASC
+          LIMIT $2
+          FOR UPDATE SKIP LOCKED
+        )
+        RETURNING *
+      `,
+        [totemId, limit]
+      );
+      const rows = claimed.rows || [];
+      return rows.map((cmd: any) => this.mapToRemoteCommand(cmd));
+    } catch (error: any) {
+      // Fallback sem SKIP LOCKED (Postgres antigo / driver)
+      await logWarn('claimPendingCommands com SKIP LOCKED falhou; fallback simples', {
+        totemId,
+        error: error?.message,
+      });
+      const pending = await this.getPendingCommands(totemId);
+      const slice = pending.slice(0, limit);
+      for (const cmd of slice) {
+        await this.markCommandAsSent(cmd.id);
+      }
+      return slice;
     }
   }
 
@@ -298,6 +342,9 @@ export class RemoteCommandService {
         filePath
       });
 
+      // Retenção: mantém as 20 mais recentes por totem
+      await this.pruneScreenshotsPerTotem(20).catch(() => 0);
+
       return screenshotId;
     } catch (error: any) {
       await logError('Erro ao salvar screenshot', error, { totemId, filePath });
@@ -322,6 +369,78 @@ export class RemoteCommandService {
     } catch (error: any) {
       await logError('Erro ao obter screenshots', error, { totemId });
       throw error;
+    }
+  }
+
+  /**
+   * Limpa screenshots antigos (mais de [days] dias) e apaga ficheiros no disco.
+   */
+  async cleanupOldScreenshots(days: number = 30): Promise<number> {
+    try {
+      const rows = await this.db.findMany(
+        `
+        SELECT id, file_path
+        FROM remote_screenshots
+        WHERE created_at < NOW() - ($1::text || ' days')::interval
+      `,
+        [String(Math.max(1, days))]
+      );
+      let deleted = 0;
+      const fs = await import('fs');
+      for (const row of rows as Array<{ id: number; file_path: string }>) {
+        try {
+          if (row.file_path && fs.existsSync(row.file_path)) {
+            await fs.promises.unlink(row.file_path);
+          }
+        } catch {
+          /* best-effort */
+        }
+        await this.db.executeRaw(`DELETE FROM remote_screenshots WHERE id = $1`, [row.id]);
+        deleted += 1;
+      }
+      if (deleted > 0) {
+        await logInfo('Screenshots remotos antigos limpos', { deleted, days });
+      }
+      return deleted;
+    } catch (error: any) {
+      await logError('Erro ao limpar screenshots antigos', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Mantém no máximo [keepPerTotem] capturas por totem (mais recentes).
+   */
+  async pruneScreenshotsPerTotem(keepPerTotem: number = 20): Promise<number> {
+    try {
+      const overflow = await this.db.findMany(
+        `
+        SELECT id, file_path FROM (
+          SELECT id, file_path, totem_id,
+                 ROW_NUMBER() OVER (PARTITION BY totem_id ORDER BY created_at DESC) AS rn
+          FROM remote_screenshots
+        ) t
+        WHERE rn > $1
+      `,
+        [keepPerTotem]
+      );
+      let deleted = 0;
+      const fs = await import('fs');
+      for (const row of overflow as Array<{ id: number; file_path: string }>) {
+        try {
+          if (row.file_path && fs.existsSync(row.file_path)) {
+            await fs.promises.unlink(row.file_path);
+          }
+        } catch {
+          /* best-effort */
+        }
+        await this.db.executeRaw(`DELETE FROM remote_screenshots WHERE id = $1`, [row.id]);
+        deleted += 1;
+      }
+      return deleted;
+    } catch (error: any) {
+      await logError('Erro ao podar screenshots por totem', error);
+      return 0;
     }
   }
 

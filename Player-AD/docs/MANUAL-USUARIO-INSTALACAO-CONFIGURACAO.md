@@ -4,7 +4,7 @@ Instalação e configuração do player Android (TV box / totem digital).
 
 **Versão de referência do app:** 1.67  
 **Público:** operador de campo, técnico de instalação e administrador do painel web  
-**Documentação técnica (boot, kiosk avançado, logs):** no repositório, `Player-AD/docs/MANUAL-OPERACIONAL-TVBOX.md`
+**Documentação técnica (boot, kiosk avançado, logs):** [MANUAL-OPERACIONAL-TVBOX.md](./MANUAL-OPERACIONAL-TVBOX.md)
 
 ---
 
@@ -155,7 +155,7 @@ Valores de `displayRotation`:
 | 2 | Retrato invertido |
 | 3 | Paisagem invertida |
 
-Em alguns hardware Allwinner o sistema operativo também usa rotação (`user_rotation=1`); o script técnico de instalação trata disso. Se a imagem ficar deitada, contacte o suporte ou consulte `Player-AD/docs/MANUAL-OPERACIONAL-TVBOX.md` no repositório.
+Em alguns hardware Allwinner o sistema operativo também usa rotação (`user_rotation=1`); o script técnico de instalação trata disso. Se a imagem ficar deitada, contacte o suporte ou use o [manual operacional](./MANUAL-OPERACIONAL-TVBOX.md).
 
 ### 4.4 Modo quiosque (kiosk)
 

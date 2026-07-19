@@ -58,11 +58,17 @@ describe('PublisherCard', () => {
     expect(onView).toHaveBeenCalledWith(mockPublisher);
   });
 
-  it('deve exibir quantidade de totens no cartão', () => {
+  it('deve exibir segmento com quantidade de totens entre parênteses', () => {
     renderWithTheme(
       <PublisherCard publisher={{ ...mockPublisher, totems_count: 3, category_segment: 'Totens' }} />
     );
-    expect(screen.getByText('3 totens')).toBeInTheDocument();
-    expect(screen.queryByText('Totens')).not.toBeInTheDocument();
+    expect(screen.getByText('Totens (3)')).toBeInTheDocument();
+  });
+
+  it('deve exibir só a contagem quando não houver segmento', () => {
+    renderWithTheme(
+      <PublisherCard publisher={{ ...mockPublisher, totems_count: 1 }} />
+    );
+    expect(screen.getByText('1 totem')).toBeInTheDocument();
   });
 });

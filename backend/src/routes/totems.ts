@@ -1091,7 +1091,11 @@ router.post('/:id/commands',
       // Compatibilidade com comandos legados já usados no painel
       'restart',
       'reboot',
-      'screenshot'
+      'screenshot',
+      'config',
+      'apply_player_config',
+      'update',
+      'ota_rollback',
     ])
     .withMessage('Tipo de comando inválido'),
   body('data').optional({ nullable: true }).isObject().withMessage('data deve ser objeto JSON'),

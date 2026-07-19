@@ -48,6 +48,9 @@ import {
   Campaign,
   PermMedia,
   Verified,
+  ScreenRotation,
+  SystemUpdate,
+  PlayCircleOutline,
 } from '@mui/icons-material';
 import { totemApi, dispatcherTotemApi } from '../../services/api';
 import { useNotification } from '../../hooks/useNotification';
@@ -99,8 +102,15 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
   const [loading, setLoading] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const [capturing, setCapturing] = useState(false);
+  const [orientationSaving, setOrientationSaving] = useState(false);
+  const [displayRotation, setDisplayRotation] = useState(0);
+  const [nowPlayingLabel, setNowPlayingLabel] = useState<string | null>(null);
+  const [otaBusy, setOtaBusy] = useState(false);
   const [syncLoading, setSyncLoading] = useState<SyncCommandType | null>(null);
+  const [screenshotPreviews, setScreenshotPreviews] = useState<Record<number, string>>({});
   const [selectedScreenshot, setSelectedScreenshot] = useState<Screenshot | null>(null);
+  const [selectedPreviewUrl, setSelectedPreviewUrl] = useState<string | null>(null);
+  const [rebooting, setRebooting] = useState(false);
   const [invalidateDialog, setInvalidateDialog] = useState<{
     open: boolean;
     type: 'invalidate_media' | 'invalidate_playlist' | 'invalidate_campaign';
@@ -116,6 +126,33 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
       loadScreenshots();
     }
   }, [tabValue, totemId]);
+
+  useEffect(() => {
+    void loadTotemRemoteState();
+  }, [totemId]);
+
+  const loadTotemRemoteState = async () => {
+    try {
+      const totem = await totemApi.getById(totemId);
+      const settings = (totem as any)?.playerSettings || (totem as any)?.player_settings;
+      const rotation = Number(settings?.displayRotation ?? 0);
+      if (Number.isFinite(rotation)) {
+        setDisplayRotation(Math.min(3, Math.max(0, Math.round(rotation))));
+      }
+      const np = (totem as any)?.nowPlaying || (totem as any)?.now_playing;
+      if (np && (np.name || np.mediaId)) {
+        setNowPlayingLabel(
+          `${np.mediaType || 'média'} #${np.mediaId}${np.name ? ` — ${np.name}` : ''}${
+            np.playlistName ? ` (${np.playlistName})` : ''
+          }`
+        );
+      } else {
+        setNowPlayingLabel(null);
+      }
+    } catch {
+      // silencioso — totem pode não expor ainda as colunas
+    }
+  };
 
   const loadCommands = async () => {
     try {
@@ -133,7 +170,23 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
     try {
       setLoading(true);
       const response = await totemApi.getScreenshots(totemId, 20);
-      setScreenshots(response.data || []);
+      const list: Screenshot[] = response.data || [];
+      setScreenshots(list);
+
+      // Revogar URLs anteriores
+      Object.values(screenshotPreviews).forEach((url) => URL.revokeObjectURL(url));
+      const next: Record<number, string> = {};
+      await Promise.all(
+        list.slice(0, 12).map(async (shot) => {
+          try {
+            const blob = await totemApi.downloadScreenshot(totemId, shot.id);
+            next[shot.id] = URL.createObjectURL(blob);
+          } catch {
+            /* preview opcional */
+          }
+        })
+      );
+      setScreenshotPreviews(next);
     } catch (error: any) {
       showError(pickApiErrorMessage(error, 'Erro ao carregar screenshots'));
     } finally {
@@ -250,7 +303,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
   };
 
   const handleRestart = async () => {
-    if (!window.confirm('Tem certeza que deseja reiniciar este totem remotamente?')) {
+    if (!window.confirm('Tem certeza que deseja reiniciar a app deste totem remotamente?')) {
       return;
     }
 
@@ -268,14 +321,56 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
     }
   };
 
+  const handleRebootBoard = async () => {
+    if (!window.confirm('Reiniciar a placa (reboot)? Requer permissões no Android e pode falhar sem root.')) {
+      return;
+    }
+    try {
+      setRebooting(true);
+      await totemApi.sendCommand(totemId, 'reboot', {});
+      showSuccess('Reboot enfileirado', 'O Player-AD tentará reiniciar o sistema no próximo heartbeat');
+      setTimeout(loadCommands, 1500);
+    } catch (error: any) {
+      showError(pickApiErrorMessage(error, 'Erro ao enfileirar reboot'));
+    } finally {
+      setRebooting(false);
+    }
+  };
+
+  const openScreenshotPreview = async (screenshot: Screenshot) => {
+    setSelectedScreenshot(screenshot);
+    const cached = screenshotPreviews[screenshot.id];
+    if (cached) {
+      setSelectedPreviewUrl(cached);
+      return;
+    }
+    try {
+      const blob = await totemApi.downloadScreenshot(totemId, screenshot.id);
+      const url = URL.createObjectURL(blob);
+      setScreenshotPreviews((prev) => ({ ...prev, [screenshot.id]: url }));
+      setSelectedPreviewUrl(url);
+    } catch (error: any) {
+      setSelectedPreviewUrl(null);
+      showError(pickApiErrorMessage(error, 'Não foi possível carregar a captura'));
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      Object.values(screenshotPreviews).forEach((url) => URL.revokeObjectURL(url));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleScreenshot = async () => {
     try {
       setCapturing(true);
       await totemApi.screenshot(totemId);
-      showSuccess('Comando de screenshot enviado', 'O screenshot será capturado em breve');
-      if (tabValue === 1) {
-        setTimeout(loadScreenshots, 3000);
-      }
+      showSuccess('Comando de screenshot enviado', 'Aguarde alguns segundos e abra Capturas de Tela');
+      setTimeout(() => {
+        setTabValue(1);
+        loadScreenshots();
+      }, 8000);
     } catch (error: any) {
       showError(pickApiErrorMessage(error, 'Erro ao solicitar screenshot'));
     } finally {
@@ -342,8 +437,10 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
       invalidate_playlist: 'Invalidar playlist',
       invalidate_campaign: 'Invalidar campanha',
       purge_cache: 'Limpar cache',
-      update: 'Atualização',
+      update: 'OTA / update',
       config: 'Configuração',
+      apply_player_config: 'Configuração player',
+      ota_rollback: 'OTA rollback',
       custom: 'Personalizado',
     };
     return types[type] || type;
@@ -388,21 +485,135 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
           A execução ocorre no próximo heartbeat do player.
         </Alert>
 
+        {nowPlayingLabel && (
+          <Alert severity="success" icon={<PlayCircleOutline />} sx={{ mb: 2 }}>
+            A reproduzir: {nowPlayingLabel}
+          </Alert>
+        )}
+
+        <Typography variant="subtitle2" gutterBottom>
+          Orientação do totem (remota)
+        </Typography>
+        <Grid container spacing={1} sx={{ mb: 2 }} alignItems="center">
+          <Grid item xs={12} sm={8}>
+            <TextField
+              select
+              fullWidth
+              size="small"
+              label="displayRotation"
+              value={displayRotation}
+              onChange={(e) => setDisplayRotation(Number(e.target.value))}
+              SelectProps={{ native: true }}
+            >
+              <option value={0}>0 — Retrato (topo para cima)</option>
+              <option value={2}>2 — Retrato invertido</option>
+              <option value={1}>1 — Paisagem (90° direita)</option>
+              <option value={3}>3 — Paisagem invertida (90° esquerda)</option>
+            </TextField>
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={orientationSaving ? <CircularProgress size={14} /> : <ScreenRotation />}
+              disabled={orientationSaving}
+              onClick={async () => {
+                try {
+                  setOrientationSaving(true);
+                  await totemApi.sendCommand(totemId, 'config', { displayRotation });
+                  showSuccess('Orientação enfileirada', 'O Player-AD aplica no próximo heartbeat e reinicia');
+                  setTimeout(loadCommands, 1500);
+                } catch (error: any) {
+                  showError(pickApiErrorMessage(error, 'Erro ao enviar orientação'));
+                } finally {
+                  setOrientationSaving(false);
+                }
+              }}
+            >
+              Aplicar
+            </Button>
+          </Grid>
+        </Grid>
+
+        <Typography variant="subtitle2" gutterBottom>
+          OTA (baixa prioridade — mock)
+        </Typography>
+        <Grid container spacing={1} sx={{ mb: 2 }}>
+          <Grid item xs={6}>
+            <Button
+              fullWidth
+              size="small"
+              variant="outlined"
+              color="secondary"
+              startIcon={otaBusy ? <CircularProgress size={14} /> : <SystemUpdate />}
+              disabled={otaBusy}
+              onClick={async () => {
+                try {
+                  setOtaBusy(true);
+                  await totemApi.sendCommand(totemId, 'update', {});
+                  showSuccess('OTA enfileirado (mock/parcial)', 'Histórico no totem: files/OTA');
+                  setTimeout(loadCommands, 1500);
+                } catch (error: any) {
+                  showError(pickApiErrorMessage(error, 'Erro ao enfileirar OTA'));
+                } finally {
+                  setOtaBusy(false);
+                }
+              }}
+            >
+              Pedir update
+            </Button>
+          </Grid>
+          <Grid item xs={6}>
+            <Button
+              fullWidth
+              size="small"
+              variant="outlined"
+              disabled={otaBusy}
+              onClick={async () => {
+                try {
+                  setOtaBusy(true);
+                  await totemApi.sendCommand(totemId, 'ota_rollback', {});
+                  showSuccess('Rollback mock enfileirado', 'Player regista em files/OTA (sem instalar ainda)');
+                  setTimeout(loadCommands, 1500);
+                } catch (error: any) {
+                  showError(pickApiErrorMessage(error, 'Erro ao enfileirar rollback'));
+                } finally {
+                  setOtaBusy(false);
+                }
+              }}
+            >
+              Rollback (mock)
+            </Button>
+          </Grid>
+        </Grid>
+
         {/* Ações Rápidas */}
         <Grid container spacing={2} sx={{ mb: 2 }}>
-          <Grid item xs={12} sm={6}>
+          <Grid item xs={12} sm={4}>
             <Button
               fullWidth
               variant="contained"
               color="warning"
               startIcon={restarting ? <CircularProgress size={16} /> : <RestartAlt />}
               onClick={handleRestart}
-              disabled={restarting}
+              disabled={restarting || rebooting}
             >
-              {restarting ? 'Reiniciando...' : 'Reiniciar Totem'}
+              {restarting ? 'Reiniciando...' : 'Reiniciar app'}
             </Button>
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid item xs={12} sm={4}>
+            <Button
+              fullWidth
+              variant="outlined"
+              color="error"
+              startIcon={rebooting ? <CircularProgress size={16} /> : <RestartAlt />}
+              onClick={handleRebootBoard}
+              disabled={restarting || rebooting}
+            >
+              {rebooting ? 'Reboot...' : 'Reboot placa'}
+            </Button>
+          </Grid>
+          <Grid item xs={12} sm={4}>
             <Button
               fullWidth
               variant="contained"
@@ -573,7 +784,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
                         overflow: 'hidden',
                         cursor: 'pointer',
                       }}
-                      onClick={() => setSelectedScreenshot(screenshot)}
+                      onClick={() => openScreenshotPreview(screenshot)}
                     >
                       <Box
                         sx={{
@@ -588,7 +799,16 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
                           backgroundColor: 'grey.300',
                         }}
                       >
-                        <PhotoLibrary sx={{ fontSize: 48, color: 'grey.500' }} />
+                        {screenshotPreviews[screenshot.id] ? (
+                          <Box
+                            component="img"
+                            src={screenshotPreviews[screenshot.id]}
+                            alt="Captura"
+                            sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        ) : (
+                          <PhotoLibrary sx={{ fontSize: 48, color: 'grey.500' }} />
+                        )}
                       </Box>
                       <Box
                         sx={{
@@ -692,7 +912,10 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
       {/* Dialog: Visualizar captura de tela */}
       <Dialog
         open={!!selectedScreenshot}
-        onClose={() => setSelectedScreenshot(null)}
+        onClose={() => {
+          setSelectedScreenshot(null);
+          setSelectedPreviewUrl(null);
+        }}
         maxWidth="md"
         fullWidth
       >
@@ -703,19 +926,30 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
             </DialogTitle>
             <DialogContent>
               <Box sx={{ textAlign: 'center' }}>
-                <Box
-                  component="img"
-                  src={`${process.env.REACT_APP_API_URL || '/api'}/totems/${totemId}/screenshots/${selectedScreenshot.id}/download`}
-                  alt="Captura de tela"
-                  sx={{ maxWidth: '100%', height: 'auto', display: 'block' }}
-                />
+                {selectedPreviewUrl || screenshotPreviews[selectedScreenshot.id] ? (
+                  <Box
+                    component="img"
+                    src={selectedPreviewUrl || screenshotPreviews[selectedScreenshot.id]}
+                    alt="Captura de tela"
+                    sx={{ maxWidth: '100%', height: 'auto', display: 'block', mx: 'auto' }}
+                  />
+                ) : (
+                  <Alert severity="warning">Imagem indisponível — tente Download</Alert>
+                )}
               </Box>
             </DialogContent>
             <DialogActions>
               <Button onClick={() => handleDownloadScreenshot(selectedScreenshot)} startIcon={<Download />}>
                 Download
               </Button>
-              <Button onClick={() => setSelectedScreenshot(null)}>Fechar</Button>
+              <Button
+                onClick={() => {
+                  setSelectedScreenshot(null);
+                  setSelectedPreviewUrl(null);
+                }}
+              >
+                Fechar
+              </Button>
             </DialogActions>
           </>
         )}

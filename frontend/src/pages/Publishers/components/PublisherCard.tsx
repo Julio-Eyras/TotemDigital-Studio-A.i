@@ -69,9 +69,10 @@ const PublisherCard: React.FC<PublisherCardProps> = ({
   const totemsCount = Number(publisher.totems_count ?? 0);
   const localsCount = Number(publisher.locals_count ?? 0);
   const category = String(publisher.category_segment || '').trim();
-  // Evita confundir o segmento genérico "Totens" com a contagem de dispositivos.
-  const showCategory =
-    category.length > 0 && !/^totens?$/i.test(category);
+  // Segmento da org + quantidade de totens dessa organização (ex.: «Totens (3)»).
+  const segmentChipLabel = category
+    ? `${category} (${totemsCount})`
+    : `${totemsCount} ${totemsCount === 1 ? 'totem' : 'totens'}`;
 
   return (
     <Card
@@ -141,7 +142,7 @@ const PublisherCard: React.FC<PublisherCardProps> = ({
 
           <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 1 }}>
             <Chip
-              label={`${totemsCount} ${totemsCount === 1 ? 'totem' : 'totens'}`}
+              label={segmentChipLabel}
               size="small"
               color="primary"
               variant="outlined"
@@ -152,9 +153,6 @@ const PublisherCard: React.FC<PublisherCardProps> = ({
                 size="small"
                 variant="outlined"
               />
-            )}
-            {showCategory && (
-              <Chip label={category} size="small" variant="outlined" />
             )}
           </Box>
         </Stack>

@@ -283,8 +283,8 @@ class DispatcherApiClient(
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 doOutput = true
-                connectTimeout = 8000
-                readTimeout = 8000
+                connectTimeout = 15000
+                readTimeout = 60000
                 setRequestProperty("Content-Type", "application/json")
             }
             val body = JSONObject().apply {

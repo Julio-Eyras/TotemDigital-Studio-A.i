@@ -2,6 +2,8 @@
 
 Guia de instalação, provisionamento, boot customizado e manutenção em campo.
 
+**Manual do utilizador (instalação + configuração):** [MANUAL-USUARIO-INSTALACAO-CONFIGURACAO.md](./MANUAL-USUARIO-INSTALACAO-CONFIGURACAO.md)  
+
 **Versão do app referida:** 1.33  
 **Arquitetura (dev):** [MANUAL-ARQUITETURA-DESENVOLVIMENTO.md](./MANUAL-ARQUITETURA-DESENVOLVIMENTO.md)  
 **Hardware / procurement:** [../../docs/hardware/README.md](../../docs/hardware/README.md)
@@ -65,7 +67,7 @@ Exemplo mínimo:
 
 ```json
 {
-  "serverUrl": "http://SEU-SERVIDOR:8080",
+  "serverUrl": "http://217.216.91.135:8080",
   "uin": "CODIGO-UIN",
   "deviceId": "CODIGO-UIN",
   "kioskMode": "strong",

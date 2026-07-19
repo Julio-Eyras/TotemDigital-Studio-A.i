@@ -19,4 +19,10 @@ object AppDirs {
 
     fun vinhetas(context: Context): File =
         File(root(context), "vinhetas").apply { if (!exists()) mkdirs() }
+
+    /** Backups OTA (máx. 3) — sempre no external files da app (`…/files/OTA`). */
+    fun ota(context: Context): File =
+        File(context.getExternalFilesDir(null) ?: context.filesDir, "OTA").apply {
+            if (!exists()) mkdirs()
+        }
 }

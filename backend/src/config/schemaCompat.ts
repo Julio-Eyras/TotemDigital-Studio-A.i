@@ -20,6 +20,8 @@ export const REMOTE_COMMAND_TYPES = [
   'clear_cache',
   'update',
   'config',
+  'apply_player_config',
+  'ota_rollback',
   'custom',
   'play',
   'pause',
@@ -75,4 +77,48 @@ export async function ensureRemoteCommandTypesConstraint(
 export function isRemoteCommandTypeConstraintError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return message.includes('chk_remote_command_type');
+}
+
+/**
+ * Garante tabela remote_screenshots + colunas player_settings/now_playing em totems.
+ * Alinhado a database/smartchannel-db-v2-compat-remote-screenshots.sql
+ */
+export async function ensureRemoteScreenshotsSchema(
+  pool: {
+    query: (text: string) => Promise<unknown>;
+  },
+  options?: { strict?: boolean }
+): Promise<boolean> {
+  try {
+    await pool.query(`
+      ALTER TABLE IF EXISTS totems ADD COLUMN IF NOT EXISTS player_settings JSONB DEFAULT '{}'::jsonb;
+    `);
+    await pool.query(`
+      ALTER TABLE IF EXISTS totems ADD COLUMN IF NOT EXISTS now_playing JSONB;
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS remote_screenshots (
+        id SERIAL PRIMARY KEY,
+        totem_id INTEGER NOT NULL,
+        command_id INTEGER,
+        file_path TEXT NOT NULL,
+        file_size BIGINT DEFAULT 0,
+        width INTEGER DEFAULT 0,
+        height INTEGER DEFAULT 0,
+        format TEXT DEFAULT 'png',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_remote_screenshots_totem_created
+        ON remote_screenshots (totem_id, created_at DESC);
+    `);
+    logInfoSync('Schema compat: remote_screenshots / player_settings OK');
+    return true;
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (options?.strict) throw error;
+    logWarnSync('Schema compat: falha remote_screenshots/player_settings', { error: message });
+    return false;
+  }
 }

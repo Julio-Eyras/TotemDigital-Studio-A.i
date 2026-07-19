@@ -19,8 +19,12 @@ import androidx.media3.ui.PlayerView
  */
 object MediaViewportRotation {
 
-    /** Desactivado: ficheiros vêm do servidor em 16:9 pré-rodados; totem não transforma em runtime. */
-    const val ENABLED = false
+    /**
+     * Activo: cada totem corrige conforme [displayRotation].
+     * Com `_delivery_rotation` (bake servidor para montagem standard) → compensar invertidos.
+     * Sem tag → landscape em portrait aplica 90°/270° (legado).
+     */
+    const val ENABLED = true
 
     /**
      * Totem Allwinner inverte faixas 16:9 horizontais (~180°). Compensa só ficheiros legacy
@@ -84,8 +88,39 @@ object MediaViewportRotation {
     }
 
     /**
-     * Roda só mídia **landscape** para caber em totem **portrait**.
-     * Nunca roda conteúdo já em pé (ex.: vídeo de telemóvel normalizado 9:16).
+     * Ângulo de playback considerando montagem do totem + bake de entrega do servidor.
+     * Bake standard assume displayRotation=0 (retrato). Montagens invertidas → +180°.
+     */
+    fun playbackCorrectionDegrees(
+        context: Context,
+        displayRotation: Int,
+        mediaWidth: Int,
+        mediaHeight: Int,
+        deliveryRotation: Int? = null,
+    ): Float {
+        if (!ENABLED) return 0f
+        val mount = ((displayRotation % 4) + 4) % 4
+        if (deliveryRotation != null) {
+            // Ficheiro já preparado para montagem standard; compensar invertidos
+            var deg = when (mount) {
+                2, 3 -> 180f
+                else -> 0f
+            }
+            // Legacy `_delivery_rotation:0` em faixa landscape Allwinner
+            if (
+                LANDSCAPE_STRIP_FLIP_180 &&
+                deliveryRotation == 0 &&
+                mediaWidth > mediaHeight
+            ) {
+                deg = (deg + 180f) % 360f
+            }
+            return deg
+        }
+        return correctionRotation(context, displayRotation, mediaWidth, mediaHeight)
+    }
+
+    /**
+     * Roda só mídia **landscape** para caber em totem **portrait** (legado sem delivery tag).
      */
     fun correctionRotation(
         context: Context,
@@ -108,10 +143,14 @@ object MediaViewportRotation {
         context: Context,
         displayRotation: Int,
         videoSize: VideoSize,
+        deliveryRotation: Int? = null,
     ): Float {
+        if (deliveryRotation != null) {
+            val (w, h) = rawVideoSize(videoSize)
+            return playbackCorrectionDegrees(context, displayRotation, w, h, deliveryRotation)
+        }
         val metaRot = normalizeRotationDegrees(videoSize.unappliedRotationDegrees)
         if (metaRot != 0) {
-            // TextureView: ExoPlayer não aplica rotate= — só metadados, sem correção extra.
             return metaRot.toFloat()
         }
         val (ew, eh) = effectiveVideoSize(videoSize)

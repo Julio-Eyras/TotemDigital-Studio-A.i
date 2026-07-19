@@ -59,6 +59,16 @@ class OtaUpdateCoordinator(
                 return@withContext
             }
             report("installing", pkg.version)
+            // Backup local (máx. 3) antes de pedir instalação — Fase E completa o fluxo
+            try {
+                val previous = File(context.getExternalFilesDir(null) ?: context.filesDir, "OTA/last-downloaded.apk")
+                if (previous.exists()) {
+                    OtaApkBackupStore.pushBackup(context, previous, lastHandledVersion ?: "previous")
+                }
+                apkFile.copyTo(File(OtaApkBackupStore.otaDir(context), "last-downloaded.apk"), overwrite = true)
+            } catch (e: Exception) {
+                Log.w(tag, "Backup OTA local falhou (não bloqueia install): ${e.message}")
+            }
             promptInstall(apkFile)
             if (pkg.isMandatory) {
                 Log.i(tag, "Atualização obrigatória disponível ($version) — aviso apenas, playback continua")

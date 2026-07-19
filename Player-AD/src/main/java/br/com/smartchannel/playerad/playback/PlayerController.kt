@@ -7,6 +7,7 @@ import android.net.Uri
 import br.com.smartchannel.playerad.R
 import br.com.smartchannel.playerad.api.DispatcherApiClient
 import br.com.smartchannel.playerad.ota.OtaUpdateCoordinator
+import br.com.smartchannel.playerad.ota.OtaApkBackupStore
 import br.com.smartchannel.playerad.api.PlayerEventsClient
 import br.com.smartchannel.playerad.cache.MediaCacheManager
 import br.com.smartchannel.playerad.cache.PortraitVideoCacheProcessor
@@ -75,6 +76,8 @@ class PlayerController(
     private var restartRequested = false
     private var videoOrientationListener: Player.Listener? = null
     private var pendingVideoOrientationReveal = false
+    @Volatile
+    private var nowPlayingSnapshot: JSONObject? = null
 
     private enum class PlanSource { ONLINE, PERSISTED, FALLBACK_LOCAL }
 
@@ -686,6 +689,7 @@ class PlayerController(
     private fun buildHealthMetrics(): JSONObject {
         val root = AppDirs.root(context)
         val runtime = Runtime.getRuntime()
+        val cfg = br.com.smartchannel.playerad.config.PlayerConfigLoader(context).load()
         return JSONObject().apply {
             put("player", "Player-AD")
             put("platform", "android")
@@ -699,6 +703,46 @@ class PlayerController(
             put("storageTotalBytes", root.totalSpace)
             put("heapUsedBytes", runtime.totalMemory() - runtime.freeMemory())
             put("heapMaxBytes", runtime.maxMemory())
+            put("displayRotation", cfg.displayRotation)
+            put(
+                "screenOrientation",
+                br.com.smartchannel.playerad.config.PlayerConfigLoader
+                    .screenOrientationToJsonValue(cfg.screenOrientation),
+            )
+            put(
+                "kioskMode",
+                br.com.smartchannel.playerad.config.PlayerConfigLoader.kioskModeToJsonValue(cfg.kioskMode),
+            )
+            nowPlayingSnapshot?.let { put("nowPlaying", it) }
+            put(
+                "playerSettings",
+                JSONObject().apply {
+                    put("displayRotation", cfg.displayRotation)
+                    put(
+                        "screenOrientation",
+                        br.com.smartchannel.playerad.config.PlayerConfigLoader
+                            .screenOrientationToJsonValue(cfg.screenOrientation),
+                    )
+                    put(
+                        "kioskMode",
+                        br.com.smartchannel.playerad.config.PlayerConfigLoader.kioskModeToJsonValue(cfg.kioskMode),
+                    )
+                    put("batimentoCardiaco", cfg.batimentoCardiaco)
+                    put("maxSecondsWithoutServerCheck", cfg.maxSecondsWithoutServerCheck)
+                    put("appVersion", apiClient.appVersion)
+                },
+            )
+        }
+    }
+
+    private fun setNowPlaying(mediaType: String, item: DispatchMediaItem, playlistName: String?) {
+        nowPlayingSnapshot = JSONObject().apply {
+            put("mediaId", item.mediaId)
+            put("mediaType", mediaType)
+            put("name", item.label ?: "")
+            put("playlistName", playlistName ?: "")
+            put("at", System.currentTimeMillis())
+            if (item.deliveryRotation != null) put("deliveryRotation", item.deliveryRotation)
         }
     }
 
@@ -756,7 +800,113 @@ class PlayerController(
             "restart_app", "restart" -> executeRestartApp()
             "reset_board", "reboot" -> executeResetBoard()
             "capture_screen", "screenshot" -> executeCaptureScreen()
+            "config", "apply_player_config" -> executeApplyPlayerConfig(data)
+            "update" -> executeOtaUpdateCommand(data)
+            "ota_rollback" -> OtaApkBackupStore.mockPrepareRollback(context)
             else -> throw IllegalArgumentException("Comando não suportado no Player-AD: $type")
+        }
+    }
+
+    private fun executeApplyPlayerConfig(data: JSONObject?): JSONObject {
+        if (data == null) throw IllegalArgumentException("config sem payload")
+        val loader = br.com.smartchannel.playerad.config.PlayerConfigLoader(context)
+        val current = loader.load()
+        val next = current.copy(
+            displayRotation = if (data.has("displayRotation")) {
+                data.optInt("displayRotation", current.displayRotation).coerceIn(0, 3)
+            } else if (data.has("screenOrientation")) {
+                br.com.smartchannel.playerad.config.PlayerConfigLoader.displayRotationFromMode(
+                    br.com.smartchannel.playerad.config.PlayerConfigLoader.parseScreenOrientation(
+                        data.optString("screenOrientation", ""),
+                    ),
+                )
+            } else {
+                current.displayRotation
+            },
+            kioskMode = if (data.has("kioskMode")) {
+                br.com.smartchannel.playerad.config.PlayerConfigLoader.parseKioskMode(
+                    data.optString("kioskMode", ""),
+                )
+            } else {
+                current.kioskMode
+            },
+            batimentoCardiaco = if (data.has("batimentoCardiaco")) {
+                data.optInt("batimentoCardiaco", current.batimentoCardiaco).coerceIn(15, 3600)
+            } else {
+                current.batimentoCardiaco
+            },
+            maxSecondsWithoutServerCheck = if (data.has("maxSecondsWithoutServerCheck")) {
+                data.optInt("maxSecondsWithoutServerCheck", current.maxSecondsWithoutServerCheck)
+                    .coerceIn(15, 3600)
+            } else {
+                current.maxSecondsWithoutServerCheck
+            },
+            acceptImagesInPlaylist = if (data.has("acceptImagesInPlaylist")) {
+                data.optBoolean("acceptImagesInPlaylist", current.acceptImagesInPlaylist)
+            } else {
+                current.acceptImagesInPlaylist
+            },
+            allowPlaybackAudio = if (data.has("allowPlaybackAudio")) {
+                data.optBoolean("allowPlaybackAudio", current.allowPlaybackAudio)
+            } else {
+                current.allowPlaybackAudio
+            },
+        ).let { cfg ->
+            cfg.copy(
+                screenOrientation = br.com.smartchannel.playerad.config.PlayerConfigLoader
+                    .displayRotationToMode(cfg.displayRotation),
+            )
+        }
+        // serverUrl / uin / deviceId: só com flag explícita (evitar órfão)
+        val allowIdentity = data.optBoolean("allowIdentityChange", false)
+        val withIdentity = if (allowIdentity) {
+            next.copy(
+                serverUrl = data.optString("serverUrl", next.serverUrl).ifBlank { next.serverUrl },
+                uin = data.optString("uin", next.uin).ifBlank { next.uin },
+                deviceId = data.optString("deviceId", next.deviceId).ifBlank { next.deviceId },
+            )
+        } else {
+            next
+        }
+        val saved = br.com.smartchannel.playerad.config.PlayerConfigStore.save(context, withIdentity)
+        PlayerAdLogger.i(
+            "REMOTE_CMD",
+            "Config remota aplicada displayRotation=${withIdentity.displayRotation} internal=${saved.internalOk} sd=${saved.externalOk}",
+        )
+        // Reiniciar app para DisplayPresentationController / PlayerController lerem a nova config
+        restartRequested = true
+        return JSONObject().apply {
+            put("applied", true)
+            put("displayRotation", withIdentity.displayRotation)
+            put("screenOrientation", br.com.smartchannel.playerad.config.PlayerConfigLoader
+                .screenOrientationToJsonValue(withIdentity.screenOrientation))
+            put("kioskMode", br.com.smartchannel.playerad.config.PlayerConfigLoader
+                .kioskModeToJsonValue(withIdentity.kioskMode))
+            put("restartScheduled", true)
+        }
+    }
+
+    private suspend fun executeOtaUpdateCommand(data: JSONObject?): JSONObject {
+        // Mock alinhado: se payload tiver otaUpdate-like, reutiliza coordinator; senão só registo
+        val otaJson = data?.optJSONObject("otaUpdate") ?: data
+        if (otaJson != null && otaUpdateCoordinator != null) {
+            val version = otaJson.optString("version", "unknown")
+            OtaApkBackupStore.appendHistory(context, version, "command_update_received")
+            // Antes de instalar, tentaríamos pushBackup do APK actual (Fase E completa)
+            otaUpdateCoordinator.handleFromHeartbeat(otaJson)
+            return JSONObject().apply {
+                put("started", true)
+                put("mockCompleteInstall", false)
+                put("version", version)
+                put("otaDir", OtaApkBackupStore.otaDir(context).absolutePath)
+            }
+        }
+        OtaApkBackupStore.appendHistory(context, "n/a", "command_update_mock_empty")
+        return JSONObject().apply {
+            put("started", false)
+            put("mock", true)
+            put("message", "Comando update recebido sem payload OTA — histórico local actualizado")
+            put("otaDir", OtaApkBackupStore.otaDir(context).absolutePath)
         }
     }
 
@@ -916,11 +1066,42 @@ class PlayerController(
         if (code != 0 || !out.exists()) {
             throw IllegalStateException("Falha no screencap (exit=$code)")
         }
+
+        // Enviar JPEG base64 ao servidor (path Android sozinho não serve para o painel)
+        val jpegBytes = encodeScreenshotJpeg(out)
+        val b64 = android.util.Base64.encodeToString(jpegBytes, android.util.Base64.NO_WRAP)
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.size, bounds)
+
         return JSONObject().apply {
             put("filePath", out.absolutePath)
-            put("fileSize", out.length())
-            put("format", "png")
+            put("fileSize", jpegBytes.size)
+            put("format", "jpg")
+            put("width", bounds.outWidth.coerceAtLeast(0))
+            put("height", bounds.outHeight.coerceAtLeast(0))
+            put("imageBase64", b64)
         }
+    }
+
+    private fun encodeScreenshotJpeg(pngFile: File): ByteArray {
+        val opts = android.graphics.BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        android.graphics.BitmapFactory.decodeFile(pngFile.absolutePath, opts)
+        var sample = 1
+        val maxSide = 1280
+        val w = opts.outWidth
+        val h = opts.outHeight
+        while (w / sample > maxSide || h / sample > maxSide) {
+            sample *= 2
+        }
+        val decode = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample.coerceAtLeast(1) }
+        val bmp = android.graphics.BitmapFactory.decodeFile(pngFile.absolutePath, decode)
+            ?: throw IllegalStateException("Falha ao decodificar screenshot")
+        val stream = java.io.ByteArrayOutputStream()
+        bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 72, stream)
+        bmp.recycle()
+        return stream.toByteArray()
     }
 
     private fun extractMediaIds(data: JSONObject?): List<Long> {
@@ -1028,6 +1209,7 @@ class PlayerController(
                 plan.playlistName,
                 plan.playlistId
             )
+            setNowPlaying("image", item, plan.playlistName)
 
             // Atualiza eventos para imagem (equivalente ao player-web)
             try {
@@ -1070,7 +1252,7 @@ class PlayerController(
 
             if (bitmap != null) {
                 val imagePath = if (imageUri.scheme == "file") imageUri.path else null
-                applyImageOrientationCorrection(bitmap, imagePath)
+                applyImageOrientationCorrection(bitmap, imagePath, item.deliveryRotation)
             } else {
                 imageView.setImageDrawable(null)
                 resetMediaViewOrientation()
@@ -1098,6 +1280,7 @@ class PlayerController(
             plan.playlistName,
             plan.playlistId
         )
+        setNowPlaying("video", item, plan.playlistName)
 
         val mediaItem: MediaItem = when {
             isFileUrl -> MediaItem.fromUri(Uri.parse(item.url))
@@ -1198,6 +1381,7 @@ class PlayerController(
             plan.playlistName,
             plan.playlistId
         )
+        setNowPlaying("html", item, plan.playlistName)
 
         try {
             t = eventsClient.sendEvent(
@@ -1284,7 +1468,7 @@ class PlayerController(
         val listener = object : Player.Listener {
             override fun onVideoSizeChanged(videoSize: VideoSize) {
                 if (AUTO_MEDIA_ORIENTATION) {
-                    applyVideoOrientationCorrection(videoSize)
+                    applyVideoOrientationCorrection(videoSize, deliveryRotation)
                 } else {
                     applyLandscapeStripFlipIfNeeded(videoSize, deliveryRotation)
                 }
@@ -1326,19 +1510,24 @@ class PlayerController(
         videoOrientationListener = null
     }
 
-    private fun applyVideoOrientationCorrection(videoSize: VideoSize) {
+    private fun applyVideoOrientationCorrection(videoSize: VideoSize, deliveryRotation: Int? = null) {
         if (!AUTO_MEDIA_ORIENTATION) return
         try {
             val (rawW, rawH) = MediaViewportRotation.rawVideoSize(videoSize)
-            val rot = MediaViewportRotation.correctionRotationForVideo(context, displayRotation, videoSize)
+            val rot = MediaViewportRotation.correctionRotationForVideo(
+                context,
+                displayRotation,
+                videoSize,
+                deliveryRotation,
+            )
             playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             exoPlayer.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT)
             if (rot != 0f) {
                 PlayerAdLogger.i(
                     "DISPLAY",
-                    "Correção orientação vídeo eff=${MediaViewportRotation.effectiveVideoSize(videoSize).let { "${it.first}x${it.second}" }} " +
-                        "raw=${rawW}x${rawH} → ${rot.toInt()}° viewportPortrait=${MediaViewportRotation.isViewportPortrait(context)} " +
-                        "mount=$displayRotation metaRot=${videoSize.unappliedRotationDegrees}",
+                    "Correção orientação vídeo deliveryRotation=$deliveryRotation " +
+                        "eff=${MediaViewportRotation.effectiveVideoSize(videoSize).let { "${it.first}x${it.second}" }} " +
+                        "raw=${rawW}x${rawH} → ${rot.toInt()}° mount=$displayRotation",
                 )
             }
             MediaViewportRotation.applyToPlayerView(playerView, rot, rawW, rawH)
@@ -1357,7 +1546,11 @@ class PlayerController(
         playerView.alpha = 1f
     }
 
-    private fun applyImageOrientationCorrection(bitmap: Bitmap, filePath: String?) {
+    private fun applyImageOrientationCorrection(
+        bitmap: Bitmap,
+        filePath: String?,
+        deliveryRotation: Int? = null,
+    ) {
         if (!AUTO_MEDIA_ORIENTATION) {
             imageView.scaleType = ImageView.ScaleType.FIT_CENTER
             imageView.setImageBitmap(bitmap)
@@ -1369,11 +1562,18 @@ class PlayerController(
         } else {
             bitmap.width to bitmap.height
         }
-        val rot = MediaViewportRotation.correctionRotation(context, displayRotation, w, h)
+        val rot = MediaViewportRotation.playbackCorrectionDegrees(
+            context,
+            displayRotation,
+            w,
+            h,
+            deliveryRotation,
+        )
         val displayBitmap = if (rot != 0f) {
             PlayerAdLogger.i(
                 "DISPLAY",
-                "Correção orientação imagem ${w}x${h} → ${rot.toInt()}° viewportPortrait=${MediaViewportRotation.isViewportPortrait(context)}",
+                "Correção orientação imagem ${w}x${h} → ${rot.toInt()}° " +
+                    "deliveryRotation=$deliveryRotation mount=$displayRotation",
             )
             try {
                 MediaViewportRotation.rotateBitmap(bitmap, rot)

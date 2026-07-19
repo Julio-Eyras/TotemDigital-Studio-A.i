@@ -421,12 +421,34 @@ CREATE TABLE IF NOT EXISTS remote_commands (
             'invalidate_media', 'invalidate_playlist', 'invalidate_campaign',
             'refresh_dispatch', 'sync_now', 'content_version_check',
             'purge_cache', 'clear_cache',
-            'update', 'config', 'custom',
+            'update', 'config', 'apply_player_config', 'ota_rollback', 'custom',
             'play', 'pause', 'load_playlist', 'request_playlist', 'ping'
         )),
     CONSTRAINT chk_remote_command_status 
         CHECK (status IN ('pending', 'sent', 'executing', 'completed', 'failed', 'timeout'))
 );
+
+-- Screenshots remotos (ficheiro no servidor; path relativo ou absoluto sob storage)
+CREATE TABLE IF NOT EXISTS remote_screenshots (
+    id SERIAL PRIMARY KEY,
+    totem_id INTEGER NOT NULL,
+    command_id INTEGER,
+    file_path TEXT NOT NULL,
+    file_size BIGINT DEFAULT 0,
+    width INTEGER DEFAULT 0,
+    height INTEGER DEFAULT 0,
+    format TEXT DEFAULT 'png',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_remote_screenshots_totem
+        FOREIGN KEY (totem_id) REFERENCES totems(totem_id) ON DELETE CASCADE,
+    CONSTRAINT fk_remote_screenshots_command
+        FOREIGN KEY (command_id) REFERENCES remote_commands(command_id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_remote_screenshots_totem_created
+    ON remote_screenshots (totem_id, created_at DESC);
+
+COMMENT ON TABLE remote_screenshots IS 'Capturas de ecrã enviadas pelo Player-AD (ficheiro no servidor)';
 
 -- =============================================
 -- OTA UPDATES

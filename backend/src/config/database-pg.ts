@@ -9,7 +9,7 @@
 import pg from 'pg';
 import { logInfoSync, logErrorSync } from '../utils/loggerHelper';
 import { databaseConfig as config } from './env';
-import { ensureRemoteCommandTypesConstraint } from './schemaCompat';
+import { ensureRemoteCommandTypesConstraint, ensureRemoteScreenshotsSchema } from './schemaCompat';
 
 const { Pool } = pg;
 
@@ -71,6 +71,7 @@ export async function initializeDatabase(): Promise<pg.Pool> {
       // Testar conexão
       await pool.query('SELECT NOW()');
       await ensureRemoteCommandTypesConstraint(pool);
+      await ensureRemoteScreenshotsSchema(pool);
       logInfoSync('PostgreSQL conectado com sucesso', {
         database: dbConfig.database,
         host: dbConfig.host,

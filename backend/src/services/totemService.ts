@@ -535,6 +535,8 @@ export class TotemService {
           t.last_heartbeat as lastHeartbeat,
           t.is_active as active,
           t.is_active as is_active,
+          t.player_settings as "playerSettings",
+          t.now_playing as "nowPlaying",
           NULL as current_playlist_id,
           t.created_at as createdAt,
           t.updated_at as updatedAt,

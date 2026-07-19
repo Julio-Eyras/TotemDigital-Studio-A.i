@@ -62,3 +62,9 @@ Implementação do sistema de controle remoto de totens - Backend completo, Fron
 - Players precisam implementar execução de comandos
 - Screenshots requerem upload de arquivo do player
 
+## Continuação (2026-07-17)
+
+Plano consolidado (orientação por totem, config remota, screenshot, now playing):
+
+→ [PLANO-TOTEM-ORIENTACAO-CONFIG-REMOTA-SCREENSHOT.md](./PLANO-TOTEM-ORIENTACAO-CONFIG-REMOTA-SCREENSHOT.md)
+

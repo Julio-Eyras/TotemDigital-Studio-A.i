@@ -1158,6 +1158,24 @@ export class MediaService {
       mediaType === 'image'
         ? await this.probeImageStreamInfo(sourcePath)
         : await this.probeVideoStreamInfo(sourcePath);
+
+    // Guard: entrega já normalizada + sem rotação pedida pelo utilizador → não re-bake
+    if (
+      normalizedRotation === 0 &&
+      this.isTotemDeliverySize(streamInfo.width, streamInfo.height)
+    ) {
+      const existing =
+        this.parseDeliveryRotationFromTags(media.tags) ??
+        (await this.readDeliveryRotationMetadata(sourcePath));
+      if (existing != null) {
+        await logWarn('transformMediaToPortrait: ficheiro já é entrega totem — skip', {
+          mediaId,
+          existing,
+        });
+        return media;
+      }
+    }
+
     const resolvedPreviewRotation = this.resolvePreviewRotationDegrees(
       streamInfo.displayWidth,
       streamInfo.displayHeight,
@@ -1737,6 +1755,27 @@ export class MediaService {
     mediaType: 'image' | 'video',
     mimeType?: string
   ): Promise<{ filePath: string; mimeType?: string; deliveryRotation: number }> {
+    // Guard: não re-aplicar rotate+contain em entrega 1920×1080 já normalizada
+    if (mediaType === 'image') {
+      const probe = await this.probeImageStreamInfo(sourcePath);
+      if (this.isTotemDeliverySize(probe.width, probe.height)) {
+        const existingRot = await this.readDeliveryRotationMetadata(sourcePath);
+        const deliveryRotation =
+          existingRot ??
+          this.resolveDeliveryRotationFromStream(probe.width, probe.height, probe.rotation, 0);
+        await logWarn('Imagem já em tamanho de entrega totem — skip re-normalização', {
+          sourcePath,
+          deliveryRotation,
+        });
+        try {
+          await this.generatePortraitThumbnailFromDeliveryImage(sourcePath, deliveryRotation);
+        } catch {
+          /* thumb best-effort */
+        }
+        return { filePath: sourcePath, mimeType, deliveryRotation };
+      }
+    }
+
     const dir = path.dirname(sourcePath);
     const stamp = Date.now();
     const tempOut =

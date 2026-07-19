@@ -2,11 +2,18 @@
   SmartSignage — Kit de instalação Player-AD (pendrive)
 ================================================================================
 
+MANUAL COMPLETO (PDF — todos os manuais num ficheiro):
+  docs/MANUAL-COMPLETO-PLAYER-AD.pdf
+
+MANUAL DO UTILIZADOR (Markdown):
+  docs/MANUAL-USUARIO-PLAYER-AD.md
+
 1) Coloque o ficheiro APK assinado na pasta:  apk/
-   (ex.: player-ad-release.apk)
+   (ex.: Player-AD-release.apk)
 
 2) (Opcional) Ajuste a configuração em:  config/exemplo-player-config.json
-   Copie para o Android como player-config.json (ver README.md).
+   Campos principais: serverUrl, uin, deviceId
+   (o código de ativação / UIN vem do painel web do totem)
 
 3) Instalar no Android:
 
@@ -19,6 +26,10 @@
 
    C) COM ROOT no aparelho — Ver README.md (script install-on-android.sh).
 
-Documentação completa: README.md (na mesma pasta deste ficheiro).
+4) Configurar no aparelho:
+   Abrir o Player-AD → 5 toques rápidos no centro do ecrã →
+   preencher URL do servidor + UIN + deviceId → Aplicar e iniciar.
+
+Documentação adicional: README.md (nesta pasta).
 
 ================================================================================

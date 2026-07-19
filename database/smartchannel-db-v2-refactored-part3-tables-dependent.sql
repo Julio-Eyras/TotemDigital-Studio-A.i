@@ -67,6 +67,10 @@ CREATE TABLE IF NOT EXISTS totems (
 
     network_info JSONB, -- IP, MAC, DNS, etc.
     capabilities JSONB, -- Recursos do totem
+    -- Espelho de config do Player-AD (orientação, kiosk, etc.) para admin remota
+    player_settings JSONB DEFAULT '{}'::jsonb,
+    -- Último "a reproduzir agora" reportado no heartbeat
+    now_playing JSONB,
 
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -79,6 +83,9 @@ COMMENT ON TABLE totems IS 'Totens - micro-servidores edge que controlam Smart T
 COMMENT ON COLUMN totems.local_id IS 'Local onde totem está instalado (FK → locals → publishers)';
 COMMENT ON COLUMN totems.identifier IS 'Identificador único do totem';
 COMMENT ON COLUMN totems.status IS 'Status atual do totem: pending_activation, pending_approval, offline, online, error, maintenance, syncing';
+COMMENT ON COLUMN totems.capabilities IS 'Recursos do totem (JSON)';
+COMMENT ON COLUMN totems.player_settings IS 'Espelho da config Player-AD (displayRotation, kioskMode, …) para admin remota';
+COMMENT ON COLUMN totems.now_playing IS 'Última mídia em reprodução reportada pelo player';
 
 -- Compatibilidade para bancos já criados: ampliar a constraint de status dos totens.
 DO $$
@@ -88,6 +95,10 @@ BEGIN
         ADD CONSTRAINT chk_totem_status
         CHECK (status IN ('pending_activation', 'pending_approval', 'offline', 'online', 'error', 'maintenance', 'syncing'));
 END $$;
+
+-- Compat: colunas de admin remota / now playing em instalações existentes
+ALTER TABLE IF EXISTS totems ADD COLUMN IF NOT EXISTS player_settings JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE IF EXISTS totems ADD COLUMN IF NOT EXISTS now_playing JSONB;
 
 -- =============================================
 -- SMART_TVS (Displays Controlados)

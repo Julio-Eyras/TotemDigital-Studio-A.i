@@ -556,6 +556,36 @@ class DispatcherRouter {
         metrics,
       });
 
+      // Espelho nowPlaying / playerSettings reportados pelo Player-AD
+      try {
+        const m = metrics && typeof metrics === 'object' ? metrics : {};
+        const nowPlaying = (m as any).nowPlaying ?? (m as any).now_playing ?? null;
+        const playerSettings =
+          (m as any).playerSettings ?? (m as any).player_settings ?? null;
+        if (nowPlaying != null || playerSettings != null) {
+          const dbHb = (await import('../config/database')).getDatabase();
+          await dbHb.executeRaw(
+            `
+            UPDATE totems
+            SET now_playing = COALESCE($2::jsonb, now_playing),
+                player_settings = COALESCE($3::jsonb, player_settings),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE totem_id = $1
+          `,
+            [
+              totemId,
+              nowPlaying != null ? JSON.stringify(nowPlaying) : null,
+              playerSettings != null ? JSON.stringify(playerSettings) : null,
+            ]
+          );
+        }
+      } catch (e: any) {
+        await logDebug('Falha ao gravar now_playing/player_settings (colunas podem faltar até apply schema)', {
+          error: e?.message,
+          totemId,
+        });
+      }
+
       // Marcar comandos como executados (schema: remote_commands usa command_id como PK)
       if (executedCommands && Array.isArray(executedCommands) && executedCommands.length > 0) {
         const db = (await import('../config/database')).getDatabase();
@@ -568,20 +598,16 @@ class DispatcherRouter {
         }
       }
 
-      // Buscar comandos pendentes (schema: command_id como PK; parameters como command_data)
-      const db = (await import('../config/database')).getDatabase();
-      const pendingCommands = await db.findMany(`
-        SELECT 
-          rc.command_id as request_id,
-          rc.command_type,
-          rc.parameters as command_data,
-          COALESCE(1, 1) as priority
-        FROM remote_commands rc
-        WHERE rc.totem_id = ? 
-          AND rc.status = 'pending'
-        ORDER BY rc.created_at ASC
-        LIMIT 10
-      `, [totemId]);
+      // Buscar comandos pendentes e marcar como sent (anti-duplicado)
+      const { getRemoteCommandService } = await import('./remoteCommandService');
+      const remoteCommandService = getRemoteCommandService();
+      const claimed = await remoteCommandService.claimPendingCommands(totemId, 10);
+      const pendingCommands = claimed.map((cmd) => ({
+        request_id: cmd.id,
+        command_type: cmd.commandType,
+        command_data: cmd.commandData,
+        priority: 1,
+      }));
 
       const newToken = generateTotemToken(request.uin);
 
