@@ -4,7 +4,7 @@
 # Smart Signage Pro - Script de Auto-Instalação para Ubuntu
 # =============================================================================
 # Versão do Sistema: 2.1.0
-# Versão do Script: 2.1.13
+# Versão do Script: 2.1.14
 # =============================================================================
 # Este script instala automaticamente o Smart Signage Pro em sistemas Ubuntu
 # Suporta modos de instalação e perfil MQTT para single-server:
@@ -17,7 +17,7 @@
 
 # Versões (podem ser diferentes)
 SYSTEM_VERSION="2.1.0"
-SCRIPT_VERSION="2.1.13"
+SCRIPT_VERSION="2.1.14"
 #
 # OPÇÕES:
 #   --fresh              Instalação COMPLETA do zero (single-server por defeito; com --mode docker limpa Compose)
@@ -151,6 +151,8 @@ PUBLIC_HOST="${PUBLIC_HOST:-}"
 CORPORATE_HTTP_PORT="${CORPORATE_HTTP_PORT:-80}"
 SYSTEM_HTTP_PORT="${SYSTEM_HTTP_PORT:-80}"
 CORPORATE_WEB_ROOT="${CORPORATE_WEB_ROOT:-/var/www/corporate-site}"
+# Origem no repositório do site corporativo (preferência: totemdigital.site)
+CORPORATE_SITE_SOURCE="${CORPORATE_SITE_SOURCE:-}"
 # Nome do ficheiro HTML de atalho ao painel na raiz corporativa (layout dividido)
 CORPORATE_LANDING_FILE="${CORPORATE_LANDING_FILE:-app.html}"
 ENABLE_KIOSK_MODE=false
@@ -1928,9 +1930,10 @@ parse_arguments() {
                 echo "  --public-host <IP|domínio>  Host público para Nginx e URLs (com --split ou env SMARTSIGNAGE_PUBLIC_HOST)"
                 echo "  --corporate-http-port <n>   Porta HTTP do site corporativo (padrão 80)"
                 echo "  --system-http-port <n>      Porta HTTP do painel/API/player (80 se um só vhost; com --split-corporate-system use tipicamente 8080)"
-                echo "  --corporate-web-root <dir>  Raiz estática do site corporativo (padrão /var/www/corporate-site; o instalador não altera index.html)"
+                echo "  --corporate-web-root <dir>  Raiz estática do site corporativo (padrão /var/www/corporate-site; sync a partir de totemdigital.site/)"
                 echo "  Env (autom./--skip-menu): SMARTSIGNAGE_SPLIT_SITE, SMARTSIGNAGE_PUBLIC_HOST, SMARTSIGNAGE_CORPORATE_HTTP_PORT,"
                 echo "                            SMARTSIGNAGE_SYSTEM_HTTP_PORT, SMARTSIGNAGE_CORPORATE_WEB_ROOT,"
+                echo "                            SMARTSIGNAGE_CORPORATE_SITE_SOURCE (pasta origem; default: totemdigital.site),"
                 echo "                            SMARTSIGNAGE_DEPLOY_CORPORATE_LANDING (opt-in: gera app.html com link ao painel),"
                 echo "                            SMARTSIGNAGE_LETSENCRYPT=true + SMARTSIGNAGE_DOMAIN_NAME (+ SMARTSIGNAGE_SSL_EMAIL opcional) para LE no layout dividido"
                 echo "  --reset-db           Apaga e recria o banco PostgreSQL se já existir (fluxo completo)"
@@ -3177,6 +3180,8 @@ setup_project() {
                 [[ -d "$SOURCE_DIR/database" ]] && rsync -av --delete "$SOURCE_DIR/database/" "$INSTALL_DIR/database/"
                 [[ -d "$SOURCE_DIR/docker" ]] && rsync -av --delete "$SOURCE_DIR/docker/" "$INSTALL_DIR/docker/"
                 [[ -d "$SOURCE_DIR/nginx" ]] && rsync -av --delete "$SOURCE_DIR/nginx/" "$INSTALL_DIR/nginx/"
+                [[ -d "$SOURCE_DIR/totemdigital.site" ]] && rsync -av --delete "$SOURCE_DIR/totemdigital.site/" "$INSTALL_DIR/totemdigital.site/"
+                [[ -d "$SOURCE_DIR/corporate-site" ]] && rsync -av --delete "$SOURCE_DIR/corporate-site/" "$INSTALL_DIR/corporate-site/"
                 
                 log "✅ Cópia recursiva completa com rsync concluída"
                 
@@ -3204,6 +3209,14 @@ setup_project() {
                 [[ -d "$SOURCE_DIR/database" ]] && rm -rf "$INSTALL_DIR/database" && cp -a "$SOURCE_DIR/database" "$INSTALL_DIR/"
                 [[ -d "$SOURCE_DIR/docker" ]] && cp -a "$SOURCE_DIR/docker" "$INSTALL_DIR/"
                 [[ -d "$SOURCE_DIR/nginx" ]] && cp -a "$SOURCE_DIR/nginx" "$INSTALL_DIR/"
+                if [[ -d "$SOURCE_DIR/totemdigital.site" ]]; then
+                    rm -rf "$INSTALL_DIR/totemdigital.site" 2>/dev/null || true
+                    cp -a "$SOURCE_DIR/totemdigital.site" "$INSTALL_DIR/"
+                fi
+                if [[ -d "$SOURCE_DIR/corporate-site" ]]; then
+                    rm -rf "$INSTALL_DIR/corporate-site" 2>/dev/null || true
+                    cp -a "$SOURCE_DIR/corporate-site" "$INSTALL_DIR/"
+                fi
                 
                 # Copiar players selecionados (se houver seleção)
                 if [[ "$INSTALL_ALL_PLAYERS" == "true" ]] || [[ "$INSTALL_PLAYER_WEBOS" == "true" ]] || \
@@ -6542,7 +6555,9 @@ EOF
 #   export SMARTSIGNAGE_CORPORATE_HTTP_PORT=80
 #   export SMARTSIGNAGE_SYSTEM_HTTP_PORT=8080
 #   export SMARTSIGNAGE_CORPORATE_WEB_ROOT=/var/www/corporate-site
+#   export SMARTSIGNAGE_CORPORATE_SITE_SOURCE=/path/to/totemdigital.site   # opcional
 #   export SMARTSIGNAGE_CORPORATE_LANDING_FILE=app.html
+# O instalador sincroniza totemdigital.site/ (fallback: corporate-site/) para CORPORATE_WEB_ROOT.
 # Let's Encrypt com layout dividido (não interativo): também
 #   export SMARTSIGNAGE_LETSENCRYPT=true
 #   export SMARTSIGNAGE_DOMAIN_NAME=exemplo.com.br
@@ -6584,6 +6599,7 @@ apply_split_layout_from_environment() {
     [[ -n "${SMARTSIGNAGE_CORPORATE_HTTP_PORT:-}" ]] && CORPORATE_HTTP_PORT="${SMARTSIGNAGE_CORPORATE_HTTP_PORT}"
     [[ -n "${SMARTSIGNAGE_SYSTEM_HTTP_PORT:-}" ]] && SYSTEM_HTTP_PORT="${SMARTSIGNAGE_SYSTEM_HTTP_PORT}"
     [[ -n "${SMARTSIGNAGE_CORPORATE_WEB_ROOT:-}" ]] && CORPORATE_WEB_ROOT="${SMARTSIGNAGE_CORPORATE_WEB_ROOT}"
+    [[ -n "${SMARTSIGNAGE_CORPORATE_SITE_SOURCE:-}" ]] && CORPORATE_SITE_SOURCE="${SMARTSIGNAGE_CORPORATE_SITE_SOURCE}"
     [[ -n "${SMARTSIGNAGE_CORPORATE_LANDING_FILE:-}" ]] && CORPORATE_LANDING_FILE="${SMARTSIGNAGE_CORPORATE_LANDING_FILE}"
     case "${SMARTSIGNAGE_LETSENCRYPT:-}" in
         1|true|TRUE|yes|YES)
@@ -6658,7 +6674,7 @@ ask_public_host_and_split_layout() {
     echo
     echo "Como deseja expor o tráfego HTTP?"
     echo -e "  ${GREEN}1)${NC} Tudo na mesma porta: painel, API e /player na porta 80."
-    echo -e "  ${GREEN}2)${NC} Site corporativo estático na :80 e o painel Smart Signage noutra porta (padrão; ex.: :8080)."
+    echo -e "  ${GREEN}2)${NC} Site corporativo (totemdigital.site) na :80 e o painel Smart Signage noutra porta (padrão; ex.: :8080)."
     echo
     read -p "Opção [2]: " _split_choice
     _split_choice=${_split_choice:-2}
@@ -7042,6 +7058,7 @@ EOF
                 SMARTSIGNAGE_CORPORATE_LE_HTTPS=true
                 persist_nginx_public_layout_to_env
                 local _pu="http://${DOMAIN_NAME}:${SYSTEM_HTTP_PORT}/"
+                sync_corporate_site_to_webroot "$CORPORATE_WEB_ROOT" || true
                 deploy_corporate_landing_html "$CORPORATE_WEB_ROOT" "$_pu"
             else
                 warning "Não foi possível aplicar HTTPS 443 no site corporativo; a restaurar Nginx HTTP (layout dividido)."
@@ -7153,9 +7170,88 @@ verify_nginx_ws_config() {
 }
 
 # Landing opcional do site corporativo (layout dividido). Por defeito NÃO grava ficheiros:
-# a :80 serve apenas o index.html (e estáticos) colocados pelo cliente em CORPORATE_WEB_ROOT.
+# a :80 serve o conteúdo sincronizado de totemdigital.site/ (ou corporate-site/) em CORPORATE_WEB_ROOT.
 # Atalho app.html → painel só com SMARTSIGNAGE_DEPLOY_CORPORATE_LANDING=true (opt-in).
 # Remove index.html/app.html legados do instalador (marcador smart-signage-default-corporate-landing-v1).
+
+# Resolve pasta de origem do site corporativo no repositório (preferência: totemdigital.site).
+resolve_corporate_site_source() {
+    local candidates=(
+        "${CORPORATE_SITE_SOURCE:-}"
+        "${SMARTSIGNAGE_CORPORATE_SITE_SOURCE:-}"
+        "${SOURCE_DIR:-}/totemdigital.site"
+        "${INSTALL_DIR:-}/totemdigital.site"
+        "${SOURCE_DIR:-}/corporate-site"
+        "${INSTALL_DIR:-}/corporate-site"
+    )
+    local d
+    for d in "${candidates[@]}"; do
+        [[ -z "$d" ]] && continue
+        if [[ -d "$d" ]] && [[ -f "$d/index.html" ]]; then
+            printf '%s\n' "$d"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Copia totemdigital.site (ou fallback) para CORPORATE_WEB_ROOT — site corporativo na :80.
+# Uso: sync_corporate_site_to_webroot [dest_root]
+sync_corporate_site_to_webroot() {
+    local dest_root="${1:-$CORPORATE_WEB_ROOT}"
+    local src=""
+
+    if [[ -z "$dest_root" ]]; then
+        warn "sync_corporate_site_to_webroot: raiz de destino vazia."
+        return 1
+    fi
+
+    src="$(resolve_corporate_site_source)" || {
+        warn "Site corporativo: pasta totemdigital.site (ou corporate-site) com index.html não encontrada no repositório."
+        sudo mkdir -p "$dest_root"
+        return 1
+    }
+
+    log "Site corporativo: a sincronizar '${src}' → '${dest_root}'"
+    sudo mkdir -p "$dest_root"
+
+    if command -v rsync &>/dev/null; then
+        sudo rsync -a --delete \
+            --exclude '.git/' \
+            --exclude '.gitignore' \
+            --exclude 'README.md' \
+            "${src}/" "${dest_root}/"
+    else
+        # Remover conteúdo antigo (exceto .well-known local, se existir)
+        if [[ -d "$dest_root" ]]; then
+            while IFS= read -r -d '' item; do
+                [[ "$(basename "$item")" == ".well-known" ]] && continue
+                sudo rm -rf "$item"
+            done < <(find "$dest_root" -mindepth 1 -maxdepth 1 -print0 2>/dev/null || true)
+        fi
+        sudo cp -a "${src}/." "${dest_root}/"
+    fi
+
+    if id www-data &>/dev/null; then
+        sudo chown -R www-data:www-data "$dest_root" 2>/dev/null || true
+    else
+        sudo chown -R nginx:nginx "$dest_root" 2>/dev/null || true
+    fi
+    sudo find "$dest_root" -type d -exec chmod 755 {} \; 2>/dev/null || true
+    sudo find "$dest_root" -type f -exec chmod 644 {} \; 2>/dev/null || true
+
+    if [[ ! -f "${dest_root}/index.html" ]]; then
+        error "Site corporativo: index.html em falta em ${dest_root} após sync."
+        return 1
+    fi
+    if [[ ! -f "${dest_root}/logo-totem-digital.png" ]]; then
+        warn "Site corporativo: logo-totem-digital.png em falta em ${dest_root} (referenciado pelo index.html)."
+    fi
+
+    log "✅ Site corporativo instalado em ${dest_root} (origem: $(basename "$src")) — HTTP :${CORPORATE_HTTP_PORT:-80}"
+    return 0
+}
+
 # Uso: deploy_corporate_landing_html [dest_root] [url_painel]
 deploy_corporate_landing_html() {
     local dest_root="${1:-$CORPORATE_WEB_ROOT}"
@@ -7264,6 +7360,8 @@ apply_split_nginx_corporate_https_after_le() {
         warn "Certificado Let's Encrypt não encontrado em /etc/letsencrypt/live/${DOMAIN_NAME}/"
         return 1
     fi
+
+    sync_corporate_site_to_webroot "$CORPORATE_WEB_ROOT" || true
 
     NGINX_CONFIG="/etc/nginx/sites-available/smart-signage"
     BACKEND_PORT=${BACKEND_PORT:-3000}
@@ -7549,6 +7647,7 @@ setup_nginx_http_only() {
         fi
         local _panel_url="http://${_ctx_ip}:${SYSTEM_HTTP_PORT}/"
         [[ -n "${PUBLIC_HOST:-}" ]] && [[ "${PUBLIC_HOST}" != "_" ]] && _panel_url="http://${PUBLIC_HOST}:${SYSTEM_HTTP_PORT}/"
+        sync_corporate_site_to_webroot "$CORPORATE_WEB_ROOT" || true
         deploy_corporate_landing_html "$CORPORATE_WEB_ROOT" "$_panel_url"
 
         local _split_map _sys_names
@@ -8079,6 +8178,7 @@ EOF
         fi
         local _panel_url="http://${_ctx_ip}:${SYSTEM_HTTP_PORT}/"
         [[ -n "${PUBLIC_HOST:-}" ]] && [[ "${PUBLIC_HOST}" != "_" ]] && _panel_url="http://${PUBLIC_HOST}:${SYSTEM_HTTP_PORT}/"
+        sync_corporate_site_to_webroot "$CORPORATE_WEB_ROOT" || true
         deploy_corporate_landing_html "$CORPORATE_WEB_ROOT" "$_panel_url"
 
         local _split_map _sys_names
