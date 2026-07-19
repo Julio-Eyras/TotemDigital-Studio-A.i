@@ -4,7 +4,7 @@
 # Smart Signage Pro - Script de Auto-Instalação para Ubuntu
 # =============================================================================
 # Versão do Sistema: 2.1.0
-# Versão do Script: 2.1.15
+# Versão do Script: 2.1.16
 # =============================================================================
 # Este script instala automaticamente o Smart Signage Pro em sistemas Ubuntu
 # Suporta modos de instalação e perfil MQTT para single-server:
@@ -17,11 +17,13 @@
 
 # Versões (podem ser diferentes)
 SYSTEM_VERSION="2.1.0"
-SCRIPT_VERSION="2.1.15"
+SCRIPT_VERSION="2.1.16"
 #
 # OPÇÕES:
 #   --fresh              Instalação COMPLETA do zero (single-server por defeito; com --mode docker limpa Compose)
 #   --sync-corporate-site  Só sincroniza totemdigital.site + logos-icons para a raiz HTTP corporativa (:80)
+#   --corporate-web-root <dir>     Destino Nginx do site corporativo (padrão /var/www/corporate-site)
+#   --corporate-site-source <dir>  Origem do HTML (padrão: <repo>/totemdigital.site)
 #   --rebuild            Rebuild containers preservando dados (volumes mantidos)
 #   --rebuild-cache      Rebuild SEM cache do Docker (mais lento, mais garantido)
 #   --rebuild-only       Apenas rebuild, não inicia serviços
@@ -154,6 +156,8 @@ SYSTEM_HTTP_PORT="${SYSTEM_HTTP_PORT:-80}"
 CORPORATE_WEB_ROOT="${CORPORATE_WEB_ROOT:-/var/www/corporate-site}"
 # Origem no repositório do site corporativo (preferência: totemdigital.site)
 CORPORATE_SITE_SOURCE="${CORPORATE_SITE_SOURCE:-}"
+CORPORATE_WEB_ROOT_FROM_CLI=false
+CORPORATE_SITE_SOURCE_FROM_CLI=false
 # Nome do ficheiro HTML de atalho ao painel na raiz corporativa (layout dividido)
 CORPORATE_LANDING_FILE="${CORPORATE_LANDING_FILE:-app.html}"
 ENABLE_KIOSK_MODE=false
@@ -1829,6 +1833,16 @@ parse_arguments() {
                     exit 1
                 fi
                 CORPORATE_WEB_ROOT="$2"
+                CORPORATE_WEB_ROOT_FROM_CLI=true
+                shift 2
+                ;;
+            --corporate-site-source|--corporate-source)
+                if [[ -z "${2:-}" ]]; then
+                    error "Faltou valor para --corporate-site-source (pasta com index.html, ex.: ./totemdigital.site)."
+                    exit 1
+                fi
+                CORPORATE_SITE_SOURCE="$2"
+                CORPORATE_SITE_SOURCE_FROM_CLI=true
                 shift 2
                 ;;
             --reset-db)
@@ -1938,7 +1952,8 @@ parse_arguments() {
                 echo "  --public-host <IP|domínio>  Host público para Nginx e URLs (com --split ou env SMARTSIGNAGE_PUBLIC_HOST)"
                 echo "  --corporate-http-port <n>   Porta HTTP do site corporativo (padrão 80)"
                 echo "  --system-http-port <n>      Porta HTTP do painel/API/player (80 se um só vhost; com --split-corporate-system use tipicamente 8080)"
-                echo "  --corporate-web-root <dir>  Raiz estática do site corporativo (padrão /var/www/corporate-site; sync a partir de totemdigital.site/)"
+                echo "  --corporate-web-root <dir>  Destino do site corporativo (padrão /var/www/corporate-site)"
+                echo "  --corporate-site-source <dir>  Origem HTML com index.html (padrão: <repo>/totemdigital.site)"
                 echo "  Env (autom./--skip-menu): SMARTSIGNAGE_SPLIT_SITE, SMARTSIGNAGE_PUBLIC_HOST, SMARTSIGNAGE_CORPORATE_HTTP_PORT,"
                 echo "                            SMARTSIGNAGE_SYSTEM_HTTP_PORT, SMARTSIGNAGE_CORPORATE_WEB_ROOT,"
                 echo "                            SMARTSIGNAGE_CORPORATE_SITE_SOURCE (pasta origem; default: totemdigital.site),"
@@ -1948,7 +1963,13 @@ parse_arguments() {
                 echo "  --preserve-db        Preserva o banco de dados existente durante reinstalação"
                 echo "  --db-only            Reinstala APENAS o banco (drop + schema + seeds), sem rebuild de backend/frontend"
                 echo "  --seeds-only         Aplica seeds dinâmicos (owner/planos/totens demo) sem drop nem schema"
-                echo "  --sync-corporate-site  Só sync do site corporativo (totemdigital.site + logos-icons → /var/www/corporate-site)"
+                echo "  --sync-corporate-site  Só sync do site corporativo (totemdigital.site + logos-icons → web root :80)"
+                echo "       Exemplos:"
+                echo "         sudo bash scripts/install-smartsignage.sh --sync-corporate-site"
+                echo "         sudo bash scripts/install-smartsignage.sh --sync-corporate-site --corporate-web-root /var/www/corporate-site"
+                echo "         sudo bash scripts/install-smartsignage.sh --sync-corporate-site \\"
+                echo "             --corporate-site-source /home/smartchannel/TotemDigital/totemdigital.site \\"
+                echo "             --corporate-web-root /var/www/corporate-site"
                 echo "  --backend-only       Apenas backend: parar serviço, npm install + tsc, iniciar backend (sem banco/Nginx/frontend)"
                 echo "  --frontend-only      Apenas frontend: parar Nginx, npm install + build React, reiniciar Nginx (sem banco/backend)"
                 echo "  --backfront-build    Build backend + frontend (deps + TypeScript + React), depois iniciar backend e Nginx (sem banco)"
@@ -6612,8 +6633,8 @@ apply_split_layout_from_environment() {
     [[ -n "${SMARTSIGNAGE_PUBLIC_HOST:-}" ]] && PUBLIC_HOST="${SMARTSIGNAGE_PUBLIC_HOST}"
     [[ -n "${SMARTSIGNAGE_CORPORATE_HTTP_PORT:-}" ]] && CORPORATE_HTTP_PORT="${SMARTSIGNAGE_CORPORATE_HTTP_PORT}"
     [[ -n "${SMARTSIGNAGE_SYSTEM_HTTP_PORT:-}" ]] && SYSTEM_HTTP_PORT="${SMARTSIGNAGE_SYSTEM_HTTP_PORT}"
-    [[ -n "${SMARTSIGNAGE_CORPORATE_WEB_ROOT:-}" ]] && CORPORATE_WEB_ROOT="${SMARTSIGNAGE_CORPORATE_WEB_ROOT}"
-    [[ -n "${SMARTSIGNAGE_CORPORATE_SITE_SOURCE:-}" ]] && CORPORATE_SITE_SOURCE="${SMARTSIGNAGE_CORPORATE_SITE_SOURCE}"
+    [[ -n "${SMARTSIGNAGE_CORPORATE_WEB_ROOT:-}" ]] && [[ "${CORPORATE_WEB_ROOT_FROM_CLI:-false}" != "true" ]] && CORPORATE_WEB_ROOT="${SMARTSIGNAGE_CORPORATE_WEB_ROOT}"
+    [[ -n "${SMARTSIGNAGE_CORPORATE_SITE_SOURCE:-}" ]] && [[ "${CORPORATE_SITE_SOURCE_FROM_CLI:-false}" != "true" ]] && CORPORATE_SITE_SOURCE="${SMARTSIGNAGE_CORPORATE_SITE_SOURCE}"
     [[ -n "${SMARTSIGNAGE_CORPORATE_LANDING_FILE:-}" ]] && CORPORATE_LANDING_FILE="${SMARTSIGNAGE_CORPORATE_LANDING_FILE}"
     case "${SMARTSIGNAGE_LETSENCRYPT:-}" in
         1|true|TRUE|yes|YES)
@@ -7198,11 +7219,12 @@ resolve_corporate_site_source() {
         "${SOURCE_DIR:-}/corporate-site"
         "${INSTALL_DIR:-}/corporate-site"
     )
-    local d
+    local d abs
     for d in "${candidates[@]}"; do
         [[ -z "$d" ]] && continue
-        if [[ -d "$d" ]] && [[ -f "$d/index.html" ]]; then
-            printf '%s\n' "$d"
+        abs="$(readlink -f "$d" 2>/dev/null || realpath "$d" 2>/dev/null || echo "$d")"
+        if [[ -d "$abs" ]] && [[ -f "$abs/index.html" ]]; then
+            printf '%s\n' "$abs"
             return 0
         fi
     done
@@ -14292,6 +14314,12 @@ main() {
 
         detect_project_directory
         INSTALL_DIR="${INSTALL_DIR:-$SOURCE_DIR}"
+
+        # Defaults; CLI (--corporate-web-root / --corporate-site-source) tem prioridade sobre .env
+        local _cli_web_root="" _cli_site_src=""
+        [[ "$CORPORATE_WEB_ROOT_FROM_CLI" == "true" ]] && _cli_web_root="$CORPORATE_WEB_ROOT"
+        [[ "$CORPORATE_SITE_SOURCE_FROM_CLI" == "true" ]] && _cli_site_src="$CORPORATE_SITE_SOURCE"
+
         apply_split_layout_from_environment
 
         CORPORATE_WEB_ROOT="${CORPORATE_WEB_ROOT:-/var/www/corporate-site}"
@@ -14302,11 +14330,33 @@ main() {
             # shellcheck disable=SC1090
             source "${INSTALL_DIR}/.env" 2>/dev/null || true
             set +a
-            [[ -n "${SMARTSIGNAGE_CORPORATE_WEB_ROOT:-}" ]] && CORPORATE_WEB_ROOT="${SMARTSIGNAGE_CORPORATE_WEB_ROOT}"
+            if [[ "$CORPORATE_WEB_ROOT_FROM_CLI" != "true" ]]; then
+                [[ -n "${SMARTSIGNAGE_CORPORATE_WEB_ROOT:-}" ]] && CORPORATE_WEB_ROOT="${SMARTSIGNAGE_CORPORATE_WEB_ROOT}"
+            fi
+            if [[ "$CORPORATE_SITE_SOURCE_FROM_CLI" != "true" ]]; then
+                [[ -n "${SMARTSIGNAGE_CORPORATE_SITE_SOURCE:-}" ]] && CORPORATE_SITE_SOURCE="${SMARTSIGNAGE_CORPORATE_SITE_SOURCE}"
+            fi
             [[ -n "${SMARTSIGNAGE_CORPORATE_HTTP_PORT:-}" ]] && CORPORATE_HTTP_PORT="${SMARTSIGNAGE_CORPORATE_HTTP_PORT}"
         fi
 
-        log "Origem: ${SOURCE_DIR}/totemdigital.site (+ logos-icons)"
+        # Restaurar valores explícitos da linha de comando
+        [[ -n "$_cli_web_root" ]] && CORPORATE_WEB_ROOT="$_cli_web_root"
+        [[ -n "$_cli_site_src" ]] && CORPORATE_SITE_SOURCE="$_cli_site_src"
+
+        if [[ -n "${CORPORATE_SITE_SOURCE:-}" ]]; then
+            if [[ ! -d "$CORPORATE_SITE_SOURCE" ]] || [[ ! -f "$CORPORATE_SITE_SOURCE/index.html" ]]; then
+                error "❌ --corporate-site-source inválido: '${CORPORATE_SITE_SOURCE}' (precisa de index.html)"
+                exit 1
+            fi
+        fi
+
+        local _resolved_src=""
+        _resolved_src="$(resolve_corporate_site_source)" || {
+            error "❌ Pasta de origem do site corporativo não encontrada (totemdigital.site ou --corporate-site-source)."
+            exit 1
+        }
+
+        log "Origem: ${_resolved_src} (+ logos-icons)"
         log "Destino: ${CORPORATE_WEB_ROOT} (HTTP :${CORPORATE_HTTP_PORT})"
 
         if ! sync_corporate_site_to_webroot "$CORPORATE_WEB_ROOT"; then
