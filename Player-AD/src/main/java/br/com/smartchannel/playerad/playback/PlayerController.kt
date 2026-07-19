@@ -1488,14 +1488,14 @@ class PlayerController(
         applyFullscreenVideoScale()
         MediaViewportRotation.resetPlayerView(playerView)
         MediaViewportRotation.resetView(imageView)
-        // Imagens: FIT_CENTER — o bake cover no servidor já preenche 9:16;
-        // CENTER_CROP voltava a zoomar e “estourava” as bordas.
+        // Imagens: FIT_CENTER — sem zoom; o ecrã mostra a imagem completa.
         imageView.scaleType = ImageView.ScaleType.FIT_CENTER
     }
 
     private fun applyFullscreenVideoScale() {
-        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-        exoPlayer.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
+        // FIT = contain: vídeo inteiro visível, sem crop/zoom (barras pretas se necessário).
+        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        exoPlayer.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT)
         playerView.post { FullscreenViewport.applyToPlayerView(playerView) }
     }
 
@@ -1544,7 +1544,7 @@ class PlayerController(
                     )
                     MediaViewportRotation.applyToPlayerView(playerView, rot, rawW, rawH)
                 } catch (e: Exception) {
-                    PlayerAdLogger.e("DISPLAY", "Falha flip faixa landscape; mantém ZOOM", e)
+                    PlayerAdLogger.e("DISPLAY", "Falha flip faixa landscape; mantém FIT", e)
                     MediaViewportRotation.resetPlayerView(playerView)
                     applyFullscreenVideoScale()
                 }
@@ -1593,7 +1593,7 @@ class PlayerController(
             MediaViewportRotation.applyToPlayerView(playerView, rot, rawW, rawH)
             revealVideoAfterOrientation()
         } catch (e: Exception) {
-            PlayerAdLogger.e("DISPLAY", "Falha ao corrigir orientação do vídeo; mantém ZOOM", e)
+            PlayerAdLogger.e("DISPLAY", "Falha ao corrigir orientação do vídeo; mantém FIT", e)
             MediaViewportRotation.resetPlayerView(playerView)
             applyFullscreenVideoScale()
             revealVideoAfterOrientation()

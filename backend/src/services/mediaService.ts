@@ -39,15 +39,16 @@ export { MediaInUseError };
 
 const execFileAsync = promisify(execFile);
 
-/** Entrega neutra (bake v3): pixels em pé após EXIF/stream; sem rotação de montagem. */
+/** Entrega neutra (bake v4): pixels em pé; canvas portrait/landscape com contain (sem crop). */
 const TOTEM_PORTRAIT_WIDTH = 1080;
 const TOTEM_PORTRAIT_HEIGHT = 1920;
 const TOTEM_LANDSCAPE_WIDTH = 1920;
 const TOTEM_LANDSCAPE_HEIGHT = 1080;
 /** Legado (bake ≤2): canvas único 16:9. */
-/** Bake v3: UI sempre portrait; cada totem aplica displayRotation + cache local. */
-const DELIVERY_BAKE_VERSION_TAG = '_delivery_bake:3';
-const DELIVERY_BAKE_VERSION = 3;
+/** Bake ≥3: UI sempre portrait; cada totem aplica displayRotation + cache local. */
+/** Bake ≥4: vídeo em contain (pad) em vez de cover (crop). */
+const DELIVERY_BAKE_VERSION_TAG = '_delivery_bake:4';
+const DELIVERY_BAKE_VERSION = 4;
 /** Pré-visualização UI / thumbnail: moldura 9:16 (WYSIWYG do totem). */
 const TOTEM_THUMB_WIDTH = 540;
 const TOTEM_THUMB_HEIGHT = 960;
@@ -1973,10 +1974,11 @@ export class MediaService {
     targetH: number = TOTEM_LANDSCAPE_HEIGHT
   ): string {
     const rotationFilters = this.getFfmpegRotationFilters(rotationDegrees);
+    // contain: escala com decrease + pad (sem crop/zoom); barras pretas se o aspect não for 9:16/16:9
     return [
       ...rotationFilters,
-      `scale=${targetW}:${targetH}:force_original_aspect_ratio=increase`,
-      `crop=${targetW}:${targetH}`,
+      `scale=${targetW}:${targetH}:force_original_aspect_ratio=decrease`,
+      `pad=${targetW}:${targetH}:(ow-iw)/2:(oh-ih)/2:black`,
       'setsar=1',
     ].join(',');
   }
@@ -2039,7 +2041,7 @@ export class MediaService {
 
   /**
    * Bake v3 vídeo: ffmpeg **autorotate** (rotate/matrix do telemóvel) uma vez,
-   * depois cover para canvas portrait (9:16) ou landscape (16:9).
+   * depois contain (pad) para canvas portrait (9:16) ou landscape (16:9).
    * NÃO usar -noautorotate + transpose do stream (causava letterbox / conteúdo deitado).
    * userOrDeliveryRotationDegrees = rotação extra da UI (transform manual).
    */
