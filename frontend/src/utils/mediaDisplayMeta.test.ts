@@ -7,6 +7,8 @@ import {
   formatMediaFileSize,
   formatMediaOrientation,
   formatMediaResolution,
+  isTotemDeliveryPendingTag,
+  resolveMediaPlaybackDimensions,
 } from './mediaDisplayMeta';
 
 describe('mediaDisplayMeta', () => {
@@ -43,7 +45,20 @@ describe('mediaDisplayMeta', () => {
     ).toBe('VIDEO · 1920×1080 · 4.54 MB · 0:25');
   });
 
-  it('omite tamanho e duração na 1.ª linha (lista totem mobile)', () => {
+  it('omite tamanho mas mantém duração na 1.ª linha (lista totem mobile)', () => {
+    expect(
+      buildMediaMetaSummary({
+        mediaType: 'video',
+        width: 1920,
+        height: 1080,
+        sizeBytes: 769.6 * 1024,
+        durationSeconds: 6,
+        omitFileSize: true,
+      })
+    ).toBe('VIDEO · 1920×1080 · 0:06');
+  });
+
+  it('omite tamanho e duração na 1.ª linha quando omitSizeAndDuration', () => {
     expect(
       buildMediaMetaSummary({
         mediaType: 'video',
@@ -54,6 +69,21 @@ describe('mediaDisplayMeta', () => {
         omitSizeAndDuration: true,
       })
     ).toBe('VIDEO · 1920×1080');
+  });
+
+  it('resolve dimensões de playback a partir da API (source antes do bake)', () => {
+    expect(
+      resolveMediaPlaybackDimensions({
+        width: 720,
+        height: 544,
+        tags: ['_totem_delivery_pending'],
+      })
+    ).toEqual({ width: 720, height: 544, pendingDelivery: true });
+  });
+
+  it('detecta tag de entrega pendente', () => {
+    expect(isTotemDeliveryPendingTag(['_totem_delivery_pending'])).toBe(true);
+    expect(isTotemDeliveryPendingTag(['promo'])).toBe(false);
   });
 
   it('monta 2.ª linha com tamanho, duração e data', () => {

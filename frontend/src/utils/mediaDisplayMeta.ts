@@ -2,6 +2,27 @@
  * Formatação compartilhada de metadados de mídia (lista totem + biblioteca).
  */
 
+const TOTEM_DELIVERY_PENDING_TAG = '_totem_delivery_pending';
+
+export function isTotemDeliveryPendingTag(tags?: string[] | null): boolean {
+  return (tags || []).some((tag) => String(tag) === TOTEM_DELIVERY_PENDING_TAG);
+}
+
+/** Dimensões do ficheiro que o player/UI reproduzem (colunas width/height após bake = canvas de entrega). */
+export function resolveMediaPlaybackDimensions(input: {
+  width?: number | null;
+  height?: number | null;
+  tags?: string[] | null;
+}): { width?: number; height?: number; pendingDelivery: boolean } {
+  const pendingDelivery = isTotemDeliveryPendingTag(input.tags);
+  const w = Number(input.width ?? 0);
+  const h = Number(input.height ?? 0);
+  if (w <= 0 || h <= 0) {
+    return { pendingDelivery };
+  }
+  return { width: w, height: h, pendingDelivery };
+}
+
 export function formatMediaFileSize(bytes?: number | null): string {
   if (bytes == null || !Number.isFinite(bytes) || bytes <= 0) return '';
   if (bytes < 1024) return `${Math.round(bytes)} B`;
@@ -69,8 +90,11 @@ export interface MediaDisplayMetaInput {
   extras?: Array<string | null | undefined>;
   /** Inclui retrato/paisagem (desligado por omissão — alinhado à biblioteca/dialog). */
   includeOrientation?: boolean;
+  /** Omite só o tamanho em bytes (mantém duração na linha compacta). */
+  omitFileSize?: boolean;
   /** Omite tamanho e duração (úteis na 2.ª linha no mobile). */
   omitSizeAndDuration?: boolean;
+  tags?: string[] | null;
 }
 
 /**
@@ -87,18 +111,28 @@ export function buildMediaMetaSummary(input: MediaDisplayMetaInput): string {
   const type = String(input.mediaType || '').trim();
   if (type) parts.push(type.toUpperCase());
 
-  const resolution = formatMediaResolution(input.width, input.height);
+  const playback = resolveMediaPlaybackDimensions({
+    width: input.width,
+    height: input.height,
+    tags: input.tags,
+  });
+  const resolution = formatMediaResolution(playback.width, playback.height);
   if (resolution) parts.push(resolution);
 
   if (input.includeOrientation === true) {
-    const orientation = formatMediaOrientation(input.width, input.height);
+    const orientation = formatMediaOrientation(playback.width, playback.height);
     if (orientation) parts.push(orientation);
   }
 
-  if (!input.omitSizeAndDuration) {
+  const skipSize = input.omitSizeAndDuration === true || input.omitFileSize === true;
+  const skipDuration = input.omitSizeAndDuration === true;
+
+  if (!skipSize) {
     const size = formatMediaFileSize(input.sizeBytes);
     if (size) parts.push(size);
+  }
 
+  if (!skipDuration) {
     const duration = formatMediaDuration(input.durationSeconds);
     if (duration) parts.push(duration);
   }

@@ -11,31 +11,18 @@ import {
   Typography,
 } from '@mui/material';
 import { mediaApi, publishBoardApi } from '../../services/api';
+import type { MediaItem } from '../../services/api';
 import {
   mediaPortraitPreviewFrameSx,
   mediaLibraryPreviewSx,
   mediaTotemHoverVideoSx,
 } from '../../hooks/useMediaRotationTransform';
-import type { MediaItem } from '../../services/api';
+import { buildMediaMetaSummary } from '../../utils/mediaDisplayMeta';
 import {
   isPublishBoardHtmlMedia,
   parsePublishBoardPresetFromTags,
 } from '../../utils/publishBoardMedia';
 import { findPublishPreset } from '../../config/publishTemplates';
-
-function formatFileSize(bytes?: number | null): string {
-  if (!bytes || bytes <= 0) return '—';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-}
-
-function formatDuration(seconds?: number | null): string {
-  if (!seconds || seconds <= 0) return '—';
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
-}
 
 export interface MediaViewDialogProps {
   open: boolean;
@@ -136,21 +123,21 @@ export function MediaViewDialog({ open, media, thumbnailSrc, onClose }: MediaVie
 
   if (!media) return null;
 
-  const w = Number(media.width ?? 0);
-  const h = Number(media.height ?? 0);
   const sizeBytes = Number((media as any).size_bytes ?? (media as any).fileSizeBytes ?? 0);
   const isVideo = /^video$/i.test(String(media.media_type || ''));
   const isHtml = /^html$/i.test(String(media.media_type || '')) || isPublishBoardHtmlMedia(media);
   const boardPreset = parsePublishBoardPresetFromTags(media.tags);
   const boardLabel = boardPreset ? findPublishPreset(boardPreset).label : null;
 
-  const metaParts = [
-    (media.media_type || 'mídia').toUpperCase(),
-    boardLabel,
-    w > 0 && h > 0 ? `${w}×${h}` : null,
-    formatFileSize(sizeBytes),
-    media.duration_seconds ? formatDuration(media.duration_seconds) : null,
-  ].filter(Boolean);
+  const metaLine = buildMediaMetaSummary({
+    mediaType: media.media_type,
+    width: media.width,
+    height: media.height,
+    tags: media.tags,
+    sizeBytes: sizeBytes > 0 ? sizeBytes : null,
+    durationSeconds: media.duration_seconds,
+    extras: boardLabel ? [boardLabel] : [],
+  });
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -196,7 +183,7 @@ export function MediaViewDialog({ open, media, thumbnailSrc, onClose }: MediaVie
         </Box>
 
         <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-          {metaParts.join(' · ')}
+          {metaLine || (media.media_type || 'mídia').toUpperCase()}
         </Typography>
 
         {media.description && (

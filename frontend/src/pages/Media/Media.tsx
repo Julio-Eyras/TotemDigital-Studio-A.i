@@ -1009,6 +1009,7 @@ const Media: React.FC = () => {
                     durationSeconds: media.duration_seconds,
                     width: media.width,
                     height: media.height,
+                    tags: media.tags,
                     sizeBytes: media.size_bytes ?? media.fileSizeBytes,
                     extras: !mediaActive ? ['desabilitada'] : [],
                   });

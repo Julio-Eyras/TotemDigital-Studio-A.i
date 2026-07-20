@@ -169,7 +169,9 @@ const TotemMediaPage: React.FC = () => {
               mediaType: item.media_type || lib?.media_type,
               width: item.width ?? lib?.width,
               height: item.height ?? lib?.height,
-              omitSizeAndDuration: true,
+              tags: item.tags ?? lib?.tags,
+              durationSeconds,
+              omitFileSize: true,
               extras: [
                 item.is_active === false ? 'desabilitada neste totem' : null,
                 item.media_is_active === false ? 'desabilitada na biblioteca' : null,
@@ -404,6 +406,7 @@ const TotemMediaPage: React.FC = () => {
                       durationSeconds: m.duration_seconds,
                       width: m.width,
                       height: m.height,
+                      tags: m.tags,
                       sizeBytes: (m as any).size_bytes ?? m.fileSizeBytes,
                     })}
                   />
