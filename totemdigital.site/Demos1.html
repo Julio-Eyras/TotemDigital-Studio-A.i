@@ -1,0 +1,1405 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#07111f">
+  <meta name="description" content="Apresentação responsiva para totem digital">
+  <title>SmartSignage — Totem Digital</title>
+
+  <style>
+    :root {
+      --bg: #07111f;
+      --deep: #030711;
+      --text: #f7fbff;
+      --muted: #b7c5d7;
+      --primary: #45d6ff;
+      --secondary: #8b5cf6;
+      --accent: #36e0a0;
+      --border: rgba(255, 255, 255, .16);
+      --shadow: 0 25px 80px rgba(0, 0, 0, .38);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      width: 100%;
+      min-height: 100%;
+      overflow: hidden;
+      background: var(--deep);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+    }
+
+    body {
+      position: relative;
+      isolation: isolate;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    #backgroundCanvas {
+      position: fixed;
+      inset: 0;
+      z-index: -6;
+      width: 100%;
+      height: 100%;
+      background:
+        radial-gradient(circle at 15% 20%, rgba(69, 214, 255, .14), transparent 30%),
+        radial-gradient(circle at 84% 10%, rgba(139, 92, 246, .16), transparent 32%),
+        linear-gradient(135deg, #07111f, #081a2c 50%, #030711);
+    }
+
+    .grid-background {
+      position: fixed;
+      inset: 0;
+      z-index: -5;
+      opacity: .25;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+      background-size: 55px 55px;
+      mask-image: linear-gradient(to bottom, black, transparent 90%);
+    }
+
+    .ambient-light {
+      position: fixed;
+      z-index: -4;
+      width: 38vw;
+      height: 38vw;
+      min-width: 260px;
+      min-height: 260px;
+      border-radius: 50%;
+      filter: blur(60px);
+      opacity: .25;
+      pointer-events: none;
+      mix-blend-mode: screen;
+      animation: floatingLight 14s ease-in-out infinite alternate;
+    }
+
+    .ambient-light.one {
+      top: -14vw;
+      left: -12vw;
+      background: var(--primary);
+    }
+
+    .ambient-light.two {
+      right: -13vw;
+      bottom: -17vw;
+      background: var(--secondary);
+      animation-delay: -5s;
+    }
+
+    .ambient-light.three {
+      top: 35%;
+      left: 42%;
+      width: 20vw;
+      height: 20vw;
+      background: var(--accent);
+      opacity: .12;
+      animation-delay: -9s;
+    }
+
+    @keyframes floatingLight {
+      from {
+        transform: translate3d(-2%, -4%, 0) scale(.95);
+      }
+
+      to {
+        transform: translate3d(7%, 5%, 0) scale(1.12);
+      }
+    }
+
+    .screen {
+      position: relative;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      width: 100vw;
+      height: 100vh;
+      min-height: 520px;
+      padding: clamp(18px, 3vw, 48px);
+      overflow: hidden;
+    }
+
+    .topbar,
+    .footer {
+      position: relative;
+      z-index: 4;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .topbar {
+      animation: appearDown .8s ease both;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 48px;
+      height: 48px;
+      border-radius: 16px;
+      color: #04111f;
+      font-size: 24px;
+      font-weight: 900;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      box-shadow:
+        0 0 28px rgba(69,214,255,.35),
+        inset 0 1px 1px rgba(255,255,255,.7);
+    }
+
+    .brand-text {
+      min-width: 0;
+    }
+
+    .brand-text strong {
+      display: block;
+      overflow: hidden;
+      font-size: clamp(14px, 1.4vw, 20px);
+      letter-spacing: .08em;
+      text-overflow: ellipsis;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .brand-text span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: clamp(10px, 1vw, 13px);
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    .top-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .time-box,
+    .status-box {
+      min-width: 105px;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: rgba(3,7,17,.32);
+      backdrop-filter: blur(16px);
+      box-shadow: 0 12px 30px rgba(0,0,0,.16);
+    }
+
+    .time-box {
+      text-align: right;
+    }
+
+    .time {
+      font-size: clamp(16px, 2vw, 28px);
+      font-weight: 800;
+      letter-spacing: .04em;
+    }
+
+    .date {
+      color: var(--muted);
+      font-size: 10px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .status-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .status-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 16px var(--accent);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: .55;
+        transform: scale(.85);
+      }
+
+      50% {
+        opacity: 1;
+        transform: scale(1.1);
+      }
+    }
+
+    .stage {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      place-items: center;
+      width: min(1500px, 100%);
+      height: 100%;
+      margin: 0 auto;
+      padding: clamp(24px, 5vh, 80px) 0;
+    }
+
+    .slide {
+      display: none;
+      align-items: center;
+      width: 100%;
+      height: 100%;
+      gap: clamp(28px, 5vw, 100px);
+    }
+
+    .slide.active {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(300px, .95fr);
+      animation: slideIn .85s cubic-bezier(.2,.8,.2,1) both;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translate3d(45px, 0, 0) scale(.985);
+        filter: blur(8px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+        filter: blur(0);
+      }
+    }
+
+    .slide-copy {
+      max-width: 760px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      color: var(--primary);
+      font-size: clamp(11px, 1.1vw, 15px);
+      font-weight: 800;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 38px;
+      height: 2px;
+      background: linear-gradient(90deg, var(--primary), transparent);
+    }
+
+    h1 {
+      max-width: 850px;
+      font-size: clamp(42px, 7vw, 112px);
+      line-height: .96;
+      letter-spacing: -.065em;
+      text-wrap: balance;
+    }
+
+    h1 .gradient {
+      color: transparent;
+      background: linear-gradient(100deg, var(--primary), #d3f8ff 42%, var(--accent));
+      background-clip: text;
+      -webkit-background-clip: text;
+    }
+
+    .subtitle {
+      max-width: 680px;
+      margin-top: 28px;
+      color: var(--muted);
+      font-size: clamp(16px, 1.7vw, 25px);
+      line-height: 1.55;
+      text-wrap: balance;
+    }
+
+    .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 14px;
+      margin-top: 34px;
+    }
+
+    .primary-button,
+    .secondary-button,
+    .fullscreen-button {
+      padding: 13px 19px;
+      border: 1px solid var(--border);
+      border-radius: 15px;
+      cursor: pointer;
+      transition: .25s ease;
+    }
+
+    .primary-button {
+      color: #03111a;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      border-color: transparent;
+      box-shadow: 0 12px 30px rgba(69,214,255,.2);
+    }
+
+    .secondary-button,
+    .fullscreen-button {
+      color: var(--text);
+      background: rgba(255,255,255,.06);
+      backdrop-filter: blur(14px);
+    }
+
+    .primary-button:hover,
+    .secondary-button:hover,
+    .fullscreen-button:hover {
+      border-color: rgba(255,255,255,.4);
+      transform: translateY(-3px);
+    }
+
+    .visual {
+      position: relative;
+      display: grid;
+      place-items: center;
+      min-height: min(46vw, 560px);
+    }
+
+    .orbital-card {
+      position: relative;
+      width: min(100%, 540px);
+      aspect-ratio: 1 / .85;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: clamp(24px, 4vw, 48px);
+      background:
+        linear-gradient(145deg, rgba(255,255,255,.18), rgba(255,255,255,.035)),
+        rgba(255,255,255,.05);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+      transform: rotate(-4deg);
+      animation: cardFloat 7s ease-in-out infinite alternate;
+    }
+
+    .orbital-card::before {
+      content: "";
+      position: absolute;
+      inset: -30%;
+      background: conic-gradient(
+        from 180deg,
+        transparent,
+        rgba(69,214,255,.3),
+        transparent 25%,
+        rgba(139,92,246,.28),
+        transparent 56%
+      );
+      animation: rotateGlow 12s linear infinite;
+    }
+
+    .orbital-card::after {
+      content: "";
+      position: absolute;
+      inset: 1px;
+      border-radius: inherit;
+      background:
+        radial-gradient(circle at 25% 25%, rgba(69,214,255,.22), transparent 22%),
+        radial-gradient(circle at 80% 70%, rgba(139,92,246,.2), transparent 26%),
+        rgba(4,13,26,.65);
+    }
+
+    @keyframes cardFloat {
+      from {
+        transform: rotate(-4deg) translate3d(0, 5px, 0);
+      }
+
+      to {
+        transform: rotate(3deg) translate3d(0, -10px, 0);
+      }
+    }
+
+    @keyframes rotateGlow {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .card-content {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: clamp(22px, 3vw, 38px);
+    }
+
+    .card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .card-icon {
+      display: grid;
+      place-items: center;
+      width: 68px;
+      height: 68px;
+      border-radius: 22px;
+      color: #07111f;
+      font-size: 32px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      box-shadow: 0 15px 32px rgba(69,214,255,.25);
+    }
+
+    .card-number {
+      color: rgba(255,255,255,.7);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .14em;
+    }
+
+    .card-title {
+      max-width: 380px;
+      font-size: clamp(25px, 3vw, 46px);
+      line-height: 1;
+      letter-spacing: -.04em;
+    }
+
+    .card-description {
+      max-width: 400px;
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: clamp(13px, 1.25vw, 17px);
+      line-height: 1.5;
+    }
+
+    .floating-chip {
+      position: absolute;
+      z-index: 3;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 15px;
+      border: 1px solid rgba(255,255,255,.17);
+      border-radius: 16px;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 700;
+      background: rgba(6,17,31,.62);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 18px 38px rgba(0,0,0,.25);
+      animation: chipFloat 5s ease-in-out infinite alternate;
+    }
+
+    .floating-chip.top {
+      top: 6%;
+      right: -6%;
+    }
+
+    .floating-chip.bottom {
+      bottom: 8%;
+      left: -8%;
+      animation-delay: -2.3s;
+    }
+
+    .chip-icon {
+      display: grid;
+      place-items: center;
+      width: 25px;
+      height: 25px;
+      border-radius: 9px;
+      color: #06121f;
+      background: var(--accent);
+    }
+
+    @keyframes chipFloat {
+      from {
+        transform: translateY(4px);
+      }
+
+      to {
+        transform: translateY(-13px);
+      }
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      max-width: 650px;
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .metric {
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: rgba(255,255,255,.055);
+      backdrop-filter: blur(14px);
+    }
+
+    .metric strong {
+      display: block;
+      color: var(--primary);
+      font-size: clamp(22px, 2.5vw, 38px);
+      letter-spacing: -.05em;
+    }
+
+    .metric span {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.3;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .footer {
+      gap: 20px;
+      animation: appearUp .8s ease both;
+    }
+
+    .footer-label {
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    .navigation {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .progress {
+      width: clamp(120px, 18vw, 260px);
+      height: 4px;
+      overflow: hidden;
+      border-radius: 20px;
+      background: rgba(255,255,255,.16);
+    }
+
+    .progress-bar {
+      width: 0%;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      box-shadow: 0 0 15px rgba(69,214,255,.7);
+      transition: width .1s linear;
+    }
+
+    .slide-counter {
+      min-width: 65px;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: .1em;
+    }
+
+    .controls {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      z-index: 10;
+      display: flex;
+      gap: 8px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: .3s ease;
+    }
+
+    body:hover .controls,
+    .controls:focus-within {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .fullscreen-button {
+      padding: 10px 13px;
+      font-size: 12px;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 28px;
+      z-index: 20;
+      padding: 12px 18px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      color: var(--text);
+      background: rgba(3,7,17,.82);
+      backdrop-filter: blur(18px);
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, 15px);
+      transition: .3s ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    @keyframes appearDown {
+      from {
+        opacity: 0;
+        transform: translateY(-18px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes appearUp {
+      from {
+        opacity: 0;
+        transform: translateY(18px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 900px) {
+      html,
+      body {
+        overflow-y: auto;
+      }
+
+      .screen {
+        height: auto;
+        min-height: 100svh;
+        padding: 18px;
+      }
+
+      .status-box {
+        display: none;
+      }
+
+      .stage {
+        min-height: 690px;
+        padding: 35px 0;
+      }
+
+      .slide.active {
+        grid-template-columns: 1fr;
+        align-content: center;
+        gap: 34px;
+      }
+
+      .slide-copy {
+        max-width: none;
+      }
+
+      .visual {
+        min-height: 310px;
+      }
+
+      .orbital-card {
+        width: min(90%, 480px);
+      }
+
+      .footer {
+        padding-bottom: 8px;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .brand-mark {
+        width: 40px;
+        height: 40px;
+        border-radius: 13px;
+        font-size: 19px;
+      }
+
+      .brand-text strong {
+        font-size: 12px;
+      }
+
+      .brand-text span {
+        font-size: 8px;
+      }
+
+      .time-box {
+        min-width: auto;
+        padding: 8px 10px;
+      }
+
+      .date {
+        font-size: 8px;
+      }
+
+      .time {
+        font-size: 16px;
+      }
+
+      .stage {
+        min-height: 640px;
+      }
+
+      .subtitle {
+        margin-top: 20px;
+        font-size: 15px;
+      }
+
+      .action-row {
+        margin-top: 25px;
+      }
+
+      .primary-button,
+      .secondary-button {
+        padding: 11px 14px;
+        font-size: 13px;
+      }
+
+      .metrics {
+        gap: 7px;
+        margin-top: 20px;
+      }
+
+      .metric {
+        padding: 11px;
+        border-radius: 13px;
+      }
+
+      .metric strong {
+        font-size: 23px;
+      }
+
+      .metric span {
+        font-size: 8px;
+      }
+
+      .visual {
+        min-height: 250px;
+      }
+
+      .orbital-card {
+        width: 94%;
+        border-radius: 28px;
+      }
+
+      .card-content {
+        padding: 22px;
+      }
+
+      .card-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 15px;
+        font-size: 23px;
+      }
+
+      .card-title {
+        font-size: 27px;
+      }
+
+      .card-description {
+        font-size: 12px;
+      }
+
+      .floating-chip {
+        padding: 9px 11px;
+        font-size: 10px;
+      }
+
+      .floating-chip.top {
+        right: 0;
+      }
+
+      .floating-chip.bottom {
+        left: 0;
+      }
+
+      .footer-label {
+        display: none;
+      }
+
+      .footer {
+        justify-content: flex-end;
+      }
+
+      .controls {
+        right: 12px;
+        bottom: 12px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="backgroundCanvas"></canvas>
+
+  <div class="grid-background"></div>
+  <div class="ambient-light one"></div>
+  <div class="ambient-light two"></div>
+  <div class="ambient-light three"></div>
+
+  <main class="screen">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">S</div>
+
+        <div class="brand-text">
+          <strong>SmartSignage</strong>
+          <span>Comunicação visual inteligente</span>
+        </div>
+      </div>
+
+      <div class="top-info">
+        <div class="status-box">
+          <span class="status-dot"></span>
+          Sistema ativo
+        </div>
+
+        <div class="time-box">
+          <div class="time" id="clock">00:00</div>
+          <div class="date" id="date">--/--/----</div>
+        </div>
+      </div>
+    </header>
+
+    <section class="stage" id="stage"></section>
+
+    <footer class="footer">
+      <div class="footer-label">
+        Experiência digital em movimento
+      </div>
+
+      <div class="navigation">
+        <div class="progress">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+
+        <div class="slide-counter" id="slideCounter">
+          01 / 04
+        </div>
+      </div>
+    </footer>
+  </main>
+
+  <div class="controls">
+    <button class="fullscreen-button" id="previousButton" type="button">
+      ← Anterior
+    </button>
+
+    <button class="fullscreen-button" id="pauseButton" type="button">
+      Pausar
+    </button>
+
+    <button class="fullscreen-button" id="nextButton" type="button">
+      Próximo →
+    </button>
+
+    <button class="fullscreen-button" id="fullscreenButton" type="button">
+      Tela cheia
+    </button>
+  </div>
+
+  <div class="toast" id="toast">
+    Apresentação pausada
+  </div>
+
+  <script>
+    const presentationConfig = {
+      slideDuration: 9000,
+
+      slides: [
+        {
+          eyebrow: "Comunicação que conecta",
+          title: "Sua mensagem em uma nova dimensão.",
+          highlight: "nova dimensão.",
+          subtitle:
+            "Transforme telas comuns em experiências visuais marcantes, inteligentes e preparadas para envolver o público.",
+          icon: "✦",
+          cardTitle: "Impacto visual",
+          cardDescription:
+            "Conteúdo dinâmico, elegante e pensado para ser percebido de forma rápida e memorável.",
+          chipTop: "Conteúdo inteligente",
+          chipBottom: "Experiência imersiva",
+          metrics: [
+            ["360°", "visão da marca"],
+            ["24/7", "comunicação ativa"],
+            ["100%", "presença visual"]
+          ]
+        },
+
+        {
+          eyebrow: "Tecnologia e simplicidade",
+          title: "Informação clara, no momento certo.",
+          highlight: "momento certo.",
+          subtitle:
+            "Organize campanhas, avisos e informações em uma apresentação responsiva que se adapta a diferentes formatos de tela.",
+          icon: "◈",
+          cardTitle: "Comunicação fluida",
+          cardDescription:
+            "Uma estrutura visual que combina movimento, hierarquia e legibilidade em qualquer dispositivo.",
+          chipTop: "Responsivo",
+          chipBottom: "Fácil de atualizar",
+          metrics: [
+            ["01", "arquivo único"],
+            ["∞", "possibilidades"],
+            ["4K", "pronto para telas"]
+          ]
+        },
+
+        {
+          eyebrow: "Presença digital",
+          title: "Mais atenção para aquilo que importa.",
+          highlight: "aquilo que importa.",
+          subtitle:
+            "Use animações suaves, transparências e elementos visuais para conduzir o olhar sem perder a objetividade.",
+          icon: "◎",
+          cardTitle: "Atenção orientada",
+          cardDescription:
+            "Cada elemento foi projetado para criar ritmo, destacar prioridades e melhorar a percepção da mensagem.",
+          chipTop: "Design estratégico",
+          chipBottom: "Leitura rápida",
+          metrics: [
+            ["01", "experiência"],
+            ["03", "camadas visuais"],
+            ["∞", "conexões"]
+          ]
+        },
+
+        {
+          eyebrow: "Pronto para evoluir",
+          title: "O próximo destaque pode começar agora.",
+          highlight: "começar agora.",
+          subtitle:
+            "Uma base completa para apresentações institucionais, campanhas, recepção, eventos, vitrines e totens digitais.",
+          icon: "✓",
+          cardTitle: "Vamos avançar",
+          cardDescription:
+            "Personalize cores, textos e informações para transformar esta tela em uma experiência exclusiva da sua marca.",
+          chipTop: "SmartSignage",
+          chipBottom: "Sempre em evolução",
+          metrics: [
+            ["01", "solução"],
+            ["04", "experiências"],
+            ["100%", "personalizável"]
+          ]
+        }
+      ]
+    };
+
+    const stage = document.getElementById("stage");
+    const progressBar = document.getElementById("progressBar");
+    const slideCounter = document.getElementById("slideCounter");
+    const pauseButton = document.getElementById("pauseButton");
+    const toast = document.getElementById("toast");
+
+    let currentSlide = 0;
+    let isPaused = false;
+    let elapsed = 0;
+    let lastFrame = performance.now();
+    let touchStartX = 0;
+
+    function renderSlides() {
+      stage.innerHTML = presentationConfig.slides.map((slide, index) => {
+        const title = slide.title.replace(
+          slide.highlight,
+          `<span class="gradient">${slide.highlight}</span>`
+        );
+
+        const metrics = slide.metrics.map(metric => `
+          <div class="metric">
+            <strong>${metric[0]}</strong>
+            <span>${metric[1]}</span>
+          </div>
+        `).join("");
+
+        return `
+          <article class="slide ${index === 0 ? "active" : ""}">
+            <div class="slide-copy">
+              <div class="eyebrow">${slide.eyebrow}</div>
+
+              <h1>${title}</h1>
+
+              <p class="subtitle">${slide.subtitle}</p>
+
+              <div class="action-row">
+                <button class="primary-button" type="button" data-action="next">
+                  Conheça a experiência
+                </button>
+
+                <button class="secondary-button" type="button" data-action="pause">
+                  ${isPaused ? "Continuar" : "Pausar apresentação"}
+                </button>
+              </div>
+
+              <div class="metrics">
+                ${metrics}
+              </div>
+            </div>
+
+            <div class="visual">
+              <div class="floating-chip top">
+                <span class="chip-icon">✦</span>
+                ${slide.chipTop}
+              </div>
+
+              <div class="orbital-card">
+                <div class="card-content">
+                  <div class="card-top">
+                    <div class="card-icon">${slide.icon}</div>
+
+                    <div class="card-number">
+                      EXPERIÊNCIA ${String(index + 1).padStart(2, "0")}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h2 class="card-title">${slide.cardTitle}</h2>
+                    <p class="card-description">${slide.cardDescription}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="floating-chip bottom">
+                <span class="chip-icon">✓</span>
+                ${slide.chipBottom}
+              </div>
+            </div>
+          </article>
+        `;
+      }).join("");
+
+      document
+        .querySelectorAll("[data-action='next']")
+        .forEach(button => button.addEventListener("click", nextSlide));
+
+      document
+        .querySelectorAll("[data-action='pause']")
+        .forEach(button => button.addEventListener("click", togglePause));
+    }
+
+    function updateSlideCounter() {
+      const total = presentationConfig.slides.length;
+
+      slideCounter.textContent =
+        `${String(currentSlide + 1).padStart(2, "0")} / ` +
+        `${String(total).padStart(2, "0")}`;
+    }
+
+    function showSlide(index) {
+      const slides = document.querySelectorAll(".slide");
+
+      currentSlide =
+        (index + presentationConfig.slides.length) %
+        presentationConfig.slides.length;
+
+      slides.forEach((slide, slideIndex) => {
+        slide.classList.toggle("active", slideIndex === currentSlide);
+      });
+
+      elapsed = 0;
+      progressBar.style.width = "0%";
+      updateSlideCounter();
+    }
+
+    function nextSlide() {
+      showSlide(currentSlide + 1);
+    }
+
+    function previousSlide() {
+      showSlide(currentSlide - 1);
+    }
+
+    function togglePause() {
+      isPaused = !isPaused;
+
+      pauseButton.textContent = isPaused
+        ? "Continuar"
+        : "Pausar apresentação";
+
+      document
+        .querySelectorAll("[data-action='pause']")
+        .forEach(button => {
+          button.textContent = isPaused
+            ? "Continuar"
+            : "Pausar apresentação";
+        });
+
+      showToast(
+        isPaused
+          ? "Apresentação pausada"
+          : "Apresentação retomada"
+      );
+    }
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add("show");
+
+      clearTimeout(showToast.timeout);
+
+      showToast.timeout = setTimeout(() => {
+        toast.classList.remove("show");
+      }, 1800);
+    }
+
+    function animationLoop(now) {
+      const delta = now - lastFrame;
+      lastFrame = now;
+
+      if (!isPaused) {
+        elapsed += delta;
+
+        const percentage =
+          Math.min(elapsed / presentationConfig.slideDuration, 1) * 100;
+
+        progressBar.style.width = `${percentage}%`;
+
+        if (elapsed >= presentationConfig.slideDuration) {
+          nextSlide();
+        }
+      }
+
+      requestAnimationFrame(animationLoop);
+    }
+
+    function updateDateTime() {
+      const now = new Date();
+
+      document.getElementById("clock").textContent =
+        now.toLocaleTimeString("pt-BR", {
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+
+      document.getElementById("date").textContent =
+        now.toLocaleDateString("pt-BR", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric"
+        });
+    }
+
+    function activateFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen?.();
+        showToast("Modo tela cheia ativado");
+      } else {
+        document.exitFullscreen?.();
+        showToast("Modo tela cheia encerrado");
+      }
+    }
+
+    document
+      .getElementById("nextButton")
+      .addEventListener("click", nextSlide);
+
+    document
+      .getElementById("previousButton")
+      .addEventListener("click", previousSlide);
+
+    pauseButton.addEventListener("click", togglePause);
+
+    document
+      .getElementById("fullscreenButton")
+      .addEventListener("click", activateFullscreen);
+
+    document.addEventListener("keydown", event => {
+      if (event.key === "ArrowRight" || event.key === "PageDown") {
+        nextSlide();
+      }
+
+      if (event.key === "ArrowLeft" || event.key === "PageUp") {
+        previousSlide();
+      }
+
+      if (event.key === " ") {
+        event.preventDefault();
+        togglePause();
+      }
+
+      if (event.key.toLowerCase() === "f") {
+        activateFullscreen();
+      }
+
+      if (event.key === "Escape" && isPaused) {
+        togglePause();
+      }
+    });
+
+    document.addEventListener("touchstart", event => {
+      touchStartX = event.changedTouches[0].screenX;
+    }, { passive: true });
+
+    document.addEventListener("touchend", event => {
+      const touchEndX = event.changedTouches[0].screenX;
+      const distance = touchEndX - touchStartX;
+
+      if (Math.abs(distance) > 55) {
+        distance < 0 ? nextSlide() : previousSlide();
+      }
+    }, { passive: true });
+
+    const canvas = document.getElementById("backgroundCanvas");
+    const context = canvas.getContext("2d");
+
+    let particles = [];
+    let canvasWidth = 0;
+    let canvasHeight = 0;
+    let devicePixelRatioValue = 1;
+
+    function resizeCanvas() {
+      canvasWidth = window.innerWidth;
+      canvasHeight = window.innerHeight;
+      devicePixelRatioValue =
+        Math.min(window.devicePixelRatio || 1, 2);
+
+      canvas.width = canvasWidth * devicePixelRatioValue;
+      canvas.height = canvasHeight * devicePixelRatioValue;
+
+      canvas.style.width = `${canvasWidth}px`;
+      canvas.style.height = `${canvasHeight}px`;
+
+      context.setTransform(
+        devicePixelRatioValue,
+        0,
+        0,
+        devicePixelRatioValue,
+        0,
+        0
+      );
+
+      createParticles();
+    }
+
+    function createParticles() {
+      const amount = Math.max(
+        35,
+        Math.min(
+          100,
+          Math.floor((canvasWidth * canvasHeight) / 18000)
+        )
+      );
+
+      particles = Array.from({ length: amount }, () => ({
+        x: Math.random() * canvasWidth,
+        y: Math.random() * canvasHeight,
+        radius: Math.random() * 2.5 + .5,
+        speedX: (Math.random() - .5) * .22,
+        speedY: (Math.random() - .5) * .22,
+        opacity: Math.random() * .45 + .08,
+        hue: Math.random() > .5
+          ? "69,214,255"
+          : "139,92,246"
+      }));
+    }
+
+    function drawCanvas() {
+      context.clearRect(0, 0, canvasWidth, canvasHeight);
+
+      particles.forEach(particle => {
+        particle.x += particle.speedX;
+        particle.y += particle.speedY;
+
+        if (particle.x < -20) particle.x = canvasWidth + 20;
+        if (particle.x > canvasWidth + 20) particle.x = -20;
+        if (particle.y < -20) particle.y = canvasHeight + 20;
+        if (particle.y > canvasHeight + 20) particle.y = -20;
+
+        const glow = context.createRadialGradient(
+          particle.x,
+          particle.y,
+          0,
+          particle.x,
+          particle.y,
+          particle.radius * 8
+        );
+
+        glow.addColorStop(
+          0,
+          `rgba(${particle.hue}, ${particle.opacity})`
+        );
+
+        glow.addColorStop(
+          1,
+          `rgba(${particle.hue}, 0)`
+        );
+
+        context.beginPath();
+        context.fillStyle = glow;
+        context.arc(
+          particle.x,
+          particle.y,
+          particle.radius * 8,
+          0,
+          Math.PI * 2
+        );
+        context.fill();
+
+        context.beginPath();
+        context.fillStyle =
+          `rgba(${particle.hue}, ${particle.opacity + .12})`;
+
+        context.arc(
+          particle.x,
+          particle.y,
+          particle.radius,
+          0,
+          Math.PI * 2
+        );
+
+        context.fill();
+      });
+
+      requestAnimationFrame(drawCanvas);
+    }
+
+    window.addEventListener("resize", resizeCanvas);
+
+    renderSlides();
+    updateDateTime();
+    resizeCanvas();
+    drawCanvas();
+
+    setInterval(updateDateTime, 1000);
+    requestAnimationFrame(animationLoop);
+  </script>
+</body>
+</html>

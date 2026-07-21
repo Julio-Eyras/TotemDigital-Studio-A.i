@@ -1,0 +1,1555 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#073f43" />
+  <meta name="description" content="Apresentação digital TotemDigital" />
+  <title>TotemDigital — Comunicação visual inteligente</title>
+
+  <style>
+    :root {
+      --petroleo-950: #06282b;
+      --petroleo-900: #073f43;
+      --petroleo-800: #09565a;
+      --petroleo-700: #0b6b6c;
+
+      --ouro: #f5b82e;
+      --ouro-claro: #ffd978;
+      --ouro-escuro: #bd7b08;
+
+      --branco: #fffdf5;
+      --texto: #f6f0dc;
+      --texto-suave: #b6c9c1;
+      --linha: rgba(255, 217, 120, 0.25);
+
+      --raio: 28px;
+      --sombra: 0 28px 80px rgba(0, 0, 0, 0.38);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      width: 100%;
+      min-height: 100%;
+      overflow: hidden;
+      background: var(--petroleo-950);
+      color: var(--texto);
+      font-family:
+        Inter,
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+    }
+
+    body {
+      position: relative;
+      isolation: isolate;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    #backgroundCanvas {
+      position: fixed;
+      inset: 0;
+      z-index: -6;
+      width: 100%;
+      height: 100%;
+      background:
+        radial-gradient(
+          circle at 12% 15%,
+          rgba(245, 184, 46, 0.18),
+          transparent 30%
+        ),
+        radial-gradient(
+          circle at 90% 85%,
+          rgba(11, 107, 108, 0.35),
+          transparent 38%
+        ),
+        linear-gradient(
+          135deg,
+          var(--petroleo-950),
+          var(--petroleo-900) 52%,
+          #02191c
+        );
+    }
+
+    .grade {
+      position: fixed;
+      inset: 0;
+      z-index: -5;
+      opacity: 0.23;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255, 217, 120, 0.1) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 217, 120, 0.1) 1px, transparent 1px);
+      background-size: 55px 55px;
+      mask-image: linear-gradient(to bottom, black, transparent 90%);
+    }
+
+    .luz {
+      position: fixed;
+      z-index: -4;
+      width: 38vw;
+      height: 38vw;
+      min-width: 260px;
+      min-height: 260px;
+      border-radius: 50%;
+      filter: blur(70px);
+      opacity: 0.2;
+      pointer-events: none;
+      mix-blend-mode: screen;
+      animation: flutuar 14s ease-in-out infinite alternate;
+    }
+
+    .luz-ouro {
+      top: -15vw;
+      left: -12vw;
+      background: var(--ouro);
+    }
+
+    .luz-petroleo {
+      right: -14vw;
+      bottom: -17vw;
+      background: var(--petroleo-700);
+      animation-delay: -5s;
+    }
+
+    .luz-central {
+      top: 38%;
+      left: 42%;
+      width: 20vw;
+      height: 20vw;
+      background: var(--ouro);
+      opacity: 0.08;
+      animation-delay: -9s;
+    }
+
+    @keyframes flutuar {
+      from {
+        transform: translate3d(-2%, -4%, 0) scale(0.95);
+      }
+
+      to {
+        transform: translate3d(7%, 5%, 0) scale(1.12);
+      }
+    }
+
+    .tela {
+      position: relative;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      width: 100vw;
+      height: 100vh;
+      min-height: 520px;
+      padding: clamp(18px, 3vw, 48px);
+      overflow: hidden;
+    }
+
+    .topo,
+    .rodape {
+      position: relative;
+      z-index: 4;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .topo {
+      animation: entrarTopo 0.8s ease both;
+    }
+
+    /* LOGOTIPO TOTEMDIGITAL FEITO EM CSS */
+    .marca {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .simbolo {
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: 52px;
+      height: 52px;
+      overflow: hidden;
+      border: 2px solid var(--ouro);
+      border-radius: 15px;
+      color: var(--petroleo-950);
+      background: var(--ouro);
+      box-shadow:
+        0 0 0 5px rgba(245, 184, 46, 0.1),
+        0 0 35px rgba(245, 184, 46, 0.32);
+    }
+
+    .simbolo::before {
+      content: "";
+      position: absolute;
+      top: 9px;
+      left: 10px;
+      width: 31px;
+      height: 7px;
+      border-radius: 99px;
+      background: var(--petroleo-950);
+      box-shadow: 0 10px 0 var(--petroleo-950);
+    }
+
+    .simbolo::after {
+      content: "";
+      position: absolute;
+      top: 8px;
+      left: 22px;
+      width: 8px;
+      height: 37px;
+      border-radius: 99px;
+      background: var(--petroleo-950);
+    }
+
+    .marca-texto {
+      min-width: 0;
+    }
+
+    .marca-texto strong {
+      display: block;
+      color: var(--branco);
+      font-size: clamp(16px, 1.6vw, 23px);
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      white-space: nowrap;
+    }
+
+    .marca-texto strong span {
+      color: var(--ouro);
+    }
+
+    .marca-texto small {
+      display: block;
+      margin-top: 4px;
+      color: var(--texto-suave);
+      font-size: clamp(9px, 0.9vw, 12px);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    .informacoes {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .status,
+    .relogio {
+      min-width: 108px;
+      padding: 10px 14px;
+      border: 1px solid var(--linha);
+      border-radius: 16px;
+      background: rgba(2, 25, 28, 0.4);
+      backdrop-filter: blur(16px);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.16);
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--ouro-claro);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .status-ponto {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--ouro);
+      box-shadow: 0 0 16px var(--ouro);
+      animation: pulsar 2s infinite;
+    }
+
+    @keyframes pulsar {
+      0%,
+      100% {
+        opacity: 0.55;
+        transform: scale(0.85);
+      }
+
+      50% {
+        opacity: 1;
+        transform: scale(1.1);
+      }
+    }
+
+    .relogio {
+      text-align: right;
+    }
+
+    .hora {
+      color: var(--branco);
+      font-size: clamp(16px, 2vw, 28px);
+      font-weight: 800;
+      letter-spacing: 0.04em;
+    }
+
+    .data {
+      color: var(--texto-suave);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .palco {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      place-items: center;
+      width: min(1500px, 100%);
+      height: 100%;
+      margin: 0 auto;
+      padding: clamp(24px, 5vh, 80px) 0;
+    }
+
+    .slide {
+      display: none;
+      align-items: center;
+      width: 100%;
+      height: 100%;
+      gap: clamp(28px, 5vw, 100px);
+    }
+
+    .slide.ativo {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(300px, 0.95fr);
+      animation: entrarSlide 0.85s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    }
+
+    @keyframes entrarSlide {
+      from {
+        opacity: 0;
+        transform: translateX(45px) scale(0.985);
+        filter: blur(8px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+        filter: blur(0);
+      }
+    }
+
+    .conteudo {
+      max-width: 760px;
+    }
+
+    .chamada {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      color: var(--ouro);
+      font-size: clamp(11px, 1.1vw, 15px);
+      font-weight: 800;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+    }
+
+    .chamada::before {
+      content: "";
+      width: 38px;
+      height: 2px;
+      background: linear-gradient(90deg, var(--ouro), transparent);
+    }
+
+    h1 {
+      max-width: 850px;
+      color: var(--branco);
+      font-size: clamp(42px, 7vw, 112px);
+      line-height: 0.96;
+      letter-spacing: -0.065em;
+      text-wrap: balance;
+    }
+
+    h1 .destaque {
+      color: transparent;
+      background: linear-gradient(
+        100deg,
+        var(--ouro),
+        var(--ouro-claro) 48%,
+        #fff1b4
+      );
+      -webkit-background-clip: text;
+      background-clip: text;
+    }
+
+    .subtitulo {
+      max-width: 680px;
+      margin-top: 28px;
+      color: var(--texto-suave);
+      font-size: clamp(16px, 1.7vw, 25px);
+      line-height: 1.55;
+      text-wrap: balance;
+    }
+
+    .acoes {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 14px;
+      margin-top: 34px;
+    }
+
+    .botao-principal,
+    .botao-secundario,
+    .botao-controle {
+      border: 1px solid var(--linha);
+      border-radius: 15px;
+      padding: 13px 19px;
+      cursor: pointer;
+      transition:
+        transform 0.25s ease,
+        background 0.25s ease,
+        border-color 0.25s ease;
+    }
+
+    .botao-principal {
+      color: var(--petroleo-950);
+      font-weight: 900;
+      background: linear-gradient(135deg, var(--ouro-claro), var(--ouro));
+      border-color: transparent;
+      box-shadow: 0 12px 30px rgba(245, 184, 46, 0.22);
+    }
+
+    .botao-secundario,
+    .botao-controle {
+      color: var(--branco);
+      background: rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(14px);
+    }
+
+    .botao-principal:hover,
+    .botao-secundario:hover,
+    .botao-controle:hover {
+      transform: translateY(-3px);
+      border-color: var(--ouro);
+    }
+
+    .metricas {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      max-width: 650px;
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .metrica {
+      padding: 16px;
+      border: 1px solid var(--linha);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.045);
+      backdrop-filter: blur(14px);
+    }
+
+    .metrica strong {
+      display: block;
+      color: var(--ouro);
+      font-size: clamp(22px, 2.5vw, 38px);
+      letter-spacing: -0.05em;
+    }
+
+    .metrica span {
+      display: block;
+      margin-top: 5px;
+      color: var(--texto-suave);
+      font-size: 11px;
+      line-height: 1.3;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .visual {
+      position: relative;
+      display: grid;
+      place-items: center;
+      min-height: min(46vw, 560px);
+    }
+
+    .cartao {
+      position: relative;
+      width: min(100%, 540px);
+      aspect-ratio: 1 / 0.85;
+      overflow: hidden;
+      border: 1px solid rgba(255, 217, 120, 0.42);
+      border-radius: clamp(24px, 4vw, 48px);
+      background:
+        linear-gradient(
+          145deg,
+          rgba(255, 217, 120, 0.18),
+          rgba(255, 255, 255, 0.035)
+        ),
+        rgba(4, 45, 47, 0.72);
+      box-shadow: var(--sombra);
+      backdrop-filter: blur(18px);
+      transform: rotate(-4deg);
+      animation: flutuarCartao 7s ease-in-out infinite alternate;
+    }
+
+    .cartao::before {
+      content: "";
+      position: absolute;
+      inset: -30%;
+      background: conic-gradient(
+        from 180deg,
+        transparent,
+        rgba(245, 184, 46, 0.4),
+        transparent 25%,
+        rgba(11, 107, 108, 0.5),
+        transparent 56%
+      );
+      animation: girarBrilho 12s linear infinite;
+    }
+
+    .cartao::after {
+      content: "";
+      position: absolute;
+      inset: 1px;
+      border-radius: inherit;
+      background:
+        radial-gradient(
+          circle at 25% 25%,
+          rgba(245, 184, 46, 0.2),
+          transparent 22%
+        ),
+        radial-gradient(
+          circle at 80% 70%,
+          rgba(11, 107, 108, 0.45),
+          transparent 30%
+        ),
+        rgba(4, 45, 47, 0.72);
+    }
+
+    @keyframes flutuarCartao {
+      from {
+        transform: rotate(-4deg) translateY(5px);
+      }
+
+      to {
+        transform: rotate(3deg) translateY(-10px);
+      }
+    }
+
+    @keyframes girarBrilho {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .conteudo-cartao {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: clamp(22px, 3vw, 38px);
+    }
+
+    .topo-cartao {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .icone-cartao {
+      display: grid;
+      place-items: center;
+      width: 68px;
+      height: 68px;
+      border-radius: 22px;
+      color: var(--petroleo-950);
+      font-size: 32px;
+      font-weight: 900;
+      background: linear-gradient(135deg, var(--ouro-claro), var(--ouro));
+      box-shadow: 0 15px 32px rgba(245, 184, 46, 0.25);
+    }
+
+    .numero-cartao {
+      color: rgba(255, 253, 245, 0.72);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+    }
+
+    .titulo-cartao {
+      max-width: 380px;
+      color: var(--branco);
+      font-size: clamp(25px, 3vw, 46px);
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+
+    .descricao-cartao {
+      max-width: 400px;
+      margin-top: 14px;
+      color: var(--texto-suave);
+      font-size: clamp(13px, 1.25vw, 17px);
+      line-height: 1.5;
+    }
+
+    .chip {
+      position: absolute;
+      z-index: 3;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 15px;
+      border: 1px solid rgba(255, 217, 120, 0.3);
+      border-radius: 16px;
+      color: var(--branco);
+      font-size: 12px;
+      font-weight: 700;
+      background: rgba(3, 36, 39, 0.72);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 18px 38px rgba(0, 0, 0, 0.25);
+      animation: flutuarChip 5s ease-in-out infinite alternate;
+    }
+
+    .chip.topo-chip {
+      top: 6%;
+      right: -6%;
+    }
+
+    .chip.base-chip {
+      bottom: 8%;
+      left: -8%;
+      animation-delay: -2.3s;
+    }
+
+    .icone-chip {
+      display: grid;
+      place-items: center;
+      width: 25px;
+      height: 25px;
+      border-radius: 9px;
+      color: var(--petroleo-950);
+      background: var(--ouro);
+    }
+
+    @keyframes flutuarChip {
+      from {
+        transform: translateY(4px);
+      }
+
+      to {
+        transform: translateY(-13px);
+      }
+    }
+
+    .rodape {
+      gap: 20px;
+      animation: entrarRodape 0.8s ease both;
+    }
+
+    .rodape-label {
+      color: var(--texto-suave);
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .navegacao {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .progresso {
+      width: clamp(120px, 18vw, 260px);
+      height: 4px;
+      overflow: hidden;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.16);
+    }
+
+    .barra-progresso {
+      width: 0%;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--ouro-escuro), var(--ouro-claro));
+      box-shadow: 0 0 15px rgba(245, 184, 46, 0.7);
+      transition: width 0.1s linear;
+    }
+
+    .contador {
+      min-width: 65px;
+      color: var(--branco);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+    }
+
+    @keyframes entrarTopo {
+      from {
+        opacity: 0;
+        transform: translateY(-18px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes entrarRodape {
+      from {
+        opacity: 0;
+        transform: translateY(18px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .controles {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      z-index: 10;
+      display: flex;
+      gap: 8px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: 0.3s ease;
+    }
+
+    body:hover .controles,
+    .controles:focus-within {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .botao-controle {
+      padding: 10px 13px;
+      font-size: 12px;
+    }
+
+    .aviso {
+      position: fixed;
+      left: 50%;
+      bottom: 28px;
+      z-index: 20;
+      padding: 12px 18px;
+      border: 1px solid var(--linha);
+      border-radius: 14px;
+      color: var(--branco);
+      background: rgba(3, 36, 39, 0.88);
+      backdrop-filter: blur(18px);
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, 15px);
+      transition: 0.3s ease;
+    }
+
+    .aviso.exibir {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    @media (max-width: 900px) {
+      html,
+      body {
+        overflow-y: auto;
+      }
+
+      .tela {
+        min-height: 100vh;
+        height: auto;
+        min-height: 100svh;
+        padding: 18px;
+      }
+
+      .topo {
+        align-items: flex-start;
+      }
+
+      .status {
+        display: none;
+      }
+
+      .palco {
+        min-height: 690px;
+        padding: 35px 0;
+      }
+
+      .slide.ativo {
+        grid-template-columns: 1fr;
+        align-content: center;
+        gap: 34px;
+      }
+
+      .conteudo {
+        max-width: none;
+      }
+
+      .visual {
+        min-height: 310px;
+      }
+
+      .cartao {
+        width: min(90%, 480px);
+      }
+
+      .rodape {
+        padding-bottom: 8px;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .simbolo {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+      }
+
+      .simbolo::before {
+        top: 8px;
+        left: 8px;
+        width: 25px;
+        height: 6px;
+        box-shadow: 0 8px 0 var(--petroleo-950);
+      }
+
+      .simbolo::after {
+        top: 7px;
+        left: 18px;
+        width: 7px;
+        height: 30px;
+      }
+
+      .marca-texto strong {
+        font-size: 14px;
+      }
+
+      .marca-texto small {
+        font-size: 8px;
+      }
+
+      .relogio {
+        min-width: auto;
+        padding: 8px 10px;
+      }
+
+      .hora {
+        font-size: 16px;
+      }
+
+      .data {
+        font-size: 8px;
+      }
+
+      .palco {
+        min-height: 640px;
+      }
+
+      .subtitulo {
+        margin-top: 20px;
+        font-size: 15px;
+      }
+
+      .acoes {
+        margin-top: 25px;
+      }
+
+      .botao-principal,
+      .botao-secundario {
+        padding: 11px 14px;
+        font-size: 13px;
+      }
+
+      .metricas {
+        gap: 7px;
+        margin-top: 20px;
+      }
+
+      .metrica {
+        padding: 11px;
+        border-radius: 13px;
+      }
+
+      .metrica strong {
+        font-size: 23px;
+      }
+
+      .metrica span {
+        font-size: 8px;
+      }
+
+      .visual {
+        min-height: 250px;
+      }
+
+      .cartao {
+        width: 94%;
+        border-radius: 28px;
+      }
+
+      .conteudo-cartao {
+        padding: 22px;
+      }
+
+      .icone-cartao {
+        width: 48px;
+        height: 48px;
+        border-radius: 15px;
+        font-size: 23px;
+      }
+
+      .titulo-cartao {
+        font-size: 27px;
+      }
+
+      .descricao-cartao {
+        font-size: 12px;
+      }
+
+      .chip {
+        padding: 9px 11px;
+        font-size: 10px;
+      }
+
+      .chip.topo-chip {
+        right: 0;
+      }
+
+      .chip.base-chip {
+        left: 0;
+      }
+
+      .rodape-label {
+        display: none;
+      }
+
+      .rodape {
+        justify-content: flex-end;
+      }
+
+      .controles {
+        right: 12px;
+        bottom: 12px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="backgroundCanvas"></canvas>
+
+  <div class="grade"></div>
+  <div class="luz luz-ouro"></div>
+  <div class="luz luz-petroleo"></div>
+  <div class="luz luz-central"></div>
+
+  <main class="tela">
+    <header class="topo">
+      <div class="marca">
+        <div class="simbolo" aria-label="Logotipo TotemDigital"></div>
+
+        <div class="marca-texto">
+          <strong>totem<span>digital</span></strong>
+          <small>Comunicação visual inteligente</small>
+        </div>
+      </div>
+
+      <div class="informacoes">
+        <div class="status">
+          <span class="status-ponto"></span>
+          Sistema ativo
+        </div>
+
+        <div class="relogio">
+          <div class="hora" id="hora">00:00</div>
+          <div class="data" id="data">--/--/----</div>
+        </div>
+      </div>
+    </header>
+
+    <section class="palco" id="palco"></section>
+
+    <footer class="rodape">
+      <div class="rodape-label">
+        Experiência digital em movimento
+      </div>
+
+      <div class="navegacao">
+        <div class="progresso">
+          <div class="barra-progresso" id="barraProgresso"></div>
+        </div>
+
+        <div class="contador" id="contador">01 / 04</div>
+      </div>
+    </footer>
+  </main>
+
+  <div class="controles">
+    <button class="botao-controle" id="anterior" type="button">
+      ← Anterior
+    </button>
+
+    <button class="botao-controle" id="pausar" type="button">
+      Pausar
+    </button>
+
+    <button class="botao-controle" id="proximo" type="button">
+      Próximo →
+    </button>
+
+    <button class="botao-controle" id="telaCheia" type="button">
+      Tela cheia
+    </button>
+  </div>
+
+  <div class="aviso" id="aviso">
+    Apresentação pausada
+  </div>
+
+  <script>
+    const configuracao = {
+      duracaoSlide: 9000,
+
+      slides: [
+        {
+          chamada: "Comunicação que conecta",
+          titulo: "Sua mensagem em uma nova dimensão.",
+          destaque: "nova dimensão.",
+          subtitulo:
+            "Transforme telas comuns em experiências visuais marcantes, inteligentes e preparadas para envolver o público.",
+          icone: "✦",
+          tituloCartao: "Impacto visual",
+          descricaoCartao:
+            "Conteúdo dinâmico, elegante e pensado para ser percebido de forma rápida e memorável.",
+          chipTopo: "Conteúdo inteligente",
+          chipBase: "Experiência imersiva",
+          metricas: [
+            ["360°", "visão da marca"],
+            ["24/7", "comunicação ativa"],
+            ["100%", "presença visual"]
+          ]
+        },
+
+        {
+          chamada: "Tecnologia e simplicidade",
+          titulo: "Informação clara, no momento certo.",
+          destaque: "momento certo.",
+          subtitulo:
+            "Organize campanhas, avisos e informações em uma apresentação responsiva que se adapta a diferentes formatos de tela.",
+          icone: "◈",
+          tituloCartao: "Comunicação fluida",
+          descricaoCartao:
+            "Uma estrutura visual que combina movimento, hierarquia e legibilidade em qualquer dispositivo.",
+          chipTopo: "Responsivo",
+          chipBase: "Fácil de atualizar",
+          metricas: [
+            ["01", "arquivo único"],
+            ["∞", "possibilidades"],
+            ["4K", "pronto para telas"]
+          ]
+        },
+
+        {
+          chamada: "Presença digital",
+          titulo: "Mais atenção para aquilo que importa.",
+          destaque: "aquilo que importa.",
+          subtitulo:
+            "Use animações suaves, transparências e elementos visuais para conduzir o olhar sem perder a objetividade.",
+          icone: "◎",
+          tituloCartao: "Atenção orientada",
+          descricaoCartao:
+            "Cada elemento foi projetado para criar ritmo, destacar prioridades e melhorar a percepção da mensagem.",
+          chipTopo: "Design estratégico",
+          chipBase: "Leitura rápida",
+          metricas: [
+            ["01", "experiência"],
+            ["03", "camadas visuais"],
+            ["∞", "conexões"]
+          ]
+        },
+
+        {
+          chamada: "Pronto para evoluir",
+          titulo: "O próximo destaque pode começar agora.",
+          destaque: "começar agora.",
+          subtitulo:
+            "Uma base completa para apresentações institucionais, campanhas, recepção, eventos, vitrines e totens digitais.",
+          icone: "✓",
+          tituloCartao: "Vamos avançar",
+          descricaoCartao:
+            "Personalize cores, textos e informações para transformar esta tela em uma experiência exclusiva da sua marca.",
+          chipTopo: "TotemDigital",
+          chipBase: "Sempre em evolução",
+          metricas: [
+            ["01", "solução"],
+            ["04", "experiências"],
+            ["100%", "personalizável"]
+          ]
+        }
+      ]
+    };
+
+    const palco = document.getElementById("palco");
+    const barraProgresso = document.getElementById("barraProgresso");
+    const contador = document.getElementById("contador");
+    const botaoPausar = document.getElementById("pausar");
+    const aviso = document.getElementById("aviso");
+
+    let slideAtual = 0;
+    let pausado = false;
+    let tempoDecorrido = 0;
+    let ultimoFrame = performance.now();
+    let toqueInicialX = 0;
+
+    function renderizarSlides() {
+      palco.innerHTML = configuracao.slides
+        .map((slide, indice) => {
+          const titulo = slide.titulo.replace(
+            slide.destaque,
+            `<span class="destaque">${slide.destaque}</span>`
+          );
+
+          const metricas = slide.metricas
+            .map(
+              metrica => `
+                <div class="metrica">
+                  <strong>${metrica[0]}</strong>
+                  <span>${metrica[1]}</span>
+                </div>
+              `
+            )
+            .join("");
+
+          return `
+            <article class="slide ${indice === 0 ? "ativo" : ""}">
+              <div class="conteudo">
+                <div class="chamada">${slide.chamada}</div>
+
+                <h1>${titulo}</h1>
+
+                <p class="subtitulo">${slide.subtitulo}</p>
+
+                <div class="acoes">
+                  <button
+                    class="botao-principal"
+                    type="button"
+                    data-acao="proximo"
+                  >
+                    Conheça a experiência
+                  </button>
+
+                  <button
+                    class="botao-secundario"
+                    type="button"
+                    data-acao="pausar"
+                  >
+                    ${pausado ? "Continuar" : "Pausar apresentação"}
+                  </button>
+                </div>
+
+                <div class="metricas">
+                  ${metricas}
+                </div>
+              </div>
+
+              <div class="visual">
+                <div class="chip topo-chip">
+                  <span class="icone-chip">✦</span>
+                  ${slide.chipTopo}
+                </div>
+
+                <div class="cartao">
+                  <div class="conteudo-cartao">
+                    <div class="topo-cartao">
+                      <div class="icone-cartao">${slide.icone}</div>
+
+                      <div class="numero-cartao">
+                        EXPERIÊNCIA ${String(indice + 1).padStart(2, "0")}
+                      </div>
+                    </div>
+
+                    <div>
+                      <h2 class="titulo-cartao">${slide.tituloCartao}</h2>
+                      <p class="descricao-cartao">
+                        ${slide.descricaoCartao}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="chip base-chip">
+                  <span class="icone-chip">✓</span>
+                  ${slide.chipBase}
+                </div>
+              </div>
+            </article>
+          `;
+        })
+        .join("");
+
+      document
+        .querySelectorAll('[data-acao="proximo"]')
+        .forEach(botao => botao.addEventListener("click", proximoSlide));
+
+      document
+        .querySelectorAll('[data-acao="pausar"]')
+        .forEach(botao => botao.addEventListener("click", alternarPausa));
+    }
+
+    function atualizarContador() {
+      const total = configuracao.slides.length;
+
+      contador.textContent =
+        `${String(slideAtual + 1).padStart(2, "0")} / ` +
+        `${String(total).padStart(2, "0")}`;
+    }
+
+    function exibirSlide(indice) {
+      const slides = document.querySelectorAll(".slide");
+
+      slideAtual =
+        (indice + configuracao.slides.length) %
+        configuracao.slides.length;
+
+      slides.forEach((slide, indiceSlide) => {
+        slide.classList.toggle("ativo", indiceSlide === slideAtual);
+      });
+
+      tempoDecorrido = 0;
+      barraProgresso.style.width = "0%";
+      atualizarContador();
+    }
+
+    function proximoSlide() {
+      exibirSlide(slideAtual + 1);
+    }
+
+    function slideAnterior() {
+      exibirSlide(slideAtual - 1);
+    }
+
+    function alternarPausa() {
+      pausado = !pausado;
+
+      botaoPausar.textContent = pausado
+        ? "Continuar"
+        : "Pausar apresentação";
+
+      document
+        .querySelectorAll('[data-acao="pausar"]')
+        .forEach(botao => {
+          botao.textContent = pausado
+            ? "Continuar"
+            : "Pausar apresentação";
+        });
+
+      exibirAviso(
+        pausado
+          ? "Apresentação pausada"
+          : "Apresentação retomada"
+      );
+    }
+
+    function exibirAviso(mensagem) {
+      aviso.textContent = mensagem;
+      aviso.classList.add("exibir");
+
+      clearTimeout(exibirAviso.tempo);
+
+      exibirAviso.tempo = setTimeout(() => {
+        aviso.classList.remove("exibir");
+      }, 1800);
+    }
+
+    function loopApresentacao(agora) {
+      const diferenca = agora - ultimoFrame;
+      ultimoFrame = agora;
+
+      if (!pausado) {
+        tempoDecorrido += diferenca;
+
+        const porcentagem =
+          Math.min(
+            tempoDecorrido / configuracao.duracaoSlide,
+            1
+          ) * 100;
+
+        barraProgresso.style.width = `${porcentagem}%`;
+
+        if (tempoDecorrido >= configuracao.duracaoSlide) {
+          proximoSlide();
+        }
+      }
+
+      requestAnimationFrame(loopApresentacao);
+    }
+
+    function atualizarDataHora() {
+      const agora = new Date();
+
+      document.getElementById("hora").textContent =
+        agora.toLocaleTimeString("pt-BR", {
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+
+      document.getElementById("data").textContent =
+        agora.toLocaleDateString("pt-BR", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric"
+        });
+    }
+
+    function alternarTelaCheia() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen?.();
+        exibirAviso("Modo tela cheia ativado");
+      } else {
+        document.exitFullscreen?.();
+        exibirAviso("Modo tela cheia encerrado");
+      }
+    }
+
+    document
+      .getElementById("proximo")
+      .addEventListener("click", proximoSlide);
+
+    document
+      .getElementById("anterior")
+      .addEventListener("click", slideAnterior);
+
+    document
+      .getElementById("pausar")
+      .addEventListener("click", alternarPausa);
+
+    document
+      .getElementById("telaCheia")
+      .addEventListener("click", alternarTelaCheia);
+
+    document.addEventListener("keydown", evento => {
+      if (
+        evento.key === "ArrowRight" ||
+        evento.key === "PageDown"
+      ) {
+        proximoSlide();
+      }
+
+      if (
+        evento.key === "ArrowLeft" ||
+        evento.key === "PageUp"
+      ) {
+        slideAnterior();
+      }
+
+      if (evento.key === " ") {
+        evento.preventDefault();
+        alternarPausa();
+      }
+
+      if (evento.key.toLowerCase() === "f") {
+        alternarTelaCheia();
+      }
+
+      if (evento.key === "Escape" && pausado) {
+        alternarPausa();
+      }
+    });
+
+    document.addEventListener(
+      "touchstart",
+      evento => {
+        toqueInicialX = evento.changedTouches[0].screenX;
+      },
+      { passive: true }
+    );
+
+    document.addEventListener(
+      "touchend",
+      evento => {
+        const toqueFinalX = evento.changedTouches[0].screenX;
+        const distancia = toqueFinalX - toqueInicialX;
+
+        if (Math.abs(distancia) > 55) {
+          distancia < 0 ? proximoSlide() : slideAnterior();
+        }
+      },
+      { passive: true }
+    );
+
+    /*
+      Fundo animado em Canvas
+    */
+
+    const canvas = document.getElementById("backgroundCanvas");
+    const contexto = canvas.getContext("2d");
+
+    let particulas = [];
+    let larguraCanvas = 0;
+    let alturaCanvas = 0;
+    let proporcaoPixel = 1;
+
+    function redimensionarCanvas() {
+      larguraCanvas = window.innerWidth;
+      alturaCanvas = window.innerHeight;
+      proporcaoPixel = Math.min(window.devicePixelRatio || 1, 2);
+
+      canvas.width = larguraCanvas * proporcaoPixel;
+      canvas.height = alturaCanvas * proporcaoPixel;
+      canvas.style.width = `${larguraCanvas}px`;
+      canvas.style.height = `${alturaCanvas}px`;
+
+      contexto.setTransform(
+        proporcaoPixel,
+        0,
+        0,
+        proporcaoPixel,
+        0,
+        0
+      );
+
+      criarParticulas();
+    }
+
+    function criarParticulas() {
+      const quantidade = Math.max(
+        35,
+        Math.min(
+          100,
+          Math.floor((larguraCanvas * alturaCanvas) / 18000)
+        )
+      );
+
+      particulas = Array.from({ length: quantidade }, () => ({
+        x: Math.random() * larguraCanvas,
+        y: Math.random() * alturaCanvas,
+        raio: Math.random() * 2.5 + 0.5,
+        velocidadeX: (Math.random() - 0.5) * 0.22,
+        velocidadeY: (Math.random() - 0.5) * 0.22,
+        opacidade: Math.random() * 0.45 + 0.08,
+        cor:
+          Math.random() > 0.5
+            ? "245,184,46"
+            : "11,107,108"
+      }));
+    }
+
+    function desenharCanvas() {
+      contexto.clearRect(
+        0,
+        0,
+        larguraCanvas,
+        alturaCanvas
+      );
+
+      particulas.forEach(particula => {
+        particula.x += particula.velocidadeX;
+        particula.y += particula.velocidadeY;
+
+        if (particula.x < -20) {
+          particula.x = larguraCanvas + 20;
+        }
+
+        if (particula.x > larguraCanvas + 20) {
+          particula.x = -20;
+        }
+
+        if (particula.y < -20) {
+          particula.y = alturaCanvas + 20;
+        }
+
+        if (particula.y > alturaCanvas + 20) {
+          particula.y = -20;
+        }
+
+        const brilho = contexto.createRadialGradient(
+          particula.x,
+          particula.y,
+          0,
+          particula.x,
+          particula.y,
+          particula.raio * 8
+        );
+
+        brilho.addColorStop(
+          0,
+          `rgba(${particula.cor}, ${particula.opacidade})`
+        );
+
+        brilho.addColorStop(
+          1,
+          `rgba(${particula.cor}, 0)`
+        );
+
+        contexto.beginPath();
+        contexto.fillStyle = brilho;
+        contexto.arc(
+          particula.x,
+          particula.y,
+          particula.raio * 8,
+          0,
+          Math.PI * 2
+        );
+        contexto.fill();
+
+        contexto.beginPath();
+        contexto.fillStyle =
+          `rgba(${particula.cor}, ${particula.opacidade + 0.12})`;
+
+        contexto.arc(
+          particula.x,
+          particula.y,
+          particula.raio,
+          0,
+          Math.PI * 2
+        );
+
+        contexto.fill();
+      });
+
+      requestAnimationFrame(desenharCanvas);
+    }
+
+    window.addEventListener("resize", redimensionarCanvas);
+
+    renderizarSlides();
+    atualizarDataHora();
+    redimensionarCanvas();
+    desenharCanvas();
+
+    setInterval(atualizarDataHora, 1000);
+    requestAnimationFrame(loopApresentacao);
+  </script>
+</body>
+</html>
