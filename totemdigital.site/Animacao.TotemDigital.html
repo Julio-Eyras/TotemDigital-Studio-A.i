@@ -1,0 +1,1371 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  >
+
+  <title>Apresentação Totem Digital Responsivo</title>
+
+  <style>
+    :root {
+      --preto: #071315;
+      --preto-2: #0b1d20;
+      --verde: #102d2d;
+      --verde-2: #174544;
+      --amarelo: #ffd21c;
+      --amarelo-claro: #ffe978;
+      --dourado: #b47b00;
+      --branco: #f8f8ee;
+      --cinza: #b8c3bd;
+      --linha: rgba(255, 210, 28, .22);
+      --glass: rgba(255, 255, 255, .075);
+      --glass-strong: rgba(255, 255, 255, .13);
+      --sombra: 0 24px 80px rgba(0, 0, 0, .36);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      min-height: 100%;
+      overflow: hidden;
+      background: var(--preto);
+      color: var(--branco);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    body {
+      isolation: isolate;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .apresentacao {
+      position: relative;
+      width: 100vw;
+      height: 100dvh;
+      min-height: 100vh;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 80% 20%, rgba(255, 210, 28, .08), transparent 30%),
+        linear-gradient(135deg, var(--preto), var(--verde));
+    }
+
+    #fundoAnimado {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      opacity: .9;
+    }
+
+    .vinheta {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      background:
+        linear-gradient(90deg, rgba(3, 11, 12, .73), transparent 48%, rgba(3, 11, 12, .35)),
+        linear-gradient(0deg, rgba(3, 11, 12, .72), transparent 35%, rgba(3, 11, 12, .4));
+    }
+
+    .grade {
+      position: absolute;
+      inset: -20%;
+      z-index: 1;
+      pointer-events: none;
+      opacity: .16;
+      background-image:
+        linear-gradient(rgba(255, 210, 28, .15) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 210, 28, .15) 1px, transparent 1px);
+      background-size: 54px 54px;
+      transform: perspective(500px) rotateX(62deg) translateY(20%);
+      mask-image: linear-gradient(to bottom, transparent, black 30%, transparent);
+    }
+
+    .marca {
+      position: absolute;
+      top: clamp(22px, 4vw, 56px);
+      left: clamp(24px, 5vw, 80px);
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      pointer-events: none;
+    }
+
+    .marca-simbolo {
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      border: 1px solid rgba(255, 210, 28, .75);
+      border-radius: 13px;
+      color: var(--amarelo);
+      font-size: 21px;
+      font-weight: 900;
+      transform: rotate(45deg);
+      box-shadow:
+        0 0 24px rgba(255, 210, 28, .24),
+        inset 0 0 20px rgba(255, 210, 28, .12);
+    }
+
+    .marca-simbolo span {
+      transform: rotate(-45deg);
+    }
+
+    .marca-texto {
+      color: var(--branco);
+      font-size: clamp(11px, 1vw, 15px);
+      font-weight: 800;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+    }
+
+    .marca-texto strong {
+      display: block;
+      color: var(--amarelo);
+      font-size: 1.35em;
+      letter-spacing: .12em;
+    }
+
+    .status {
+      position: absolute;
+      top: clamp(23px, 4vw, 58px);
+      right: clamp(25px, 5vw, 80px);
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      color: var(--cinza);
+      font-size: clamp(10px, .9vw, 13px);
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .status-ponto {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--amarelo);
+      box-shadow: 0 0 15px var(--amarelo);
+      animation: pulsar 1.8s ease-in-out infinite;
+    }
+
+    .pagina {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      width: 100%;
+      height: 100%;
+      padding:
+        clamp(100px, 10vw, 145px)
+        clamp(28px, 8vw, 130px)
+        clamp(125px, 11vw, 160px);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: translateX(45px) scale(.98);
+      transition:
+        opacity .65s ease,
+        transform .65s cubic-bezier(.22, .8, .2, 1),
+        visibility .65s ease;
+    }
+
+    .pagina.ativa {
+      z-index: 5;
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transform: translateX(0) scale(1);
+    }
+
+    .pagina.anterior {
+      transform: translateX(-45px) scale(.98);
+    }
+
+    .conteudo {
+      position: relative;
+      z-index: 3;
+      width: min(100%, 1250px);
+      margin: 0 auto;
+    }
+
+    .capa {
+      text-align: center;
+      justify-content: center;
+    }
+
+    .capa .conteudo {
+      max-width: 1180px;
+    }
+
+    .etiqueta {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 25px;
+      color: var(--amarelo);
+      font-size: clamp(11px, 1.1vw, 16px);
+      font-weight: 800;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+
+    .etiqueta::before {
+      content: "";
+      display: inline-block;
+      width: 34px;
+      height: 1px;
+      background: var(--amarelo);
+      box-shadow: 0 0 12px var(--amarelo);
+    }
+
+    h1,
+    h2,
+    h3 {
+      line-height: .98;
+      letter-spacing: -.055em;
+    }
+
+    h1 {
+      max-width: 1100px;
+      margin: 0 auto 26px;
+      font-size: clamp(45px, 8vw, 116px);
+      font-weight: 900;
+      text-wrap: balance;
+    }
+
+    h1 em,
+    h2 em {
+      color: var(--amarelo);
+      font-style: normal;
+      text-shadow: 0 0 30px rgba(255, 210, 28, .22);
+    }
+
+    h2 {
+      max-width: 760px;
+      margin-bottom: 24px;
+      font-size: clamp(38px, 6vw, 82px);
+      font-weight: 900;
+    }
+
+    h3 {
+      margin-bottom: 13px;
+      color: var(--branco);
+      font-size: clamp(20px, 2vw, 29px);
+    }
+
+    .subtitulo {
+      max-width: 760px;
+      margin: 0 auto;
+      color: var(--cinza);
+      font-size: clamp(16px, 1.75vw, 26px);
+      line-height: 1.45;
+    }
+
+    .capa .subtitulo {
+      max-width: 850px;
+    }
+
+    .linha-amarela {
+      width: 100px;
+      height: 4px;
+      margin: 37px auto 0;
+      border-radius: 20px;
+      background: linear-gradient(90deg, transparent, var(--amarelo), transparent);
+      box-shadow: 0 0 22px rgba(255, 210, 28, .65);
+    }
+
+    .layout-duplo {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, .75fr);
+      align-items: center;
+      gap: clamp(40px, 8vw, 130px);
+    }
+
+    .texto {
+      color: var(--cinza);
+      font-size: clamp(16px, 1.45vw, 22px);
+      line-height: 1.6;
+    }
+
+    .texto + .texto {
+      margin-top: 18px;
+    }
+
+    .painel {
+      position: relative;
+      padding: clamp(25px, 3vw, 46px);
+      border: 1px solid var(--linha);
+      border-radius: 28px;
+      background:
+        linear-gradient(145deg, rgba(255, 210, 28, .11), rgba(255,255,255,.025)),
+        rgba(6, 23, 24, .55);
+      box-shadow: var(--sombra);
+      backdrop-filter: blur(16px);
+      overflow: hidden;
+    }
+
+    .painel::before {
+      content: "";
+      position: absolute;
+      top: -100px;
+      right: -80px;
+      width: 210px;
+      height: 210px;
+      border: 1px solid rgba(255, 210, 28, .2);
+      border-radius: 50%;
+      box-shadow:
+        0 0 0 18px rgba(255, 210, 28, .035),
+        0 0 0 38px rgba(255, 210, 28, .025);
+    }
+
+    .numero-grande {
+      color: var(--amarelo);
+      font-size: clamp(60px, 9vw, 135px);
+      font-weight: 900;
+      line-height: .8;
+      letter-spacing: -.1em;
+    }
+
+    .numero-legenda {
+      margin-top: 25px;
+      color: var(--cinza);
+      font-size: clamp(14px, 1.3vw, 19px);
+      line-height: 1.45;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+      margin-top: 42px;
+    }
+
+    .card {
+      position: relative;
+      min-height: 210px;
+      padding: 28px 24px;
+      border: 1px solid var(--linha);
+      border-radius: 21px;
+      background: rgba(255, 255, 255, .055);
+      backdrop-filter: blur(14px);
+      overflow: hidden;
+      transition: transform .3s ease, background .3s ease, border-color .3s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-8px);
+      border-color: rgba(255, 210, 28, .65);
+      background: rgba(255, 210, 28, .1);
+    }
+
+    .card::after {
+      content: "";
+      position: absolute;
+      right: -35px;
+      bottom: -55px;
+      width: 120px;
+      height: 120px;
+      border: 1px solid rgba(255, 210, 28, .22);
+      border-radius: 50%;
+    }
+
+    .icone {
+      display: grid;
+      place-items: center;
+      width: 47px;
+      height: 47px;
+      margin-bottom: 24px;
+      border: 1px solid rgba(255, 210, 28, .5);
+      border-radius: 15px;
+      color: var(--amarelo);
+      font-size: 22px;
+      background: rgba(255, 210, 28, .1);
+    }
+
+    .card p {
+      color: var(--cinza);
+      font-size: clamp(14px, 1.1vw, 17px);
+      line-height: 1.5;
+    }
+
+    .lista {
+      display: grid;
+      gap: 17px;
+      margin-top: 30px;
+      list-style: none;
+    }
+
+    .lista li {
+      display: flex;
+      align-items: flex-start;
+      gap: 15px;
+      color: var(--cinza);
+      font-size: clamp(15px, 1.35vw, 20px);
+      line-height: 1.4;
+    }
+
+    .lista li::before {
+      content: "✓";
+      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
+      width: 25px;
+      height: 25px;
+      border-radius: 50%;
+      color: var(--preto);
+      font-size: 14px;
+      font-weight: 900;
+      background: var(--amarelo);
+      box-shadow: 0 0 16px rgba(255, 210, 28, .38);
+    }
+
+    .fluxo {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-top: 44px;
+    }
+
+    .etapa {
+      position: relative;
+      padding: 25px 20px;
+      border-top: 2px solid var(--amarelo);
+      background: linear-gradient(180deg, rgba(255, 210, 28, .1), rgba(255,255,255,.035));
+    }
+
+    .etapa::after {
+      content: "→";
+      position: absolute;
+      top: 24px;
+      right: -14px;
+      z-index: 3;
+      color: var(--amarelo);
+      font-size: 21px;
+    }
+
+    .etapa:last-child::after {
+      display: none;
+    }
+
+    .etapa-numero {
+      margin-bottom: 20px;
+      color: var(--amarelo);
+      font-size: 14px;
+      font-weight: 900;
+      letter-spacing: .12em;
+    }
+
+    .etapa p {
+      color: var(--cinza);
+      font-size: 15px;
+      line-height: 1.45;
+    }
+
+    .final {
+      text-align: center;
+      justify-content: center;
+    }
+
+    .final h2 {
+      max-width: 1000px;
+      margin-inline: auto;
+    }
+
+    .final .subtitulo {
+      max-width: 760px;
+    }
+
+    .botao-cta {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 52px;
+      margin-top: 36px;
+      padding: 0 27px;
+      border: 1px solid var(--amarelo);
+      border-radius: 999px;
+      color: var(--preto);
+      font-size: 14px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      background: var(--amarelo);
+      box-shadow: 0 0 30px rgba(255, 210, 28, .23);
+    }
+
+    .numero-slide {
+      position: absolute;
+      right: clamp(28px, 5vw, 80px);
+      bottom: clamp(80px, 8vw, 120px);
+      z-index: 20;
+      color: var(--amarelo);
+      font-family: Arial, sans-serif;
+      font-size: clamp(12px, 1.2vw, 18px);
+      font-weight: bold;
+      letter-spacing: .08em;
+    }
+
+    .numero-slide span:last-child {
+      color: rgba(255, 255, 255, .45);
+    }
+
+    .controles {
+      position: absolute;
+      right: clamp(28px, 5vw, 80px);
+      bottom: clamp(25px, 3.5vw, 52px);
+      z-index: 30;
+      display: flex;
+      gap: 9px;
+    }
+
+    .controle {
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      border: 1px solid rgba(255, 210, 28, .42);
+      border-radius: 50%;
+      color: var(--branco);
+      cursor: pointer;
+      background: rgba(5, 18, 20, .76);
+      backdrop-filter: blur(10px);
+      transition: color .25s ease, background .25s ease, transform .25s ease;
+    }
+
+    .controle:hover,
+    .controle:focus-visible {
+      color: var(--preto);
+      outline: none;
+      background: var(--amarelo);
+      transform: translateY(-3px);
+    }
+
+    .progresso {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      z-index: 40;
+      height: 4px;
+      background: rgba(255, 255, 255, .12);
+    }
+
+    .progresso-barra {
+      width: 0;
+      height: 100%;
+      background: linear-gradient(90deg, var(--dourado), var(--amarelo-claro));
+      box-shadow: 0 0 18px var(--amarelo);
+      transition: width .65s ease;
+    }
+
+    .dica {
+      position: absolute;
+      bottom: clamp(28px, 4vw, 58px);
+      left: clamp(28px, 5vw, 80px);
+      z-index: 20;
+      color: rgba(255, 255, 255, .48);
+      font-size: 11px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .entrada {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    .pagina.ativa .entrada {
+      animation: entrar .8s cubic-bezier(.22, .8, .2, 1) forwards;
+    }
+
+    .pagina.ativa .entrada:nth-child(2) {
+      animation-delay: .08s;
+    }
+
+    .pagina.ativa .entrada:nth-child(3) {
+      animation-delay: .16s;
+    }
+
+    .pagina.ativa .entrada:nth-child(4) {
+      animation-delay: .24s;
+    }
+
+    @keyframes entrar {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes pulsar {
+      0%, 100% {
+        opacity: .55;
+        transform: scale(.85);
+      }
+      50% {
+        opacity: 1;
+        transform: scale(1.2);
+      }
+    }
+
+    @media (max-width: 850px) {
+      .marca-texto {
+        display: none;
+      }
+
+      .layout-duplo {
+        grid-template-columns: 1fr;
+        gap: 28px;
+      }
+
+      .painel {
+        max-width: 520px;
+      }
+
+      .cards {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin-top: 25px;
+      }
+
+      .card {
+        min-height: auto;
+        padding: 19px;
+      }
+
+      .card .icone {
+        display: inline-grid;
+        width: 38px;
+        height: 38px;
+        margin: 0 12px 0 0;
+        vertical-align: middle;
+        border-radius: 12px;
+      }
+
+      .card h3 {
+        display: inline;
+      }
+
+      .card p {
+        margin-top: 10px;
+      }
+
+      .fluxo {
+        grid-template-columns: repeat(2, 1fr);
+        margin-top: 25px;
+      }
+
+      .etapa::after {
+        display: none;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .pagina {
+        align-items: flex-start;
+        overflow-y: auto;
+        padding:
+          105px
+          24px
+          145px;
+      }
+
+      .capa,
+      .final {
+        align-items: center;
+        justify-content: center;
+        overflow-y: hidden;
+      }
+
+      h1 {
+        font-size: clamp(42px, 13vw, 70px);
+      }
+
+      h2 {
+        font-size: clamp(37px, 12vw, 58px);
+      }
+
+      .subtitulo {
+        font-size: 16px;
+      }
+
+      .status {
+        top: 25px;
+        right: 24px;
+      }
+
+      .numero-slide {
+        right: 24px;
+        bottom: 91px;
+      }
+
+      .controles {
+        right: 24px;
+        bottom: 30px;
+      }
+
+      .dica {
+        display: none;
+      }
+
+      .fluxo {
+        grid-template-columns: 1fr;
+      }
+
+      .etapa {
+        padding: 18px;
+      }
+
+      .painel {
+        padding: 25px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: .01ms !important;
+      }
+
+      #fundoAnimado {
+        opacity: .35;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="apresentacao" aria-label="Apresentação SmartSignage">
+
+    <canvas id="fundoAnimado" aria-hidden="true"></canvas>
+    <div class="grade" aria-hidden="true"></div>
+    <div class="vinheta" aria-hidden="true"></div>
+
+    <div class="marca" aria-label="SmartSignage">
+      <div class="marca-simbolo">
+        <span>+</span>
+      </div>
+
+      <div class="marca-texto">
+        <strong>Smart</strong>
+        Signage
+      </div>
+    </div>
+
+    <div class="status">
+      <span class="status-ponto"></span>
+      Sistema ativo
+    </div>
+
+    <!-- SLIDE 1 -->
+    <section class="pagina capa ativa" aria-roledescription="slide" aria-label="Slide 1">
+      <div class="conteudo">
+        <div class="etiqueta entrada">Experiência digital inteligente</div>
+
+        <h1 class="entrada">
+          Comunicação que
+          <em>se movimenta</em>
+          com você.
+        </h1>
+
+        <p class="subtitulo entrada">
+          Transforme telas, ambientes e pontos de contato em experiências
+          visuais marcantes, dinâmicas e conectadas.
+        </p>
+
+        <div class="linha-amarela entrada"></div>
+      </div>
+    </section>
+
+    <!-- SLIDE 2 -->
+    <section class="pagina" aria-roledescription="slide" aria-label="Slide 2">
+      <div class="conteudo layout-duplo">
+        <div>
+          <div class="etiqueta entrada">Mais do que uma tela</div>
+
+          <h2 class="entrada">
+            Seu conteúdo no
+            <em>momento certo.</em>
+          </h2>
+
+          <p class="texto entrada">
+            O SmartSignage organiza e apresenta informações de forma clara,
+            elegante e envolvente, adaptando-se a diferentes ambientes,
+            formatos e necessidades de comunicação.
+          </p>
+
+          <ul class="lista entrada">
+            <li>Conteúdo visual atualizado e centralizado.</li>
+            <li>Experiência fluida em qualquer tamanho de tela.</li>
+            <li>Comunicação preparada para ambientes corporativos e comerciais.</li>
+          </ul>
+        </div>
+
+        <div class="painel entrada">
+          <div class="numero-grande">360°</div>
+          <p class="numero-legenda">
+            Uma visão completa para apresentar sua marca, seus produtos,
+            serviços e informações com impacto.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 3 -->
+    <section class="pagina" aria-roledescription="slide" aria-label="Slide 3">
+      <div class="conteudo">
+        <div class="etiqueta entrada">Recursos integrados</div>
+
+        <h2 class="entrada">
+          Simples para operar.
+          <em>Forte para comunicar.</em>
+        </h2>
+
+        <div class="cards">
+          <article class="card entrada">
+            <div class="icone">◈</div>
+            <h3>Design responsivo</h3>
+            <p>
+              O layout se adapta a totens verticais, monitores horizontais,
+              tablets e dispositivos móveis.
+            </p>
+          </article>
+
+          <article class="card entrada">
+            <div class="icone">✦</div>
+            <h3>Animações fluidas</h3>
+            <p>
+              Transições suaves e elementos semitransparentes criam movimento
+              sem comprometer a leitura.
+            </p>
+          </article>
+
+          <article class="card entrada">
+            <div class="icone">↗</div>
+            <h3>Experiência contínua</h3>
+            <p>
+              Navegação automática, controles manuais, teclado, gestos e modo
+              de tela cheia em um único arquivo.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 4 -->
+    <section class="pagina" aria-roledescription="slide" aria-label="Slide 4">
+      <div class="conteudo">
+        <div class="etiqueta entrada">Como funciona</div>
+
+        <h2 class="entrada">
+          Do conteúdo à
+          <em>experiência.</em>
+        </h2>
+
+        <p class="texto entrada">
+          Uma jornada visual construída para orientar, informar e gerar
+          conexão com o público.
+        </p>
+
+        <div class="fluxo">
+          <article class="etapa entrada">
+            <div class="etapa-numero">01 — PLANEJE</div>
+            <h3>Defina a mensagem</h3>
+            <p>Organize objetivos, informações e prioridades da apresentação.</p>
+          </article>
+
+          <article class="etapa entrada">
+            <div class="etapa-numero">02 — CRIE</div>
+            <h3>Construa o visual</h3>
+            <p>Combine cores, textos, imagens e movimentos de forma estratégica.</p>
+          </article>
+
+          <article class="etapa entrada">
+            <div class="etapa-numero">03 — PUBLIQUE</div>
+            <h3>Apresente em qualquer tela</h3>
+            <p>Utilize o mesmo conteúdo em diferentes formatos e dispositivos.</p>
+          </article>
+
+          <article class="etapa entrada">
+            <div class="etapa-numero">04 — ENVOLVA</div>
+            <h3>Conecte pessoas</h3>
+            <p>Entregue uma experiência clara, memorável e alinhada à sua marca.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 5 -->
+    <section class="pagina final" aria-roledescription="slide" aria-label="Slide 5">
+      <div class="conteudo">
+        <div class="etiqueta entrada">O próximo passo começa agora</div>
+
+        <h2 class="entrada">
+          Dê mais vida à sua
+          <em>comunicação.</em>
+        </h2>
+
+        <p class="subtitulo entrada">
+          Uma apresentação envolvente transforma informação em percepção,
+          presença e resultado.
+        </p>
+
+        <div class="botao-cta entrada">
+          SmartSignage
+        </div>
+
+        <div class="linha-amarela entrada"></div>
+      </div>
+    </section>
+
+    <div class="dica">
+      Use ← → ou deslize para navegar
+    </div>
+
+    <div class="numero-slide" aria-live="polite">
+      <span id="numeroAtual">01</span>
+      <span>/</span>
+      <span id="totalSlides">05</span>
+    </div>
+
+    <nav class="controles" aria-label="Controles da apresentação">
+      <button
+        class="controle"
+        id="anterior"
+        type="button"
+        aria-label="Slide anterior"
+        title="Slide anterior"
+      >‹</button>
+
+      <button
+        class="controle"
+        id="pausar"
+        type="button"
+        aria-label="Pausar apresentação"
+        title="Pausar apresentação"
+      >Ⅱ</button>
+
+      <button
+        class="controle"
+        id="proximo"
+        type="button"
+        aria-label="Próximo slide"
+        title="Próximo slide"
+      >›</button>
+
+      <button
+        class="controle"
+        id="fullscreen"
+        type="button"
+        aria-label="Tela cheia"
+        title="Tela cheia"
+      >⛶</button>
+    </nav>
+
+    <div class="progresso" aria-hidden="true">
+      <div class="progresso-barra" id="progressoBarra"></div>
+    </div>
+  </main>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const apresentacao = document.querySelector(".apresentacao");
+      const slides = Array.from(document.querySelectorAll(".pagina"));
+      const numeroAtual = document.getElementById("numeroAtual");
+      const totalSlides = document.getElementById("totalSlides");
+      const progressoBarra = document.getElementById("progressoBarra");
+      const btnAnterior = document.getElementById("anterior");
+      const btnProximo = document.getElementById("proximo");
+      const btnPausar = document.getElementById("pausar");
+      const btnFullscreen = document.getElementById("fullscreen");
+
+      let indiceAtual = 0;
+      let autoplayAtivo = true;
+      let intervaloAutoplay = null;
+      let toqueInicialX = 0;
+      let toqueInicialY = 0;
+
+      const intervalo = 8000;
+
+      totalSlides.textContent = String(slides.length).padStart(2, "0");
+
+      function atualizarSlide(indice, direcao = 1) {
+        indice = (indice + slides.length) % slides.length;
+
+        slides.forEach((slide, i) => {
+          slide.classList.remove("ativa", "anterior");
+
+          if (i === indice) {
+            slide.classList.add("ativa");
+          }
+
+          if (
+            (direcao > 0 && i === (indice - 1 + slides.length) % slides.length) ||
+            (direcao < 0 && i === (indice + 1) % slides.length)
+          ) {
+            slide.classList.add("anterior");
+          }
+        });
+
+        indiceAtual = indice;
+
+        numeroAtual.textContent = String(indiceAtual + 1).padStart(2, "0");
+
+        const progresso = ((indiceAtual + 1) / slides.length) * 100;
+        progressoBarra.style.width = `${progresso}%`;
+      }
+
+      function proximoSlide() {
+        atualizarSlide(indiceAtual + 1, 1);
+      }
+
+      function slideAnterior() {
+        atualizarSlide(indiceAtual - 1, -1);
+      }
+
+      function iniciarAutoplay() {
+        window.clearInterval(intervaloAutoplay);
+
+        if (autoplayAtivo) {
+          intervaloAutoplay = window.setInterval(proximoSlide, intervalo);
+        }
+      }
+
+      function alternarAutoplay() {
+        autoplayAtivo = !autoplayAtivo;
+
+        btnPausar.textContent = autoplayAtivo ? "Ⅱ" : "▶";
+        btnPausar.setAttribute(
+          "aria-label",
+          autoplayAtivo
+            ? "Pausar apresentação"
+            : "Continuar apresentação"
+        );
+
+        iniciarAutoplay();
+      }
+
+      async function alternarTelaCheia() {
+        try {
+          if (!document.fullscreenElement) {
+            await document.documentElement.requestFullscreen();
+          } else {
+            await document.exitFullscreen();
+          }
+        } catch (erro) {
+          console.warn("Tela cheia indisponível neste navegador.", erro);
+        }
+      }
+
+      btnAnterior.addEventListener("click", () => {
+        slideAnterior();
+        iniciarAutoplay();
+      });
+
+      btnProximo.addEventListener("click", () => {
+        proximoSlide();
+        iniciarAutoplay();
+      });
+
+      btnPausar.addEventListener("click", alternarAutoplay);
+      btnFullscreen.addEventListener("click", alternarTelaCheia);
+
+      document.addEventListener("keydown", (evento) => {
+        const tecla = evento.key.toLowerCase();
+
+        if (["arrowright", "arrowdown", " "].includes(tecla)) {
+          evento.preventDefault();
+          proximoSlide();
+          iniciarAutoplay();
+        }
+
+        if (["arrowleft", "arrowup"].includes(tecla)) {
+          evento.preventDefault();
+          slideAnterior();
+          iniciarAutoplay();
+        }
+
+        if (tecla === "p") {
+          alternarAutoplay();
+        }
+
+        if (tecla === "f") {
+          alternarTelaCheia();
+        }
+
+        if (tecla === "escape" && document.fullscreenElement) {
+          document.exitFullscreen();
+        }
+      });
+
+      apresentacao.addEventListener(
+        "touchstart",
+        (evento) => {
+          const toque = evento.changedTouches[0];
+          toqueInicialX = toque.screenX;
+          toqueInicialY = toque.screenY;
+        },
+        { passive: true }
+      );
+
+      apresentacao.addEventListener(
+        "touchend",
+        (evento) => {
+          const toque = evento.changedTouches[0];
+          const deslocamentoX = toque.screenX - toqueInicialX;
+          const deslocamentoY = toque.screenY - toqueInicialY;
+
+          if (
+            Math.abs(deslocamentoX) > 50 &&
+            Math.abs(deslocamentoX) > Math.abs(deslocamentoY)
+          ) {
+            if (deslocamentoX < 0) {
+              proximoSlide();
+            } else {
+              slideAnterior();
+            }
+
+            iniciarAutoplay();
+          }
+        },
+        { passive: true }
+      );
+
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) {
+          window.clearInterval(intervaloAutoplay);
+        } else {
+          iniciarAutoplay();
+        }
+      });
+
+      atualizarSlide(0);
+      iniciarAutoplay();
+
+      /*
+       * FUNDO ANIMADO EM CANVAS
+       * Cria partículas, ondas luminosas, linhas e círculos
+       * semitransparentes transcorrendo pela tela.
+       */
+
+      const canvas = document.getElementById("fundoAnimado");
+      const contexto = canvas.getContext("2d");
+      const reducaoMovimento = window.matchMedia(
+        "(prefers-reduced-motion: reduce)"
+      ).matches;
+
+      let largura = 0;
+      let altura = 0;
+      let escala = 1;
+      let tempo = 0;
+      let particulas = [];
+      let ondas = [];
+
+      function ajustarCanvas() {
+        escala = Math.min(window.devicePixelRatio || 1, 2);
+        largura = window.innerWidth;
+        altura = window.innerHeight;
+
+        canvas.width = largura * escala;
+        canvas.height = altura * escala;
+        canvas.style.width = `${largura}px`;
+        canvas.style.height = `${altura}px`;
+
+        contexto.setTransform(escala, 0, 0, escala, 0, 0);
+
+        criarParticulas();
+        criarOndas();
+      }
+
+      function criarParticulas() {
+        const quantidade = Math.max(
+          24,
+          Math.min(85, Math.floor((largura * altura) / 17000))
+        );
+
+        particulas = Array.from({ length: quantidade }, () => ({
+          x: Math.random() * largura,
+          y: Math.random() * altura,
+          raio: Math.random() * 2.4 + .45,
+          velocidadeX: (Math.random() - .5) * .16,
+          velocidadeY: -(Math.random() * .28 + .05),
+          opacidade: Math.random() * .55 + .12,
+          fase: Math.random() * Math.PI * 2,
+          cor: Math.random() > .72 ? "255,210,28" : "255,255,255"
+        }));
+      }
+
+      function criarOndas() {
+        ondas = Array.from({ length: 6 }, (_, indice) => ({
+          x: Math.random() * largura,
+          y: altura * (.08 + Math.random() * .84),
+          raio: 80 + indice * 90,
+          velocidade: .12 + indice * .025,
+          opacidade: .04 + Math.random() * .04,
+          largura: 1 + Math.random() * 1.6
+        }));
+      }
+
+      function desenharParticulas() {
+        particulas.forEach((particula) => {
+          if (!reducaoMovimento) {
+            particula.x += particula.velocidadeX;
+            particula.y += particula.velocidadeY;
+
+            if (particula.y < -10) {
+              particula.y = altura + 10;
+              particula.x = Math.random() * largura;
+            }
+
+            if (particula.x < -10) particula.x = largura + 10;
+            if (particula.x > largura + 10) particula.x = -10;
+          }
+
+          const pulsacao =
+            Math.sin(tempo * .0015 + particula.fase) * .22 + .78;
+
+          contexto.beginPath();
+          contexto.arc(
+            particula.x,
+            particula.y,
+            particula.raio * pulsacao,
+            0,
+            Math.PI * 2
+          );
+
+          contexto.fillStyle =
+            `rgba(${particula.cor},${particula.opacidade * pulsacao})`;
+
+          contexto.fill();
+        });
+      }
+
+      function desenharOndas() {
+        ondas.forEach((onda, indice) => {
+          if (!reducaoMovimento) {
+            onda.raio += onda.velocidade;
+
+            if (onda.raio > Math.max(largura, altura) * .8) {
+              onda.raio = 70 + indice * 70;
+              onda.x = Math.random() * largura;
+              onda.y = Math.random() * altura;
+            }
+          }
+
+          contexto.beginPath();
+          contexto.arc(onda.x, onda.y, onda.raio, 0, Math.PI * 2);
+          contexto.strokeStyle = `rgba(255,210,28,${onda.opacidade})`;
+          contexto.lineWidth = onda.largura;
+          contexto.stroke();
+        });
+      }
+
+      function desenharFaixas() {
+        const deslocamento = reducaoMovimento ? 0 : Math.sin(tempo * .00035) * 50;
+
+        contexto.save();
+        contexto.translate(largura * .57 + deslocamento, altura * .5);
+        contexto.rotate(-.24);
+
+        for (let i = 0; i < 4; i++) {
+          const alturaFaixa = 75 + i * 30;
+          const larguraFaixa = largura * 1.2;
+
+          const gradiente = contexto.createLinearGradient(
+            -larguraFaixa / 2,
+            0,
+            larguraFaixa / 2,
+            0
+          );
+
+          gradiente.addColorStop(0, "rgba(255,210,28,0)");
+          gradiente.addColorStop(.45, `rgba(255,210,28,${.022 + i * .008})`);
+          gradiente.addColorStop(.65, `rgba(255,255,255,${.018 + i * .006})`);
+          gradiente.addColorStop(1, "rgba(255,210,28,0)");
+
+          contexto.fillStyle = gradiente;
+          contexto.fillRect(
+            -larguraFaixa / 2,
+            -alturaFaixa / 2 + i * 120,
+            larguraFaixa,
+            alturaFaixa
+          );
+        }
+
+        contexto.restore();
+      }
+
+      function desenharLinhasFlutuantes() {
+        const movimento = reducaoMovimento ? 0 : tempo * .000025;
+
+        contexto.save();
+        contexto.lineWidth = 1;
+
+        for (let i = 0; i < 5; i++) {
+          const deslocamento = Math.sin(movimento + i) * 40;
+          const inicioX = largura * (.04 + i * .18) + deslocamento;
+
+          contexto.beginPath();
+          contexto.moveTo(inicioX, altura);
+          contexto.bezierCurveTo(
+            inicioX + 100,
+            altura * .66,
+            inicioX - 180,
+            altura * .36,
+            inicioX + 80,
+            -50
+          );
+
+          contexto.strokeStyle = "rgba(255,210,28,.075)";
+          contexto.stroke();
+        }
+
+        contexto.restore();
+      }
+
+      function animarFundo(momento) {
+        tempo = momento;
+
+        contexto.clearRect(0, 0, largura, altura);
+
+        desenharFaixas();
+        desenharOndas();
+        desenharLinhasFlutuantes();
+        desenharParticulas();
+
+        requestAnimationFrame(animarFundo);
+      }
+
+      window.addEventListener("resize", ajustarCanvas, { passive: true });
+
+      ajustarCanvas();
+      requestAnimationFrame(animarFundo);
+    })();
+  </script>
+</body>
+</html>

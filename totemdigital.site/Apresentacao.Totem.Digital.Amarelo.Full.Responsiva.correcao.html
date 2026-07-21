@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#020708">
+  <title>Apresentação Totem Digital</title>
+
+  <style>
+    :root {
+      --preto: #020708;
+      --fundo: #061113;
+      --fundo-2: #0a1a1c;
+      --amarelo: #ffd21c;
+      --amarelo-claro: #ffe66c;
+      --texto: #f4f7f5;
+      --texto-suave: #aebdbc;
+      --verde: #1fd19a;
+      --borda: rgba(255, 210, 28, .28);
+      --painel: rgba(12, 39, 42, .88);
+      --altura-controles: 116px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--preto);
+      color: var(--texto);
+      font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .apresentacao {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 92% 5%, rgba(255, 210, 28, .16), transparent 25%),
+        radial-gradient(circle at 2% 90%, rgba(31, 209, 154, .1), transparent 30%),
+        linear-gradient(145deg, var(--fundo), var(--preto));
+    }
+
+    .apresentacao::before,
+    .apresentacao::after {
+      content: "";
+      position: absolute;
+      pointer-events: none;
+      border-radius: 50%;
+      z-index: 0;
+    }
+
+    .apresentacao::before {
+      width: 44vw;
+      height: 44vw;
+      top: -28vw;
+      right: -12vw;
+      border: 1px solid rgba(255, 210, 28, .24);
+      box-shadow:
+        0 0 0 35px rgba(255, 210, 28, .045),
+        0 0 0 70px rgba(255, 210, 28, .025);
+    }
+
+    .apresentacao::after {
+      width: 38vw;
+      height: 38vw;
+      bottom: -25vw;
+      left: -14vw;
+      border: 1px solid rgba(31, 209, 154, .2);
+      box-shadow:
+        0 0 0 35px rgba(31, 209, 154, .035),
+        0 0 0 70px rgba(31, 209, 154, .02);
+    }
+
+    /* Cabeçalho separado para impedir sobreposição */
+    .cabecalho {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      min-height: 84px;
+      padding: 18px clamp(24px, 5vw, 80px);
+      pointer-events: none;
+    }
+
+    .marca {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      color: var(--amarelo);
+      font-size: clamp(.95rem, 1.5vw, 1.3rem);
+      font-weight: 700;
+      letter-spacing: -.04em;
+      white-space: nowrap;
+    }
+
+    .marca-texto {
+      padding-left: 14px;
+      border-left: 1px solid var(--borda);
+      color: var(--texto-suave);
+      font-size: clamp(.55rem, .85vw, .72rem);
+      font-weight: 600;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+
+    .numero-slide {
+      flex: 0 0 auto;
+      color: var(--amarelo);
+      font-size: clamp(.75rem, 1.2vw, 1rem);
+      font-weight: 700;
+      letter-spacing: .15em;
+      white-space: nowrap;
+    }
+
+    .icone-totem {
+      position: relative;
+      width: 42px;
+      height: 42px;
+      flex: 0 0 42px;
+      border-radius: 50%;
+      background: radial-gradient(circle, var(--amarelo) 0 23%, transparent 24%);
+      filter: drop-shadow(0 0 8px rgba(255, 210, 28, .55));
+    }
+
+    .icone-totem::before,
+    .icone-totem::after {
+      content: "";
+      position: absolute;
+      border: 4px solid var(--amarelo);
+      border-left-color: transparent;
+      border-radius: 50%;
+      transform: rotate(-45deg);
+    }
+
+    .icone-totem::before {
+      inset: 6px;
+    }
+
+    .icone-totem::after {
+      inset: -2px;
+      border-width: 3px;
+    }
+
+    .icone-totem .onda {
+      position: absolute;
+      inset: 13px;
+      border: 3px solid var(--amarelo);
+      border-left-color: transparent;
+      border-radius: 50%;
+      transform: rotate(-45deg);
+    }
+
+    .slides {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      overflow-y: auto;
+      padding:
+        112px
+        clamp(24px, 7vw, 120px)
+        calc(var(--altura-controles) + 48px);
+      opacity: 0;
+      visibility: hidden;
+      transform: translateX(40px);
+      transition:
+        opacity .45s ease,
+        transform .45s ease,
+        visibility .45s ease;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 210, 28, .45) transparent;
+    }
+
+    .slide.ativa {
+      z-index: 2;
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(0);
+    }
+
+    .slide.anterior {
+      transform: translateX(-40px);
+    }
+
+    .conteudo {
+      position: relative;
+      width: min(1200px, 100%);
+      margin: auto;
+    }
+
+    .etiqueta {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      color: var(--amarelo);
+      font-size: clamp(.62rem, 1.05vw, .84rem);
+      font-weight: 700;
+      letter-spacing: .15em;
+      line-height: 1.3;
+      text-transform: uppercase;
+    }
+
+    .etiqueta::before {
+      content: "";
+      width: 30px;
+      height: 2px;
+      flex: 0 0 30px;
+      background: var(--amarelo);
+      box-shadow: 0 0 10px var(--amarelo);
+    }
+
+    h1,
+    h2 {
+      color: var(--amarelo);
+      letter-spacing: -.055em;
+      line-height: .98;
+      text-shadow: 0 0 22px rgba(255, 210, 28, .18);
+    }
+
+    h1 {
+      max-width: 950px;
+      margin-bottom: 24px;
+      font-size: clamp(2.8rem, 7vw, 7.6rem);
+    }
+
+    h2 {
+      max-width: 950px;
+      margin-bottom: 24px;
+      font-size: clamp(2.1rem, 5vw, 5.1rem);
+    }
+
+    h3 {
+      margin-bottom: 10px;
+      color: var(--amarelo-claro);
+      font-size: clamp(1rem, 1.8vw, 1.4rem);
+    }
+
+    p {
+      color: #d4dddb;
+      line-height: 1.55;
+    }
+
+    .destaque {
+      color: var(--amarelo-claro);
+    }
+
+    .subtitulo {
+      max-width: 760px;
+      color: #d2dcda;
+      font-size: clamp(1rem, 1.8vw, 1.45rem);
+      line-height: 1.55;
+    }
+
+    .linha-decorativa {
+      width: min(430px, 60vw);
+      height: 3px;
+      margin: 26px 0;
+      background: linear-gradient(90deg, var(--amarelo), transparent);
+      box-shadow: 0 0 14px rgba(255, 210, 28, .6);
+    }
+
+    /* Capa organizada em duas áreas, sem posicionamento absoluto */
+    .capa .conteudo {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(150px, 260px);
+      align-items: center;
+      gap: clamp(24px, 6vw, 90px);
+    }
+
+    .capa-texto {
+      min-width: 0;
+    }
+
+    .icone-grande {
+      width: clamp(150px, 20vw, 235px);
+      height: clamp(150px, 20vw, 235px);
+      justify-self: center;
+      opacity: .9;
+      transform: none;
+    }
+
+    .icone-grande::before {
+      inset: 18%;
+      border-width: clamp(7px, 1.3vw, 13px);
+    }
+
+    .icone-grande::after {
+      inset: 2%;
+      border-width: clamp(6px, 1.1vw, 11px);
+    }
+
+    .icone-grande .onda {
+      inset: 32%;
+      border-width: clamp(5px, 1vw, 10px);
+    }
+
+    .abertura {
+      max-width: 1000px;
+      margin-bottom: 22px;
+      padding: clamp(18px, 2vw, 25px);
+      border-left: 4px solid var(--amarelo);
+      border-radius: 0 14px 14px 0;
+      background: rgba(255, 210, 28, .08);
+    }
+
+    .abertura p {
+      color: #f3f5e8;
+      font-size: clamp(1rem, 1.6vw, 1.25rem);
+      line-height: 1.6;
+    }
+
+    .texto {
+      max-width: 950px;
+      margin-bottom: 24px;
+      font-size: clamp(.95rem, 1.5vw, 1.15rem);
+    }
+
+    .grade {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: clamp(14px, 1.8vw, 24px);
+      max-width: 1150px;
+    }
+
+    .card {
+      min-height: 145px;
+      padding: clamp(18px, 2vw, 28px);
+      border: 1px solid rgba(255, 210, 28, .22);
+      border-radius: 15px;
+      background: linear-gradient(145deg, rgba(15, 44, 47, .92), rgba(5, 18, 20, .9));
+      box-shadow: 0 0 35px rgba(255, 210, 28, .09);
+    }
+
+    .card p {
+      font-size: clamp(.84rem, 1.2vw, .98rem);
+    }
+
+    .icone-numero {
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      margin-bottom: 15px;
+      border-radius: 10px;
+      background: rgba(255, 210, 28, .12);
+      color: var(--amarelo);
+      font-size: .85rem;
+      font-weight: 700;
+    }
+
+    .faixa {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-width: 1000px;
+      margin-top: 24px;
+      padding: 18px 22px;
+      border: 1px solid rgba(255, 210, 28, .25);
+      border-radius: 12px;
+      background: rgba(255, 210, 28, .07);
+    }
+
+    .faixa strong {
+      color: var(--amarelo-claro);
+      font-size: clamp(.95rem, 1.4vw, 1.1rem);
+    }
+
+    .faixa span {
+      color: #b9c8c5;
+      font-size: clamp(.8rem, 1.2vw, .95rem);
+    }
+
+    .lista {
+      max-width: 950px;
+    }
+
+    .item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 16px 12px;
+      border-bottom: 1px solid rgba(255, 210, 28, .15);
+    }
+
+    .check {
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      flex: 0 0 28px;
+      margin-top: 2px;
+      border-radius: 50%;
+      background: rgba(31, 209, 154, .15);
+      color: var(--verde);
+      font-weight: 700;
+    }
+
+    .item strong {
+      display: block;
+      margin-bottom: 3px;
+      color: var(--amarelo-claro);
+      font-size: clamp(.95rem, 1.4vw, 1.1rem);
+    }
+
+    .item span {
+      display: block;
+      color: #b9c8c5;
+      font-size: clamp(.8rem, 1.2vw, .95rem);
+      line-height: 1.45;
+    }
+
+    .passos {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: clamp(14px, 1.8vw, 24px);
+      max-width: 1000px;
+      margin-top: 25px;
+    }
+
+    .passo {
+      min-height: 145px;
+      padding: 22px;
+      border: 1px solid rgba(255, 210, 28, .2);
+      border-radius: 14px;
+      background: var(--painel);
+      text-align: center;
+    }
+
+    .passo-numero {
+      display: grid;
+      place-items: center;
+      width: 35px;
+      height: 35px;
+      margin: 0 auto 13px;
+      border-radius: 50%;
+      background: var(--amarelo);
+      color: #11180e;
+      font-weight: 700;
+    }
+
+    .passo strong {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--amarelo-claro);
+      font-size: clamp(.9rem, 1.3vw, 1.05rem);
+    }
+
+    .passo span {
+      color: #aec0bd;
+      font-size: clamp(.76rem, 1.1vw, .9rem);
+    }
+
+    .contato {
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: clamp(15px, 2vw, 25px);
+      max-width: 1100px;
+      margin-top: 22px;
+    }
+
+    .contato-box,
+    .dados {
+      padding: clamp(20px, 2.4vw, 30px);
+      border-radius: 15px;
+    }
+
+    .contato-box {
+      background: linear-gradient(145deg, #9b7000, #d6a20c 58%, #f0c01f);
+      color: #101509;
+    }
+
+    .contato-box h3 {
+      margin-bottom: .75rem;
+      color: #11170b;
+    }
+
+    .contato-box p {
+      color: #20280f;
+      font-size: clamp(.85rem, 1.25vw, 1rem);
+      line-height: 1.6;
+    }
+
+    .dados {
+      border: 1px solid rgba(255, 210, 28, .22);
+      background: rgba(13, 38, 41, .88);
+    }
+
+    .dado {
+      margin-bottom: 13px;
+    }
+
+    .dado:last-child {
+      margin-bottom: 0;
+    }
+
+    .dado label {
+      display: block;
+      margin-bottom: 3px;
+      color: var(--amarelo);
+      font-size: .65rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .dado span,
+    .dado a {
+      color: #d9e3df;
+      font-size: clamp(.82rem, 1.2vw, .98rem);
+      text-decoration: none;
+      overflow-wrap: anywhere;
+    }
+
+    .frase-final {
+      max-width: 1000px;
+      margin-top: 24px;
+      padding: 22px;
+      border: 1px solid rgba(255, 210, 28, .35);
+      border-radius: 15px;
+      background:
+        radial-gradient(circle at center, rgba(255, 210, 28, .17), transparent 60%),
+        linear-gradient(135deg, #102d30, #061315);
+      text-align: center;
+    }
+
+    .frase-final strong {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--amarelo);
+      font-size: clamp(1.1rem, 2vw, 1.45rem);
+    }
+
+    .frase-final span {
+      color: #d4dfdc;
+      font-size: clamp(.8rem, 1.2vw, .95rem);
+    }
+
+    /* Rodapé e controles ficam sempre separados do conteúdo */
+    .rodape {
+      position: absolute;
+      right: clamp(24px, 5vw, 80px);
+      bottom: 68px;
+      left: clamp(24px, 5vw, 80px);
+      z-index: 15;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 15px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 210, 28, .2);
+      color: #7d9492;
+      font-size: clamp(.55rem, .9vw, .75rem);
+      letter-spacing: .08em;
+      line-height: 1.4;
+      text-transform: uppercase;
+    }
+
+    .controles {
+      position: absolute;
+      right: clamp(24px, 5vw, 80px);
+      bottom: 15px;
+      z-index: 20;
+      display: flex;
+      gap: 9px;
+    }
+
+    .controle {
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      border: 1px solid var(--borda);
+      border-radius: 50%;
+      background: rgba(5, 18, 20, .9);
+      color: var(--texto);
+      cursor: pointer;
+      transition: .25s ease;
+    }
+
+    .controle:hover,
+    .controle:focus-visible {
+      border-color: var(--amarelo);
+      color: var(--amarelo);
+      box-shadow: 0 0 18px rgba(255, 210, 28, .35);
+      transform: translateY(-2px);
+      outline: none;
+    }
+
+    .progresso {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      z-index: 30;
+      height: 4px;
+      background: rgba(255, 255, 255, .12);
+    }
+
+    .progresso-barra {
+      width: 0;
+      height: 100%;
+      background: linear-gradient(90deg, #a97600, var(--amarelo));
+      box-shadow: 0 0 12px var(--amarelo);
+      transition: width .4s ease;
+    }
+
+    /* Tablet */
+    @media (max-width: 850px) {
+      :root {
+        --altura-controles: 124px;
+      }
+
+      .cabecalho {
+        min-height: 82px;
+        padding: 16px 28px;
+      }
+
+      .slide {
+        padding:
+          108px
+          28px
+          calc(var(--altura-controles) + 35px);
+      }
+
+      .capa .conteudo {
+        grid-template-columns: minmax(0, 1fr) 150px;
+        gap: 28px;
+      }
+
+      .contato {
+        grid-template-columns: 1fr;
+      }
+
+      .rodape {
+        right: 28px;
+        bottom: 68px;
+        left: 28px;
+      }
+
+      .controles {
+        right: 28px;
+      }
+    }
+
+    /* Celulares: tudo passa a funcionar em fluxo vertical */
+    @media (max-width: 560px) {
+      :root {
+        --altura-controles: 165px;
+      }
+
+      .cabecalho {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 8px 14px;
+        min-height: 92px;
+        padding: 14px 20px;
+      }
+
+      .marca {
+        gap: 8px;
+        font-size: .94rem;
+      }
+
+      .marca-texto {
+        display: none;
+      }
+
+      .icone-totem {
+        width: 36px;
+        height: 36px;
+        flex-basis: 36px;
+      }
+
+      .icone-totem::before {
+        inset: 5px;
+        border-width: 3px;
+      }
+
+      .icone-totem::after {
+        inset: -2px;
+        border-width: 2px;
+      }
+
+      .icone-totem .onda {
+        inset: 11px;
+        border-width: 2px;
+      }
+
+      .numero-slide {
+        font-size: .72rem;
+      }
+
+      .slide {
+        align-items: flex-start;
+        padding:
+          118px
+          20px
+          calc(var(--altura-controles) + 20px);
+      }
+
+      .conteudo {
+        width: 100%;
+      }
+
+      .capa .conteudo {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 20px;
+        margin-top: 4px;
+      }
+
+      .etiqueta {
+        margin-bottom: 14px;
+        font-size: .58rem;
+        letter-spacing: .11em;
+      }
+
+      .etiqueta::before {
+        width: 22px;
+        flex-basis: 22px;
+      }
+
+      h1 {
+        margin-bottom: 16px;
+        font-size: clamp(2.6rem, 13vw, 4rem);
+        line-height: .96;
+      }
+
+      h2 {
+        margin-bottom: 18px;
+        font-size: clamp(2rem, 10vw, 3.3rem);
+        line-height: 1;
+      }
+
+      .subtitulo {
+        font-size: 1.05rem;
+        line-height: 1.5;
+      }
+
+      .linha-decorativa {
+        width: 78%;
+        margin: 20px 0;
+      }
+
+      .icone-grande {
+        align-self: center;
+        width: 145px;
+        height: 145px;
+        margin: 8px auto 0;
+      }
+
+      .grade,
+      .passos {
+        grid-template-columns: 1fr;
+      }
+
+      .grade {
+        gap: 14px;
+      }
+
+      .card {
+        min-height: auto;
+      }
+
+      .passos {
+        gap: 12px;
+      }
+
+      .passo {
+        min-height: auto;
+        padding: 18px;
+      }
+
+      .contato {
+        grid-template-columns: 1fr;
+      }
+
+      .rodape {
+        right: 20px;
+        bottom: 118px;
+        left: 20px;
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 4px;
+        font-size: .52rem;
+      }
+
+      .rodape span:last-child {
+        display: none;
+      }
+
+      .controles {
+        right: 20px;
+        bottom: 48px;
+        left: 20px;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .controle {
+        width: 46px;
+        height: 46px;
+      }
+    }
+
+    @media (max-width: 360px) {
+      .marca {
+        font-size: .82rem;
+      }
+
+      .numero-slide {
+        font-size: .64rem;
+      }
+
+      h1 {
+        font-size: 2.45rem;
+      }
+
+      h2 {
+        font-size: 1.95rem;
+      }
+
+      .controle {
+        width: 42px;
+        height: 42px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="apresentacao" id="apresentacao">
+
+    <header class="cabecalho">
+      <div class="marca">
+        <div class="icone-totem" aria-hidden="true">
+          <div class="onda"></div>
+        </div>
+        <span>Totem Digital</span>
+        <span class="marca-texto">SmartSignage</span>
+      </div>
+
+      <div class="numero-slide">
+        <span id="numeroAtual">01</span>
+        /
+        <span id="totalSlides">05</span>
+      </div>
+    </header>
+
+    <section class="slides">
+
+      <!-- Slide 1 -->
+      <article class="slide ativa capa">
+        <div class="conteudo">
+          <div class="capa-texto">
+            <span class="etiqueta">Comunicação digital inteligente</span>
+
+            <h1>
+              Apresentação<br>
+              <span class="destaque">Totem Digital</span>
+            </h1>
+
+            <div class="linha-decorativa"></div>
+
+            <p class="subtitulo">
+              Comunicação digital inteligente para transformar espaços,
+              informar pessoas e fortalecer marcas.
+            </p>
+          </div>
+
+          <div class="icone-totem icone-grande" aria-hidden="true">
+            <div class="onda"></div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Slide 2 -->
+      <article class="slide">
+        <div class="conteudo">
+          <span class="etiqueta">Visão geral</span>
+
+          <h2>
+            Uma nova forma de
+            <span class="destaque">comunicar.</span>
+          </h2>
+
+          <div class="abertura">
+            <p>
+              O SmartSignage é uma solução de comunicação digital desenvolvida
+              para exibir conteúdos relevantes, atualizados e visualmente
+              atrativos em telas, totens e painéis digitais.
+            </p>
+          </div>
+
+          <p class="texto">
+            Em vez de depender exclusivamente de materiais impressos ou de
+            comunicações estáticas, empresas e instituições podem utilizar uma
+            plataforma centralizada para organizar, atualizar e distribuir
+            informações em diferentes ambientes.
+          </p>
+
+          <div class="grade">
+            <div class="card">
+              <div class="icone-numero">01</div>
+              <h3>Comunicação dinâmica</h3>
+              <p>
+                Conteúdos que podem ser alterados de forma rápida, organizada e
+                alinhada às necessidades de cada ambiente.
+              </p>
+            </div>
+
+            <div class="card">
+              <div class="icone-numero">02</div>
+              <h3>Gestão centralizada</h3>
+              <p>
+                Administração dos conteúdos em um só local, facilitando o
+                controle e a padronização.
+              </p>
+            </div>
+
+            <div class="card">
+              <div class="icone-numero">03</div>
+              <h3>Experiência visual</h3>
+              <p>
+                Mensagens, campanhas e informações com maior impacto visual.
+              </p>
+            </div>
+
+            <div class="card">
+              <div class="icone-numero">04</div>
+              <h3>Escalabilidade</h3>
+              <p>
+                Solução adequada para expansão, com inclusão fácil de novos
+                pontos e telas.
+              </p>
+            </div>
+          </div>
+
+          <div class="faixa">
+            <strong>Mais informação. Mais agilidade. Mais conexão.</strong>
+            <span>
+              O SmartSignage aproxima a organização do público com comunicação
+              clara, atual e acessível.
+            </span>
+          </div>
+        </div>
+      </article>
+
+      <!-- Slide 3 -->
+      <article class="slide">
+        <div class="conteudo">
+          <span class="etiqueta">A solução</span>
+
+          <h2>
+            Totem Digital
+            <span class="destaque">SmartSignage</span>
+          </h2>
+
+          <p class="texto">
+            O Totem funciona como ponto de comunicação, orientação e
+            relacionamento, ideal para ambientes diversos.
+          </p>
+
+          <div class="lista">
+            <div class="item">
+              <div class="check">✓</div>
+              <div>
+                <strong>Informação em tempo real</strong>
+                <span>
+                  Atualize conteúdos conforme campanhas, avisos, horários e
+                  necessidades operacionais.
+                </span>
+              </div>
+            </div>
+
+            <div class="item">
+              <div class="check">✓</div>
+              <div>
+                <strong>Comunicação segmentada</strong>
+                <span>
+                  Diferencie mensagens por local, público ou unidade.
+                </span>
+              </div>
+            </div>
+
+            <div class="item">
+              <div class="check">✓</div>
+              <div>
+                <strong>Fortalecimento da marca</strong>
+                <span>
+                  Mantenha uma identidade visual consistente em todos os pontos.
+                </span>
+              </div>
+            </div>
+
+            <div class="item">
+              <div class="check">✓</div>
+              <div>
+                <strong>Redução de impressos</strong>
+                <span>
+                  Menos cartazes e comunicação física, com uma alternativa mais
+                  sustentável.
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <h2 style="margin-top: 28px;">Como funciona</h2>
+
+          <div class="passos">
+            <div class="passo">
+              <div class="passo-numero">1</div>
+              <strong>Planejamento</strong>
+              <span>Defina ambientes, objetivos e conteúdo.</span>
+            </div>
+
+            <div class="passo">
+              <div class="passo-numero">2</div>
+              <strong>Publicação</strong>
+              <span>Organize e distribua nas telas.</span>
+            </div>
+
+            <div class="passo">
+              <div class="passo-numero">3</div>
+              <strong>Gestão</strong>
+              <span>Atualize e acompanhe a comunicação.</span>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Slide 4 -->
+      <article class="slide">
+        <div class="conteudo">
+          <span class="etiqueta">Aplicações</span>
+
+          <h2>
+            Utilizações do
+            <span class="destaque">SmartSignage</span>
+          </h2>
+
+          <p class="texto">
+            A solução adapta-se a diferentes contextos e objetivos de
+            comunicação.
+          </p>
+
+          <div class="grade">
+            <div class="card">
+              <div class="icone-numero">A</div>
+              <h3>Empresas e escritórios</h3>
+              <p>Comunicados internos, indicadores, avisos e campanhas.</p>
+            </div>
+
+            <div class="card">
+              <div class="icone-numero">B</div>
+              <h3>Varejo e atendimento</h3>
+              <p>Ofertas, lançamentos, produtos e experiências interativas.</p>
+            </div>
+
+            <div class="card">
+              <div class="icone-numero">C</div>
+              <h3>Instituições públicas</h3>
+              <p>Orientações, serviços, horários e avisos públicos.</p>
+            </div>
+
+            <div class="card">
+              <div class="icone-numero">D</div>
+              <h3>Educação e treinamento</h3>
+              <p>Calendários, comunicados, eventos e conteúdos educativos.</p>
+            </div>
+
+            <div class="card">
+              <div class="icone-numero">E</div>
+              <h3>Condomínios</h3>
+              <p>Informações para moradores e visitantes.</p>
+            </div>
+
+            <div class="card">
+              <div class="icone-numero">F</div>
+              <h3>Eventos</h3>
+              <p>Programação, direções e patrocinadores.</p>
+            </div>
+          </div>
+
+          <div class="faixa">
+            <strong>Comunicação personalizada por ambiente</strong>
+            <span>
+              Adapta-se à identidade visual e ao público do seu negócio.
+            </span>
+          </div>
+        </div>
+      </article>
+
+      <!-- Slide 5 -->
+      <article class="slide">
+        <div class="conteudo">
+          <span class="etiqueta">Benefícios e contato</span>
+
+          <h2>
+            Por que optar pelo
+            <span class="destaque">SmartSignage?</span>
+          </h2>
+
+          <div class="lista">
+            <div class="item">
+              <div class="check">✓</div>
+              <div>
+                <strong>Maior agilidade</strong>
+                <span>
+                  Atualize informações rapidamente, sem materiais físicos.
+                </span>
+              </div>
+            </div>
+
+            <div class="item">
+              <div class="check">✓</div>
+              <div>
+                <strong>Padronização</strong>
+                <span>
+                  Mantenha a identidade visual em todos os pontos.
+                </span>
+              </div>
+            </div>
+
+            <div class="item">
+              <div class="check">✓</div>
+              <div>
+                <strong>Mais visibilidade</strong>
+                <span>
+                  Destaque informações importantes com recursos visuais.
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="contato">
+            <div class="contato-box">
+              <h3>Vamos conversar?</h3>
+              <p>
+                A Eyras Sistemas está preparada para oferecer a solução ideal.
+                Entre em contato e conheça o SmartSignage.
+              </p>
+            </div>
+
+            <div class="dados">
+              <div class="dado">
+                <label>Empresa</label>
+                <span>Eyras Sistemas e Soluções</span>
+              </div>
+
+              <div class="dado">
+                <label>Produto</label>
+                <span>Totem Digital SmartSignage</span>
+              </div>
+
+              <div class="dado">
+                <label>E-mail</label>
+                <span>contato@totemdigital.app.br</span>
+              </div>
+
+              <div class="dado">
+                <label>WhatsApp</label>
+                <a href="https://wa.me/5548999034237">
+                  (48) 99903-4237
+                </a>
+              </div>
+
+              <div class="dado">
+                <label>Website</label>
+                <a href="https://totemdigital.app.br">
+                  totemdigital.app.br
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div class="frase-final">
+            <strong>Transforme informação em experiência</strong>
+            <span>
+              Totem Digital — comunicação digital inteligente
+            </span>
+          </div>
+        </div>
+      </article>
+
+    </section>
+
+    <div class="controles">
+      <button
+        id="anterior"
+        class="controle"
+        type="button"
+        aria-label="Slide anterior"
+        title="Slide anterior"
+      >‹</button>
+
+      <button
+        id="pausar"
+        class="controle"
+        type="button"
+        aria-label="Pausar apresentação"
+        title="Pausar apresentação"
+      >Ⅱ</button>
+
+      <button
+        id="proximo"
+        class="controle"
+        type="button"
+        aria-label="Próximo slide"
+        title="Próximo slide"
+      >›</button>
+
+      <button
+        id="fullscreen"
+        class="controle"
+        type="button"
+        aria-label="Tela cheia"
+        title="Tela cheia"
+      >⛶</button>
+    </div>
+
+    <footer class="rodape">
+      <span>SmartSignage · Totem Digital</span>
+      <span>Use as setas do teclado para navegar</span>
+    </footer>
+
+    <div class="progresso">
+      <div class="progresso-barra" id="progressoBarra"></div>
+    </div>
+  </main>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll(".slide"));
+    const apresentacao = document.getElementById("apresentacao");
+    const numeroAtual = document.getElementById("numeroAtual");
+    const totalSlides = document.getElementById("totalSlides");
+    const progressoBarra = document.getElementById("progressoBarra");
+
+    const btnAnterior = document.getElementById("anterior");
+    const btnProximo = document.getElementById("proximo");
+    const btnPausar = document.getElementById("pausar");
+    const btnFullscreen = document.getElementById("fullscreen");
+
+    let slideIndex = 0;
+    let autoplay = true;
+    let intervalID = null;
+
+    const tempoAutoplay = 8000;
+
+    totalSlides.textContent = String(slides.length).padStart(2, "0");
+
+    function atualizarSlide(novoIndice) {
+      slides.forEach((slide) => {
+        slide.classList.remove("ativa", "anterior");
+      });
+
+      const indiceAnterior =
+        (novoIndice - 1 + slides.length) % slides.length;
+
+      slideIndex = (novoIndice + slides.length) % slides.length;
+
+      slides[slideIndex].classList.add("ativa");
+      slides[indiceAnterior].classList.add("anterior");
+
+      numeroAtual.textContent =
+        String(slideIndex + 1).padStart(2, "0");
+
+      progressoBarra.style.width =
+        `${((slideIndex + 1) / slides.length) * 100}%`;
+
+      slides[slideIndex].scrollTop = 0;
+    }
+
+    function proximoSlide() {
+      atualizarSlide(slideIndex + 1);
+    }
+
+    function slideAnterior() {
+      atualizarSlide(slideIndex - 1);
+    }
+
+    function iniciarAutoplay() {
+      clearInterval(intervalID);
+
+      if (autoplay) {
+        intervalID = setInterval(proximoSlide, tempoAutoplay);
+      }
+    }
+
+    function alternarPausa() {
+      autoplay = !autoplay;
+
+      btnPausar.textContent = autoplay ? "Ⅱ" : "▶";
+      btnPausar.setAttribute(
+        "aria-label",
+        autoplay
+          ? "Pausar apresentação"
+          : "Continuar apresentação"
+      );
+
+      iniciarAutoplay();
+    }
+
+    async function alternarFullscreen() {
+      try {
+        if (!document.fullscreenElement) {
+          await apresentacao.requestFullscreen();
+        } else {
+          await document.exitFullscreen();
+        }
+      } catch (erro) {
+        console.warn("Não foi possível ativar a tela cheia.", erro);
+      }
+    }
+
+    btnAnterior.addEventListener("click", () => {
+      slideAnterior();
+      iniciarAutoplay();
+    });
+
+    btnProximo.addEventListener("click", () => {
+      proximoSlide();
+      iniciarAutoplay();
+    });
+
+    btnPausar.addEventListener("click", alternarPausa);
+    btnFullscreen.addEventListener("click", alternarFullscreen);
+
+    document.addEventListener("keydown", (evento) => {
+      if (
+        evento.key === "ArrowRight" ||
+        evento.key === " " ||
+        evento.key === "PageDown"
+      ) {
+        evento.preventDefault();
+        proximoSlide();
+        iniciarAutoplay();
+      }
+
+      if (
+        evento.key === "ArrowLeft" ||
+        evento.key === "PageUp"
+      ) {
+        evento.preventDefault();
+        slideAnterior();
+        iniciarAutoplay();
+      }
+
+      if (evento.key.toLowerCase() === "p") {
+        alternarPausa();
+      }
+
+      if (evento.key.toLowerCase() === "f") {
+        alternarFullscreen();
+      }
+
+      if (
+        evento.key === "Escape" &&
+        document.fullscreenElement
+      ) {
+        document.exitFullscreen();
+      }
+    });
+
+    let toqueInicialX = 0;
+    let toqueInicialY = 0;
+
+    apresentacao.addEventListener("touchstart", (evento) => {
+      const toque = evento.changedTouches[0];
+
+      toqueInicialX = toque.screenX;
+      toqueInicialY = toque.screenY;
+    }, { passive: true });
+
+    apresentacao.addEventListener("touchend", (evento) => {
+      const toque = evento.changedTouches[0];
+
+      const deltaX = toque.screenX - toqueInicialX;
+      const deltaY = toque.screenY - toqueInicialY;
+
+      if (
+        Math.abs(deltaX) > 55 &&
+        Math.abs(deltaX) > Math.abs(deltaY)
+      ) {
+        if (deltaX < 0) {
+          proximoSlide();
+        } else {
+          slideAnterior();
+        }
+
+        iniciarAutoplay();
+      }
+    }, { passive: true });
+
+    atualizarSlide(0);
+    iniciarAutoplay();
+  </script>
+</body>
+</html>
