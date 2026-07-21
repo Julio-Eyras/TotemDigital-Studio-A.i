@@ -35,7 +35,7 @@ class PlayerConfigLoader(private val context: Context) {
         return PlayerConfig(
             serverUrl = "http://217.216.91.135:8080",
             uin = "T1000",
-            deviceId = "T1000 - Exterminator",
+            deviceId = "T1000-Exterminator",
             acceptImagesInPlaylist = true,
             allowPlaybackAudio = false,
             fallbackPropagandasPerVinheta = 3,

@@ -45,7 +45,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:lineSpacingExtra="2dp"
-                android:text="Escolha a orientação. A área abaixo gira como preview. Use ▲▼ no controle para rolar. «Aplicar e iniciar» fica sempre aqui."
+                android:text="Escolha a orientação. A área abaixo gira como preview. Use ▲▼ no controle para rolar. Ações ficam sempre nesta barra."
                 android:textColor="#C5CAE9"
                 android:textSize="12sp"/>
 
@@ -83,21 +83,56 @@
                 android:id="@+id/btnStartWithoutSave"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
+                android:layout_marginStart="8dp"
                 android:layout_weight="1"
                 android:text="Iniciar sem salvar"/>
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/textStatus"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:ellipsize="end"
-            android:maxLines="4"
-            android:text="Status..."
-            android:textColor="#FFFFFF"
-            android:textSize="11sp"/>
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnTestHeartbeat"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Testar conectividade"/>
+
+            <Button
+                android:id="@+id/btnTestDispatch"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="Playlist"/>
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btnRegisterActivation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Vincular código ao hardware"/>
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="140dp"
+            android:layout_marginTop="8dp"
+            android:fillViewport="true"
+            android:scrollbars="vertical">
+
+            <TextView
+                android:id="@+id/textStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Status..."
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:textIsSelectable="true"/>
+        </ScrollView>
     </LinearLayout>
 
     <br.com.smartchannel.playerad.ui.ConfigContentHost
@@ -506,41 +541,6 @@
             android:textSize="12sp"
             android:fontFamily="monospace"
             android:text="(carregar...)"/>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="18dp">
-
-            <Button
-                android:id="@+id/btnRegisterActivation"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Vincular código ao hardware"/>
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/btnTestHeartbeat"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Teste heartbeat"/>
-
-            <Button
-                android:id="@+id/btnTestDispatch"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="12dp"
-                android:text="DispatchPlan"/>
-        </LinearLayout>
 
         <TextView
             android:layout_width="match_parent"

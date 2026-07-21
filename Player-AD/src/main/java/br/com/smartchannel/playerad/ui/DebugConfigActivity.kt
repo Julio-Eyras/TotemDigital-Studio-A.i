@@ -202,7 +202,7 @@ class DebugConfigActivity : AppCompatActivity() {
 
             markSetupComplete()
             if (!heartbeatOk) {
-                appendStatus("\nAviso: heartbeat não testado; o player tentará ligar ao servidor ao iniciar.")
+                appendStatus("\nAviso: conectividade não testada; o player tentará ligar ao servidor ao iniciar.")
             }
 
             if (onboarding) {
@@ -672,7 +672,7 @@ class DebugConfigActivity : AppCompatActivity() {
             return
         }
 
-        setStatus("Testando heartbeat...")
+        setStatus("Testando conectividade...")
         lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) {
                 try {
@@ -687,9 +687,9 @@ class DebugConfigActivity : AppCompatActivity() {
             result.onSuccess { token ->
                 lastHeartbeatToken = token
                 heartbeatOk = true
-                appendStatus("✔ Heartbeat OK")
+                appendStatus("✔ Conectividade OK")
                 appendStatus("token (parcial): ${token.take(10)}...")
-                PlayerAdLogger.i("DEBUG_UI", "Teste heartbeat OK (ecrã debug)")
+                PlayerAdLogger.i("DEBUG_UI", "Teste conectividade OK (ecrã debug)")
                 setHeartbeatAndDispatchState(heartbeatOk = true, dispatchOk = dispatchOk)
                 refreshOfflineState()
                 refreshOperationalLog()
@@ -698,8 +698,8 @@ class DebugConfigActivity : AppCompatActivity() {
                 dispatchOk = false
                 lastHeartbeatToken = null
                 lastDispatchPlan = null
-                setStatus("✖ Heartbeat falhou: ${err.message ?: err.toString()}")
-                PlayerAdLogger.e("DEBUG_UI", "Teste heartbeat falhou (ecrã debug)", err)
+                setStatus("✖ Conectividade falhou: ${err.message ?: err.toString()}")
+                PlayerAdLogger.e("DEBUG_UI", "Teste conectividade falhou (ecrã debug)", err)
                 setHeartbeatAndDispatchState(heartbeatOk = false, dispatchOk = false)
                 suggestBasedOnError(err)
                 refreshOfflineState()
@@ -715,7 +715,7 @@ class DebugConfigActivity : AppCompatActivity() {
             return
         }
 
-        setStatus("Buscando DispatchPlan...")
+        setStatus("Buscando Playlist...")
         lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) {
                 try {
@@ -743,17 +743,17 @@ class DebugConfigActivity : AppCompatActivity() {
                 heartbeatOk = true
 
                 val planSummary = summarizeDispatch(json)
-                setStatus("✔ DispatchPlan OK\n\n$planSummary")
+                setStatus("✔ Playlist OK\n\n$planSummary")
                 PlayerAdLogger.logDispatchPlanDetailFromJson("teste_debug", json, savedJsonPath)
-                PlayerAdLogger.i("DEBUG_UI", "Teste DispatchPlan OK (ecrã debug)")
+                PlayerAdLogger.i("DEBUG_UI", "Teste Playlist OK (ecrã debug)")
                 setHeartbeatAndDispatchState(heartbeatOk = heartbeatOk, dispatchOk = dispatchOk)
                 refreshOfflineState()
                 refreshOperationalLog()
             }.onFailure { err ->
                 dispatchOk = false
                 lastDispatchPlan = null
-                setStatus("✖ DispatchPlan falhou: ${err.message ?: err.toString()}")
-                PlayerAdLogger.e("DEBUG_UI", "Teste DispatchPlan falhou (ecrã debug)", err)
+                setStatus("✖ Playlist falhou: ${err.message ?: err.toString()}")
+                PlayerAdLogger.e("DEBUG_UI", "Teste Playlist falhou (ecrã debug)", err)
                 suggestBasedOnError(err)
                 setHeartbeatAndDispatchState(heartbeatOk = heartbeatOk, dispatchOk = false)
                 refreshOfflineState()
@@ -764,25 +764,86 @@ class DebugConfigActivity : AppCompatActivity() {
 
     private fun summarizeDispatch(json: JSONObject): String {
         val planObj = json.optJSONObject("plan")
-        val playlistName = planObj?.optString("playlistName", "DispatchPlan").orEmpty()
-        val playlistId = planObj?.optLong("playlistId", 0L) ?: 0L
-        val campaignId = planObj?.optLong("campaignId", 0L) ?: 0L
-        val itemsArray: JSONArray = planObj?.optJSONArray("mediaItems") ?: JSONArray()
+            ?: json.optJSONObject("data")?.optJSONObject("plan")
+        val playlistName = if (planObj == null) {
+            "Playlist"
+        } else {
+            planObj.optString("playlistName", "")
+                .ifBlank { planObj.optString("playlist_name", "") }
+                .ifBlank { "Playlist" }
+        }
+        val playlistId = planObj?.let { plan ->
+            val id = plan.optLong("playlistId", 0L)
+            if (id > 0L) id else plan.optLong("playlist_id", 0L)
+        } ?: 0L
+        val campaignId = planObj?.let { plan ->
+            val id = plan.optLong("campaignId", 0L)
+            if (id > 0L) id else plan.optLong("campaign_id", 0L)
+        } ?: 0L
+        val itemsArray: JSONArray = planObj?.optJSONArray("mediaItems")
+            ?: planObj?.optJSONArray("media_items")
+            ?: JSONArray()
 
         var videos = 0
         var images = 0
+        val mediaLines = mutableListOf<String>()
         for (i in 0 until itemsArray.length()) {
             val obj = itemsArray.optJSONObject(i) ?: continue
-            val mediaType = obj.optString("mediaType", "")
+            val mediaType = firstNonBlankDispatchField(obj, "mediaType", "media_type", "mimeType", "mime_type")
             val isImage = mediaType.lowercase().contains("image")
             if (isImage) images++ else videos++
+
+            val mediaId = firstPositiveLongDispatchField(obj, "mediaId", "media_id") ?: continue
+            val name = firstNonBlankDispatchField(
+                obj,
+                "mediaName",
+                "media_name",
+                "title",
+                "name",
+                "fileName",
+                "file_name",
+            ).ifBlank {
+                val url = firstNonBlankDispatchField(obj, "url", "file_path", "filePath", "src")
+                url.substringAfterLast('/').substringBefore('?').ifBlank { "(sem nome)" }
+            }
+            val tempo = firstPositiveLongDispatchField(
+                obj,
+                "duration",
+                "display_seconds",
+                "displaySeconds",
+            )
+            val tempoLabel = tempo?.toString() ?: "-"
+            mediaLines += "$mediaId:$name, #$tempoLabel"
         }
 
         return buildString {
             append("- playlist: $playlistName (id=$playlistId)")
             append("\n- campaignId: $campaignId")
             append("\n- itens: ${itemsArray.length()} (vídeos=$videos, imagens=$images)")
+            if (mediaLines.isNotEmpty()) {
+                append("\n- mídias:")
+                mediaLines.forEach { line -> append("\n  $line") }
+            }
         }
+    }
+
+    private fun firstNonBlankDispatchField(obj: JSONObject, vararg keys: String): String {
+        for (key in keys) {
+            val v = obj.optString(key, "").trim()
+            if (v.isNotBlank()) return v
+        }
+        return ""
+    }
+
+    private fun firstPositiveLongDispatchField(obj: JSONObject, vararg keys: String): Long? {
+        for (key in keys) {
+            if (!obj.has(key) || obj.isNull(key)) continue
+            val asLong = obj.optLong(key, 0L)
+            if (asLong > 0L) return asLong
+            val asString = obj.optString(key, "").trim().toLongOrNull()
+            if (asString != null && asString > 0L) return asString
+        }
+        return null
     }
 
     private fun suggestBasedOnError(err: Throwable) {
