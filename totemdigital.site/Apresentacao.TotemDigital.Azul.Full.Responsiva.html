@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#061525" />
+  <title>Apresentação Totem Digital</title>
+
+  <style>
+    :root {
+      --fundo: #061525;
+      --fundo-2: #0a2945;
+      --azul: #0878d1;
+      --azul-claro: #159ce5;
+      --ciano: #20c8ed;
+      --branco: #f5faff;
+      --texto-secundario: #9db4c8;
+      --borda: rgba(32, 200, 237, 0.35);
+      --painel: rgba(8, 45, 76, 0.72);
+      --sombra: 0 0 35px rgba(0, 174, 255, 0.16);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--fundo);
+      color: var(--branco);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    body {
+      position: relative;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .apresentacao {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 82% 18%, rgba(32, 200, 237, 0.17), transparent 26%),
+        radial-gradient(circle at 12% 86%, rgba(8, 120, 209, 0.16), transparent 32%),
+        linear-gradient(135deg, var(--fundo), var(--fundo-2));
+    }
+
+    .apresentacao::before,
+    .apresentacao::after {
+      content: "";
+      position: absolute;
+      pointer-events: none;
+      border-radius: 50%;
+      filter: blur(2px);
+    }
+
+    .apresentacao::before {
+      width: 42vw;
+      height: 42vw;
+      top: -25vw;
+      right: -12vw;
+      border: 1px solid rgba(32, 200, 237, 0.22);
+      box-shadow:
+        0 0 0 35px rgba(32, 200, 237, 0.04),
+        0 0 0 70px rgba(32, 200, 237, 0.025);
+    }
+
+    .apresentacao::after {
+      width: 30vw;
+      height: 30vw;
+      bottom: -21vw;
+      left: -12vw;
+      border: 1px solid rgba(8, 120, 209, 0.3);
+      box-shadow:
+        0 0 0 30px rgba(8, 120, 209, 0.04),
+        0 0 0 60px rgba(8, 120, 209, 0.025);
+    }
+
+    .slides {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: clamp(42px, 7vw, 120px);
+      opacity: 0;
+      visibility: hidden;
+      transform: translateX(45px) scale(0.98);
+      transition:
+        opacity 0.55s ease,
+        transform 0.55s ease,
+        visibility 0.55s ease;
+    }
+
+    .slide.ativa {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(0) scale(1);
+      z-index: 2;
+    }
+
+    .slide.anterior {
+      transform: translateX(-45px) scale(0.98);
+    }
+
+    .marca {
+      position: absolute;
+      top: clamp(22px, 4vw, 56px);
+      left: clamp(30px, 5vw, 80px);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      z-index: 5;
+    }
+
+    .marca img {
+      width: clamp(105px, 13vw, 210px);
+      max-height: 58px;
+      object-fit: contain;
+      object-position: left center;
+      filter: drop-shadow(0 0 10px rgba(32, 200, 237, 0.25));
+    }
+
+    .marca-texto {
+      padding-left: 14px;
+      border-left: 1px solid var(--borda);
+      color: var(--texto-secundario);
+      font-size: clamp(9px, 1vw, 14px);
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .numero-slide {
+      position: absolute;
+      top: clamp(25px, 4vw, 58px);
+      right: clamp(30px, 5vw, 80px);
+      color: var(--ciano);
+      font-size: clamp(12px, 1.2vw, 18px);
+      font-weight: bold;
+      letter-spacing: 0.15em;
+    }
+
+    .conteudo {
+      position: relative;
+      z-index: 1;
+      max-width: 1180px;
+    }
+
+    .etiqueta {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      color: var(--ciano);
+      font-size: clamp(11px, 1.1vw, 17px);
+      font-weight: bold;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    .etiqueta::before {
+      content: "";
+      width: 34px;
+      height: 2px;
+      background: var(--ciano);
+      box-shadow: 0 0 10px var(--ciano);
+    }
+
+    h1 {
+      max-width: 1050px;
+      margin-bottom: 25px;
+      font-size: clamp(42px, 7.2vw, 128px);
+      line-height: 0.98;
+      letter-spacing: -0.055em;
+    }
+
+    h2 {
+      max-width: 900px;
+      margin-bottom: 24px;
+      font-size: clamp(34px, 5vw, 84px);
+      line-height: 1;
+      letter-spacing: -0.045em;
+    }
+
+    h3 {
+      margin-bottom: 12px;
+      color: var(--branco);
+      font-size: clamp(20px, 2vw, 32px);
+    }
+
+    .destaque {
+      color: var(--ciano);
+      text-shadow: 0 0 24px rgba(32, 200, 237, 0.35);
+    }
+
+    .subtitulo {
+      max-width: 760px;
+      color: var(--texto-secundario);
+      font-size: clamp(17px, 1.8vw, 29px);
+      line-height: 1.5;
+    }
+
+    .linha-decorativa {
+      width: min(410px, 50vw);
+      height: 3px;
+      margin: 30px 0;
+      background: linear-gradient(90deg, var(--ciano), transparent);
+      box-shadow: 0 0 14px rgba(32, 200, 237, 0.55);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: clamp(16px, 2vw, 32px);
+      max-width: 1250px;
+    }
+
+    .card {
+      min-height: 190px;
+      padding: clamp(22px, 2.5vw, 38px);
+      border: 1px solid var(--borda);
+      border-radius: 18px;
+      background: linear-gradient(
+        145deg,
+        rgba(13, 83, 132, 0.42),
+        rgba(4, 28, 48, 0.6)
+      );
+      box-shadow: var(--sombra);
+      backdrop-filter: blur(8px);
+    }
+
+    .icone {
+      display: grid;
+      place-items: center;
+      width: 52px;
+      height: 52px;
+      margin-bottom: 22px;
+      border: 1px solid rgba(32, 200, 237, 0.65);
+      border-radius: 14px;
+      color: var(--ciano);
+      font-size: 25px;
+      box-shadow: 0 0 18px rgba(32, 200, 237, 0.2);
+    }
+
+    .card p {
+      color: var(--texto-secundario);
+      font-size: clamp(14px, 1.25vw, 19px);
+      line-height: 1.5;
+    }
+
+    .lista {
+      display: grid;
+      gap: 17px;
+      max-width: 850px;
+      list-style: none;
+    }
+
+    .lista li {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      color: var(--texto-secundario);
+      font-size: clamp(17px, 1.65vw, 27px);
+      line-height: 1.35;
+    }
+
+    .lista li::before {
+      content: "✓";
+      display: grid;
+      flex: 0 0 28px;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      margin-top: 2px;
+      border-radius: 50%;
+      background: var(--azul);
+      color: white;
+      font-weight: bold;
+      box-shadow: 0 0 14px rgba(8, 120, 209, 0.7);
+    }
+
+    .fluxo {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      max-width: 1250px;
+    }
+
+    .etapa {
+      flex: 1;
+      min-height: 170px;
+      padding: 25px;
+      border: 1px solid var(--borda);
+      border-radius: 18px;
+      background: var(--painel);
+      text-align: center;
+    }
+
+    .etapa-numero {
+      display: block;
+      margin-bottom: 15px;
+      color: var(--ciano);
+      font-size: clamp(28px, 3vw, 48px);
+      font-weight: bold;
+    }
+
+    .etapa p {
+      color: var(--texto-secundario);
+      font-size: clamp(14px, 1.25vw, 19px);
+      line-height: 1.4;
+    }
+
+    .seta {
+      color: var(--ciano);
+      font-size: 30px;
+    }
+
+    .rodape {
+      position: absolute;
+      right: clamp(30px, 5vw, 80px);
+      bottom: clamp(24px, 4vw, 55px);
+      left: clamp(30px, 5vw, 80px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 5;
+      color: var(--texto-secundario);
+      font-size: clamp(10px, 1vw, 14px);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .progresso {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.12);
+      z-index: 10;
+    }
+
+    .progresso-barra {
+      width: 0;
+      height: 100%;
+      background: linear-gradient(90deg, var(--azul), var(--ciano));
+      box-shadow: 0 0 12px var(--ciano);
+      transition: width 0.4s ease;
+    }
+
+    .controles {
+      position: absolute;
+      right: clamp(30px, 5vw, 80px);
+      bottom: clamp(62px, 8vw, 100px);
+      display: flex;
+      gap: 9px;
+      z-index: 20;
+    }
+
+    .controle {
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      border: 1px solid var(--borda);
+      border-radius: 50%;
+      background: rgba(4, 25, 43, 0.72);
+      color: var(--branco);
+      cursor: pointer;
+      transition: 0.25s ease;
+    }
+
+    .controle:hover {
+      border-color: var(--ciano);
+      color: var(--ciano);
+      box-shadow: 0 0 18px rgba(32, 200, 237, 0.35);
+      transform: translateY(-2px);
+    }
+
+    .capa {
+      justify-content: center;
+    }
+
+    .capa .conteudo {
+      max-width: 1250px;
+    }
+
+    .capa .subtitulo {
+      max-width: 650px;
+    }
+
+    .encerramento {
+      text-align: center;
+      align-items: center;
+    }
+
+    .encerramento .conteudo {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .encerramento .linha-decorativa {
+      background: linear-gradient(90deg, transparent, var(--ciano), transparent);
+    }
+
+    @media (max-width: 800px) {
+      .slide {
+        padding: 90px 28px 105px;
+      }
+
+      .marca {
+        left: 28px;
+      }
+
+      .numero-slide {
+        right: 28px;
+      }
+
+      .marca-texto {
+        display: none;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+        max-height: 62vh;
+        overflow-y: auto;
+        padding-right: 4px;
+      }
+
+      .card {
+        min-height: auto;
+      }
+
+      .fluxo {
+        flex-direction: column;
+        align-items: stretch;
+        max-height: 64vh;
+        overflow-y: auto;
+      }
+
+      .seta {
+        align-self: center;
+        transform: rotate(90deg);
+      }
+
+      .rodape {
+        left: 28px;
+        right: 28px;
+      }
+
+      .rodape span:first-child {
+        display: none;
+      }
+    }
+
+    @media (max-height: 650px) {
+      .slide {
+        padding-top: 75px;
+        padding-bottom: 80px;
+      }
+
+      h1 {
+        font-size: clamp(38px, 6vw, 80px);
+      }
+
+      h2 {
+        font-size: clamp(32px, 4.5vw, 64px);
+      }
+
+      .linha-decorativa {
+        margin: 18px 0;
+      }
+
+      .card {
+        padding: 20px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="apresentacao" id="apresentacao">
+
+    <div class="marca">
+      <img
+        src="logos-icons/Icon-logo-Azul.png"
+        alt="Totem Digital"
+        onerror="this.style.display='none';"
+      />
+      <span class="marca-texto">Soluções Digitais</span>
+    </div>
+
+    <div class="numero-slide">
+      <span id="numeroAtual">01</span> / <span id="totalSlides">06</span>
+    </div>
+
+    <section class="slides">
+
+      <!-- Slide 1 -->
+      <article class="slide ativa capa">
+        <div class="conteudo">
+          <span class="etiqueta">Apresentação institucional</span>
+          <h1>
+            Comunicação<br />
+            <span class="destaque">mais inteligente.</span>
+          </h1>
+
+          <div class="linha-decorativa"></div>
+
+          <p class="subtitulo">
+            Totens digitais para transformar ambientes, apresentar informações
+            e criar experiências modernas, interativas e eficientes.
+          </p>
+        </div>
+      </article>
+
+      <!-- Slide 2 -->
+      <article class="slide">
+        <div class="conteudo">
+          <span class="etiqueta">O conceito</span>
+          <h2>
+            Uma nova forma de
+            <span class="destaque">se comunicar.</span>
+          </h2>
+
+          <p class="subtitulo">
+            O Totem Digital combina tecnologia, design e conteúdo para
+            entregar informações de forma clara, atrativa e dinâmica.
+          </p>
+        </div>
+      </article>
+
+      <!-- Slide 3 -->
+      <article class="slide">
+        <div class="conteudo">
+          <span class="etiqueta">Principais recursos</span>
+          <h2>Feito para simplificar.</h2>
+
+          <div class="grid">
+            <div class="card">
+              <div class="icone">▣</div>
+              <h3>Conteúdo dinâmico</h3>
+              <p>
+                Atualize mensagens, campanhas, avisos e informações com
+                agilidade.
+              </p>
+            </div>
+
+            <div class="card">
+              <div class="icone">⌁</div>
+              <h3>Experiência interativa</h3>
+              <p>
+                Crie uma jornada mais envolvente para clientes, visitantes
+                e colaboradores.
+              </p>
+            </div>
+
+            <div class="card">
+              <div class="icone">◉</div>
+              <h3>Visual impactante</h3>
+              <p>
+                Valorize sua comunicação com uma apresentação moderna,
+                elegante e profissional.
+              </p>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Slide 4 -->
+      <article class="slide">
+        <div class="conteudo">
+          <span class="etiqueta">Como funciona</span>
+          <h2>Da informação à experiência.</h2>
+
+          <div class="fluxo">
+            <div class="etapa">
+              <span class="etapa-numero">01</span>
+              <h3>Planeje</h3>
+              <p>Defina o conteúdo e os objetivos da comunicação.</p>
+            </div>
+
+            <span class="seta">›</span>
+
+            <div class="etapa">
+              <span class="etapa-numero">02</span>
+              <h3>Publique</h3>
+              <p>Organize as telas e disponibilize as informações.</p>
+            </div>
+
+            <span class="seta">›</span>
+
+            <div class="etapa">
+              <span class="etapa-numero">03</span>
+              <h3>Conecte</h3>
+              <p>Entregue uma experiência relevante ao seu público.</p>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Slide 5 -->
+      <article class="slide">
+        <div class="conteudo">
+          <span class="etiqueta">Benefícios</span>
+          <h2>
+            Tecnologia que gera
+            <span class="destaque">resultados.</span>
+          </h2>
+
+          <ul class="lista">
+            <li>Redução de materiais impressos e custos operacionais.</li>
+            <li>Comunicação rápida, centralizada e fácil de atualizar.</li>
+            <li>Maior autonomia para clientes e visitantes.</li>
+            <li>Valorização da marca e do ambiente.</li>
+            <li>Experiência mais moderna e memorável.</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- Slide 6 -->
+      <article class="slide encerramento">
+        <div class="conteudo">
+          <span class="etiqueta">Totem Digital</span>
+          <h2>
+            O futuro da comunicação
+            <span class="destaque">já começou.</span>
+          </h2>
+
+          <div class="linha-decorativa"></div>
+
+          <p class="subtitulo">
+            Informação acessível, experiências inteligentes e uma presença
+            digital marcante.
+          </p>
+        </div>
+      </article>
+
+    </section>
+
+    <div class="controles">
+      <button class="controle" id="anterior" aria-label="Slide anterior">‹</button>
+      <button class="controle" id="pausar" aria-label="Pausar apresentação">Ⅱ</button>
+      <button class="controle" id="proximo" aria-label="Próximo slide">›</button>
+      <button class="controle" id="fullscreen" aria-label="Ativar tela cheia">⛶</button>
+    </div>
+
+    <footer class="rodape">
+      <span>SmartSignage · Totem Digital</span>
+      <span>Use as setas do teclado para navegar</span>
+    </footer>
+
+    <div class="progresso">
+      <div class="progresso-barra" id="progressoBarra"></div>
+    </div>
+  </main>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll(".slide"));
+    const apresentacao = document.getElementById("apresentacao");
+    const numeroAtual = document.getElementById("numeroAtual");
+    const totalSlides = document.getElementById("totalSlides");
+    const progressoBarra = document.getElementById("progressoBarra");
+
+    const botaoAnterior = document.getElementById("anterior");
+    const botaoProximo = document.getElementById("proximo");
+    const botaoPausar = document.getElementById("pausar");
+    const botaoFullscreen = document.getElementById("fullscreen");
+
+    let slideAtual = 0;
+    let autoplayAtivo = true;
+    let intervalo;
+
+    const tempoAutoplay = 8000;
+
+    totalSlides.textContent = String(slides.length).padStart(2, "0");
+
+    function atualizarSlide(novoIndice) {
+      slides[slideAtual].classList.remove("ativa", "anterior");
+
+      slideAtual = (novoIndice + slides.length) % slides.length;
+
+      slides.forEach((slide, indice) => {
+        slide.classList.remove("ativa", "anterior");
+
+        if (indice === slideAtual) {
+          slide.classList.add("ativa");
+        }
+
+        if (
+          indice === (slideAtual - 1 + slides.length) % slides.length
+        ) {
+          slide.classList.add("anterior");
+        }
+      });
+
+      numeroAtual.textContent = String(slideAtual + 1).padStart(2, "0");
+
+      const progresso = ((slideAtual + 1) / slides.length) * 100;
+      progressoBarra.style.width = `${progresso}%`;
+    }
+
+    function proximoSlide() {
+      atualizarSlide(slideAtual + 1);
+    }
+
+    function slideAnterior() {
+      atualizarSlide(slideAtual - 1);
+    }
+
+    function iniciarAutoplay() {
+      clearInterval(intervalo);
+
+      if (autoplayAtivo) {
+        intervalo = setInterval(proximoSlide, tempoAutoplay);
+      }
+    }
+
+    function alternarPausa() {
+      autoplayAtivo = !autoplayAtivo;
+      botaoPausar.textContent = autoplayAtivo ? "Ⅱ" : "▶";
+      botaoPausar.setAttribute(
+        "aria-label",
+        autoplayAtivo
+          ? "Pausar apresentação"
+          : "Continuar apresentação"
+      );
+      iniciarAutoplay();
+    }
+
+    async function ativarFullscreen() {
+      try {
+        if (!document.fullscreenElement) {
+          await apresentacao.requestFullscreen();
+        } else {
+          await document.exitFullscreen();
+        }
+      } catch (erro) {
+        console.warn("Não foi possível ativar o modo fullscreen.", erro);
+      }
+    }
+
+    botaoAnterior.addEventListener("click", () => {
+      slideAnterior();
+      iniciarAutoplay();
+    });
+
+    botaoProximo.addEventListener("click", () => {
+      proximoSlide();
+      iniciarAutoplay();
+    });
+
+    botaoPausar.addEventListener("click", alternarPausa);
+    botaoFullscreen.addEventListener("click", ativarFullscreen);
+
+    document.addEventListener("keydown", (evento) => {
+      if (evento.key === "ArrowRight" || evento.key === " ") {
+        evento.preventDefault();
+        proximoSlide();
+        iniciarAutoplay();
+      }
+
+      if (evento.key === "ArrowLeft") {
+        evento.preventDefault();
+        slideAnterior();
+        iniciarAutoplay();
+      }
+
+      if (evento.key.toLowerCase() === "p") {
+        alternarPausa();
+      }
+
+      if (evento.key.toLowerCase() === "f") {
+        ativarFullscreen();
+      }
+
+      if (evento.key === "Escape" && document.fullscreenElement) {
+        document.exitFullscreen();
+      }
+    });
+
+    let toqueInicial = 0;
+
+    apresentacao.addEventListener(
+      "touchstart",
+      (evento) => {
+        toqueInicial = evento.changedTouches[0].screenX;
+      },
+      { passive: true }
+    );
+
+    apresentacao.addEventListener(
+      "touchend",
+      (evento) => {
+        const toqueFinal = evento.changedTouches[0].screenX;
+        const distancia = toqueFinal - toqueInicial;
+
+        if (Math.abs(distancia) > 50) {
+          if (distancia < 0) {
+            proximoSlide();
+          } else {
+            slideAnterior();
+          }
+
+          iniciarAutoplay();
+        }
+      },
+      { passive: true }
+    );
+
+    atualizarSlide(0);
+    iniciarAutoplay();
+  </script>
+</body>
+</html>
