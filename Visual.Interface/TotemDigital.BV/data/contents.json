@@ -1,0 +1,24 @@
+[
+  {
+    "id": "welcome",
+    "type": "text",
+    "title": "Bem-vindo Ã  TotemDigital",
+    "body": "ConteÃºdo dinÃ¢mico para SmartSignage.",
+    "duration": 8,
+    "priority": 1,
+    "active": true,
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "updatedAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "promotion",
+    "type": "text",
+    "title": "Sua mensagem aqui",
+    "body": "Este conteÃºdo pode ser atualizado pela API.",
+    "duration": 8,
+    "priority": 2,
+    "active": true,
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "updatedAt": "2026-01-01T00:00:00.000Z"
+  }
+]

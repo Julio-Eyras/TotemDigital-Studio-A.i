@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#061E26">
+  <title>TotemDigital BV</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="signage-shell">
+    <header class="brand-header">
+      <div class="brand">
+        <div class="brand-icon">TD</div>
+
+        <div>
+          <h1>totemdigital</h1>
+          <p>SmartSignage Platform</p>
+        </div>
+      </div>
+
+      <div class="connection">
+        <span id="connection-dot" class="connection-dot offline"></span>
+        <span id="connection-status">Conectando</span>
+      </div>
+    </header>
+
+    <section id="content-stage" class="content-stage">
+      <div class="loading">
+        <div class="spinner"></div>
+        <p>Carregando conteÃºdo...</p>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <span id="content-counter">0 / 0</span>
+      <span id="last-update">Aguardando atualizaÃ§Ã£o</span>
+    </footer>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
