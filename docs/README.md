@@ -4,6 +4,14 @@
 
 ---
 
+## Continuidade de produto (handoff multi-IA)
+
+| Documento | Descrição |
+|-----------|-----------|
+| [**HANDOFF-CONTINUIDADE-PRODUTO-2026-07-21.md**](./HANDOFF-CONTINUIDADE-PRODUTO-2026-07-21.md) | **Exportar / partilhar com outras IAs:** estado da branch, Amarelo Petróleo, Visual.Interface/BV, decisões pendentes, estimativas e prompt modelo. |
+
+---
+
 ## Diagramas (PNG)
 
 | Ficheiro | Descrição |
