@@ -11,7 +11,7 @@ Os diagramas Mermaid abaixo são **resumos conceituais**. Para **todas** as tabe
 - [SmartSignage-ER-sistema-completo.png](../diagrams/SmartSignage-ER-sistema-completo.png) — visão por ficheiros `part` (panorama).
 - [SmartSignage-ER-sistema-completo-detalhe.png](../diagrams/SmartSignage-ER-sistema-completo-detalhe.png) — um nó por tabela + parte das FKs (melhor com **zoom**).
 
-**TotemDigital no PNG:** concentre o zoom nos nós que fecham o ciclo operacional deste documento — por exemplo `totems`, `totem_playlists`, `totem_playlist_items`, `campaigns`, `campaign_totems`, `medias`, `playlists`, `playlist_items`, `locals`, `publishers`. Regeneração dos PNG: ver índice em [`docs/README.md`](../README.md) (secção “Diagramas (PNG)”).
+**TotemDigital no PNG:** concentre o zoom nos nós que fecham o ciclo operacional deste documento — por exemplo `totems`, `totem_playlists`, `totem_playlist_items`, `campaigns`, `campaign_totems`, `medias`, `playlists`, `playlist_items`, `locals`, `publishers`, e para admin remota/`Player-AD`: `remote_commands`, `remote_screenshots`, `device_tokens`. Regeneração dos PNG: ver índice em [`docs/README.md`](../README.md) (secção “Diagramas (PNG)”).
 
 ---
 
@@ -52,7 +52,10 @@ erDiagram
   TOTEMS {
     int id PK
     string uin
+    string device_id
     int local_id FK
+    jsonb player_settings
+    jsonb now_playing
   }
   CAMPAIGNS {
     int id PK
@@ -64,6 +67,18 @@ erDiagram
     int totem_id FK
     boolean is_active
   }
+  REMOTE_COMMANDS {
+    int command_id PK
+    int totem_id FK
+    string command_type
+  }
+  DEVICE_TOKENS {
+    int device_token_id PK
+    int totem_id FK
+    string token
+  }
+  TOTEMS ||--o{ REMOTE_COMMANDS : controlo
+  TOTEMS ||--o{ DEVICE_TOKENS : sessao
 ```
 
 ### 1.2 TotemDigital — monousuário (mesmo núcleo, menos superfície operacional)
@@ -85,7 +100,10 @@ erDiagram
   TOTEMS {
     int id PK
     string uin
+    string device_id
     int local_id FK
+    jsonb player_settings
+    jsonb now_playing
   }
   TOTEM_PLAYLISTS {
     int id PK
@@ -100,9 +118,15 @@ erDiagram
     int campaign_id FK
     int totem_id FK
   }
+  REMOTE_COMMANDS {
+    int command_id PK
+    int totem_id FK
+    string command_type
+  }
+  TOTEMS ||--o{ REMOTE_COMMANDS : screenshot_config
 ```
 
-**Leitura:** o diagrama “depois” **não** apaga tabelas Pro; resume o que o operador TotemDigital toca com frequência. Campanhas e mix continuam a ser a **origem rica de candidatos** quando usadas.
+**Leitura:** o diagrama “depois” **não** apaga tabelas Pro; resume o que o operador TotemDigital toca com frequência. Campanhas e mix continuam a ser a **origem rica de candidatos** quando usadas. Controlo remoto (`remote_commands` / `remote_screenshots`) e espelho `player_settings` suportam o Player-AD sem alterar o núcleo de dispatch.
 
 ---
 
@@ -178,8 +202,11 @@ sequenceDiagram
 |------|------|
 | Fallback servidor | `backend/src/services/dispatcherTotemService.ts` — campanha → `getFallbackPlanFromTotemPlaylist` (ou equivalente) — **sem** `getDefaultAdPlan` por disco |
 | Playlist por totem | Tabelas `totem_playlists`, `totem_playlist_items` |
+| Config / now playing | `totems.player_settings`, `totems.now_playing` (`part3`) |
+| Controlo remoto | `remote_commands`, `remote_screenshots`, `device_tokens` (`part6`) |
 | Seed monousuário | `database/carga-inicial-v6.sql` |
 | Modo compacto | Flags `TOTEMDIGITAL_COMPACT` (backend) e `REACT_APP_TOTEMDIGITAL_COMPACT` (frontend) para esconder superfície Pro e manter operação essencial |
+| Modelo ER mídias/totens | [`MODELO_ER_MIDIAS_SMART_TV_E_TOTENS.md`](../MODELO_ER_MIDIAS_SMART_TV_E_TOTENS.md) |
 
 ---
 

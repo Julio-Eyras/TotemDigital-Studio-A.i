@@ -10,7 +10,7 @@
 | Campo | Valor padrão |
 |-------|----------------|
 | `uin` | `T1000` |
-| `deviceId` (nome no painel) | `T1000 - Exterminator` |
+| `deviceId` (nome no painel) | `T1000-Exterminator` |
 | `allowPlaybackAudio` | `false` (áudio desligado) |
 | `batimentoCardiaco` | `15` (segundos) |
 | `displayRotation` | `0` (retrato) |
@@ -256,7 +256,7 @@ Histórico no **servidor** (quem / quando / versão pedida) pode ficar só em `r
 - [x] Config remota `config` / orientação na UI
 - [x] Now playing no heartbeat + chip no painel
 - [x] OTA stubs (`update` / `ota_rollback`) + pasta `files/OTA` (máx. 3 backups)
-- [ ] Defaults kit: `uin=T1000`, `deviceId=T1000 - Exterminator`, áudio off, heartbeat 15s
+- [ ] Defaults kit: `uin=T1000`, `deviceId=T1000-Exterminator`, áudio off, heartbeat 15s
 
 ---
 
@@ -268,4 +268,4 @@ Histórico no **servidor** (quem / quando / versão pedida) pode ficar só em `r
 
 ---
 
-*Última actualização: 2026-07-19 — defaults instalação T1000 / Exterminator / áudio off / heartbeat 15s; bake v3 + Player-AD; validar em hardware.*
+*Última actualização: 2026-07-21 — defaults instalação T1000 / T1000-Exterminator / áudio off / heartbeat 15s; bake v3 + Player-AD; modelo ER docs regenerados.*

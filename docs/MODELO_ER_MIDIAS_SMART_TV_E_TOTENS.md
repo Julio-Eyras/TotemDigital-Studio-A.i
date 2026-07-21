@@ -15,11 +15,12 @@ Alinha-se ao **schema definitivo** em `database/smartchannel-db-v2-refactored-pa
 |----------|-----------|
 | **Subscriber** | Dono das mídias, playlists e campanhas (`subscribers`). |
 | **Publisher** | Dono dos locais, totens e da infraestrutura física (`publishers`). |
-| **Totem** | Ponto de exibição / dispositivo de campo (`totems` → `locals` → `publishers`). |
+| **Totem** | Ponto de exibição / dispositivo de campo (`totems` → `locals` → `publishers`); espelho Player-AD em `player_settings` / `now_playing`. |
 | **Smart TV** | Ecrã ligado a um totem (relação **1 totem : N TVs**, `smart_tvs.totem_id`). |
 | **Mídia** | Ficheiro metadado em `medias` (sempre com `subscriber_id`). |
 | **Campanha** | Agrega conteúdo e regras de exibição (`campaigns`). |
 | **Playlist** | Lista ordenada de mídias (`playlists` + `playlist_items`). |
+| **Controlo remoto** | Comandos e capturas (`remote_commands`, `remote_screenshots`) + sessão do player (`device_tokens`). |
 
 O **dispatcher** escolhe campanhas elegíveis para um `totemId` e gera um **plano de reprodução** (JSON) consumido pelos players (`GET /api/player/dispatch`, ver `backend/src/routes/player.ts`).
 
@@ -49,8 +50,22 @@ Definidas em `database/smartchannel-db-v2-refactored-part5-tables-relationships.
 ### 2.3 Infraestrutura do publisher
 
 - **`locals`**: locais físicos do publisher.
-- **`totems`**: dispositivos por `local_id`.
-- **`smart_tvs`**: TVs associadas ao totem (`totem_id`), plataforma (`webOS`, `Tizen`, `Android TV`, …).
+- **`totems`**: dispositivos por `local_id`. Colunas relevantes para Player-AD / admin remota:
+  - `uin`, `device_id`, `status`, `last_heartbeat`
+  - **`player_settings`** (JSONB): espelho da config do player (`displayRotation`, `screenOrientation`, `kioskMode`, …)
+  - **`now_playing`** (JSONB): última mídia em reprodução reportada no heartbeat
+- **`smart_tvs`**: TVs associadas ao totem (`totem_id`), plataforma (`webOS`, `Tizen`, `Android TV`, …), `orientation` landscape/portrait.
+
+### 2.4 Controlo remoto, autenticação do player e OTA
+
+Definidas sobretudo em `database/smartchannel-db-v2-refactored-part6-tables-other.sql`:
+
+| Tabela | Função |
+|--------|--------|
+| **`remote_commands`** | Fila de comandos ao totem (`screenshot`, `apply_player_config`, `refresh_dispatch`, `purge_cache`, `restart_app`, …). |
+| **`remote_screenshots`** | Capturas de ecrã enviadas pelo Player-AD (`file_path`, opcionalmente ligadas a `command_id`). |
+| **`device_tokens`** | Token HMAC / sessão do player (`uin`, `device_id`, `platform`, heartbeat). |
+| **`ota_updates`** / **`totem_update_status`** | Pacotes OTA e estado de atualização por totem. |
 
 ---
 
@@ -76,10 +91,43 @@ erDiagram
   publishers ||--o{ locals : possui
   locals ||--o{ totems : possui
   totems ||--o{ smart_tvs : controla
+  totems ||--o{ totem_playlists : consolidada
+  totems ||--o{ remote_commands : recebe
+  totems ||--o{ remote_screenshots : captura
+  totems ||--o{ device_tokens : autentica
+  remote_commands ||--o{ remote_screenshots : gera
+  users ||--o{ remote_commands : cria
 
   campaigns }o--|| subscribers : pertence
   medias }o--|| subscribers : pertence
   playlists }o--|| subscribers : pertence
+
+  totems {
+    int totem_id PK
+    string uin
+    string device_id
+    jsonb player_settings
+    jsonb now_playing
+  }
+  remote_commands {
+    int command_id PK
+    int totem_id FK
+    string command_type
+    string status
+  }
+  remote_screenshots {
+    int id PK
+    int totem_id FK
+    int command_id FK
+    string file_path
+  }
+  device_tokens {
+    int device_token_id PK
+    int totem_id FK
+    string uin
+    string device_id
+    string token
+  }
 ```
 
 ---
@@ -118,26 +166,44 @@ Isto garante que campanhas com **só mídias diretas** ou **playlist + extras** 
 
 ---
 
-## 7. Leituras relacionadas
+## 7. Player-AD: orientação, config remota e screenshot
+
+Alinhado ao plano em [`PLANO-TOTEM-ORIENTACAO-CONFIG-REMOTA-SCREENSHOT.md`](./PLANO-TOTEM-ORIENTACAO-CONFIG-REMOTA-SCREENSHOT.md) e ao schema `totems` / `remote_*`:
+
+| Fluxo | Tabelas / campos |
+|-------|------------------|
+| Montagem do painel no player | Config local do app + espelho em `totems.player_settings` (`displayRotation` / `screenOrientation`) |
+| Comando remoto (config, sync, captura) | `remote_commands` (`apply_player_config`, `screenshot`, `refresh_dispatch`, …) |
+| Preview no painel web | `remote_screenshots` (ficheiro no storage do servidor) |
+| Presença / token | `device_tokens` + `totems.last_heartbeat` / `now_playing` |
+
+Defaults de kit de instalação (exemplo): `uin=T1000`, `deviceId=T1000-Exterminator` — ver `install-pendrive/config/exemplo-player-config.json`.
+
+---
+
+## 8. Leituras relacionadas
 
 | Documento | Tema |
 |-----------|------|
 | [`duas-formas-propaganda-chegar-ao-totem.md`](./duas-formas-propaganda-chegar-ao-totem.md) | Elegibilidade campanha ↔ totem |
 | [`cadastro-atrelar-campanha-totem.md`](./cadastro-atrelar-campanha-totem.md) | UI: abas Publicadores / Totens |
 | [`analise-dispatcher-midias-vazias-e-duplicados.md`](./analise-dispatcher-midias-vazias-e-duplicados.md) | Mix e listas vazias |
+| [`PLANO-TOTEM-ORIENTACAO-CONFIG-REMOTA-SCREENSHOT.md`](./PLANO-TOTEM-ORIENTACAO-CONFIG-REMOTA-SCREENSHOT.md) | Orientação, admin remota, screenshot |
+| [`platform/06-totemdigital-monousuario-er-e-fluxo.md`](./platform/06-totemdigital-monousuario-er-e-fluxo.md) | ER Pro vs TotemDigital monousuário |
 | [`INTEGRACAO_SCHEMA_PRINCIPAL.md`](./INTEGRACAO_SCHEMA_PRINCIPAL.md) | Política schema sem migrations paliativas |
 | [`README_INSTALACAO_SERVIDOR.md`](./README_INSTALACAO_SERVIDOR.md) | Instalação |
 | [`PORTAS_E_SERVICOS_EXCLUSIVOS.md`](./PORTAS_E_SERVICOS_EXCLUSIVOS.md) | Portas e serviços |
 
 ---
 
-## 8. Evolução e validação (v6)
+## 9. Evolução e validação (v6)
 
 - **Seeds / dados demo:** `database/carga-inicial-v6.sql`
 - **Validação pós-instalação:** `node database/validate-v6.js` (requer `pg`; pode usar `NODE_PATH` apontando para `backend/node_modules`)
+- **Regenerar PNG ER:** `python scripts/generate-er-system-png.py --detalhe` (requer Graphviz `dot`)
 
 Desenvolvimento: apenas árvore principal (`backend/`, `frontend/`, `database/`, `scripts/`). Cópias paralelas `ssp-clean` e `client_v2` foram removidas do repositório.
 
 ---
 
-**Última revisão:** abril de 2026.
+**Última revisão:** julho de 2026.

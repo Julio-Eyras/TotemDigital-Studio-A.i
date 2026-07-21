@@ -19,7 +19,7 @@ Regenerar: `python3 scripts/generate-er-system-png.py` ou com detalhe: `python3 
 
 | Documento | Descrição |
 |-----------|-----------|
-| [**MODELO_ER_MIDIAS_SMART_TV_E_TOTENS.md**](./MODELO_ER_MIDIAS_SMART_TV_E_TOTENS.md) | **Modelo ER** atual: `medias`, `campaigns`, `campaign_medias`, `campaign_playlists`, `totems`, `smart_tvs`, dispatch consolidado. |
+| [**MODELO_ER_MIDIAS_SMART_TV_E_TOTENS.md**](./MODELO_ER_MIDIAS_SMART_TV_E_TOTENS.md) | **Modelo ER** atual: `medias`, `campaigns`, `totems` (`player_settings`/`now_playing`), `remote_commands`/`remote_screenshots`, `device_tokens`, dispatch consolidado. |
 | [**duas-formas-propaganda-chegar-ao-totem.md**](./duas-formas-propaganda-chegar-ao-totem.md) | Elegibilidade campanha ↔ totem (contrato/plano vs `campaign_totems`). |
 | [**cadastro-atrelar-campanha-totem.md**](./cadastro-atrelar-campanha-totem.md) | UI: abas Publicadores e Totens. |
 | [**analise-dispatcher-midias-vazias-e-duplicados.md**](./analise-dispatcher-midias-vazias-e-duplicados.md) | Mix, listas vazias e duplicados. |
