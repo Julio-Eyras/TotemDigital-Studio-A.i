@@ -241,7 +241,7 @@ export function SortableList({
         <List sx={{ p: 0 }}>
           {items.map((item) => (
             <SortableItem
-              key={`${item.id}-${item.preview?.previewKey ?? ''}`}
+              key={item.id}
               id={item.id}
               label={item.label}
               secondary={item.secondary}
