@@ -1,8 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { Box } from '@mui/material';
 import {
   mediaLibraryPreviewSx,
-  mediaPortraitHoverVideoSx,
   type MediaDeliveryPreviewFields,
 } from '../../hooks/useMediaRotationTransform';
 
@@ -22,49 +21,37 @@ export function mediaPortraitListThumbFrameSx(widthPx = 52) {
 
 export type MediaPortraitThumbProps = {
   src?: string;
-  videoSrc?: string;
   media?: MediaDeliveryPreviewFields & {
     media_type?: string;
     width?: number;
     height?: number;
   };
   width?: number;
+  /** Clique no thumb (ex.: abrir dialog de visualização). */
+  onClick?: () => void;
+  title?: string;
 };
 
-/** Mini preview 9:16: thumbnail estático; vídeo só no hover (sem remontar a lista). */
-export function MediaPortraitThumb({ src, videoSrc, media, width = 52 }: MediaPortraitThumbProps) {
-  const frameSx = { ...mediaPortraitListThumbFrameSx(width), mr: 1.5 };
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [hovering, setHovering] = useState(false);
+/** Mini preview 9:16 estático (thumbnail fixo). */
+export function MediaPortraitThumb({
+  src,
+  media,
+  width = 52,
+  onClick,
+  title,
+}: MediaPortraitThumbProps) {
+  const frameSx = {
+    ...mediaPortraitListThumbFrameSx(width),
+    mr: 1.5,
+    ...(onClick
+      ? {
+          cursor: 'pointer',
+          '&:hover': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 1 },
+        }
+      : {}),
+  };
 
-  const canHoverVideo =
-    Boolean(videoSrc) && /^video$/i.test(String(media?.media_type || ''));
-
-  useEffect(() => {
-    const el = videoRef.current;
-    if (!el || !canHoverVideo) return;
-
-    if (hovering) {
-      try {
-        el.currentTime = 0;
-      } catch {
-        /* noop */
-      }
-      void el.play().catch(() => {
-        /* autoplay bloqueado — mantém frame */
-      });
-      return;
-    }
-
-    el.pause();
-    try {
-      el.currentTime = 0;
-    } catch {
-      /* noop */
-    }
-  }, [hovering, canHoverVideo, videoSrc]);
-
-  if (!src && !canHoverVideo) {
+  if (!src) {
     return (
       <Box
         sx={{
@@ -73,6 +60,9 @@ export function MediaPortraitThumb({ src, videoSrc, media, width = 52 }: MediaPo
           border: '1px solid',
           borderColor: 'divider',
         }}
+        onClick={onClick}
+        title={title}
+        role={onClick ? 'button' : undefined}
       />
     );
   }
@@ -80,41 +70,23 @@ export function MediaPortraitThumb({ src, videoSrc, media, width = 52 }: MediaPo
   return (
     <Box
       sx={frameSx}
-      onMouseEnter={() => setHovering(true)}
-      onMouseLeave={() => setHovering(false)}
+      onClick={(e) => {
+        if (!onClick) return;
+        e.stopPropagation();
+        onClick();
+      }}
+      title={title}
+      role={onClick ? 'button' : undefined}
     >
-      {src ? (
-        <Box
-          component="img"
-          src={src}
-          alt=""
-          sx={{
-            ...mediaLibraryPreviewSx(0, media, {
-              previewUrl: src,
-              previewSource: 'thumbnail',
-            }),
-            opacity: hovering && canHoverVideo ? 0 : 1,
-            transition: 'opacity 120ms ease',
-          }}
-        />
-      ) : null}
-
-      {canHoverVideo ? (
-        <Box
-          component="video"
-          ref={videoRef}
-          src={videoSrc}
-          muted
-          loop
-          playsInline
-          preload="metadata"
-          sx={{
-            ...mediaPortraitHoverVideoSx(0, media),
-            opacity: hovering ? 1 : 0,
-            transition: 'opacity 120ms ease',
-          }}
-        />
-      ) : null}
+      <Box
+        component="img"
+        src={src}
+        alt=""
+        sx={mediaLibraryPreviewSx(0, media, {
+          previewUrl: src,
+          previewSource: 'thumbnail',
+        })}
+      />
     </Box>
   );
 }

@@ -31,7 +31,6 @@ import { MediaPortraitThumb, type MediaPortraitThumbProps } from '../Media/Media
 export type SortableListPreview = {
   mediaId: number;
   thumbSrc?: string;
-  videoSrc?: string;
   media?: MediaPortraitThumbProps['media'];
   previewKey?: string;
 };
@@ -47,6 +46,7 @@ interface SortableItemProps {
   active?: boolean;
   onDelete?: (id: string | number) => void;
   onToggleActive?: (id: string | number) => void;
+  onThumbClick?: (id: string | number) => void;
 }
 
 function SortableItem({
@@ -59,6 +59,7 @@ function SortableItem({
   active = true,
   onDelete,
   onToggleActive,
+  onThumbClick,
 }: SortableItemProps) {
   const {
     attributes,
@@ -147,11 +148,20 @@ function SortableItem({
         {preview ? (
           <MediaPortraitThumb
             src={preview.thumbSrc}
-            videoSrc={preview.videoSrc}
             media={preview.media}
+            onClick={onThumbClick ? () => onThumbClick(id) : undefined}
+            title="Clique para visualizar"
           />
         ) : (
-          thumbnail ?? (thumbnailSrc ? <MediaPortraitThumb src={thumbnailSrc} /> : null)
+          thumbnail ?? (
+            thumbnailSrc ? (
+              <MediaPortraitThumb
+                src={thumbnailSrc}
+                onClick={onThumbClick ? () => onThumbClick(id) : undefined}
+                title="Clique para visualizar"
+              />
+            ) : null
+          )
         )}
         <ListItemText
           primary={label}
@@ -182,6 +192,7 @@ interface SortableListProps {
   onReorder: (newOrder: Array<string | number>) => void;
   onDelete?: (id: string | number) => void;
   onToggleActive?: (id: string | number) => void;
+  onThumbClick?: (id: string | number) => void;
   emptyMessage?: string;
 }
 
@@ -190,6 +201,7 @@ export function SortableList({
   onReorder, 
   onDelete,
   onToggleActive,
+  onThumbClick,
   emptyMessage = 'Nenhum item para exibir'
 }: SortableListProps) {
   const sensors = useSensors(
@@ -251,6 +263,7 @@ export function SortableList({
               active={item.active !== false}
               onDelete={onDelete}
               onToggleActive={onToggleActive}
+              onThumbClick={onThumbClick}
             />
           ))}
         </List>

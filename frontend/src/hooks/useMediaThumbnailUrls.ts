@@ -30,18 +30,11 @@ export function useMediaThumbnailUrls(
     if (ids.length === 0) return;
 
     (async () => {
+      let loaded = 0;
       for (const id of ids) {
         try {
-          const regenKey = `media-thumb-regen-v3:${id}`;
-          const shouldRegen = typeof sessionStorage !== 'undefined' && !sessionStorage.getItem(regenKey);
-          const blob = await mediaApi.getThumbnailBlob(id, { regenerate: shouldRegen });
-          if (shouldRegen) {
-            try {
-              sessionStorage.setItem(regenKey, '1');
-            } catch {
-              /* noop */
-            }
-          }
+          // Lista: nunca regenerar automaticamente (evita piscar). Regenerar só via invalidateThumbnail.
+          const blob = await mediaApi.getThumbnailBlob(id);
           const objectUrl = URL.createObjectURL(blob);
           if (cancelled) {
             try {
@@ -52,10 +45,13 @@ export function useMediaThumbnailUrls(
             continue;
           }
           thumbObjectUrlsRef.current.set(id, objectUrl);
-          setThumbVersion((v) => v + 1);
+          loaded += 1;
         } catch {
           /* mantém fallback */
         }
+      }
+      if (!cancelled && loaded > 0) {
+        setThumbVersion((v) => v + 1);
       }
     })();
 

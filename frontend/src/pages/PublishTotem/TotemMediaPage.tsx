@@ -35,10 +35,10 @@ import TotemEditDialog from '../../components/TotemEditDialog/TotemEditDialog';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { useMediaThumbnailUrls } from '../../hooks/useMediaThumbnailUrls';
-import { useTotemDeliveryVideoPreviewUrls } from '../../hooks/useTotemDeliveryVideoPreviewUrls';
 import { buildMediaThumbnailApiPath } from '../../utils/mediaPreviewUrl';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { buildMediaMetaSummary, buildMediaSizeDurationDateLine } from '../../utils/mediaDisplayMeta';
+import { MediaViewDialog } from '../../components/Media/MediaViewDialog';
 
 const TotemMediaPage: React.FC = () => {
   const { totemId: totemIdParam } = useParams<{ totemId: string }>();
@@ -63,6 +63,7 @@ const TotemMediaPage: React.FC = () => {
     mediaName: string;
   }>({ open: false, mediaId: 0, mediaName: '' });
   const [deletingPermanent, setDeletingPermanent] = useState(false);
+  const [mediaViewTarget, setMediaViewTarget] = useState<MediaItem | null>(null);
 
   const loadAll = useCallback(async () => {
     if (!Number.isFinite(totemId) || totemId < 1) {
@@ -115,23 +116,35 @@ const TotemMediaPage: React.FC = () => {
     return map;
   }, [library]);
 
-  const previewMediaItems = useMemo(
-    () =>
-      items.map((item) => {
-        const lib = libraryById.get(item.media_id);
-        return {
-          media_id: item.media_id,
-          media_type: item.media_type,
-          width: lib?.width,
-          height: lib?.height,
-          size_bytes: (lib as any)?.size_bytes ?? (lib as any)?.fileSizeBytes,
-          fileSizeBytes: (lib as any)?.fileSizeBytes,
-        };
-      }),
+  const openMediaPreview = useCallback(
+    (mediaId: number) => {
+      const item = items.find((i) => i.media_id === mediaId);
+      const lib = libraryById.get(mediaId);
+      if (!item && !lib) return;
+
+      const merged: MediaItem = {
+        ...(lib || ({} as MediaItem)),
+        media_id: mediaId,
+        name: lib?.name || item?.name || `Mídia ${mediaId}`,
+        media_type: lib?.media_type || item?.media_type || 'video',
+        width: lib?.width ?? item?.width ?? undefined,
+        height: lib?.height ?? item?.height ?? undefined,
+        duration_seconds: lib?.duration_seconds ?? item?.duration_seconds ?? undefined,
+        file_path: lib?.file_path || item?.file_path,
+        tags: lib?.tags,
+        approvedByName: lib?.approvedByName || item?.approved_by_name || undefined,
+        approvedAt: lib?.approvedAt || item?.approved_at || undefined,
+        size_bytes: (lib as any)?.size_bytes ?? (lib as any)?.fileSizeBytes ?? item?.file_size_bytes,
+        fileSizeBytes: (lib as any)?.fileSizeBytes ?? item?.file_size_bytes,
+        deliveryRotation: lib?.deliveryRotation,
+        deliveryPreviewRotation: lib?.deliveryPreviewRotation,
+        subscriberId: lib?.subscriberId,
+      } as MediaItem;
+
+      setMediaViewTarget(merged);
+    },
     [items, libraryById],
   );
-  const { getVideoPreviewUrl, videoPreviewVersion, invalidateVideoPreview } =
-    useTotemDeliveryVideoPreviewUrls(previewMediaItems);
 
   const sortableItems = useMemo(
     () =>
@@ -141,7 +154,6 @@ const TotemMediaPage: React.FC = () => {
           media_id: item.media_id,
           thumbnailUrl: buildMediaThumbnailApiPath(item.media_id),
         });
-        const videoSrc = getVideoPreviewUrl(item.media_id);
         const previewMedia = lib
           ? {
               media_type: lib.media_type,
@@ -169,7 +181,7 @@ const TotemMediaPage: React.FC = () => {
               mediaType: item.media_type || lib?.media_type,
               width: item.width ?? lib?.width,
               height: item.height ?? lib?.height,
-              tags: item.tags ?? lib?.tags,
+              tags: lib?.tags,
               durationSeconds,
               omitFileSize: true,
               extras: [
@@ -201,14 +213,13 @@ const TotemMediaPage: React.FC = () => {
           preview: {
             mediaId: item.media_id,
             thumbSrc,
-            videoSrc,
             media: previewMedia,
-            previewKey: `${thumbSrc ?? ''}:${videoSrc ?? ''}:${lib?.width ?? ''}:${lib?.height ?? ''}`,
+            previewKey: `${thumbSrc ?? ''}:${lib?.width ?? ''}:${lib?.height ?? ''}`,
           },
           active: item.is_active !== false && item.media_is_active !== false,
         };
       }),
-    [items, libraryById, getThumbnailSrc, getVideoPreviewUrl, thumbVersion, videoPreviewVersion],
+    [items, libraryById, getThumbnailSrc, thumbVersion],
   );
 
   const libraryAvailable = useMemo(() => {
@@ -379,7 +390,7 @@ const TotemMediaPage: React.FC = () => {
       </Box>
 
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Arraste para reordenar a exibição neste totem. Excluir remove só deste totem.
+        Arraste para reordenar. Clique no thumbnail para visualizar. Excluir remove só deste totem.
       </Typography>
 
       <SortableList
@@ -387,7 +398,22 @@ const TotemMediaPage: React.FC = () => {
         onReorder={(order) => void handleReorder(order)}
         onDelete={(id) => void handleRemove(Number(id))}
         onToggleActive={(id) => void handleToggleMediaActive(Number(id))}
+        onThumbClick={(id) => openMediaPreview(Number(id))}
         emptyMessage="Nenhuma mídia neste totem. Adicione ou envie uma mídia."
+      />
+
+      <MediaViewDialog
+        open={!!mediaViewTarget}
+        media={mediaViewTarget}
+        thumbnailSrc={
+          mediaViewTarget?.media_id
+            ? getThumbnailSrc({
+                media_id: mediaViewTarget.media_id,
+                thumbnailUrl: buildMediaThumbnailApiPath(mediaViewTarget.media_id),
+              })
+            : undefined
+        }
+        onClose={() => setMediaViewTarget(null)}
       />
 
       <Dialog open={pickOpen} onClose={() => setPickOpen(false)} maxWidth="sm" fullWidth>
@@ -435,7 +461,6 @@ const TotemMediaPage: React.FC = () => {
               // add responde na hora; player só atualiza quando o tratamento de entrega terminar.
               for (const mediaId of mediaIds) {
                 await totemDirectMediaApi.add(totemId, mediaId);
-                invalidateVideoPreview(mediaId);
                 await invalidateThumbnail(mediaId);
               }
               await loadAll();
