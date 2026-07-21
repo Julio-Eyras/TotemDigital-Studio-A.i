@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useMemo } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -25,41 +25,34 @@ import {
   Box,
   Paper,
 } from '@mui/material';
-import { DragIndicator, Delete, PowerSettingsNew } from '@mui/icons-material';
-import { MediaPortraitThumb, type MediaPortraitThumbProps } from '../Media/MediaPortraitThumb';
+import { DragIndicator, Delete, PowerSettingsNew, Visibility } from '@mui/icons-material';
+import { MediaPortraitThumb } from '../Media/MediaPortraitThumb';
 
 export type SortableListPreview = {
   mediaId: number;
   thumbSrc?: string;
-  media?: MediaPortraitThumbProps['media'];
-  previewKey?: string;
 };
 
 interface SortableItemProps {
   id: string | number;
   label: string;
   secondary?: React.ReactNode;
-  thumbnail?: React.ReactNode;
-  preview?: SortableListPreview;
-  /** @deprecated prefer preview/thumbnail */
-  thumbnailSrc?: string;
+  thumbSrc?: string;
   active?: boolean;
   onDelete?: (id: string | number) => void;
   onToggleActive?: (id: string | number) => void;
-  onThumbClick?: (id: string | number) => void;
+  onPreview?: (id: string | number) => void;
 }
 
-function SortableItem({
+const SortableItem = memo(function SortableItem({
   id,
   label,
   secondary,
-  thumbnail,
-  preview,
-  thumbnailSrc,
+  thumbSrc,
   active = true,
   onDelete,
   onToggleActive,
-  onThumbClick,
+  onPreview,
 }: SortableItemProps) {
   const {
     attributes,
@@ -76,6 +69,8 @@ function SortableItem({
     opacity: isDragging ? 0.5 : 1,
   };
 
+  const hasActions = Boolean(onDelete || onToggleActive || onPreview);
+
   return (
     <ListItem
       ref={setNodeRef}
@@ -91,8 +86,19 @@ function SortableItem({
         py: 0.5,
       }}
       secondaryAction={
-        (onDelete || onToggleActive) && (
+        hasActions ? (
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            {onPreview && (
+              <IconButton
+                edge="end"
+                size="small"
+                onClick={() => onPreview(id)}
+                title="Visualizar mídia"
+                aria-label="Visualizar mídia"
+              >
+                <Visibility fontSize="small" />
+              </IconButton>
+            )}
             {onToggleActive && (
               <IconButton
                 edge="end"
@@ -110,12 +116,13 @@ function SortableItem({
                 onClick={() => onDelete(id)}
                 color="error"
                 size="small"
+                title="Remover"
               >
                 <Delete />
               </IconButton>
             )}
           </Box>
-        )
+        ) : null
       }
     >
       <IconButton
@@ -141,28 +148,11 @@ function SortableItem({
           flex: 1,
           minWidth: 0,
           py: 1,
-          pr: onDelete || onToggleActive ? 10 : 1,
+          pr: hasActions ? 12 : 1,
           overflow: 'hidden',
         }}
       >
-        {preview ? (
-          <MediaPortraitThumb
-            src={preview.thumbSrc}
-            media={preview.media}
-            onClick={onThumbClick ? () => onThumbClick(id) : undefined}
-            title="Clique para visualizar"
-          />
-        ) : (
-          thumbnail ?? (
-            thumbnailSrc ? (
-              <MediaPortraitThumb
-                src={thumbnailSrc}
-                onClick={onThumbClick ? () => onThumbClick(id) : undefined}
-                title="Clique para visualizar"
-              />
-            ) : null
-          )
-        )}
+        <MediaPortraitThumb src={thumbSrc} />
         <ListItemText
           primary={label}
           secondary={secondary}
@@ -177,14 +167,13 @@ function SortableItem({
       </Box>
     </ListItem>
   );
-}
+});
 
 interface SortableListProps {
   items: Array<{
     id: string | number;
     label: string;
     secondary?: React.ReactNode;
-    thumbnail?: React.ReactNode;
     preview?: SortableListPreview;
     thumbnailSrc?: string;
     active?: boolean;
@@ -192,17 +181,17 @@ interface SortableListProps {
   onReorder: (newOrder: Array<string | number>) => void;
   onDelete?: (id: string | number) => void;
   onToggleActive?: (id: string | number) => void;
-  onThumbClick?: (id: string | number) => void;
+  onPreview?: (id: string | number) => void;
   emptyMessage?: string;
 }
 
-export function SortableList({ 
-  items, 
-  onReorder, 
+export function SortableList({
+  items,
+  onReorder,
   onDelete,
   onToggleActive,
-  onThumbClick,
-  emptyMessage = 'Nenhum item para exibir'
+  onPreview,
+  emptyMessage = 'Nenhum item para exibir',
 }: SortableListProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -217,8 +206,10 @@ export function SortableList({
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
-    })
+    }),
   );
+
+  const itemIds = useMemo(() => items.map((item) => item.id), [items]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -246,10 +237,7 @@ export function SortableList({
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
     >
-      <SortableContext
-        items={items.map((item) => item.id)}
-        strategy={verticalListSortingStrategy}
-      >
+      <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
         <List sx={{ p: 0 }}>
           {items.map((item) => (
             <SortableItem
@@ -257,13 +245,11 @@ export function SortableList({
               id={item.id}
               label={item.label}
               secondary={item.secondary}
-              thumbnail={item.thumbnail}
-              preview={item.preview}
-              thumbnailSrc={item.thumbnailSrc}
+              thumbSrc={item.preview?.thumbSrc ?? item.thumbnailSrc}
               active={item.active !== false}
               onDelete={onDelete}
               onToggleActive={onToggleActive}
-              onThumbClick={onThumbClick}
+              onPreview={onPreview}
             />
           ))}
         </List>

@@ -106,7 +106,7 @@ const TotemMediaPage: React.FC = () => {
       })),
     [items]
   );
-  const { getThumbnailSrc, thumbVersion, invalidateThumbnail } = useMediaThumbnailUrls(thumbMediaItems);
+  const { getThumbnailSrc, urlsById, invalidateThumbnail } = useMediaThumbnailUrls(thumbMediaItems);
 
   const libraryById = useMemo(() => {
     const map = new Map<number, MediaItem>();
@@ -150,76 +150,50 @@ const TotemMediaPage: React.FC = () => {
     () =>
       items.map((item) => {
         const lib = libraryById.get(item.media_id);
-        const thumbSrc = getThumbnailSrc({
-          media_id: item.media_id,
-          thumbnailUrl: buildMediaThumbnailApiPath(item.media_id),
+        const thumbSrc = urlsById[item.media_id];
+        const sizeBytes =
+          item.file_size_bytes ?? (lib as any)?.size_bytes ?? (lib as any)?.fileSizeBytes;
+        const durationSeconds = item.duration_seconds ?? lib?.duration_seconds;
+        const uploadedAt =
+          item.created_at ??
+          (lib as any)?.createdAt ??
+          (lib as any)?.created_at ??
+          item.approved_at ??
+          (lib as any)?.approvedAt;
+        const metaLine = buildMediaMetaSummary({
+          mediaType: item.media_type || lib?.media_type,
+          width: item.width ?? lib?.width,
+          height: item.height ?? lib?.height,
+          tags: lib?.tags,
+          durationSeconds,
+          omitFileSize: true,
+          extras: [
+            item.is_active === false ? 'desabilitada neste totem' : null,
+            item.media_is_active === false ? 'desabilitada na biblioteca' : null,
+          ],
         });
-        const previewMedia = lib
-          ? {
-              media_type: lib.media_type,
-              width: lib.width,
-              height: lib.height,
-              tags: lib.tags,
-              deliveryRotation: lib.deliveryRotation,
-              deliveryPreviewRotation: lib.deliveryPreviewRotation,
-            }
-          : { media_type: item.media_type };
+        const detailLine = buildMediaSizeDurationDateLine({
+          sizeBytes,
+          durationSeconds,
+          uploadedAt,
+        });
+        const secondary =
+          metaLine && detailLine
+            ? `${metaLine} · ${detailLine}`
+            : metaLine || detailLine || undefined;
+
         return {
           id: item.media_id,
           label: item.name || `Mídia ${item.media_id}`,
-          secondary: (() => {
-            const sizeBytes =
-              item.file_size_bytes ?? (lib as any)?.size_bytes ?? (lib as any)?.fileSizeBytes;
-            const durationSeconds = item.duration_seconds ?? lib?.duration_seconds;
-            const uploadedAt =
-              item.created_at ??
-              (lib as any)?.createdAt ??
-              (lib as any)?.created_at ??
-              item.approved_at ??
-              (lib as any)?.approvedAt;
-            const metaLine = buildMediaMetaSummary({
-              mediaType: item.media_type || lib?.media_type,
-              width: item.width ?? lib?.width,
-              height: item.height ?? lib?.height,
-              tags: lib?.tags,
-              durationSeconds,
-              omitFileSize: true,
-              extras: [
-                item.is_active === false ? 'desabilitada neste totem' : null,
-                item.media_is_active === false ? 'desabilitada na biblioteca' : null,
-              ],
-            });
-            const detailLine = buildMediaSizeDurationDateLine({
-              sizeBytes,
-              durationSeconds,
-              uploadedAt,
-            });
-            if (!metaLine && !detailLine) return undefined;
-            return (
-              <Box>
-                {metaLine ? (
-                  <Typography variant="body2" color="text.secondary" component="div" noWrap>
-                    {metaLine}
-                  </Typography>
-                ) : null}
-                {detailLine ? (
-                  <Typography variant="caption" color="text.secondary" component="div" noWrap>
-                    {detailLine}
-                  </Typography>
-                ) : null}
-              </Box>
-            );
-          })(),
+          secondary,
           preview: {
             mediaId: item.media_id,
             thumbSrc,
-            media: previewMedia,
-            previewKey: `${thumbSrc ?? ''}:${lib?.width ?? ''}:${lib?.height ?? ''}`,
           },
           active: item.is_active !== false && item.media_is_active !== false,
         };
       }),
-    [items, libraryById, getThumbnailSrc, thumbVersion],
+    [items, libraryById, urlsById],
   );
 
   const libraryAvailable = useMemo(() => {
@@ -390,7 +364,7 @@ const TotemMediaPage: React.FC = () => {
       </Box>
 
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Arraste para reordenar. Clique no thumbnail para visualizar. Excluir remove só deste totem.
+        Arraste para reordenar. Use o ícone do olho para visualizar. Excluir remove só deste totem.
       </Typography>
 
       <SortableList
@@ -398,7 +372,7 @@ const TotemMediaPage: React.FC = () => {
         onReorder={(order) => void handleReorder(order)}
         onDelete={(id) => void handleRemove(Number(id))}
         onToggleActive={(id) => void handleToggleMediaActive(Number(id))}
-        onThumbClick={(id) => openMediaPreview(Number(id))}
+        onPreview={(id) => openMediaPreview(Number(id))}
         emptyMessage="Nenhuma mídia neste totem. Adicione ou envie uma mídia."
       />
 
@@ -406,12 +380,7 @@ const TotemMediaPage: React.FC = () => {
         open={!!mediaViewTarget}
         media={mediaViewTarget}
         thumbnailSrc={
-          mediaViewTarget?.media_id
-            ? getThumbnailSrc({
-                media_id: mediaViewTarget.media_id,
-                thumbnailUrl: buildMediaThumbnailApiPath(mediaViewTarget.media_id),
-              })
-            : undefined
+          mediaViewTarget?.media_id ? getThumbnailSrc({ media_id: mediaViewTarget.media_id }) : undefined
         }
         onClose={() => setMediaViewTarget(null)}
       />

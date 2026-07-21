@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { mediaApi } from '../services/api';
-import { resolveMediaThumbnailDisplayUrl } from '../utils/mediaPreviewUrl';
 
+/**
+ * Carrega thumbnails autenticados (blob URL) por media_id.
+ * Atualiza o Map incrementalmente — só as linhas novas mudam de src.
+ */
 export function useMediaThumbnailUrls(
   mediaItems: Array<{ media_id?: number; thumbnailUrl?: string | null; previewUrl?: string | null }>,
 ) {
-  const thumbObjectUrlsRef = useRef<Map<number, string>>(new Map());
-  const [thumbVersion, setThumbVersion] = useState(0);
+  const [urlsById, setUrlsById] = useState<Record<number, string>>({});
+  const urlsByIdRef = useRef(urlsById);
+  urlsByIdRef.current = urlsById;
+  const ownedUrlsRef = useRef<Set<string>>(new Set());
 
   const mediaIdsKey = useMemo(
     () =>
@@ -25,33 +30,32 @@ export function useMediaThumbnailUrls(
     const ids = mediaIdsKey
       .split(',')
       .map((id) => Number(id))
-      .filter((id) => id > 0 && !thumbObjectUrlsRef.current.has(id));
+      .filter((id) => id > 0 && !urlsByIdRef.current[id]);
 
     if (ids.length === 0) return;
 
     (async () => {
-      let loaded = 0;
       for (const id of ids) {
         try {
-          // Lista: nunca regenerar automaticamente (evita piscar). Regenerar só via invalidateThumbnail.
           const blob = await mediaApi.getThumbnailBlob(id);
+          if (cancelled) continue;
           const objectUrl = URL.createObjectURL(blob);
-          if (cancelled) {
-            try {
-              URL.revokeObjectURL(objectUrl);
-            } catch {
-              /* noop */
+          ownedUrlsRef.current.add(objectUrl);
+          setUrlsById((prev) => {
+            if (prev[id]) {
+              try {
+                URL.revokeObjectURL(objectUrl);
+                ownedUrlsRef.current.delete(objectUrl);
+              } catch {
+                /* noop */
+              }
+              return prev;
             }
-            continue;
-          }
-          thumbObjectUrlsRef.current.set(id, objectUrl);
-          loaded += 1;
+            return { ...prev, [id]: objectUrl };
+          });
         } catch {
-          /* mantém fallback */
+          /* mantém placeholder */
         }
-      }
-      if (!cancelled && loaded > 0) {
-        setThumbVersion((v) => v + 1);
       }
     })();
 
@@ -62,14 +66,14 @@ export function useMediaThumbnailUrls(
 
   useEffect(() => {
     return () => {
-      thumbObjectUrlsRef.current.forEach((url) => {
+      ownedUrlsRef.current.forEach((url) => {
         try {
           URL.revokeObjectURL(url);
         } catch {
           /* noop */
         }
       });
-      thumbObjectUrlsRef.current.clear();
+      ownedUrlsRef.current.clear();
     };
   }, []);
 
@@ -81,43 +85,46 @@ export function useMediaThumbnailUrls(
       file_path?: string | null;
     }): string | undefined => {
       const id = media.media_id;
-      const cached = typeof id === 'number' ? thumbObjectUrlsRef.current.get(id) : undefined;
-      return resolveMediaThumbnailDisplayUrl(media, cached);
+      if (typeof id === 'number' && urlsById[id]) return urlsById[id];
+      return undefined;
     },
-    [thumbVersion],
+    [urlsById],
   );
 
   const invalidateThumbnail = useCallback(async (mediaId: number) => {
-    const existing = thumbObjectUrlsRef.current.get(mediaId);
+    const existing = urlsByIdRef.current[mediaId];
     if (existing) {
       try {
         URL.revokeObjectURL(existing);
+        ownedUrlsRef.current.delete(existing);
       } catch {
         /* noop */
       }
-      thumbObjectUrlsRef.current.delete(mediaId);
     }
-    try {
-      sessionStorage.removeItem(`media-thumb-regen-v3:${mediaId}`);
-    } catch {
-      /* noop */
-    }
+    setUrlsById((prev) => {
+      const next = { ...prev };
+      delete next[mediaId];
+      return next;
+    });
     try {
       const blob = await mediaApi.getThumbnailBlob(mediaId, { regenerate: true });
       const objectUrl = URL.createObjectURL(blob);
-      thumbObjectUrlsRef.current.set(mediaId, objectUrl);
-      try {
-        sessionStorage.setItem(`media-thumb-regen-v3:${mediaId}`, '1');
-      } catch {
-        /* noop */
-      }
+      ownedUrlsRef.current.add(objectUrl);
+      setUrlsById((prev) => ({ ...prev, [mediaId]: objectUrl }));
     } catch {
-      /* refetch falhou — efeito tenta de novo se id ainda na lista */
+      /* refetch falhou */
     }
-    setThumbVersion((v) => v + 1);
   }, []);
 
-  const bumpThumbVersion = useCallback(() => setThumbVersion((v) => v + 1), []);
+  const bumpThumbVersion = useCallback(() => {
+    setUrlsById((prev) => ({ ...prev }));
+  }, []);
 
-  return { getThumbnailSrc, thumbVersion, bumpThumbVersion, invalidateThumbnail };
+  return {
+    getThumbnailSrc,
+    urlsById,
+    thumbVersion: Object.keys(urlsById).length,
+    invalidateThumbnail,
+    bumpThumbVersion,
+  };
 }

@@ -1,9 +1,5 @@
 import React from 'react';
 import { Box } from '@mui/material';
-import {
-  mediaLibraryPreviewSx,
-  type MediaDeliveryPreviewFields,
-} from '../../hooks/useMediaRotationTransform';
 
 export function mediaPortraitListThumbFrameSx(widthPx = 52) {
   return {
@@ -21,35 +17,16 @@ export function mediaPortraitListThumbFrameSx(widthPx = 52) {
 
 export type MediaPortraitThumbProps = {
   src?: string;
-  media?: MediaDeliveryPreviewFields & {
-    media_type?: string;
-    width?: number;
-    height?: number;
-  };
   width?: number;
-  /** Clique no thumb (ex.: abrir dialog de visualização). */
-  onClick?: () => void;
   title?: string;
 };
 
-/** Mini preview 9:16 estático (thumbnail fixo). */
-export function MediaPortraitThumb({
-  src,
-  media,
-  width = 52,
-  onClick,
-  title,
-}: MediaPortraitThumbProps) {
-  const frameSx = {
-    ...mediaPortraitListThumbFrameSx(width),
-    mr: 1.5,
-    ...(onClick
-      ? {
-          cursor: 'pointer',
-          '&:hover': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 1 },
-        }
-      : {}),
-  };
+/**
+ * Thumbnail 9:16 estático e leve (object-fit cover).
+ * Sem transforms de rotação — evita flicker na lista.
+ */
+export function MediaPortraitThumb({ src, width = 52, title }: MediaPortraitThumbProps) {
+  const frameSx = { ...mediaPortraitListThumbFrameSx(width), mr: 1.5 };
 
   if (!src) {
     return (
@@ -60,32 +37,29 @@ export function MediaPortraitThumb({
           border: '1px solid',
           borderColor: 'divider',
         }}
-        onClick={onClick}
         title={title}
-        role={onClick ? 'button' : undefined}
       />
     );
   }
 
   return (
-    <Box
-      sx={frameSx}
-      onClick={(e) => {
-        if (!onClick) return;
-        e.stopPropagation();
-        onClick();
-      }}
-      title={title}
-      role={onClick ? 'button' : undefined}
-    >
+    <Box sx={frameSx} title={title}>
       <Box
         component="img"
         src={src}
         alt=""
-        sx={mediaLibraryPreviewSx(0, media, {
-          previewUrl: src,
-          previewSource: 'thumbnail',
-        })}
+        decoding="async"
+        loading="lazy"
+        sx={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          objectPosition: 'center',
+          display: 'block',
+          bgcolor: '#000',
+        }}
       />
     </Box>
   );
