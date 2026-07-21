@@ -180,7 +180,7 @@
       position: absolute;
       inset: 0;
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       overflow-y: auto;
       padding:
         112px
@@ -211,7 +211,7 @@
     .conteudo {
       position: relative;
       width: min(1200px, 100%);
-      margin: auto;
+      margin: 0 auto;
     }
 
     .etiqueta {
@@ -284,6 +284,10 @@
       margin: 26px 0;
       background: linear-gradient(90deg, var(--amarelo), transparent);
       box-shadow: 0 0 14px rgba(255, 210, 28, .6);
+    }
+
+    .capa {
+      justify-content: center;
     }
 
     /* Capa organizada em duas áreas, sem posicionamento absoluto */
