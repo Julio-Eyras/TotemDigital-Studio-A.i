@@ -35,6 +35,7 @@ import TotemEditDialog from '../../components/TotemEditDialog/TotemEditDialog';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { useMediaThumbnailUrls } from '../../hooks/useMediaThumbnailUrls';
+import { useTotemDeliveryVideoPreviewUrls } from '../../hooks/useTotemDeliveryVideoPreviewUrls';
 import { buildMediaThumbnailApiPath } from '../../utils/mediaPreviewUrl';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { buildMediaMetaSummary, buildMediaSizeDurationDateLine } from '../../utils/mediaDisplayMeta';
@@ -114,6 +115,24 @@ const TotemMediaPage: React.FC = () => {
     return map;
   }, [library]);
 
+  const previewMediaItems = useMemo(
+    () =>
+      items.map((item) => {
+        const lib = libraryById.get(item.media_id);
+        return {
+          media_id: item.media_id,
+          media_type: item.media_type,
+          width: lib?.width,
+          height: lib?.height,
+          size_bytes: (lib as any)?.size_bytes ?? (lib as any)?.fileSizeBytes,
+          fileSizeBytes: (lib as any)?.fileSizeBytes,
+        };
+      }),
+    [items, libraryById],
+  );
+  const { getVideoPreviewUrl, videoPreviewVersion, invalidateVideoPreview } =
+    useTotemDeliveryVideoPreviewUrls(previewMediaItems);
+
   const sortableItems = useMemo(
     () =>
       items.map((item) => {
@@ -122,6 +141,7 @@ const TotemMediaPage: React.FC = () => {
           media_id: item.media_id,
           thumbnailUrl: buildMediaThumbnailApiPath(item.media_id),
         });
+        const videoSrc = getVideoPreviewUrl(item.media_id);
         const previewMedia = lib
           ? {
               media_type: lib.media_type,
@@ -181,14 +201,14 @@ const TotemMediaPage: React.FC = () => {
           preview: {
             mediaId: item.media_id,
             thumbSrc,
-            // Lista usa só thumbnail estático — preview em vídeo remonta e faz os ícones piscarem.
+            videoSrc,
             media: previewMedia,
-            previewKey: `${thumbSrc ?? ''}:${lib?.width ?? ''}:${lib?.height ?? ''}`,
+            previewKey: `${thumbSrc ?? ''}:${videoSrc ?? ''}:${lib?.width ?? ''}:${lib?.height ?? ''}`,
           },
           active: item.is_active !== false && item.media_is_active !== false,
         };
       }),
-    [items, libraryById, getThumbnailSrc, thumbVersion],
+    [items, libraryById, getThumbnailSrc, getVideoPreviewUrl, thumbVersion, videoPreviewVersion],
   );
 
   const libraryAvailable = useMemo(() => {
@@ -415,6 +435,7 @@ const TotemMediaPage: React.FC = () => {
               // add responde na hora; player só atualiza quando o tratamento de entrega terminar.
               for (const mediaId of mediaIds) {
                 await totemDirectMediaApi.add(totemId, mediaId);
+                invalidateVideoPreview(mediaId);
                 await invalidateThumbnail(mediaId);
               }
               await loadAll();
