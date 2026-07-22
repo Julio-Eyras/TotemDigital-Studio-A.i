@@ -1203,12 +1203,14 @@ export class MediaService {
 
     try {
       let dimensions = { width: TOTEM_PORTRAIT_WIDTH, height: TOTEM_PORTRAIT_HEIGHT };
+      // Rotação manual na UI: contain (sem crop/zoom). fit 9:16 força canvas portrait.
       if (mediaType === 'image') {
         dimensions = await this.normalizeImageToTotemDelivery(
           sourcePath,
           outputPath,
           resolvedDeliveryRotation,
-          media.mimeType
+          media.mimeType,
+          { fit: 'contain', forcePortrait: fitPortrait }
         );
         await this.generatePortraitThumbnailFromDeliveryImage(outputPath, 0);
       } else {
@@ -1216,7 +1218,9 @@ export class MediaService {
           sourcePath,
           outputPath,
           resolvedDeliveryRotation,
-          streamInfo.rotation
+          streamInfo.rotation,
+          true,
+          { fit: 'contain', forcePortrait: fitPortrait }
         );
         await this.generatePortraitThumbnailFromDeliveryVideo(outputPath, 0);
       }
@@ -1971,9 +1975,19 @@ export class MediaService {
   private getTotemDeliveryVideoFilterChain(
     rotationDegrees: number,
     targetW: number = TOTEM_LANDSCAPE_WIDTH,
-    targetH: number = TOTEM_LANDSCAPE_HEIGHT
+    targetH: number = TOTEM_LANDSCAPE_HEIGHT,
+    fit: 'cover' | 'contain' = 'cover'
   ): string {
     const rotationFilters = this.getFfmpegRotationFilters(rotationDegrees);
+    if (fit === 'contain') {
+      // Mantém área total (letterbox/pillarbox) — sem zoom/crop.
+      return [
+        ...rotationFilters,
+        `scale=${targetW}:${targetH}:force_original_aspect_ratio=decrease`,
+        `pad=${targetW}:${targetH}:(ow-iw)/2:(oh-ih)/2:black`,
+        'setsar=1',
+      ].join(',');
+    }
     // cover: escala com increase + crop centrado (sem pad/letterbox no ficheiro)
     return [
       ...rotationFilters,
@@ -1986,22 +2000,25 @@ export class MediaService {
   private getTotemPreviewVideoFilterChain(
     rotationDegrees: number,
     targetW: number = TOTEM_THUMB_WIDTH,
-    targetH: number = TOTEM_THUMB_HEIGHT
+    targetH: number = TOTEM_THUMB_HEIGHT,
+    fit: 'cover' | 'contain' = 'contain'
   ): string {
-    return this.getTotemDeliveryVideoFilterChain(rotationDegrees, targetW, targetH);
+    return this.getTotemDeliveryVideoFilterChain(rotationDegrees, targetW, targetH, fit);
   }
 
     /**
-     * Bake v3+ imagem: EXIF uma vez (+ rotação UI) → canvas portrait/landscape com **cover**
-     * (preenche canvas; corta excedente — sem barras pretas baked).
+     * Bake v3+ imagem: EXIF uma vez (+ rotação UI) → canvas portrait/landscape.
+     * fit cover = preenche (corta); contain = área total com letterbox.
      */
     private async normalizeImageToTotemDelivery(
       sourcePath: string,
       outputPath: string,
       rotationDegrees: number,
-      mimeType?: string
+      mimeType?: string,
+      options?: { fit?: 'cover' | 'contain'; forcePortrait?: boolean }
     ): Promise<{ width: number; height: number }> {
       const userRot = this.normalizeRotation(rotationDegrees);
+      const fit = options?.fit ?? 'cover';
       const probe = await this.probeImageStreamInfo(sourcePath);
       let pipeline = (sharp as any)(sourcePath).rotate();
       if (userRot !== 0) {
@@ -2015,14 +2032,15 @@ export class MediaService {
       // Telemóvel portrait (EXIF 90/270) → sempre 1080×1920
       const phonePortraitMeta =
         (probe.rotation === 90 || probe.rotation === 270) && probe.width >= probe.height;
-      const canvas = phonePortraitMeta
-        ? { width: TOTEM_PORTRAIT_WIDTH, height: TOTEM_PORTRAIT_HEIGHT, portrait: true }
-        : this.resolveDeliveryCanvas(ow, oh);
+      const canvas =
+        options?.forcePortrait || phonePortraitMeta
+          ? { width: TOTEM_PORTRAIT_WIDTH, height: TOTEM_PORTRAIT_HEIGHT, portrait: true }
+          : this.resolveDeliveryCanvas(ow, oh);
 
-      // cover: preenche o canvas (sem letterbox permanente no ficheiro)
       let out = (sharp as any)(oriented).resize(canvas.width, canvas.height, {
-        fit: 'cover',
+        fit,
         position: 'centre',
+        background: { r: 0, g: 0, b: 0, alpha: 1 },
       });
 
       const ext = this.getImageOutputExtension(mimeType, outputPath);
@@ -2040,7 +2058,7 @@ export class MediaService {
 
   /**
    * Bake v3+ vídeo: ffmpeg **autorotate** (rotate/matrix do telemóvel) uma vez,
-   * depois cover (crop) para canvas portrait (9:16) ou landscape (16:9).
+   * depois cover/contain para canvas portrait (9:16) ou landscape (16:9).
    * NÃO usar -noautorotate + transpose do stream (causava letterbox / conteúdo deitado).
    * userOrDeliveryRotationDegrees = rotação extra da UI (transform manual).
    */
@@ -2049,9 +2067,11 @@ export class MediaService {
     outputPath: string,
     userOrDeliveryRotationDegrees: number,
     _streamRotationDegrees: number = 0,
-    _applyDeliveryOnPixels: boolean = true
+    _applyDeliveryOnPixels: boolean = true,
+    options?: { fit?: 'cover' | 'contain'; forcePortrait?: boolean }
   ): Promise<{ width: number; height: number }> {
     const userRot = this.normalizeRotation(userOrDeliveryRotationDegrees);
+    const fit = options?.fit ?? 'cover';
     const info = await this.probeVideoStreamInfo(sourcePath);
 
     let dispW = info.displayWidth || info.width;
@@ -2065,15 +2085,17 @@ export class MediaService {
     // Telemóvel em portrait: pixels landscape + rotate 90/270 → forçar canvas 9:16
     const phonePortraitMeta =
       (info.rotation === 90 || info.rotation === 270) && info.width >= info.height;
-    const canvas = phonePortraitMeta
-      ? { width: TOTEM_PORTRAIT_WIDTH, height: TOTEM_PORTRAIT_HEIGHT, portrait: true }
-      : this.resolveDeliveryCanvas(dispW, dispH);
+    const canvas =
+      options?.forcePortrait || phonePortraitMeta
+        ? { width: TOTEM_PORTRAIT_WIDTH, height: TOTEM_PORTRAIT_HEIGHT, portrait: true }
+        : this.resolveDeliveryCanvas(dispW, dispH);
 
     // Só transpose extra da UI; a orientação do telemóvel vem do autorotate do ffmpeg
     const filters = this.getTotemDeliveryVideoFilterChain(
       userRot,
       canvas.width,
-      canvas.height
+      canvas.height,
+      fit
     );
 
     await execFileAsync(
@@ -2134,8 +2156,9 @@ export class MediaService {
     }
     await pipeline
       .resize(TOTEM_THUMB_WIDTH, TOTEM_THUMB_HEIGHT, {
-        fit: 'cover',
+        fit: 'contain',
         position: 'centre',
+        background: { r: 0, g: 0, b: 0, alpha: 1 },
       })
       .jpeg({ quality: 82, progressive: true })
       .toFile(thumbnailPath);

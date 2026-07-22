@@ -220,7 +220,8 @@ function buildFitLandscapeInPortraitFrameSx(deg: number) {
 /**
  * Preview cover na moldura 9:16 (object-fit: cover / scale max uniforme).
  * Evita width+height 100% sem object-fit (fill → ovais).
- * Lateral 90/270: caixa pré-rotação 16:9 (177.778% × 56.25%), não quadrado 177%×100%.
+ * Lateral 90/270: caixa pré-rotação 16:9 (177.778% × 56.25%), com contain
+ * para não amplificar/cortar mídia horizontal “virada”.
  */
 function buildCoverPortraitMediaSx(deg: number) {
   const normalized = normalizeMediaRotation(deg);
@@ -229,14 +230,14 @@ function buildCoverPortraitMediaSx(deg: number) {
   const base = {
     position: 'absolute' as const,
     display: 'block',
-    objectFit: 'cover' as const,
+    objectFit: (sideways || normalized !== 0 ? 'contain' : 'cover') as 'contain' | 'cover',
     objectPosition: 'center center',
     transformOrigin: 'center center',
     backgroundColor: '#000',
   };
 
   if (sideways) {
-    // Moldura W×H (9:16). Caixa H×W (16:9) — após rotate preenche viewport (cover).
+    // Moldura W×H (9:16). Caixa H×W (16:9) — após rotate cabe no viewport (contain).
     return {
       ...base,
       top: '50%',
@@ -432,7 +433,7 @@ export function useMediaRotationTransform(onTransformed: (mediaId: number) => Pr
         return null;
       }
 
-      if (!window.confirm('Rotacionar e converter esta mídia para 9:16?')) {
+      if (!window.confirm('Rotacionar e converter esta mídia para 9:16 (sem cortar o conteúdo)?')) {
         return null;
       }
 

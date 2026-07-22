@@ -81,13 +81,13 @@ describe('mediaLibraryPreviewSx', () => {
 });
 
 describe('mediaTotemHoverVideoSx', () => {
-  it('vídeo entrega usa cover + caixa 16:9 lateral (sem quadrado esticado)', () => {
+  it('vídeo entrega usa contain + caixa 16:9 lateral (sem zoom/crop)', () => {
     const sx = mediaTotemHoverVideoSx(0, {
       width: 1920,
       height: 1080,
       deliveryPreviewRotation: 270,
     });
-    expect(sx.objectFit).toBe('cover');
+    expect(sx.objectFit).toBe('contain');
     expect(sx.transform).toContain('rotate(270deg)');
     expect(sx.width).toBe('177.778%');
     expect(sx.height).toBe('56.25%');

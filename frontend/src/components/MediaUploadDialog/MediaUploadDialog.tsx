@@ -15,12 +15,14 @@ import {
   IconButton,
   List,
   ListItem,
+  ListItemAvatar,
   ListItemText,
   ListItemSecondaryAction,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
+  Avatar,
 } from '@mui/material';
 import {
   CloudUpload,
@@ -28,6 +30,9 @@ import {
   CheckCircle,
   Error,
   Close,
+  Image as ImageIcon,
+  Videocam,
+  AudioFile,
 } from '@mui/icons-material';
 import { mediaApi, CreateMediaRequest, Client, subscriberApi, Subscriber } from '../../services/api';
 import { validateFileSize, validateFileType, VALIDATION_CONSTANTS } from '../../utils/validation';
@@ -36,6 +41,71 @@ import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { isStudioMode } from '../../config/studioMode';
 import { isDirectTotemMode } from '../../config/directTotemMode';
 import type { MediaItem } from '../../services/api';
+
+/** Preview local após seleção — o diálogo nativo do SO não é controlável pela web app. */
+async function buildLocalFilePreview(file: File): Promise<string | null> {
+  if (file.type.startsWith('image/')) {
+    return URL.createObjectURL(file);
+  }
+  if (!file.type.startsWith('video/')) {
+    return null;
+  }
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const dataUrl = await new Promise<string | null>((resolve) => {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.muted = true;
+      video.playsInline = true;
+      video.src = objectUrl;
+
+      const fail = () => resolve(null);
+
+      video.onerror = fail;
+      video.onloadeddata = () => {
+        try {
+          const t = Number.isFinite(video.duration) && video.duration > 0
+            ? Math.min(0.4, video.duration * 0.05)
+            : 0.1;
+          video.currentTime = t;
+        } catch {
+          fail();
+        }
+      };
+      video.onseeked = () => {
+        try {
+          const w = video.videoWidth || 0;
+          const h = video.videoHeight || 0;
+          if (w < 2 || h < 2) {
+            resolve(null);
+            return;
+          }
+          const maxSide = 160;
+          const scale = Math.min(1, maxSide / Math.max(w, h));
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(w * scale));
+          canvas.height = Math.max(1, Math.round(h * scale));
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(null);
+            return;
+          }
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', 0.72));
+        } catch {
+          resolve(null);
+        }
+      };
+    });
+    return dataUrl;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+function filePreviewKey(file: File, index: number): string {
+  return `${file.name}:${file.size}:${file.lastModified}:${index}`;
+}
 
 interface UploadDialogProps {
   open: boolean;
@@ -69,6 +139,7 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
   subscriberLabel,
 }) => {
   const [files, setFiles] = useState<File[]>([]);
+  const [filePreviews, setFilePreviews] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
@@ -119,6 +190,50 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showError } = useNotification();
+
+  // Previews locais (imagem/vídeo) depois da seleção — independente do seletor nativo do SO.
+  useEffect(() => {
+    let cancelled = false;
+    const revokeBlobUrls = (map: Record<string, string>) => {
+      Object.values(map).forEach((url) => {
+        if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+      });
+    };
+
+    if (files.length === 0) {
+      setFilePreviews((prev) => {
+        revokeBlobUrls(prev);
+        return {};
+      });
+      return undefined;
+    }
+
+    (async () => {
+      const next: Record<string, string> = {};
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const key = filePreviewKey(file, i);
+        const preview = await buildLocalFilePreview(file);
+        if (cancelled) {
+          if (preview?.startsWith('blob:')) URL.revokeObjectURL(preview);
+          break;
+        }
+        if (preview) next[key] = preview;
+      }
+      if (cancelled) {
+        revokeBlobUrls(next);
+        return;
+      }
+      setFilePreviews((prev) => {
+        revokeBlobUrls(prev);
+        return next;
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [files]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files || []);
@@ -323,6 +438,12 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
   };
 
   const handleClose = () => {
+    setFilePreviews((prev) => {
+      Object.values(prev).forEach((url) => {
+        if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+      });
+      return {};
+    });
     setFiles([]);
     setFormData({ 
       name: '', 
@@ -456,7 +577,8 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
               />
             </Button>
             <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              Tipos suportados: JPG, PNG, GIF, MP4, AVI, MOV, MP3, WAV (máximo 100MB por arquivo)
+              Tipos: JPG, PNG, GIF, MP4, AVI, MOV, MP3, WAV (máx. 100MB). Após selecionar, o preview aparece
+              nesta lista (o seletor do Windows/Android/iPhone pode não mostrar miniatura de vídeo).
             </Typography>
           </Box>
 
@@ -499,17 +621,39 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
                 Arquivos Selecionados ({files.length})
               </Typography>
               <List dense>
-                {files.map((file, index) => (
-                  <ListItem key={index} divider>
+                {files.map((file, index) => {
+                  const kind = getFileType(file.type);
+                  const preview = filePreviews[filePreviewKey(file, index)];
+                  const fallbackIcon =
+                    kind === 'image' ? <ImageIcon /> : kind === 'video' ? <Videocam /> : <AudioFile />;
+                  return (
+                  <ListItem key={filePreviewKey(file, index)} divider>
+                    <ListItemAvatar>
+                      <Avatar
+                        variant="rounded"
+                        src={preview || undefined}
+                        alt=""
+                        sx={{
+                          width: 56,
+                          height: 72,
+                          bgcolor: 'grey.900',
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          '& img': { objectFit: 'contain' },
+                        }}
+                      >
+                        {!preview ? fallbackIcon : null}
+                      </Avatar>
+                    </ListItemAvatar>
                     <ListItemText
                       primary={file.name}
-                      secondary={`${formatFileSize(file.size)} • ${getFileType(file.type)}`}
+                      secondary={`${formatFileSize(file.size)} • ${kind}`}
                     />
                     <ListItemSecondaryAction>
                       <Chip
-                        label={getFileType(file.type)}
-                        color={getFileType(file.type) === 'image' ? 'primary' : 
-                               getFileType(file.type) === 'video' ? 'secondary' : 'default'}
+                        label={kind}
+                        color={kind === 'image' ? 'primary' : 
+                               kind === 'video' ? 'secondary' : 'default'}
                         size="small"
                         sx={{ mr: 1 }}
                       />
@@ -522,7 +666,8 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
                       </IconButton>
                     </ListItemSecondaryAction>
                   </ListItem>
-                ))}
+                  );
+                })}
               </List>
             </Box>
           )}
