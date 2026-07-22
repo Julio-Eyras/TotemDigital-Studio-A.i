@@ -456,11 +456,11 @@ export class TotemDirectMediaService {
     mediaId: number
   ): Promise<{ items: TotemDirectMediaItem[]; mediaUsageCount: number }> {
     const playlistId = await this.ensureDirectPlaylist(totemId);
+    // Remove o vínculo deste totem (não apaga o arquivo nem o registro em medias).
     await this.db.executeRaw(
       `
-      UPDATE totem_playlist_items
-      SET is_active = false, updated_at = CURRENT_TIMESTAMP
-      WHERE totem_playlist_id = $1 AND media_id = $2 AND COALESCE(is_active, true) = true
+      DELETE FROM totem_playlist_items
+      WHERE totem_playlist_id = $1 AND media_id = $2
     `,
       [playlistId, mediaId]
     );

@@ -190,6 +190,8 @@ const TotemMediaPage: React.FC = () => {
           preview: {
             mediaId: item.media_id,
             thumbSrc,
+            mediaWidth: item.width ?? lib?.width ?? null,
+            mediaHeight: item.height ?? lib?.height ?? null,
           },
           active: item.is_active !== false && item.media_is_active !== false,
         };
@@ -270,7 +272,7 @@ const TotemMediaPage: React.FC = () => {
           mediaName: removed?.name || `Mídia ${mediaId}`,
         });
       } else {
-        setSuccess('Mídia removida deste totem');
+        setSuccess('Mídia removida deste totem (arquivo mantido na biblioteca)');
       }
     } catch (e: any) {
       setError(pickApiErrorMessage(e, 'Erro ao remover mídia'));
@@ -417,6 +419,8 @@ const TotemMediaPage: React.FC = () => {
                     src={m.media_id ? libraryPickUrlsById[m.media_id] : undefined}
                     width={44}
                     title={m.name}
+                    mediaWidth={m.width}
+                    mediaHeight={m.height}
                   />
                   <ListItemText
                     primary={m.name}
@@ -519,17 +523,27 @@ const TotemMediaPage: React.FC = () => {
 
       <Dialog
         open={orphanDialog.open}
-        onClose={() => !deletingPermanent && setOrphanDialog({ open: false, mediaId: 0, mediaName: '' })}
+        onClose={() => {
+          if (deletingPermanent) return;
+          setOrphanDialog({ open: false, mediaId: 0, mediaName: '' });
+          setSuccess('Mídia removida deste totem (arquivo mantido na biblioteca)');
+        }}
       >
         <DialogTitle>Excluir mídia permanentemente?</DialogTitle>
         <DialogContent>
           <Typography>
-            <strong>{orphanDialog.mediaName}</strong> não está mais em nenhum totem. Deseja remover o arquivo do
-            servidor?
+            <strong>{orphanDialog.mediaName}</strong> já foi removida deste totem e não está em nenhum outro. Deseja
+            também apagar o arquivo do servidor e da biblioteca?
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button disabled={deletingPermanent} onClick={() => setOrphanDialog({ open: false, mediaId: 0, mediaName: '' })}>
+          <Button
+            disabled={deletingPermanent}
+            onClick={() => {
+              setOrphanDialog({ open: false, mediaId: 0, mediaName: '' });
+              setSuccess('Mídia removida deste totem (arquivo mantido na biblioteca)');
+            }}
+          >
             Manter no servidor
           </Button>
           <Button color="error" variant="contained" disabled={deletingPermanent} onClick={() => void handlePermanentDelete()}>

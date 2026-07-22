@@ -19,14 +19,30 @@ export type MediaPortraitThumbProps = {
   src?: string;
   width?: number;
   title?: string;
+  /** Dimensões reais da mídia — landscape usa contain (sem zoom/corte). */
+  mediaWidth?: number | null;
+  mediaHeight?: number | null;
 };
 
+function isLandscapeMedia(mediaWidth?: number | null, mediaHeight?: number | null): boolean {
+  const w = Number(mediaWidth ?? 0);
+  const h = Number(mediaHeight ?? 0);
+  return w > 0 && h > 0 && w > h;
+}
+
 /**
- * Thumbnail 9:16 estático e leve (object-fit cover).
- * Sem transforms de rotação — evita flicker na lista.
+ * Thumbnail 9:16 estático.
+ * Portrait: cover. Landscape: contain (letterbox) para não amplificar/cortar.
  */
-export function MediaPortraitThumb({ src, width = 52, title }: MediaPortraitThumbProps) {
+export function MediaPortraitThumb({
+  src,
+  width = 52,
+  title,
+  mediaWidth,
+  mediaHeight,
+}: MediaPortraitThumbProps) {
   const frameSx = { ...mediaPortraitListThumbFrameSx(width), mr: 1.5 };
+  const landscape = isLandscapeMedia(mediaWidth, mediaHeight);
 
   if (!src) {
     return (
@@ -55,7 +71,7 @@ export function MediaPortraitThumb({ src, width = 52, title }: MediaPortraitThum
           inset: 0,
           width: '100%',
           height: '100%',
-          objectFit: 'cover',
+          objectFit: landscape ? 'contain' : 'cover',
           objectPosition: 'center',
           display: 'block',
           bgcolor: '#000',

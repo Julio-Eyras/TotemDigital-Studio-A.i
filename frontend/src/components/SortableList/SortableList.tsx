@@ -31,6 +31,8 @@ import { MediaPortraitThumb } from '../Media/MediaPortraitThumb';
 export type SortableListPreview = {
   mediaId: number;
   thumbSrc?: string;
+  mediaWidth?: number | null;
+  mediaHeight?: number | null;
 };
 
 interface SortableItemProps {
@@ -38,6 +40,8 @@ interface SortableItemProps {
   label: string;
   secondary?: React.ReactNode;
   thumbSrc?: string;
+  mediaWidth?: number | null;
+  mediaHeight?: number | null;
   active?: boolean;
   onDelete?: (id: string | number) => void;
   onToggleActive?: (id: string | number) => void;
@@ -49,6 +53,8 @@ const SortableItem = memo(function SortableItem({
   label,
   secondary,
   thumbSrc,
+  mediaWidth,
+  mediaHeight,
   active = true,
   onDelete,
   onToggleActive,
@@ -152,7 +158,11 @@ const SortableItem = memo(function SortableItem({
           overflow: 'hidden',
         }}
       >
-        <MediaPortraitThumb src={thumbSrc} />
+        <MediaPortraitThumb
+          src={thumbSrc}
+          mediaWidth={mediaWidth}
+          mediaHeight={mediaHeight}
+        />
         <ListItemText
           primary={label}
           secondary={secondary}
@@ -246,6 +256,8 @@ export function SortableList({
               label={item.label}
               secondary={item.secondary}
               thumbSrc={item.preview?.thumbSrc ?? item.thumbnailSrc}
+              mediaWidth={item.preview?.mediaWidth}
+              mediaHeight={item.preview?.mediaHeight}
               active={item.active !== false}
               onDelete={onDelete}
               onToggleActive={onToggleActive}
