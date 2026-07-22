@@ -39,6 +39,7 @@ import { buildMediaThumbnailApiPath } from '../../utils/mediaPreviewUrl';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { buildMediaMetaSummary, buildMediaSizeDurationDateLine } from '../../utils/mediaDisplayMeta';
 import { MediaViewDialog } from '../../components/Media/MediaViewDialog';
+import { MediaPortraitThumb } from '../../components/Media/MediaPortraitThumb';
 
 const TotemMediaPage: React.FC = () => {
   const { totemId: totemIdParam } = useParams<{ totemId: string }>();
@@ -206,6 +207,20 @@ const TotemMediaPage: React.FC = () => {
         (m as { is_active?: boolean }).is_active !== false
     );
   }, [items, library]);
+
+  const libraryPickThumbItems = useMemo(
+    () =>
+      pickOpen
+        ? libraryAvailable
+            .filter((m) => typeof m.media_id === 'number' && m.media_id > 0)
+            .map((m) => ({
+              media_id: m.media_id!,
+              thumbnailUrl: buildMediaThumbnailApiPath(m.media_id!),
+            }))
+        : [],
+    [pickOpen, libraryAvailable],
+  );
+  const { urlsById: libraryPickUrlsById } = useMediaThumbnailUrls(libraryPickThumbItems);
 
   const handleReorder = async (newOrder: Array<string | number>) => {
     try {
@@ -393,7 +408,16 @@ const TotemMediaPage: React.FC = () => {
           ) : (
             <List dense>
               {libraryAvailable.map((m) => (
-                <ListItemButton key={m.media_id} onClick={() => void handleAddMedia(m.media_id!)}>
+                <ListItemButton
+                  key={m.media_id}
+                  onClick={() => void handleAddMedia(m.media_id!)}
+                  sx={{ alignItems: 'center', gap: 0.5, py: 1 }}
+                >
+                  <MediaPortraitThumb
+                    src={m.media_id ? libraryPickUrlsById[m.media_id] : undefined}
+                    width={44}
+                    title={m.name}
+                  />
                   <ListItemText
                     primary={m.name}
                     secondary={buildMediaMetaSummary({
@@ -404,6 +428,9 @@ const TotemMediaPage: React.FC = () => {
                       tags: m.tags,
                       sizeBytes: (m as any).size_bytes ?? m.fileSizeBytes,
                     })}
+                    sx={{ minWidth: 0 }}
+                    primaryTypographyProps={{ noWrap: true }}
+                    secondaryTypographyProps={{ noWrap: true }}
                   />
                 </ListItemButton>
               ))}

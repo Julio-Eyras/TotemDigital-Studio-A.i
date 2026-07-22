@@ -103,7 +103,7 @@ const SortableItem = memo(function SortableItem({
               <IconButton
                 edge="end"
                 size="small"
-                color={active ? 'warning' : 'success'}
+                color={active ? 'success' : 'warning'}
                 onClick={() => onToggleActive(id)}
                 title={active ? 'Desabilitar' : 'Habilitar'}
               >
