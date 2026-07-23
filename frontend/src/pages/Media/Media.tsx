@@ -222,7 +222,8 @@ const Media: React.FC = () => {
     (async () => {
       for (const { id } of toFetch) {
         try {
-          const regenKey = `media-thumb-regen-v3:${id}`;
+          // v5: regenera thumbs antigos com landscape +90° (deitados no card).
+          const regenKey = `media-thumb-regen-v5:${id}`;
           const shouldRegen = !sessionStorage.getItem(regenKey);
           const blob = await mediaApi.getThumbnailBlob(id, { regenerate: shouldRegen });
           if (shouldRegen) {
@@ -348,7 +349,7 @@ const Media: React.FC = () => {
     setVideoHover((prev) => (prev.id === mediaId ? { id: null, url: null } : prev));
 
     try {
-      sessionStorage.removeItem(`media-thumb-regen-v3:${mediaId}`);
+      sessionStorage.removeItem(`media-thumb-regen-v5:${mediaId}`);
     } catch { /* noop */ }
 
     // Força regenerar o JPEG 9:16 no backend — sem isto o thumb cacheado permanece até remount.
@@ -357,7 +358,7 @@ const Media: React.FC = () => {
       const objectUrl = URL.createObjectURL(blob);
       thumbObjectUrlsRef.current.set(mediaId, objectUrl);
       try {
-        sessionStorage.setItem(`media-thumb-regen-v3:${mediaId}`, '1');
+        sessionStorage.setItem(`media-thumb-regen-v5:${mediaId}`, '1');
       } catch { /* noop */ }
     } catch {
       /* efeito de prefetch tenta de novo se a lista ainda tiver o id */

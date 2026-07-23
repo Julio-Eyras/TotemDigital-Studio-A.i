@@ -37,7 +37,22 @@ export function useMediaThumbnailUrls(
     (async () => {
       for (const id of ids) {
         try {
-          const blob = await mediaApi.getThumbnailBlob(id);
+          // v5: corrige thumbs landscape gerados com +90° (card deitado vs olho certo).
+          const regenKey = `media-thumb-regen-v5:${id}`;
+          let shouldRegen = false;
+          try {
+            shouldRegen = !sessionStorage.getItem(regenKey);
+          } catch {
+            shouldRegen = true;
+          }
+          const blob = await mediaApi.getThumbnailBlob(id, { regenerate: shouldRegen });
+          if (shouldRegen) {
+            try {
+              sessionStorage.setItem(regenKey, '1');
+            } catch {
+              /* noop */
+            }
+          }
           if (cancelled) continue;
           const objectUrl = URL.createObjectURL(blob);
           ownedUrlsRef.current.add(objectUrl);

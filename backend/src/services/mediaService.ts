@@ -49,7 +49,7 @@ const TOTEM_LANDSCAPE_HEIGHT = 1080;
 /** Bake ≥5: vídeo/imagem em cover (crop) em vez de contain (pad com barras). */
 const DELIVERY_BAKE_VERSION_TAG = '_delivery_bake:5';
 const DELIVERY_BAKE_VERSION = 5;
-/** Pré-visualização UI / thumbnail: moldura 9:16 (WYSIWYG do totem). */
+/** Pré-visualização UI / thumbnail: moldura 9:16 contain (landscape upright, igual ao olho). */
 const TOTEM_THUMB_WIDTH = 540;
 const TOTEM_THUMB_HEIGHT = 960;
 const DELIVERY_ROTATION_TAG_PREFIX = '_delivery_rotation:';
@@ -2207,23 +2207,17 @@ export class MediaService {
     filePath: string,
     _deliveryRotation?: number
   ): Promise<string> {
-    // Bake v3: portrait → thumb sem rotação; landscape → +90° para UI sempre 9:16
-    const meta = await (sharp as any)(filePath).metadata().catch(() => null);
-    const w = Number(meta?.width || 0);
-    const h = Number(meta?.height || 0);
-    const rot = h >= w && w > 0 ? 0 : 90;
-    return this.generatePreviewThumbnailFromImageSource(filePath, rot);
+    // UI alinhada ao preview (olho): landscape upright + contain/letterbox na moldura 9:16.
+    // Não aplicar +90° — isso deixava o card deitado enquanto o ficheiro de entrega aparece certo.
+    return this.generatePreviewThumbnailFromImageSource(filePath, 0);
   }
 
   private async generatePortraitThumbnailFromDeliveryVideo(
     filePath: string,
     _deliveryRotation?: number
   ): Promise<string> {
-    const info = await this.probeVideoStreamInfo(filePath);
-    const w = info.width || 0;
-    const h = info.height || 0;
-    const rot = h >= w && w > 0 ? 0 : 90;
-    return this.generatePreviewThumbnailFromVideoSource(filePath, rot);
+    // Mesmo critério da imagem: 9:16 com contain, sem rotação de montagem no JPEG.
+    return this.generatePreviewThumbnailFromVideoSource(filePath, 0);
   }
 
   /** Thumbnail 9:16 a partir do ficheiro original (antes da entrega 16:9). */
@@ -2246,15 +2240,14 @@ export class MediaService {
   }
 
   private async generatePortraitThumbnailFromImageFile(filePath: string): Promise<string> {
-    const { displayWidth, displayHeight } = await this.probeImageEffectiveSize(filePath);
     const meta = await (sharp as any)(filePath).rotate().metadata().catch(() => null);
-    const w = meta?.width ?? displayWidth;
-    const h = meta?.height ?? displayHeight;
+    const w = meta?.width ?? 0;
+    const h = meta?.height ?? 0;
     if (this.isTotemDeliverySize(w, h)) {
       return this.generatePortraitThumbnailFromDeliveryImage(filePath);
     }
-    const rotation = this.resolvePreviewRotationDegrees(displayWidth, displayHeight, 0);
-    return this.generatePreviewThumbnailFromImageSource(filePath, rotation);
+    // EXIF via sharp.rotate() no pipeline; sem auto +90° landscape (igual ao diálogo olho).
+    return this.generatePreviewThumbnailFromImageSource(filePath, 0);
   }
 
   private resolveExistingMediaPath(filePath: string): string | null {
@@ -2690,9 +2683,11 @@ export class MediaService {
           return generatedThumbPath;
         }
         await (sharp as any)(existingFilePath)
+          .rotate()
           .resize(TOTEM_THUMB_WIDTH, TOTEM_THUMB_HEIGHT, {
-            fit: 'cover',
+            fit: 'contain',
             position: 'centre',
+            background: { r: 0, g: 0, b: 0, alpha: 1 },
           })
           .jpeg({ quality: 82, progressive: true })
           .toFile(generatedThumbPath);
