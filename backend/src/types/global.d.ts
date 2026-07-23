@@ -29,22 +29,8 @@ declare module 'express-validator' {
   };
 }
 
-declare module 'express-rate-limit' {
-  import { Request, Response } from 'express';
-  
-  interface RateLimitOptions {
-    windowMs?: number;
-    max?: number;
-    message?: string | object;
-    standardHeaders?: boolean;
-    legacyHeaders?: boolean;
-    skip?: (req: Request) => boolean;
-    keyGenerator?: (req: Request) => string;
-  }
-  
-  function rateLimit(options?: RateLimitOptions): (req: Request, res: Response, next: () => void) => void;
-  export = rateLimit;
-}
+// express-rate-limit: usar tipos oficiais do pacote (não declarar aqui —
+// uma RateLimitOptions incompleta quebrava o compile com a option `handler`).
 
 declare module 'sharp' {
   interface SharpOptions {

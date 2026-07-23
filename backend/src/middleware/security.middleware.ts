@@ -31,7 +31,7 @@ export const playerApiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: playerRateLimitKey,
-  handler: (req, res, _next, options) => {
+  handler: (_req, res, _next, options) => {
     const retryAfterSec = Math.ceil(options.windowMs / 1000);
     res.setHeader('Retry-After', String(retryAfterSec));
     res.status(options.statusCode).json({
@@ -53,7 +53,7 @@ export const playerTokenLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => `${playerRateLimitKey(req)}:token`,
-  handler: (req, res, _next, options) => {
+  handler: (_req, res, _next, options) => {
     const retryAfterSec = Math.ceil(options.windowMs / 1000);
     res.setHeader('Retry-After', String(retryAfterSec));
     res.status(options.statusCode).json({
