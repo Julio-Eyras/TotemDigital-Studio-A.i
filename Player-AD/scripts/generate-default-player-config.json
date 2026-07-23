@@ -3,7 +3,10 @@
   "uin": "T1000",
   "deviceId": "T1000-Exterminator",
   "kioskMode": "strong",
+  "displayRotation": 0,
+  "screenOrientation": "portrait",
   "allowPlaybackAudio": false,
+  "fallbackPropagandasPerVinheta": 3,
   "batimentoCardiaco": 30,
   "maxSecondsWithoutServerCheck": 180
 }
