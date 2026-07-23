@@ -30,6 +30,9 @@ export type CommandType =
   | 'config'
   | 'apply_player_config'
   | 'ota_rollback'
+  | 'display_force_on'
+  | 'display_force_off'
+  | 'display_force_clear'
   | 'custom';
 
 export interface RemoteCommand {

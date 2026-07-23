@@ -602,6 +602,7 @@ router.put('/:id',
   body('resolution').optional({ nullable: true }).isString(),
   body('orientation').optional({ nullable: true }).isString().isIn(['portrait', 'landscape']),
   body('isActive').optional({ nullable: true }).isBoolean(),
+  body('playerSettings').optional({ nullable: true }).isObject(),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -1096,6 +1097,9 @@ router.post('/:id/commands',
       'apply_player_config',
       'update',
       'ota_rollback',
+      'display_force_on',
+      'display_force_off',
+      'display_force_clear',
     ])
     .withMessage('Tipo de comando inválido'),
   body('data').optional({ nullable: true }).isObject().withMessage('data deve ser objeto JSON'),

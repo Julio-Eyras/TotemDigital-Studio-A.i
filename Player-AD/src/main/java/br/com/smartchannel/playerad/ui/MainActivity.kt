@@ -147,7 +147,8 @@ class MainActivity : AppCompatActivity() {
                         config.batimentoCardiaco,
                         config.maxSecondsWithoutServerCheck,
                         config.displayRotation,
-                        otaCoordinator
+                        otaCoordinator,
+                        findViewById(R.id.displayIdleOverlay),
                     )
                     PlayerAdLogger.i("WATCHDOG", "Loop do player iniciado")
                     playerController?.start()
@@ -309,6 +310,6 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val DEV_TAPS_REQUIRED = 5
-        private const val WATCHDOG_RESTART_DELAY_MS = 10_000L
+        private const val WATCHDOG_RESTART_DELAY_MS = 30_000L
     }
 }

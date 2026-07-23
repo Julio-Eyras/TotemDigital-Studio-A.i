@@ -4,6 +4,6 @@
   "deviceId": "T1000-Exterminator",
   "kioskMode": "strong",
   "allowPlaybackAudio": false,
-  "batimentoCardiaco": 15,
-  "maxSecondsWithoutServerCheck": 60
+  "batimentoCardiaco": 30,
+  "maxSecondsWithoutServerCheck": 180
 }

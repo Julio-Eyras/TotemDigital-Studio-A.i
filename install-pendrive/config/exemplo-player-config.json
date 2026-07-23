@@ -7,6 +7,6 @@
   "screenOrientation": "portrait",
   "allowPlaybackAudio": false,
   "fallbackPropagandasPerVinheta": 3,
-  "batimentoCardiaco": 15,
-  "maxSecondsWithoutServerCheck": 60
+  "batimentoCardiaco": 30,
+  "maxSecondsWithoutServerCheck": 180
 }

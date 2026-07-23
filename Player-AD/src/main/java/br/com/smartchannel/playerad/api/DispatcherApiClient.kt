@@ -14,8 +14,7 @@ import java.util.TimeZone
  * - POST /api/player/heartbeat
  * - GET  /api/player/dispatch
  *
- * Implementação simplificada (sem tratar todos erros HTTP),
- * serve como base para o Player-AD.
+ * Em HTTP 429 lança [ApiHttpException] com Retry-After quando o servidor envia o header.
  */
 class DispatcherApiClient(
     val baseUrl: String,
@@ -32,7 +31,14 @@ class DispatcherApiClient(
     data class HeartbeatResult(
         val token: String,
         val pendingCommands: List<PendingCommand>,
-        val otaUpdate: JSONObject? = null
+        val otaUpdate: JSONObject? = null,
+        val displaySchedule: JSONObject? = null,
+    )
+
+    private data class HttpTextResponse(
+        val code: Int,
+        val body: String,
+        val retryAfterSeconds: Long?,
     )
 
     private var currentToken: String? = null
@@ -50,46 +56,93 @@ class DispatcherApiClient(
 
     private fun encode(v: String): String = java.net.URLEncoder.encode(v, "UTF-8")
 
-    private fun performTokenGet(): Pair<Int, String> {
+    private fun parseRetryAfterSeconds(conn: HttpURLConnection): Long? {
+        val raw = conn.getHeaderField("Retry-After")?.trim().orEmpty()
+        if (raw.isBlank()) return null
+        return raw.toLongOrNull()?.takeIf { it >= 0 }
+    }
+
+    private fun readHttpText(conn: HttpURLConnection): HttpTextResponse {
+        val code = try {
+            conn.responseCode
+        } catch (_: Exception) {
+            -1
+        }
+        val retryAfter = try {
+            parseRetryAfterSeconds(conn)
+        } catch (_: Exception) {
+            null
+        }
+        val stream = try {
+            if (code in 200..299) conn.inputStream else (conn.errorStream ?: conn.inputStream)
+        } catch (_: Exception) {
+            null
+        }
+        val body = try {
+            stream?.use { it.readBytes().toString(Charsets.UTF_8) }.orEmpty()
+        } catch (e: Exception) {
+            e.message.orEmpty()
+        }
+        return HttpTextResponse(code, body, retryAfter)
+    }
+
+    private fun parseRetryFromBody(body: String): Long? {
+        if (body.isBlank()) return null
+        return try {
+            val json = JSONObject(body)
+            val seconds = json.optLong("retryAfterSeconds", -1L)
+            if (seconds >= 0) return seconds
+            when (val raw = json.opt("retryAfter")) {
+                is Number -> raw.toLong()
+                is String -> raw.toLongOrNull()
+                else -> null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun throwHttp(label: String, response: HttpTextResponse): Nothing {
+        throw ApiHttpException(
+            code = response.code,
+            message = "HTTP $label falhou: code=${response.code} body=${response.body}",
+            retryAfterSeconds = response.retryAfterSeconds ?: parseRetryFromBody(response.body),
+        )
+    }
+
+    private fun performTokenGet(): HttpTextResponse {
         val url = URL(
             "$baseUrl/api/player/token?uin=${encode(uin)}&deviceId=${encode(deviceId)}"
         )
         val conn = openConnection(url, "GET")
-
-        val responseCode = try { conn.responseCode } catch (_: Exception) { -1 }
-        val responseBody = try {
-            conn.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
-        } catch (e: Exception) {
-            val errBody = conn.errorStream?.use { it.readBytes().toString(Charsets.UTF_8) }
-                ?: e.message
-            throw IOException("HTTP token falhou: code=$responseCode body=$errBody", e)
+        return try {
+            readHttpText(conn)
+        } finally {
+            conn.disconnect()
         }
-        return responseCode to responseBody
     }
 
     suspend fun getToken(): String = withContext(Dispatchers.IO) {
-        var (responseCode, responseBody) = performTokenGet()
-        if (responseCode == 401) {
+        var response = performTokenGet()
+        if (response.code == 401) {
             delay(400L)
-            val second = performTokenGet()
-            responseCode = second.first
-            responseBody = second.second
+            response = performTokenGet()
         }
 
-        if (responseCode !in 200..299) {
-            throw IOException("HTTP token falhou: code=$responseCode body=$responseBody")
+        if (response.code !in 200..299) {
+            throwHttp("token", response)
         }
 
-        val json = JSONObject(responseBody)
+        val json = JSONObject(response.body)
         val token = json.optString("token", "")
         if (token.isBlank()) {
-            throw IOException("Token vazio em /api/player/token: body=$responseBody")
+            throw IOException("Token vazio em /api/player/token: body=${response.body}")
         }
         currentToken = token
         token
     }
 
-    private fun performHeartbeatRequest(token: String, metrics: JSONObject? = null): Pair<Int, String> {
+    private fun performHeartbeatRequest(token: String, metrics: JSONObject? = null): HttpTextResponse {
         val url = URL(
             "$baseUrl/api/player/heartbeat?uin=${encode(uin)}&token=${encode(token)}&deviceId=${encode(deviceId)}"
         )
@@ -108,36 +161,29 @@ class DispatcherApiClient(
             if (metrics != null) put("metrics", metrics)
         }.toString()
 
-        conn.outputStream.use { it.write(body.toByteArray()) }
-
-        val responseCode = try { conn.responseCode } catch (_: Exception) { -1 }
-        val responseBody = try {
-            conn.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
-        } catch (e: Exception) {
-            val errBody = conn.errorStream?.use { it.readBytes().toString(Charsets.UTF_8) }
-                ?: e.message
-            throw IOException("HTTP heartbeat falhou: code=$responseCode body=$errBody", e)
+        return try {
+            conn.outputStream.use { it.write(body.toByteArray()) }
+            readHttpText(conn)
+        } finally {
+            conn.disconnect()
         }
-        return responseCode to responseBody
     }
 
     suspend fun heartbeatWithCommands(metrics: JSONObject? = null): HeartbeatResult = withContext(Dispatchers.IO) {
         var tkn = currentToken ?: getToken()
-        var (responseCode, responseBody) = performHeartbeatRequest(tkn, metrics)
-        if (responseCode == 401) {
+        var response = performHeartbeatRequest(tkn, metrics)
+        if (response.code == 401) {
             currentToken = null
             tkn = getToken()
             currentToken = tkn
-            val second = performHeartbeatRequest(tkn, metrics)
-            responseCode = second.first
-            responseBody = second.second
+            response = performHeartbeatRequest(tkn, metrics)
         }
 
-        if (responseCode !in 200..299) {
-            throw IOException("HTTP heartbeat falhou: code=$responseCode body=$responseBody")
+        if (response.code !in 200..299) {
+            throwHttp("heartbeat", response)
         }
 
-        val json = JSONObject(responseBody)
+        val json = JSONObject(response.body)
         val data = json.optJSONObject("data")
         val payload = data ?: json
         val newToken = payload.optString("token", tkn)
@@ -165,7 +211,10 @@ class DispatcherApiClient(
         val otaUpdate = payload.optJSONObject("otaUpdate")
             ?: payload.optJSONObject("ota_update")
 
-        HeartbeatResult(newToken, pendingCommands, otaUpdate)
+        val displaySchedule = payload.optJSONObject("displaySchedule")
+            ?: payload.optJSONObject("display_schedule")
+
+        HeartbeatResult(newToken, pendingCommands, otaUpdate, displaySchedule)
     }
 
     suspend fun reportOtaStatus(
@@ -188,9 +237,14 @@ class DispatcherApiClient(
             if (!availableVersion.isNullOrBlank()) put("availableVersion", availableVersion)
             if (!error.isNullOrBlank()) put("error", error)
         }.toString()
-        conn.outputStream.use { it.write(body.toByteArray()) }
-        if (conn.responseCode !in 200..299) {
-            throw IOException("ota-status HTTP ${conn.responseCode}")
+        try {
+            conn.outputStream.use { it.write(body.toByteArray()) }
+            val response = readHttpText(conn)
+            if (response.code !in 200..299) {
+                throwHttp("ota-status", response)
+            }
+        } finally {
+            conn.disconnect()
         }
     }
 
@@ -210,29 +264,23 @@ class DispatcherApiClient(
             put("hardware", hardware)
         }.toString()
 
-        conn.outputStream.use { it.write(body.toByteArray()) }
-
-        val responseCode = try { conn.responseCode } catch (_: Exception) { -1 }
-        val responseBody = try {
-            conn.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
-        } catch (e: Exception) {
-            val errBody = conn.errorStream?.use { it.readBytes().toString(Charsets.UTF_8) }
-                ?: e.message
-            throw IOException("HTTP register falhou: code=$responseCode body=$errBody", e)
+        try {
+            conn.outputStream.use { it.write(body.toByteArray()) }
+            val response = readHttpText(conn)
+            if (response.code !in 200..299) {
+                throwHttp("register", response)
+            }
+            val json = JSONObject(response.body)
+            val token = json.optString("token", "")
+            if (token.isNotBlank()) currentToken = token
+            json
+        } finally {
+            conn.disconnect()
         }
-
-        if (responseCode !in 200..299) {
-            throw IOException("HTTP register falhou: code=$responseCode body=$responseBody")
-        }
-
-        val json = JSONObject(responseBody)
-        val token = json.optString("token", "")
-        if (token.isNotBlank()) currentToken = token
-        json
     }
 
     suspend fun getDispatchPlan(token: String): JSONObject = withContext(Dispatchers.IO) {
-        fun fetchOnce(tkn: String): Pair<Int, String> {
+        fun fetchOnce(tkn: String): HttpTextResponse {
             val tz = encode(TimeZone.getDefault().id)
             val url = URL(
                 "$baseUrl/api/player/dispatch?uin=${encode(uin)}&token=${encode(tkn)}&deviceId=${encode(deviceId)}&timezone=$tz"
@@ -242,33 +290,27 @@ class DispatcherApiClient(
                 connectTimeout = 8000
                 readTimeout = 8000
             }
-            val responseCode = try { conn.responseCode } catch (_: Exception) { -1 }
-            val responseBody = try {
-                conn.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
-            } catch (e: Exception) {
-                val errBody = conn.errorStream?.use { it.readBytes().toString(Charsets.UTF_8) }
-                    ?: e.message
-                throw IOException("HTTP dispatch falhou: code=$responseCode body=$errBody", e)
+            return try {
+                readHttpText(conn)
+            } finally {
+                conn.disconnect()
             }
-            return responseCode to responseBody
         }
 
         var tkn = token
-        var (responseCode, responseBody) = fetchOnce(tkn)
-        if (responseCode == 401) {
+        var response = fetchOnce(tkn)
+        if (response.code == 401) {
             currentToken = null
             tkn = getToken()
             currentToken = tkn
-            val second = fetchOnce(tkn)
-            responseCode = second.first
-            responseBody = second.second
+            response = fetchOnce(tkn)
         }
 
-        if (responseCode !in 200..299) {
-            throw IOException("HTTP dispatch falhou: code=$responseCode body=$responseBody")
+        if (response.code !in 200..299) {
+            throwHttp("dispatch", response)
         }
 
-        JSONObject(responseBody)
+        JSONObject(response.body)
     }
 
     suspend fun reportCommandResult(

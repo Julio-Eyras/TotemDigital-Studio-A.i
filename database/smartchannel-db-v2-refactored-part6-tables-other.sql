@@ -422,6 +422,7 @@ CREATE TABLE IF NOT EXISTS remote_commands (
             'refresh_dispatch', 'sync_now', 'content_version_check',
             'purge_cache', 'clear_cache',
             'update', 'config', 'apply_player_config', 'ota_rollback', 'custom',
+            'display_force_on', 'display_force_off', 'display_force_clear',
             'play', 'pause', 'load_playlist', 'request_playlist', 'ping'
         )),
     CONSTRAINT chk_remote_command_status 

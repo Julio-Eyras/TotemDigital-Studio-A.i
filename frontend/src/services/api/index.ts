@@ -557,6 +557,8 @@ export interface UpdatePlayerRequest {
   clientId?: number; // DEPRECATED
   subscriberId?: number; // NOVO: Use subscriberId
   isActive?: boolean;
+  /** Merge parcial em totems.player_settings (ex.: displaySchedule). */
+  playerSettings?: Record<string, unknown>;
 }
 
 export interface PlayerListResponse {

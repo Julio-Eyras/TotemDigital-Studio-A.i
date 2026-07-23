@@ -5,18 +5,23 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import br.com.smartchannel.playerad.R
+import br.com.smartchannel.playerad.api.ApiHttpException
 import br.com.smartchannel.playerad.api.DispatcherApiClient
 import br.com.smartchannel.playerad.ota.OtaUpdateCoordinator
 import br.com.smartchannel.playerad.ota.OtaApkBackupStore
 import br.com.smartchannel.playerad.api.PlayerEventsClient
 import br.com.smartchannel.playerad.cache.MediaCacheManager
 import br.com.smartchannel.playerad.cache.PortraitVideoCacheProcessor
+import br.com.smartchannel.playerad.util.AdaptivePollScheduler
 import br.com.smartchannel.playerad.util.AppDirs
 import br.com.smartchannel.playerad.util.FullscreenViewport
 import br.com.smartchannel.playerad.util.MediaViewportRotation
 import br.com.smartchannel.playerad.util.PlayerAdLogger
 import android.content.Intent
+import br.com.smartchannel.playerad.config.DisplaySchedule
+import br.com.smartchannel.playerad.config.DisplayScheduleStore
 import android.view.View
+import android.graphics.Color
 import android.webkit.WebView
 import android.widget.ImageView
 import androidx.media3.common.C
@@ -66,18 +71,25 @@ class PlayerController(
     private val allowPlaybackAudio: Boolean = false,
     private val fallbackPropagandasPerVinheta: Int = 3,
     /** Intervalo do batimento cardiaco (segundos) — heartbeat sem dispatch. */
-    private val batimentoCardiaco: Int = 15,
+    private val batimentoCardiaco: Int = 30,
     /** Intervalo (segundos) para atualizar dispatch/plano — independente do ciclo de reprodução. */
-    private val maxSecondsWithoutServerCheck: Int = 60,
+    private val maxSecondsWithoutServerCheck: Int = 180,
     /** Montagem do painel (0=portrait … 3=landscape invertido) — alinha orientação da mídia. */
     private val displayRotation: Int = 0,
-    private val otaUpdateCoordinator: OtaUpdateCoordinator? = null
+    private val otaUpdateCoordinator: OtaUpdateCoordinator? = null,
+    /** Overlay preto full-screen (fora do horário de tela). */
+    private val displayIdleOverlay: View? = null,
 ) {
     private var restartRequested = false
     private var videoOrientationListener: Player.Listener? = null
     private var pendingVideoOrientationReveal = false
     @Volatile
     private var nowPlayingSnapshot: JSONObject? = null
+    @Volatile
+    private var displaySchedule: DisplaySchedule = DisplaySchedule()
+    @Volatile
+    private var displayIdle: Boolean = false
+    private var lastKeepAliveAtMs: Long = 0L
 
     private enum class PlanSource { ONLINE, PERSISTED, FALLBACK_LOCAL }
 
@@ -124,6 +136,7 @@ class PlayerController(
      */
     suspend fun start() {
         HtmlWebViewPlayback.configure(htmlWebView)
+        displaySchedule = DisplayScheduleStore.load(context)
         eventsClient = PlayerEventsClient(
             baseUrl = apiClient.baseUrl.trimEnd('/'),
             uin = apiClient.uin,
@@ -159,7 +172,11 @@ class PlayerController(
         }
         val (initialPlan, initialSource) = initialPlanWithSource
         updatePlanSource(initialSource, "Fonte inicial do plano")
-        PlayerAdLogger.i("LIFECYCLE", "(3) Loop de playback; batimento cardiaco=${batimentoCardiaco}s; dispatch a cada ${maxSecondsWithoutServerCheck}s")
+        PlayerAdLogger.i(
+            "LIFECYCLE",
+            "(3) Loop de playback; batimento cardiaco=${batimentoCardiaco}s (backoff até 10min); " +
+                "dispatch a cada ${maxSecondsWithoutServerCheck}s (backoff até 30min)"
+        )
         playLoop(initialPlan, sessionToken, initialSource)
     }
 
@@ -490,17 +507,27 @@ class PlayerController(
         var currentPlan = plan
         var currentToken = token
         var currentPlanSource = initialSource
-        val heartbeatGapMs = batimentoCardiaco.coerceAtLeast(10) * 1000L
-        val dispatchGapMs = maxSecondsWithoutServerCheck.coerceAtLeast(10) * 1000L
-        var lastHeartbeatAtMs = System.currentTimeMillis()
-        var lastDispatchAtMs = System.currentTimeMillis()
+        val heartbeatPoll = AdaptivePollScheduler(
+            name = "heartbeat",
+            baseIntervalMs = batimentoCardiaco.coerceAtLeast(15) * 1000L,
+            maxIntervalMs = 600_000L,
+        )
+        val dispatchPoll = AdaptivePollScheduler(
+            name = "dispatch",
+            baseIntervalMs = maxSecondsWithoutServerCheck.coerceAtLeast(30) * 1000L,
+            maxIntervalMs = 1_800_000L,
+        )
+        val nowBoot = System.currentTimeMillis()
+        heartbeatPoll.markAttempted(nowBoot)
+        dispatchPoll.markAttempted(nowBoot)
+        var emptyPlanBackoffMs = 5_000L
         var index = 0
         var planSignature = planContentSignature(plan)
         applyPlaybackVolumePolicy()
         while (true) {
             val nowMs = System.currentTimeMillis()
 
-            if (nowMs - lastHeartbeatAtMs >= heartbeatGapMs) {
+            if (heartbeatPoll.due(nowMs)) {
                 try {
                     val heartbeat = performHeartbeat(currentToken)
                     currentToken = heartbeat.token
@@ -514,25 +541,29 @@ class PlayerController(
                         currentPlan = refreshed.second
                         index = refreshed.third
                         currentPlanSource = PlanSource.ONLINE
-                        lastDispatchAtMs = System.currentTimeMillis()
+                        dispatchPoll.onSuccess()
+                        dispatchPoll.markAttempted(System.currentTimeMillis())
                         planSignature = planContentSignature(currentPlan)
                     }
+                    heartbeatPoll.onSuccess()
                     PlayerAdLogger.i(
                         "HEARTBEAT",
-                        "Batimento cardiaco (${batimentoCardiaco}s) — OK; comandos/servidor"
+                        "Batimento cardiaco OK — próximo em ${heartbeatPoll.currentIntervalMs() / 1000}s"
                     )
                 } catch (e: Exception) {
+                    val api = e as? ApiHttpException ?: e.cause as? ApiHttpException
+                    heartbeatPoll.onFailure(api?.code, api?.retryAfterSeconds)
                     PlayerAdLogger.e(
                         "HEARTBEAT",
-                        "Batimento cardiaco (${batimentoCardiaco}s) falhou; mantém token/plano atuais",
+                        "Batimento cardiaco falhou; próximo em ${heartbeatPoll.currentIntervalMs() / 1000}s",
                         e
                     )
                 } finally {
-                    lastHeartbeatAtMs = System.currentTimeMillis()
+                    heartbeatPoll.markAttempted(System.currentTimeMillis())
                 }
             }
 
-            if (nowMs - lastDispatchAtMs >= dispatchGapMs) {
+            if (dispatchPoll.due(nowMs)) {
                 try {
                     val refreshed = fetchDispatchPlan(currentToken, "checagem_temporal")
                     currentToken = refreshed.token
@@ -547,18 +578,23 @@ class PlayerController(
                     currentPlanSource = PlanSource.ONLINE
                     updatePlanSource(currentPlanSource, "Fonte do plano alterada")
                     if (index >= currentPlan.mediaItems.size) index = 0
+                    dispatchPoll.onSuccess()
                     PlayerAdLogger.i(
                         "DISPATCH",
-                        "Atualização de plano (${maxSecondsWithoutServerCheck}s) — ${currentPlan.mediaItems.size} itens"
+                        "Atualização de plano OK — ${currentPlan.mediaItems.size} itens; " +
+                            "próximo em ${dispatchPoll.currentIntervalMs() / 1000}s"
                     )
                 } catch (e: Exception) {
+                    val api = e as? ApiHttpException ?: e.cause as? ApiHttpException
+                    dispatchPoll.onFailure(api?.code, api?.retryAfterSeconds)
                     PlayerAdLogger.e(
                         "DISPATCH",
-                        "Atualização de plano (${maxSecondsWithoutServerCheck}s) falhou; mantém plano atual ($currentPlanSource)",
+                        "Atualização de plano falhou; mantém plano atual ($currentPlanSource); " +
+                            "próximo em ${dispatchPoll.currentIntervalMs() / 1000}s",
                         e
                     )
                 } finally {
-                    lastDispatchAtMs = System.currentTimeMillis()
+                    dispatchPoll.markAttempted(System.currentTimeMillis())
                 }
             }
 
@@ -572,6 +608,7 @@ class PlayerController(
                     currentPlanSource = PlanSource.PERSISTED
                     updatePlanSource(currentPlanSource, "Fonte do plano alterada")
                     index = 0
+                    emptyPlanBackoffMs = 5_000L
                     continue
                 }
                 // Plano vazio: tentar usar fallback sintético (propagandas + vinhetas locais)
@@ -591,18 +628,31 @@ class PlayerController(
                     currentPlanSource = PlanSource.FALLBACK_LOCAL
                     updatePlanSource(currentPlanSource, "Fonte do plano alterada")
                     index = 0
+                    emptyPlanBackoffMs = 5_000L
                 }
             }
 
             if (currentPlan.mediaItems.isEmpty()) {
-                // Guarda final de segurança contra planos vazios em qualquer caminho de atualização.
+                // Guarda final: não martelar o servidor (antes: delay 250ms).
                 PlayerAdLogger.w(
                     "PLAYBACK",
-                    "Proteção acionada: plano ainda vazio antes da indexação; novo ciclo para fallback/retry"
+                    "Proteção acionada: plano ainda vazio; aguardando ${emptyPlanBackoffMs}ms antes de retry"
                 )
-                delay(250L)
+                delay(emptyPlanBackoffMs)
+                emptyPlanBackoffMs = (emptyPlanBackoffMs * 2L).coerceAtMost(60_000L)
                 continue
             }
+
+            emptyPlanBackoffMs = 5_000L
+
+            // Horário de tela: fora do horário → preto total, processo vivo.
+            if (!displaySchedule.isDisplayActiveNow()) {
+                enterDisplayIdle()
+                maybeDisplayKeepAlive()
+                delay(1_000L)
+                continue
+            }
+            exitDisplayIdle()
 
             val item = currentPlan.mediaItems[index]
             currentToken = playItem(currentPlan, item, currentToken)
@@ -615,6 +665,60 @@ class PlayerController(
                 )
             }
         }
+    }
+
+    private fun enterDisplayIdle() {
+        if (!displayIdle) {
+            displayIdle = true
+            PlayerAdLogger.i("DISPLAY", "Fora do horário — saída em preto (player ativo)")
+        }
+        try {
+            exoPlayer.pause()
+            exoPlayer.stop()
+        } catch (_: Exception) { }
+        imageView.visibility = View.GONE
+        htmlWebView.visibility = View.GONE
+        playerView.visibility = View.GONE
+        displayIdleOverlay?.visibility = View.VISIBLE
+        displayIdleOverlay?.setBackgroundColor(Color.BLACK)
+    }
+
+    private fun exitDisplayIdle() {
+        if (!displayIdle) {
+            displayIdleOverlay?.visibility = View.GONE
+            playerView.visibility = View.VISIBLE
+            return
+        }
+        displayIdle = false
+        displayIdleOverlay?.visibility = View.GONE
+        playerView.visibility = View.VISIBLE
+        PlayerAdLogger.i("DISPLAY", "Dentro do horário — retomando saída de vídeo")
+    }
+
+    private fun maybeDisplayKeepAlive() {
+        if (!displaySchedule.keepAliveWhileOff) return
+        val intervalMs = displaySchedule.keepAliveIntervalMinutes.coerceIn(5, 30) * 60_000L
+        val now = System.currentTimeMillis()
+        if (now - lastKeepAliveAtMs < intervalMs) return
+        lastKeepAliveAtMs = now
+        // Nudge quase invisível: flash cinza muito escuro ~200ms para a TV não entrar em standby.
+        displayIdleOverlay?.post {
+            displayIdleOverlay?.setBackgroundColor(Color.rgb(2, 2, 2))
+            displayIdleOverlay?.postDelayed({
+                displayIdleOverlay?.setBackgroundColor(Color.BLACK)
+            }, 200L)
+        }
+        PlayerAdLogger.i("DISPLAY", "Keep-alive anti-standby (nudge)")
+    }
+
+    private fun applyDisplayScheduleFromServer(raw: JSONObject?) {
+        if (raw == null) return
+        displaySchedule = DisplayScheduleStore.applyJson(context, raw)
+        PlayerAdLogger.i(
+            "DISPLAY",
+            "Schedule atualizado enabled=${displaySchedule.enabled} " +
+                "${displaySchedule.onTime}-${displaySchedule.offTime} tz=${displaySchedule.timezone}"
+        )
     }
 
     /** Assinatura do plano para detectar reorder/conteúdo novo. */
@@ -662,6 +766,7 @@ class PlayerController(
         val hb = apiClient.heartbeatWithCommands(buildHealthMetrics())
         var token = hb.token
         PlayerAdLogger.i("HEARTBEAT", "OK — sessão/token renovados; comandos=${hb.pendingCommands.size}")
+        hb.displaySchedule?.let { applyDisplayScheduleFromServer(it) }
         otaUpdateCoordinator?.handleFromHeartbeat(hb.otaUpdate)
         var refreshDispatch = false
         if (hb.pendingCommands.isNotEmpty()) {
@@ -749,8 +854,11 @@ class PlayerController(
                     put("batimentoCardiaco", cfg.batimentoCardiaco)
                     put("maxSecondsWithoutServerCheck", cfg.maxSecondsWithoutServerCheck)
                     put("appVersion", apiClient.appVersion)
+                    put("displayIdle", displayIdle)
+                    put("displaySchedule", displaySchedule.toJson())
                 },
             )
+            put("displayIdle", displayIdle)
         }
     }
 
@@ -821,14 +929,30 @@ class PlayerController(
             "reset_board", "reboot" -> executeResetBoard()
             "capture_screen", "screenshot" -> executeCaptureScreen()
             "config", "apply_player_config" -> executeApplyPlayerConfig(data)
+            "display_force_on" -> executeDisplayForce("on")
+            "display_force_off" -> executeDisplayForce("off")
+            "display_force_clear" -> executeDisplayForce(null)
             "update" -> executeOtaUpdateCommand(data)
             "ota_rollback" -> OtaApkBackupStore.mockPrepareRollback(context)
             else -> throw IllegalArgumentException("Comando não suportado no Player-AD: $type")
         }
     }
 
+    private fun executeDisplayForce(mode: String?): JSONObject {
+        displaySchedule = displaySchedule.withForceMode(mode)
+        DisplayScheduleStore.save(context, displaySchedule)
+        PlayerAdLogger.i("DISPLAY", "forceMode=$mode (schedule local atualizado)")
+        return JSONObject().apply {
+            put("forceMode", mode ?: JSONObject.NULL)
+            put("displayActive", displaySchedule.isDisplayActiveNow())
+        }
+    }
+
     private fun executeApplyPlayerConfig(data: JSONObject?): JSONObject {
         if (data == null) throw IllegalArgumentException("config sem payload")
+        if (data.has("displaySchedule")) {
+            applyDisplayScheduleFromServer(data.optJSONObject("displaySchedule"))
+        }
         val loader = br.com.smartchannel.playerad.config.PlayerConfigLoader(context)
         val current = loader.load()
         val next = current.copy(
@@ -857,7 +981,7 @@ class PlayerController(
             },
             maxSecondsWithoutServerCheck = if (data.has("maxSecondsWithoutServerCheck")) {
                 data.optInt("maxSecondsWithoutServerCheck", current.maxSecondsWithoutServerCheck)
-                    .coerceIn(15, 3600)
+                    .coerceIn(30, 3600)
             } else {
                 current.maxSecondsWithoutServerCheck
             },

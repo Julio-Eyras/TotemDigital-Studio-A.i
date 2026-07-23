@@ -31,6 +31,15 @@ export const playerApiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: playerRateLimitKey,
+  handler: (req, res, _next, options) => {
+    const retryAfterSec = Math.ceil(options.windowMs / 1000);
+    res.setHeader('Retry-After', String(retryAfterSec));
+    res.status(options.statusCode).json({
+      error: 'Muitas requisições do player. Tente novamente em alguns minutos.',
+      retryAfter: retryAfterSec,
+      retryAfterSeconds: retryAfterSec,
+    });
+  },
 });
 
 /** Limite mais restrito para emissão de token (anti enumeração de UIN). */
@@ -44,6 +53,15 @@ export const playerTokenLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => `${playerRateLimitKey(req)}:token`,
+  handler: (req, res, _next, options) => {
+    const retryAfterSec = Math.ceil(options.windowMs / 1000);
+    res.setHeader('Retry-After', String(retryAfterSec));
+    res.status(options.statusCode).json({
+      error: 'Muitas solicitações de token do player. Tente novamente em alguns minutos.',
+      retryAfter: retryAfterSec,
+      retryAfterSeconds: retryAfterSec,
+    });
+  },
 });
 
 /**

@@ -84,7 +84,7 @@ COMMENT ON COLUMN totems.local_id IS 'Local onde totem está instalado (FK → l
 COMMENT ON COLUMN totems.identifier IS 'Identificador único do totem';
 COMMENT ON COLUMN totems.status IS 'Status atual do totem: pending_activation, pending_approval, offline, online, error, maintenance, syncing';
 COMMENT ON COLUMN totems.capabilities IS 'Recursos do totem (JSON)';
-COMMENT ON COLUMN totems.player_settings IS 'Espelho da config Player-AD (displayRotation, kioskMode, …) para admin remota';
+COMMENT ON COLUMN totems.player_settings IS 'Espelho da config Player-AD (displayRotation, kioskMode, displaySchedule, …) para admin remota. displaySchedule: { enabled, timezone, daysOfWeek[0-6], onTime, offTime, keepAliveWhileOff, keepAliveIntervalMinutes, forceMode }';
 COMMENT ON COLUMN totems.now_playing IS 'Última mídia em reprodução reportada pelo player';
 
 -- Compatibilidade para bancos já criados: ampliar a constraint de status dos totens.

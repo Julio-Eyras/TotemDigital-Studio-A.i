@@ -19,6 +19,11 @@ import { normalizeTotemUin } from '../utils/normalizeTotemUin';
 import { resolveCompactOwnerPublisherId } from '../utils/compactOwnerPublisher';
 import { userMayCreateTotem } from '../utils/totemCreateRoles';
 import { getTotemDirectMediaService } from './totemDirectMediaService';
+import {
+  mergePlayerSettingsWithDisplaySchedule,
+  validateDisplayScheduleInput,
+} from '../utils/displaySchedule';
+import { getRemoteCommandService } from './remoteCommandService';
 
 function normalizeStockText(value: unknown): string {
   return String(value || '')
@@ -72,6 +77,8 @@ export interface UpdateTotemRequest {
   // REMOVIDO: clientId - totem não pertence a subscriber, pertence a publisher via local_id
   isActive?: boolean;
   active?: boolean;
+  /** Merge parcial em totems.player_settings (ex.: { displaySchedule: {...} }). */
+  playerSettings?: Record<string, unknown>;
 }
 
 export interface TotemResponse {
@@ -1072,6 +1079,31 @@ export class TotemService {
         params.push(data.firmwareVersion);
       }
 
+      if (data.playerSettings !== undefined && data.playerSettings !== null) {
+        if (typeof data.playerSettings !== 'object' || Array.isArray(data.playerSettings)) {
+          throw new Error('playerSettings deve ser um objeto');
+        }
+        const patch = data.playerSettings as Record<string, unknown>;
+        if (patch.displaySchedule !== undefined) {
+          const err = validateDisplayScheduleInput(patch.displaySchedule);
+          if (err) throw new Error(err);
+        }
+        const existingSettings = (existingTotem as any).playerSettings ?? (existingTotem as any).player_settings ?? {};
+        let nextSettings: Record<string, unknown> =
+          existingSettings && typeof existingSettings === 'object' && !Array.isArray(existingSettings)
+            ? { ...existingSettings }
+            : {};
+        if (patch.displaySchedule !== undefined) {
+          nextSettings = mergePlayerSettingsWithDisplaySchedule(nextSettings, patch.displaySchedule);
+        }
+        for (const [k, v] of Object.entries(patch)) {
+          if (k === 'displaySchedule') continue;
+          nextSettings[k] = v;
+        }
+        updates.push(`player_settings = $${paramIndex++}::jsonb`);
+        params.push(JSON.stringify(nextSettings));
+      }
+
       if (data.ipAddress !== undefined) {
         // ipAddress deve ser atualizado em network_info (JSONB)
         const currentNetworkInfo = existingTotem.config || {};
@@ -1131,6 +1163,25 @@ export class TotemService {
 
       // Invalidar cache relacionado
       await this.cache.invalidateEntity('totem', totemId).catch(() => {});
+
+      // Se o horário de tela mudou, empurra apply_player_config para o player.
+      if (data.playerSettings && (data.playerSettings as any).displaySchedule !== undefined) {
+        try {
+          const settings = (updatedTotem as any).playerSettings || (updatedTotem as any).player_settings || {};
+          await getRemoteCommandService().createCommand(
+            {
+              totemId,
+              commandType: 'apply_player_config',
+              commandData: {
+                displaySchedule: settings.displaySchedule ?? null,
+              },
+            },
+            updatedBy
+          );
+        } catch (e: any) {
+          await logError('Falha ao enfileirar apply_player_config após displaySchedule', e, { totemId });
+        }
+      }
 
       return updatedTotem;
 

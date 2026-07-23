@@ -48,4 +48,14 @@
 
         </br.com.smartchannel.playerad.ui.PortraitViewportLayout>
     </FrameLayout>
+
+    <!-- Fora do horário de trabalho: preto total sem encerrar o processo -->
+    <View
+        android:id="@+id/displayIdleOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#000000"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone" />
 </FrameLayout>

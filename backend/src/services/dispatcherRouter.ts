@@ -634,6 +634,28 @@ class DispatcherRouter {
       const { resolveOtaUpdateForHeartbeat } = await import('./otaHeartbeatHelper');
       const otaUpdate = await resolveOtaUpdateForHeartbeat(totemId, request.body as Record<string, unknown>);
 
+      let displaySchedule: unknown = null;
+      try {
+        const db = (await import('../config/database')).getDatabase();
+        const row = await db.findFirst(
+          `SELECT player_settings FROM totems WHERE totem_id = $1`,
+          [totemId]
+        );
+        const settings = row?.player_settings;
+        if (settings && typeof settings === 'object' && !Array.isArray(settings)) {
+          displaySchedule = (settings as any).displaySchedule ?? null;
+        } else if (typeof settings === 'string') {
+          try {
+            const parsed = JSON.parse(settings);
+            displaySchedule = parsed?.displaySchedule ?? null;
+          } catch {
+            displaySchedule = null;
+          }
+        }
+      } catch {
+        displaySchedule = null;
+      }
+
       return {
         success: true,
         data: {
@@ -646,6 +668,7 @@ class DispatcherRouter {
             priority: cmd.priority,
           })),
           otaUpdate: otaUpdate || null,
+          displaySchedule,
         },
         statusCode: 200,
         duration: Date.now() - startTime,

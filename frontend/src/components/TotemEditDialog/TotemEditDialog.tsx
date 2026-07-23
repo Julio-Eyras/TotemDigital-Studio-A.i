@@ -1,11 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Box,
   Button,
+  Checkbox,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControl,
   FormControlLabel,
+  FormGroup,
+  InputLabel,
+  MenuItem,
+  Select,
   Switch,
   TextField,
   Typography,
@@ -21,6 +28,68 @@ export interface TotemEditDialogProps {
   onSaved: () => void;
 }
 
+type DisplayScheduleForm = {
+  enabled: boolean;
+  timezone: string;
+  daysOfWeek: number[];
+  onTime: string;
+  offTime: string;
+  keepAliveWhileOff: boolean;
+  keepAliveIntervalMinutes: number;
+};
+
+const DAY_OPTIONS: Array<{ value: number; label: string }> = [
+  { value: 1, label: 'Seg' },
+  { value: 2, label: 'Ter' },
+  { value: 3, label: 'Qua' },
+  { value: 4, label: 'Qui' },
+  { value: 5, label: 'Sex' },
+  { value: 6, label: 'Sáb' },
+  { value: 0, label: 'Dom' },
+];
+
+const TIMEZONE_OPTIONS = [
+  'America/Sao_Paulo',
+  'America/Manaus',
+  'America/Belem',
+  'America/Fortaleza',
+  'America/Recife',
+  'America/Cuiaba',
+  'America/Porto_Velho',
+  'America/Rio_Branco',
+  'UTC',
+];
+
+const DEFAULT_SCHEDULE: DisplayScheduleForm = {
+  enabled: false,
+  timezone: 'America/Sao_Paulo',
+  daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+  onTime: '08:00',
+  offTime: '22:00',
+  keepAliveWhileOff: true,
+  keepAliveIntervalMinutes: 10,
+};
+
+function readScheduleFromTotem(totem: Record<string, unknown> | null): DisplayScheduleForm {
+  const settings = (totem?.playerSettings || totem?.player_settings || {}) as Record<string, unknown>;
+  const raw = (settings.displaySchedule || {}) as Record<string, unknown>;
+  const days = Array.isArray(raw.daysOfWeek)
+    ? raw.daysOfWeek.map((d) => Number(d)).filter((d) => d >= 0 && d <= 6)
+    : DEFAULT_SCHEDULE.daysOfWeek;
+  return {
+    enabled: raw.enabled === true,
+    timezone: String(raw.timezone || DEFAULT_SCHEDULE.timezone),
+    daysOfWeek: days.length ? days : DEFAULT_SCHEDULE.daysOfWeek,
+    onTime: String(raw.onTime || DEFAULT_SCHEDULE.onTime),
+    offTime: String(raw.offTime || DEFAULT_SCHEDULE.offTime),
+    keepAliveWhileOff: raw.keepAliveWhileOff !== false,
+    keepAliveIntervalMinutes: Math.min(
+      30,
+      Math.max(5, Number(raw.keepAliveIntervalMinutes) || DEFAULT_SCHEDULE.keepAliveIntervalMinutes)
+    ),
+  };
+}
+
 const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose, onSaved }) => {
   const [form, setForm] = useState<UpdatePlayerRequest>({
     name: '',
@@ -29,6 +98,7 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
     localId: undefined,
     isActive: true,
   });
+  const [schedule, setSchedule] = useState<DisplayScheduleForm>(DEFAULT_SCHEDULE);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,19 +114,42 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
       localId,
       isActive: totem.isActive !== false && totem.is_active !== false,
     });
+    setSchedule(readScheduleFromTotem(totem));
     setError(null);
 
-    if (totemId && !localId) {
-      void totemApi.getById(totemId).then((full) => {
-        const resolvedLocalId = getTotemLocalIdFromRow(full);
-        if (resolvedLocalId) {
-          setForm((prev) => ({ ...prev, localId: resolvedLocalId }));
-        }
-      }).catch(() => {
-        /* mantém formulário com dados da listagem */
-      });
+    if (totemId) {
+      void totemApi
+        .getById(totemId)
+        .then((full) => {
+          const resolvedLocalId = getTotemLocalIdFromRow(full as any);
+          setForm((prev) => ({
+            ...prev,
+            localId: resolvedLocalId || prev.localId,
+            name: String((full as any).name || prev.name || ''),
+            identifier: String((full as any).identifier || prev.identifier || ''),
+            uin: String((full as any).uin || prev.uin || ''),
+            isActive: (full as any).isActive !== false && (full as any).is_active !== false,
+          }));
+          setSchedule(readScheduleFromTotem(full as any));
+        })
+        .catch(() => {
+          /* mantém formulário com dados da listagem */
+        });
     }
   }, [open, totem]);
+
+  const scheduleHint = useMemo(() => {
+    if (!schedule.enabled) return 'Horário desativado: a tela permanece sempre ligada.';
+    return `Liga às ${schedule.onTime} e desliga às ${schedule.offTime} (${schedule.timezone}). Fora do horário a saída fica preta sem encerrar o player.`;
+  }, [schedule]);
+
+  const toggleDay = (day: number) => {
+    setSchedule((prev) => {
+      const has = prev.daysOfWeek.includes(day);
+      const next = has ? prev.daysOfWeek.filter((d) => d !== day) : [...prev.daysOfWeek, day].sort((a, b) => a - b);
+      return { ...prev, daysOfWeek: next.length ? next : prev.daysOfWeek };
+    });
+  };
 
   const handleSave = async () => {
     const totemId = totem ? getTotemIdFromRow(totem) : undefined;
@@ -72,6 +165,14 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
       setError('Identificador deve ter pelo menos 2 caracteres');
       return;
     }
+    if (schedule.enabled && schedule.onTime === schedule.offTime) {
+      setError('Horário de ligar e desligar não podem ser iguais');
+      return;
+    }
+    if (schedule.enabled && schedule.daysOfWeek.length === 0) {
+      setError('Selecione pelo menos um dia da semana');
+      return;
+    }
 
     try {
       setLoading(true);
@@ -79,6 +180,17 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
       const payload: UpdatePlayerRequest = {
         identifier,
         isActive: form.isActive !== false,
+        playerSettings: {
+          displaySchedule: {
+            enabled: schedule.enabled,
+            timezone: schedule.timezone,
+            daysOfWeek: schedule.daysOfWeek,
+            onTime: schedule.onTime,
+            offTime: schedule.offTime,
+            keepAliveWhileOff: schedule.keepAliveWhileOff,
+            keepAliveIntervalMinutes: schedule.keepAliveIntervalMinutes,
+          },
+        },
       };
       if (name) payload.name = name;
       if (uin) payload.uin = uin;
@@ -101,7 +213,7 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
       <DialogTitle>Editar totem</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Ajuste o nome, identificador e código de ativação (UIN) de <strong>{title}</strong>.
+          Ajuste o nome, identificador, código de ativação e horário de tela de <strong>{title}</strong>.
         </Typography>
         {error && (
           <Typography color="error" variant="body2" sx={{ mb: 2 }}>
@@ -143,6 +255,106 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
           }
           label="Totem habilitado"
         />
+
+        <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+          <Typography variant="subtitle1" sx={{ mb: 1 }}>
+            Horário de tela
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            {scheduleHint}
+          </Typography>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={schedule.enabled}
+                onChange={(e) => setSchedule((prev) => ({ ...prev, enabled: e.target.checked }))}
+              />
+            }
+            label="Ativar horário de trabalho da tela"
+          />
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 1 }}>
+            <TextField
+              label="Ligar às"
+              type="time"
+              value={schedule.onTime}
+              onChange={(e) => setSchedule((prev) => ({ ...prev, onTime: e.target.value }))}
+              disabled={!schedule.enabled}
+              InputLabelProps={{ shrink: true }}
+              inputProps={{ step: 60 }}
+              sx={{ minWidth: 140 }}
+            />
+            <TextField
+              label="Desligar às"
+              type="time"
+              value={schedule.offTime}
+              onChange={(e) => setSchedule((prev) => ({ ...prev, offTime: e.target.value }))}
+              disabled={!schedule.enabled}
+              InputLabelProps={{ shrink: true }}
+              inputProps={{ step: 60 }}
+              sx={{ minWidth: 140 }}
+            />
+            <FormControl sx={{ minWidth: 220 }} disabled={!schedule.enabled}>
+              <InputLabel id="tz-label">Fuso horário</InputLabel>
+              <Select
+                labelId="tz-label"
+                label="Fuso horário"
+                value={schedule.timezone}
+                onChange={(e) => setSchedule((prev) => ({ ...prev, timezone: String(e.target.value) }))}
+              >
+                {TIMEZONE_OPTIONS.map((tz) => (
+                  <MenuItem key={tz} value={tz}>
+                    {tz}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+          <Typography variant="body2" sx={{ mt: 2, mb: 0.5 }}>
+            Dias da semana
+          </Typography>
+          <FormGroup row>
+            {DAY_OPTIONS.map((d) => (
+              <FormControlLabel
+                key={d.value}
+                disabled={!schedule.enabled}
+                control={
+                  <Checkbox
+                    size="small"
+                    checked={schedule.daysOfWeek.includes(d.value)}
+                    onChange={() => toggleDay(d.value)}
+                  />
+                }
+                label={d.label}
+              />
+            ))}
+          </FormGroup>
+          <FormControlLabel
+            sx={{ mt: 1 }}
+            disabled={!schedule.enabled}
+            control={
+              <Switch
+                checked={schedule.keepAliveWhileOff}
+                onChange={(e) => setSchedule((prev) => ({ ...prev, keepAliveWhileOff: e.target.checked }))}
+              />
+            }
+            label="Manter TV acordada no período off (anti-standby)"
+          />
+          <TextField
+            label="Intervalo keep-alive (min)"
+            type="number"
+            size="small"
+            disabled={!schedule.enabled || !schedule.keepAliveWhileOff}
+            value={schedule.keepAliveIntervalMinutes}
+            onChange={(e) =>
+              setSchedule((prev) => ({
+                ...prev,
+                keepAliveIntervalMinutes: Math.min(30, Math.max(5, Number(e.target.value) || 10)),
+              }))
+            }
+            inputProps={{ min: 5, max: 30 }}
+            sx={{ mt: 1, maxWidth: 200 }}
+          />
+        </Box>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={loading}>

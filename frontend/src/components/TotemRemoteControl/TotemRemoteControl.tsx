@@ -441,6 +441,9 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
       config: 'Configuração',
       apply_player_config: 'Configuração player',
       ota_rollback: 'OTA rollback',
+      display_force_on: 'Forçar tela ligada',
+      display_force_off: 'Forçar tela preta',
+      display_force_clear: 'Seguir horário de tela',
       custom: 'Personalizado',
     };
     return types[type] || type;
@@ -531,6 +534,67 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
               }}
             >
               Aplicar
+            </Button>
+          </Grid>
+        </Grid>
+
+        <Typography variant="subtitle2" gutterBottom>
+          Horário de tela (forçar)
+        </Typography>
+        <Grid container spacing={1} sx={{ mb: 2 }}>
+          <Grid item xs={4}>
+            <Button
+              fullWidth
+              size="small"
+              variant="outlined"
+              onClick={async () => {
+                try {
+                  await totemApi.sendCommand(totemId, 'display_force_on', {});
+                  showSuccess('Forçar tela ligada', 'Aplicado no próximo heartbeat');
+                  setTimeout(loadCommands, 1500);
+                } catch (error: any) {
+                  showError(pickApiErrorMessage(error, 'Erro ao enviar comando'));
+                }
+              }}
+            >
+              Ligar
+            </Button>
+          </Grid>
+          <Grid item xs={4}>
+            <Button
+              fullWidth
+              size="small"
+              variant="outlined"
+              color="warning"
+              onClick={async () => {
+                try {
+                  await totemApi.sendCommand(totemId, 'display_force_off', {});
+                  showSuccess('Forçar tela preta', 'Aplicado no próximo heartbeat');
+                  setTimeout(loadCommands, 1500);
+                } catch (error: any) {
+                  showError(pickApiErrorMessage(error, 'Erro ao enviar comando'));
+                }
+              }}
+            >
+              Apagar
+            </Button>
+          </Grid>
+          <Grid item xs={4}>
+            <Button
+              fullWidth
+              size="small"
+              variant="outlined"
+              onClick={async () => {
+                try {
+                  await totemApi.sendCommand(totemId, 'display_force_clear', {});
+                  showSuccess('Seguir horário', 'Override removido no próximo heartbeat');
+                  setTimeout(loadCommands, 1500);
+                } catch (error: any) {
+                  showError(pickApiErrorMessage(error, 'Erro ao enviar comando'));
+                }
+              }}
+            >
+              Horário
             </Button>
           </Grid>
         </Grid>
