@@ -15,14 +15,12 @@ import {
   IconButton,
   List,
   ListItem,
-  ListItemAvatar,
   ListItemText,
   ListItemSecondaryAction,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
-  Avatar,
 } from '@mui/material';
 import {
   CloudUpload,
@@ -627,27 +625,44 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
                   const fallbackIcon =
                     kind === 'image' ? <ImageIcon /> : kind === 'video' ? <Videocam /> : <AudioFile />;
                   return (
-                  <ListItem key={filePreviewKey(file, index)} divider>
-                    <ListItemAvatar>
-                      <Avatar
-                        variant="rounded"
-                        src={preview || undefined}
-                        alt=""
-                        sx={{
-                          width: 56,
-                          height: 72,
-                          bgcolor: 'grey.900',
-                          border: '1px solid',
-                          borderColor: 'divider',
-                          '& img': { objectFit: 'contain' },
-                        }}
-                      >
-                        {!preview ? fallbackIcon : null}
-                      </Avatar>
-                    </ListItemAvatar>
+                  <ListItem key={filePreviewKey(file, index)} divider sx={{ gap: 1.5 }}>
+                    <Box
+                      sx={{
+                        width: 72,
+                        height: 72,
+                        minWidth: 72,
+                        borderRadius: 1,
+                        bgcolor: '#111',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'grey.500',
+                      }}
+                    >
+                      {preview ? (
+                        <Box
+                          component="img"
+                          src={preview}
+                          alt=""
+                          sx={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'contain',
+                            objectPosition: 'center',
+                            display: 'block',
+                          }}
+                        />
+                      ) : (
+                        fallbackIcon
+                      )}
+                    </Box>
                     <ListItemText
                       primary={file.name}
                       secondary={`${formatFileSize(file.size)} • ${kind}`}
+                      sx={{ minWidth: 0, pr: 10 }}
                     />
                     <ListItemSecondaryAction>
                       <Chip

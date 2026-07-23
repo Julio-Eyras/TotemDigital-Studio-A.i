@@ -12,6 +12,7 @@ import {
   CardActionArea,
   CardContent,
   Chip,
+  Checkbox,
   Dialog,
   DialogActions,
   DialogContent,
@@ -34,9 +35,13 @@ import { mediaApi, MediaItem, totemApi, totemDirectMediaApi, Player, CreatePlaye
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 import TotemEditDialog from '../../components/TotemEditDialog/TotemEditDialog';
 import TotemRemoteControl from '../../components/TotemRemoteControl/TotemRemoteControl';
+import { MediaPortraitThumb } from '../../components/Media/MediaPortraitThumb';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
+import { useMediaThumbnailUrls } from '../../hooks/useMediaThumbnailUrls';
 import { getTotemIdFromRow } from '../../utils/totemRowIds';
+import { buildMediaThumbnailApiPath } from '../../utils/mediaPreviewUrl';
+import { buildMediaMetaSummary } from '../../utils/mediaDisplayMeta';
 
 function isTotemRowActive(row: unknown): boolean {
   const r = row as Record<string, unknown> | null | undefined;
@@ -78,6 +83,8 @@ const PublishTotem: React.FC = () => {
   const [mediaMenuAnchor, setMediaMenuAnchor] = useState<null | HTMLElement>(null);
   const [mediaTargetTotemId, setMediaTargetTotemId] = useState<number | null>(null);
   const [pickOpen, setPickOpen] = useState(false);
+  const [pickSelectedIds, setPickSelectedIds] = useState<number[]>([]);
+  const [addingPicked, setAddingPicked] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [library, setLibrary] = useState<MediaItem[]>([]);
   const [totemMediaIds, setTotemMediaIds] = useState<Set<number>>(new Set());
@@ -92,6 +99,24 @@ const PublishTotem: React.FC = () => {
         (m as { is_active?: boolean }).is_active !== false
     );
   }, [library, totemMediaIds]);
+
+  const libraryPickThumbItems = useMemo(
+    () =>
+      pickOpen
+        ? libraryAvailable
+            .filter((m) => typeof m.media_id === 'number' && m.media_id > 0)
+            .map((m) => ({
+              media_id: m.media_id!,
+              thumbnailUrl: buildMediaThumbnailApiPath(m.media_id!),
+            }))
+        : [],
+    [pickOpen, libraryAvailable],
+  );
+  const { urlsById: libraryPickUrlsById } = useMediaThumbnailUrls(libraryPickThumbItems);
+
+  useEffect(() => {
+    if (!pickOpen) setPickSelectedIds([]);
+  }, [pickOpen]);
 
   const mediaTargetTotem = useMemo(
     () => totems.find((t) => getTotemIdFromRow(t) === mediaTargetTotemId) ?? null,
@@ -141,17 +166,40 @@ const PublishTotem: React.FC = () => {
     setUploadOpen(true);
   };
 
-  const handleAddMediaToTotem = async (mediaId: number) => {
-    if (!mediaTargetTotemId) return;
+  const togglePickMedia = (mediaId: number) => {
+    setPickSelectedIds((prev) =>
+      prev.includes(mediaId) ? prev.filter((id) => id !== mediaId) : [...prev, mediaId]
+    );
+  };
+
+  const togglePickAllAvailable = () => {
+    const allIds = libraryAvailable
+      .map((m) => m.media_id)
+      .filter((id): id is number => typeof id === 'number' && id > 0);
+    setPickSelectedIds((prev) => (prev.length === allIds.length ? [] : allIds));
+  };
+
+  const handleAddSelectedMediaToTotem = async () => {
+    if (!mediaTargetTotemId || pickSelectedIds.length === 0) return;
     try {
+      setAddingPicked(true);
       setError(null);
-      await totemDirectMediaApi.add(mediaTargetTotemId, mediaId);
+      for (const mediaId of pickSelectedIds) {
+        await totemDirectMediaApi.add(mediaTargetTotemId, mediaId);
+      }
       setPickOpen(false);
-      setSuccess('Mídia adicionada ao totem');
+      setSuccess(
+        pickSelectedIds.length === 1
+          ? 'Mídia adicionada ao totem'
+          : `${pickSelectedIds.length} mídias adicionadas ao totem`
+      );
       await loadTotems();
     } catch (e: any) {
       setSuccess(null);
-      setError(pickApiErrorMessage(e, 'Erro ao adicionar mídia ao totem'));
+      setError(pickApiErrorMessage(e, 'Erro ao adicionar mídias ao totem'));
+      if (mediaTargetTotemId) await loadLibraryForTotem(mediaTargetTotemId);
+    } finally {
+      setAddingPicked(false);
     }
   };
 
@@ -455,7 +503,12 @@ const PublishTotem: React.FC = () => {
         </MenuItem>
       </Menu>
 
-      <Dialog open={pickOpen} onClose={() => setPickOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={pickOpen}
+        onClose={() => !addingPicked && setPickOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>
           Adicionar mídia — {mediaTargetTotem?.name || mediaTargetTotem?.identifier || 'Totem'}
         </DialogTitle>
@@ -465,20 +518,86 @@ const PublishTotem: React.FC = () => {
               Nenhuma mídia disponível na biblioteca. Use &quot;Enviar do disco&quot; para importar um arquivo.
             </Typography>
           ) : (
-            <List dense>
-              {libraryAvailable.map((m) => (
-                <ListItemButton key={m.media_id} onClick={() => void handleAddMediaToTotem(m.media_id!)}>
-                  <ListItemText primary={m.name} secondary={m.media_type} />
-                </ListItemButton>
-              ))}
-            </List>
+            <>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                <Button size="small" onClick={togglePickAllAvailable} disabled={addingPicked}>
+                  {pickSelectedIds.length === libraryAvailable.length
+                    ? 'Limpar seleção'
+                    : 'Selecionar todas'}
+                </Button>
+                <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+                  {pickSelectedIds.length} selecionada(s)
+                </Typography>
+              </Box>
+              <List dense>
+                {libraryAvailable.map((m) => {
+                  const id = m.media_id!;
+                  const checked = pickSelectedIds.includes(id);
+                  return (
+                    <ListItemButton
+                      key={id}
+                      selected={checked}
+                      disabled={addingPicked}
+                      onClick={() => togglePickMedia(id)}
+                      sx={{ alignItems: 'center', gap: 0.5, py: 1 }}
+                    >
+                      <ListItemIcon sx={{ minWidth: 36 }}>
+                        <Checkbox
+                          edge="start"
+                          checked={checked}
+                          tabIndex={-1}
+                          disableRipple
+                          disabled={addingPicked}
+                        />
+                      </ListItemIcon>
+                      <MediaPortraitThumb
+                        src={libraryPickUrlsById[id]}
+                        width={44}
+                        title={m.name}
+                        mediaWidth={m.width}
+                        mediaHeight={m.height}
+                      />
+                      <ListItemText
+                        primary={m.name}
+                        secondary={
+                          buildMediaMetaSummary({
+                            mediaType: m.media_type,
+                            durationSeconds: m.duration_seconds,
+                            width: m.width,
+                            height: m.height,
+                            tags: m.tags,
+                            sizeBytes: (m as any).size_bytes ?? m.fileSizeBytes,
+                          }) || m.media_type
+                        }
+                        sx={{ minWidth: 0 }}
+                        primaryTypographyProps={{ noWrap: true }}
+                        secondaryTypographyProps={{ noWrap: true }}
+                      />
+                    </ListItemButton>
+                  );
+                })}
+              </List>
+            </>
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setUploadOpen(true)} startIcon={<CloudUpload />}>
+          <Button onClick={() => setUploadOpen(true)} startIcon={<CloudUpload />} disabled={addingPicked}>
             Enviar do disco
           </Button>
-          <Button onClick={() => setPickOpen(false)}>Fechar</Button>
+          <Button disabled={addingPicked} onClick={() => setPickOpen(false)}>
+            Fechar
+          </Button>
+          <Button
+            variant="contained"
+            disabled={addingPicked || pickSelectedIds.length === 0}
+            onClick={() => void handleAddSelectedMediaToTotem()}
+          >
+            {addingPicked
+              ? 'Adicionando…'
+              : pickSelectedIds.length > 0
+                ? `Adicionar (${pickSelectedIds.length})`
+                : 'Adicionar'}
+          </Button>
         </DialogActions>
       </Dialog>
 

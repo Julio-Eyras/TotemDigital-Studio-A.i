@@ -7,6 +7,7 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Dialog,
   DialogActions,
   DialogContent,
@@ -15,6 +16,7 @@ import {
   LinearProgress,
   List,
   ListItemButton,
+  ListItemIcon,
   ListItemText,
   Typography,
   Tooltip,
@@ -53,6 +55,8 @@ const TotemMediaPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [pickOpen, setPickOpen] = useState(false);
+  const [pickSelectedIds, setPickSelectedIds] = useState<number[]>([]);
+  const [addingPicked, setAddingPicked] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [remoteOpen, setRemoteOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -98,6 +102,10 @@ const TotemMediaPage: React.FC = () => {
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
+
+  useEffect(() => {
+    if (!pickOpen) setPickSelectedIds([]);
+  }, [pickOpen]);
 
   const thumbMediaItems = useMemo(
     () =>
@@ -235,16 +243,41 @@ const TotemMediaPage: React.FC = () => {
     }
   };
 
-  const handleAddMedia = async (mediaId: number) => {
+  const togglePickMedia = (mediaId: number) => {
+    setPickSelectedIds((prev) =>
+      prev.includes(mediaId) ? prev.filter((id) => id !== mediaId) : [...prev, mediaId]
+    );
+  };
+
+  const togglePickAllAvailable = () => {
+    const allIds = libraryAvailable
+      .map((m) => m.media_id)
+      .filter((id): id is number => typeof id === 'number' && id > 0);
+    setPickSelectedIds((prev) => (prev.length === allIds.length ? [] : allIds));
+  };
+
+  const handleAddSelectedMedia = async () => {
+    if (pickSelectedIds.length === 0) return;
     try {
+      setAddingPicked(true);
       setError(null);
-      const updated = await totemDirectMediaApi.add(totemId, mediaId);
+      let updated = items;
+      for (const mediaId of pickSelectedIds) {
+        updated = await totemDirectMediaApi.add(totemId, mediaId);
+      }
       setItems(updated);
       setPickOpen(false);
-      setSuccess('Mídia adicionada ao totem');
+      setSuccess(
+        pickSelectedIds.length === 1
+          ? 'Mídia adicionada ao totem'
+          : `${pickSelectedIds.length} mídias adicionadas ao totem`
+      );
     } catch (e: any) {
       setSuccess(null);
-      setError(pickApiErrorMessage(e, 'Erro ao adicionar mídia'));
+      setError(pickApiErrorMessage(e, 'Erro ao adicionar mídias'));
+      await loadAll();
+    } finally {
+      setAddingPicked(false);
     }
   };
 
@@ -402,47 +435,92 @@ const TotemMediaPage: React.FC = () => {
         onClose={() => setMediaViewTarget(null)}
       />
 
-      <Dialog open={pickOpen} onClose={() => setPickOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={pickOpen}
+        onClose={() => !addingPicked && setPickOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>Adicionar mídia da biblioteca</DialogTitle>
         <DialogContent dividers>
           {libraryAvailable.length === 0 ? (
             <Typography color="text.secondary">Nenhuma mídia disponível na biblioteca.</Typography>
           ) : (
-            <List dense>
-              {libraryAvailable.map((m) => (
-                <ListItemButton
-                  key={m.media_id}
-                  onClick={() => void handleAddMedia(m.media_id!)}
-                  sx={{ alignItems: 'center', gap: 0.5, py: 1 }}
-                >
-                  <MediaPortraitThumb
-                    src={m.media_id ? libraryPickUrlsById[m.media_id] : undefined}
-                    width={44}
-                    title={m.name}
-                    mediaWidth={m.width}
-                    mediaHeight={m.height}
-                  />
-                  <ListItemText
-                    primary={m.name}
-                    secondary={buildMediaMetaSummary({
-                      mediaType: m.media_type,
-                      durationSeconds: m.duration_seconds,
-                      width: m.width,
-                      height: m.height,
-                      tags: m.tags,
-                      sizeBytes: (m as any).size_bytes ?? m.fileSizeBytes,
-                    })}
-                    sx={{ minWidth: 0 }}
-                    primaryTypographyProps={{ noWrap: true }}
-                    secondaryTypographyProps={{ noWrap: true }}
-                  />
-                </ListItemButton>
-              ))}
-            </List>
+            <>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                <Button size="small" onClick={togglePickAllAvailable} disabled={addingPicked}>
+                  {pickSelectedIds.length === libraryAvailable.length
+                    ? 'Limpar seleção'
+                    : 'Selecionar todas'}
+                </Button>
+                <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+                  {pickSelectedIds.length} selecionada(s)
+                </Typography>
+              </Box>
+              <List dense>
+                {libraryAvailable.map((m) => {
+                  const id = m.media_id!;
+                  const checked = pickSelectedIds.includes(id);
+                  return (
+                    <ListItemButton
+                      key={id}
+                      selected={checked}
+                      disabled={addingPicked}
+                      onClick={() => togglePickMedia(id)}
+                      sx={{ alignItems: 'center', gap: 0.5, py: 1 }}
+                    >
+                      <ListItemIcon sx={{ minWidth: 36 }}>
+                        <Checkbox
+                          edge="start"
+                          checked={checked}
+                          tabIndex={-1}
+                          disableRipple
+                          disabled={addingPicked}
+                        />
+                      </ListItemIcon>
+                      <MediaPortraitThumb
+                        src={libraryPickUrlsById[id]}
+                        width={44}
+                        title={m.name}
+                        mediaWidth={m.width}
+                        mediaHeight={m.height}
+                      />
+                      <ListItemText
+                        primary={m.name}
+                        secondary={buildMediaMetaSummary({
+                          mediaType: m.media_type,
+                          durationSeconds: m.duration_seconds,
+                          width: m.width,
+                          height: m.height,
+                          tags: m.tags,
+                          sizeBytes: (m as any).size_bytes ?? m.fileSizeBytes,
+                        })}
+                        sx={{ minWidth: 0 }}
+                        primaryTypographyProps={{ noWrap: true }}
+                        secondaryTypographyProps={{ noWrap: true }}
+                      />
+                    </ListItemButton>
+                  );
+                })}
+              </List>
+            </>
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setPickOpen(false)}>Fechar</Button>
+          <Button disabled={addingPicked} onClick={() => setPickOpen(false)}>
+            Fechar
+          </Button>
+          <Button
+            variant="contained"
+            disabled={addingPicked || pickSelectedIds.length === 0}
+            onClick={() => void handleAddSelectedMedia()}
+          >
+            {addingPicked
+              ? 'Adicionando…'
+              : pickSelectedIds.length > 0
+                ? `Adicionar (${pickSelectedIds.length})`
+                : 'Adicionar'}
+          </Button>
         </DialogActions>
       </Dialog>
 
