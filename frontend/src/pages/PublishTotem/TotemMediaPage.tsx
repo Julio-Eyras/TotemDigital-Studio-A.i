@@ -249,13 +249,6 @@ const TotemMediaPage: React.FC = () => {
     );
   };
 
-  const togglePickAllAvailable = () => {
-    const allIds = libraryAvailable
-      .map((m) => m.media_id)
-      .filter((id): id is number => typeof id === 'number' && id > 0);
-    setPickSelectedIds((prev) => (prev.length === allIds.length ? [] : allIds));
-  };
-
   const handleAddSelectedMedia = async () => {
     if (pickSelectedIds.length === 0) return;
     try {
@@ -447,13 +440,29 @@ const TotemMediaPage: React.FC = () => {
             <Typography color="text.secondary">Nenhuma mídia disponível na biblioteca.</Typography>
           ) : (
             <>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                <Button size="small" onClick={togglePickAllAvailable} disabled={addingPicked}>
-                  {pickSelectedIds.length === libraryAvailable.length
-                    ? 'Limpar seleção'
-                    : 'Selecionar todas'}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  disabled={addingPicked || libraryAvailable.length === 0}
+                  onClick={() => {
+                    const allIds = libraryAvailable
+                      .map((m) => m.media_id)
+                      .filter((id): id is number => typeof id === 'number' && id > 0);
+                    setPickSelectedIds(allIds);
+                  }}
+                >
+                  Selecionar todos
                 </Button>
-                <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  disabled={addingPicked || pickSelectedIds.length === 0}
+                  onClick={() => setPickSelectedIds([])}
+                >
+                  Nenhum
+                </Button>
+                <Typography variant="body2" color="text.secondary">
                   {pickSelectedIds.length} selecionada(s)
                 </Typography>
               </Box>
@@ -469,13 +478,14 @@ const TotemMediaPage: React.FC = () => {
                       onClick={() => togglePickMedia(id)}
                       sx={{ alignItems: 'center', gap: 0.5, py: 1 }}
                     >
-                      <ListItemIcon sx={{ minWidth: 36 }}>
+                      <ListItemIcon sx={{ minWidth: 42 }}>
                         <Checkbox
                           edge="start"
                           checked={checked}
                           tabIndex={-1}
                           disableRipple
                           disabled={addingPicked}
+                          color="primary"
                         />
                       </ListItemIcon>
                       <MediaPortraitThumb
