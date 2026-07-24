@@ -289,17 +289,14 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
               title={deviceClockHint}
             >
               {deviceClock
-                ? `${deviceClock.localFormatted}`
+                ? `${deviceClock.localFormatted}${
+                    deviceClock.timezoneId && deviceClock.timezoneId !== '—'
+                      ? ` · ${deviceClock.timezoneId}`
+                      : ''
+                  }`
                 : '— aguardando heartbeat —'}
             </Typography>
           </Box>
-          <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-            {deviceClock
-              ? `Data/hora do Player-AD (heartbeat)${
-                  deviceClock.timezoneId ? ` · ${deviceClock.timezoneId}` : ''
-                }`
-              : 'Aguardando o Player-AD enviar a hora no heartbeat.'}
-          </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
             {scheduleHint}
           </Typography>
