@@ -523,6 +523,24 @@
                 android:textColor="#90CAF9"
                 android:textSize="12sp"
                 android:text=""/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="Hora atual do sistema (Player-AD)"
+                android:textColor="#FFFFFF"
+                android:textStyle="bold"/>
+
+            <TextView
+                android:id="@+id/textDeviceSystemTime"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:fontFamily="monospace"
+                android:textColor="#FFD54F"
+                android:textSize="14sp"
+                android:text="—"/>
         </LinearLayout>
 
         <TextView

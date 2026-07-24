@@ -90,6 +90,27 @@ function readScheduleFromTotem(totem: Record<string, unknown> | null): DisplaySc
   };
 }
 
+function readDeviceClockFromTotem(totem: Record<string, unknown> | null): {
+  localFormatted: string;
+  timezoneId: string;
+  epochMs: number;
+  reportedAtMs: number;
+} | null {
+  const settings = (totem?.playerSettings || totem?.player_settings || {}) as Record<string, unknown>;
+  const raw = (settings.reportedDeviceClock || settings.deviceClock || null) as Record<string, unknown> | null;
+  if (!raw || typeof raw !== 'object') return null;
+  const epochMs = Number(raw.epochMs || raw.reportedAtMs || 0);
+  const localFormatted = String(raw.localFormatted || '').trim();
+  const timezoneId = String(raw.timezoneId || raw.timezone || '').trim();
+  if (!localFormatted && !epochMs) return null;
+  return {
+    localFormatted: localFormatted || (epochMs ? new Date(epochMs).toLocaleString('pt-BR') : '—'),
+    timezoneId: timezoneId || '—',
+    epochMs,
+    reportedAtMs: Number(raw.reportedAtMs || epochMs || 0),
+  };
+}
+
 const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose, onSaved }) => {
   const [form, setForm] = useState<UpdatePlayerRequest>({
     name: '',
@@ -99,6 +120,8 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
     isActive: true,
   });
   const [schedule, setSchedule] = useState<DisplayScheduleForm>(DEFAULT_SCHEDULE);
+  const [deviceClock, setDeviceClock] = useState<ReturnType<typeof readDeviceClockFromTotem>>(null);
+  const [lastHeartbeat, setLastHeartbeat] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -115,33 +138,79 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
       isActive: totem.isActive !== false && totem.is_active !== false,
     });
     setSchedule(readScheduleFromTotem(totem));
+    setDeviceClock(readDeviceClockFromTotem(totem));
+    setLastHeartbeat(
+      totem.lastHeartbeat
+        ? String(totem.lastHeartbeat)
+        : totem.last_heartbeat
+          ? String(totem.last_heartbeat)
+          : null
+    );
     setError(null);
 
-    if (totemId) {
-      void totemApi
-        .getById(totemId)
-        .then((full) => {
-          const resolvedLocalId = getTotemLocalIdFromRow(full as any);
-          setForm((prev) => ({
-            ...prev,
-            localId: resolvedLocalId || prev.localId,
-            name: String((full as any).name || prev.name || ''),
-            identifier: String((full as any).identifier || prev.identifier || ''),
-            uin: String((full as any).uin || prev.uin || ''),
-            isActive: (full as any).isActive !== false && (full as any).is_active !== false,
-          }));
-          setSchedule(readScheduleFromTotem(full as any));
-        })
-        .catch(() => {
-          /* mantém formulário com dados da listagem */
-        });
-    }
+    if (!totemId) return;
+
+    let cancelled = false;
+    const loadFull = async () => {
+      try {
+        const full = await totemApi.getById(totemId);
+        if (cancelled) return;
+        const resolvedLocalId = getTotemLocalIdFromRow(full as any);
+        setForm((prev) => ({
+          ...prev,
+          localId: resolvedLocalId || prev.localId,
+          name: String((full as any).name || prev.name || ''),
+          identifier: String((full as any).identifier || prev.identifier || ''),
+          uin: String((full as any).uin || prev.uin || ''),
+          isActive: (full as any).isActive !== false && (full as any).is_active !== false,
+        }));
+        setSchedule(readScheduleFromTotem(full as any));
+        setDeviceClock(readDeviceClockFromTotem(full as any));
+        setLastHeartbeat(
+          (full as any).lastHeartbeat
+            ? String((full as any).lastHeartbeat)
+            : (full as any).last_heartbeat
+              ? String((full as any).last_heartbeat)
+              : null
+        );
+      } catch {
+        /* mantém formulário com dados da listagem */
+      }
+    };
+
+    void loadFull();
+    const poll = window.setInterval(() => {
+      void loadFull();
+    }, 15_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(poll);
+    };
   }, [open, totem]);
 
   const scheduleHint = useMemo(() => {
     if (!schedule.enabled) return 'Horário desativado: a tela permanece sempre ligada.';
     return `Liga às ${schedule.onTime} e desliga às ${schedule.offTime} (${schedule.timezone}). Fora do horário a saída fica preta sem encerrar o player.`;
   }, [schedule]);
+
+  const deviceClockHint = useMemo(() => {
+    if (!deviceClock) {
+      return 'Ainda sem relógio reportado pelo Player-AD. Aguarde o próximo heartbeat após instalar a versão com telemetria de hora.';
+    }
+    const hb = lastHeartbeat
+      ? (() => {
+          try {
+            return new Date(lastHeartbeat).toLocaleString('pt-BR');
+          } catch {
+            return lastHeartbeat;
+          }
+        })()
+      : null;
+    return `Hora do player: ${deviceClock.localFormatted} (${deviceClock.timezoneId})${
+      hb ? ` · último heartbeat: ${hb}` : ''
+    }`;
+  }, [deviceClock, lastHeartbeat]);
 
   const toggleDay = (day: number) => {
     setSchedule((prev) => {
@@ -260,9 +329,32 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
           <Typography variant="subtitle1" sx={{ mb: 1 }}>
             Horário de tela
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
             {scheduleHint}
           </Typography>
+          <Box
+            sx={{
+              mb: 1.5,
+              px: 1.5,
+              py: 1,
+              borderRadius: 1,
+              bgcolor: 'action.hover',
+              border: '1px solid',
+              borderColor: 'divider',
+            }}
+          >
+            <Typography variant="caption" color="text.secondary" display="block">
+              Relógio do Player-AD (sistema do aparelho)
+            </Typography>
+            <Typography variant="body2" sx={{ fontFamily: 'monospace', mt: 0.25 }}>
+              {deviceClock
+                ? `${deviceClock.localFormatted} · ${deviceClock.timezoneId}`
+                : '— aguardando heartbeat —'}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+              {deviceClockHint}
+            </Typography>
+          </Box>
           <FormControlLabel
             control={
               <Switch

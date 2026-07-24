@@ -556,26 +556,52 @@ class DispatcherRouter {
         metrics,
       });
 
-      // Espelho nowPlaying / playerSettings reportados pelo Player-AD
+      // Espelho nowPlaying + telemetria do Player-AD (relógio, idle, versão).
+      // NÃO sobrescrever displaySchedule do cadastro com o espelho do player.
       try {
-        const m = metrics && typeof metrics === 'object' ? metrics : {};
-        const nowPlaying = (m as any).nowPlaying ?? (m as any).now_playing ?? null;
-        const playerSettings =
-          (m as any).playerSettings ?? (m as any).player_settings ?? null;
-        if (nowPlaying != null || playerSettings != null) {
+        const m = metrics && typeof metrics === 'object' ? (metrics as Record<string, unknown>) : {};
+        const nowPlaying = m.nowPlaying ?? m.now_playing ?? null;
+        const rawPs =
+          m.playerSettings && typeof m.playerSettings === 'object' && !Array.isArray(m.playerSettings)
+            ? (m.playerSettings as Record<string, unknown>)
+            : m.player_settings && typeof m.player_settings === 'object' && !Array.isArray(m.player_settings)
+              ? (m.player_settings as Record<string, unknown>)
+              : {};
+        const deviceClock =
+          m.deviceClock ?? m.device_clock ?? rawPs.reportedDeviceClock ?? null;
+
+        const telemetry: Record<string, unknown> = {};
+        if (deviceClock != null) telemetry.reportedDeviceClock = deviceClock;
+        if (rawPs.displayIdle !== undefined) telemetry.displayIdle = rawPs.displayIdle;
+        else if (m.displayIdle !== undefined) telemetry.displayIdle = m.displayIdle;
+        if (rawPs.appVersion != null) telemetry.appVersion = rawPs.appVersion;
+        else if (m.appVersion != null) telemetry.appVersion = m.appVersion;
+        if (rawPs.displayRotation != null) telemetry.displayRotation = rawPs.displayRotation;
+        if (rawPs.screenOrientation != null) telemetry.screenOrientation = rawPs.screenOrientation;
+        if (rawPs.kioskMode != null) telemetry.kioskMode = rawPs.kioskMode;
+        if (rawPs.batimentoCardiaco != null) telemetry.batimentoCardiaco = rawPs.batimentoCardiaco;
+        if (rawPs.maxSecondsWithoutServerCheck != null) {
+          telemetry.maxSecondsWithoutServerCheck = rawPs.maxSecondsWithoutServerCheck;
+        }
+
+        const hasTelemetry = Object.keys(telemetry).length > 0;
+        if (nowPlaying != null || hasTelemetry) {
           const dbHb = (await import('../config/database')).getDatabase();
           await dbHb.executeRaw(
             `
             UPDATE totems
             SET now_playing = COALESCE($2::jsonb, now_playing),
-                player_settings = COALESCE($3::jsonb, player_settings),
+                player_settings = CASE
+                  WHEN $3::jsonb IS NULL THEN player_settings
+                  ELSE COALESCE(player_settings, '{}'::jsonb) || $3::jsonb
+                END,
                 updated_at = CURRENT_TIMESTAMP
             WHERE totem_id = $1
           `,
             [
               totemId,
               nowPlaying != null ? JSON.stringify(nowPlaying) : null,
-              playerSettings != null ? JSON.stringify(playerSettings) : null,
+              hasTelemetry ? JSON.stringify(telemetry) : null,
             ]
           );
         }

@@ -68,6 +68,7 @@ class DebugConfigActivity : AppCompatActivity() {
     private lateinit var editDisplayDaysOfWeek: EditText
     private lateinit var switchDisplayKeepAlive: SwitchCompat
     private lateinit var textDisplayScheduleStatus: TextView
+    private lateinit var textDeviceSystemTime: TextView
 
     private lateinit var btnRegisterActivation: Button
     private lateinit var btnTestHeartbeat: Button
@@ -91,6 +92,13 @@ class DebugConfigActivity : AppCompatActivity() {
     private lateinit var configScrollView: ScrollView
 
     private var lastPreviewRotation: Int = 0
+    private val deviceClockHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val deviceClockTicker = object : Runnable {
+        override fun run() {
+            refreshDeviceSystemTimeLabel()
+            deviceClockHandler.postDelayed(this, 1_000L)
+        }
+    }
 
     private var lastHeartbeatToken: String? = null
     private var lastDispatchPlan: JSONObject? = null
@@ -127,6 +135,7 @@ class DebugConfigActivity : AppCompatActivity() {
         editDisplayDaysOfWeek = findViewById(R.id.editDisplayDaysOfWeek)
         switchDisplayKeepAlive = findViewById(R.id.switchDisplayKeepAlive)
         textDisplayScheduleStatus = findViewById(R.id.textDisplayScheduleStatus)
+        textDeviceSystemTime = findViewById(R.id.textDeviceSystemTime)
 
         btnRegisterActivation = findViewById(R.id.btnRegisterActivation)
         btnTestHeartbeat = findViewById(R.id.btnTestHeartbeat)
@@ -277,6 +286,23 @@ class DebugConfigActivity : AppCompatActivity() {
         refreshOfflineState()
         refreshOperationalLog()
         refreshSystemProvisioning()
+        refreshDeviceSystemTimeLabel()
+        deviceClockHandler.removeCallbacks(deviceClockTicker)
+        deviceClockHandler.post(deviceClockTicker)
+    }
+
+    override fun onPause() {
+        deviceClockHandler.removeCallbacks(deviceClockTicker)
+        super.onPause()
+    }
+
+    private fun refreshDeviceSystemTimeLabel() {
+        if (!::textDeviceSystemTime.isInitialized) return
+        val tz = java.util.TimeZone.getDefault()
+        val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+        fmt.timeZone = tz
+        val now = Date()
+        textDeviceSystemTime.text = "${fmt.format(now)}  (${tz.id})"
     }
 
     private fun refreshSystemProvisioning() {

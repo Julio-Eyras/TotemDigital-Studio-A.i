@@ -847,6 +847,8 @@ class PlayerController(
                 br.com.smartchannel.playerad.config.PlayerConfigLoader.kioskModeToJsonValue(cfg.kioskMode),
             )
             nowPlayingSnapshot?.let { put("nowPlaying", it) }
+            val deviceClock = buildDeviceClockJson()
+            put("deviceClock", deviceClock)
             put(
                 "playerSettings",
                 JSONObject().apply {
@@ -865,9 +867,29 @@ class PlayerController(
                     put("appVersion", apiClient.appVersion)
                     put("displayIdle", displayIdle)
                     put("displaySchedule", displaySchedule.toJson())
+                    put("reportedDeviceClock", deviceClock)
                 },
             )
             put("displayIdle", displayIdle)
+        }
+    }
+
+    private fun buildDeviceClockJson(): JSONObject {
+        val nowMs = System.currentTimeMillis()
+        val tz = java.util.TimeZone.getDefault()
+        val cal = java.util.Calendar.getInstance(tz)
+        cal.timeInMillis = nowMs
+        val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
+        fmt.timeZone = tz
+        return JSONObject().apply {
+            put("epochMs", nowMs)
+            put("isoUtc", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US).apply {
+                timeZone = java.util.TimeZone.getTimeZone("UTC")
+            }.format(java.util.Date(nowMs)))
+            put("localFormatted", fmt.format(java.util.Date(nowMs)))
+            put("timezoneId", tz.id)
+            put("timezoneOffsetMinutes", tz.getOffset(nowMs) / 60_000)
+            put("reportedAtMs", nowMs)
         }
     }
 
