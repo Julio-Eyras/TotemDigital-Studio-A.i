@@ -1,6 +1,6 @@
 ================================================================================
   SmartSignage — Kit de instalação Player-AD (pendrive)
-  App: Player-AD 1.76 (versionCode 76)
+  App: Player-AD 1.77 (versionCode 77)
 ================================================================================
 
 MANUAL COMPLETO (PDF — todos os manuais num ficheiro):

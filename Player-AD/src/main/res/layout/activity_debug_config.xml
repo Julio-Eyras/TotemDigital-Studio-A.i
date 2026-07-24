@@ -408,6 +408,123 @@
             android:textColorHint="#777777"
             android:hint="60"/>
 
+        <LinearLayout
+            android:id="@+id/panelDisplaySchedule"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:background="#1A237E"
+            android:orientation="vertical"
+            android:padding="14dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Horário de tela (ligar / desligar)"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp"
+                android:textStyle="bold"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:lineSpacingExtra="2dp"
+                android:text="Vem do cadastro do totem (servidor). O técnico pode ajustar aqui; no próximo heartbeat o servidor sobrescreve estes valores. Fora do horário a saída fica preta sem encerrar o player."
+                android:textColor="#C5CAE9"
+                android:textSize="12sp"/>
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switchDisplayScheduleEnabled"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="Ativar horário de tela"
+                android:textColor="#FFFFFF"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="Ligar (HH:mm)"
+                android:textColor="#FFFFFF"/>
+
+            <EditText
+                android:id="@+id/editDisplayOnTime"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="08:00"
+                android:inputType="time"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#777777"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Desligar (HH:mm)"
+                android:textColor="#FFFFFF"/>
+
+            <EditText
+                android:id="@+id/editDisplayOffTime"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="22:00"
+                android:inputType="time"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#777777"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Fuso (ex.: America/Sao_Paulo)"
+                android:textColor="#FFFFFF"/>
+
+            <EditText
+                android:id="@+id/editDisplayTimezone"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="America/Sao_Paulo"
+                android:inputType="text"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#777777"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Dias (0=dom … 6=sáb, separados por vírgula)"
+                android:textColor="#FFFFFF"/>
+
+            <EditText
+                android:id="@+id/editDisplayDaysOfWeek"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="0,1,2,3,4,5,6"
+                android:inputType="text"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#777777"/>
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/switchDisplayKeepAlive"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="Keep-alive anti-standby fora do horário"
+                android:textColor="#FFFFFF"/>
+
+            <TextView
+                android:id="@+id/textDisplayScheduleStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:fontFamily="monospace"
+                android:textColor="#90CAF9"
+                android:textSize="12sp"
+                android:text=""/>
+        </LinearLayout>
+
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

@@ -24,9 +24,11 @@
                 android:id="@+id/playerView"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
+                android:background="#000000"
                 android:fitsSystemWindows="false"
                 app:use_controller="false"
                 app:resize_mode="fill"
+                app:shutter_background_color="#000000"
                 app:surface_type="texture_view" />
 
             <ImageView

@@ -672,15 +672,22 @@ class PlayerController(
             displayIdle = true
             PlayerAdLogger.i("DISPLAY", "Fora do horário — saída em preto (player ativo)")
         }
-        try {
-            exoPlayer.pause()
-            exoPlayer.stop()
-        } catch (_: Exception) { }
+        // Overlay primeiro (acima de tudo): evita flash branco do TextureView ao pausar/parar.
+        displayIdleOverlay?.let { overlay ->
+            overlay.setBackgroundColor(Color.BLACK)
+            overlay.visibility = View.VISIBLE
+            overlay.bringToFront()
+            overlay.elevation = 64f
+        }
         imageView.visibility = View.GONE
         htmlWebView.visibility = View.GONE
-        playerView.visibility = View.GONE
-        displayIdleOverlay?.visibility = View.VISIBLE
-        displayIdleOverlay?.setBackgroundColor(Color.BLACK)
+        try {
+            exoPlayer.pause()
+            // Não chamar stop(): no TextureView limpa o frame e muitas TVs mostram branco.
+        } catch (_: Exception) { }
+        // Mantém playerView por baixo do overlay preto (sem GONE → menos flicker).
+        playerView.setBackgroundColor(Color.BLACK)
+        playerView.setShutterBackgroundColor(Color.BLACK)
     }
 
     private fun exitDisplayIdle() {
@@ -690,8 +697,10 @@ class PlayerController(
             return
         }
         displayIdle = false
-        displayIdleOverlay?.visibility = View.GONE
         playerView.visibility = View.VISIBLE
+        playerView.setBackgroundColor(Color.BLACK)
+        playerView.setShutterBackgroundColor(Color.BLACK)
+        displayIdleOverlay?.visibility = View.GONE
         PlayerAdLogger.i("DISPLAY", "Dentro do horário — retomando saída de vídeo")
     }
 

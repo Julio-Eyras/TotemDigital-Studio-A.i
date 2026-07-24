@@ -22,6 +22,8 @@ import androidx.lifecycle.lifecycleScope
 import br.com.smartchannel.playerad.BuildConfig
 import br.com.smartchannel.playerad.R
 import br.com.smartchannel.playerad.api.DispatcherApiClient
+import br.com.smartchannel.playerad.config.DisplaySchedule
+import br.com.smartchannel.playerad.config.DisplayScheduleStore
 import br.com.smartchannel.playerad.config.PlayerConfig
 import br.com.smartchannel.playerad.config.PlayerConfigLoader
 import br.com.smartchannel.playerad.config.PlayerConfigStore
@@ -58,6 +60,14 @@ class DebugConfigActivity : AppCompatActivity() {
     private lateinit var editBatimentoCardiaco: EditText
     private lateinit var spinnerStorage: Spinner
     private lateinit var editStoragePath: EditText
+
+    private lateinit var switchDisplayScheduleEnabled: SwitchCompat
+    private lateinit var editDisplayOnTime: EditText
+    private lateinit var editDisplayOffTime: EditText
+    private lateinit var editDisplayTimezone: EditText
+    private lateinit var editDisplayDaysOfWeek: EditText
+    private lateinit var switchDisplayKeepAlive: SwitchCompat
+    private lateinit var textDisplayScheduleStatus: TextView
 
     private lateinit var btnRegisterActivation: Button
     private lateinit var btnTestHeartbeat: Button
@@ -110,6 +120,14 @@ class DebugConfigActivity : AppCompatActivity() {
         spinnerStorage = findViewById(R.id.spinnerStorage)
         editStoragePath = findViewById(R.id.editStoragePath)
 
+        switchDisplayScheduleEnabled = findViewById(R.id.switchDisplayScheduleEnabled)
+        editDisplayOnTime = findViewById(R.id.editDisplayOnTime)
+        editDisplayOffTime = findViewById(R.id.editDisplayOffTime)
+        editDisplayTimezone = findViewById(R.id.editDisplayTimezone)
+        editDisplayDaysOfWeek = findViewById(R.id.editDisplayDaysOfWeek)
+        switchDisplayKeepAlive = findViewById(R.id.switchDisplayKeepAlive)
+        textDisplayScheduleStatus = findViewById(R.id.textDisplayScheduleStatus)
+
         btnRegisterActivation = findViewById(R.id.btnRegisterActivation)
         btnTestHeartbeat = findViewById(R.id.btnTestHeartbeat)
         btnTestDispatch = findViewById(R.id.btnTestDispatch)
@@ -154,6 +172,7 @@ class DebugConfigActivity : AppCompatActivity() {
         switchStrongKiosk.isChecked = current.kioskMode == br.com.smartchannel.playerad.config.KioskMode.STRONG
         editBatimentoCardiaco.setText(current.batimentoCardiaco.toString())
         editMaxSecondsWithoutServerCheck.setText(current.maxSecondsWithoutServerCheck.toString())
+        bindDisplayScheduleForm(DisplayScheduleStore.load(this))
 
         val storageModes = resources.getStringArray(R.array.player_storage_modes)
         val spinAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, storageModes)
@@ -193,6 +212,7 @@ class DebugConfigActivity : AppCompatActivity() {
                 if (!saveResult.internalOk && saveResult.externalOk) {
                     appendStatus("\nAviso: config gravada só no SD (filesDir sem permissão de escrita).")
                 }
+                saveDisplayScheduleFromForm()
                 DisplayPresentationController.apply(this, cfg)
             } catch (e: Exception) {
                 setStatus("Erro ao salvar configuração: ${e.message ?: e.toString()}")
@@ -362,6 +382,52 @@ class DebugConfigActivity : AppCompatActivity() {
                 }
             }
             .show()
+    }
+
+    private fun bindDisplayScheduleForm(schedule: DisplaySchedule) {
+        switchDisplayScheduleEnabled.isChecked = schedule.enabled
+        editDisplayOnTime.setText(schedule.onTime)
+        editDisplayOffTime.setText(schedule.offTime)
+        editDisplayTimezone.setText(schedule.timezone)
+        editDisplayDaysOfWeek.setText(schedule.daysOfWeek.sorted().joinToString(","))
+        switchDisplayKeepAlive.isChecked = schedule.keepAliveWhileOff
+        val active = schedule.isDisplayActiveNow()
+        textDisplayScheduleStatus.text = buildString {
+            append("local: enabled=${schedule.enabled} ${schedule.onTime}-${schedule.offTime}")
+            append(" tz=${schedule.timezone}")
+            append("\nagora: ${if (active) "TELA LIGADA (conteúdo)" else "TELA IDLE (preto)"}")
+            if (schedule.forceMode != null) append(" force=${schedule.forceMode}")
+            append("\n(servidor sobrescreve no heartbeat)")
+        }
+    }
+
+    private fun readDisplayScheduleFromForm(existing: DisplaySchedule = DisplayScheduleStore.load(this)): DisplaySchedule {
+        val days = editDisplayDaysOfWeek.text?.toString().orEmpty()
+            .split(',', ';', ' ')
+            .mapNotNull { it.trim().toIntOrNull() }
+            .filter { it in 0..6 }
+            .toSet()
+        return DisplaySchedule(
+            enabled = switchDisplayScheduleEnabled.isChecked,
+            timezone = editDisplayTimezone.text?.toString()?.trim().orEmpty()
+                .ifBlank { "America/Sao_Paulo" },
+            daysOfWeek = if (days.isEmpty()) (0..6).toSet() else days,
+            onTime = editDisplayOnTime.text?.toString()?.trim().orEmpty().ifBlank { "08:00" },
+            offTime = editDisplayOffTime.text?.toString()?.trim().orEmpty().ifBlank { "22:00" },
+            keepAliveWhileOff = switchDisplayKeepAlive.isChecked,
+            keepAliveIntervalMinutes = existing.keepAliveIntervalMinutes,
+            forceMode = existing.forceMode,
+        )
+    }
+
+    private fun saveDisplayScheduleFromForm() {
+        val schedule = readDisplayScheduleFromForm()
+        DisplayScheduleStore.save(this, schedule)
+        bindDisplayScheduleForm(schedule)
+        PlayerAdLogger.i(
+            "DEBUG_UI",
+            "Horário de tela salvo localmente enabled=${schedule.enabled} ${schedule.onTime}-${schedule.offTime}"
+        )
     }
 
     private fun bindLocalIps() {
@@ -677,18 +743,28 @@ class DebugConfigActivity : AppCompatActivity() {
             val result = withContext(Dispatchers.IO) {
                 try {
                     val apiClient = DispatcherApiClient(cfg.serverUrl, cfg.uin, cfg.deviceId)
-                    val token = apiClient.heartbeat()
-                    Result.success(token)
+                    val hb = apiClient.heartbeatWithCommands(JSONObject())
+                    hb.displaySchedule?.let { DisplayScheduleStore.applyJson(this@DebugConfigActivity, it) }
+                    Result.success(hb)
                 } catch (e: Exception) {
-                    Result.failure<String>(e)
+                    Result.failure<DispatcherApiClient.HeartbeatResult>(e)
                 }
             }
 
-            result.onSuccess { token ->
-                lastHeartbeatToken = token
+            result.onSuccess { hb ->
+                lastHeartbeatToken = hb.token
                 heartbeatOk = true
                 appendStatus("✔ Conectividade OK")
-                appendStatus("token (parcial): ${token.take(10)}...")
+                appendStatus("token (parcial): ${hb.token.take(10)}...")
+                val schedule = DisplayScheduleStore.load(this@DebugConfigActivity)
+                bindDisplayScheduleForm(schedule)
+                if (hb.displaySchedule != null) {
+                    appendStatus(
+                        "horário servidor: enabled=${schedule.enabled} ${schedule.onTime}-${schedule.offTime}"
+                    )
+                } else {
+                    appendStatus("horário: servidor não enviou displaySchedule (mantém local)")
+                }
                 PlayerAdLogger.i("DEBUG_UI", "Teste conectividade OK (ecrã debug)")
                 setHeartbeatAndDispatchState(heartbeatOk = true, dispatchOk = dispatchOk)
                 refreshOfflineState()

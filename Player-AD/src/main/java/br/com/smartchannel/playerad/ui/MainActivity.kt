@@ -238,7 +238,9 @@ class MainActivity : AppCompatActivity() {
         // FILL + matrix FIT (largura cheia landscape) no PlayerController — ver MediaViewportRotation
         playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
         playerView.setKeepContentOnPlayerReset(true)
-        playerView.setShutterBackgroundColor(Color.TRANSPARENT)
+        // TRANSPARENT + stop/reset do ExoPlayer → flash branco na TV; preto cobre o shutter.
+        playerView.setShutterBackgroundColor(Color.BLACK)
+        playerView.setBackgroundColor(Color.BLACK)
         playerView.post { FullscreenViewport.applyToPlayerView(playerView) }
 
         completeStartup()
