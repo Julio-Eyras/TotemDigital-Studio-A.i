@@ -20,6 +20,14 @@ import {
 import { totemApi, UpdatePlayerRequest } from '../../services/api';
 import { getTotemIdFromRow, getTotemLocalIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import {
+  DEFAULT_DISPLAY_SCHEDULE,
+  DISPLAY_SCHEDULE_DAY_OPTIONS,
+  DeviceClockInfo,
+  DisplayScheduleInfo,
+  readDeviceClockFromTotem,
+  readScheduleFromTotem,
+} from '../../utils/totemDisplaySchedule';
 
 export interface TotemEditDialogProps {
   open: boolean;
@@ -28,25 +36,9 @@ export interface TotemEditDialogProps {
   onSaved: () => void;
 }
 
-type DisplayScheduleForm = {
-  enabled: boolean;
-  timezone: string;
-  daysOfWeek: number[];
-  onTime: string;
-  offTime: string;
-  keepAliveWhileOff: boolean;
-  keepAliveIntervalMinutes: number;
-};
+type DisplayScheduleForm = DisplayScheduleInfo;
 
-const DAY_OPTIONS: Array<{ value: number; label: string }> = [
-  { value: 1, label: 'Seg' },
-  { value: 2, label: 'Ter' },
-  { value: 3, label: 'Qua' },
-  { value: 4, label: 'Qui' },
-  { value: 5, label: 'Sex' },
-  { value: 6, label: 'Sáb' },
-  { value: 0, label: 'Dom' },
-];
+const DAY_OPTIONS = DISPLAY_SCHEDULE_DAY_OPTIONS;
 
 const TIMEZONE_OPTIONS = [
   'America/Sao_Paulo',
@@ -60,56 +52,7 @@ const TIMEZONE_OPTIONS = [
   'UTC',
 ];
 
-const DEFAULT_SCHEDULE: DisplayScheduleForm = {
-  enabled: false,
-  timezone: 'America/Sao_Paulo',
-  daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
-  onTime: '08:00',
-  offTime: '22:00',
-  keepAliveWhileOff: true,
-  keepAliveIntervalMinutes: 10,
-};
-
-function readScheduleFromTotem(totem: Record<string, unknown> | null): DisplayScheduleForm {
-  const settings = (totem?.playerSettings || totem?.player_settings || {}) as Record<string, unknown>;
-  const raw = (settings.displaySchedule || {}) as Record<string, unknown>;
-  const days = Array.isArray(raw.daysOfWeek)
-    ? raw.daysOfWeek.map((d) => Number(d)).filter((d) => d >= 0 && d <= 6)
-    : DEFAULT_SCHEDULE.daysOfWeek;
-  return {
-    enabled: raw.enabled === true,
-    timezone: String(raw.timezone || DEFAULT_SCHEDULE.timezone),
-    daysOfWeek: days.length ? days : DEFAULT_SCHEDULE.daysOfWeek,
-    onTime: String(raw.onTime || DEFAULT_SCHEDULE.onTime),
-    offTime: String(raw.offTime || DEFAULT_SCHEDULE.offTime),
-    keepAliveWhileOff: raw.keepAliveWhileOff !== false,
-    keepAliveIntervalMinutes: Math.min(
-      30,
-      Math.max(5, Number(raw.keepAliveIntervalMinutes) || DEFAULT_SCHEDULE.keepAliveIntervalMinutes)
-    ),
-  };
-}
-
-function readDeviceClockFromTotem(totem: Record<string, unknown> | null): {
-  localFormatted: string;
-  timezoneId: string;
-  epochMs: number;
-  reportedAtMs: number;
-} | null {
-  const settings = (totem?.playerSettings || totem?.player_settings || {}) as Record<string, unknown>;
-  const raw = (settings.reportedDeviceClock || settings.deviceClock || null) as Record<string, unknown> | null;
-  if (!raw || typeof raw !== 'object') return null;
-  const epochMs = Number(raw.epochMs || raw.reportedAtMs || 0);
-  const localFormatted = String(raw.localFormatted || '').trim();
-  const timezoneId = String(raw.timezoneId || raw.timezone || '').trim();
-  if (!localFormatted && !epochMs) return null;
-  return {
-    localFormatted: localFormatted || (epochMs ? new Date(epochMs).toLocaleString('pt-BR') : '—'),
-    timezoneId: timezoneId || '—',
-    epochMs,
-    reportedAtMs: Number(raw.reportedAtMs || epochMs || 0),
-  };
-}
+const DEFAULT_SCHEDULE = DEFAULT_DISPLAY_SCHEDULE;
 
 const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose, onSaved }) => {
   const [form, setForm] = useState<UpdatePlayerRequest>({
@@ -120,7 +63,7 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
     isActive: true,
   });
   const [schedule, setSchedule] = useState<DisplayScheduleForm>(DEFAULT_SCHEDULE);
-  const [deviceClock, setDeviceClock] = useState<ReturnType<typeof readDeviceClockFromTotem>>(null);
+  const [deviceClock, setDeviceClock] = useState<DeviceClockInfo | null>(null);
   const [lastHeartbeat, setLastHeartbeat] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

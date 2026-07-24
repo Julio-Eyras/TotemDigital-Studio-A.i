@@ -51,6 +51,7 @@ function isTotemRowActive(row: unknown): boolean {
   return true;
 }
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { formatTotemScheduleCardLines } from '../../utils/totemDisplaySchedule';
 
 function createActivationCode(): string {
   const segment = () => Math.random().toString(36).slice(2, 6).toUpperCase().padEnd(4, '0');
@@ -196,10 +197,12 @@ const PublishTotem: React.FC = () => {
     }
   };
 
-  const loadTotems = useCallback(async () => {
+  const loadTotems = useCallback(async (opts?: { silent?: boolean }) => {
     try {
-      setLoading(true);
-      setError(null);
+      if (!opts?.silent) {
+        setLoading(true);
+        setError(null);
+      }
       const res = await totemApi.getAll({ limit: 500 });
       const list = Array.isArray((res as any)?.data)
         ? (res as any).data
@@ -208,14 +211,24 @@ const PublishTotem: React.FC = () => {
           : [];
       setTotems(list);
     } catch (e: any) {
-      setError(pickApiErrorMessage(e, 'Erro ao carregar totens'));
+      if (!opts?.silent) {
+        setError(pickApiErrorMessage(e, 'Erro ao carregar totens'));
+      }
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void loadTotems();
+  }, [loadTotems]);
+
+  // Atualiza hora do player / horário de tela sem spinner (heartbeat ~15–30s).
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      void loadTotems({ silent: true });
+    }, 20_000);
+    return () => window.clearInterval(id);
   }, [loadTotems]);
 
   const filtered = useMemo(() => {
@@ -354,6 +367,7 @@ const PublishTotem: React.FC = () => {
             const canDelete = mediaCount === 0;
             const totemActive = isTotemRowActive(t);
             const activationCode = String((t as any).uin || '').trim();
+            const scheduleLines = formatTotemScheduleCardLines(t as Record<string, unknown>);
             return (
               <Grid item xs={12} sm={6} md={4} key={String(totemId ?? idx)}>
                 <Card sx={{ height: '100%', opacity: totemActive ? 1 : 0.72 }}>
@@ -377,6 +391,32 @@ const PublishTotem: React.FC = () => {
                           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                             {mediaCount} {mediaCount === 1 ? 'mídia' : 'mídias'}
                           </Typography>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            display="block"
+                            sx={{ mt: 0.75, fontFamily: 'monospace', lineHeight: 1.4 }}
+                          >
+                            {scheduleLines.deviceClockLine}
+                          </Typography>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            display="block"
+                            sx={{ lineHeight: 1.4 }}
+                          >
+                            {scheduleLines.scheduleLine}
+                          </Typography>
+                          {scheduleLines.daysLine ? (
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              display="block"
+                              sx={{ lineHeight: 1.4 }}
+                            >
+                              {scheduleLines.daysLine}
+                            </Typography>
+                          ) : null}
                           {totemId && (
                             <Button
                               size="small"
