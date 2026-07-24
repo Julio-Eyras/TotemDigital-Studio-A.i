@@ -269,35 +269,40 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
         />
 
         <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="subtitle1" sx={{ mb: 1 }}>
-            Horário de tela
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'baseline',
+              justifyContent: 'space-between',
+              gap: 1.5,
+              flexWrap: 'wrap',
+              mb: 1,
+            }}
+          >
+            <Typography variant="subtitle1" component="span">
+              Horário de tela
+            </Typography>
+            <Typography
+              variant="body2"
+              component="span"
+              sx={{ fontFamily: 'monospace', color: 'primary.light', fontWeight: 600 }}
+              title={deviceClockHint}
+            >
+              {deviceClock
+                ? `${deviceClock.localFormatted}`
+                : '— aguardando heartbeat —'}
+            </Typography>
+          </Box>
+          <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+            {deviceClock
+              ? `Data/hora do Player-AD (heartbeat)${
+                  deviceClock.timezoneId ? ` · ${deviceClock.timezoneId}` : ''
+                }`
+              : 'Aguardando o Player-AD enviar a hora no heartbeat.'}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
             {scheduleHint}
           </Typography>
-          <Box
-            sx={{
-              mb: 1.5,
-              px: 1.5,
-              py: 1,
-              borderRadius: 1,
-              bgcolor: 'action.hover',
-              border: '1px solid',
-              borderColor: 'divider',
-            }}
-          >
-            <Typography variant="caption" color="text.secondary" display="block">
-              Relógio do Player-AD (sistema do aparelho)
-            </Typography>
-            <Typography variant="body2" sx={{ fontFamily: 'monospace', mt: 0.25 }}>
-              {deviceClock
-                ? `${deviceClock.localFormatted} · ${deviceClock.timezoneId}`
-                : '— aguardando heartbeat —'}
-            </Typography>
-            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-              {deviceClockHint}
-            </Typography>
-          </Box>
           <FormControlLabel
             control={
               <Switch

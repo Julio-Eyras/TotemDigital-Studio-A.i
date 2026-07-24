@@ -391,32 +391,6 @@ const PublishTotem: React.FC = () => {
                           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                             {mediaCount} {mediaCount === 1 ? 'mídia' : 'mídias'}
                           </Typography>
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
-                            display="block"
-                            sx={{ mt: 0.75, fontFamily: 'monospace', lineHeight: 1.4 }}
-                          >
-                            {scheduleLines.deviceClockLine}
-                          </Typography>
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
-                            display="block"
-                            sx={{ lineHeight: 1.4 }}
-                          >
-                            {scheduleLines.scheduleLine}
-                          </Typography>
-                          {scheduleLines.daysLine ? (
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                              display="block"
-                              sx={{ lineHeight: 1.4 }}
-                            >
-                              {scheduleLines.daysLine}
-                            </Typography>
-                          ) : null}
                           {totemId && (
                             <Button
                               size="small"
@@ -428,6 +402,23 @@ const PublishTotem: React.FC = () => {
                               Mídia
                             </Button>
                           )}
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            display="block"
+                            sx={{ mt: 1, fontFamily: 'monospace', lineHeight: 1.45, fontWeight: 600 }}
+                          >
+                            {scheduleLines.deviceClockLine}
+                          </Typography>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            display="block"
+                            sx={{ lineHeight: 1.4 }}
+                          >
+                            {scheduleLines.scheduleLine}
+                            {scheduleLines.daysLine ? ` · ${scheduleLines.daysLine}` : ''}
+                          </Typography>
                           {activationCode && (
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1 }}>
                               <Typography variant="caption" color="text.secondary">

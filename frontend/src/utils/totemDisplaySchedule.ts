@@ -91,6 +91,14 @@ export function formatScheduleDaysLabel(daysOfWeek: number[]): string {
   return labels.length ? labels.join(', ') : '—';
 }
 
+/** Data/hora do Player-AD (heartbeat), ou placeholder. */
+export function formatDeviceClockDisplay(
+  totem: Record<string, unknown> | null | undefined
+): string {
+  const clock = readDeviceClockFromTotem(totem);
+  return clock?.localFormatted || '— aguardando heartbeat —';
+}
+
 /** Texto curto para cards / listagens. */
 export function formatTotemScheduleCardLines(totem: Record<string, unknown> | null | undefined): {
   deviceClockLine: string;
@@ -101,13 +109,13 @@ export function formatTotemScheduleCardLines(totem: Record<string, unknown> | nu
   const schedule = readScheduleFromTotem(totem);
 
   const deviceClockLine = clock
-    ? `Hora do player: ${clock.localFormatted}`
-    : 'Hora do player: — aguardando heartbeat —';
+    ? `Horário da tela: ${clock.localFormatted}`
+    : 'Horário da tela: — aguardando heartbeat —';
 
   if (!schedule.enabled) {
     return {
       deviceClockLine,
-      scheduleLine: 'Horário de tela: desativado (sempre ligada)',
+      scheduleLine: 'Ligar/desligar: desativado (sempre ligada)',
       daysLine: '',
     };
   }

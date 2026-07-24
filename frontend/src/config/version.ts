@@ -5,4 +5,4 @@
 import packageJson from '../../package.json';
 
 export const FRONT_VERSION =
-  process.env.REACT_APP_VERSION || packageJson.version || '2.1.5';
+  process.env.REACT_APP_VERSION || packageJson.version || '2.1.6';

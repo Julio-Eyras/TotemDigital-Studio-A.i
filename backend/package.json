@@ -1,6 +1,6 @@
 {
   "name": "smartsignage-pro",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "description": "Sistema de Sinalização Digital Profissional - Tudo que você precisa para começar",
   "main": "dist/index.js",
   "scripts": {
