@@ -33,6 +33,7 @@ class DispatcherApiClient(
         val pendingCommands: List<PendingCommand>,
         val otaUpdate: JSONObject? = null,
         val displaySchedule: JSONObject? = null,
+        val pollAdaptive: JSONObject? = null,
     )
 
     private data class HttpTextResponse(
@@ -214,7 +215,10 @@ class DispatcherApiClient(
         val displaySchedule = payload.optJSONObject("displaySchedule")
             ?: payload.optJSONObject("display_schedule")
 
-        HeartbeatResult(newToken, pendingCommands, otaUpdate, displaySchedule)
+        val pollAdaptive = payload.optJSONObject("pollAdaptive")
+            ?: payload.optJSONObject("poll_adaptive")
+
+        HeartbeatResult(newToken, pendingCommands, otaUpdate, displaySchedule, pollAdaptive)
     }
 
     suspend fun reportOtaStatus(

@@ -41,6 +41,7 @@ class PlayerConfigLoader(private val context: Context) {
             fallbackPropagandasPerVinheta = 3,
             batimentoCardiaco = 30,
             maxSecondsWithoutServerCheck = 180,
+            pollAdaptive = PollAdaptiveConfig.DEFAULT,
             storageMode = PlayerStorageMode.AUTO,
             storagePathOverride = null,
             kioskMode = KioskMode.STRONG,
@@ -66,6 +67,7 @@ class PlayerConfigLoader(private val context: Context) {
                 val batimento = batimentoRaw.coerceAtLeast(15)
                 val maxSecondsRaw = json.optInt("maxSecondsWithoutServerCheck", 180)
                 val maxSeconds = maxSecondsRaw.coerceAtLeast(30)
+                val pollAdaptive = PollAdaptiveConfig.fromJson(json.optJSONObject("pollAdaptive"))
                 val storageMode = parseStorageMode(json.optString("storage", ""))
                 val pathOverride = json.optString("storagePathOverride", "").trim().takeIf { it.isNotBlank() }
                 val kioskMode = parseKioskMode(json.optString("kioskMode", ""))
@@ -84,6 +86,7 @@ class PlayerConfigLoader(private val context: Context) {
                     fallbackPropagandasPerVinheta = fallbackRatio,
                     batimentoCardiaco = batimento,
                     maxSecondsWithoutServerCheck = maxSeconds,
+                    pollAdaptive = pollAdaptive,
                     storageMode = storageMode,
                     storagePathOverride = pathOverride,
                     kioskMode = kioskMode,

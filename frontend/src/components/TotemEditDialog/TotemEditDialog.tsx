@@ -22,10 +22,13 @@ import { getTotemIdFromRow, getTotemLocalIdFromRow } from '../../utils/totemRowI
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import {
   DEFAULT_DISPLAY_SCHEDULE,
+  DEFAULT_POLL_ADAPTIVE,
   DISPLAY_SCHEDULE_DAY_OPTIONS,
   DeviceClockInfo,
   DisplayScheduleInfo,
+  PollAdaptiveInfo,
   readDeviceClockFromTotem,
+  readPollAdaptiveFromTotem,
   readScheduleFromTotem,
 } from '../../utils/totemDisplaySchedule';
 
@@ -37,6 +40,7 @@ export interface TotemEditDialogProps {
 }
 
 type DisplayScheduleForm = DisplayScheduleInfo;
+type PollAdaptiveForm = PollAdaptiveInfo;
 
 const DAY_OPTIONS = DISPLAY_SCHEDULE_DAY_OPTIONS;
 
@@ -63,6 +67,7 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
     isActive: true,
   });
   const [schedule, setSchedule] = useState<DisplayScheduleForm>(DEFAULT_SCHEDULE);
+  const [pollAdaptive, setPollAdaptive] = useState<PollAdaptiveForm>(DEFAULT_POLL_ADAPTIVE);
   const [deviceClock, setDeviceClock] = useState<DeviceClockInfo | null>(null);
   const [lastHeartbeat, setLastHeartbeat] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -81,6 +86,7 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
       isActive: totem.isActive !== false && totem.is_active !== false,
     });
     setSchedule(readScheduleFromTotem(totem));
+    setPollAdaptive(readPollAdaptiveFromTotem(totem));
     setDeviceClock(readDeviceClockFromTotem(totem));
     setLastHeartbeat(
       totem.lastHeartbeat
@@ -108,6 +114,7 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
           isActive: (full as any).isActive !== false && (full as any).is_active !== false,
         }));
         setSchedule(readScheduleFromTotem(full as any));
+        setPollAdaptive(readPollAdaptiveFromTotem(full as any));
         setDeviceClock(readDeviceClockFromTotem(full as any));
         setLastHeartbeat(
           (full as any).lastHeartbeat
@@ -201,6 +208,15 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
             offTime: schedule.offTime,
             keepAliveWhileOff: schedule.keepAliveWhileOff,
             keepAliveIntervalMinutes: schedule.keepAliveIntervalMinutes,
+          },
+          pollAdaptive: {
+            enabled: pollAdaptive.enabled,
+            unchangedStreakBeforeSleep: pollAdaptive.unchangedStreakBeforeSleep,
+            sleepGrowthFactor: pollAdaptive.sleepGrowthFactor,
+            maxHeartbeatSeconds: pollAdaptive.maxHeartbeatSeconds,
+            maxDispatchSeconds: pollAdaptive.maxDispatchSeconds,
+            idleHeartbeatSeconds: pollAdaptive.idleHeartbeatSeconds,
+            idleDispatchSeconds: pollAdaptive.idleDispatchSeconds,
           },
         },
       };
@@ -391,6 +407,102 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
             inputProps={{ min: 5, max: 30 }}
             sx={{ mt: 1, maxWidth: 200 }}
           />
+        </Box>
+
+        <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+          <Typography variant="subtitle1" sx={{ mb: 0.5 }}>
+            Sonolência do batimento
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Reduz tráfego quando o servidor responde sem mudanças e fora do horário de tela. Enviado ao
+            Player-AD no heartbeat (`pollAdaptive`).
+          </Typography>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={pollAdaptive.enabled}
+                onChange={(e) => setPollAdaptive((prev) => ({ ...prev, enabled: e.target.checked }))}
+              />
+            }
+            label="Ativar sonolência progressiva"
+          />
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 1 }}>
+            <TextField
+              label="Iguais antes de dormir"
+              type="number"
+              size="small"
+              disabled={!pollAdaptive.enabled}
+              value={pollAdaptive.unchangedStreakBeforeSleep}
+              onChange={(e) =>
+                setPollAdaptive((prev) => ({
+                  ...prev,
+                  unchangedStreakBeforeSleep: Math.min(20, Math.max(1, Number(e.target.value) || 2)),
+                }))
+              }
+              inputProps={{ min: 1, max: 20 }}
+              sx={{ width: 160 }}
+            />
+            <TextField
+              label="HB idle (s)"
+              type="number"
+              size="small"
+              disabled={!pollAdaptive.enabled}
+              value={pollAdaptive.idleHeartbeatSeconds}
+              onChange={(e) =>
+                setPollAdaptive((prev) => ({
+                  ...prev,
+                  idleHeartbeatSeconds: Math.min(3600, Math.max(30, Number(e.target.value) || 120)),
+                }))
+              }
+              inputProps={{ min: 30, max: 3600 }}
+              sx={{ width: 140 }}
+            />
+            <TextField
+              label="HB teto (s)"
+              type="number"
+              size="small"
+              disabled={!pollAdaptive.enabled}
+              value={pollAdaptive.maxHeartbeatSeconds}
+              onChange={(e) =>
+                setPollAdaptive((prev) => ({
+                  ...prev,
+                  maxHeartbeatSeconds: Math.min(3600, Math.max(60, Number(e.target.value) || 600)),
+                }))
+              }
+              inputProps={{ min: 60, max: 3600 }}
+              sx={{ width: 140 }}
+            />
+            <TextField
+              label="Dispatch idle (s)"
+              type="number"
+              size="small"
+              disabled={!pollAdaptive.enabled}
+              value={pollAdaptive.idleDispatchSeconds}
+              onChange={(e) =>
+                setPollAdaptive((prev) => ({
+                  ...prev,
+                  idleDispatchSeconds: Math.min(7200, Math.max(60, Number(e.target.value) || 600)),
+                }))
+              }
+              inputProps={{ min: 60, max: 7200 }}
+              sx={{ width: 150 }}
+            />
+            <TextField
+              label="Dispatch teto (s)"
+              type="number"
+              size="small"
+              disabled={!pollAdaptive.enabled}
+              value={pollAdaptive.maxDispatchSeconds}
+              onChange={(e) =>
+                setPollAdaptive((prev) => ({
+                  ...prev,
+                  maxDispatchSeconds: Math.min(7200, Math.max(120, Number(e.target.value) || 1800)),
+                }))
+              }
+              inputProps={{ min: 120, max: 7200 }}
+              sx={{ width: 150 }}
+            />
+          </Box>
         </Box>
       </DialogContent>
       <DialogActions>

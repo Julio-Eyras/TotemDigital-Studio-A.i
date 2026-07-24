@@ -25,6 +25,11 @@ data class PlayerConfig(
      */
     val maxSecondsWithoutServerCheck: Int = 180,
     /**
+     * Sonolência / backoff do batimento e dispatch (também sincronizável via servidor).
+     * Campo JSON: `pollAdaptive`.
+     */
+    val pollAdaptive: PollAdaptiveConfig = PollAdaptiveConfig.DEFAULT,
+    /**
      * Onde gravar propagandas, vinhetas e JSON do último dispatch.
      * Ver [PlayerStorageMode] e campo `storage` em `player-config.json`.
      */

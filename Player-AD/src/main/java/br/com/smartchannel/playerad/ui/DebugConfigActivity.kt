@@ -24,6 +24,7 @@ import br.com.smartchannel.playerad.R
 import br.com.smartchannel.playerad.api.DispatcherApiClient
 import br.com.smartchannel.playerad.config.DisplaySchedule
 import br.com.smartchannel.playerad.config.DisplayScheduleStore
+import br.com.smartchannel.playerad.config.PollAdaptiveConfig
 import br.com.smartchannel.playerad.config.PlayerConfig
 import br.com.smartchannel.playerad.config.PlayerConfigLoader
 import br.com.smartchannel.playerad.config.PlayerConfigStore
@@ -58,6 +59,12 @@ class DebugConfigActivity : AppCompatActivity() {
     private lateinit var textOrientationDegrees: TextView
     private lateinit var editMaxSecondsWithoutServerCheck: EditText
     private lateinit var editBatimentoCardiaco: EditText
+    private lateinit var switchPollSleepEnabled: SwitchCompat
+    private lateinit var editPollUnchangedBeforeSleep: EditText
+    private lateinit var editPollIdleHeartbeat: EditText
+    private lateinit var editPollMaxHeartbeat: EditText
+    private lateinit var editPollIdleDispatch: EditText
+    private lateinit var editPollMaxDispatch: EditText
     private lateinit var spinnerStorage: Spinner
     private lateinit var editStoragePath: EditText
 
@@ -125,6 +132,12 @@ class DebugConfigActivity : AppCompatActivity() {
         textOrientationDegrees = findViewById(R.id.textOrientationDegrees)
         editMaxSecondsWithoutServerCheck = findViewById(R.id.editMaxSecondsWithoutServerCheck)
         editBatimentoCardiaco = findViewById(R.id.editBatimentoCardiaco)
+        switchPollSleepEnabled = findViewById(R.id.switchPollSleepEnabled)
+        editPollUnchangedBeforeSleep = findViewById(R.id.editPollUnchangedBeforeSleep)
+        editPollIdleHeartbeat = findViewById(R.id.editPollIdleHeartbeat)
+        editPollMaxHeartbeat = findViewById(R.id.editPollMaxHeartbeat)
+        editPollIdleDispatch = findViewById(R.id.editPollIdleDispatch)
+        editPollMaxDispatch = findViewById(R.id.editPollMaxDispatch)
         spinnerStorage = findViewById(R.id.spinnerStorage)
         editStoragePath = findViewById(R.id.editStoragePath)
 
@@ -181,6 +194,7 @@ class DebugConfigActivity : AppCompatActivity() {
         switchStrongKiosk.isChecked = current.kioskMode == br.com.smartchannel.playerad.config.KioskMode.STRONG
         editBatimentoCardiaco.setText(current.batimentoCardiaco.toString())
         editMaxSecondsWithoutServerCheck.setText(current.maxSecondsWithoutServerCheck.toString())
+        bindPollAdaptiveForm(current.pollAdaptive)
         bindDisplayScheduleForm(DisplayScheduleStore.load(this))
 
         val storageModes = resources.getStringArray(R.array.player_storage_modes)
@@ -487,6 +501,7 @@ class DebugConfigActivity : AppCompatActivity() {
         val maxSecondsRaw = editMaxSecondsWithoutServerCheck.text?.toString()?.trim().orEmpty()
         val maxSeconds = maxSecondsRaw.toIntOrNull()?.coerceAtLeast(10)
             ?: loaded.maxSecondsWithoutServerCheck.coerceAtLeast(10)
+        val pollAdaptive = readPollAdaptiveOrDefault(loaded.pollAdaptive)
         val kioskMode = if (switchStrongKiosk.isChecked) {
             br.com.smartchannel.playerad.config.KioskMode.STRONG
         } else {
@@ -503,11 +518,38 @@ class DebugConfigActivity : AppCompatActivity() {
             fallbackPropagandasPerVinheta = loaded.fallbackPropagandasPerVinheta,
             batimentoCardiaco = batimento,
             maxSecondsWithoutServerCheck = maxSeconds,
+            pollAdaptive = pollAdaptive,
             storageMode = storageMode,
             storagePathOverride = pathOverride.takeIf { it.isNotBlank() },
             kioskMode = kioskMode,
             displayRotation = displayRotation,
             screenOrientation = orientationMode
+        )
+    }
+
+    private fun bindPollAdaptiveForm(cfg: PollAdaptiveConfig) {
+        switchPollSleepEnabled.isChecked = cfg.enabled
+        editPollUnchangedBeforeSleep.setText(cfg.unchangedStreakBeforeSleep.toString())
+        editPollIdleHeartbeat.setText(cfg.idleHeartbeatSeconds.toString())
+        editPollMaxHeartbeat.setText(cfg.maxHeartbeatSeconds.toString())
+        editPollIdleDispatch.setText(cfg.idleDispatchSeconds.toString())
+        editPollMaxDispatch.setText(cfg.maxDispatchSeconds.toString())
+    }
+
+    private fun readPollAdaptiveOrDefault(fallback: PollAdaptiveConfig): PollAdaptiveConfig {
+        return PollAdaptiveConfig(
+            enabled = switchPollSleepEnabled.isChecked,
+            unchangedStreakBeforeSleep = editPollUnchangedBeforeSleep.text?.toString()?.trim()
+                ?.toIntOrNull()?.coerceIn(1, 20) ?: fallback.unchangedStreakBeforeSleep,
+            sleepGrowthFactor = fallback.sleepGrowthFactor,
+            maxHeartbeatSeconds = editPollMaxHeartbeat.text?.toString()?.trim()
+                ?.toIntOrNull()?.coerceIn(60, 3600) ?: fallback.maxHeartbeatSeconds,
+            maxDispatchSeconds = editPollMaxDispatch.text?.toString()?.trim()
+                ?.toIntOrNull()?.coerceIn(120, 7200) ?: fallback.maxDispatchSeconds,
+            idleHeartbeatSeconds = editPollIdleHeartbeat.text?.toString()?.trim()
+                ?.toIntOrNull()?.coerceIn(30, 3600) ?: fallback.idleHeartbeatSeconds,
+            idleDispatchSeconds = editPollIdleDispatch.text?.toString()?.trim()
+                ?.toIntOrNull()?.coerceIn(60, 7200) ?: fallback.idleDispatchSeconds,
         )
     }
 

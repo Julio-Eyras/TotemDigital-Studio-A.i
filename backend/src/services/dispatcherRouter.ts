@@ -557,7 +557,7 @@ class DispatcherRouter {
       });
 
       // Espelho nowPlaying + telemetria do Player-AD (relógio, idle, versão).
-      // NÃO sobrescrever displaySchedule do cadastro com o espelho do player.
+      // NÃO sobrescrever displaySchedule / pollAdaptive do cadastro com o espelho do player.
       try {
         const m = metrics && typeof metrics === 'object' ? (metrics as Record<string, unknown>) : {};
         const nowPlaying = m.nowPlaying ?? m.now_playing ?? null;
@@ -661,6 +661,7 @@ class DispatcherRouter {
       const otaUpdate = await resolveOtaUpdateForHeartbeat(totemId, request.body as Record<string, unknown>);
 
       let displaySchedule: unknown = null;
+      let pollAdaptive: unknown = null;
       try {
         const db = (await import('../config/database')).getDatabase();
         const row = await db.findFirst(
@@ -670,16 +671,20 @@ class DispatcherRouter {
         const settings = row?.player_settings;
         if (settings && typeof settings === 'object' && !Array.isArray(settings)) {
           displaySchedule = (settings as any).displaySchedule ?? null;
+          pollAdaptive = (settings as any).pollAdaptive ?? null;
         } else if (typeof settings === 'string') {
           try {
             const parsed = JSON.parse(settings);
             displaySchedule = parsed?.displaySchedule ?? null;
+            pollAdaptive = parsed?.pollAdaptive ?? null;
           } catch {
             displaySchedule = null;
+            pollAdaptive = null;
           }
         }
       } catch {
         displaySchedule = null;
+        pollAdaptive = null;
       }
 
       return {
@@ -695,6 +700,7 @@ class DispatcherRouter {
           })),
           otaUpdate: otaUpdate || null,
           displaySchedule,
+          pollAdaptive,
         },
         statusCode: 200,
         duration: Date.now() - startTime,

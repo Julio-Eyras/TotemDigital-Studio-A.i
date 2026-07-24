@@ -20,6 +20,7 @@ import br.com.smartchannel.playerad.util.PlayerAdLogger
 import android.content.Intent
 import br.com.smartchannel.playerad.config.DisplaySchedule
 import br.com.smartchannel.playerad.config.DisplayScheduleStore
+import br.com.smartchannel.playerad.config.PollAdaptiveConfig
 import android.view.View
 import android.graphics.Color
 import android.webkit.WebView
@@ -74,6 +75,8 @@ class PlayerController(
     private val batimentoCardiaco: Int = 30,
     /** Intervalo (segundos) para atualizar dispatch/plano — independente do ciclo de reprodução. */
     private val maxSecondsWithoutServerCheck: Int = 180,
+    /** Sonolência / backoff parametrizável. */
+    private val pollAdaptive: PollAdaptiveConfig = PollAdaptiveConfig.DEFAULT,
     /** Montagem do painel (0=portrait … 3=landscape invertido) — alinha orientação da mídia. */
     private val displayRotation: Int = 0,
     private val otaUpdateCoordinator: OtaUpdateCoordinator? = null,
@@ -87,6 +90,8 @@ class PlayerController(
     private var nowPlayingSnapshot: JSONObject? = null
     @Volatile
     private var displaySchedule: DisplaySchedule = DisplaySchedule()
+    @Volatile
+    private var pollAdaptiveRuntime: PollAdaptiveConfig = pollAdaptive
     @Volatile
     private var displayIdle: Boolean = false
     private var lastKeepAliveAtMs: Long = 0L
@@ -174,8 +179,10 @@ class PlayerController(
         updatePlanSource(initialSource, "Fonte inicial do plano")
         PlayerAdLogger.i(
             "LIFECYCLE",
-            "(3) Loop de playback; batimento cardiaco=${batimentoCardiaco}s (backoff até 10min); " +
-                "dispatch a cada ${maxSecondsWithoutServerCheck}s (backoff até 30min)"
+            "(3) Loop de playback; batimento cardiaco=${batimentoCardiaco}s " +
+                "(sonolência até ${pollAdaptive.maxHeartbeatSeconds}s; idle base ${pollAdaptive.idleHeartbeatSeconds}s); " +
+                "dispatch a cada ${maxSecondsWithoutServerCheck}s " +
+                "(sonolência até ${pollAdaptive.maxDispatchSeconds}s)"
         )
         playLoop(initialPlan, sessionToken, initialSource)
     }
@@ -507,15 +514,24 @@ class PlayerController(
         var currentPlan = plan
         var currentToken = token
         var currentPlanSource = initialSource
+        val adaptive = pollAdaptiveRuntime
         val heartbeatPoll = AdaptivePollScheduler(
             name = "heartbeat",
-            baseIntervalMs = batimentoCardiaco.coerceAtLeast(15) * 1000L,
-            maxIntervalMs = 600_000L,
+            activeBaseIntervalMs = batimentoCardiaco.coerceAtLeast(15) * 1000L,
+            maxIntervalMs = adaptive.maxHeartbeatSeconds.coerceAtLeast(60) * 1000L,
+            idleBaseIntervalMs = adaptive.idleHeartbeatSeconds.coerceAtLeast(30) * 1000L,
+            unchangedBeforeSleep = adaptive.unchangedStreakBeforeSleep,
+            sleepGrowthFactor = adaptive.sleepGrowthFactor,
+            sleepEnabled = adaptive.enabled,
         )
         val dispatchPoll = AdaptivePollScheduler(
             name = "dispatch",
-            baseIntervalMs = maxSecondsWithoutServerCheck.coerceAtLeast(30) * 1000L,
-            maxIntervalMs = 1_800_000L,
+            activeBaseIntervalMs = maxSecondsWithoutServerCheck.coerceAtLeast(30) * 1000L,
+            maxIntervalMs = adaptive.maxDispatchSeconds.coerceAtLeast(120) * 1000L,
+            idleBaseIntervalMs = adaptive.idleDispatchSeconds.coerceAtLeast(60) * 1000L,
+            unchangedBeforeSleep = adaptive.unchangedStreakBeforeSleep,
+            sleepGrowthFactor = adaptive.sleepGrowthFactor,
+            sleepEnabled = adaptive.enabled,
         )
         val nowBoot = System.currentTimeMillis()
         heartbeatPoll.markAttempted(nowBoot)
@@ -526,6 +542,8 @@ class PlayerController(
         applyPlaybackVolumePolicy()
         while (true) {
             val nowMs = System.currentTimeMillis()
+            heartbeatPoll.setIdleMode(displayIdle)
+            dispatchPoll.setIdleMode(displayIdle)
 
             if (heartbeatPoll.due(nowMs)) {
                 try {
@@ -541,14 +559,19 @@ class PlayerController(
                         currentPlan = refreshed.second
                         index = refreshed.third
                         currentPlanSource = PlanSource.ONLINE
-                        dispatchPoll.onSuccess()
+                        dispatchPoll.onBusySuccess()
                         dispatchPoll.markAttempted(System.currentTimeMillis())
                         planSignature = planContentSignature(currentPlan)
                     }
-                    heartbeatPoll.onSuccess()
+                    if (heartbeat.busy) {
+                        heartbeatPoll.onBusySuccess()
+                    } else {
+                        heartbeatPoll.onQuietSuccess()
+                    }
                     PlayerAdLogger.i(
                         "HEARTBEAT",
-                        "Batimento cardiaco OK — próximo em ${heartbeatPoll.currentIntervalMs() / 1000}s"
+                        "Batimento cardiaco OK — próximo em ${heartbeatPoll.currentIntervalMs() / 1000}s " +
+                            "(quiet=${!heartbeat.busy} idle=$displayIdle)"
                     )
                 } catch (e: Exception) {
                     val api = e as? ApiHttpException ?: e.cause as? ApiHttpException
@@ -569,20 +592,24 @@ class PlayerController(
                     currentToken = refreshed.token
                     val newPlan = refreshed.plan
                     val newSignature = planContentSignature(newPlan)
-                    if (newSignature != planSignature) {
+                    val changed = newSignature != planSignature
+                    if (changed) {
                         index = 0
                         planSignature = newSignature
                         PlayerAdLogger.i("DISPATCH", "Plano alterado — reiniciando fila do início")
+                        dispatchPoll.onBusySuccess()
+                    } else {
+                        dispatchPoll.onQuietSuccess()
                     }
                     currentPlan = newPlan
                     currentPlanSource = PlanSource.ONLINE
                     updatePlanSource(currentPlanSource, "Fonte do plano alterada")
                     if (index >= currentPlan.mediaItems.size) index = 0
-                    dispatchPoll.onSuccess()
                     PlayerAdLogger.i(
                         "DISPATCH",
                         "Atualização de plano OK — ${currentPlan.mediaItems.size} itens; " +
-                            "próximo em ${dispatchPoll.currentIntervalMs() / 1000}s"
+                            "próximo em ${dispatchPoll.currentIntervalMs() / 1000}s " +
+                            "(changed=$changed idle=$displayIdle)"
                     )
                 } catch (e: Exception) {
                     val api = e as? ApiHttpException ?: e.cause as? ApiHttpException
@@ -736,7 +763,9 @@ class PlayerController(
 
     private data class HeartbeatOutcome(
         val token: String,
-        val refreshDispatch: Boolean
+        val refreshDispatch: Boolean,
+        /** Comando, OTA ou refresh — acorda o poll. */
+        val busy: Boolean,
     )
 
     private data class RemoteCommandOutcome(
@@ -776,6 +805,7 @@ class PlayerController(
         var token = hb.token
         PlayerAdLogger.i("HEARTBEAT", "OK — sessão/token renovados; comandos=${hb.pendingCommands.size}")
         hb.displaySchedule?.let { applyDisplayScheduleFromServer(it) }
+        hb.pollAdaptive?.let { applyPollAdaptiveFromServer(it) }
         otaUpdateCoordinator?.handleFromHeartbeat(hb.otaUpdate)
         var refreshDispatch = false
         if (hb.pendingCommands.isNotEmpty()) {
@@ -784,7 +814,30 @@ class PlayerController(
             refreshDispatch = outcome.refreshDispatch
         }
         val effectiveToken = apiClient.cachedToken() ?: token.ifBlank { previousToken }
-        return HeartbeatOutcome(effectiveToken, refreshDispatch)
+        val busy = hb.pendingCommands.isNotEmpty() ||
+            refreshDispatch ||
+            hb.otaUpdate != null
+        return HeartbeatOutcome(effectiveToken, refreshDispatch, busy)
+    }
+
+    private fun applyPollAdaptiveFromServer(raw: org.json.JSONObject) {
+        val next = PollAdaptiveConfig.fromJson(raw)
+        if (next == pollAdaptiveRuntime) return
+        pollAdaptiveRuntime = next
+        PlayerAdLogger.i(
+            "POLL",
+            "pollAdaptive do servidor: enabled=${next.enabled} " +
+                "idleHb=${next.idleHeartbeatSeconds}s maxHb=${next.maxHeartbeatSeconds}s"
+        )
+        try {
+            val cfg = br.com.smartchannel.playerad.config.PlayerConfigLoader(context).load()
+            br.com.smartchannel.playerad.config.PlayerConfigStore.save(
+                context,
+                cfg.copy(pollAdaptive = next),
+            )
+        } catch (e: Exception) {
+            PlayerAdLogger.w("POLL", "Falha ao persistir pollAdaptive: ${e.message}")
+        }
     }
 
     /** Atualiza plano de mídia (GET dispatch) sem novo heartbeat. */
@@ -984,6 +1037,9 @@ class PlayerController(
         if (data.has("displaySchedule")) {
             applyDisplayScheduleFromServer(data.optJSONObject("displaySchedule"))
         }
+        if (data.has("pollAdaptive")) {
+            applyPollAdaptiveFromServer(data.optJSONObject("pollAdaptive") ?: JSONObject())
+        }
         val loader = br.com.smartchannel.playerad.config.PlayerConfigLoader(context)
         val current = loader.load()
         val next = current.copy(
@@ -1015,6 +1071,11 @@ class PlayerController(
                     .coerceIn(30, 3600)
             } else {
                 current.maxSecondsWithoutServerCheck
+            },
+            pollAdaptive = if (data.has("pollAdaptive")) {
+                PollAdaptiveConfig.fromJson(data.optJSONObject("pollAdaptive"))
+            } else {
+                current.pollAdaptive
             },
             acceptImagesInPlaylist = if (data.has("acceptImagesInPlaylist")) {
                 data.optBoolean("acceptImagesInPlaylist", current.acceptImagesInPlaylist)

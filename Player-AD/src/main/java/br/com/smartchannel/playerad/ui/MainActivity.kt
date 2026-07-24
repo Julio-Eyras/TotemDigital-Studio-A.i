@@ -146,6 +146,7 @@ class MainActivity : AppCompatActivity() {
                         config.fallbackPropagandasPerVinheta,
                         config.batimentoCardiaco,
                         config.maxSecondsWithoutServerCheck,
+                        config.pollAdaptive,
                         config.displayRotation,
                         otaCoordinator,
                         findViewById(R.id.displayIdleOverlay),

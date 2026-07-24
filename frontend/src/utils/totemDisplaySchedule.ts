@@ -126,3 +126,58 @@ export function formatTotemScheduleCardLines(totem: Record<string, unknown> | nu
     daysLine: `Dias: ${formatScheduleDaysLabel(schedule.daysOfWeek)}`,
   };
 }
+
+export type PollAdaptiveInfo = {
+  enabled: boolean;
+  unchangedStreakBeforeSleep: number;
+  sleepGrowthFactor: number;
+  maxHeartbeatSeconds: number;
+  maxDispatchSeconds: number;
+  idleHeartbeatSeconds: number;
+  idleDispatchSeconds: number;
+};
+
+export const DEFAULT_POLL_ADAPTIVE: PollAdaptiveInfo = {
+  enabled: true,
+  unchangedStreakBeforeSleep: 2,
+  sleepGrowthFactor: 2,
+  maxHeartbeatSeconds: 600,
+  maxDispatchSeconds: 1800,
+  idleHeartbeatSeconds: 120,
+  idleDispatchSeconds: 600,
+};
+
+export function readPollAdaptiveFromTotem(
+  totem: Record<string, unknown> | null | undefined
+): PollAdaptiveInfo {
+  const settings = playerSettingsOf(totem);
+  const raw = (settings.pollAdaptive || {}) as Record<string, unknown>;
+  return {
+    enabled: raw.enabled !== false,
+    unchangedStreakBeforeSleep: Math.min(
+      20,
+      Math.max(1, Number(raw.unchangedStreakBeforeSleep) || DEFAULT_POLL_ADAPTIVE.unchangedStreakBeforeSleep)
+    ),
+    sleepGrowthFactor: Math.min(
+      4,
+      Math.max(1.1, Number(raw.sleepGrowthFactor) || DEFAULT_POLL_ADAPTIVE.sleepGrowthFactor)
+    ),
+    maxHeartbeatSeconds: Math.min(
+      3600,
+      Math.max(60, Number(raw.maxHeartbeatSeconds) || DEFAULT_POLL_ADAPTIVE.maxHeartbeatSeconds)
+    ),
+    maxDispatchSeconds: Math.min(
+      7200,
+      Math.max(120, Number(raw.maxDispatchSeconds) || DEFAULT_POLL_ADAPTIVE.maxDispatchSeconds)
+    ),
+    idleHeartbeatSeconds: Math.min(
+      3600,
+      Math.max(30, Number(raw.idleHeartbeatSeconds) || DEFAULT_POLL_ADAPTIVE.idleHeartbeatSeconds)
+    ),
+    idleDispatchSeconds: Math.min(
+      7200,
+      Math.max(60, Number(raw.idleDispatchSeconds) || DEFAULT_POLL_ADAPTIVE.idleDispatchSeconds)
+    ),
+  };
+}
+
