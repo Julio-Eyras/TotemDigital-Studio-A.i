@@ -34,6 +34,12 @@ class DispatcherApiClient(
         val otaUpdate: JSONObject? = null,
         val displaySchedule: JSONObject? = null,
         val pollAdaptive: JSONObject? = null,
+        /** Fingerprint do plano no servidor (null = desconhecido). */
+        val planVersion: String? = null,
+        /** true = player deve chamar GET /dispatch. */
+        val needsDispatch: Boolean = true,
+        /** false = backend antigo sem contrato planVersion (usar poll periódico). */
+        val supportsPlanVersion: Boolean = false,
     )
 
     private data class HttpTextResponse(
@@ -218,7 +224,31 @@ class DispatcherApiClient(
         val pollAdaptive = payload.optJSONObject("pollAdaptive")
             ?: payload.optJSONObject("poll_adaptive")
 
-        HeartbeatResult(newToken, pendingCommands, otaUpdate, displaySchedule, pollAdaptive)
+        val planVersion = payload.optString("planVersion", "")
+            .ifBlank { payload.optString("plan_version", "") }
+            .trim()
+            .ifBlank { null }
+
+        val supportsPlanVersion =
+            payload.has("needsDispatch") || payload.has("needs_dispatch") ||
+                payload.has("planVersion") || payload.has("plan_version")
+
+        val needsDispatch = when {
+            payload.has("needsDispatch") -> payload.optBoolean("needsDispatch", true)
+            payload.has("needs_dispatch") -> payload.optBoolean("needs_dispatch", true)
+            else -> false // backend legado: não forçar dispatch a cada heartbeat
+        }
+
+        HeartbeatResult(
+            newToken,
+            pendingCommands,
+            otaUpdate,
+            displaySchedule,
+            pollAdaptive,
+            planVersion,
+            needsDispatch,
+            supportsPlanVersion,
+        )
     }
 
     suspend fun reportOtaStatus(

@@ -154,6 +154,8 @@ export interface DispatchOptions {
 export interface DispatchResponse {
   success: boolean;
   plan?: DispatchPlan;
+  /** Fingerprint estável do conteúdo do plano (heartbeat / cache). */
+  planVersion?: string;
   candidates?: CandidateSchedule[];
   fromCache?: boolean;
   executionTimeMs: number;

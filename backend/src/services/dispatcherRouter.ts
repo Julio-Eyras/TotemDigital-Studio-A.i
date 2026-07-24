@@ -450,11 +450,15 @@ class DispatcherRouter {
       }
 
       // Retornar plano em formato consumível pelo player
+      const planVersion =
+        dispatchResponse.planVersion ||
+        (plan ? (await getDispatcherTotemService().rememberPlanVersion(totemId, plan as any)) : null);
       return {
         success: true,
         data: {
           success: true,
           plan,
+          planVersion,
           fromCache: dispatchResponse.fromCache,
           executionTimeMs: dispatchResponse.executionTimeMs,
         },
@@ -687,6 +691,35 @@ class DispatcherRouter {
         pollAdaptive = null;
       }
 
+      // Versão do plano: player só pede GET /dispatch quando muda (ou no boot).
+      let planVersion: string | null = null;
+      let needsDispatch = true;
+      try {
+        const metricsObj =
+          metrics && typeof metrics === 'object' ? (metrics as Record<string, unknown>) : {};
+        const knownPlanVersion = String(
+          metricsObj.knownPlanVersion ||
+            metricsObj.known_plan_version ||
+            request.body?.knownPlanVersion ||
+            ''
+        ).trim();
+        const peeked = await getDispatcherTotemService().peekPlanVersion(totemId);
+        planVersion = peeked.planVersion;
+        if (planVersion && knownPlanVersion && planVersion === knownPlanVersion) {
+          needsDispatch = false;
+        } else if (planVersion && !knownPlanVersion) {
+          needsDispatch = true;
+        } else if (!planVersion) {
+          // Sem versão conhecida no servidor → player deve pedir dispatch (boot / após invalidate).
+          needsDispatch = true;
+        } else {
+          needsDispatch = true;
+        }
+      } catch {
+        planVersion = null;
+        needsDispatch = true;
+      }
+
       return {
         success: true,
         data: {
@@ -701,6 +734,8 @@ class DispatcherRouter {
           otaUpdate: otaUpdate || null,
           displaySchedule,
           pollAdaptive,
+          planVersion,
+          needsDispatch,
         },
         statusCode: 200,
         duration: Date.now() - startTime,

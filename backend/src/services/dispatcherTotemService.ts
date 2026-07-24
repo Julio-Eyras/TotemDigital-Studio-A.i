@@ -29,6 +29,10 @@ import {
   interleaveDirectAndPlaylistItems,
 } from '../utils/dispatchPlaylistDirectMix';
 import {
+  buildDispatchPlanVersionFromPlan,
+  planVersionCacheKey,
+} from '../utils/dispatchPlanVersion';
+import {
   DispatchRequest,
   DispatchPlan,
   DispatchMediaItem,
@@ -97,6 +101,7 @@ export class DispatcherTotemService {
         const hasMediaItems = !!cached?.plan?.mediaItems && cached.plan.mediaItems.length > 0;
         if (cached && hasCandidatesData && hasMediaItems) {
           await logDebug('[DispatcherTotem] Cache hit', { totem: totemContext, cacheKey });
+          const planVersion = await this.rememberPlanVersion(totemId, cached.plan);
           
           // Registrar log de auditoria (cache hit)
           await this.logDispatch({
@@ -112,6 +117,7 @@ export class DispatcherTotemService {
           return {
             success: true,
             plan: cached.plan,
+            planVersion,
             candidates: includeCandidates ? cached.candidates : undefined,
             fromCache: true,
             executionTimeMs: Date.now() - startTime,
@@ -133,9 +139,14 @@ export class DispatcherTotemService {
             items: fallbackPlan.mediaItems.length,
             fallbackPlaylist: { id: fallbackPlan.playlistId, name: fallbackPlan.playlistName },
           });
+          const planVersion = await this.rememberPlanVersion(totemId, fallbackPlan);
+          if (this.cacheConfig.enabled && !validateOnly) {
+            await this.saveToCache(cacheKey, { plan: fallbackPlan, candidates: [] });
+          }
           return {
             success: true,
             plan: fallbackPlan,
+            planVersion,
             candidates: includeCandidates ? [] : undefined,
             fromCache: false,
             executionTimeMs: Date.now() - startTime,
@@ -428,6 +439,7 @@ export class DispatcherTotemService {
       return {
         success: true,
         plan,
+        planVersion: await this.rememberPlanVersion(totemId, plan),
         candidates: includeCandidates ? validatedCandidates : undefined,
         fromCache: false,
         executionTimeMs: Date.now() - startTime,
@@ -2491,6 +2503,130 @@ export class DispatcherTotemService {
   }
 
   /**
+   * Versão leve do plano para o heartbeat (sem rerodar dispatch completo).
+   * 1) sticky do último GET /dispatch (fingerprint do plano completo, incl. mix/vinheta)
+   * 2) cache do minuto
+   * 3) watermark da totem_playlist no DB
+   *
+   * Importante: sticky deve ser invalidada em regenerate/publish
+   * (`invalidateTotemDispatchCaches`), senão o player não vê mudança.
+   */
+  async peekPlanVersion(totemId: number, timestamp: Date = new Date()): Promise<{
+    planVersion: string | null;
+    source: 'sticky' | 'minute_cache' | 'playlist_db' | 'none';
+  }> {
+    try {
+      const cacheService = getCacheService();
+      const sticky = await cacheService.get<string>(planVersionCacheKey(totemId));
+      if (typeof sticky === 'string' && sticky.trim()) {
+        return { planVersion: sticky.trim(), source: 'sticky' };
+      }
+
+      if (this.cacheConfig.enabled) {
+        const minuteKey = this.generateCacheKey(totemId, timestamp);
+        const cached = await this.getFromCache(minuteKey);
+        if (cached?.plan?.mediaItems?.length) {
+          const version = buildDispatchPlanVersionFromPlan(cached.plan as any);
+          await this.rememberPlanVersion(totemId, version);
+          return { planVersion: version, source: 'minute_cache' };
+        }
+      }
+
+      const dbVersion = await this.computePlaylistDbPlanVersion(totemId);
+      if (dbVersion) {
+        await this.rememberPlanVersion(totemId, dbVersion);
+        return { planVersion: dbVersion, source: 'playlist_db' };
+      }
+    } catch (error) {
+      await logError('[DispatcherTotem] peekPlanVersion falhou', error, { totemId });
+    }
+    return { planVersion: null, source: 'none' };
+  }
+
+  async rememberPlanVersion(totemId: number, planOrVersion: string | DispatchPlan): Promise<string> {
+    const version =
+      typeof planOrVersion === 'string'
+        ? planOrVersion
+        : buildDispatchPlanVersionFromPlan(planOrVersion as any);
+    try {
+      const cacheService = getCacheService();
+      // TTL longo: só muda quando o plano muda ou o cache é invalidado.
+      await cacheService.set(planVersionCacheKey(totemId), version, 24 * 60 * 60);
+    } catch (error) {
+      await logError('[DispatcherTotem] rememberPlanVersion falhou', error, { totemId });
+    }
+    return version;
+  }
+
+  private async computePlaylistDbPlanVersion(totemId: number): Promise<string | null> {
+    try {
+      const { buildMediaContentVersion } = await import('./mediaTotemSyncService');
+      const tp = await this.db.findFirst(
+        `
+        SELECT tp.totem_playlist_id, COALESCE(tp.version, 0) AS playlist_version
+        FROM totem_playlists tp
+        WHERE tp.totem_id = $1
+          AND COALESCE(tp.is_active, true) = true
+          AND COALESCE(tp.status, 'active') = 'active'
+        ORDER BY tp.generated_at DESC NULLS LAST, tp.totem_playlist_id DESC
+        LIMIT 1
+        `,
+        [totemId]
+      );
+      if (!tp?.totem_playlist_id) return null;
+
+      const rows = await this.db.findMany(
+        `
+        SELECT
+          tpi.media_id AS media_id,
+          COALESCE(tpi.order_index, 0) AS item_order,
+          m.updated_at AS media_updated_at,
+          m.file_size_bytes AS file_size_bytes,
+          m.file_path AS file_path
+        FROM totem_playlist_items tpi
+        LEFT JOIN medias m ON m.media_id = tpi.media_id
+        WHERE tpi.totem_playlist_id = $1
+          AND COALESCE(tpi.is_active, true) = true
+        ORDER BY tpi.order_index ASC, tpi.media_id ASC
+        `,
+        [tp.totem_playlist_id]
+      );
+      if (!rows?.length) {
+        return buildDispatchPlanVersionFromPlan({
+          mediaItems: [],
+          playlistId: tp.totem_playlist_id,
+          source: 'direct',
+          metadata: { mixVersion: tp.playlist_version },
+        });
+      }
+
+      const items = rows.map((r: any) => ({
+        mediaId: r.media_id,
+        order: Number(r.item_order) || 0,
+        contentVersion: buildMediaContentVersion({
+          updatedAt: r.media_updated_at,
+          fileSizeBytes: r.file_size_bytes,
+          filePath: r.file_path,
+          fileCrc: null,
+        }),
+      }));
+      return buildDispatchPlanVersionFromPlan({
+        mediaItems: items.map((i) => ({
+          mediaId: i.mediaId,
+          order: i.order,
+          contentVersion: i.contentVersion,
+        })),
+        playlistId: tp.totem_playlist_id,
+        source: 'direct',
+        metadata: { mixVersion: tp.playlist_version },
+      });
+    } catch (error) {
+      await logError('[DispatcherTotem] computePlaylistDbPlanVersion falhou', error, { totemId });
+      return null;
+    }
+  }
+
+  /**
    * Gerar chave de cache
    */
   private generateCacheKey(totemId: number, timestamp: Date): string {
@@ -2541,6 +2677,10 @@ export class DispatcherTotemService {
         JSON.stringify(data),
         this.cacheConfig.ttlSeconds
       );
+      const totemIdMatch = /^dispatcher:totem:(\d+):/.exec(cacheKey);
+      if (totemIdMatch && data.plan) {
+        await this.rememberPlanVersion(Number(totemIdMatch[1]), data.plan);
+      }
     } catch (error) {
       await logError('[DispatcherTotem] Erro ao salvar cache', error, { cacheKey });
       // Não falhar se cache falhar

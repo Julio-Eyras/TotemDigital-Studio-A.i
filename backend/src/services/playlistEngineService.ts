@@ -15,6 +15,7 @@
 import { getDatabase } from '../config/database';
 import { logError, logDebug, logWarn } from '../utils/loggerHelper';
 import crypto from 'crypto';
+import { getMediaTotemSyncService } from './mediaTotemSyncService';
 
 export interface TotemPlaylistItem {
   item_id?: number;
@@ -384,6 +385,17 @@ export class PlaylistEngineService {
         playlists: uniquePlaylistsCount,
         subscribers: uniqueSubscribers.size
       });
+
+      // Limpa cache do dispatcher (incl. sticky planVersion) para o heartbeat
+      // marcar needsDispatch=true no próximo batimento.
+      try {
+        await getMediaTotemSyncService().invalidateTotemDispatchCaches([totemId]);
+      } catch (cacheErr) {
+        await logWarn('Falha ao invalidar cache dispatcher após gerar playlist', {
+          totemId,
+          error: cacheErr instanceof Error ? cacheErr.message : String(cacheErr),
+        });
+      }
 
       return {
         success: true,

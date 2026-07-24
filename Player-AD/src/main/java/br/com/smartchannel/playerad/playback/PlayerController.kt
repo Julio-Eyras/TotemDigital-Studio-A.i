@@ -95,6 +95,10 @@ class PlayerController(
     @Volatile
     private var displayIdle: Boolean = false
     private var lastKeepAliveAtMs: Long = 0L
+    /** Versão do plano conhecida (ecoada no heartbeat como knownPlanVersion). */
+    @Volatile
+    private var knownPlanVersion: String? = null
+    private var lastDispatchFetchAtMs: Long = 0L
 
     private enum class PlanSource { ONLINE, PERSISTED, FALLBACK_LOCAL }
 
@@ -181,8 +185,7 @@ class PlayerController(
             "LIFECYCLE",
             "(3) Loop de playback; batimento cardiaco=${batimentoCardiaco}s " +
                 "(sonolência até ${pollAdaptive.maxHeartbeatSeconds}s; idle base ${pollAdaptive.idleHeartbeatSeconds}s); " +
-                "dispatch a cada ${maxSecondsWithoutServerCheck}s " +
-                "(sonolência até ${pollAdaptive.maxDispatchSeconds}s)"
+                "GET /dispatch sob needsDispatch (safety ≤${maxSecondsWithoutServerCheck}s)"
         )
         playLoop(initialPlan, sessionToken, initialSource)
     }
@@ -541,89 +544,8 @@ class PlayerController(
         var planSignature = planContentSignature(plan)
         applyPlaybackVolumePolicy()
         while (true) {
-            val nowMs = System.currentTimeMillis()
             heartbeatPoll.setIdleMode(displayIdle)
             dispatchPoll.setIdleMode(displayIdle)
-
-            if (heartbeatPoll.due(nowMs)) {
-                try {
-                    val heartbeat = performHeartbeat(currentToken)
-                    currentToken = heartbeat.token
-                    if (heartbeat.refreshDispatch) {
-                        val refreshed = refreshPlanAfterRemoteCommand(
-                            currentToken,
-                            index,
-                            "heartbeat_media_refresh"
-                        )
-                        currentToken = refreshed.first
-                        currentPlan = refreshed.second
-                        index = refreshed.third
-                        currentPlanSource = PlanSource.ONLINE
-                        dispatchPoll.onBusySuccess()
-                        dispatchPoll.markAttempted(System.currentTimeMillis())
-                        planSignature = planContentSignature(currentPlan)
-                    }
-                    if (heartbeat.busy) {
-                        heartbeatPoll.onBusySuccess()
-                    } else {
-                        heartbeatPoll.onQuietSuccess()
-                    }
-                    PlayerAdLogger.i(
-                        "HEARTBEAT",
-                        "Batimento cardiaco OK — próximo em ${heartbeatPoll.currentIntervalMs() / 1000}s " +
-                            "(quiet=${!heartbeat.busy} idle=$displayIdle)"
-                    )
-                } catch (e: Exception) {
-                    val api = e as? ApiHttpException ?: e.cause as? ApiHttpException
-                    heartbeatPoll.onFailure(api?.code, api?.retryAfterSeconds)
-                    PlayerAdLogger.e(
-                        "HEARTBEAT",
-                        "Batimento cardiaco falhou; próximo em ${heartbeatPoll.currentIntervalMs() / 1000}s",
-                        e
-                    )
-                } finally {
-                    heartbeatPoll.markAttempted(System.currentTimeMillis())
-                }
-            }
-
-            if (dispatchPoll.due(nowMs)) {
-                try {
-                    val refreshed = fetchDispatchPlan(currentToken, "checagem_temporal")
-                    currentToken = refreshed.token
-                    val newPlan = refreshed.plan
-                    val newSignature = planContentSignature(newPlan)
-                    val changed = newSignature != planSignature
-                    if (changed) {
-                        index = 0
-                        planSignature = newSignature
-                        PlayerAdLogger.i("DISPATCH", "Plano alterado — reiniciando fila do início")
-                        dispatchPoll.onBusySuccess()
-                    } else {
-                        dispatchPoll.onQuietSuccess()
-                    }
-                    currentPlan = newPlan
-                    currentPlanSource = PlanSource.ONLINE
-                    updatePlanSource(currentPlanSource, "Fonte do plano alterada")
-                    if (index >= currentPlan.mediaItems.size) index = 0
-                    PlayerAdLogger.i(
-                        "DISPATCH",
-                        "Atualização de plano OK — ${currentPlan.mediaItems.size} itens; " +
-                            "próximo em ${dispatchPoll.currentIntervalMs() / 1000}s " +
-                            "(changed=$changed idle=$displayIdle)"
-                    )
-                } catch (e: Exception) {
-                    val api = e as? ApiHttpException ?: e.cause as? ApiHttpException
-                    dispatchPoll.onFailure(api?.code, api?.retryAfterSeconds)
-                    PlayerAdLogger.e(
-                        "DISPATCH",
-                        "Atualização de plano falhou; mantém plano atual ($currentPlanSource); " +
-                            "próximo em ${dispatchPoll.currentIntervalMs() / 1000}s",
-                        e
-                    )
-                } finally {
-                    dispatchPoll.markAttempted(System.currentTimeMillis())
-                }
-            }
 
             if (currentPlan.mediaItems.isEmpty()) {
                 val persistedPlan = loadDispatchPlanFromDisk()?.let { applyVinhetaMixToDispatchPlan(parseDispatchPlan(it)) }
@@ -677,10 +599,31 @@ class PlayerController(
                 enterDisplayIdle()
                 maybeDisplayKeepAlive()
                 delay(1_000L)
+                // Poll mesmo em idle (fora do horário), sem bloquear troca de mídia.
+                currentToken = runDueServerPolls(
+                    currentToken,
+                    heartbeatPoll,
+                    dispatchPoll,
+                    currentIndex = index,
+                    currentSignature = planSignature,
+                    onBusyPlan = { newPlan, newIndex, newSig ->
+                        currentPlan = newPlan
+                        index = newIndex
+                        planSignature = newSig
+                        currentPlanSource = PlanSource.ONLINE
+                    },
+                    onQuietPlan = { newPlan, newSig ->
+                        currentPlan = newPlan
+                        planSignature = newSig
+                        currentPlanSource = PlanSource.ONLINE
+                        if (index >= currentPlan.mediaItems.size) index = 0
+                    },
+                )
                 continue
             }
             exitDisplayIdle()
 
+            // 1) Reproduz primeiro (última frame/imagem permanece até o próximo item estar pronto).
             val item = currentPlan.mediaItems[index]
             currentToken = playItem(currentPlan, item, currentToken)
 
@@ -691,7 +634,141 @@ class PlayerController(
                     "Ciclo completo — repetindo fila na mesma ordem (${currentPlan.mediaItems.size} itens)"
                 )
             }
+
+            // 2) Heartbeat/dispatch DEPOIS da mídia — evita ecrã vazio durante a rede.
+            currentToken = runDueServerPolls(
+                currentToken,
+                heartbeatPoll,
+                dispatchPoll,
+                currentIndex = index,
+                currentSignature = planSignature,
+                onBusyPlan = { newPlan, newIndex, newSig ->
+                    currentPlan = newPlan
+                    index = newIndex
+                    planSignature = newSig
+                    currentPlanSource = PlanSource.ONLINE
+                },
+                onQuietPlan = { newPlan, newSig ->
+                    currentPlan = newPlan
+                    planSignature = newSig
+                    currentPlanSource = PlanSource.ONLINE
+                    if (index >= currentPlan.mediaItems.size) index = 0
+                },
+            )
         }
+    }
+
+    /**
+     * Heartbeat é o mensageiro: GET /dispatch só quando needsDispatch/comando.
+     * Poll periódico de dispatch fica só como fallback de segurança.
+     */
+    private suspend fun runDueServerPolls(
+        token: String,
+        heartbeatPoll: AdaptivePollScheduler,
+        dispatchPoll: AdaptivePollScheduler,
+        currentIndex: Int,
+        currentSignature: String,
+        onBusyPlan: (DispatchPlan, Int, String) -> Unit,
+        onQuietPlan: (DispatchPlan, String) -> Unit,
+    ): String {
+        var currentToken = token
+        val nowMs = System.currentTimeMillis()
+        heartbeatPoll.setIdleMode(displayIdle)
+        dispatchPoll.setIdleMode(displayIdle)
+
+        var fetchedViaHeartbeat = false
+        var supportsPlanVersion = knownPlanVersion != null
+        if (heartbeatPoll.due(nowMs)) {
+            try {
+                val heartbeat = performHeartbeat(currentToken)
+                currentToken = heartbeat.token
+                supportsPlanVersion = heartbeat.supportsPlanVersion
+                val shouldFetchPlan = heartbeat.refreshDispatch ||
+                    (heartbeat.supportsPlanVersion && heartbeat.needsDispatch)
+                if (shouldFetchPlan) {
+                    val refreshed = refreshPlanAfterRemoteCommand(
+                        currentToken,
+                        currentIndex,
+                        when {
+                            heartbeat.refreshDispatch -> "heartbeat_media_refresh"
+                            else -> "heartbeat_plan_version"
+                        }
+                    )
+                    currentToken = refreshed.first
+                    onBusyPlan(refreshed.second, refreshed.third, planContentSignature(refreshed.second))
+                    dispatchPoll.onBusySuccess()
+                    dispatchPoll.markAttempted(System.currentTimeMillis())
+                    fetchedViaHeartbeat = true
+                }
+                if (heartbeat.busy || shouldFetchPlan) {
+                    heartbeatPoll.onBusySuccess()
+                } else {
+                    heartbeatPoll.onQuietSuccess()
+                }
+                PlayerAdLogger.i(
+                    "HEARTBEAT",
+                    "OK — próximo em ${heartbeatPoll.currentIntervalMs() / 1000}s " +
+                        "needsDispatch=${heartbeat.needsDispatch} planVersion=${heartbeat.planVersion ?: "—"} " +
+                        "known=${knownPlanVersion ?: "—"} legacy=${!heartbeat.supportsPlanVersion} idle=$displayIdle"
+                )
+            } catch (e: Exception) {
+                val api = e as? ApiHttpException ?: e.cause as? ApiHttpException
+                heartbeatPoll.onFailure(api?.code, api?.retryAfterSeconds)
+                PlayerAdLogger.e(
+                    "HEARTBEAT",
+                    "Batimento cardiaco falhou; próximo em ${heartbeatPoll.currentIntervalMs() / 1000}s",
+                    e
+                )
+            } finally {
+                heartbeatPoll.markAttempted(System.currentTimeMillis())
+            }
+        }
+
+        // Backend novo: safety raro. Backend legado: poll periódico como antes.
+        val nowAfterHb = System.currentTimeMillis()
+        val safetyDue = !fetchedViaHeartbeat && dispatchPoll.due(nowAfterHb) && (
+            !supportsPlanVersion ||
+                knownPlanVersion.isNullOrBlank() ||
+                nowAfterHb - lastDispatchFetchAtMs >=
+                maxSecondsWithoutServerCheck.coerceAtLeast(180) * 1000L
+            )
+
+        if (safetyDue) {
+            try {
+                val source = if (supportsPlanVersion) "safety_fallback" else "checagem_temporal"
+                val refreshed = fetchDispatchPlan(currentToken, source)
+                currentToken = refreshed.token
+                val newPlan = refreshed.plan
+                val newSignature = planContentSignature(newPlan)
+                val changed = newSignature != currentSignature
+                if (changed) {
+                    PlayerAdLogger.i("DISPATCH", "Plano alterado ($source) — reiniciando fila")
+                    onBusyPlan(newPlan, 0, newSignature)
+                    dispatchPoll.onBusySuccess()
+                } else {
+                    onQuietPlan(newPlan, newSignature)
+                    dispatchPoll.onQuietSuccess()
+                }
+                updatePlanSource(PlanSource.ONLINE, "Fonte do plano alterada")
+                PlayerAdLogger.i(
+                    "DISPATCH",
+                    "$source OK — ${newPlan.mediaItems.size} itens; " +
+                        "próximo em ${dispatchPoll.currentIntervalMs() / 1000}s (changed=$changed)"
+                )
+            } catch (e: Exception) {
+                val api = e as? ApiHttpException ?: e.cause as? ApiHttpException
+                dispatchPoll.onFailure(api?.code, api?.retryAfterSeconds)
+                PlayerAdLogger.e(
+                    "DISPATCH",
+                    "Atualização de plano falhou; mantém plano; " +
+                        "próximo em ${dispatchPoll.currentIntervalMs() / 1000}s",
+                    e
+                )
+            } finally {
+                dispatchPoll.markAttempted(System.currentTimeMillis())
+            }
+        }
+        return currentToken
     }
 
     private fun enterDisplayIdle() {
@@ -766,6 +843,9 @@ class PlayerController(
         val refreshDispatch: Boolean,
         /** Comando, OTA ou refresh — acorda o poll. */
         val busy: Boolean,
+        val planVersion: String? = null,
+        val needsDispatch: Boolean = false,
+        val supportsPlanVersion: Boolean = false,
     )
 
     private data class RemoteCommandOutcome(
@@ -775,7 +855,8 @@ class PlayerController(
 
     private data class OnlinePlanResult(
         val token: String,
-        val plan: DispatchPlan
+        val plan: DispatchPlan,
+        val planVersion: String? = null,
     )
 
     private suspend fun refreshPlanAfterRemoteCommand(
@@ -816,8 +897,16 @@ class PlayerController(
         val effectiveToken = apiClient.cachedToken() ?: token.ifBlank { previousToken }
         val busy = hb.pendingCommands.isNotEmpty() ||
             refreshDispatch ||
-            hb.otaUpdate != null
-        return HeartbeatOutcome(effectiveToken, refreshDispatch, busy)
+            hb.otaUpdate != null ||
+            hb.needsDispatch
+        return HeartbeatOutcome(
+            token = effectiveToken,
+            refreshDispatch = refreshDispatch,
+            busy = busy,
+            planVersion = hb.planVersion,
+            needsDispatch = hb.needsDispatch,
+            supportsPlanVersion = hb.supportsPlanVersion,
+        )
     }
 
     private fun applyPollAdaptiveFromServer(raw: org.json.JSONObject) {
@@ -847,9 +936,18 @@ class PlayerController(
         val dispatchJson = apiClient.getDispatchPlan(token)
         val savedJsonPath = saveDispatchPlanToDisk(dispatchJson)
         val effectiveToken = apiClient.cachedToken() ?: token.ifBlank { previousToken }
+        val payload = dispatchJson.optJSONObject("data") ?: dispatchJson
+        val planVersion = payload.optString("planVersion", "")
+            .ifBlank { payload.optString("plan_version", "") }
+            .trim()
+            .ifBlank { null }
         val parsed = parseDispatchPlan(dispatchJson)
         preloadPlan(parsed)
         val plan = applyVinhetaMixToDispatchPlan(parsed)
+        if (!planVersion.isNullOrBlank()) {
+            knownPlanVersion = planVersion
+        }
+        lastDispatchFetchAtMs = System.currentTimeMillis()
         PlayerAdLogger.logDispatchPlanDetail(
             source = logSource,
             playlistId = plan.playlistId,
@@ -858,9 +956,14 @@ class PlayerController(
             sequenceEntries = formatDispatchSequence(plan.mediaItems),
             savedJsonPath = savedJsonPath
         )
+        PlayerAdLogger.i(
+            "DISPATCH",
+            "Plano obtido ($logSource) planVersion=${planVersion ?: "—"} itens=${plan.mediaItems.size}"
+        )
         return OnlinePlanResult(
             token = effectiveToken,
-            plan = plan
+            plan = plan,
+            planVersion = planVersion,
         )
     }
 
@@ -924,6 +1027,7 @@ class PlayerController(
                 },
             )
             put("displayIdle", displayIdle)
+            knownPlanVersion?.takeIf { it.isNotBlank() }?.let { put("knownPlanVersion", it) }
         }
     }
 
@@ -1420,8 +1524,6 @@ class PlayerController(
         // Para imagens, não usamos ExoPlayer: mostramos em ImageView.
         if (!isVideo) {
             if (!acceptImagesInPlaylist) {
-                imageView.visibility = android.view.View.GONE
-                imageView.setImageDrawable(null)
                 PlayerAdLogger.i(
                     "PLAYBACK",
                     "Imagem ignorada (aceitar imagens na playlist desligado) — mediaId=${item.mediaId}"
@@ -1430,38 +1532,12 @@ class PlayerController(
                 return t
             }
             hideHtmlLayer()
-            resetMediaViewOrientation()
-            imageView.visibility = View.VISIBLE
-            playerView.visibility = View.GONE
-            exoPlayer.stop()
             // Exposição só conta se > 0; vídeo não passa por este ramo (duração real no ExoPlayer).
             val exposureSec = item.duration?.takeIf { it > 0L }
             val durationSeconds = exposureSec ?: DEFAULT_IMAGE_DURATION_SECONDS
             val durationMs = durationSeconds * 1000L
 
-            PlayerAdLogger.logPlaybackStart(
-                "imagem",
-                item.mediaId,
-                plan.playlistName,
-                plan.playlistId
-            )
-            setNowPlaying("image", item, plan.playlistName)
-
-            // Atualiza eventos para imagem (equivalente ao player-web)
-            try {
-                t = eventsClient.sendEvent(
-                    token = t,
-                    eventType = "image_display",
-                    mediaId = item.mediaId,
-                    playlistId = plan.playlistId,
-                    campaignId = plan.campaignId,
-                    durationSeconds = null,
-                    completed = null,
-                    metadata = emptyMap()
-                )
-            } catch (_: Exception) { }
-
-            // Tentar obter bitmap de cache local ou do arquivo fallback local
+            // Tentar obter bitmap ANTES de esconder vídeo — evita ecrã preto na troca.
             val imageUri = when {
                 isFileUrl -> Uri.parse(item.url)
                 hasValidCache -> {
@@ -1486,6 +1562,14 @@ class PlayerController(
                 }
             }
 
+            PlayerAdLogger.logPlaybackStart(
+                "imagem",
+                item.mediaId,
+                plan.playlistName,
+                plan.playlistId
+            )
+            setNowPlaying("image", item, plan.playlistName)
+
             if (bitmap != null) {
                 val imagePath = if (imageUri.scheme == "file") imageUri.path else null
                 applyImageOrientationCorrection(
@@ -1495,24 +1579,39 @@ class PlayerController(
                     item.deliveryBakeVersion,
                 )
             } else {
-                imageView.setImageDrawable(null)
                 resetMediaViewOrientation()
+                imageView.setImageDrawable(null)
             }
+            // Troca atómica: imagem pronta → mostra; vídeo só pausa (mantém último frame por baixo).
+            imageView.visibility = View.VISIBLE
+            imageView.bringToFront()
+            try {
+                exoPlayer.pause()
+            } catch (_: Exception) { }
+            playerView.visibility = View.GONE
+
+            try {
+                t = eventsClient.sendEvent(
+                    token = t,
+                    eventType = "image_display",
+                    mediaId = item.mediaId,
+                    playlistId = plan.playlistId,
+                    campaignId = plan.campaignId,
+                    durationSeconds = null,
+                    completed = null,
+                    metadata = emptyMap()
+                )
+            } catch (_: Exception) { }
 
             delay(durationMs)
-            imageView.visibility = android.view.View.GONE
+            // Não esconder aqui — o próximo playItem faz a troca com conteúdo novo já pronto.
             PlayerAdLogger.logPlaybackEnd("imagem", item.mediaId, durationSeconds)
             return t
         }
 
         hideHtmlLayer()
-        resetMediaViewOrientation()
-        imageView.visibility = View.GONE
-        imageView.setImageDrawable(null)
-        playerView.visibility = View.VISIBLE
-        playerView.alpha = 1f
         pendingVideoOrientationReveal = false
-        playerView.post { FullscreenViewport.applyToPlayerView(playerView) }
+        playerView.alpha = 1f
         applyPlaybackVolumePolicy()
 
         PlayerAdLogger.logPlaybackStart(
@@ -1532,7 +1631,27 @@ class PlayerController(
             else -> MediaItem.fromUri(Uri.parse(item.url))
         }
 
-        // Evento de início de reprodução
+        // Troca de media sem stop/clear — keepContentOnPlayerReset evita flicker branco.
+        detachVideoOrientationListener()
+        exoPlayer.setMediaItem(mediaItem, /* resetPosition= */ true)
+        val cacheAlreadyRotated =
+            hasValidCache && (cacheManager.getMetadata(item.mediaId)?.cacheRotated == true)
+        attachVideoOrientationListener(
+            item.deliveryRotation,
+            item.deliveryBakeVersion,
+            cacheAlreadyRotated = cacheAlreadyRotated,
+        )
+        exoPlayer.prepare()
+        exoPlayer.playWhenReady = true
+        playerView.visibility = View.VISIBLE
+        playerView.post { FullscreenViewport.applyToPlayerView(playerView) }
+
+        // Espera 1º frame pronto antes de esconder a imagem anterior.
+        awaitPlayerReady(8_000L)
+        imageView.visibility = View.GONE
+        imageView.setImageDrawable(null)
+        playerView.bringToFront()
+
         try {
             t = eventsClient.sendEvent(
                 token = t,
@@ -1546,18 +1665,6 @@ class PlayerController(
             )
         } catch (_: Exception) { }
 
-        exoPlayer.stop()
-        exoPlayer.clearMediaItems()
-        exoPlayer.setMediaItem(mediaItem)
-        val cacheAlreadyRotated =
-            hasValidCache && (cacheManager.getMetadata(item.mediaId)?.cacheRotated == true)
-        attachVideoOrientationListener(
-            item.deliveryRotation,
-            item.deliveryBakeVersion,
-            cacheAlreadyRotated = cacheAlreadyRotated,
-        )
-        exoPlayer.prepare()
-        exoPlayer.play()
         playerView.postDelayed({
             if (pendingVideoOrientationReveal) {
                 PlayerAdLogger.w("DISPLAY", "Reveal vídeo sem onVideoSizeChanged (timeout)")
@@ -1574,7 +1681,9 @@ class PlayerController(
                 "WATCHDOG",
                 "Timeout de reprodução mediaId=${item.mediaId}; avançando item após ${playbackTimeoutMs / 1000L}s"
             )
-            exoPlayer.stop()
+            try {
+                exoPlayer.pause()
+            } catch (_: Exception) { }
             currentPosition
         }
         PlayerAdLogger.logPlaybackEnd(
@@ -1583,7 +1692,7 @@ class PlayerController(
             (playedMs / 1000L).coerceAtLeast(0L)
         )
 
-        // Evento de fim de reprodução
+        // Não stop() aqui — próximo item (ou imagem) assume com último frame ainda no TextureView.
         try {
             t = eventsClient.sendEvent(
                 token = t,
@@ -2193,6 +2302,34 @@ class PlayerController(
             }
         } finally {
             connDecode.disconnect()
+        }
+    }
+
+    /** Aguarda STATE_READY (1º frame util) para trocar camada sem ecrã preto. */
+    private suspend fun awaitPlayerReady(timeoutMs: Long) {
+        withTimeoutOrNull(timeoutMs) {
+            suspendCancellableCoroutine<Unit> { cont ->
+                val state = exoPlayer.playbackState
+                if (state == Player.STATE_READY || state == Player.STATE_ENDED) {
+                    cont.resume(Unit)
+                    return@suspendCancellableCoroutine
+                }
+                val listener = object : Player.Listener {
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        if (playbackState == Player.STATE_READY || playbackState == Player.STATE_ENDED) {
+                            exoPlayer.removeListener(this)
+                            if (cont.isActive) cont.resume(Unit)
+                        }
+                    }
+
+                    override fun onPlayerError(error: PlaybackException) {
+                        exoPlayer.removeListener(this)
+                        if (cont.isActive) cont.resume(Unit)
+                    }
+                }
+                exoPlayer.addListener(listener)
+                cont.invokeOnCancellation { exoPlayer.removeListener(listener) }
+            }
         }
     }
 

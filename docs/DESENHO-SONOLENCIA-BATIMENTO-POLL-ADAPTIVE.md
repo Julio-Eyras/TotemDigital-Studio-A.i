@@ -20,12 +20,26 @@ Isso dispara rate-limit (`429`) e aumenta custo de rede/CPU no servidor.
 
 ## 2. Modelo
 
-Dois polls independentes no Player-AD (`AdaptivePollScheduler`):
+Dois polls no Player-AD (`AdaptivePollScheduler`), com papéis distintos:
 
-| Poll | Base ativa | Base idle (fora do horário) | Teto |
-|------|------------|-----------------------------|------|
-| Heartbeat | `batimentoCardiaco` (ex. 30 s) | `idleHeartbeatSeconds` (ex. 120 s) | `maxHeartbeatSeconds` (ex. 600 s) |
-| Dispatch | `maxSecondsWithoutServerCheck` (ex. 180 s) | `idleDispatchSeconds` (ex. 600 s) | `maxDispatchSeconds` (ex. 1800 s) |
+| Poll | Papel | Base ativa | Base idle | Teto |
+|------|-------|------------|-----------|------|
+| Heartbeat | Mensageiro (token, comandos, OTA, **planVersion**) | `batimentoCardiaco` | `idleHeartbeatSeconds` | `maxHeartbeatSeconds` |
+| Dispatch | GET `/dispatch` **só sob demanda** | safety `maxSecondsWithoutServerCheck` | `idleDispatchSeconds` | `maxDispatchSeconds` |
+
+### Unificação heartbeat ↔ dispatch (`planVersion`)
+
+O GET `/dispatch` **deixa de ser periódico** no caminho feliz:
+
+1. Player envia `knownPlanVersion` nas metrics do heartbeat.
+2. Servidor responde `planVersion` + `needsDispatch` (compara sticky/cache/DB).
+3. Player faz GET `/dispatch` apenas se:
+   - `needsDispatch == true`, ou
+   - comando remoto pediu refresh, ou
+   - boot / fallback de segurança (sem versão ou sem fetch há ≥ `maxSecondsWithoutServerCheck`).
+
+Após cada GET `/dispatch`, o servidor grava sticky `dispatcher:totem:{id}:planVersion`.  
+Regenerar playlist (`playlistEngine.generatePlaylistForTotem`) e mudanças de mídia/direct **invalidam** esse cache → próximo heartbeat marca `needsDispatch=true`.
 
 ### Estados
 
@@ -38,13 +52,13 @@ Falha / 429         → dobra (respeita Retry-After) até teto
 
 ### O que conta como “mudança” (busy)
 
-- Heartbeat: comandos pendentes, `refreshDispatch`, ou `otaUpdate`
-- Dispatch: assinatura do plano diferente (`mediaId:order:contentVersion`)
+- Heartbeat: comandos pendentes, `refreshDispatch`, `otaUpdate`, ou `needsDispatch`
+- Dispatch (quando ocorre): assinatura do plano diferente (`mediaId:order:contentVersion`)
 
 ### O que conta como “quieto”
 
-- Heartbeat OK sem comandos/OTA/refresh
-- Dispatch OK com plano idêntico
+- Heartbeat OK sem comandos/OTA/needsDispatch
+- Safety dispatch OK com plano idêntico
 
 ---
 
@@ -73,11 +87,28 @@ Persistido em:
 | `unchangedStreakBeforeSleep` | `2` | Sucessos quietos antes de começar a subir |
 | `sleepGrowthFactor` | `2.0` | Fator por passo (1.1–4.0) |
 | `maxHeartbeatSeconds` | `600` | Teto do batimento |
-| `maxDispatchSeconds` | `1800` | Teto do dispatch |
+| `maxDispatchSeconds` | `1800` | Teto do poll de safety do dispatch |
 | `idleHeartbeatSeconds` | `120` | Base do HB com tela idle |
-| `idleDispatchSeconds` | `600` | Base do dispatch com tela idle |
+| `idleDispatchSeconds` | `600` | Base do safety dispatch com tela idle |
 
-Bases ativas continuam em `batimentoCardiaco` e `maxSecondsWithoutServerCheck` (config local / `apply_player_config`).
+Bases ativas: `batimentoCardiaco` e `maxSecondsWithoutServerCheck` (este último = teto de segurança sem GET `/dispatch`, não intervalo fixo de poll).
+
+### Heartbeat (campos novos)
+
+```json
+{
+  "planVersion": "a1b2c3…",
+  "needsDispatch": false
+}
+```
+
+Metrics do player:
+
+```json
+{ "knownPlanVersion": "a1b2c3…" }
+```
+
+GET `/dispatch` devolve o mesmo `planVersion` no `data`.
 
 ---
 
@@ -87,19 +118,14 @@ Bases ativas continuam em `batimentoCardiaco` e `maxSecondsWithoutServerCheck` (
 sequenceDiagram
   participant P as Player-AD
   participant S as Backend
-  P->>S: POST /heartbeat (+ metrics)
-  S-->>P: token, commands, displaySchedule, pollAdaptive
-  alt commands / OTA / refresh
+  P->>S: POST /heartbeat (+ knownPlanVersion)
+  S-->>P: token, commands, planVersion, needsDispatch, pollAdaptive
+  alt needsDispatch / comando / OTA
+    P->>S: GET /dispatch
+    S-->>P: plan + planVersion
     P->>P: onBusySuccess (base)
   else sem mudança
     P->>P: onQuietSuccess (sobe se streak >= N)
-  end
-  P->>P: setIdleMode(displayIdle)
-  P->>S: GET /dispatch (quando due)
-  alt plano mudou
-    P->>P: onBusySuccess
-  else igual
-    P->>P: onQuietSuccess
   end
 ```
 
@@ -119,8 +145,8 @@ Alteração via `apply_player_config` reinicia o app (como outras configs remota
 
 ## 6. Defaults recomendados (campo)
 
-| Cenário | HB base | Dispatch base | Idle HB | Teto HB |
-|---------|---------|---------------|---------|---------|
+| Cenário | HB base | Safety dispatch | Idle HB | Teto HB |
+|---------|---------|-----------------|---------|---------|
 | Rede estável, poucos totens | 30 s | 180 s | 120 s | 600 s |
 | Muitos totens / NAT | 60 s | 300 s | 180 s | 900 s |
 | Fora do horário longo | — | — | ≥ 120 s | ≥ 600 s |
@@ -138,14 +164,16 @@ Alteração via `apply_player_config` reinicia o app (como outras configs remota
 
 - `Player-AD/.../AdaptivePollScheduler.kt`
 - `Player-AD/.../PollAdaptiveConfig.kt`
-- `Player-AD/.../PlayerController.kt` (loop `playLoop`)
-- `backend/.../dispatcherRouter.ts` (campo `pollAdaptive` no heartbeat)
+- `Player-AD/.../PlayerController.kt` (`runDueServerPolls`)
+- `backend/.../dispatchPlanVersion.ts`
+- `backend/.../dispatcherTotemService.ts` (`peekPlanVersion` / `rememberPlanVersion`)
+- `backend/.../dispatcherRouter.ts` (heartbeat + dispatch)
 - `frontend/.../TotemEditDialog.tsx`
 
 ---
 
 ## 9. Versões
 
-- Player-AD **≥ 1.79**
+- Player-AD **≥ 1.81** (planVersion / needsDispatch)
+- Backend **≥ 2.1.5**
 - Frontend painel com UI de sonolência (**≥ 2.1.8**)
-- Backend que devolve `pollAdaptive` no heartbeat
