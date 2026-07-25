@@ -134,6 +134,8 @@ export interface MediaResponse {
   totemCount?: number;
   /** Nomes dos totens que usam esta mídia (modo direct totem). */
   totemNames?: string[];
+  /** IDs dos totens que usam esta mídia (modo direct totem). */
+  totemIds?: number[];
 }
 
 export interface MediaStats {
@@ -332,7 +334,30 @@ export class MediaService {
                 AND COALESCE(tp.is_active, true) = true
                 AND tp.status = 'active'
             ) sorted
-          ) AS "totemNames"`
+          ) AS "totemNames",
+          (
+            SELECT COALESCE(
+              json_agg(sorted.totem_id ORDER BY sorted.name),
+              '[]'::json
+            )
+            FROM (
+              SELECT DISTINCT
+                tp.totem_id,
+                COALESCE(
+                  NULLIF(TRIM(t.name), ''),
+                  NULLIF(TRIM(t.identifier), ''),
+                  NULLIF(TRIM(t.uin), ''),
+                  'Totem'
+                ) AS name
+              FROM totem_playlist_items tpi
+              JOIN totem_playlists tp ON tp.totem_playlist_id = tpi.totem_playlist_id
+              JOIN totems t ON t.totem_id = tp.totem_id
+              WHERE tpi.media_id = m.media_id
+                AND COALESCE(tpi.is_active, true) = true
+                AND COALESCE(tp.is_active, true) = true
+                AND tp.status = 'active'
+            ) sorted
+          ) AS "totemIds"`
         : '';
 
       const subscriberJoin = directMode
@@ -444,6 +469,7 @@ export class MediaService {
         const deliveryPreview = this.enrichDeliveryPreviewFields(processedTags);
 
         let totemNames: string[] = [];
+        let totemIds: number[] = [];
         if (directMode && item.totemNames != null) {
           if (Array.isArray(item.totemNames)) {
             totemNames = item.totemNames.map(String).filter(Boolean);
@@ -453,6 +479,21 @@ export class MediaService {
               if (Array.isArray(parsed)) totemNames = parsed.map(String).filter(Boolean);
             } catch {
               totemNames = [];
+            }
+          }
+        }
+        if (directMode && item.totemIds != null) {
+          const rawIds = item.totemIds ?? item.totemids;
+          if (Array.isArray(rawIds)) {
+            totemIds = rawIds.map((n: unknown) => Number(n)).filter((n: number) => Number.isFinite(n) && n > 0);
+          } else if (typeof rawIds === 'string') {
+            try {
+              const parsed = JSON.parse(rawIds);
+              if (Array.isArray(parsed)) {
+                totemIds = parsed.map((n: unknown) => Number(n)).filter((n: number) => Number.isFinite(n) && n > 0);
+              }
+            } catch {
+              totemIds = [];
             }
           }
         }
@@ -498,6 +539,7 @@ export class MediaService {
             ? {
                 totemCount: Number(item.totemCount ?? item.totemcount ?? 0),
                 totemNames,
+                totemIds,
               }
             : {}),
         } as MediaResponse;

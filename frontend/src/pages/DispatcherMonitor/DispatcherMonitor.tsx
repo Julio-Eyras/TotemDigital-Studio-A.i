@@ -250,6 +250,14 @@ const MessageDetailsModal: React.FC<MessageDetailsModalProps> = ({ open, message
   );
 };
 
+type MessageKind = 'incoming' | 'success' | 'error';
+
+function getMessageKind(message: DispatcherMessage): MessageKind {
+  if (message.direction === 'incoming') return 'incoming';
+  if (message.direction === 'outgoing' && message.error) return 'error';
+  return 'success';
+}
+
 const DispatcherMonitor: React.FC = () => {
   const theme = useTheme();
   const [messages, setMessages] = useState<DispatcherMessage[]>([]);
@@ -260,9 +268,25 @@ const DispatcherMonitor: React.FC = () => {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [paused, setPaused] = useState(false);
   const [monitorTab, setMonitorTab] = useState(0);
+  /** Vazio = mostrar todos; com itens = OR das categorias selecionadas. */
+  const [kindFilter, setKindFilter] = useState<Set<MessageKind>>(() => new Set());
   const wsRef = useRef<WebSocket | null>(null);
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const wsReconnectAttempts = useRef(0);
+
+  const toggleKindFilter = (kind: MessageKind) => {
+    setKindFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(kind)) next.delete(kind);
+      else next.add(kind);
+      return next;
+    });
+  };
+
+  const filteredMessages = useMemo(() => {
+    if (kindFilter.size === 0) return messages;
+    return messages.filter((m) => kindFilter.has(getMessageKind(m)));
+  }, [messages, kindFilter]);
 
   const errorSummary = useMemo(() => {
     const map = new Map<
@@ -472,7 +496,16 @@ const DispatcherMonitor: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {messages.map((message) => (
+                  {filteredMessages.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7}>
+                        <Typography variant="body2" color="text.secondary">
+                          Nenhuma mensagem neste filtro. Clique nos chips coloridos para alterar.
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                  filteredMessages.map((message) => (
                     <TableRow
                       key={message.id}
                       onClick={() => handleMessageClick(message)}
@@ -520,7 +553,8 @@ const DispatcherMonitor: React.FC = () => {
                         )}
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ))
+                  )}
                 </TableBody>
               </Table>
             </TableContainer>
@@ -567,26 +601,75 @@ const DispatcherMonitor: React.FC = () => {
           )}
 
           {messages.length > 0 && (
-            <Box mt={2} display="flex" justifyContent="space-between" alignItems="center">
+            <Box mt={2} display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
               <Typography variant="body2" color="text.secondary">
-                Total: {messages.length} mensagens | Clique em uma linha para ver detalhes
+                {kindFilter.size === 0
+                  ? `Total: ${messages.length} mensagens`
+                  : `A mostrar: ${filteredMessages.length} de ${messages.length}`}
+                {' | '}Clique numa linha para detalhes · chips filtram por cor
               </Typography>
-              <Box display="flex" gap={1} alignItems="center">
-                <Chip
-                  label="Amarelo: Entrada"
-                  size="small"
-                  sx={{ bgcolor: theme.palette.warning.main, color: 'white' }}
-                />
-                <Chip
-                  label="Verde: Sucesso"
-                  size="small"
-                  sx={{ bgcolor: theme.palette.success.main, color: 'white' }}
-                />
-                <Chip
-                  label="Vermelho: Erro"
-                  size="small"
-                  sx={{ bgcolor: theme.palette.error.main, color: 'white' }}
-                />
+              <Box display="flex" gap={1} alignItems="center" flexWrap="wrap">
+                {(
+                  [
+                    {
+                      kind: 'incoming' as const,
+                      label: 'Amarelo: Entrada',
+                      color: theme.palette.warning.main,
+                    },
+                    {
+                      kind: 'success' as const,
+                      label: 'Verde: Sucesso',
+                      color: theme.palette.success.main,
+                    },
+                    {
+                      kind: 'error' as const,
+                      label: 'Vermelho: Erro',
+                      color: theme.palette.error.main,
+                    },
+                  ] as const
+                ).map(({ kind, label, color }) => {
+                  const active = kindFilter.size === 0 || kindFilter.has(kind);
+                  const selected = kindFilter.has(kind);
+                  return (
+                    <Tooltip
+                      key={kind}
+                      title={
+                        selected
+                          ? 'Clique para remover este filtro'
+                          : kindFilter.size === 0
+                            ? 'Clique para filtrar só esta categoria'
+                            : 'Clique para incluir esta categoria'
+                      }
+                    >
+                      <Chip
+                        label={label}
+                        size="small"
+                        onClick={() => toggleKindFilter(kind)}
+                        onDelete={selected ? () => toggleKindFilter(kind) : undefined}
+                        deleteIcon={selected ? <Clear sx={{ color: 'white !important' }} /> : undefined}
+                        sx={{
+                          bgcolor: active ? color : theme.palette.action.disabledBackground,
+                          color: active ? 'white' : theme.palette.text.disabled,
+                          opacity: active ? 1 : 0.55,
+                          cursor: 'pointer',
+                          border: selected ? `2px solid ${theme.palette.common.white}` : '2px solid transparent',
+                          boxShadow: selected ? `0 0 0 1px ${color}` : 'none',
+                          fontWeight: selected ? 700 : 500,
+                          '&:hover': {
+                            bgcolor: color,
+                            color: 'white',
+                            opacity: 1,
+                          },
+                        }}
+                      />
+                    </Tooltip>
+                  );
+                })}
+                {kindFilter.size > 0 && (
+                  <Button size="small" startIcon={<Clear />} onClick={() => setKindFilter(new Set())}>
+                    Limpar filtro
+                  </Button>
+                )}
               </Box>
             </Box>
           )}

@@ -31,6 +31,11 @@ import {
   LinearProgress,
   Alert,
   CircularProgress,
+  Checkbox,
+  List,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material';
 import {
   Add,
@@ -45,8 +50,22 @@ import {
   AudioFile,
   PowerSettingsNew,
   Refresh,
+  Tv,
 } from '@mui/icons-material';
-import { mediaApi, MediaItem, CreateMediaRequest, clientApi, Client, subscriberApi, Subscriber, MediaInUseConflictPayload, parseMediaInUseConflict } from '../../services/api';
+import {
+  mediaApi,
+  MediaItem,
+  CreateMediaRequest,
+  clientApi,
+  Client,
+  subscriberApi,
+  Subscriber,
+  MediaInUseConflictPayload,
+  parseMediaInUseConflict,
+  totemApi,
+  totemDirectMediaApi,
+  Player,
+} from '../../services/api';
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 import MediaDeleteConflictDialog from '../../components/MediaDeleteConflictDialog/MediaDeleteConflictDialog';
 import MediaTransformActions from '../../components/Media/MediaTransformActions';
@@ -58,6 +77,7 @@ import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { isDirectTotemMode } from '../../config/directTotemMode';
 import { isStudioMode } from '../../config/studioMode';
 import { buildMediaMetaSummary, formatMediaDuration, formatMediaFileSize } from '../../utils/mediaDisplayMeta';
+import { getTotemIdFromRow } from '../../utils/totemRowIds';
 
 const compareByDisplayName = (a?: string, b?: string) =>
   String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
@@ -97,6 +117,15 @@ const Media: React.FC = () => {
   const [mediaDeleteLoading, setMediaDeleteLoading] = useState(false);
   const [togglingMediaId, setTogglingMediaId] = useState<number | null>(null);
   const [pendingMediaDeleteId, setPendingMediaDeleteId] = useState<number | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  /** Anexar mídia a vários totens (modo direct). */
+  const [attachTotemsOpen, setAttachTotemsOpen] = useState(false);
+  const [attachMedia, setAttachMedia] = useState<MediaItem | null>(null);
+  const [attachTotems, setAttachTotems] = useState<Player[]>([]);
+  const [attachSelectedIds, setAttachSelectedIds] = useState<number[]>([]);
+  const [attachLoading, setAttachLoading] = useState(false);
+  const [attachSaving, setAttachSaving] = useState(false);
 
   /** TotemDigital compacto: inferir subscriber para upload quando não há lista /api/subscribers */
   const uploadFallbackSubscriberId = useMemo(() => {
@@ -332,6 +361,81 @@ const Media: React.FC = () => {
       setMediaItems([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const totemDisplayName = (t: Player) =>
+    String((t as any).name || (t as any).identifier || (t as any).uin || `Totem ${getTotemIdFromRow(t) || ''}`).trim();
+
+  const attachAvailableTotems = useMemo(() => {
+    if (!attachMedia) return [];
+    const linked = new Set(
+      (attachMedia.totemIds || []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+    );
+    return attachTotems
+      .filter((t) => {
+        const id = getTotemIdFromRow(t);
+        return id != null && !linked.has(id);
+      })
+      .sort((a, b) => compareByDisplayName(totemDisplayName(a), totemDisplayName(b)));
+  }, [attachMedia, attachTotems]);
+
+  const openAttachTotemsDialog = async (media: MediaItem) => {
+    setAttachMedia(media);
+    setAttachSelectedIds([]);
+    setAttachTotemsOpen(true);
+    setAttachLoading(true);
+    setError(null);
+    try {
+      const res = await totemApi.getAll({ limit: 500 });
+      const rows = Array.isArray((res as any)?.data)
+        ? (res as any).data
+        : Array.isArray(res)
+          ? res
+          : [];
+      setAttachTotems(rows as Player[]);
+    } catch (e: any) {
+      setError(pickApiErrorMessage(e, 'Erro ao listar totens'));
+      setAttachTotems([]);
+    } finally {
+      setAttachLoading(false);
+    }
+  };
+
+  const closeAttachTotemsDialog = (force = false) => {
+    if (attachSaving && !force) return;
+    setAttachTotemsOpen(false);
+    setAttachMedia(null);
+    setAttachSelectedIds([]);
+    setAttachTotems([]);
+  };
+
+  const toggleAttachTotem = (totemId: number) => {
+    setAttachSelectedIds((prev) =>
+      prev.includes(totemId) ? prev.filter((id) => id !== totemId) : [...prev, totemId]
+    );
+  };
+
+  const handleAttachSelectedTotems = async () => {
+    if (!attachMedia?.media_id || attachSelectedIds.length === 0) return;
+    const mediaId = Number(attachMedia.media_id);
+    try {
+      setAttachSaving(true);
+      setError(null);
+      for (const totemId of attachSelectedIds) {
+        await totemDirectMediaApi.add(totemId, mediaId);
+      }
+      setSuccess(
+        attachSelectedIds.length === 1
+          ? 'Mídia anexada ao totem'
+          : `Mídia anexada a ${attachSelectedIds.length} totens`
+      );
+      closeAttachTotemsDialog(true);
+      await loadMediaItems();
+    } catch (e: any) {
+      setError(pickApiErrorMessage(e, 'Erro ao anexar totens'));
+    } finally {
+      setAttachSaving(false);
     }
   };
 
@@ -752,10 +856,15 @@ const Media: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Error Alert */}
+      {/* Error / Success Alerts */}
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
           {error}
+        </Alert>
+      )}
+      {success && (
+        <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess(null)}>
+          {success}
         </Alert>
       )}
 
@@ -1045,7 +1154,7 @@ const Media: React.FC = () => {
                 )}
                 {isDirectTotemMode() && (
                   <Box sx={{ mb: 1 }}>
-                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', alignItems: 'center' }}>
                       <Chip
                         label={`${Number(media.totemCount ?? 0)} totem(ns)`}
                         size="small"
@@ -1053,6 +1162,24 @@ const Media: React.FC = () => {
                         variant="outlined"
                         sx={{ fontSize: '0.7rem' }}
                       />
+                      <Tooltip title="Anexar a totens">
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          aria-label="Anexar a totens"
+                          onClick={() => void openAttachTotemsDialog(media)}
+                          sx={{
+                            border: `1px dashed ${theme.palette.primary.main}`,
+                            width: 28,
+                            height: 28,
+                          }}
+                        >
+                          <Add fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Typography variant="caption" color="text.secondary" sx={{ ml: 0.25 }}>
+                        + totem
+                      </Typography>
                       {!mediaActive && (
                         <Chip label="Desabilitada" size="small" color="warning" sx={{ fontSize: '0.7rem' }} />
                       )}
@@ -1311,6 +1438,122 @@ const Media: React.FC = () => {
         thumbnailSrc={mediaViewTarget ? getPreviewSrc(mediaViewTarget) : undefined}
         onClose={() => setMediaViewTarget(null)}
       />
+
+      <Dialog
+        open={attachTotemsOpen}
+        onClose={() => closeAttachTotemsDialog()}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          Anexar a totens
+          {attachMedia?.name ? ` — ${attachMedia.name}` : ''}
+        </DialogTitle>
+        <DialogContent dividers>
+          {attachLoading ? (
+            <Box display="flex" justifyContent="center" py={3}>
+              <CircularProgress size={32} />
+            </Box>
+          ) : attachAvailableTotems.length === 0 ? (
+            <Typography color="text.secondary">
+              {attachTotems.length === 0
+                ? 'Nenhum totem cadastrado.'
+                : 'Esta mídia já está em todos os totens disponíveis.'}
+            </Typography>
+          ) : (
+            <>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  disabled={attachSaving || attachAvailableTotems.length === 0}
+                  onClick={() => {
+                    const allIds = attachAvailableTotems
+                      .map((t) => getTotemIdFromRow(t))
+                      .filter((id): id is number => typeof id === 'number' && id > 0);
+                    setAttachSelectedIds(allIds);
+                  }}
+                >
+                  Selecionar todos
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  disabled={attachSaving || attachSelectedIds.length === 0}
+                  onClick={() => setAttachSelectedIds([])}
+                >
+                  Nenhum
+                </Button>
+                <Typography variant="body2" color="text.secondary">
+                  {attachSelectedIds.length} selecionado(s)
+                </Typography>
+              </Box>
+              <List dense>
+                {attachAvailableTotems.map((t) => {
+                  const id = getTotemIdFromRow(t)!;
+                  const checked = attachSelectedIds.includes(id);
+                  const label = totemDisplayName(t);
+                  const uin = String((t as any).uin || (t as any).identifier || '').trim();
+                  return (
+                    <ListItemButton
+                      key={id}
+                      selected={checked}
+                      disabled={attachSaving}
+                      onClick={() => toggleAttachTotem(id)}
+                      sx={{ alignItems: 'center', gap: 0.5, py: 1 }}
+                    >
+                      <ListItemIcon sx={{ minWidth: 42 }}>
+                        <Checkbox
+                          edge="start"
+                          checked={checked}
+                          tabIndex={-1}
+                          disableRipple
+                          disabled={attachSaving}
+                          color="primary"
+                        />
+                      </ListItemIcon>
+                      <Avatar
+                        sx={{
+                          width: 36,
+                          height: 36,
+                          bgcolor: alpha(theme.palette.primary.main, 0.15),
+                          color: theme.palette.primary.main,
+                        }}
+                      >
+                        <Tv fontSize="small" />
+                      </Avatar>
+                      <ListItemText
+                        primary={label}
+                        secondary={uin && uin !== label ? uin : undefined}
+                        sx={{ minWidth: 0 }}
+                        primaryTypographyProps={{ noWrap: true }}
+                        secondaryTypographyProps={{ noWrap: true }}
+                      />
+                    </ListItemButton>
+                  );
+                })}
+              </List>
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button disabled={attachSaving} onClick={() => closeAttachTotemsDialog()}>
+            Fechar
+          </Button>
+          <Button
+            variant="contained"
+            disabled={attachSaving || attachSelectedIds.length === 0}
+            onClick={() => void handleAttachSelectedTotems()}
+          >
+            {attachSaving
+              ? 'Anexando…'
+              : attachSelectedIds.length > 0
+                ? `Adicionar (${attachSelectedIds.length})`
+                : 'Adicionar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <MediaDeleteConflictDialog
         open={mediaDeleteConflictOpen}
         conflict={mediaDeleteConflict}

@@ -934,6 +934,8 @@ export interface MediaItem {
   totemCount?: number;
   /** Nomes dos totens que usam esta mídia (modo direct totem). */
   totemNames?: string[];
+  /** IDs dos totens que usam esta mídia (modo direct totem). */
+  totemIds?: number[];
   
   // URLs
   thumbnailUrl?: string;
@@ -1098,6 +1100,11 @@ export const mediaApi = {
           : Array.isArray(item.totem_names)
             ? item.totem_names
             : undefined,
+        totemIds: (() => {
+          const raw = item.totemIds ?? item.totem_ids;
+          if (!Array.isArray(raw)) return undefined;
+          return raw.map((n: unknown) => Number(n)).filter((n: number) => Number.isFinite(n) && n > 0);
+        })(),
         
         // URLs
         thumbnailUrl: thumbnailUrl,
