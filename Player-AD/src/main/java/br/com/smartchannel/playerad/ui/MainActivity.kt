@@ -150,6 +150,7 @@ class MainActivity : AppCompatActivity() {
                         config.displayRotation,
                         otaCoordinator,
                         findViewById(R.id.displayIdleOverlay),
+                        findViewById(R.id.mediaTransitionOverlay),
                     )
                     PlayerAdLogger.i("WATCHDOG", "Loop do player iniciado")
                     playerController?.start()

@@ -15,6 +15,7 @@ import br.com.smartchannel.playerad.cache.PortraitVideoCacheProcessor
 import br.com.smartchannel.playerad.util.AdaptivePollScheduler
 import br.com.smartchannel.playerad.util.AppDirs
 import br.com.smartchannel.playerad.util.FullscreenViewport
+import br.com.smartchannel.playerad.util.MediaLayerTransition
 import br.com.smartchannel.playerad.util.MediaViewportRotation
 import br.com.smartchannel.playerad.util.PlayerAdLogger
 import android.content.Intent
@@ -82,6 +83,8 @@ class PlayerController(
     private val otaUpdateCoordinator: OtaUpdateCoordinator? = null,
     /** Overlay preto full-screen (fora do horário de tela). */
     private val displayIdleOverlay: View? = null,
+    /** Véu de transição entre mídias (cobre frame residual). */
+    private val mediaTransitionOverlay: View? = null,
 ) {
     private var restartRequested = false
     private var videoOrientationListener: Player.Listener? = null
@@ -783,6 +786,7 @@ class PlayerController(
             overlay.bringToFront()
             overlay.elevation = 64f
         }
+        MediaLayerTransition.reset(mediaTransitionOverlay)
         imageView.visibility = View.GONE
         htmlWebView.visibility = View.GONE
         try {
@@ -1572,6 +1576,13 @@ class PlayerController(
 
             if (bitmap != null) {
                 val imagePath = if (imageUri.scheme == "file") imageUri.path else null
+                // Véu opaco: ImageView com letterbox não pode deixar ver o TextureView por baixo.
+                MediaLayerTransition.cover(mediaTransitionOverlay)
+                try {
+                    exoPlayer.pause()
+                } catch (_: Exception) { }
+                playerView.visibility = View.GONE
+                playerView.alpha = 1f
                 applyImageOrientationCorrection(
                     bitmap,
                     imagePath,
@@ -1579,16 +1590,20 @@ class PlayerController(
                     item.deliveryBakeVersion,
                 )
             } else {
+                MediaLayerTransition.cover(mediaTransitionOverlay)
+                try {
+                    exoPlayer.pause()
+                } catch (_: Exception) { }
+                playerView.visibility = View.GONE
                 resetMediaViewOrientation()
                 imageView.setImageDrawable(null)
             }
-            // Troca atómica: imagem pronta → mostra; vídeo só pausa (mantém último frame por baixo).
+            imageView.setBackgroundColor(Color.BLACK)
+            imageView.alpha = 1f
             imageView.visibility = View.VISIBLE
             imageView.bringToFront()
-            try {
-                exoPlayer.pause()
-            } catch (_: Exception) { }
-            playerView.visibility = View.GONE
+            mediaTransitionOverlay?.bringToFront()
+            MediaLayerTransition.reveal(mediaTransitionOverlay)
 
             try {
                 t = eventsClient.sendEvent(
@@ -1611,7 +1626,6 @@ class PlayerController(
 
         hideHtmlLayer()
         pendingVideoOrientationReveal = false
-        playerView.alpha = 1f
         applyPlaybackVolumePolicy()
 
         PlayerAdLogger.logPlaybackStart(
@@ -1631,7 +1645,13 @@ class PlayerController(
             else -> MediaItem.fromUri(Uri.parse(item.url))
         }
 
-        // Troca de media sem stop/clear — keepContentOnPlayerReset evita flicker branco.
+        // 1) Véu opaco  2) esconde imagem (letterbox transparente vazava o vídeo)  3) prepara
+        // 4) 1º frame novo  5) revela — nunca ImageView+PlayerView visíveis ao mesmo tempo.
+        MediaLayerTransition.cover(mediaTransitionOverlay)
+        imageView.visibility = View.GONE
+        imageView.setImageDrawable(null)
+        playerView.alpha = 0f
+        playerView.visibility = View.VISIBLE
         detachVideoOrientationListener()
         exoPlayer.setMediaItem(mediaItem, /* resetPosition= */ true)
         val cacheAlreadyRotated =
@@ -1643,14 +1663,13 @@ class PlayerController(
         )
         exoPlayer.prepare()
         exoPlayer.playWhenReady = true
-        playerView.visibility = View.VISIBLE
         playerView.post { FullscreenViewport.applyToPlayerView(playerView) }
 
-        // Espera 1º frame pronto antes de esconder a imagem anterior.
-        awaitPlayerReady(8_000L)
-        imageView.visibility = View.GONE
-        imageView.setImageDrawable(null)
+        awaitFirstVideoFrame(8_000L)
+        playerView.alpha = 1f
         playerView.bringToFront()
+        mediaTransitionOverlay?.bringToFront()
+        MediaLayerTransition.reveal(mediaTransitionOverlay)
 
         try {
             t = eventsClient.sendEvent(
@@ -1719,9 +1738,11 @@ class PlayerController(
     ): String {
         var t = token
         resetMediaViewOrientation()
+        MediaLayerTransition.cover(mediaTransitionOverlay)
         hideImageLayer()
         exoPlayer.stop()
         playerView.visibility = View.GONE
+        MediaLayerTransition.reveal(mediaTransitionOverlay)
 
         val exposureSec = item.duration?.takeIf { it > 0L }
         val durationSeconds = when {
@@ -1810,6 +1831,7 @@ class PlayerController(
         detachVideoOrientationListener()
         pendingVideoOrientationReveal = false
         playerView.alpha = 1f
+        MediaLayerTransition.reset(mediaTransitionOverlay)
         applyFullscreenVideoScale()
         MediaViewportRotation.resetPlayerView(playerView)
         MediaViewportRotation.resetView(imageView)
@@ -2312,7 +2334,42 @@ class PlayerController(
         }
     }
 
-    /** Aguarda STATE_READY (1º frame util) para trocar camada sem ecrã preto. */
+    /**
+     * Aguarda o 1º frame *renderizado* do vídeo atual.
+     * [Player.STATE_READY] sozinho ainda pode mostrar residual do item anterior
+     * com [PlayerView.setKeepContentOnPlayerReset].
+     */
+    private suspend fun awaitFirstVideoFrame(timeoutMs: Long) {
+        val gotFrame = withTimeoutOrNull(timeoutMs) {
+            suspendCancellableCoroutine<Unit> { cont ->
+                val listener = object : Player.Listener {
+                    override fun onRenderedFirstFrame() {
+                        exoPlayer.removeListener(this)
+                        if (cont.isActive) cont.resume(Unit)
+                    }
+
+                    override fun onPlayerError(error: PlaybackException) {
+                        exoPlayer.removeListener(this)
+                        if (cont.isActive) cont.resume(Unit)
+                    }
+                }
+                exoPlayer.addListener(listener)
+                // Já READY com posição > 0 pode ter frame; ainda assim preferimos o callback.
+                if (exoPlayer.playbackState == Player.STATE_ENDED) {
+                    exoPlayer.removeListener(listener)
+                    if (cont.isActive) cont.resume(Unit)
+                    return@suspendCancellableCoroutine
+                }
+                cont.invokeOnCancellation { exoPlayer.removeListener(listener) }
+            }
+        }
+        if (gotFrame == null) {
+            PlayerAdLogger.w("DISPLAY", "Timeout aguardando 1º frame de vídeo; revelando mesmo assim")
+            awaitPlayerReady(1_500L)
+        }
+    }
+
+    /** Aguarda STATE_READY (fallback / áudio). */
     private suspend fun awaitPlayerReady(timeoutMs: Long) {
         withTimeoutOrNull(timeoutMs) {
             suspendCancellableCoroutine<Unit> { cont ->

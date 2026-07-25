@@ -36,7 +36,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:adjustViewBounds="false"
-                android:background="@android:color/transparent"
+                android:background="#000000"
                 android:contentDescription="@string/app_name"
                 android:scaleType="centerCrop"
                 android:visibility="gone" />
@@ -49,6 +49,17 @@
                 android:visibility="gone" />
 
         </br.com.smartchannel.playerad.ui.PortraitViewportLayout>
+
+        <!-- Véu curto entre mídias — cobre frame residual (acima do player/imagem) -->
+        <View
+            android:id="@+id/mediaTransitionOverlay"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#000000"
+            android:clickable="false"
+            android:focusable="false"
+            android:visibility="gone"
+            android:alpha="0" />
     </FrameLayout>
 
     <!-- Fora do horário de trabalho: preto total sem encerrar o processo -->
