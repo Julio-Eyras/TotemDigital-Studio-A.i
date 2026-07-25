@@ -24,7 +24,7 @@ install-pendrive/
 
 | Item | Obrigatório | Notas |
 |------|-------------|--------|
-| `apk/*.apk` | **Sim** | APK **release assinado** do Player-AD (`assembleRelease`). |
+| `apk/*.apk` | **Sim** | APK **release** do Player-AD (`assembleRelease`, `debuggable=false`). Nome: `Player-AD-release.apk`. |
 | `config/exemplo-player-config.json` | Não | Edite IP, `uin`, `deviceId` antes de enviar ao aparelho. |
 | `midias/*` | Não | Vídeos de fallback; no Android costumam ir para storage do app (ver abaixo). |
 
@@ -34,10 +34,18 @@ No PC (com Android SDK e projeto compilado):
 
 ```bash
 cd Player-AD
+./gradlew assembleRelease
 bash scripts/prepare-install-pendrive.sh
 ```
 
-Isto copia o último APK release para `../install-pendrive/apk/` e atualiza `config/exemplo-player-config.json` a partir do modelo do projeto.
+No Windows (PowerShell):
+
+```powershell
+cd Player-AD
+.\scripts\prepare-install-pendrive.ps1 -Rebuild
+```
+
+Isto copia o APK release (sem build debug) para `../install-pendrive/apk/Player-AD-release.apk` e atualiza `config/exemplo-player-config.json`.
 
 ---
 

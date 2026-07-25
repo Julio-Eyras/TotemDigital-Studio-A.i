@@ -37,6 +37,9 @@ android {
         release {
             minifyEnabled false
             shrinkResources false
+            // Kit pendrive / TV: APK de produção (não debuggable). Assinatura debug só para install local/ADB.
+            debuggable false
+            jniDebuggable false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             // Sem signingConfig o AGP gera *-release-unsigned.apk e adb falha com INSTALL_PARSE_FAILED_NO_CERTIFICATES.
             // Para instalação local/TV via auto_install.sh. Para Play Store, configure signingConfigs.release + key.properties.
@@ -44,6 +47,7 @@ android {
         }
         debug {
             minifyEnabled false
+            debuggable true
         }
     }
 

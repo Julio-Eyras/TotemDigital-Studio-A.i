@@ -1,6 +1,6 @@
 ================================================================================
   SmartSignage — Kit de instalação Player-AD (pendrive)
-  App: Player-AD 1.78 (versionCode 78)
+  App: Player-AD 1.81 (versionCode 81) — APK release (sem debug)
 ================================================================================
 
 MANUAL COMPLETO (PDF — todos os manuais num ficheiro):
@@ -9,8 +9,8 @@ MANUAL COMPLETO (PDF — todos os manuais num ficheiro):
 MANUAL DO UTILIZADOR (Markdown):
   docs/MANUAL-USUARIO-PLAYER-AD.md
 
-1) Coloque o ficheiro APK assinado na pasta:  apk/
-   (ex.: Player-AD-release.apk)
+1) APK release já incluído em:  apk/Player-AD-release.apk
+   (compilado com assembleRelease, debuggable=false — não use assembleDebug)
 
 2) (Opcional) Ajuste a configuração em:  config/exemplo-player-config.json
    Campos principais: serverUrl, uin, deviceId
@@ -32,5 +32,9 @@ MANUAL DO UTILIZADOR (Markdown):
    preencher URL do servidor + UIN + deviceId → Aplicar e iniciar.
 
 Documentação adicional: README.md (nesta pasta).
+
+Para regenerar o kit a partir do código:
+  cd Player-AD
+  .\scripts\prepare-install-pendrive.ps1 -Rebuild
 
 ================================================================================

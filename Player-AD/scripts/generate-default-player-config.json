@@ -8,5 +8,14 @@
   "allowPlaybackAudio": false,
   "fallbackPropagandasPerVinheta": 3,
   "batimentoCardiaco": 30,
-  "maxSecondsWithoutServerCheck": 180
+  "maxSecondsWithoutServerCheck": 180,
+  "pollAdaptive": {
+    "enabled": true,
+    "unchangedStreakBeforeSleep": 2,
+    "sleepGrowthFactor": 2.0,
+    "maxHeartbeatSeconds": 600,
+    "maxDispatchSeconds": 1800,
+    "idleHeartbeatSeconds": 120,
+    "idleDispatchSeconds": 600
+  }
 }
