@@ -46,7 +46,12 @@ data class DisplaySchedule(
         }
 
         private fun normalizeHm(raw: String): String {
-            val m = Regex("^([01]\\d|2[0-3]):([0-5]\\d)$").find(raw.trim())
+            val trimmed = raw.trim()
+            val withSeconds = Regex("^([01]\\d|2[0-3]):([0-5]\\d)(?::[0-5]\\d)?$").find(trimmed)
+            if (withSeconds != null) {
+                return "${withSeconds.groupValues[1]}:${withSeconds.groupValues[2]}"
+            }
+            val m = Regex("^([01]\\d|2[0-3]):([0-5]\\d)$").find(trimmed)
             return m?.value ?: "08:00"
         }
     }

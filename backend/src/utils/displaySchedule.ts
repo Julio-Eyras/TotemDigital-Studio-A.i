@@ -17,6 +17,7 @@ export interface DisplaySchedule {
 }
 
 const HH_MM = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const HH_MM_FLEX = /^([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/;
 
 export const DEFAULT_DISPLAY_SCHEDULE: DisplaySchedule = {
   enabled: false,
@@ -29,8 +30,17 @@ export const DEFAULT_DISPLAY_SCHEDULE: DisplaySchedule = {
   forceMode: null,
 };
 
+/** Aceita HH:mm ou HH:mm:ss (browsers/mobile) e devolve HH:mm. */
+export function normalizeHmString(raw: unknown, fallback = '00:00'): string {
+  const s = String(raw ?? '').trim();
+  const m = HH_MM_FLEX.exec(s);
+  if (!m) return fallback;
+  return `${m[1].padStart(2, '0')}:${m[2]}`;
+}
+
 function parseHm(value: string): number {
-  const m = HH_MM.exec(String(value || '').trim());
+  const normalized = normalizeHmString(value, '');
+  const m = HH_MM.exec(normalized);
   if (!m) return NaN;
   return Number(m[1]) * 60 + Number(m[2]);
 }
@@ -49,8 +59,8 @@ export function normalizeDisplaySchedule(raw: unknown): DisplaySchedule {
     )
   ).sort((a, b) => a - b);
 
-  const onTime = String(src.onTime ?? DEFAULT_DISPLAY_SCHEDULE.onTime).trim();
-  const offTime = String(src.offTime ?? DEFAULT_DISPLAY_SCHEDULE.offTime).trim();
+  const onTime = normalizeHmString(src.onTime ?? DEFAULT_DISPLAY_SCHEDULE.onTime, DEFAULT_DISPLAY_SCHEDULE.onTime);
+  const offTime = normalizeHmString(src.offTime ?? DEFAULT_DISPLAY_SCHEDULE.offTime, DEFAULT_DISPLAY_SCHEDULE.offTime);
   const forceRaw = src.forceMode;
   const forceMode: DisplayForceMode =
     forceRaw === 'on' || forceRaw === 'off' ? forceRaw : null;
@@ -78,14 +88,18 @@ export function validateDisplayScheduleInput(raw: unknown): string | null {
     return 'displaySchedule deve ser um objeto';
   }
   const s = raw as Record<string, unknown>;
-  if (s.onTime != null && !HH_MM.test(String(s.onTime))) {
-    return 'onTime inválido (use HH:mm)';
+  if (s.onTime != null) {
+    const n = normalizeHmString(s.onTime, '');
+    if (!HH_MM.test(n)) return 'onTime inválido (use HH:mm)';
   }
-  if (s.offTime != null && !HH_MM.test(String(s.offTime))) {
-    return 'offTime inválido (use HH:mm)';
+  if (s.offTime != null) {
+    const n = normalizeHmString(s.offTime, '');
+    if (!HH_MM.test(n)) return 'offTime inválido (use HH:mm)';
   }
-  if (s.onTime != null && s.offTime != null && String(s.onTime) === String(s.offTime)) {
-    return 'onTime e offTime não podem ser iguais';
+  if (s.onTime != null && s.offTime != null) {
+    const on = normalizeHmString(s.onTime);
+    const off = normalizeHmString(s.offTime);
+    if (on === off) return 'onTime e offTime não podem ser iguais';
   }
   if (s.daysOfWeek != null) {
     if (!Array.isArray(s.daysOfWeek)) return 'daysOfWeek deve ser um array';

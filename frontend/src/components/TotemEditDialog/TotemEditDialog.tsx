@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Button,
@@ -27,6 +27,7 @@ import {
   DeviceClockInfo,
   DisplayScheduleInfo,
   PollAdaptiveInfo,
+  normalizeHmInput,
   readDeviceClockFromTotem,
   readPollAdaptiveFromTotem,
   readScheduleFromTotem,
@@ -72,10 +73,13 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
   const [lastHeartbeat, setLastHeartbeat] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Após o 1º load, o poll só atualiza relógio — não apaga edições locais de horário. */
+  const formHydratedRef = useRef(false);
 
   useEffect(() => {
     if (!open || !totem) return;
 
+    formHydratedRef.current = false;
     const totemId = getTotemIdFromRow(totem);
     const localId = getTotemLocalIdFromRow(totem);
     setForm({
@@ -100,21 +104,24 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
     if (!totemId) return;
 
     let cancelled = false;
-    const loadFull = async () => {
+    const loadFull = async (mode: 'full' | 'clock') => {
       try {
         const full = await totemApi.getById(totemId);
         if (cancelled) return;
-        const resolvedLocalId = getTotemLocalIdFromRow(full as any);
-        setForm((prev) => ({
-          ...prev,
-          localId: resolvedLocalId || prev.localId,
-          name: String((full as any).name || prev.name || ''),
-          identifier: String((full as any).identifier || prev.identifier || ''),
-          uin: String((full as any).uin || prev.uin || ''),
-          isActive: (full as any).isActive !== false && (full as any).is_active !== false,
-        }));
-        setSchedule(readScheduleFromTotem(full as any));
-        setPollAdaptive(readPollAdaptiveFromTotem(full as any));
+        if (mode === 'full') {
+          const resolvedLocalId = getTotemLocalIdFromRow(full as any);
+          setForm((prev) => ({
+            ...prev,
+            localId: resolvedLocalId || prev.localId,
+            name: String((full as any).name || prev.name || ''),
+            identifier: String((full as any).identifier || prev.identifier || ''),
+            uin: String((full as any).uin || prev.uin || ''),
+            isActive: (full as any).isActive !== false && (full as any).is_active !== false,
+          }));
+          setSchedule(readScheduleFromTotem(full as any));
+          setPollAdaptive(readPollAdaptiveFromTotem(full as any));
+          formHydratedRef.current = true;
+        }
         setDeviceClock(readDeviceClockFromTotem(full as any));
         setLastHeartbeat(
           (full as any).lastHeartbeat
@@ -128,9 +135,9 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
       }
     };
 
-    void loadFull();
+    void loadFull('full');
     const poll = window.setInterval(() => {
-      void loadFull();
+      void loadFull(formHydratedRef.current ? 'clock' : 'full');
     }, 15_000);
 
     return () => {
@@ -193,6 +200,13 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
       return;
     }
 
+    const onTime = normalizeHmInput(schedule.onTime, DEFAULT_SCHEDULE.onTime);
+    const offTime = normalizeHmInput(schedule.offTime, DEFAULT_SCHEDULE.offTime);
+    if (schedule.enabled && onTime === offTime) {
+      setError('Horário de ligar e desligar não podem ser iguais');
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -204,8 +218,8 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
             enabled: schedule.enabled,
             timezone: schedule.timezone,
             daysOfWeek: schedule.daysOfWeek,
-            onTime: schedule.onTime,
-            offTime: schedule.offTime,
+            onTime,
+            offTime,
             keepAliveWhileOff: schedule.keepAliveWhileOff,
             keepAliveIntervalMinutes: schedule.keepAliveIntervalMinutes,
           },
@@ -330,7 +344,11 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
               label="Ligar às"
               type="time"
               value={schedule.onTime}
-              onChange={(e) => setSchedule((prev) => ({ ...prev, onTime: e.target.value }))}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (!v) return;
+                setSchedule((prev) => ({ ...prev, onTime: normalizeHmInput(v, prev.onTime) }));
+              }}
               disabled={!schedule.enabled}
               InputLabelProps={{ shrink: true }}
               inputProps={{ step: 60 }}
@@ -340,7 +358,11 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
               label="Desligar às"
               type="time"
               value={schedule.offTime}
-              onChange={(e) => setSchedule((prev) => ({ ...prev, offTime: e.target.value }))}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (!v) return;
+                setSchedule((prev) => ({ ...prev, offTime: normalizeHmInput(v, prev.offTime) }));
+              }}
               disabled={!schedule.enabled}
               InputLabelProps={{ shrink: true }}
               inputProps={{ step: 60 }}

@@ -41,6 +41,13 @@ function playerSettingsOf(totem: Record<string, unknown> | null | undefined): Re
   return (totem?.playerSettings || totem?.player_settings || {}) as Record<string, unknown>;
 }
 
+export function normalizeHmInput(raw: string, fallback = '08:00'): string {
+  const s = String(raw || '').trim();
+  const m = /^([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/.exec(s);
+  if (!m) return fallback;
+  return `${m[1].padStart(2, '0')}:${m[2]}`;
+}
+
 export function readScheduleFromTotem(
   totem: Record<string, unknown> | null | undefined
 ): DisplayScheduleInfo {
@@ -53,8 +60,8 @@ export function readScheduleFromTotem(
     enabled: raw.enabled === true,
     timezone: String(raw.timezone || DEFAULT_DISPLAY_SCHEDULE.timezone),
     daysOfWeek: days.length ? days : DEFAULT_DISPLAY_SCHEDULE.daysOfWeek,
-    onTime: String(raw.onTime || DEFAULT_DISPLAY_SCHEDULE.onTime),
-    offTime: String(raw.offTime || DEFAULT_DISPLAY_SCHEDULE.offTime),
+    onTime: normalizeHmInput(String(raw.onTime || ''), DEFAULT_DISPLAY_SCHEDULE.onTime),
+    offTime: normalizeHmInput(String(raw.offTime || ''), DEFAULT_DISPLAY_SCHEDULE.offTime),
     keepAliveWhileOff: raw.keepAliveWhileOff !== false,
     keepAliveIntervalMinutes: Math.min(
       30,
