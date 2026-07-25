@@ -1,6 +1,6 @@
 ================================================================================
   SmartSignage — Kit de instalação Player-AD (pendrive)
-  App: Player-AD 1.81 (versionCode 81) — APK release (sem debug)
+  App: Player-AD 1.82 (versionCode 82) — APK release (sem debug)
 ================================================================================
 
 MANUAL COMPLETO (PDF — todos os manuais num ficheiro):

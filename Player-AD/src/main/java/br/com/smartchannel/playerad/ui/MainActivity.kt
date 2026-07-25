@@ -196,9 +196,6 @@ class MainActivity : AppCompatActivity() {
         kioskConfig = PlayerConfigLoader(this).load()
         if (!devUiOpen) {
             KioskController.applyPlayback(this, kioskConfig!!)
-            findViewById<android.view.View>(R.id.contentHost)?.post {
-                kioskConfig?.let { KioskController.applyPlayback(this@MainActivity, it) }
-            }
         }
 
         onBackPressedDispatcher.addCallback(
@@ -253,18 +250,41 @@ class MainActivity : AppCompatActivity() {
         kioskConfig?.let { KioskController.applyPlayback(this, it) }
     }
 
+    override fun onPause() {
+        // Manter playback e ecrã ligados — pause/stop por apps transitórios (file manager)
+        // não deve parecer “crash” nem apagar a superfície.
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        try {
+            if (::exoPlayer.isInitialized) {
+                exoPlayer.playWhenReady = true
+            }
+        } catch (_: Exception) { }
+        super.onPause()
+    }
+
     override fun onResume() {
         super.onResume()
         if (devUiOpen) return
         val cfg = PlayerConfigLoader(this).load()
         kioskConfig = cfg
-        KioskController.applyPlayback(this, cfg)
+        // Chrome leve: não re-layout do contentHost (evita flicker a cada resume/focus).
+        KioskController.ensureForegroundChrome(this, cfg)
+        try {
+            if (::exoPlayer.isInitialized) {
+                exoPlayer.playWhenReady = true
+                if (exoPlayer.playbackState == androidx.media3.common.Player.STATE_READY ||
+                    exoPlayer.playbackState == androidx.media3.common.Player.STATE_BUFFERING
+                ) {
+                    exoPlayer.play()
+                }
+            }
+        } catch (_: Exception) { }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (!hasFocus || devUiOpen) return
-        kioskConfig?.let { KioskController.applyPlayback(this, it) }
+        kioskConfig?.let { KioskController.ensureForegroundChrome(this, it) }
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {

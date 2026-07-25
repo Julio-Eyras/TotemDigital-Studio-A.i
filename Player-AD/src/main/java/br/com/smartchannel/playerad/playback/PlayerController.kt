@@ -1836,10 +1836,12 @@ class PlayerController(
         detachVideoOrientationListener()
         val listener = object : Player.Listener {
             override fun onVideoSizeChanged(videoSize: VideoSize) {
+                val (rawW, rawH) = MediaViewportRotation.rawVideoSize(videoSize)
+                // ExoPlayer dispara 0x0 no attach/teardown — aplicar matrix aí causa flicker.
+                if (rawW <= 0 || rawH <= 0) return
                 if (cacheAlreadyRotated) {
                     // Cache local já adequado a displayRotation — FIT sem esticar
                     applyFullscreenVideoScale()
-                    val (rawW, rawH) = MediaViewportRotation.rawVideoSize(videoSize)
                     MediaViewportRotation.applyToPlayerView(
                         playerView,
                         0f,
@@ -1910,6 +1912,7 @@ class PlayerController(
         if (!AUTO_MEDIA_ORIENTATION) return
         try {
             val (rawW, rawH) = MediaViewportRotation.rawVideoSize(videoSize)
+            if (rawW <= 0 || rawH <= 0) return
             val viewMountApplied = isViewDisplayRotationActive()
             val rot = if (viewMountApplied) {
                 // contentHost já rodou o viewport; não aplicar segunda rotação na TextureView
@@ -1944,6 +1947,10 @@ class PlayerController(
             PlayerAdLogger.e("DISPLAY", "Falha ao corrigir orientação do vídeo; mantém FIT matrix", e)
             try {
                 val (w, h) = MediaViewportRotation.rawVideoSize(videoSize)
+                if (w <= 0 || h <= 0) {
+                    revealVideoAfterOrientation()
+                    return
+                }
                 applyFullscreenVideoScale()
                 MediaViewportRotation.applyToPlayerView(
                     playerView,

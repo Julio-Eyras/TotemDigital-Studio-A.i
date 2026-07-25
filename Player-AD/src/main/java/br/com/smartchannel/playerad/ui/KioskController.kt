@@ -39,6 +39,18 @@ object KioskController {
         }
     }
 
+    /**
+     * Reaplica só chrome/kiosk leve (sem re-layout do contentHost).
+     * Usar em onResume / onWindowFocusChanged para evitar flicker.
+     */
+    fun ensureForegroundChrome(activity: Activity, config: PlayerConfig) {
+        activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        enterImmersiveMode(activity)
+        if (config.kioskMode == KioskMode.STRONG) {
+            tryStartLockTask(activity)
+        }
+    }
+
     fun applyDebug(activity: Activity) {
         releaseLockTask(activity)
         showSystemBars(activity)

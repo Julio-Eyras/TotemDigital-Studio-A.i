@@ -11,33 +11,59 @@ import android.view.ViewGroup
  */
 object ViewDisplayRotation {
 
+    private var lastRootIdentity: Int = 0
+    private var lastSignature: String? = null
+
     fun apply(activity: Activity, root: View?, displayRotation: Int, enabled: Boolean) {
         val target = root ?: return
+        val rootId = System.identityHashCode(target)
         if (!enabled) {
-            reset(target)
+            if (lastRootIdentity != rootId || lastSignature != "off") {
+                reset(target)
+                lastRootIdentity = rootId
+                lastSignature = "off"
+            }
             return
         }
         val normalized = ((displayRotation % 4) + 4) % 4
         if (normalized == 1) {
             // Paisagem nativa — sem compensação visual
-            reset(target)
+            if (lastRootIdentity != rootId || lastSignature != "off") {
+                reset(target)
+                lastRootIdentity = rootId
+                lastSignature = "off"
+            }
+            return
+        }
+
+        val metrics = activity.resources.displayMetrics
+        val screenW = metrics.widthPixels
+        val screenH = metrics.heightPixels
+        if (screenW <= 0 || screenH <= 0) return
+
+        val signature = "$normalized|$screenW|$screenH"
+        if (lastRootIdentity == rootId && lastSignature == signature) {
             return
         }
 
         target.post {
-            val metrics = activity.resources.displayMetrics
-            val screenW = metrics.widthPixels
-            val screenH = metrics.heightPixels
-            if (screenW <= 0 || screenH <= 0) return@post
+            val metrics2 = activity.resources.displayMetrics
+            val w2 = metrics2.widthPixels
+            val h2 = metrics2.heightPixels
+            if (w2 <= 0 || h2 <= 0) return@post
+            val sig2 = "$normalized|$w2|$h2"
+            if (lastRootIdentity == System.identityHashCode(target) && lastSignature == sig2) return@post
 
             when (normalized) {
-                0 -> applyQuarterTurn(target, 90f, screenW, screenH)
-                2 -> applyHalfTurn(target, screenW, screenH)
-                else -> applyQuarterTurn(target, 270f, screenW, screenH)
+                0 -> applyQuarterTurn(target, 90f, w2, h2)
+                2 -> applyHalfTurn(target, w2, h2)
+                else -> applyQuarterTurn(target, 270f, w2, h2)
             }
+            lastRootIdentity = System.identityHashCode(target)
+            lastSignature = sig2
             PlayerAdLogger.i(
                 "KIOSK",
-                "Fallback visual: ${normalized * 90}° screen=${screenW}x${screenH} " +
+                "Fallback visual: ${normalized * 90}° screen=${w2}x${h2} " +
                     "host=${target.width}x${target.height} " +
                     "tx=${target.translationX.toInt()} ty=${target.translationY.toInt()}",
             )

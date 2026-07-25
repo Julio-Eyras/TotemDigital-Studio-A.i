@@ -15,6 +15,8 @@ import br.com.smartchannel.playerad.util.ViewDisplayRotation
  */
 object DisplayPresentationController {
 
+    private var lastLogSignature: String? = null
+
     fun apply(activity: Activity, config: PlayerConfig) {
         val playbackHost = activity.findViewById<View>(R.id.contentHost)
         val configHost = activity.findViewById<View>(R.id.configContentHost)
@@ -62,6 +64,10 @@ object DisplayPresentationController {
         visualFallback: Boolean
     ) {
         val canvas = DisplayCanvas.resolve(activity, config.displayRotation)
+        val signature =
+            "${canvas.width}x${canvas.height}|${config.displayRotation}|$systemEffective|$visualFallback"
+        if (signature == lastLogSignature) return
+        lastLogSignature = signature
         val mode = PlayerConfigLoader.displayRotationLabel(config.displayRotation)
         PlayerAdLogger.i(
             "DISPLAY",
