@@ -1194,13 +1194,21 @@ server {
 NG_SRV"
     fi
 
-    # Testar e recarregar nginx
-    if sudo nginx -t > /tmp/nginx-assets-test.txt 2>&1; then
+    # Testar e recarregar nginx (log em pasta gravável — /tmp root-owned abortava o install)
+    local _nginx_test_log
+    _nginx_test_log="$(install_log_file nginx-assets-test.txt)"
+    set +e
+    sudo nginx -t >"$_nginx_test_log" 2>&1
+    local _nginx_t_rc=$?
+    set -e
+    if [[ $_nginx_t_rc -eq 0 ]]; then
         sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload 2>/dev/null || true
         log "✅ Nginx recarregado (assets alias configurado)"
     else
         warn "⚠️  Configuração Nginx inválida após alterações — saída de nginx -t:"
-        while IFS= read -r _nline; do warn "   $_nline"; done < /tmp/nginx-assets-test.txt
+        if [[ -f "$_nginx_test_log" ]]; then
+            while IFS= read -r _nline; do warn "   $_nline"; done < "$_nginx_test_log"
+        fi
         _lastbak=$(ls -1t "$NGINX_SITE_BACKUP_DIR"/smart-signage.site.*.conf 2>/dev/null | head -1)
         if [[ -n "$_lastbak" && -f "$_lastbak" ]]; then
             warn "⚠️  Restaurando site de backup: $_lastbak"
