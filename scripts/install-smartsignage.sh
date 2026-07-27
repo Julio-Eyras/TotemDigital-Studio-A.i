@@ -4,7 +4,7 @@
 # Smart Signage Pro - Script de Auto-Instalação para Ubuntu
 # =============================================================================
 # Versão do Sistema: 2.1.0
-# Versão do Script: 2.1.16
+# Versão do Script: 2.1.17
 # =============================================================================
 # Este script instala automaticamente o Smart Signage Pro em sistemas Ubuntu
 # Suporta modos de instalação e perfil MQTT para single-server:
@@ -17,7 +17,7 @@
 
 # Versões (podem ser diferentes)
 SYSTEM_VERSION="2.1.0"
-SCRIPT_VERSION="2.1.16"
+SCRIPT_VERSION="2.1.17"
 #
 # OPÇÕES:
 #   --fresh              Instalação COMPLETA do zero (single-server por defeito; com --mode docker limpa Compose)
@@ -39,6 +39,19 @@ SCRIPT_VERSION="2.1.16"
 
 set -e  # Parar em caso de erro
 set -o pipefail
+
+# Logs de install em pasta gravável pelo user actual (evitar /tmp root-owned → pipefail falso).
+install_log_dir() {
+    local base="${INSTALL_DIR:-${SOURCE_DIR:-$PWD}}"
+    local d="${base}/logs/install"
+    mkdir -p "$d" 2>/dev/null || d="${HOME}/.smartsignage-install-logs"
+    mkdir -p "$d" 2>/dev/null || d="/tmp/smartsignage-install-$USER"
+    mkdir -p "$d" 2>/dev/null || true
+    echo "$d"
+}
+install_log_file() {
+    echo "$(install_log_dir)/$1"
+}
 
 # Trap de erro com recuperação best-effort do backend em single-server
 on_install_error() {
@@ -1208,7 +1221,7 @@ NG_SRV"
     DB_HOST="${DB_HOST:-localhost}"
     DB_PORT="${DB_PORT:-5432}"
     DB_NAME="${DB_NAME:-smartsignage}"
-    DB_USER="${DB_USER:-smartchannel}"
+    DB_USER="${DB_USER:-smartsignage}"
     DB_PASSWORD="${DB_PASSWORD:-}"
 
     # Se não houver password definido, tentamos usar trust via unix socket (postgres user) — keep safe
@@ -4341,11 +4354,11 @@ PYTHON_FINAL_FIX_EOF
         if command -v npm &> /dev/null; then
             log "Analisando árvore de dependências para detectar conflitos..."
             # Tentar instalação em modo dry-run primeiro para detectar problemas
-            npm install --dry-run --legacy-peer-deps --no-audit --no-fund 2>&1 | grep -i "ajv.*8\.17\.1\|EOVERRIDE.*ajv" > /tmp/npm-dry-run-ajv.log 2>&1 || true
+            npm install --dry-run --legacy-peer-deps --no-audit --no-fund 2>&1 | grep -i "ajv.*8\.17\.1\|EOVERRIDE.*ajv" > "$(install_log_file npm-dry-run-ajv.log)" 2>/dev/null || true
             
-            if [[ -s /tmp/npm-dry-run-ajv.log ]]; then
+            if [[ -s "$(install_log_file npm-dry-run-ajv.log)" ]]; then
                 warn "⚠️  Possível conflito detectado na análise de dependências:"
-                cat /tmp/npm-dry-run-ajv.log | head -10
+                cat "$(install_log_file npm-dry-run-ajv.log)" | head -10
             fi
         fi
         
@@ -4379,16 +4392,27 @@ PYTHON_DROP_OVERRIDES_EOF
         # Instalar todas as dependências (sem overrides) com --force apenas para garantir compatibilidade
         log "Instalando todas as dependências do frontend (sem overrides de ajv)..."
         _npm_ok=false
+        _npm_log="$(install_log_file npm-install-all.log)"
         for _attempt in 1 2 3; do
             if [[ $_attempt -gt 1 ]]; then
                 log "Tentativa $_attempt/3 (após falha de rede)..."
                 sleep 5
             fi
-            if npm install --legacy-peer-deps --no-audit --no-fund --force 2>&1 | tee /tmp/npm-install-all.log; then
+            # Não usar `npm | tee /tmp/...` sob pipefail: tee em /tmp root-owned falha
+            # mesmo com npm OK e aborta o install ANTES de setup_database (role PG nunca criado).
+            set +e
+            npm install --legacy-peer-deps --no-audit --no-fund --force >"$_npm_log" 2>&1
+            _npm_rc=$?
+            set -e
+            if [[ $_npm_rc -eq 0 ]] || [[ -d node_modules/react && -d node_modules/react-dom ]]; then
                 _npm_ok=true
+                if [[ $_npm_rc -ne 0 ]]; then
+                    warn "npm exit $_npm_rc mas node_modules parece completo — a continuar"
+                fi
+                tail -n 20 "$_npm_log" 2>/dev/null || true
                 break
             fi
-            if grep -qE "ECONNRESET|ETIMEDOUT|network|ENOTFOUND|EAI_AGAIN" /tmp/npm-install-all.log; then
+            if grep -qE "ECONNRESET|ETIMEDOUT|network|ENOTFOUND|EAI_AGAIN" "$_npm_log" 2>/dev/null; then
                 warn "Falha de rede detectada. Tentando novamente..."
             else
                 break
@@ -4398,12 +4422,12 @@ PYTHON_DROP_OVERRIDES_EOF
             error "Falha ao instalar dependências do frontend"
             error "Verificando se o problema é com ajv..."
             
-            if grep -q "ajv.*8\.17\.1\|EOVERRIDE.*ajv\|conflicts with direct dependency" /tmp/npm-install-all.log; then
+            if grep -q "ajv.*8\.17\.1\|EOVERRIDE.*ajv\|conflicts with direct dependency" "$_npm_log" 2>/dev/null; then
                 error "❌ Problema persistente com ajv@8.17.1 detectado"
                 error "Analisando log completo para identificar a causa..."
                 
                 # Mostrar contexto do erro
-                grep -B 5 -A 5 "ajv.*8\.17\.1\|EOVERRIDE.*ajv\|conflicts with direct dependency" /tmp/npm-install-all.log | head -30
+                grep -B 5 -A 5 "ajv.*8\.17\.1\|EOVERRIDE.*ajv\|conflicts with direct dependency" "$_npm_log" | head -30
                 
                 # ESTRATÉGIA ALTERNATIVA: Usar apenas resolutions (mais compatível com npm)
                 warn "Tentando solução alternativa: remover override e usar apenas resolutions..."
@@ -4449,10 +4473,15 @@ PYTHON_REMOVE_OVERRIDE_EOF
                     rm -rf node_modules package-lock.json 2>/dev/null || true
                     npm cache clean --force 2>/dev/null || true
                     
-                    if ! npm install --legacy-peer-deps --no-audit --no-fund --force 2>&1 | tee /tmp/npm-install-retry.log; then
+                    _npm_retry_log="$(install_log_file npm-install-retry.log)"
+                    set +e
+                    npm install --legacy-peer-deps --no-audit --no-fund --force >"$_npm_retry_log" 2>&1
+                    _npm_retry_rc=$?
+                    set -e
+                    if [[ $_npm_retry_rc -ne 0 ]] && [[ ! -d node_modules/react ]]; then
                         error "❌ Falha mesmo sem overrides"
                         error "Log completo da tentativa:"
-                        tail -100 /tmp/npm-install-retry.log
+                        tail -100 "$_npm_retry_log"
                         error "Conteúdo atual do package.json:"
                         cat package.json
                         error "Possível causa: Uma dependência transitiva está forçando ajv@8.17.1"
@@ -4465,7 +4494,7 @@ PYTHON_REMOVE_OVERRIDE_EOF
                 fi
             else
                 error "Erro não relacionado ao ajv. Log completo:"
-                tail -50 /tmp/npm-install-all.log
+                tail -50 "$_npm_log" 2>/dev/null || true
                 exit 1
             fi
         fi
@@ -5493,6 +5522,26 @@ setup_database() {
         # Garantir privilégios
         sudo -u "$POSTGRES_USER" psql -c "GRANT ALL PRIVILEGES ON DATABASE ${PG_DB} TO ${PG_USER};" >/dev/null 2>&1 || true
         sudo -u "$POSTGRES_USER" psql -d ${PG_DB} -c "GRANT ALL ON SCHEMA public TO ${PG_USER};" >/dev/null 2>&1 || true
+
+        # Peer auth: `psql` sem -U usa o user Linux (ex.: smartchannel). Sem role PG
+        # correspondente → FATAL: role "smartchannel" does not exist. Criar alias LOGIN
+        # com a mesma senha/GRANTs quando o OS user ≠ DB_USER da app.
+        local _os_login
+        _os_login="$(id -un 2>/dev/null || true)"
+        for _peer in "$_os_login" smartchannel; do
+            [[ -z "$_peer" || "$_peer" == "root" || "$_peer" == "postgres" || "$_peer" == "$PG_USER" ]] && continue
+            if ! sudo -u "$POSTGRES_USER" psql -tc "SELECT 1 FROM pg_roles WHERE rolname = '${_peer}'" 2>/dev/null | grep -q 1; then
+                log "Criando role PostgreSQL peer '${_peer}' (login Linux) com mesmos privilégios que '${PG_USER}'..."
+                sudo -u "$POSTGRES_USER" psql -c "CREATE USER \"${_peer}\" WITH PASSWORD '${PG_PASS}' CREATEDB CREATEROLE;" >/dev/null 2>&1 || true
+            else
+                sudo -u "$POSTGRES_USER" psql -c "ALTER USER \"${_peer}\" WITH PASSWORD '${PG_PASS}';" >/dev/null 2>&1 || true
+            fi
+            sudo -u "$POSTGRES_USER" psql -c "GRANT ALL PRIVILEGES ON DATABASE ${PG_DB} TO \"${_peer}\";" >/dev/null 2>&1 || true
+            sudo -u "$POSTGRES_USER" psql -d "${PG_DB}" -c "GRANT ALL ON SCHEMA public TO \"${_peer}\";" >/dev/null 2>&1 || true
+            sudo -u "$POSTGRES_USER" psql -d "${PG_DB}" -c "ALTER DATABASE ${PG_DB} OWNER TO ${PG_USER};" >/dev/null 2>&1 || true
+        done
+        log "Conexão app: PGPASSWORD=*** psql -U ${PG_USER} -d ${PG_DB} -h localhost"
+        log "Conexão peer (socket): psql -d ${PG_DB}  # se o role Linux existir"
 
         export PRIMARY_DB_USER="$PG_USER"
 

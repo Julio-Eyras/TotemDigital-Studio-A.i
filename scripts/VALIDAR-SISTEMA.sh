@@ -45,11 +45,11 @@ function print_info() {
     echo -e "${GRAY}  $1${NC}"
 }
 
-# Variáveis de configuração
+# Variáveis de configuração (defaults; sobrescritos pelo .env se existir)
 DB_HOST="localhost"
 DB_PORT="5432"
-DB_USER="postgres"
-DB_PASSWORD="postgres"
+DB_USER="smartsignage"
+DB_PASSWORD="smartsignage123"
 DB_NAME="smartsignage"
 BACKEND_PORT="3000"
 FRONTEND_PORT="3001"
@@ -62,8 +62,42 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 BACKEND_DIR="$ROOT_DIR/backend"
 FRONTEND_DIR="$ROOT_DIR/frontend"
 BACKEND_ENV="$BACKEND_DIR/.env"
+ROOT_ENV="$ROOT_DIR/.env"
 BACKEND_LOGS="$BACKEND_DIR/logs"
 REPORT_FILE="$SCRIPT_DIR/validacao-sistema-$(date +%Y%m%d-%H%M%S).txt"
+
+# Carregar credenciais reais da instalação (evita assumir user postgres sem password)
+_load_env_file() {
+    local f="$1"
+    [[ -f "$f" ]] || return 0
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%%#*}"
+        line="$(echo "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+        [[ -z "$line" || "$line" != *=* ]] && continue
+        local k="${line%%=*}"
+        local v="${line#*=}"
+        v="${v%\"}"; v="${v#\"}"; v="${v%\'}"; v="${v#\'}"
+        case "$k" in
+            DB_HOST) DB_HOST="$v" ;;
+            DB_PORT) DB_PORT="$v" ;;
+            DB_USER) DB_USER="$v" ;;
+            DB_PASSWORD|DB_PASS) DB_PASSWORD="$v" ;;
+            DB_NAME) DB_NAME="$v" ;;
+            DATABASE_URL)
+                # postgresql://user:pass@host:port/db
+                if [[ "$v" =~ postgresql://([^:]+):([^@]+)@([^:/]+):?([0-9]*)/([^?]+) ]]; then
+                    DB_USER="${BASH_REMATCH[1]}"
+                    DB_PASSWORD="${BASH_REMATCH[2]}"
+                    DB_HOST="${BASH_REMATCH[3]}"
+                    [[ -n "${BASH_REMATCH[4]}" ]] && DB_PORT="${BASH_REMATCH[4]}"
+                    DB_NAME="${BASH_REMATCH[5]}"
+                fi
+                ;;
+        esac
+    done < "$f"
+}
+_load_env_file "$ROOT_ENV"
+_load_env_file "$BACKEND_ENV"
 
 # Contadores de validação
 TOTAL_TESTS=0
@@ -125,16 +159,25 @@ fi
 # PostgreSQL
 print_info "Verificando PostgreSQL..."
 export PGPASSWORD="$DB_PASSWORD"
+_pg_ok=false
 if command -v psql &> /dev/null; then
-    if psql -h "$DB_HOST" -U "$DB_USER" -d postgres -c "SELECT version();" > /dev/null 2>&1; then
-        test_result "PostgreSQL acessivel" true "Conectado em $DB_HOST:$DB_PORT"
+    if PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "SELECT 1;" > /dev/null 2>&1; then
+        _pg_ok=true
+        test_result "PostgreSQL acessivel" true "TCP $DB_USER@$DB_HOST:$DB_PORT/$DB_NAME"
+    elif PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d postgres -c "SELECT 1;" > /dev/null 2>&1; then
+        _pg_ok=true
+        test_result "PostgreSQL acessivel" true "TCP $DB_USER@$DB_HOST (db postgres; app DB pode faltar)"
+    elif sudo -u postgres psql -d postgres -c "SELECT 1;" > /dev/null 2>&1; then
+        _pg_ok=true
+        test_result "PostgreSQL acessivel" true "socket peer como user postgres (serviço OK; confira role $DB_USER)"
     else
-        test_result "PostgreSQL acessivel" false "Nao foi possivel conectar"
+        test_result "PostgreSQL acessivel" false "Falhou com DB_USER=$DB_USER (confira .env e roles)"
     fi
 else
     test_result "PostgreSQL acessivel" false "psql nao encontrado"
 fi
 unset PGPASSWORD
+unset _pg_ok
 
 # Diretórios
 [ -d "$BACKEND_DIR" ] && test_result "Diretorio backend existe" true || test_result "Diretorio backend existe" false
