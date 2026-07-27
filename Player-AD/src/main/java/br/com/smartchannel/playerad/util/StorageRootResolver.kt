@@ -70,7 +70,7 @@ object StorageRootResolver {
             if (!dir.exists()) {
                 dir.mkdirs()
             }
-            if (dir.isDirectory && dir.canWrite()) {
+            if (dir.isDirectory && probeWritableDirectory(dir)) {
                 return dir
             }
         } catch (e: Exception) {
@@ -159,13 +159,30 @@ object StorageRootResolver {
             }
         }
 
-    private fun isDirUsable(dir: File): Boolean {
+    private fun isDirUsable(dir: File): Boolean = probeWritableDirectory(dir)
+
+    /**
+     * Confirma escrita real (criar + apagar ficheiro probe), não só [File.canWrite].
+     */
+    fun probeWritableDirectory(dir: File): Boolean {
         try {
-            if (!dir.exists()) dir.mkdirs()
+            if (!dir.exists() && !dir.mkdirs()) return false
+            if (!dir.isDirectory) return false
+            val probe = File(dir, ".playerad_write_probe")
+            try {
+                probe.writeText("ok", Charsets.UTF_8)
+                if (!probe.exists() || probe.length() <= 0L) return false
+            } finally {
+                try {
+                    probe.delete()
+                } catch (_: Exception) {
+                    // ignore
+                }
+            }
+            return true
         } catch (_: Exception) {
             return false
         }
-        return dir.isDirectory && dir.canWrite()
     }
 }
 

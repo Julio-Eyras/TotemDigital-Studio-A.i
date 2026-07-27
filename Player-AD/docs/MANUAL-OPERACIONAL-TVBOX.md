@@ -67,9 +67,11 @@ Exemplo mínimo:
 
 ```json
 {
-  "serverUrl": "http://217.216.91.135:8080",
+  "serverUrl": "http://169.58.82.42:8080",
   "uin": "CODIGO-UIN",
   "deviceId": "CODIGO-UIN",
+  "storage": "external_primary",
+  "maxCacheSizeMb": 1000,
   "kioskMode": "strong",
   "displayRotation": 0,
   "screenOrientation": "portrait",
@@ -81,6 +83,7 @@ Exemplo mínimo:
 }
 ```
 
+`storage` default de campo/kit: `external_primary` (eMMC/`getExternalFilesDir` da app — evita pendrive de instalação como cache). Use `auto` só se quiser priorizar USB/SD. `maxCacheSizeMb` limita o cache LRU (opcional: `maxCachePercentOfVolume`).
 ### Orientação (`displayRotation`)
 
 | Valor | Modo |

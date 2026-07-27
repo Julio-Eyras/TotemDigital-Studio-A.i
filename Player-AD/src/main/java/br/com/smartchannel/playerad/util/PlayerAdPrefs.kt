@@ -7,6 +7,8 @@ object PlayerAdPrefs {
     const val KEY_SU_GRANTED = "su_granted"
     const val KEY_DEV_FIRST_RUN_DONE = "dev_first_run_done"
     const val KEY_DEV_LAST_VERSION_CODE = "dev_last_version_code"
+    /** Último [AppDirs.root] absoluto — usado para migração ao mudar volume/modo. */
+    const val KEY_LAST_STORAGE_ROOT = "last_storage_root"
 
     fun prefs(context: Context) =
         context.getSharedPreferences(NAME, Context.MODE_PRIVATE)

@@ -33,7 +33,7 @@ class PlayerConfigLoader(private val context: Context) {
 
         // 3) defaults de instalação (alinhar com install-pendrive/config/exemplo-player-config.json)
         return PlayerConfig(
-            serverUrl = "http://217.216.91.135:8080",
+            serverUrl = "http://169.58.82.42:8080",
             uin = "T1000",
             deviceId = "T1000-Exterminator",
             acceptImagesInPlaylist = true,
@@ -42,8 +42,10 @@ class PlayerConfigLoader(private val context: Context) {
             batimentoCardiaco = 30,
             maxSecondsWithoutServerCheck = 180,
             pollAdaptive = PollAdaptiveConfig.DEFAULT,
-            storageMode = PlayerStorageMode.AUTO,
+            storageMode = PlayerStorageMode.EXTERNAL_PRIMARY,
             storagePathOverride = null,
+            maxCacheSizeMb = 1000,
+            maxCachePercentOfVolume = null,
             kioskMode = KioskMode.STRONG,
             screenOrientation = ScreenOrientationMode.PORTRAIT
         )
@@ -70,6 +72,10 @@ class PlayerConfigLoader(private val context: Context) {
                 val pollAdaptive = PollAdaptiveConfig.fromJson(json.optJSONObject("pollAdaptive"))
                 val storageMode = parseStorageMode(json.optString("storage", ""))
                 val pathOverride = json.optString("storagePathOverride", "").trim().takeIf { it.isNotBlank() }
+                val maxCacheSizeMb = coerceMaxCacheSizeMb(
+                    if (json.has("maxCacheSizeMb")) json.optInt("maxCacheSizeMb", 1000) else 1000
+                )
+                val maxCachePercentOfVolume = parseMaxCachePercentOfVolume(json)
                 val kioskMode = parseKioskMode(json.optString("kioskMode", ""))
                 val displayRotation = if (json.has("displayRotation")) {
                     json.optInt("displayRotation", 0).coerceIn(0, 3)
@@ -89,6 +95,8 @@ class PlayerConfigLoader(private val context: Context) {
                     pollAdaptive = pollAdaptive,
                     storageMode = storageMode,
                     storagePathOverride = pathOverride,
+                    maxCacheSizeMb = maxCacheSizeMb,
+                    maxCachePercentOfVolume = maxCachePercentOfVolume,
                     kioskMode = kioskMode,
                     displayRotation = displayRotation,
                     screenOrientation = screenOrientation
@@ -100,6 +108,22 @@ class PlayerConfigLoader(private val context: Context) {
     }
 
     companion object {
+        const val MAX_CACHE_SIZE_MB_MIN = 50
+        const val MAX_CACHE_SIZE_MB_MAX = 8192
+        const val MAX_CACHE_SIZE_MB_DEFAULT = 1000
+
+        fun coerceMaxCacheSizeMb(raw: Int): Int =
+            raw.coerceIn(MAX_CACHE_SIZE_MB_MIN, MAX_CACHE_SIZE_MB_MAX)
+
+        fun parseMaxCachePercentOfVolume(json: JSONObject): Int? {
+            if (!json.has("maxCachePercentOfVolume") || json.isNull("maxCachePercentOfVolume")) {
+                return null
+            }
+            val v = json.optInt("maxCachePercentOfVolume", 0)
+            if (v <= 0) return null
+            return v.coerceIn(1, 90)
+        }
+
         fun parseKioskMode(raw: String?): KioskMode {
             if (raw.isNullOrBlank()) return KioskMode.STRONG
             return when (raw.trim().lowercase()) {
@@ -170,7 +194,8 @@ class PlayerConfigLoader(private val context: Context) {
         }
 
         fun parseStorageMode(raw: String?): PlayerStorageMode {
-            if (raw.isNullOrBlank()) return PlayerStorageMode.AUTO
+            // Ausente/vazio = default de campo (não usar USB de instalação como cache).
+            if (raw.isNullOrBlank()) return PlayerStorageMode.EXTERNAL_PRIMARY
             return when (raw.trim().lowercase()) {
                 "internal" -> PlayerStorageMode.INTERNAL
                 "external_primary", "external", "externalprimary" -> PlayerStorageMode.EXTERNAL_PRIMARY
@@ -178,7 +203,7 @@ class PlayerConfigLoader(private val context: Context) {
                 "removable_preferred", "removable", "usb" -> PlayerStorageMode.REMOVABLE_PREFERRED
                 "path_override", "path", "custom" -> PlayerStorageMode.PATH_OVERRIDE
                 "auto" -> PlayerStorageMode.AUTO
-                else -> PlayerStorageMode.AUTO
+                else -> PlayerStorageMode.EXTERNAL_PRIMARY
             }
         }
 

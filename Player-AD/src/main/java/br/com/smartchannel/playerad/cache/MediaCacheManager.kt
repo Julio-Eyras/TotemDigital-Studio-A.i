@@ -1,6 +1,8 @@
 package br.com.smartchannel.playerad.cache
 
 import android.content.Context
+import br.com.smartchannel.playerad.config.PlayerConfig
+import br.com.smartchannel.playerad.config.PlayerConfigLoader
 import br.com.smartchannel.playerad.util.AppDirs
 import br.com.smartchannel.playerad.util.PlayerAdLogger
 import org.json.JSONObject
@@ -16,18 +18,86 @@ import java.nio.charset.Charset
  * Responsável por:
  * - Gerir o diretório de cache local `propagandas`
  * - Persistir metadados em `propagandas/metadata.json`
- * - Controlar LRU com limite de tamanho (ex.: 1000 MB)
+ * - Controlar LRU com limite de tamanho (default 1000 MB)
  * - Manter histórico de plays por dia (sum_play), mesmo após remoção física
  *
- * Esta implementação é um esqueleto inicial para o Player-AD,
- * espelhando o design documentado em `docs/Player-AD-CACHE-E-METADADOS.md`.
+ * Limpeza: primeiro candidatos com lastAccessed ≥ 8 dias; se ainda acima do teto,
+ * LRU sem filtro de idade (pressão). Ver também [ensureDiskSpaceFor].
+ * Documentação: `docs/Player-AD-CACHE-E-METADADOS.md`.
  */
-class MediaCacheManager(
-    private val context: Context,
-    private val maxCacheSizeBytes: Long = 1000L * 1024L * 1024L // 1000 MB
- ) {
+class MediaCacheManager private constructor(
+    private val resolvePropagandas: () -> File,
+    maxCacheSizeBytes: Long = 1000L * 1024L * 1024L,
+) {
+    constructor(
+        context: Context,
+        maxCacheSizeBytes: Long = 1000L * 1024L * 1024L,
+    ) : this(
+        resolvePropagandas = { AppDirs.propagandas(context) },
+        maxCacheSizeBytes = maxCacheSizeBytes,
+    )
 
-    private fun propagandasDir(): File = AppDirs.propagandas(context)
+    companion object {
+        /** Reserva mínima de espaço livre no volume após um download. */
+        const val MIN_FREE_BYTES_AFTER_DOWNLOAD = 200L * 1024L * 1024L
+        private const val EIGHT_DAYS_MS = 8L * 24L * 60L * 60L * 1000L
+        /** Estimativa quando Content-Length é desconhecido. */
+        const val UNKNOWN_DOWNLOAD_ESTIMATE_BYTES = 32L * 1024L * 1024L
+
+        /**
+         * Teto efectivo = min(maxCacheSizeMb, % do totalSpace se configurado).
+         */
+        fun effectiveMaxCacheBytes(
+            maxCacheSizeMb: Int,
+            maxCachePercentOfVolume: Int?,
+            volumeTotalBytes: Long,
+        ): Long {
+            val fromMb = PlayerConfigLoader.coerceMaxCacheSizeMb(maxCacheSizeMb) * 1024L * 1024L
+            val pct = maxCachePercentOfVolume
+            if (pct == null || pct <= 0 || volumeTotalBytes <= 0L) return fromMb
+            val fromPct = volumeTotalBytes * pct.coerceIn(1, 90) / 100L
+            val minBytes = PlayerConfigLoader.MAX_CACHE_SIZE_MB_MIN * 1024L * 1024L
+            return minOf(fromMb, fromPct).coerceAtLeast(minBytes)
+        }
+
+        /** Instância para testes JVM (sem Context Android). */
+        fun forTesting(
+            propagandasDir: File,
+            maxCacheSizeBytes: Long = 1000L * 1024L * 1024L,
+        ): MediaCacheManager = MediaCacheManager(
+            resolvePropagandas = { propagandasDir },
+            maxCacheSizeBytes = maxCacheSizeBytes,
+        )
+    }
+
+    @Volatile
+    private var maxCacheSizeBytes: Long = maxCacheSizeBytes.coerceAtLeast(
+        PlayerConfigLoader.MAX_CACHE_SIZE_MB_MIN * 1024L * 1024L
+    )
+
+    /** Actualiza o teto LRU (ex.: após reload de config). */
+    @Synchronized
+    fun updateMaxCacheSizeBytes(bytes: Long) {
+        maxCacheSizeBytes = bytes.coerceAtLeast(
+            PlayerConfigLoader.MAX_CACHE_SIZE_MB_MIN * 1024L * 1024L
+        )
+        PlayerAdLogger.i("CACHE", "maxCacheSizeBytes=$maxCacheSizeBytes")
+    }
+
+    fun applyLimitsFromConfig(cfg: PlayerConfig) {
+        val total = try {
+            propagandasDir().totalSpace
+        } catch (_: Exception) {
+            0L
+        }
+        updateMaxCacheSizeBytes(
+            effectiveMaxCacheBytes(cfg.maxCacheSizeMb, cfg.maxCachePercentOfVolume, total)
+        )
+    }
+
+    private fun propagandasDir(): File = resolvePropagandas().also { dir ->
+        if (!dir.exists()) dir.mkdirs()
+    }
 
     private fun metadataFile(): File = File(propagandasDir(), "metadata.json")
 
@@ -111,8 +181,8 @@ class MediaCacheManager(
         obj.put("mediaId", mediaId)
         obj.put("fileName", fileName)
         obj.put("size", sizeBytes)
-        obj.put("checksum", checksum)
-        obj.put("mimeType", mimeType)
+        obj.put("checksum", checksum ?: JSONObject.NULL)
+        obj.put("mimeType", mimeType ?: JSONObject.NULL)
         obj.put("downloadedAt", existing?.optLong("downloadedAt", now) ?: now)
         obj.put("lastAccessed", now)
         obj.put("valid", true)
@@ -295,7 +365,7 @@ class MediaCacheManager(
     @Synchronized
     fun getCurrentCacheSizeBytes(): Long {
         var total = 0L
-        val keys = metadata.keys()
+        val keys = metadataKeysOrEmpty()
         while (keys.hasNext()) {
             val key = keys.next()
             val obj = metadata.optJSONObject(key) ?: continue
@@ -307,37 +377,90 @@ class MediaCacheManager(
     }
 
     /**
-     * Executa limpeza LRU:
-     * - Considera apenas mídias valid=true com lastAccessed mais antigo que a janela de 8 dias
-     * - Dentro desse conjunto, ordena por lastAccessed (asc)
-     * - Remove arquivos e marca valid=false até ficar <= maxCacheSizeBytes
+     * Limpeza LRU até `<= maxCacheSizeBytes`:
+     * 1) Só entradas valid com lastAccessed ≥ 8 dias
+     * 2) Se ainda acima do teto, LRU de todas as valid (sem filtro de idade)
      */
     @Synchronized
     fun cleanupIfNeeded() {
+        evictUntilUnderMax(respectAgeWindow = true)
+        if (getCurrentCacheSizeBytes() > maxCacheSizeBytes) {
+            PlayerAdLogger.w(
+                "CACHE",
+                "Cache ainda acima do teto após janela 8 dias — LRU sob pressão (sem filtro de idade)"
+            )
+            evictUntilUnderMax(respectAgeWindow = false)
+        }
+    }
+
+    /**
+     * Garante espaço livre no volume para um download de [neededBytes].
+     * Corre [cleanupIfNeeded] e, se necessário, LRU agressivo até libertar espaço
+     * ou não haver mais candidatos. Retorna false se ainda for insuficiente.
+     */
+    @Synchronized
+    fun ensureDiskSpaceFor(
+        neededBytes: Long,
+        minFreeAfter: Long = MIN_FREE_BYTES_AFTER_DOWNLOAD,
+    ): Boolean {
+        val need = neededBytes.coerceAtLeast(0L)
+        cleanupIfNeeded()
+        val targetFree = need + minFreeAfter
+        if (usableSpaceBytes() >= targetFree) return true
+
+        PlayerAdLogger.w(
+            "CACHE",
+            "Espaço insuficiente para download need=$need free=${usableSpaceBytes()} — LRU agressivo"
+        )
+        evictUntilUsableSpace(targetFree)
+
+        val free = usableSpaceBytes()
+        val ok = free >= need + (minFreeAfter / 2)
+        if (!ok) {
+            PlayerAdLogger.e(
+                "CACHE",
+                "Abortar download: espaço livre=$free need=$need minReserve=${minFreeAfter / 2}"
+            )
+        }
+        return ok
+    }
+
+    /**
+     * Após apagar ficheiros fisicamente (ex.: remote `purge_cache`):
+     * marca todas as entradas `valid=false` e persiste (mantém sum_play).
+     */
+    @Synchronized
+    fun invalidateAllEntriesKeepHistory() {
+        val keys = metadataKeysOrEmpty().asSequence().toList()
+        for (key in keys) {
+            val obj = metadata.optJSONObject(key) ?: continue
+            obj.put("valid", false)
+            metadata.put(key, obj)
+        }
+        saveMetadataToDisk()
+        PlayerAdLogger.i("CACHE", "Metadados invalidados após purge físico (${keys.size} entradas)")
+    }
+
+    fun usableSpaceBytes(): Long =
+        try {
+            propagandasDir().usableSpace
+        } catch (_: Exception) {
+            0L
+        }
+
+    fun maxCacheSizeBytes(): Long = maxCacheSizeBytes
+
+    private fun metadataKeysOrEmpty(): Iterator<String> {
+        @Suppress("UNCHECKED_CAST")
+        val keys = metadata.keys() as? Iterator<String>
+        return keys ?: emptyList<String>().iterator()
+    }
+
+    private fun evictUntilUnderMax(respectAgeWindow: Boolean) {
         var currentSize = getCurrentCacheSizeBytes()
         if (currentSize <= maxCacheSizeBytes) return
 
-        // Construir lista de (mediaId, lastAccessed, size) para mídias válidas
-        data class Entry(val mediaId: Long, val lastAccessed: Long, val size: Long)
-
-        val entries = mutableListOf<Entry>()
-        val now = System.currentTimeMillis()
-        val eightDaysMillis = 8L * 24L * 60L * 60L * 1000L
-
-        val keys = metadata.keys()
-        while (keys.hasNext()) {
-            val key = keys.next()
-            val obj = metadata.optJSONObject(key) ?: continue
-            if (!obj.optBoolean("valid", false)) continue
-            val id = key.toLongOrNull() ?: continue
-            val last = obj.optLong("lastAccessed", 0L)
-            // Só considerar para remoção se não for acessada há mais de 8 dias
-            if (last == 0L || now - last < eightDaysMillis) continue
-            val size = obj.optLong("size", 0L)
-            entries += Entry(id, last, size)
-        }
-
-        // Ordenar por lastAccessed (mais antigo primeiro)
+        val entries = collectValidEntries(respectAgeWindow)
         entries.sortBy { it.lastAccessed }
 
         for (entry in entries) {
@@ -345,6 +468,34 @@ class MediaCacheManager(
             markAsRemoved(entry.mediaId)
             currentSize -= entry.size
         }
+    }
+
+    private fun evictUntilUsableSpace(targetFreeBytes: Long) {
+        val entries = collectValidEntries(respectAgeWindow = false)
+        entries.sortBy { it.lastAccessed }
+        for (entry in entries) {
+            if (usableSpaceBytes() >= targetFreeBytes) break
+            markAsRemoved(entry.mediaId)
+        }
+    }
+
+    private data class CacheEntry(val mediaId: Long, val lastAccessed: Long, val size: Long)
+
+    private fun collectValidEntries(respectAgeWindow: Boolean): MutableList<CacheEntry> {
+        val entries = mutableListOf<CacheEntry>()
+        val now = System.currentTimeMillis()
+        val keys = metadataKeysOrEmpty()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            val obj = metadata.optJSONObject(key) ?: continue
+            if (!obj.optBoolean("valid", false)) continue
+            val id = key.toLongOrNull() ?: continue
+            val last = obj.optLong("lastAccessed", 0L)
+            if (respectAgeWindow && last != 0L && now - last < EIGHT_DAYS_MS) continue
+            val size = obj.optLong("size", 0L)
+            entries += CacheEntry(id, last, size)
+        }
+        return entries
     }
 
     // ---------- Helpers de I/O ----------

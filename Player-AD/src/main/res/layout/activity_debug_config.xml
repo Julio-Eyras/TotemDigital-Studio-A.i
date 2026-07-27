@@ -233,7 +233,7 @@
             android:inputType="textUri"
             android:textColor="#FFFFFF"
             android:textColorHint="#777777"
-            android:hint="http://217.216.91.135:8080"/>
+            android:hint="http://169.58.82.42:8080"/>
 
         <TextView
             android:layout_width="match_parent"
@@ -674,7 +674,7 @@
             android:layout_marginTop="4dp"
             android:textColor="#BDBDBD"
             android:textSize="12sp"
-            android:text="auto = preferir volume removível (USB/SD) se o Android expuser em getExternalFilesDirs; path_override = pasta absoluta."/>
+            android:text="auto = preferir USB/SD se exposto; default de campo/kit = external_primary (eMMC da app). path_override = pasta absoluta."/>
 
         <Spinner
             android:id="@+id/spinnerStorage"
@@ -698,6 +698,40 @@
             android:textColor="#FFFFFF"
             android:textColorHint="#777777"
             android:hint="/storage/.../Android/data/.../files"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:text="Teto cache (MB) — maxCacheSizeMb (50–8192)"/>
+
+        <EditText
+            android:id="@+id/editMaxCacheSizeMb"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="number"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#777777"
+            android:hint="1000"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:text="% do volume (opcional) — maxCachePercentOfVolume (1–90, vazio = só MB)"/>
+
+        <EditText
+            android:id="@+id/editMaxCachePercentOfVolume"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="number"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#777777"
+            android:hint="ex. 40"/>
 
         <TextView
             android:layout_width="match_parent"

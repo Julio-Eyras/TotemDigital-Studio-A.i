@@ -67,6 +67,8 @@ class DebugConfigActivity : AppCompatActivity() {
     private lateinit var editPollMaxDispatch: EditText
     private lateinit var spinnerStorage: Spinner
     private lateinit var editStoragePath: EditText
+    private lateinit var editMaxCacheSizeMb: EditText
+    private lateinit var editMaxCachePercentOfVolume: EditText
 
     private lateinit var switchDisplayScheduleEnabled: SwitchCompat
     private lateinit var editDisplayOnTime: EditText
@@ -140,6 +142,8 @@ class DebugConfigActivity : AppCompatActivity() {
         editPollMaxDispatch = findViewById(R.id.editPollMaxDispatch)
         spinnerStorage = findViewById(R.id.spinnerStorage)
         editStoragePath = findViewById(R.id.editStoragePath)
+        editMaxCacheSizeMb = findViewById(R.id.editMaxCacheSizeMb)
+        editMaxCachePercentOfVolume = findViewById(R.id.editMaxCachePercentOfVolume)
 
         switchDisplayScheduleEnabled = findViewById(R.id.switchDisplayScheduleEnabled)
         editDisplayOnTime = findViewById(R.id.editDisplayOnTime)
@@ -205,6 +209,8 @@ class DebugConfigActivity : AppCompatActivity() {
         val sel = storageModes.indexOf(modeKey).let { if (it >= 0) it else 0 }
         spinnerStorage.setSelection(sel)
         editStoragePath.setText(current.storagePathOverride.orEmpty())
+        editMaxCacheSizeMb.setText(current.maxCacheSizeMb.toString())
+        editMaxCachePercentOfVolume.setText(current.maxCachePercentOfVolume?.toString().orEmpty())
 
         bindScreenOrientationSpinner(current)
         scheduleOrientationPreview(current.displayRotation)
@@ -495,6 +501,12 @@ class DebugConfigActivity : AppCompatActivity() {
         val storageMode = PlayerConfigLoader.parseStorageMode(modeRaw)
         val pathOverride = editStoragePath.text?.toString()?.trim().orEmpty()
         if (storageMode == PlayerStorageMode.PATH_OVERRIDE && pathOverride.isBlank()) return null
+        val maxCacheSizeMb = PlayerConfigLoader.coerceMaxCacheSizeMb(
+            editMaxCacheSizeMb.text?.toString()?.trim()?.toIntOrNull()
+                ?: loaded.maxCacheSizeMb
+        )
+        val percentRaw = editMaxCachePercentOfVolume.text?.toString()?.trim().orEmpty()
+        val maxCachePercentOfVolume = percentRaw.toIntOrNull()?.takeIf { it > 0 }?.coerceIn(1, 90)
         val batimentoRaw = editBatimentoCardiaco.text?.toString()?.trim().orEmpty()
         val batimento = batimentoRaw.toIntOrNull()?.coerceAtLeast(10)
             ?: loaded.batimentoCardiaco.coerceAtLeast(10)
@@ -521,6 +533,8 @@ class DebugConfigActivity : AppCompatActivity() {
             pollAdaptive = pollAdaptive,
             storageMode = storageMode,
             storagePathOverride = pathOverride.takeIf { it.isNotBlank() },
+            maxCacheSizeMb = maxCacheSizeMb,
+            maxCachePercentOfVolume = maxCachePercentOfVolume,
             kioskMode = kioskMode,
             displayRotation = displayRotation,
             screenOrientation = orientationMode

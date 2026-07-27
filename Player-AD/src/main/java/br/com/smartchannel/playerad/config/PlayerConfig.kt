@@ -32,12 +32,23 @@ data class PlayerConfig(
     /**
      * Onde gravar propagandas, vinhetas e JSON do último dispatch.
      * Ver [PlayerStorageMode] e campo `storage` em `player-config.json`.
+     * Default de campo: [PlayerStorageMode.EXTERNAL_PRIMARY] (evita pendrive de instalação como cache).
      */
-    val storageMode: PlayerStorageMode = PlayerStorageMode.AUTO,
+    val storageMode: PlayerStorageMode = PlayerStorageMode.EXTERNAL_PRIMARY,
     /**
      * Obrigatório quando [storageMode] é [PlayerStorageMode.PATH_OVERRIDE]: diretório absoluto com escrita.
      */
     val storagePathOverride: String? = null,
+    /**
+     * Teto do cache de propagandas em megabytes (LRU). Campo JSON: `maxCacheSizeMb`.
+     * Default 1000; intervalo efectivo 50–8192.
+     */
+    val maxCacheSizeMb: Int = 1000,
+    /**
+     * Opcional: limita o cache a no máximo esta % do `totalSpace` do volume do root.
+     * Campo JSON: `maxCachePercentOfVolume` (1–90). Null = só usa [maxCacheSizeMb].
+     */
+    val maxCachePercentOfVolume: Int? = null,
     /**
      * Kiosk na tela principal: [KioskMode.IMMERSIVE] (só fullscreen) ou [KioskMode.STRONG] (lock task + teclas).
      * Na tela de debug (5 toques no OK) o kiosk é sempre relaxado.

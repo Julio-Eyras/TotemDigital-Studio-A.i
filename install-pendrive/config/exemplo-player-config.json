@@ -1,7 +1,9 @@
 {
-  "serverUrl": "http://217.216.91.135:8080",
+  "serverUrl": "http://169.58.82.42:8080",
   "uin": "T1000",
   "deviceId": "T1000-Exterminator",
+  "storage": "external_primary",
+  "maxCacheSizeMb": 1000,
   "kioskMode": "strong",
   "displayRotation": 0,
   "screenOrientation": "portrait",

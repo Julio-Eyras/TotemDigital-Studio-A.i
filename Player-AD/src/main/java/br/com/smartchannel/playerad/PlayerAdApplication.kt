@@ -22,10 +22,11 @@ class PlayerAdApplication : Application() {
         mediaCacheManager.init()
 
         val cfg = PlayerConfigLoader(this).load()
+        mediaCacheManager.applyLimitsFromConfig(cfg)
         val root = StorageRootResolver.resolve(this, cfg)
         PlayerAdLogger.i(
             "STORAGE",
-            "Inicialização — modo=${cfg.storageMode} root=${root.absolutePath}"
+            "Inicialização — modo=${cfg.storageMode} root=${root.absolutePath} maxCacheMb=${cfg.maxCacheSizeMb}"
         )
     }
 }

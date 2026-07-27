@@ -26,8 +26,8 @@ android {
         minSdk 24
         targetSdk 34
 
-        versionCode 84
-        versionName '1.84'
+        versionCode 88
+        versionName '1.88'
 
         // Android TV: não habilitar multidex por enquanto.
         multiDexEnabled false
@@ -63,6 +63,10 @@ android {
         buildConfig true
     }
 
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+
     // Garantir compatibilidade com TV
     packagingOptions {
         resources {
@@ -87,6 +91,10 @@ dependencies {
     implementation 'androidx.media3:media3-ui:1.2.0'
     implementation 'androidx.media3:media3-transformer:1.2.0'
     implementation 'androidx.media3:media3-effect:1.2.0'
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
+    testImplementation 'org.robolectric:robolectric:4.12.2'
 }
 
 repositories {

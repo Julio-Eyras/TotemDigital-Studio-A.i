@@ -37,6 +37,8 @@ object PlayerConfigStore {
         if (cfg.storageMode == PlayerStorageMode.PATH_OVERRIDE && !cfg.storagePathOverride.isNullOrBlank()) {
             put("storagePathOverride", cfg.storagePathOverride)
         }
+        put("maxCacheSizeMb", PlayerConfigLoader.coerceMaxCacheSizeMb(cfg.maxCacheSizeMb))
+        cfg.maxCachePercentOfVolume?.let { put("maxCachePercentOfVolume", it.coerceIn(1, 90)) }
         put("kioskMode", PlayerConfigLoader.kioskModeToJsonValue(cfg.kioskMode))
         put("displayRotation", cfg.displayRotation.coerceIn(0, 3))
         put("screenOrientation", PlayerConfigLoader.screenOrientationToJsonValue(cfg.screenOrientation))

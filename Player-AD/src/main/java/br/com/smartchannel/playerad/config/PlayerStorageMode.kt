@@ -9,6 +9,7 @@ enum class PlayerStorageMode {
     /**
      * Preferir volume removível reportado por [android.content.Context.getExternalFilesDirs],
      * senão armazenamento externo primário, senão interno.
+     * Nota: default de instalação/campo é [EXTERNAL_PRIMARY], não [AUTO].
      */
     AUTO,
 

@@ -451,11 +451,30 @@ class PlayerController(
 
     /**
      * Baixa uma mídia e registra no MediaCacheManager.
+     * Aborta se não houver espaço livre suficiente no volume (após limpeza LRU).
      */
     private suspend fun downloadToCache(item: DispatchMediaItem) = withContext(Dispatchers.IO) {
         try {
             val url = java.net.URL(item.url)
             val conn = url.openConnection()
+            conn.connect()
+            val declared = try {
+                conn.contentLengthLong
+            } catch (_: Exception) {
+                -1L
+            }
+            val neededBytes = when {
+                declared > 0L -> declared
+                else -> MediaCacheManager.UNKNOWN_DOWNLOAD_ESTIMATE_BYTES
+            }
+            if (!cacheManager.ensureDiskSpaceFor(neededBytes)) {
+                PlayerAdLogger.w(
+                    "CACHE",
+                    "Download cancelado por falta de espaço mediaId=${item.mediaId} need≈$neededBytes"
+                )
+                return@withContext
+            }
+
             val ext = if (PortraitVideoCacheProcessor.isVideoFile(item.mediaType, item.url)) {
                 "mp4"
             } else {
@@ -994,6 +1013,28 @@ class PlayerController(
             put("fallbackPropagandasEligibleCount", collectFallbackPropagandas().size)
             put("storageFreeBytes", root.freeSpace)
             put("storageTotalBytes", root.totalSpace)
+            put("storageUsableBytes", root.usableSpace)
+            put(
+                "storageFreePercent",
+                if (root.totalSpace > 0L) {
+                    ((root.usableSpace.toDouble() / root.totalSpace.toDouble()) * 100.0)
+                } else {
+                    0.0
+                },
+            )
+            put("cacheSizeBytes", cacheManager.getCurrentCacheSizeBytes())
+            put("maxCacheSizeBytes", cacheManager.maxCacheSizeBytes())
+            put("maxCacheSizeMb", cfg.maxCacheSizeMb)
+            cfg.maxCachePercentOfVolume?.let { put("maxCachePercentOfVolume", it) }
+                ?: put("maxCachePercentOfVolume", JSONObject.NULL)
+            put(
+                "storage",
+                br.com.smartchannel.playerad.config.PlayerConfigLoader
+                    .storageModeToJsonValue(cfg.storageMode),
+            )
+            cfg.storagePathOverride?.takeIf { it.isNotBlank() }?.let {
+                put("storagePathOverride", it)
+            }
             put("heapUsedBytes", runtime.totalMemory() - runtime.freeMemory())
             put("heapMaxBytes", runtime.maxMemory())
             put("displayRotation", cfg.displayRotation)
@@ -1195,7 +1236,47 @@ class PlayerController(
             } else {
                 current.allowPlaybackAudio
             },
+            storageMode = if (data.has("storage")) {
+                br.com.smartchannel.playerad.config.PlayerConfigLoader.parseStorageMode(
+                    data.optString("storage", ""),
+                )
+            } else {
+                current.storageMode
+            },
+            storagePathOverride = when {
+                data.has("storagePathOverride") ->
+                    data.optString("storagePathOverride", "").trim().takeIf { it.isNotBlank() }
+                data.has("storage") &&
+                    br.com.smartchannel.playerad.config.PlayerConfigLoader.parseStorageMode(
+                        data.optString("storage", ""),
+                    ) != br.com.smartchannel.playerad.config.PlayerStorageMode.PATH_OVERRIDE ->
+                    null
+                else -> current.storagePathOverride
+            },
+            maxCacheSizeMb = if (data.has("maxCacheSizeMb")) {
+                br.com.smartchannel.playerad.config.PlayerConfigLoader.coerceMaxCacheSizeMb(
+                    data.optInt("maxCacheSizeMb", current.maxCacheSizeMb),
+                )
+            } else {
+                current.maxCacheSizeMb
+            },
+            maxCachePercentOfVolume = when {
+                !data.has("maxCachePercentOfVolume") -> current.maxCachePercentOfVolume
+                data.isNull("maxCachePercentOfVolume") -> null
+                else -> {
+                    val v = data.optInt("maxCachePercentOfVolume", 0)
+                    if (v <= 0) null else v.coerceIn(1, 90)
+                }
+            },
         ).let { cfg ->
+            val mode = cfg.storageMode
+            if (mode == br.com.smartchannel.playerad.config.PlayerStorageMode.PATH_OVERRIDE &&
+                cfg.storagePathOverride.isNullOrBlank()
+            ) {
+                throw IllegalArgumentException(
+                    "storage=path_override exige storagePathOverride não vazio"
+                )
+            }
             cfg.copy(
                 screenOrientation = br.com.smartchannel.playerad.config.PlayerConfigLoader
                     .displayRotationToMode(cfg.displayRotation),
@@ -1213,9 +1294,12 @@ class PlayerController(
             next
         }
         val saved = br.com.smartchannel.playerad.config.PlayerConfigStore.save(context, withIdentity)
+        cacheManager.applyLimitsFromConfig(withIdentity)
         PlayerAdLogger.i(
             "REMOTE_CMD",
-            "Config remota aplicada displayRotation=${withIdentity.displayRotation} internal=${saved.internalOk} sd=${saved.externalOk}",
+            "Config remota aplicada displayRotation=${withIdentity.displayRotation} " +
+                "storage=${withIdentity.storageMode} maxCacheMb=${withIdentity.maxCacheSizeMb} " +
+                "internal=${saved.internalOk} sd=${saved.externalOk}",
         )
         // Reiniciar app para DisplayPresentationController / PlayerController lerem a nova config
         restartRequested = true
@@ -1226,6 +1310,12 @@ class PlayerController(
                 .screenOrientationToJsonValue(withIdentity.screenOrientation))
             put("kioskMode", br.com.smartchannel.playerad.config.PlayerConfigLoader
                 .kioskModeToJsonValue(withIdentity.kioskMode))
+            put(
+                "storage",
+                br.com.smartchannel.playerad.config.PlayerConfigLoader
+                    .storageModeToJsonValue(withIdentity.storageMode),
+            )
+            put("maxCacheSizeMb", withIdentity.maxCacheSizeMb)
             put("restartScheduled", true)
         }
     }
@@ -1363,11 +1453,13 @@ class PlayerController(
                 }
             }
         }
-        // Reinicializa metadados para refletir estado atual do storage.
+        // Evita entradas valid=true órfãs após apagar ficheiros.
+        cacheManager.invalidateAllEntriesKeepHistory()
         cacheManager.init()
         return JSONObject().apply {
             put("removedFiles", removed)
             put("cachePath", dir.absolutePath)
+            put("metadataInvalidated", true)
         }
     }
 

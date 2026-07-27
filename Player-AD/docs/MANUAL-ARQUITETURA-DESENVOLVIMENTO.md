@@ -185,13 +185,24 @@ Campos:
 - `uin` (obrigatório)
 - `deviceId` (obrigatório)
 - `acceptImagesInPlaylist` (opcional, default `true`)
+- `allowPlaybackAudio` (opcional, default `false`)
 - `fallbackPropagandasPerVinheta` (opcional, mínimo `1`, default `3`)
+- `batimentoCardiaco` / `maxSecondsWithoutServerCheck` / `pollAdaptive` (opcionais)
+- `kioskMode`, `displayRotation` / `screenOrientation` (opcionais)
+- `storage` (opcional, default `external_primary`): `auto` | `internal` | `external_primary` | `sdcard` | `removable_preferred` | `path_override`
+- `storagePathOverride` (obrigatório só se `storage=path_override`)
+- `maxCacheSizeMb` (opcional, default `1000`, intervalo 50–8192)
+- `maxCachePercentOfVolume` (opcional, 1–90): teto adicional = % do `totalSpace` do volume; efectivo = min(MB, %)
 
 Ordem de leitura (`PlayerConfigLoader`):
 
 1. `filesDir/player-config.json`
 2. `/sdcard/smartsignage/player-config.json`
 3. defaults embutidos.
+
+Resolução do root de mídias: `StorageRootResolver` + `AppDirs` (ver `docs/HANDOFF-IA-SISTEMA-ARMAZENAMENTO-CACHE.md`).
+Cache: teto configurável; LRU 8 dias e, sob pressão, sem filtro de idade; gate de espaço livre antes de download.
+Remote `apply_player_config` aceita `storage`, `storagePathOverride`, `maxCacheSizeMb`, `maxCachePercentOfVolume` (+ restart).
 
 ### 5.2 Dispatch plan
 

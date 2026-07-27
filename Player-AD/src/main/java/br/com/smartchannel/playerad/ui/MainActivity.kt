@@ -19,9 +19,13 @@ import br.com.smartchannel.playerad.api.DispatcherApiClient
 import br.com.smartchannel.playerad.cache.MediaCacheManager
 import br.com.smartchannel.playerad.config.PlayerConfigLoader
 import br.com.smartchannel.playerad.playback.PlayerController
+import br.com.smartchannel.playerad.util.AppDirs
 import br.com.smartchannel.playerad.util.FullscreenViewport
 import br.com.smartchannel.playerad.util.PlayerAdLogger
 import br.com.smartchannel.playerad.util.PlayerAdPrefs
+import br.com.smartchannel.playerad.util.StorageRootMigrator
+import br.com.smartchannel.playerad.util.StorageVolumeMonitor
+import java.io.File
 import android.webkit.WebView
 import android.widget.ImageView
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -48,6 +52,8 @@ class MainActivity : AppCompatActivity() {
 
     private var playbackJob: Job? = null
     private var playerController: PlayerController? = null
+    private var storageMonitor: StorageVolumeMonitor? = null
+    private var storageChangeJob: Job? = null
     private var devUiOpen: Boolean = false
 
     private var devTapCount: Int = 0
@@ -125,7 +131,9 @@ class MainActivity : AppCompatActivity() {
             while (isActive && !devUiOpen) {
                 try {
                     val config = PlayerConfigLoader(this@MainActivity).load()
+                    ensureStorageRootMigrated()
                     cacheManager.reloadStorageRootsIfNeeded()
+                    cacheManager.applyLimitsFromConfig(config)
                     val appVersion = br.com.smartchannel.playerad.BuildConfig.VERSION_NAME
                     val apiClient = DispatcherApiClient(config.serverUrl, config.uin, config.deviceId, appVersion)
                     val otaCoordinator = br.com.smartchannel.playerad.ota.OtaUpdateCoordinator(
@@ -167,6 +175,42 @@ class MainActivity : AppCompatActivity() {
                 }
                 delay(WATCHDOG_RESTART_DELAY_MS)
             }
+        }
+    }
+
+    /** Migra cache/plano se o root mudou desde a última execução. */
+    private fun ensureStorageRootMigrated() {
+        val newRoot = AppDirs.root(this)
+        val previous = prefs.getString(PlayerAdPrefs.KEY_LAST_STORAGE_ROOT, null)
+            ?.takeIf { it.isNotBlank() }
+            ?.let { File(it) }
+        val result = StorageRootMigrator.migrateIfNeeded(previous, newRoot)
+        if (result.migrated) {
+            cacheManager.reloadStorageRootsIfNeeded()
+            cacheManager.init()
+        }
+        prefs.edit()
+            .putString(PlayerAdPrefs.KEY_LAST_STORAGE_ROOT, newRoot.absolutePath)
+            .apply()
+    }
+
+    private fun onStorageVolumeChanged(action: String) {
+        if (devUiOpen) return
+        storageChangeJob?.cancel()
+        storageChangeJob = lifecycleScope.launch {
+            delay(STORAGE_CHANGE_DEBOUNCE_MS)
+            PlayerAdLogger.w("STORAGE", "A reiniciar player após $action")
+            playbackJob?.cancel()
+            playbackJob = null
+            playerController = null
+            try {
+                exoPlayer.stop()
+            } catch (_: Exception) { }
+            ensureStorageRootMigrated()
+            val cfg = PlayerConfigLoader(this@MainActivity).load()
+            cacheManager.reloadStorageRootsIfNeeded()
+            cacheManager.applyLimitsFromConfig(cfg)
+            startPlayer()
         }
     }
 
@@ -224,6 +268,10 @@ class MainActivity : AppCompatActivity() {
         htmlWebView = findViewById(R.id.htmlWebView)
 
         cacheManager = (application as PlayerAdApplication).mediaCacheManager
+
+        storageMonitor = StorageVolumeMonitor { action ->
+            onStorageVolumeChanged(action)
+        }.also { it.register(this) }
 
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(15_000, 50_000, 2_500, 5_000)
@@ -325,6 +373,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        storageChangeJob?.cancel()
+        storageChangeJob = null
+        storageMonitor?.unregister(this)
+        storageMonitor = null
         playbackJob?.cancel()
         playbackJob = null
         try {
@@ -335,5 +387,6 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val DEV_TAPS_REQUIRED = 5
         private const val WATCHDOG_RESTART_DELAY_MS = 30_000L
+        private const val STORAGE_CHANGE_DEBOUNCE_MS = 1_500L
     }
 }
