@@ -5,6 +5,7 @@ Para instalações **já em produção** com layout dividido (80 + 8080), sem re
 ## Pré-requisitos
 
 - DNS A: `totemdigital.app.br` → IP do servidor
+- **`www` é opcional.** Se `www.totemdigital.app.br` não existir (NXDOMAIN), o instalador pede certificado **só do apex**. Criar A/CNAME `www` no registro.br só se quiser `https://www...`.
 - Firewall/security group: TCP **80** e **443**
 - Repo actualizado em `~/TotemDigital-Studio` (com `install-smartsignage.sh` opção B)
 
@@ -53,3 +54,23 @@ sudo ufw allow 443/tcp
 ```
 
 Abra **443** também no firewall da cloud (IBM).
+
+## Recuperação rápida (instalação já OK, só falhou o Certbot por falta de www)
+
+No servidor (layout único na :80, como no log típico):
+
+```bash
+# 1) Abrir 443
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw reload
+
+# 2) Certificado só do apex (NÃO use -d www se não houver DNS)
+sudo certbot --nginx -d totemdigital.app.br --agree-tos -m SEU_EMAIL --redirect --non-interactive
+
+# 3) Validar
+curl -I https://totemdigital.app.br
+curl -I https://totemdigital.app.br/api/health
+```
+
+Se o e-mail já estiver guardado no Certbot, pode omitir `-m`. Depois configure o Player-AD com `serverUrl: "https://totemdigital.app.br"`.
