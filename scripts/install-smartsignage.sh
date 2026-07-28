@@ -6940,12 +6940,17 @@ ask_letsencrypt_details() {
     read -p "Digite seu email para notificações do Let's Encrypt (opcional): " email_input
     SSL_EMAIL="${email_input:-admin@${DOMAIN_NAME}}"
     
-    # Verificar se o domínio está configurado no DNS
+    # Verificar se o domínio está configurado no DNS (comparar A/IPv4 — ifconfig.me pode devolver IPv6)
     log "Verificando se o domínio $DOMAIN_NAME aponta para este servidor..."
-    
-    SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || echo "")
-    
-    # Tentar usar dig se disponível, senão usar getent ou ping
+
+    SERVER_IP=$(curl -4 -s --max-time 5 ifconfig.me 2>/dev/null \
+        || curl -4 -s --max-time 5 icanhazip.com 2>/dev/null \
+        || curl -4 -s --max-time 5 api.ipify.org 2>/dev/null \
+        || echo "")
+    SERVER_IP=$(echo "$SERVER_IP" | tr -d '[:space:]' | grep -Eo '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' || echo "")
+    # IPv4 locais da máquina (hostname -I pode listar IPv6 primeiro)
+    LOCAL_IPV4S=$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -Eo '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' || true)
+
     if command -v dig &> /dev/null; then
         DOMAIN_IP=$(dig +short "$DOMAIN_NAME" A 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || echo "")
     elif command -v host &> /dev/null; then
@@ -6953,7 +6958,17 @@ ask_letsencrypt_details() {
     else
         DOMAIN_IP=""
     fi
-    
+
+    dns_matches_this_host=false
+    if [[ -n "$DOMAIN_IP" ]]; then
+        if [[ -n "$SERVER_IP" && "$DOMAIN_IP" == "$SERVER_IP" ]]; then
+            dns_matches_this_host=true
+        elif echo "$LOCAL_IPV4S" | grep -qxF "$DOMAIN_IP"; then
+            dns_matches_this_host=true
+            SERVER_IP="${SERVER_IP:-$DOMAIN_IP}"
+        fi
+    fi
+
     if [[ -z "$DOMAIN_IP" ]]; then
         warning "⚠️  Não foi possível verificar o DNS do domínio $DOMAIN_NAME"
         warning "Certifique-se de que o DNS A/AAAA aponta para este servidor antes de continuar"
@@ -6964,8 +6979,8 @@ ask_letsencrypt_details() {
             ENABLE_HTTPS_LETSENCRYPT=false
             return 0
         fi
-    elif [[ -n "$SERVER_IP" && "$DOMAIN_IP" != "$SERVER_IP" ]]; then
-        warning "⚠️  O domínio $DOMAIN_NAME aponta para $DOMAIN_IP, mas este servidor é $SERVER_IP"
+    elif [[ "$dns_matches_this_host" != "true" ]]; then
+        warning "⚠️  O domínio $DOMAIN_NAME aponta para $DOMAIN_IP, mas o IPv4 público detectado é ${SERVER_IP:-desconhecido}"
         warning "O certificado pode falhar se o DNS não estiver correto"
         echo
         read -p "Deseja continuar mesmo assim? (s/N): " continue_anyway
@@ -6975,7 +6990,7 @@ ask_letsencrypt_details() {
             return 0
         fi
     else
-        log "✓ Domínio $DOMAIN_NAME verificado corretamente"
+        log "✓ Domínio $DOMAIN_NAME verificado corretamente (A → $DOMAIN_IP)"
     fi
     
     ENABLE_HTTPS_LETSENCRYPT=true
