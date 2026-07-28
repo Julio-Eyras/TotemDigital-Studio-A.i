@@ -1007,14 +1007,20 @@ class DebugConfigActivity : AppCompatActivity() {
     private fun suggestBasedOnError(err: Throwable) {
         val msg = err.message?.lowercase().orEmpty()
         when {
-            msg.contains("unknownhost") || msg.contains("host") -> {
-                appendStatus("\nSugestão: verifique `serverUrl` (IP/DNS) e conectividade de rede do dispositivo.")
+            msg.contains("unknownhost") || msg.contains("no address associated") -> {
+                appendStatus("\nSugestão: verifique `serverUrl` (DNS) e a rede do dispositivo.")
             }
-            msg.contains("cleartxt") || msg.contains("cleartext") || msg.contains("http") -> {
-                appendStatus("\nSugestão: teste `https` ou confirme `usesCleartextTraffic=true` no manifesto.")
+            msg.contains("ssl") || msg.contains("certpath") || msg.contains("handshake") -> {
+                appendStatus("\nSugestão: certificado SSL inválido/incompleto no servidor, ou data/hora errada na TV Box.")
             }
-            msg.contains("timeout") -> {
-                appendStatus("\nSugestão: aumenta timeout no backend/rede (firewall) ou confirme que o IP/porta está acessível.")
+            msg.contains("timeout") || msg.contains("timed out") || msg.contains("failed to connect") -> {
+                appendStatus("\nSugestão: firewall/porta 443, ou DNS AAAA (IPv6) sem rota — remova AAAA no registro.br ou abra 443/IPv6.")
+            }
+            msg.contains("cleartext") || msg.contains("cleartxt") || msg.contains("not permitted by network security") -> {
+                appendStatus("\nSugestão: use `https://` no serverUrl (cleartext HTTP bloqueado).")
+            }
+            msg.contains("code=-1") -> {
+                appendStatus("\nSugestão: a TV não alcançou o servidor (IPv6/AAAA timeout é comum). Teste com IP: `http://169.58.82.42:8080` ou remova o registo AAAA do domínio.")
             }
         }
     }

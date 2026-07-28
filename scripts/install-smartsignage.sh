@@ -14720,6 +14720,11 @@ main() {
         SYSTEM_HTTP_PORT="${SYSTEM_HTTP_PORT:-8080}"
         CORPORATE_HTTP_PORT="${CORPORATE_HTTP_PORT:-$(_env_get SMARTSIGNAGE_CORPORATE_HTTP_PORT)}"
         CORPORATE_HTTP_PORT="${CORPORATE_HTTP_PORT:-80}"
+        # Evitar dois vhosts na :80 (ACME/redirect + painel) — conflito de server_name.
+        if [[ "$SYSTEM_HTTP_PORT" == "80" ]] && [[ "$CORPORATE_HTTP_PORT" == "80" ]]; then
+            SYSTEM_HTTP_PORT=8080
+            warning "SYSTEM_HTTP_PORT era 80 (conflito com site corporativo); a usar 8080 para o painel HTTP auxiliar."
+        fi
         CORPORATE_WEB_ROOT="${CORPORATE_WEB_ROOT:-$(_env_get SMARTSIGNAGE_CORPORATE_WEB_ROOT)}"
         CORPORATE_WEB_ROOT="${CORPORATE_WEB_ROOT:-/var/www/corporate-site}"
         BACKEND_PORT="${BACKEND_PORT:-$(_env_get BACKEND_PORT)}"

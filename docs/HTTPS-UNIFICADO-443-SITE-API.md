@@ -27,6 +27,22 @@ sudo bash scripts/install-smartsignage.sh --split-corporate-system --system-http
 
 No menu HTTPS, escolha **2) Let's Encrypt** (agora padrão). O domínio por omissão é `totemdigital.app.br`.
 
+## Problema: Player-AD `code=-1` com HTTPS OK no PC
+
+Se `curl https://totemdigital.app.br/api/health` no servidor/PC devolve 200, mas a TV Box falha:
+
+1. Verifique se existe **AAAA** no DNS:
+   ```bash
+   dig +short totemdigital.app.br A
+   dig +short totemdigital.app.br AAAA
+   curl -4 -sS -o /dev/null -w "%{http_code}\n" https://totemdigital.app.br/api/health
+   curl -6 -sS -o /dev/null -w "%{http_code}\n" --max-time 8 https://totemdigital.app.br/api/health
+   ```
+2. Se AAAA existir e o `curl -6` falhar/timeout: o Android **prefere IPv6** e nunca chega ao IPv4.
+3. **Correção rápida:** no registro.br, **apague o registo AAAA** de `totemdigital.app.br` (e `www` se houver) até a cloud ter TCP **443** aberto também em IPv6.
+4. Alternativa: abrir 443/tcp (IPv6) no firewall Contabo/IBM e confirmar `ss -tlnp | grep 443`.
+5. Teste temporário na box: `serverUrl=http://169.58.82.42:8080` (só IPv4).
+
 ## Recuperação rápida: 405 no login (cert OK, Nginx ficou em HTTP)
 
 Sintoma: login mostra `405 Not Allowed` (nginx) e `Back: ...`.  

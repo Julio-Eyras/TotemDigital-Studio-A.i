@@ -72,8 +72,9 @@ class DispatcherApiClient(
     private fun readHttpText(conn: HttpURLConnection): HttpTextResponse {
         val code = try {
             conn.responseCode
-        } catch (_: Exception) {
-            -1
+        } catch (e: Exception) {
+            val detail = "${e.javaClass.simpleName}: ${e.message ?: "sem mensagem"}"
+            return HttpTextResponse(-1, detail, null)
         }
         val retryAfter = try {
             parseRetryAfterSeconds(conn)
