@@ -33,7 +33,7 @@ class PlayerConfigLoader(private val context: Context) {
 
         // 3) defaults de instalação (alinhar com install-pendrive/config/exemplo-player-config.json)
         return PlayerConfig(
-            serverUrl = "http://169.58.82.42:8080",
+            serverUrl = "https://totemdigital.app.br",
             uin = "T1000",
             deviceId = "T1000-Exterminator",
             acceptImagesInPlaylist = true,

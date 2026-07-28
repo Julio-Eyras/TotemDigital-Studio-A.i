@@ -67,7 +67,7 @@ Exemplo mínimo:
 
 ```json
 {
-  "serverUrl": "http://169.58.82.42:8080",
+  "serverUrl": "https://totemdigital.app.br",
   "uin": "CODIGO-UIN",
   "deviceId": "CODIGO-UIN",
   "storage": "external_primary",
@@ -83,7 +83,7 @@ Exemplo mínimo:
 }
 ```
 
-`storage` default de campo/kit: `external_primary` (eMMC/`getExternalFilesDir` da app — evita pendrive de instalação como cache). Use `auto` só se quiser priorizar USB/SD. `maxCacheSizeMb` limita o cache LRU (opcional: `maxCachePercentOfVolume`).
+Com Let's Encrypt no instalador, site + painel + API ficam em `https://totemdigital.app.br` (porta 443). A porta 8080 permanece HTTP auxiliar (IP/LAN). `serverUrl` do Player-AD = origem HTTPS **sem** porta e **sem** barra no fim.
 ### Orientação (`displayRotation`)
 
 | Valor | Modo |

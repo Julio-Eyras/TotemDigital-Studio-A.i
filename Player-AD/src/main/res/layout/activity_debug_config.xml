@@ -233,7 +233,7 @@
             android:inputType="textUri"
             android:textColor="#FFFFFF"
             android:textColorHint="#777777"
-            android:hint="http://169.58.82.42:8080"/>
+            android:hint="https://totemdigital.app.br"/>
 
         <TextView
             android:layout_width="match_parent"

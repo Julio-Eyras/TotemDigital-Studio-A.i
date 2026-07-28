@@ -4,7 +4,7 @@
 # Smart Signage Pro - Script de Auto-Instalação para Ubuntu
 # =============================================================================
 # Versão do Sistema: 2.1.0
-# Versão do Script: 2.1.17
+# Versão do Script: 2.1.18
 # =============================================================================
 # Este script instala automaticamente o Smart Signage Pro em sistemas Ubuntu
 # Suporta modos de instalação e perfil MQTT para single-server:
@@ -17,7 +17,7 @@
 
 # Versões (podem ser diferentes)
 SYSTEM_VERSION="2.1.0"
-SCRIPT_VERSION="2.1.17"
+SCRIPT_VERSION="2.1.18"
 #
 # OPÇÕES:
 #   --fresh              Instalação COMPLETA do zero (single-server por defeito; com --mode docker limpa Compose)
@@ -2797,7 +2797,7 @@ configure_firewall() {
     sudo ufw allow 22/tcp    # SSH
     sudo ufw allow 80/tcp    # HTTP (legado/opcional)
     sudo ufw allow 8080/tcp  # Frontend HTTP (padrão novo)
-    sudo ufw allow 443/tcp   # HTTPS
+    sudo ufw allow 443/tcp   # HTTPS (Let's Encrypt unificado)
     sudo ufw allow 3000/tcp  # Backend
     sudo ufw allow 3001/tcp  # Frontend alternativo
 
@@ -6462,8 +6462,10 @@ setup_environment() {
         if [[ -n "$_cph" ]]; then
             CORS_SPLIT_ORIGIN=",http://${_cph}:${SYSTEM_HTTP_PORT:-8080}"
             if [[ -n "${DOMAIN_NAME:-}" ]] && [[ "${DOMAIN_NAME}" != "_" ]]; then
-                CORS_SPLIT_ORIGIN="${CORS_SPLIT_ORIGIN},http://${DOMAIN_NAME}:${SYSTEM_HTTP_PORT:-8080}"
+                CORS_SPLIT_ORIGIN="${CORS_SPLIT_ORIGIN},http://${DOMAIN_NAME}:${SYSTEM_HTTP_PORT:-8080},https://${DOMAIN_NAME},https://www.${DOMAIN_NAME}"
             fi
+        elif [[ -n "${DOMAIN_NAME:-}" ]] && [[ "${DOMAIN_NAME}" != "_" ]]; then
+            CORS_SPLIT_ORIGIN=",https://${DOMAIN_NAME},https://www.${DOMAIN_NAME}"
         fi
     fi
 
@@ -6825,37 +6827,41 @@ ask_https_configuration() {
         return 0
     fi
 
-    # Layout dividido: sem HTTPS autoassinado; Let's Encrypt coloca TLS na 443 só no site corporativo (painel continua HTTP na porta do sistema).
+    # Layout dividido: sem HTTPS autoassinado; Let's Encrypt unifica site + painel/API na 443.
     if [[ "$SPLIT_CORPORATE_AND_SYSTEM" == "true" ]]; then
         ENABLE_HTTPS_SELF_SIGNED=false
         if [[ "$SKIP_MENU" == "true" ]]; then
             if [[ "$ENABLE_HTTPS_LETSENCRYPT" == "true" ]] && [[ -n "${DOMAIN_NAME:-}" ]]; then
-                log "Layout dividido + skip-menu: Let's Encrypt ativado (SMARTSIGNAGE_LETSENCRYPT / SMARTSIGNAGE_DOMAIN_NAME)."
+                log "Layout dividido + skip-menu: Let's Encrypt ativado — site + API/painel na 443 (SMARTSIGNAGE_LETSENCRYPT / SMARTSIGNAGE_DOMAIN_NAME)."
             else
-                log "Layout dividido + skip-menu: HTTPS não configurado (padrão). Defina SMARTSIGNAGE_LETSENCRYPT=true e SMARTSIGNAGE_DOMAIN_NAME para TLS na 443 (site corporativo)."
+                log "Layout dividido + skip-menu: HTTPS não configurado (padrão). Defina SMARTSIGNAGE_LETSENCRYPT=true e SMARTSIGNAGE_DOMAIN_NAME=totemdigital.app.br para TLS unificado na 443."
                 ENABLE_HTTPS_LETSENCRYPT=false
             fi
             return 0
         fi
         echo
         echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-        echo -e "${CYAN}   HTTPS com layout dividido (site corporativo + painel em portas distintas)${NC}"
+        echo -e "${CYAN}   HTTPS com Let's Encrypt (site corporativo + painel/API na mesma 443)${NC}"
         echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
         echo
-        echo -e "${YELLOW}O painel e a API permanecem em HTTP na porta do sistema (ex.: 8080).${NC}"
-        echo -e "${YELLOW}Com Let's Encrypt, o assistente obtém certificado para o domínio e serve HTTPS na porta 443 apenas para o site corporativo (porta corporativa HTTP deve ser 80).${NC}"
+        echo -e "${YELLOW}Com Let's Encrypt:${NC}"
+        echo -e "  • ${GREEN}https://SEU_DOMINIO/${NC}  — site institucional + painel + API + player"
+        echo -e "  • Porta HTTP 80 redireciona para HTTPS (validação ACME mantida)"
+        echo -e "  • Porta ${SYSTEM_HTTP_PORT:-8080} continua em HTTP (acesso por IP/LAN sem certificado)"
+        echo -e "  • Player-AD: serverUrl = ${GREEN}https://SEU_DOMINIO${NC} (sem porta)"
+        echo -e "${YELLOW}Requisitos: DNS A do domínio → este servidor; firewall TCP 80 e 443 abertos.${NC}"
         echo
-        echo -e "${GREEN}1)${NC} Sem HTTPS (apenas HTTP)"
-        echo -e "${GREEN}2)${NC} Let's Encrypt — HTTPS na 443 para o site corporativo (domínio + DNS + porta 80)"
+        echo -e "${GREEN}1)${NC} Sem HTTPS (apenas HTTP nas portas ${CORPORATE_HTTP_PORT:-80}/${SYSTEM_HTTP_PORT:-8080})"
+        echo -e "${GREEN}2)${NC} Let's Encrypt — HTTPS unificado na 443 (recomendado para produção)"
         echo
-        read -p "Digite sua escolha (1-2) [padrão: 1]: " https_split_choice
-        https_split_choice=${https_split_choice:-1}
+        read -p "Digite sua escolha (1-2) [padrão: 2]: " https_split_choice
+        https_split_choice=${https_split_choice:-2}
         case "${https_split_choice}" in
-            2)
-                ask_letsencrypt_details
+            1)
+                ENABLE_HTTPS_LETSENCRYPT=false
                 ;;
             *)
-                ENABLE_HTTPS_LETSENCRYPT=false
+                ask_letsencrypt_details
                 ;;
         esac
         return 0
@@ -6919,7 +6925,8 @@ ask_letsencrypt_details() {
     echo "  ✓ DNS apontando para o IP deste servidor"
     echo "  ✓ Porta 80 acessível (para validação)"
     echo
-    read -p "Digite seu domínio (ex: smartsignage.com.br): " domain_input
+    read -p "Digite seu domínio (ex: totemdigital.app.br) [padrão: totemdigital.app.br]: " domain_input
+    domain_input=${domain_input:-totemdigital.app.br}
     
     if [[ -z "$domain_input" ]]; then
         warning "Domínio não informado. Usando HTTP sem HTTPS."
@@ -7149,11 +7156,25 @@ EOF
             if apply_split_nginx_corporate_https_after_le; then
                 SMARTSIGNAGE_CORPORATE_LE_HTTPS=true
                 persist_nginx_public_layout_to_env
-                local _pu="http://${DOMAIN_NAME}:${SYSTEM_HTTP_PORT}/"
+                local _pu="https://${DOMAIN_NAME}/"
                 sync_corporate_site_to_webroot "$CORPORATE_WEB_ROOT" || true
                 deploy_corporate_landing_html "$CORPORATE_WEB_ROOT" "$_pu"
+                # API pública HTTPS (Player-AD / frontend relativo)
+                for f in "$INSTALL_DIR/.env" "$INSTALL_DIR/backend/.env"; do
+                    [[ -f "$f" ]] || continue
+                    local tmp
+                    tmp=$(mktemp "${f}.https.XXXXXX" 2>/dev/null || echo "${f}.https.tmp")
+                    grep -vE '^REACT_APP_API_URL=|^PUBLIC_API_BASE_URL=|^PLAYER_AD_DEFAULT_SERVER_URL=' "$f" > "$tmp" 2>/dev/null || cp "$f" "$tmp"
+                    mv -f "$tmp" "$f"
+                    {
+                        echo "REACT_APP_API_URL=https://${DOMAIN_NAME}"
+                        echo "PUBLIC_API_BASE_URL=https://${DOMAIN_NAME}"
+                        echo "PLAYER_AD_DEFAULT_SERVER_URL=https://${DOMAIN_NAME}"
+                    } >> "$f"
+                done
+                log "URLs públicas HTTPS: https://${DOMAIN_NAME}/ (site + painel + API). Player-AD serverUrl=https://${DOMAIN_NAME}"
             else
-                warning "Não foi possível aplicar HTTPS 443 no site corporativo; a restaurar Nginx HTTP (layout dividido)."
+                warning "Não foi possível aplicar HTTPS unificado na 443; a restaurar Nginx HTTP (layout dividido)."
                 ENABLE_HTTPS_LETSENCRYPT=false
                 setup_nginx_http_only || true
             fi
@@ -7476,7 +7497,9 @@ MINHTML
     return 0
 }
 
-# Após certbot certonly (webroot), aplica HTTPS na porta 443 para o site corporativo e mantém o painel em HTTP na porta do sistema.
+# Após certbot certonly (webroot), aplica HTTPS unificado na 443:
+# site corporativo + painel React + API/player no mesmo vhost (opção B).
+# Porta SYSTEM_HTTP_PORT (ex.: 8080) mantém painel HTTP para acesso por IP/LAN.
 apply_split_nginx_corporate_https_after_le() {
     if [[ "$SPLIT_CORPORATE_AND_SYSTEM" != "true" ]]; then
         return 0
@@ -7522,10 +7545,12 @@ apply_split_nginx_corporate_https_after_le() {
 "
     fi
 
+    sudo ufw allow 443/tcp 2>/dev/null || true
+
     sudo tee "$NGINX_CONFIG" > /dev/null << EOF
 ${map_block}
 
-# Site corporativo — HTTP (ACME + redirecionamento)
+# HTTP — ACME + redirecionamento para HTTPS unificado
 server {
     listen 80;
     listen [::]:80;
@@ -7539,7 +7564,7 @@ server {
     }
 }
 
-# Site corporativo — HTTPS (estático)
+# HTTPS unificado — site corporativo + painel + API + player (443)
 server {
     listen 443 ssl;
     listen [::]:443 ssl;
@@ -7550,14 +7575,108 @@ server {
 ${ssl_extra}
     ssl_protocols TLSv1.2 TLSv1.3;
 
-    root ${CORPORATE_WEB_ROOT};
-    index index.html;
-    location / {
-        try_files \$uri \$uri/ /index.html =404;
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+    client_max_body_size 500M;
+    client_body_buffer_size 512k;
+
+    location ^~ /api/ {
+        proxy_pass http://127.0.0.1:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Subdomain-Type \$smssi_sd_type;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
     }
+
+    location /ws {
+        proxy_pass http://127.0.0.1:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+    }
+
+    location ^~ /player {
+        proxy_pass http://127.0.0.1:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 75s;
+        proxy_buffer_size 256k;
+        proxy_buffers 8 512k;
+        proxy_busy_buffers_size 512k;
+        proxy_temp_file_write_size 512k;
+        proxy_hide_header Content-Security-Policy;
+        proxy_hide_header Cross-Origin-Opener-Policy;
+        proxy_hide_header Origin-Agent-Cluster;
+    }
+
+    location /assets/ {
+        proxy_pass http://127.0.0.1:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    location = /health {
+        proxy_pass http://127.0.0.1:${BACKEND_PORT}/health;
+        proxy_set_header Host \$host;
+    }
+
+    # Assets do painel React (CRA)
+    location /static/ {
+        alias ${FRONTEND_BUILD_DIR}/static/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    # Ficheiro estático do site corporativo se existir; senão SPA do painel
+    location / {
+        root ${CORPORATE_WEB_ROOT};
+        index index.html;
+        try_files \$uri \$uri/ @panel_spa;
+    }
+
+    location @panel_spa {
+        root ${FRONTEND_BUILD_DIR};
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/json application/javascript;
 }
 
-# Smart Signage — painel na porta ${SYSTEM_HTTP_PORT} (HTTP)
+# Smart Signage — HTTP na porta ${SYSTEM_HTTP_PORT} (IP/LAN sem certificado)
 server {
     listen ${SYSTEM_HTTP_PORT};
     listen [::]:${SYSTEM_HTTP_PORT};
@@ -7667,10 +7786,10 @@ server {
 EOF
     verify_nginx_ws_config "$NGINX_CONFIG"
     if sudo nginx -t && sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload; then
-        log "✅ Nginx: HTTPS no site corporativo (443) e painel em HTTP na porta ${SYSTEM_HTTP_PORT}."
+        log "✅ Nginx: HTTPS unificado na 443 (site + painel + API) e HTTP auxiliar na porta ${SYSTEM_HTTP_PORT}."
         return 0
     fi
-    warn "Falha ao recarregar Nginx após aplicar HTTPS corporativo."
+    warn "Falha ao recarregar Nginx após aplicar HTTPS unificado."
     return 1
 }
 
@@ -7969,7 +8088,7 @@ setup_nginx() {
         return 0
     fi
 
-    # Layout dividido: Let's Encrypt é tratado em setup_letsencrypt (HTTPS na 443 só no corporativo).
+    # Layout dividido: Let's Encrypt é tratado em setup_letsencrypt (HTTPS unificado site+API na 443).
     if [[ "$SPLIT_CORPORATE_AND_SYSTEM" == "true" ]]; then
         ENABLE_HTTPS_SELF_SIGNED=false
     fi
@@ -8099,7 +8218,7 @@ setup_nginx() {
         log "  - Site corporativo (HTTP): http://${_disp_host}:${CORPORATE_HTTP_PORT}/"
         log "  - Painel / API / player (HTTP): http://${_disp_host}:${SYSTEM_HTTP_PORT}/"
         log "  - Player (HTTP): http://${_disp_host}:${SYSTEM_HTTP_PORT}/player"
-        log "  (Layout dividido: painel em HTTP na ${SYSTEM_HTTP_PORT}; site corporativo pode usar Let's Encrypt na 443 — menu HTTPS.)"
+        log "  (Com Let's Encrypt: https://DOMINIO/ unifica site + painel + API na 443; :${SYSTEM_HTTP_PORT} fica HTTP auxiliar.)"
     else
         log "  - Login HTTP : http://$SERVER_IP/"
         log "  - Login HTTPS: https://$SERVER_IP/   (se HTTPS estiver configurado no Nginx)"
@@ -12670,7 +12789,9 @@ show_final_info() {
         echo -e "${CYAN}🏛 Site corporativo (estático):${NC} http://$LOCAL_IP${_corp_sfx}/"
         if [[ "${SMARTSIGNAGE_CORPORATE_LE_HTTPS:-false}" == "true" ]] || [[ "${SMARTSIGNAGE_CORPORATE_LE_HTTPS:-false}" == "1" ]]; then
             if [[ -n "${DOMAIN_NAME:-}" ]] && [[ "$DOMAIN_NAME" != "_" ]]; then
-                echo -e "   ${YELLOW}👉 HTTPS (Let's Encrypt): https://${DOMAIN_NAME}/${NC}"
+                echo -e "   ${YELLOW}👉 HTTPS unificado (site + painel + API): https://${DOMAIN_NAME}/${NC}"
+                echo -e "   ${YELLOW}👉 Player-AD serverUrl: https://${DOMAIN_NAME}${NC}"
+                echo -e "   ${YELLOW}👉 Painel HTTP auxiliar (IP/LAN): porta ${PANEL_HTTP_PORT}${NC}"
             fi
         fi
         if [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" ]]; then

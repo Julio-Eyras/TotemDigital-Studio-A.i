@@ -37,7 +37,7 @@
 
 | Item | Valor |
 |---|---|
-| `serverUrl` | `http://169.58.82.42:8080` |
+| `serverUrl` | `https://totemdigital.app.br` |
 | `storage` (ausente/default) | `external_primary` |
 | `maxCacheSizeMb` | `1000` (50–8192) |
 | `maxCachePercentOfVolume` | opcional 1–90 |
@@ -71,7 +71,7 @@
 
 | Item | Valor |
 |---|---|
-| `serverUrl` default embutido | `http://169.58.82.42:8080` |
+| `serverUrl` default embutido | `https://totemdigital.app.br` |
 | `uin` / `deviceId` kit | `T1000` / `T1000-Exterminator` |
 | `storage` default | `auto` |
 | Cache max | 1000 MB (hardcoded) |
@@ -352,7 +352,7 @@ Bump de versão: `Player-AD/build.gradle` → `versionCode` / `versionName`.
 | Escala vídeo 100% viewport | Pendente: `docs/PLAYER-AD-VIEWPORT-ESCALA-PENDENTE.md` — **não implementar até pedido** |
 | Streaming matriz / paridade player-web | Adiado |
 | Install servidor Ubuntu (tee/nginx/psql peer) | Fixes 2.1.17 / 2.1.18 no install |
-| Default `serverUrl` → `169.58.82.42:8080` | Em código + kit; rebuild 1.85 instalado |
+| Default `serverUrl` → `https://totemdigital.app.br` | Em código + kit (1.89+); HTTPS unificado 443 |
 
 ---
 

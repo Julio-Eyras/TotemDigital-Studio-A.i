@@ -103,7 +103,7 @@ Exemplo:
 
 ```json
 {
-  "serverUrl": "http://217.216.91.135:8080",
+  "serverUrl": "https://totemdigital.app.br",
   "uin": "tot001",
   "deviceId": "android-tv-tot001",
   "fallbackPropagandasPerVinheta": 3

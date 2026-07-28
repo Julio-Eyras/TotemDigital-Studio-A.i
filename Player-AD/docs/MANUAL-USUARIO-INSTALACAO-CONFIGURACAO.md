@@ -29,7 +29,7 @@ Sem `serverUrl` + `uin` válidos, o player não consegue receber conteúdo.
 | Rede | Wi‑Fi ou cabo; o aparelho deve alcançar o servidor (IP ou DNS) |
 | APK | Ficheiro `Player-AD-release.apk` (release assinado) |
 | Código de ativação | Gerado no painel web ao criar/consultar o totem (campo **Ativação** / UIN) |
-| URL do servidor | `http://169.58.82.42:8080` (sem barra no fim) |
+| URL do servidor | `https://totemdigital.app.br` (sem barra no fim; API na 443 com Let's Encrypt) |
 
 ### Onde obter o código de ativação (UIN)
 
@@ -127,7 +127,7 @@ Preencha pelo menos:
 
 | Campo | O que colocar | Exemplo |
 |-------|---------------|---------|
-| **URL do servidor** (`serverUrl`) | Endereço do backend, sem barra no fim | `http://169.58.82.42:8080` |
+| **URL do servidor** (`serverUrl`) | Endereço do backend, sem barra no fim | `https://totemdigital.app.br` |
 | **UIN / ativação** (`uin`) | Código copiado do painel web | `T1000` ou código gerado |
 | **ID do dispositivo** (`deviceId`) | Nome amigável do totem | `T1000 - Exterminator` |
 
@@ -180,7 +180,7 @@ Exemplo mínimo:
 
 ```json
 {
-  "serverUrl": "http://169.58.82.42:8080",
+  "serverUrl": "https://totemdigital.app.br",
   "uin": "T1000",
   "deviceId": "T1000 - Exterminator",
   "kioskMode": "strong",
