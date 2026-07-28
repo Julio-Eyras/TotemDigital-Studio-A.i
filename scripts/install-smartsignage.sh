@@ -148,6 +148,7 @@ trap 'on_install_exit' EXIT
 # =============================================================================
 # VARIÁVEIS GLOBAIS E FLAGS
 # =============================================================================
+APPLY_LE_HTTPS_ONLY=false
 FRESH_MODE=false
 REBUILD_MODE=false
 REBUILD_CACHE=false
@@ -1799,6 +1800,13 @@ parse_arguments() {
                 SKIP_MENU=true
                 shift
                 ;;
+            --apply-le-https-only)
+                # Reaplica Nginx HTTPS unificado (443) com cert LE já emitido — sem reinstalar.
+                APPLY_LE_HTTPS_ONLY=true
+                SKIP_MENU=true
+                SPLIT_CORPORATE_AND_SYSTEM=true
+                shift
+                ;;
             --mode|--install-mode)
                 SKIP_MENU=true
                 if [[ -z "${2:-}" ]]; then
@@ -1966,6 +1974,8 @@ parse_arguments() {
                 echo "  --force              Força rebuild sempre"
                 echo "  --check-only         Apenas verifica se precisa rebuild"
                 echo "  --skip-menu          Pula menu (usa defaults do menu: Single-Server)"
+                echo "  --apply-le-https-only  Reaplica Nginx HTTPS unificado na 443 (cert LE já emitido; corrige login 405)"
+                echo "         sudo bash scripts/install-smartsignage.sh --apply-le-https-only"
                 echo "  --mode <modo>        Define o modo (single-server|single-server-prod|docker) e pula o menu"
                 echo "  --mqtt-mode <modo>   Perfil MQTT no single-server (dev|production)"
                 echo "  --https-self-signed  Habilita HTTPS autoassinado (single-server)"
@@ -7583,8 +7593,10 @@ apply_split_nginx_corporate_https_after_le() {
         warn "apply_split_nginx_corporate_https_after_le: DOMAIN_NAME vazio."
         return 1
     fi
-    if [[ ! -f "/etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem" ]]; then
-        warn "Certificado Let's Encrypt não encontrado em /etc/letsencrypt/live/${DOMAIN_NAME}/"
+    # Certificados LE são root-only; sem sudo o -f falha mesmo com cert válido.
+    if ! sudo test -f "/etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem" \
+        || ! sudo test -f "/etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem"; then
+        warn "Certificado Let's Encrypt não encontrado em /etc/letsencrypt/live/${DOMAIN_NAME}/ (verifique: sudo ls -la /etc/letsencrypt/live/)"
         return 1
     fi
 
@@ -7593,6 +7605,9 @@ apply_split_nginx_corporate_https_after_le() {
     NGINX_CONFIG="/etc/nginx/sites-available/smart-signage"
     BACKEND_PORT=${BACKEND_PORT:-3000}
     FRONTEND_BUILD_DIR="${FRONTEND_BUILD_DIR:-$INSTALL_DIR/frontend/build}"
+    if [[ ! -d "$FRONTEND_BUILD_DIR" ]] && [[ -d /opt/smart-signage/frontend/build ]]; then
+        FRONTEND_BUILD_DIR="/opt/smart-signage/frontend/build"
+    fi
     local map_block
     if [[ -n "$DOMAIN_NAME" ]] && [[ "$DOMAIN_NAME" != "_" ]]; then
         map_block="map \$host \$smssi_sd_type {
@@ -7611,11 +7626,11 @@ apply_split_nginx_corporate_https_after_le() {
     fi
 
     local ssl_extra=""
-    if [[ -f /etc/letsencrypt/options-ssl-nginx.conf ]]; then
+    if sudo test -f /etc/letsencrypt/options-ssl-nginx.conf; then
         ssl_extra="    include /etc/letsencrypt/options-ssl-nginx.conf;
 "
     fi
-    if [[ -f /etc/letsencrypt/ssl-dhparams.pem ]]; then
+    if sudo test -f /etc/letsencrypt/ssl-dhparams.pem; then
         ssl_extra="${ssl_extra}    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 "
     fi
@@ -14677,6 +14692,71 @@ main() {
 
         log "✅ Sync do site corporativo concluído (modo --sync-corporate-site)."
         return 0
+    fi
+
+    # 0b) Só reaplicar HTTPS unificado na 443 (cert LE já emitido; corrige 405 no login)
+    if [[ "$APPLY_LE_HTTPS_ONLY" == "true" ]]; then
+        log "Modo especial: aplicar HTTPS unificado Let's Encrypt na 443 (--apply-le-https-only)..."
+        detect_project_directory
+        INSTALL_DIR="${INSTALL_DIR:-$SOURCE_DIR}"
+        INSTALL_MODE="${INSTALL_MODE:-single-server}"
+        SPLIT_CORPORATE_AND_SYSTEM=true
+        apply_split_layout_from_environment || true
+
+        # Ler vars do .env sem `source` (valores com espaços quebram o shell).
+        _env_get() {
+            local k="$1" f="${INSTALL_DIR}/.env"
+            [[ -f "$f" ]] || return 0
+            grep -E "^${k}=" "$f" 2>/dev/null | head -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//" | tr -d '\r'
+        }
+        DOMAIN_NAME="${DOMAIN_NAME:-$(_env_get DOMAIN_NAME)}"
+        DOMAIN_NAME="${DOMAIN_NAME:-totemdigital.app.br}"
+        PUBLIC_HOST="${PUBLIC_HOST:-$(_env_get SMARTSIGNAGE_PUBLIC_HOST)}"
+        PUBLIC_HOST="${PUBLIC_HOST:-$DOMAIN_NAME}"
+        SYSTEM_HTTP_PORT="${SYSTEM_HTTP_PORT:-$(_env_get SMARTSIGNAGE_SYSTEM_HTTP_PORT)}"
+        SYSTEM_HTTP_PORT="${SYSTEM_HTTP_PORT:-8080}"
+        CORPORATE_HTTP_PORT="${CORPORATE_HTTP_PORT:-$(_env_get SMARTSIGNAGE_CORPORATE_HTTP_PORT)}"
+        CORPORATE_HTTP_PORT="${CORPORATE_HTTP_PORT:-80}"
+        CORPORATE_WEB_ROOT="${CORPORATE_WEB_ROOT:-$(_env_get SMARTSIGNAGE_CORPORATE_WEB_ROOT)}"
+        CORPORATE_WEB_ROOT="${CORPORATE_WEB_ROOT:-/var/www/corporate-site}"
+        BACKEND_PORT="${BACKEND_PORT:-$(_env_get BACKEND_PORT)}"
+        BACKEND_PORT="${BACKEND_PORT:-3000}"
+        if [[ -d /opt/smart-signage/frontend/build ]]; then
+            FRONTEND_BUILD_DIR="/opt/smart-signage/frontend/build"
+        else
+            FRONTEND_BUILD_DIR="${INSTALL_DIR}/frontend/build"
+        fi
+
+        log "Domínio: $DOMAIN_NAME | painel HTTP auxiliar :$SYSTEM_HTTP_PORT | build: $FRONTEND_BUILD_DIR"
+        if ! sudo test -f "/etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem"; then
+            error "❌ Certificado não encontrado: /etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem"
+            error "   Emita antes: sudo certbot certonly --webroot -w /var/www/certbot -d $DOMAIN_NAME --expand"
+            exit 1
+        fi
+        if apply_split_nginx_corporate_https_after_le; then
+            SMARTSIGNAGE_CORPORATE_LE_HTTPS=true
+            persist_nginx_public_layout_to_env || true
+            persist_domain_name_to_env_files || true
+            for f in "$INSTALL_DIR/.env" "$INSTALL_DIR/backend/.env"; do
+                [[ -f "$f" ]] || continue
+                local tmp
+                tmp=$(mktemp "${f}.https.XXXXXX" 2>/dev/null || echo "${f}.https.tmp")
+                grep -vE '^REACT_APP_API_URL=|^PUBLIC_API_BASE_URL=|^PLAYER_AD_DEFAULT_SERVER_URL=' "$f" > "$tmp" 2>/dev/null || cp "$f" "$tmp"
+                mv -f "$tmp" "$f"
+                {
+                    echo "REACT_APP_API_URL=https://${DOMAIN_NAME}"
+                    echo "PUBLIC_API_BASE_URL=https://${DOMAIN_NAME}"
+                    echo "PLAYER_AD_DEFAULT_SERVER_URL=https://${DOMAIN_NAME}"
+                } >> "$f"
+            done
+            sudo ufw allow 443/tcp 2>/dev/null || true
+            log "✅ HTTPS unificado activo: https://${DOMAIN_NAME}/ (login + API)"
+            log "   Painel HTTP auxiliar: http://${DOMAIN_NAME}:${SYSTEM_HTTP_PORT}/"
+            curl -sk -o /dev/null -w "HTTPS /api/health → HTTP %{http_code}\n" --max-time 5 "https://${DOMAIN_NAME}/api/health" || true
+            return 0
+        fi
+        error "❌ Falha ao aplicar Nginx HTTPS unificado."
+        exit 1
     fi
 
     # 1) Reinstalar APENAS o banco (drop + schema + seeds), sem rebuild de backend/frontend

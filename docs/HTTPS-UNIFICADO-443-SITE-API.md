@@ -27,6 +27,22 @@ sudo bash scripts/install-smartsignage.sh --split-corporate-system --system-http
 
 No menu HTTPS, escolha **2) Let's Encrypt** (agora padrão). O domínio por omissão é `totemdigital.app.br`.
 
+## Recuperação rápida: 405 no login (cert OK, Nginx ficou em HTTP)
+
+Sintoma: login mostra `405 Not Allowed` (nginx) e `Back: ...`.  
+Causa: o Certbot emitiu o certificado, mas o install não leu `/etc/letsencrypt/live/` (ficheiros root-only) e reverteu o Nginx para HTTP — o frontend (build com `REACT_APP_API_URL=https://...`) faz POST em HTTPS sem proxy `/api`.
+
+```bash
+cd ~/TotemDigital-Studio
+git pull
+sudo bash scripts/install-smartsignage.sh --apply-le-https-only
+
+curl -Ik https://totemdigital.app.br/login
+curl -sk https://totemdigital.app.br/api/health
+```
+
+Use **https://totemdigital.app.br/login**. Alternativa HTTP do painel: `http://totemdigital.app.br:8080/login`.
+
 ## Resultado esperado
 
 | URL | Conteúdo |
