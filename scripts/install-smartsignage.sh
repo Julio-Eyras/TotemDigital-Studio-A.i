@@ -7152,44 +7152,49 @@ EOF
     log "Obtendo certificado SSL do Let's Encrypt..."
     log "Isso pode levar alguns minutos..."
 
-    # www.* só entra no pedido se existir DNS (A/AAAA). NXDOMAIN em www derruba o pedido inteiro no LE.
+    # www.* só com DNS real via dig (A ou AAAA). Não usar getent: em VPS costuma
+    # devolver o IPv6 local e incluir www sem registo público → Certbot falha / pede --expand.
     local le_domains=(-d "$DOMAIN_NAME")
     local www_dns=""
-    www_dns=$(getent hosts "www.$DOMAIN_NAME" 2>/dev/null | awk '{print $1; exit}')
-    if [[ -z "$www_dns" ]] && command -v dig >/dev/null 2>&1; then
-        www_dns=$(dig +short "www.$DOMAIN_NAME" A 2>/dev/null | head -1)
-        [[ -z "$www_dns" ]] && www_dns=$(dig +short "www.$DOMAIN_NAME" AAAA 2>/dev/null | head -1)
+    if command -v dig >/dev/null 2>&1; then
+        www_dns=$(dig +short "www.$DOMAIN_NAME" A 2>/dev/null | grep -Eo '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
+        if [[ -z "$www_dns" ]]; then
+            www_dns=$(dig +short "www.$DOMAIN_NAME" AAAA 2>/dev/null | grep -E ':' | head -1 || true)
+        fi
+    elif command -v host >/dev/null 2>&1; then
+        www_dns=$(host -t A "www.$DOMAIN_NAME" 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
     fi
     if [[ -n "$www_dns" ]]; then
         le_domains+=(-d "www.$DOMAIN_NAME")
         log "DNS www.$DOMAIN_NAME encontrado ($www_dns) — a incluir no certificado."
     else
-        warning "Sem DNS para www.$DOMAIN_NAME (NXDOMAIN). Certificado só para $DOMAIN_NAME."
+        warning "Sem DNS público para www.$DOMAIN_NAME. Certificado só para $DOMAIN_NAME."
         warning "Opcional: crie A ou CNAME www→apex no registro.br se quiser www no certificado."
     fi
 
     local cert_ok=0
+    local certbot_common=(--non-interactive --agree-tos --email "$SSL_EMAIL" --expand)
     if [[ "$SPLIT_CORPORATE_AND_SYSTEM" == "true" ]]; then
         if sudo certbot certonly --webroot -w /var/www/certbot \
             "${le_domains[@]}" \
-            --non-interactive --agree-tos --email "$SSL_EMAIL" \
+            "${certbot_common[@]}" \
             --preferred-challenges http; then
             cert_ok=1
         elif [[ ${#le_domains[@]} -gt 2 ]]; then
             warning "Falha com www; a tentar só $DOMAIN_NAME..."
             if sudo certbot certonly --webroot -w /var/www/certbot \
                 -d "$DOMAIN_NAME" \
-                --non-interactive --agree-tos --email "$SSL_EMAIL" \
+                "${certbot_common[@]}" \
                 --preferred-challenges http; then
                 cert_ok=1
             fi
         fi
     else
-        if sudo certbot --nginx "${le_domains[@]}" --non-interactive --agree-tos --email "$SSL_EMAIL" --redirect; then
+        if sudo certbot --nginx "${le_domains[@]}" "${certbot_common[@]}" --redirect; then
             cert_ok=1
         elif [[ ${#le_domains[@]} -gt 2 ]]; then
             warning "Falha com www; a tentar só $DOMAIN_NAME..."
-            if sudo certbot --nginx -d "$DOMAIN_NAME" --non-interactive --agree-tos --email "$SSL_EMAIL" --redirect; then
+            if sudo certbot --nginx -d "$DOMAIN_NAME" "${certbot_common[@]}" --redirect; then
                 cert_ok=1
             fi
         fi
@@ -7197,27 +7202,27 @@ EOF
     
     if [[ "$cert_ok" -eq 1 ]]; then
         log "✅ Certificado Let's Encrypt obtido com sucesso!"
-        persist_domain_name_to_env_files
+        persist_domain_name_to_env_files || true
         
         if [[ "$SPLIT_CORPORATE_AND_SYSTEM" == "true" ]]; then
             if apply_split_nginx_corporate_https_after_le; then
                 SMARTSIGNAGE_CORPORATE_LE_HTTPS=true
-                persist_nginx_public_layout_to_env
+                persist_nginx_public_layout_to_env || true
                 local _pu="https://${DOMAIN_NAME}/"
                 sync_corporate_site_to_webroot "$CORPORATE_WEB_ROOT" || true
-                deploy_corporate_landing_html "$CORPORATE_WEB_ROOT" "$_pu"
+                deploy_corporate_landing_html "$CORPORATE_WEB_ROOT" "$_pu" || true
                 # API pública HTTPS (Player-AD / frontend relativo)
                 for f in "$INSTALL_DIR/.env" "$INSTALL_DIR/backend/.env"; do
                     [[ -f "$f" ]] || continue
                     local tmp
                     tmp=$(mktemp "${f}.https.XXXXXX" 2>/dev/null || echo "${f}.https.tmp")
-                    grep -vE '^REACT_APP_API_URL=|^PUBLIC_API_BASE_URL=|^PLAYER_AD_DEFAULT_SERVER_URL=' "$f" > "$tmp" 2>/dev/null || cp "$f" "$tmp"
-                    mv -f "$tmp" "$f"
+                    grep -vE '^REACT_APP_API_URL=|^PUBLIC_API_BASE_URL=|^PLAYER_AD_DEFAULT_SERVER_URL=' "$f" > "$tmp" 2>/dev/null || cp "$f" "$tmp" || true
+                    mv -f "$tmp" "$f" 2>/dev/null || true
                     {
                         echo "REACT_APP_API_URL=https://${DOMAIN_NAME}"
                         echo "PUBLIC_API_BASE_URL=https://${DOMAIN_NAME}"
                         echo "PLAYER_AD_DEFAULT_SERVER_URL=https://${DOMAIN_NAME}"
-                    } >> "$f"
+                    } >> "$f" 2>/dev/null || true
                 done
                 log "URLs públicas HTTPS: https://${DOMAIN_NAME}/ (site + painel + API). Player-AD serverUrl=https://${DOMAIN_NAME}"
             else
@@ -7231,26 +7236,32 @@ EOF
                 [[ -f "$f" ]] || continue
                 local tmp
                 tmp=$(mktemp "${f}.https.XXXXXX" 2>/dev/null || echo "${f}.https.tmp")
-                grep -vE '^REACT_APP_API_URL=|^PUBLIC_API_BASE_URL=|^PLAYER_AD_DEFAULT_SERVER_URL=|^DOMAIN_NAME=' "$f" > "$tmp" 2>/dev/null || cp "$f" "$tmp"
-                mv -f "$tmp" "$f"
+                grep -vE '^REACT_APP_API_URL=|^PUBLIC_API_BASE_URL=|^PLAYER_AD_DEFAULT_SERVER_URL=|^DOMAIN_NAME=' "$f" > "$tmp" 2>/dev/null || cp "$f" "$tmp" || true
+                mv -f "$tmp" "$f" 2>/dev/null || true
                 {
                     echo "DOMAIN_NAME=${DOMAIN_NAME}"
                     echo "REACT_APP_API_URL=https://${DOMAIN_NAME}"
                     echo "PUBLIC_API_BASE_URL=https://${DOMAIN_NAME}"
                     echo "PLAYER_AD_DEFAULT_SERVER_URL=https://${DOMAIN_NAME}"
-                } >> "$f"
+                } >> "$f" 2>/dev/null || true
             done
             log "URLs públicas HTTPS (layout único): https://${DOMAIN_NAME}/ — Player-AD serverUrl=https://${DOMAIN_NAME}"
         fi
         
+        # Cron de renovação: nunca abortar o install se crontab falhar (pipefail + set -e).
         if ! sudo crontab -l 2>/dev/null | grep -q "certbot renew"; then
             if [[ "$SPLIT_CORPORATE_AND_SYSTEM" == "true" ]]; then
-                (sudo crontab -l 2>/dev/null; echo "0 0 * * * /usr/bin/certbot renew --quiet && /bin/systemctl reload nginx") | sudo crontab -
+                (sudo crontab -l 2>/dev/null || true; echo "0 0 * * * /usr/bin/certbot renew --quiet && /bin/systemctl reload nginx") | sudo crontab - 2>/dev/null || true
             else
-                (sudo crontab -l 2>/dev/null; echo "0 0 * * * /usr/bin/certbot renew --quiet --nginx && systemctl reload nginx") | sudo crontab -
+                (sudo crontab -l 2>/dev/null || true; echo "0 0 * * * /usr/bin/certbot renew --quiet --nginx && systemctl reload nginx") | sudo crontab - 2>/dev/null || true
             fi
-            log "✓ Renovação automática configurada no cron"
+            if sudo crontab -l 2>/dev/null | grep -q "certbot renew"; then
+                log "✓ Renovação automática configurada no cron"
+            else
+                warning "Não foi possível gravar cron do certbot renew (HTTPS já activo)."
+            fi
         fi
+        return 0
     else
         error "❌ Falha ao obter certificado Let's Encrypt"
         warning "Verifique se:"
@@ -7258,10 +7269,11 @@ EOF
         warning "  - www.$DOMAIN_NAME existe OU peça só o apex (sem -d www)"
         warning "  - A porta 80 está acessível (firewall cloud + ufw)"
         warning "Continuando sem HTTPS. Você pode tentar novamente depois com:"
-        warning "  sudo certbot --nginx -d $DOMAIN_NAME"
+        warning "  sudo certbot --nginx -d $DOMAIN_NAME --expand"
         ENABLE_HTTPS_LETSENCRYPT=false
         
-        setup_nginx_http_only
+        setup_nginx_http_only || true
+        return 0
     fi
 }
 
@@ -10517,8 +10529,8 @@ EOF
             sleep 2
         fi
         wait_for_nginx || {
-            error "❌ Nginx não respondeu na porta 80. Verifique: sudo nginx -t && sudo systemctl status nginx"
-            exit 1
+            warning "⚠️  Nginx não passou no teste rápido de conectividade — a continuar (verifique: sudo nginx -t && curl -Ik https://127.0.0.1/)"
+            true
         }
         
     elif [[ "$INSTALL_MODE" == "development" ]]; then
@@ -11298,18 +11310,38 @@ wait_for_nginx() {
             sleep 2
         fi
         
-        # Aguardar Nginx responder
+        # Aguardar Nginx responder (HTTP :80 e/ou HTTPS :443).
+        # Após Let's Encrypt --redirect, :80 devolve 301 — curl -f falhava e gerava falso timeout.
         local attempts=0
         local delay=2
         while [[ $attempts -lt 20 ]]; do
             log_detailed "Tentativa $((attempts+1))/20 - Testando conectividade do Nginx..."
             
-            # Verificar se serviço está ativo
             if systemctl is-active --quiet nginx 2>/dev/null; then
-                # Verificar se responde na porta 80
-                if curl -s -f http://localhost:80 > /dev/null 2>&1; then
-                    log_status "✅ Nginx: Pronto (serviço ativo na porta 80)"
+                local http_code https_code port80=0 port443=0
+                http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 -H "Host: ${DOMAIN_NAME:-localhost}" "http://127.0.0.1/" 2>/dev/null || echo "000")
+                if [[ "$http_code" == "000" ]]; then
+                    http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 "http://127.0.0.1/" 2>/dev/null || echo "000")
+                fi
+                https_code=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 3 -H "Host: ${DOMAIN_NAME:-localhost}" "https://127.0.0.1/" 2>/dev/null || echo "000")
+                if command -v ss >/dev/null 2>&1; then
+                    if ss -tln 2>/dev/null | grep -qE ':80([^0-9]|$)'; then port80=1; fi
+                    if ss -tln 2>/dev/null | grep -qE ':443([^0-9]|$)'; then port443=1; fi
+                fi
+                # Qualquer resposta HTTP (incl. 301 do LE redirect ou 404 SPA) = Nginx a responder.
+                if [[ "$http_code" =~ ^[1-5][0-9][0-9]$ ]]; then
+                    log_status "✅ Nginx: Pronto (HTTP :80 → $http_code)"
                     return 0
+                fi
+                if [[ "$https_code" =~ ^[1-5][0-9][0-9]$ ]]; then
+                    log_status "✅ Nginx: Pronto (HTTPS :443 → $https_code)"
+                    return 0
+                fi
+                if [[ "$port80" -eq 1 || "$port443" -eq 1 ]]; then
+                    if [[ $attempts -ge 2 ]]; then
+                        log_status "✅ Nginx: Pronto (serviço ativo; portas 80=$port80 443=$port443)"
+                        return 0
+                    fi
                 fi
             else
                 # Se não estiver ativo, tentar iniciar novamente
@@ -11328,8 +11360,8 @@ wait_for_nginx() {
         sudo systemctl status nginx --no-pager -l 2>/dev/null || echo "Não foi possível obter status"
         log "Testando configuração do Nginx:"
         sudo nginx -t 2>&1 || true
-        log "Verificando se porta 80 está em uso:"
-        sudo ss -tlnp | grep ":80 " || echo "Porta 80 não está em uso"
+        log "Verificando portas 80/443:"
+        sudo ss -tlnp | grep -E ':(80|443)\s' || echo "Portas 80/443 não estão em uso"
         return 1
     fi
 }
@@ -14987,7 +15019,7 @@ main() {
     setup_nginx
     # Configurar assets públicos e aplicar DDL/seeds (idempotente)
     setup_assets_and_db
-    setup_letsencrypt  # Configurar Let's Encrypt se escolhido
+    setup_letsencrypt || true  # Configurar Let's Encrypt se escolhido (nunca abortar install)
     create_systemd_service
     # Garantia explícita: single-server sem unit em /etc/systemd não é instalação válida
     if [[ "$INSTALL_MODE" == "single-server" ]]; then

@@ -55,7 +55,15 @@ sudo ufw allow 443/tcp
 
 Abra **443** também no firewall da cloud (IBM).
 
-## Recuperação rápida (instalação já OK, só falhou o Certbot por falta de www)
+## Nota sobre www
+
+O instalador só inclui `www.` no certificado se `dig` encontrar A/AAAA público. Não usa `getent` (em VPS pode devolver o IPv6 da máquina sem registo real de www). Se já existir certificado só do apex e quiser acrescentar www depois:
+
+```bash
+sudo certbot --nginx -d totemdigital.app.br -d www.totemdigital.app.br --expand
+```
+
+(Exige DNS A/CNAME de www no registro.br.)
 
 No servidor (layout único na :80, como no log típico):
 
