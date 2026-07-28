@@ -7875,7 +7875,7 @@ server {
 }
 EOF
     verify_nginx_ws_config "$NGINX_CONFIG"
-    if sudo nginx -t && sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload; then
+    if sudo nginx -t && { sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload; }; then
         log "✅ Nginx: HTTPS unificado na 443 (site + painel + API) e HTTP auxiliar na porta ${SYSTEM_HTTP_PORT}."
         return 0
     fi
@@ -14704,10 +14704,13 @@ main() {
         apply_split_layout_from_environment || true
 
         # Ler vars do .env sem `source` (valores com espaços quebram o shell).
+        # Sempre exit 0: com pipefail, grep sem match abortava o install (set -e).
         _env_get() {
-            local k="$1" f="${INSTALL_DIR}/.env"
-            [[ -f "$f" ]] || return 0
-            grep -E "^${k}=" "$f" 2>/dev/null | head -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//" | tr -d '\r'
+            local k="$1" f="${INSTALL_DIR}/.env" raw=""
+            [[ -f "$f" ]] || { echo ""; return 0; }
+            raw=$(grep -E "^${k}=" "$f" 2>/dev/null | head -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//" | tr -d '\r' || true)
+            echo "${raw}"
+            return 0
         }
         DOMAIN_NAME="${DOMAIN_NAME:-$(_env_get DOMAIN_NAME)}"
         DOMAIN_NAME="${DOMAIN_NAME:-totemdigital.app.br}"
@@ -14741,13 +14744,13 @@ main() {
                 [[ -f "$f" ]] || continue
                 local tmp
                 tmp=$(mktemp "${f}.https.XXXXXX" 2>/dev/null || echo "${f}.https.tmp")
-                grep -vE '^REACT_APP_API_URL=|^PUBLIC_API_BASE_URL=|^PLAYER_AD_DEFAULT_SERVER_URL=' "$f" > "$tmp" 2>/dev/null || cp "$f" "$tmp"
-                mv -f "$tmp" "$f"
+                grep -vE '^REACT_APP_API_URL=|^PUBLIC_API_BASE_URL=|^PLAYER_AD_DEFAULT_SERVER_URL=' "$f" > "$tmp" 2>/dev/null || cp "$f" "$tmp" || true
+                mv -f "$tmp" "$f" 2>/dev/null || true
                 {
                     echo "REACT_APP_API_URL=https://${DOMAIN_NAME}"
                     echo "PUBLIC_API_BASE_URL=https://${DOMAIN_NAME}"
                     echo "PLAYER_AD_DEFAULT_SERVER_URL=https://${DOMAIN_NAME}"
-                } >> "$f"
+                } >> "$f" 2>/dev/null || true
             done
             sudo ufw allow 443/tcp 2>/dev/null || true
             log "✅ HTTPS unificado activo: https://${DOMAIN_NAME}/ (login + API)"
