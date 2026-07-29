@@ -66,7 +66,8 @@ Use **https://totemdigital.app.br/login**. Alternativa HTTP do painel: `http://t
 | `https://totemdigital.app.br/` | Site corporativo (se `index.html` existir) ou rotas do painel |
 | `https://totemdigital.app.br/api/...` | API |
 | `https://totemdigital.app.br/player` | Player web |
-| `https://totemdigital.app.br/login` | Painel (SPA; ficheiro corporativo não existe → fallback) |
+| `https://totemdigital.app.br/login` | Painel SPA (fallback Nginx `@panel_spa` com `rewrite … break`) |
+| `http://IP:8080/login` | Painel HTTP auxiliar (LAN), se `SYSTEM_HTTP_PORT=8080` |
 | `http://IP:8080/` | Painel HTTP auxiliar (LAN) |
 
 Player-AD:

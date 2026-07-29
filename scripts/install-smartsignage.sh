@@ -7748,7 +7748,10 @@ ${ssl_extra}
         access_log off;
     }
 
-    # Ficheiro estático do site corporativo se existir; senão SPA do painel
+    # Site corporativo: ficheiro estático se existir.
+    # Rotas do painel (/login, /dashboard, …) NÃO existem no site → @panel_spa.
+    # IMPORTANTE: em @panel_spa usar "rewrite … break" (não try_files /index.html),
+    # senão o nginx faz redirect interno e location / volta a servir o index corporativo.
     location / {
         root ${CORPORATE_WEB_ROOT};
         index index.html;
@@ -7757,7 +7760,7 @@ ${ssl_extra}
 
     location @panel_spa {
         root ${FRONTEND_BUILD_DIR};
-        try_files \$uri \$uri/ /index.html;
+        rewrite ^ /index.html break;
     }
 
     gzip on;
