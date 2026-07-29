@@ -1428,9 +1428,9 @@ BACKEND_PORT=3000
 FRONTEND_PORT=80
 
 # Dados do proprietário (owner) para seed inicial dinâmica
-SYSTEM_OWNER_NAME=Totem Digital
-SYSTEM_OWNER_CONTACT_NAME=Contato Totem Digital
-SYSTEM_OWNER_EMAIL=contato@totemdigital.local
+SYSTEM_OWNER_NAME="Totem Digital"
+SYSTEM_OWNER_CONTACT_NAME="Contato Totem Digital"
+SYSTEM_OWNER_EMAIL="contato@totemdigital.local"
 SYSTEM_OWNER_CITY=Encruzilhada
 SYSTEM_OWNER_ADMIN_USERNAME=Owner
 SYSTEM_OWNER_PLAN_NAME=Plano Totem Digital
@@ -6659,14 +6659,14 @@ DIRECT_TOTEM_MODE=$INSTALL_DIRECT_TOTEM_MODE
 REACT_APP_DIRECT_TOTEM_MODE=$INSTALL_DIRECT_TOTEM_MODE
 
 # Dados do proprietário (owner) para seed dinâmico no modo compacto
-SYSTEM_OWNER_NAME=$SYSTEM_OWNER_NAME
-SYSTEM_OWNER_CONTACT_NAME=$SYSTEM_OWNER_CONTACT_NAME
-SYSTEM_OWNER_EMAIL=$SYSTEM_OWNER_EMAIL
-SYSTEM_OWNER_CITY=$SYSTEM_OWNER_CITY
-SYSTEM_OWNER_ADMIN_USERNAME=$SYSTEM_OWNER_ADMIN_USERNAME
-SYSTEM_OWNER_PUBLISHER_USERNAME=$SYSTEM_OWNER_PUBLISHER_USERNAME
-SYSTEM_OWNER_PLAN_NAME=$SYSTEM_OWNER_PLAN_NAME
-SYSTEM_OWNER_PLAN_SLUG=$SYSTEM_OWNER_PLAN_SLUG
+SYSTEM_OWNER_NAME="$SYSTEM_OWNER_NAME"
+SYSTEM_OWNER_CONTACT_NAME="$SYSTEM_OWNER_CONTACT_NAME"
+SYSTEM_OWNER_EMAIL="$SYSTEM_OWNER_EMAIL"
+SYSTEM_OWNER_CITY="$SYSTEM_OWNER_CITY"
+SYSTEM_OWNER_ADMIN_USERNAME="$SYSTEM_OWNER_ADMIN_USERNAME"
+SYSTEM_OWNER_PUBLISHER_USERNAME="$SYSTEM_OWNER_PUBLISHER_USERNAME"
+SYSTEM_OWNER_PLAN_NAME="$SYSTEM_OWNER_PLAN_NAME"
+SYSTEM_OWNER_PLAN_SLUG="$SYSTEM_OWNER_PLAN_SLUG"
 
 # Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
@@ -6748,14 +6748,14 @@ DIRECT_TOTEM_MODE=$INSTALL_DIRECT_TOTEM_MODE
 REACT_APP_DIRECT_TOTEM_MODE=$INSTALL_DIRECT_TOTEM_MODE
 
 # Dados do proprietário (owner) para seed dinâmico no modo compacto
-SYSTEM_OWNER_NAME=$SYSTEM_OWNER_NAME
-SYSTEM_OWNER_CONTACT_NAME=$SYSTEM_OWNER_CONTACT_NAME
-SYSTEM_OWNER_EMAIL=$SYSTEM_OWNER_EMAIL
-SYSTEM_OWNER_CITY=$SYSTEM_OWNER_CITY
-SYSTEM_OWNER_ADMIN_USERNAME=$SYSTEM_OWNER_ADMIN_USERNAME
-SYSTEM_OWNER_PUBLISHER_USERNAME=$SYSTEM_OWNER_PUBLISHER_USERNAME
-SYSTEM_OWNER_PLAN_NAME=$SYSTEM_OWNER_PLAN_NAME
-SYSTEM_OWNER_PLAN_SLUG=$SYSTEM_OWNER_PLAN_SLUG
+SYSTEM_OWNER_NAME="$SYSTEM_OWNER_NAME"
+SYSTEM_OWNER_CONTACT_NAME="$SYSTEM_OWNER_CONTACT_NAME"
+SYSTEM_OWNER_EMAIL="$SYSTEM_OWNER_EMAIL"
+SYSTEM_OWNER_CITY="$SYSTEM_OWNER_CITY"
+SYSTEM_OWNER_ADMIN_USERNAME="$SYSTEM_OWNER_ADMIN_USERNAME"
+SYSTEM_OWNER_PUBLISHER_USERNAME="$SYSTEM_OWNER_PUBLISHER_USERNAME"
+SYSTEM_OWNER_PLAN_NAME="$SYSTEM_OWNER_PLAN_NAME"
+SYSTEM_OWNER_PLAN_SLUG="$SYSTEM_OWNER_PLAN_SLUG"
 
 # Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
@@ -13108,17 +13108,24 @@ show_final_info() {
             DOMAIN_IP=""
         fi
         
+        # Usar https:// se Let's Encrypt estiver activo
+        local _base_scheme="http"
+        if [[ "${SMARTSIGNAGE_CORPORATE_LE_HTTPS:-false}" == "true" ]] || [[ "${SMARTSIGNAGE_CORPORATE_LE_HTTPS:-false}" == "1" ]] \
+           || [[ "${ENABLE_HTTPS_LETSENCRYPT:-false}" == "true" ]]; then
+            _base_scheme="https"
+        fi
         if [[ -n "$DOMAIN_IP" ]]; then
             if [[ "$DOMAIN_IP" == "$SERVER_IP_FOR_DNS" ]] || [[ "$DOMAIN_IP" == "$LOCAL_IP" ]] || [[ "$DOMAIN_IP" == "$EXTERNAL_IP" ]]; then
                 DNS_VALIDATED=true
-                BASE_URL_DOMAIN="http://$DOMAIN_NAME"
+                BASE_URL_DOMAIN="${_base_scheme}://$DOMAIN_NAME"
                 echo -e "${GREEN}✅ DNS validado: $DOMAIN_NAME → $DOMAIN_IP${NC}"
             else
                 echo -e "${YELLOW}⚠️  DNS aponta para IP diferente: $DOMAIN_NAME → $DOMAIN_IP (servidor: $SERVER_IP_FOR_DNS)${NC}"
-                BASE_URL_DOMAIN="http://$DOMAIN_NAME"
+                BASE_URL_DOMAIN="${_base_scheme}://$DOMAIN_NAME"
             fi
         else
             echo -e "${YELLOW}⚠️  DNS não resolvido para $DOMAIN_NAME (usando IP)${NC}"
+            BASE_URL_DOMAIN="${_base_scheme}://$DOMAIN_NAME"
         fi
         echo
     fi
@@ -13327,18 +13334,29 @@ show_final_info() {
     echo -e "${GREEN}║                    🚀 PRÓXIMOS PASSOS                       ║${NC}"
     echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
     echo
-    echo -e "${YELLOW}1.${NC} ${CYAN}Acesse o sistema:${NC} ${YELLOW}http://$SERVER_IP:$FRONTEND_PORT${NC}"
+    # URL de acesso preferida: domínio HTTPS > domínio HTTP > IP externo > IP local
+    local _access_url
+    if [[ -n "${BASE_URL_DOMAIN:-}" ]]; then
+        _access_url="${BASE_URL_DOMAIN}/login"
+    elif [[ "$EXTERNAL_IP" != "Não detectado" && "$EXTERNAL_IP" != "" && "$EXTERNAL_IP" != *:* ]]; then
+        _access_url="http://$EXTERNAL_IP${PANEL_URL_SUFFIX}/login"
+    else
+        _access_url="http://$LOCAL_IP${PANEL_URL_SUFFIX}/login"
+    fi
+    echo -e "${YELLOW}1.${NC} ${CYAN}Acesse o sistema:${NC} ${YELLOW}${_access_url}${NC}"
     echo -e "${YELLOW}2.${NC} ${CYAN}Faça login com:${NC} admin/admin123"
     echo -e "${YELLOW}3.${NC} ${CYAN}Altere a senha do administrador${NC}"
-    echo -e "${YELLOW}4.${NC} ${CYAN}Configure seus clientes e totems"
-    echo -e "${YELLOW}5.${NC} ${CYAN}Configure SSL/HTTPS para produção"
+    echo -e "${YELLOW}4.${NC} ${CYAN}Configure seus clientes e totems${NC}"
+    if [[ "${_access_url}" != https://* ]]; then
+        echo -e "${YELLOW}5.${NC} ${CYAN}Configure SSL/HTTPS para produção${NC}"
+    fi
     echo
     echo -e "${PURPLE}╔══════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${PURPLE}║              ✅ SMART SIGNAGE PRO v2.0 PRONTO! ✅            ║${NC}"
     echo -e "${PURPLE}╚══════════════════════════════════════════════════════════════╝${NC}"
     echo
     echo -e "${GREEN}🎯 Sistema instalado e funcionando perfeitamente!${NC}"
-    echo -e "${GREEN}🌐 Acesse agora: ${YELLOW}http://$SERVER_IP:$FRONTEND_PORT${NC}"
+    echo -e "${GREEN}🌐 Acesse agora: ${YELLOW}${_access_url}${NC}"
     echo
 }
 
