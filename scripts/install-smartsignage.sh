@@ -7311,6 +7311,7 @@ EOF
     local certbot_common=(--non-interactive --agree-tos --email "$SSL_EMAIL" --expand --key-type rsa --rsa-key-size 2048)
     if [[ "$SPLIT_CORPORATE_AND_SYSTEM" == "true" ]]; then
         if sudo certbot certonly --webroot -w /var/www/certbot \
+            --cert-name "$DOMAIN_NAME" \
             "${le_domains[@]}" \
             "${certbot_common[@]}" \
             --preferred-challenges http; then
@@ -7318,6 +7319,7 @@ EOF
         elif [[ ${#le_domains[@]} -gt 2 ]]; then
             warning "Falha com www; a tentar só $DOMAIN_NAME..."
             if sudo certbot certonly --webroot -w /var/www/certbot \
+                --cert-name "$DOMAIN_NAME" \
                 -d "$DOMAIN_NAME" \
                 "${certbot_common[@]}" \
                 --preferred-challenges http; then

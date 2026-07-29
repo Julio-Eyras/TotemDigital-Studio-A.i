@@ -85,7 +85,9 @@ fi
 
 echo "[INFO] A emitir/renovar certificado RSA para $domain ..."
 sudo mkdir -p /var/www/certbot/.well-known/acme-challenge
+# --cert-name obrigatório ao mudar ECDSA → RSA no mesmo lineage Let's Encrypt
 sudo certbot certonly --webroot -w /var/www/certbot \
+  --cert-name "$domain" \
   "${domains[@]}" \
   --non-interactive --agree-tos --email "$email" --expand \
   --key-type rsa --rsa-key-size 2048 --preferred-challenges http
