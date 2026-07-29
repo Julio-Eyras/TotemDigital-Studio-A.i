@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  TV boxes Allwinner (dolphin) reportam Android 14 falso com API 24 e sem ISRG Root X1
+  no cacerts do sistema. Let's Encrypt (YE1/R*) exige ISRG Root X1/X2 — sem isto HTTPS falha
+  com Trust anchor for certification path not found.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+            <certificates src="@raw/isrg_root_x1" />
+            <certificates src="@raw/isrg_root_x2" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

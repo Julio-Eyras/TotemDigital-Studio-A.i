@@ -7307,7 +7307,8 @@ EOF
     fi
 
     local cert_ok=0
-    local certbot_common=(--non-interactive --agree-tos --email "$SSL_EMAIL" --expand)
+    # Certificado RSA melhora compatibilidade com TV boxes antigas que falham com cadeias ECDSA/YE1.
+    local certbot_common=(--non-interactive --agree-tos --email "$SSL_EMAIL" --expand --key-type rsa --rsa-key-size 2048)
     if [[ "$SPLIT_CORPORATE_AND_SYSTEM" == "true" ]]; then
         if sudo certbot certonly --webroot -w /var/www/certbot \
             "${le_domains[@]}" \
