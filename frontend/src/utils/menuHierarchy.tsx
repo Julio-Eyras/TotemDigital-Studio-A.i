@@ -299,13 +299,25 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
   ];
 }
 
-function getDirectTotemMenu(): HierarchicalMenuItem[] {
-  return [
+function getDirectTotemMenu(role: UserRole): HierarchicalMenuItem[] {
+  const items: HierarchicalMenuItem[] = [
     { text: 'Publicar em Totem', icon: <Tv />, path: '/publish-totem' },
     { text: 'Biblioteca Mídias', icon: <VideoLibrary />, path: '/media' },
     { text: 'Sua organização', icon: <Business />, path: '/publishers' },
-    { text: 'Configurações', icon: <Settings />, path: '/settings' },
   ];
+
+  const canManageUsers =
+    role === 'owner_system' || role === 'admin' || role === 'admin_sql';
+  if (canManageUsers) {
+    items.push({
+      text: 'Usuários e acessos',
+      icon: <People />,
+      path: '/users',
+    });
+  }
+
+  items.push({ text: 'Configurações', icon: <Settings />, path: '/settings' });
+  return items;
 }
 
 /**
@@ -320,7 +332,7 @@ export const getMenuHierarchyByRole = (
     if (!directTotemRoles.includes(role)) {
       return [];
     }
-    return filterHierarchicalMenu(getDirectTotemMenu(), role, userFlags);
+    return filterHierarchicalMenu(getDirectTotemMenu(role), role, userFlags);
   }
 
   if (isStudioMode()) {

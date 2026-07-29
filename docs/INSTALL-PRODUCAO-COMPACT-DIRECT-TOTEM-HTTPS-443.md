@@ -123,14 +123,15 @@ Mosquitto ......... OFF (wrapper default; so --with-mqtt se SmartDisplayFX)
 ```bash
 cd ~/TotemDigital-Studio
 git pull
-bash scripts/install-totemdigital-prod-https.sh
-# ou com e-mail LE:
-bash scripts/install-totemdigital-prod-https.sh --email seu-email@dominio.com
-# só ver o comando:
-bash scripts/install-totemdigital-prod-https.sh --dry-run
+bash scripts/install-totemdigital-prod-https.sh --email seu-email@totemdigital.app.br
 ```
 
-Opções do wrapper: `--domain`, `--email`, `--with-players`, `--with-seeds`, `--fresh`, `--interactive`, `--dry-run`.
+- **Menu com defaults** (recomendado): só Enter em cada passo (modo 2, compact, players 0, 80/8080, LE).
+- **Totalmente automático**: `bash scripts/install-totemdigital-prod-https.sh --yes --email ...`
+- **Owner personalizado**: `--owner-user Owner --owner-name "Totem Digital" --email contato@totemdigital.app.br`
+- Ao terminar, o wrapper reaplica **HTTPS 443** (corrige login 405).
+
+Opções: `--domain`, `--email`, `--owner-user`, `--owner-name`, `--with-players`, `--with-seeds`, `--with-mqtt`, `--fresh`, `--yes`, `--dry-run`.
 
 Equivalente manual (`--skip-menu`):
 

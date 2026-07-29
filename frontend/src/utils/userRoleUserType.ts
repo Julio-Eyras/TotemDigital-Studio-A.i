@@ -77,12 +77,22 @@ export function getRoleLabel(role: string, organizationLabel = 'organização'):
 }
 
 /** Grupos do dropdown de função (criar/editar/filtrar). */
-export function getUserRoleOptionGroups(organizationLabel = 'organização'): UserRoleOptionGroup[] {
+export function getUserRoleOptionGroups(
+  organizationLabel = 'organização',
+  opts?: { actorRole?: string; directTotem?: boolean }
+): UserRoleOptionGroup[] {
   const org = organizationLabel.toLowerCase();
+  let systemRoles = [...SYSTEM_ROLE_OPTIONS];
+  const actor = opts?.actorRole ? normalizeAppRole(opts.actorRole) : undefined;
+  if (opts?.directTotem && actor === 'admin') {
+    systemRoles = systemRoles.filter(
+      (r) => r.value !== 'owner_system' && r.value !== 'admin_sql'
+    );
+  }
   return [
     {
       title: 'Sistema — acesso global à plataforma',
-      roles: SYSTEM_ROLE_OPTIONS,
+      roles: systemRoles,
     },
     {
       title: `Organização — portal da ${org}`,

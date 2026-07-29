@@ -359,6 +359,40 @@ sanitize_limits_defaults() {
     [[ "$LIMITS_DEMO_GOLD_CAMPAIGNS" =~ ^[0-9]+$ ]] || LIMITS_DEMO_GOLD_CAMPAIGNS=120
 }
 
+is_totemdigital_install_preset() {
+    case "${TOTEMDIGITAL_INSTALL_PRESET:-}" in
+        1|true|TRUE|yes|YES) return 0 ;;
+    esac
+    return 1
+}
+
+# Defaults do perfil TotemDigital produção (wrapper install-totemdigital-prod-https.sh).
+apply_totemdigital_install_preset_defaults() {
+    is_totemdigital_install_preset || return 0
+    INSTALL_TOTEMDIGITAL_COMPACT=true
+    INSTALL_DIRECT_TOTEM_MODE=true
+    SPLIT_CORPORATE_AND_SYSTEM=true
+    CORPORATE_HTTP_PORT="${SMARTSIGNAGE_CORPORATE_HTTP_PORT:-80}"
+    SYSTEM_HTTP_PORT="${SMARTSIGNAGE_SYSTEM_HTTP_PORT:-8080}"
+    [[ -n "${SMARTSIGNAGE_PUBLIC_HOST:-}" ]] && PUBLIC_HOST="${PUBLIC_HOST:-$SMARTSIGNAGE_PUBLIC_HOST}"
+    [[ -n "${SMARTSIGNAGE_DOMAIN_NAME:-}" ]] && PUBLIC_HOST="${PUBLIC_HOST:-$SMARTSIGNAGE_DOMAIN_NAME}"
+    ENABLE_HTTPS_LETSENCRYPT=true
+    ENABLE_HTTPS_SELF_SIGNED=false
+    [[ -n "${SMARTSIGNAGE_DOMAIN_NAME:-}" ]] && DOMAIN_NAME="${DOMAIN_NAME:-$SMARTSIGNAGE_DOMAIN_NAME}"
+    [[ -n "${SMARTSIGNAGE_SSL_EMAIL:-}" ]] && SSL_EMAIL="${SSL_EMAIL:-$SMARTSIGNAGE_SSL_EMAIL}"
+    if [[ "${TOTEMDIGITAL_WITH_MQTT:-false}" != "true" ]]; then
+        SINGLE_SERVER_MQTT_MODE="dev"
+    fi
+    local _dom="${SMARTSIGNAGE_DOMAIN_NAME:-totemdigital.app.br}"
+    if [[ -z "${SYSTEM_OWNER_EMAIL:-}" ]] || [[ "$SYSTEM_OWNER_EMAIL" == *@totemdigital.local ]] || [[ "$SYSTEM_OWNER_EMAIL" == contato@* ]]; then
+        SYSTEM_OWNER_EMAIL="${SMARTSIGNAGE_SSL_EMAIL:-admin@${_dom}}"
+    fi
+    SYSTEM_OWNER_NAME="${SYSTEM_OWNER_NAME:-Totem Digital}"
+    SYSTEM_OWNER_ADMIN_USERNAME="${SYSTEM_OWNER_ADMIN_USERNAME:-Owner}"
+    sanitize_owner_profile_defaults
+    log "Preset TotemDigital: compact + direct-totem + :${CORPORATE_HTTP_PORT}/:${SYSTEM_HTTP_PORT} + LE (${_dom}); MQTT=$([[ "${TOTEMDIGITAL_WITH_MQTT:-false}" == "true" ]] && echo sim || echo nao)"
+}
+
 # Volume da carga demo dinâmica (ignorada quando INSTALL_DIRECT_TOTEM_MODE=true).
 # Demo completa padrão: 6 locais, 12 totens ativos, 1 estoque, 5 subscribers.
 # Sobrescreva DEMO_* no ambiente para forçar outro volume.
@@ -1945,6 +1979,10 @@ parse_arguments() {
                 SKIP_PLAYERS_INSTALL=true
                 shift
                 ;;
+            --totemdigital-preset)
+                TOTEMDIGITAL_INSTALL_PRESET=true
+                shift
+                ;;
             --totemdigital-compact|--compact-profile)
                 INSTALL_TOTEMDIGITAL_COMPACT=true
                 TOTEMDIGITAL_PROFILE_CLI_SET=true
@@ -2012,6 +2050,7 @@ parse_arguments() {
                 echo "  --starttotem         Após instalar, abre 2 players web (/player) com UINs de totens demo para laboratório"
                 echo "  --skip-players       Com --skip-menu: não copia players (webOS, Android, Tizen, etc.); só servidor + build"
                 echo "  --totemdigital-install  Alias de --skip-players (perfil TotemDigital sem clientes player no disco)"
+                echo "  --totemdigital-preset  Menu interativo com defaults TotemDigital (80/8080, LE, compact, sem MQTT)"
                 echo "  --totemdigital-compact  Gera .env com TOTEMDIGITAL_COMPACT=true (modo compacto = mono; padrão neste repositório)"
                 echo "  --smartsignage-pro   Gera .env com TOTEMDIGITAL_COMPACT=false (multi-agência / Pro completo)"
                 echo "                       Também pode definir INSTALL_TOTEMDIGITAL_COMPACT=true|false no ambiente antes de executar o script."
@@ -13923,6 +13962,8 @@ rebuild_fresh() {
 
 # Menu principal
 show_menu() {
+    apply_totemdigital_install_preset_defaults
+
     # Primeira etapa do menu: dados do proprietário (owner) para seed dinâmico.
     ask_owner_profile
 
@@ -13961,8 +14002,13 @@ show_menu() {
     echo -e "${GREEN}3)${NC} Docker (Produção - PostgreSQL)"
     echo -e "${GREEN}4)${NC} Rebuild e Restart (Limpa cache, reconstrói builds e reinicia serviços)"
     echo
-    read -p "Digite sua escolha (1-4) [padrão: 1]: " choice
-    choice=${choice:-1}
+    local _mode_default=1
+    if is_totemdigital_install_preset; then
+        _mode_default=2
+        echo -e "${YELLOW}Preset TotemDigital: recomendado opção 2 (PRODUÇÃO; MQTT só com --with-mqtt).${NC}"
+    fi
+    read -p "Digite sua escolha (1-4) [padrão: ${_mode_default}]: " choice
+    choice=${choice:-$_mode_default}
     
     case $choice in
         1)
@@ -13977,7 +14023,11 @@ show_menu() {
             ;;
         2)
             INSTALL_MODE="single-server"
-            SINGLE_SERVER_MQTT_MODE="production"
+            if is_totemdigital_install_preset && [[ "${TOTEMDIGITAL_WITH_MQTT:-false}" != "true" ]]; then
+                SINGLE_SERVER_MQTT_MODE="dev"
+            else
+                SINGLE_SERVER_MQTT_MODE="production"
+            fi
             DB_DRIVER="postgresql"
             DATABASE_URL="postgresql://smartsignage:smartsignage123@localhost:5432/smartsignage"
             ;;
@@ -14078,8 +14128,10 @@ show_players_menu() {
     echo -e "${GREEN}[ ]${NC} 10) Instalar TODOS os players (recomendado para desenvolvimento)"
     echo -e "${GREEN}[ ]${NC} 0) Não instalar players (apenas servidor)"
     echo
-    read -p "Digite os números separados por vírgula (ex: 1,3,5) ou 10 para todos [padrão: 10]: " players_choice
-    players_choice=${players_choice:-10}
+    local _players_default=10
+    is_totemdigital_install_preset && _players_default=0
+    read -p "Digite os números separados por vírgula (ex: 1,3,5) ou 10 para todos [padrão: ${_players_default}]: " players_choice
+    players_choice=${players_choice:-$_players_default}
     
     # Limpar seleções anteriores
     INSTALL_PLAYER_WEBOS=false

@@ -1,25 +1,27 @@
 #!/usr/bin/env bash
 # Install TotemDigital produção: compact + direct-totem + layout 80/8080 + Let's Encrypt (443).
 #
-# Por omissão NÃO instala Mosquitto. O broker MQTT só serve SmartDisplayFX
-# (efeitos/sync). Player-AD + painel + API usam HTTPS — não precisam de MQTT.
+# Por omissão abre o MENU com defaults pré-selecionados (Enter em cada passo).
+# Mosquitto NÃO é instalado (só necessário para SmartDisplayFX).
 #
 # Uso (utilizador normal, NÃO root):
 #   cd ~/TotemDigital-Studio
 #   bash scripts/install-totemdigital-prod-https.sh
 #   bash scripts/install-totemdigital-prod-https.sh --email admin@totemdigital.app.br
-#   DOMAIN=outro.dominio.br bash scripts/install-totemdigital-prod-https.sh
+#   bash scripts/install-totemdigital-prod-https.sh --yes   # sem menu (totalmente automático)
 #
 # Opções:
-#   --domain <fqdn>     Domínio LE / público (default: totemdigital.app.br)
-#   --email <addr>      E-mail Let's Encrypt (default: admin@<domínio>)
-#   --with-players      Copia todos os players (default: --skip-players)
-#   --with-seeds        Carrega seeds demo (default: --no-seeds)
-#   --with-mqtt         Instala Mosquitto (só se usar SmartDisplayFX)
-#   --fresh             Install completo do zero (--fresh no install)
-#   --interactive       Abre o menu; ainda aplica compact/direct-totem/split/LE via env+flags
-#   --dry-run           Só mostra o comando, não executa
-#   -h | --help         Esta ajuda
+#   --domain <fqdn>       Domínio LE / público (default: totemdigital.app.br)
+#   --email <addr>        E-mail Let's Encrypt e owner (default: admin@<domínio>)
+#   --owner-user <name>   Utilizador admin inicial (default: Owner)
+#   --owner-name <text>   Nome da organização (default: Totem Digital)
+#   --with-players        Copia todos os players (default: nenhum)
+#   --with-seeds          Carrega seeds demo (default: não)
+#   --with-mqtt           Instala Mosquitto (só SmartDisplayFX)
+#   --fresh               Install completo do zero (--fresh no install)
+#   --yes                 Sem menu (--skip-menu; totalmente automático)
+#   --dry-run             Só mostra o comando, não executa
+#   -h | --help           Esta ajuda
 #
 # Doc: docs/INSTALL-PRODUCAO-COMPACT-DIRECT-TOTEM-HTTPS-443.md
 set -euo pipefail
@@ -39,15 +41,17 @@ cd "$ROOT"
 
 DOMAIN="${DOMAIN:-totemdigital.app.br}"
 SSL_EMAIL="${SSL_EMAIL:-}"
+OWNER_USER="${OWNER_USER:-Owner}"
+OWNER_NAME="${OWNER_NAME:-Totem Digital}"
 SKIP_PLAYERS=true
 NO_SEEDS=true
 WITH_MQTT=false
 FRESH=false
-INTERACTIVE=false
+NON_INTERACTIVE=false
 DRY_RUN=false
 
 usage() {
-  sed -n '2,25p' "$0" | sed 's/^# \?//'
+  sed -n '2,28p' "$0" | sed 's/^# \?//'
 }
 
 while [[ $# -gt 0 ]]; do
@@ -60,6 +64,16 @@ while [[ $# -gt 0 ]]; do
     --email)
       [[ -n "${2:-}" ]] || { echo "[ERRO] Faltou valor para --email"; exit 1; }
       SSL_EMAIL="$2"
+      shift 2
+      ;;
+    --owner-user)
+      [[ -n "${2:-}" ]] || { echo "[ERRO] Faltou valor para --owner-user"; exit 1; }
+      OWNER_USER="$2"
+      shift 2
+      ;;
+    --owner-name)
+      [[ -n "${2:-}" ]] || { echo "[ERRO] Faltou valor para --owner-name"; exit 1; }
+      OWNER_NAME="$2"
       shift 2
       ;;
     --with-players)
@@ -78,8 +92,12 @@ while [[ $# -gt 0 ]]; do
       FRESH=true
       shift
       ;;
+    --yes|--non-interactive)
+      NON_INTERACTIVE=true
+      shift
+      ;;
     --interactive)
-      INTERACTIVE=true
+      NON_INTERACTIVE=false
       shift
       ;;
     --dry-run)
@@ -100,7 +118,7 @@ done
 
 [[ -n "$SSL_EMAIL" ]] || SSL_EMAIL="admin@${DOMAIN}"
 
-# Layout dividido + Let's Encrypt (lidos com --skip-menu / apply_split_layout_from_environment)
+export TOTEMDIGITAL_INSTALL_PRESET=true
 export SMARTSIGNAGE_SPLIT_SITE=true
 export SMARTSIGNAGE_CORPORATE_HTTP_PORT=80
 export SMARTSIGNAGE_SYSTEM_HTTP_PORT=8080
@@ -109,9 +127,14 @@ export SMARTSIGNAGE_LETSENCRYPT=true
 export SMARTSIGNAGE_DOMAIN_NAME="$DOMAIN"
 export SMARTSIGNAGE_SSL_EMAIL="$SSL_EMAIL"
 export INSTALL_TOTEMDIGITAL_COMPACT=true
+export SYSTEM_OWNER_ADMIN_USERNAME="$OWNER_USER"
+export SYSTEM_OWNER_NAME="$OWNER_NAME"
+export SYSTEM_OWNER_EMAIL="$SSL_EMAIL"
+export TOTEMDIGITAL_WITH_MQTT="$([[ "$WITH_MQTT" == "true" ]] && echo true || echo false)"
 
 CMD=(
   bash "$ROOT/scripts/install-smartsignage.sh"
+  --totemdigital-preset
   --mode single-server-prod
   --totemdigital-compact
   --direct-totem
@@ -121,14 +144,13 @@ CMD=(
   --system-http-port 8080
 )
 
-# TotemDigital: sem Mosquitto por defeito (Player-AD fala HTTPS/API, não MQTT)
 if [[ "$WITH_MQTT" == "true" ]]; then
   CMD+=(--mqtt-mode production)
 else
   CMD+=(--mqtt-mode dev)
 fi
 
-if [[ "$INTERACTIVE" != "true" ]]; then
+if [[ "$NON_INTERACTIVE" == "true" ]]; then
   CMD+=(--skip-menu)
 fi
 if [[ "$SKIP_PLAYERS" == "true" ]]; then
@@ -146,14 +168,15 @@ echo " TotemDigital PRODUÇÃO — compact + direct-totem + HTTPS 443"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  Domínio ........ $DOMAIN"
 echo "  E-mail LE ...... $SSL_EMAIL"
+echo "  Owner admin .... $OWNER_USER ($OWNER_NAME)"
 echo "  Portas HTTP .... site :80 | painel :8080 | HTTPS :443"
 echo "  Perfil ......... TOTEMDIGITAL_COMPACT=true"
 echo "  Direct-totem ... DIRECT_TOTEM_MODE=true"
-echo "  Mosquitto ...... $([[ "$WITH_MQTT" == "true" ]] && echo 'sim (--with-mqtt)' || echo 'nao (default; nao precisa para Player-AD)')"
-echo "  Players ........ $([[ "$SKIP_PLAYERS" == "true" ]] && echo 'nao (skip)' || echo 'sim')"
+echo "  Mosquitto ...... $([[ "$WITH_MQTT" == "true" ]] && echo 'sim (--with-mqtt)' || echo 'nao (default)')"
+echo "  Players ........ $([[ "$SKIP_PLAYERS" == "true" ]] && echo 'nao' || echo 'sim')"
 echo "  Seeds .......... $([[ "$NO_SEEDS" == "true" ]] && echo 'nao' || echo 'sim')"
 echo "  Fresh .......... $FRESH"
-echo "  Menu ........... $([[ "$INTERACTIVE" == "true" ]] && echo 'sim' || echo 'nao (--skip-menu)')"
+echo "  Menu ........... $([[ "$NON_INTERACTIVE" == "true" ]] && echo 'nao (--yes)' || echo 'sim (defaults pre-selecionados; Enter aceita)')"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo
 echo "Comando:"
@@ -165,6 +188,7 @@ echo "  https://${DOMAIN}/"
 echo "  https://${DOMAIN}/login"
 echo "  http://<IP>:8080/login"
 echo "  Player-AD serverUrl = https://${DOMAIN}"
+echo "  Login inicial ...... ${OWNER_USER} / admin123"
 echo
 
 if [[ "$DRY_RUN" == "true" ]]; then
@@ -172,7 +196,6 @@ if [[ "$DRY_RUN" == "true" ]]; then
   exit 0
 fi
 
-# Parar loop de falha do mosquitto se ficou a reiniciar de tentativas anteriores
 if systemctl is-failed --quiet mosquitto 2>/dev/null || \
    systemctl is-active --quiet mosquitto 2>/dev/null; then
   if [[ "$WITH_MQTT" != "true" ]]; then
@@ -183,4 +206,13 @@ if systemctl is-failed --quiet mosquitto 2>/dev/null || \
   fi
 fi
 
-exec "${CMD[@]}"
+"${CMD[@]}"
+_install_rc=$?
+
+if [[ $_install_rc -eq 0 ]]; then
+  echo
+  echo "[INFO] A garantir Nginx HTTPS unificado na 443 (site + /login + /api)..."
+  bash "$ROOT/scripts/apply-https-unified-443.sh" || true
+fi
+
+exit $_install_rc

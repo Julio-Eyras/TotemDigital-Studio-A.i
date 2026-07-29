@@ -41,6 +41,7 @@ import {
   ViewTimeline,
   Payment,
   Business,
+  People,
 } from '@mui/icons-material';
 import { settingsApi, SystemSetting, logsApi, LogRotationConfig, LogFileInfo, DiskSpaceInfo, RotationStatus, authApi } from '../../services/api';
 import TwoFactor from './TwoFactor';
@@ -256,6 +257,10 @@ const Settings: React.FC = () => {
   }, [settingsSections]);
   const canDispatcherHub =
     !!user?.role && canAccess(user.role, '/dispatcher-monitor', user.flags ?? undefined);
+  const canManageUsers =
+    !!user?.role &&
+    (user.role === 'owner_system' || user.role === 'admin' || user.role === 'admin_sql') &&
+    canAccess(user.role, '/users', user.flags ?? undefined);
   const [tabValue, setTabValue] = useState(0);
   const [settings, setSettings] = useState<SystemSetting[]>([]);
   const [logSettings, setLogSettings] = useState<SystemSetting[]>([]);
@@ -587,6 +592,24 @@ const Settings: React.FC = () => {
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Edite nome, contato e e-mail da organização única deste totem.
+                  </Typography>
+                </Box>
+              </CardContent>
+            </CardActionArea>
+          </Card>
+        )}
+        {directTotem && canManageUsers && (
+          <Card variant="outlined" sx={{ mb: 3 }}>
+            <CardActionArea component={RouterLink} to="/users">
+              <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <People color="primary" />
+                <Box>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                    Usuários e direitos de acesso (RBAC)
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Cadastre utilizadores, funções e flags de acesso. Apenas administradores podem
+                    gerir utilizadores; as permissões seguem o plano RBAC da plataforma.
                   </Typography>
                 </Box>
               </CardContent>

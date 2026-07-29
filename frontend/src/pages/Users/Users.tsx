@@ -67,6 +67,8 @@ import {
   validateCreateUserPayload,
 } from '../../utils/userRoleUserType';
 import UserRolePicker, { UserRoleFilterSelect } from '../../components/Users/UserRolePicker';
+import { useAppSelector } from '../../store';
+import { isDirectTotemMode } from '../../config/directTotemMode';
 
 const userDialogProps = {
   disableEnforceFocus: true,
@@ -83,6 +85,12 @@ const USER_TYPE_LABEL_PT: Record<string, string> = {
 const Users: React.FC = () => {
   const orgTerms = getProductTerminology();
   const theme = useTheme();
+  const { user: currentUser } = useAppSelector((state) => state.auth);
+  const directTotem = isDirectTotemMode();
+  const rolePickerOpts = {
+    actorRole: currentUser?.role,
+    directTotem,
+  };
   const formatUserTypeDisplay = (userType?: string | null) =>
     userType ? USER_TYPE_LABEL_PT[userType] || userType.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()) : 'N/A';
   const breadcrumbs = useBreadcrumbs();
@@ -588,6 +596,8 @@ const Users: React.FC = () => {
               setNewUser(applyRoleToCreateUser(newUser, role));
             }}
             organizationLabel={orgTerms.organization}
+            actorRole={rolePickerOpts.actorRole}
+            directTotem={rolePickerOpts.directTotem}
           />
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 1 }}>
             Tipo de usuário: <strong>{formatUserTypeDisplay(userTypeForRole(newUser.role))}</strong>
@@ -704,6 +714,8 @@ const Users: React.FC = () => {
               setSelectedUser(applyRoleToUserRecord(selectedUser!, role));
             }}
             organizationLabel={orgTerms.organization}
+            actorRole={rolePickerOpts.actorRole}
+            directTotem={rolePickerOpts.directTotem}
           />
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 1 }}>
             Tipo de usuário:{' '}

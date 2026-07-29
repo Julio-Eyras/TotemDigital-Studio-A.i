@@ -9,6 +9,8 @@ interface Props {
   organizationLabel?: string;
   includeAll?: boolean;
   margin?: 'none' | 'dense' | 'normal';
+  actorRole?: string;
+  directTotem?: boolean;
 }
 
 /**
@@ -20,8 +22,11 @@ const UserRolePicker: React.FC<Props> = ({
   organizationLabel = 'organização',
   includeAll = false,
   margin = 'normal',
+  actorRole,
+  directTotem = false,
 }) => {
   const normalized = normalizeAppRole(value);
+  const roleGroups = getUserRoleOptionGroups(organizationLabel, { actorRole, directTotem });
 
   return (
     <TextField
@@ -36,7 +41,7 @@ const UserRolePicker: React.FC<Props> = ({
       helperText="A função define o tipo de acesso. Usuários de sistema não vinculam organização nem anunciante."
     >
       {includeAll && <option value="all">Todas as funções</option>}
-      {getUserRoleOptionGroups(organizationLabel).map((group) => (
+      {roleGroups.map((group) => (
         <optgroup key={group.title} label={group.title}>
           {group.roles.map((role) => (
             <option key={role.value} value={role.value}>
