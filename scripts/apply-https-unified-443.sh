@@ -1,7 +1,20 @@
 #!/usr/bin/env bash
 # Repara Nginx HTTPS: site na / + painel em /login + painel HTTP :8080
-# Uso: cd ~/TotemDigital-Studio && sudo bash scripts/apply-https-unified-443.sh
+# Uso (utilizador normal, NÃO root):
+#   cd ~/TotemDigital-Studio && bash scripts/apply-https-unified-443.sh
 set -euo pipefail
+
+# install-smartsignage.sh recusa EUID=0 — se veio com sudo, reexecuta como o user real.
+if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+  if [[ -n "${SUDO_USER:-}" ]] && [[ "${SUDO_USER}" != "root" ]]; then
+    echo "[INFO] A reexecutar como ${SUDO_USER} (o install nao corre como root)..."
+    exec sudo -u "$SUDO_USER" -H bash "$0" "$@"
+  fi
+  echo "[ERRO] Nao execute com sudo/root. Use:"
+  echo "  bash scripts/apply-https-unified-443.sh"
+  exit 1
+fi
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
