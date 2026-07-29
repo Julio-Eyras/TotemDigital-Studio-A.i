@@ -30,16 +30,43 @@ email="$(grep -E '^SSL_EMAIL=' "$env_file" 2>/dev/null | head -1 | cut -d= -f2- 
 if [[ -z "$email" && -n "$backend_env" ]]; then
   email="$(grep -E '^SSL_EMAIL=' "$backend_env" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs || true)"
 fi
+# Fallbacks: env SMARTSIGNAGE_SSL_EMAIL, SYSTEM_OWNER_EMAIL, renewal conf do Certbot, admin@dominio
+if [[ -z "$email" ]]; then
+  email="${SMARTSIGNAGE_SSL_EMAIL:-}"
+fi
+if [[ -z "$email" ]]; then
+  email="$(grep -E '^SYSTEM_OWNER_EMAIL=' "$env_file" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs || true)"
+fi
+if [[ -z "$email" && -n "${domain:-}" ]] && sudo test -f "/etc/letsencrypt/renewal/${domain}.conf" 2>/dev/null; then
+  email="$(sudo grep -E '^email\s*=' "/etc/letsencrypt/renewal/${domain}.conf" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '[:space:]' || true)"
+fi
+if [[ -z "$email" && -n "${domain:-}" ]]; then
+  email="admin@${domain}"
+  echo "[INFO] SSL_EMAIL ausente — a usar fallback: $email"
+fi
 
 if [[ -z "$domain" ]]; then
   echo "[ERRO] DOMAIN_NAME nao encontrado no .env"
   exit 1
 fi
 if [[ -z "$email" ]]; then
-  echo "[ERRO] SSL_EMAIL nao encontrado no .env"
-  echo "       Adicione SSL_EMAIL=seu-email@dominio no .env e tente novamente."
+  echo "[ERRO] Nao foi possivel determinar e-mail SSL."
+  echo "       Defina: export SMARTSIGNAGE_SSL_EMAIL=seu@email.com"
+  echo "       Ou adicione SSL_EMAIL=... no .env"
   exit 1
 fi
+
+# Persistente no .env para proximas corridas
+if [[ -f "$env_file" ]] && ! grep -qE '^SSL_EMAIL=' "$env_file" 2>/dev/null; then
+  if [[ -w "$env_file" ]]; then
+    echo "SSL_EMAIL=${email}" >> "$env_file"
+  else
+    echo "SSL_EMAIL=${email}" | sudo tee -a "$env_file" >/dev/null
+    sudo chown "$(id -u):$(id -g)" "$env_file" 2>/dev/null || true
+  fi
+  echo "[INFO] SSL_EMAIL=${email} gravado em .env"
+fi
+echo "[INFO] Domínio: $domain | e-mail LE: $email"
 
 www_dns=""
 if command -v dig >/dev/null 2>&1; then
