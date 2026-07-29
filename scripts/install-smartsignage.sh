@@ -188,6 +188,7 @@ CONFIGURE_DNS_LOCAL=false
 DB_WAS_CREATED_OR_RESET=false
 SINGLE_SERVER_MQTT_MODE="dev"       # dev | production
 MQTT_LOCAL_BROKER_REQUIRED=false
+MQTT_MODE_FROM_CLI=false            # true se --mqtt-mode foi passado (não sobrescrever por single-server-prod)
 MQTT_BACKEND_USERNAME="backend"
 MQTT_BACKEND_PASSWORD=""
 MQTT_PLAYER_USERNAME="player"
@@ -1822,6 +1823,7 @@ parse_arguments() {
                     exit 1
                 fi
                 SINGLE_SERVER_MQTT_MODE="$2"
+                MQTT_MODE_FROM_CLI=true
                 shift 2
                 ;;
             --https-self-signed)
@@ -2139,10 +2141,15 @@ apply_single_server_mqtt_profile() {
     # Normalizar aliases de modo
     if [[ "$INSTALL_MODE" == "single-server-prod" ]]; then
         INSTALL_MODE="single-server"
-        SINGLE_SERVER_MQTT_MODE="production"
+        # --mqtt-mode explícito tem prioridade (TotemDigital pode ser "prod" sem Mosquitto)
+        if [[ "${MQTT_MODE_FROM_CLI:-false}" != "true" ]]; then
+            SINGLE_SERVER_MQTT_MODE="production"
+        fi
     elif [[ "$INSTALL_MODE" == "single-server-dev" ]]; then
         INSTALL_MODE="single-server"
-        SINGLE_SERVER_MQTT_MODE="dev"
+        if [[ "${MQTT_MODE_FROM_CLI:-false}" != "true" ]]; then
+            SINGLE_SERVER_MQTT_MODE="dev"
+        fi
     fi
 
     if [[ "$INSTALL_MODE" != "single-server" ]]; then
@@ -2175,7 +2182,7 @@ apply_single_server_mqtt_profile() {
             ;;
     esac
 
-    log "Perfil MQTT single-server: $SINGLE_SERVER_MQTT_MODE"
+    log "Perfil MQTT single-server: $SINGLE_SERVER_MQTT_MODE (broker local=$([[ "$MQTT_LOCAL_BROKER_REQUIRED" == "true" ]] && echo sim || echo nao))"
 }
 
 # Instala e configura Mosquitto local para produção (single-server)

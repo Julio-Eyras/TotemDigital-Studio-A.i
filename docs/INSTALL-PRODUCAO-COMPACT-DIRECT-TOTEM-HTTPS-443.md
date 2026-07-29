@@ -34,7 +34,7 @@ Responda **nesta ordem**:
 
 | # | Menu | Escolher | Notas |
 |---|------|----------|--------|
-| 1 | Modo de instalação | **2** | Single-Server **PRODUÇÃO** (Nginx + Backend + Mosquitto) |
+| 1 | Modo de instalação | **2** | Single-Server PRODUÇÃO (Nginx + Backend). Mosquitto é opcional — ver abaixo |
 | 2 | Perfil da aplicação | **1** | Compacto / mono (`TOTEMDIGITAL_COMPACT=true`) |
 | 3 | Players | **0** ou **10** | **0** = só servidor; **10** = todos (dev). Player-AD Android instala-se à parte no dispositivo |
 | 4 | Exposição HTTP | **2** | Site corporativo `:80` + painel noutra porta |
@@ -48,6 +48,31 @@ Responda **nesta ordem**:
 | 12 | DNS local | **N** | Não configurar DNS local |
 | 13 | Seeds | **N** (ou Enter) | Direct-totem: owner mínimo; sem demo de planos/totens |
 | 14 | Remover install anterior | **s** só se quiser wipe | **N** se for zero limpo |
+
+### Mosquitto / MQTT — porque aparecia e porque **não** precisa
+
+No menu, a opção **2 (PRODUÇÃO)** historicamente liga o **Mosquitto** (broker MQTT) para **SmartDisplayFX** (efeitos / sync em tempo real).
+
+Para **TotemDigital compact + direct-totem + Player-AD**:
+
+| Componente | Precisa de Mosquitto? |
+|------------|------------------------|
+| Painel `/login` + API HTTPS | Não |
+| Site corporativo | Não |
+| Player-AD (`serverUrl=https://…`) | Não — usa HTTP(S)/API |
+| SmartDisplayFX (efeitos MQTT) | Sim — só neste caso |
+
+O wrapper **não** instala Mosquitto por defeito (`--mqtt-mode dev`). Use `--with-mqtt` apenas se precisar de SmartDisplayFX.
+
+O modo **Publicar em Totem** é **ligado por defeito** neste repositório (`--direct-totem`).  
+Para garantir na linha de comando (recomendado):
+
+```bash
+cd ~/TotemDigital-Studio
+bash scripts/install-smartsignage.sh --direct-totem --totemdigital-compact
+```
+
+Depois escolha no menu: **2 → 1 → … → exposição 2 → HTTPS 2 → domínio `totemdigital.app.br`**.
 
 ### Direct-totem no menu
 
@@ -76,6 +101,7 @@ HTTPS ............. 2  (Let's Encrypt / 443)
 Domínio ........... totemdigital.app.br
 Direct-totem ...... ON (default / --direct-totem)
 Compact ........... ON (opção 1 / --totemdigital-compact)
+Mosquitto ......... OFF (wrapper default; so --with-mqtt se SmartDisplayFX)
 ```
 
 ---

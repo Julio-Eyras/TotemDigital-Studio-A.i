@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Install TotemDigital produção: compact + direct-totem + layout 80/8080 + Let's Encrypt (443).
 #
+# Por omissão NÃO instala Mosquitto. O broker MQTT só serve SmartDisplayFX
+# (efeitos/sync). Player-AD + painel + API usam HTTPS — não precisam de MQTT.
+#
 # Uso (utilizador normal, NÃO root):
 #   cd ~/TotemDigital-Studio
 #   bash scripts/install-totemdigital-prod-https.sh
@@ -12,6 +15,7 @@
 #   --email <addr>      E-mail Let's Encrypt (default: admin@<domínio>)
 #   --with-players      Copia todos os players (default: --skip-players)
 #   --with-seeds        Carrega seeds demo (default: --no-seeds)
+#   --with-mqtt         Instala Mosquitto (só se usar SmartDisplayFX)
 #   --fresh             Install completo do zero (--fresh no install)
 #   --interactive       Abre o menu; ainda aplica compact/direct-totem/split/LE via env+flags
 #   --dry-run           Só mostra o comando, não executa
@@ -37,12 +41,13 @@ DOMAIN="${DOMAIN:-totemdigital.app.br}"
 SSL_EMAIL="${SSL_EMAIL:-}"
 SKIP_PLAYERS=true
 NO_SEEDS=true
+WITH_MQTT=false
 FRESH=false
 INTERACTIVE=false
 DRY_RUN=false
 
 usage() {
-  sed -n '2,22p' "$0" | sed 's/^# \?//'
+  sed -n '2,25p' "$0" | sed 's/^# \?//'
 }
 
 while [[ $# -gt 0 ]]; do
@@ -63,6 +68,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --with-seeds)
       NO_SEEDS=false
+      shift
+      ;;
+    --with-mqtt)
+      WITH_MQTT=true
       shift
       ;;
     --fresh)
@@ -112,6 +121,13 @@ CMD=(
   --system-http-port 8080
 )
 
+# TotemDigital: sem Mosquitto por defeito (Player-AD fala HTTPS/API, não MQTT)
+if [[ "$WITH_MQTT" == "true" ]]; then
+  CMD+=(--mqtt-mode production)
+else
+  CMD+=(--mqtt-mode dev)
+fi
+
 if [[ "$INTERACTIVE" != "true" ]]; then
   CMD+=(--skip-menu)
 fi
@@ -133,6 +149,7 @@ echo "  E-mail LE ...... $SSL_EMAIL"
 echo "  Portas HTTP .... site :80 | painel :8080 | HTTPS :443"
 echo "  Perfil ......... TOTEMDIGITAL_COMPACT=true"
 echo "  Direct-totem ... DIRECT_TOTEM_MODE=true"
+echo "  Mosquitto ...... $([[ "$WITH_MQTT" == "true" ]] && echo 'sim (--with-mqtt)' || echo 'nao (default; nao precisa para Player-AD)')"
 echo "  Players ........ $([[ "$SKIP_PLAYERS" == "true" ]] && echo 'nao (skip)' || echo 'sim')"
 echo "  Seeds .......... $([[ "$NO_SEEDS" == "true" ]] && echo 'nao' || echo 'sim')"
 echo "  Fresh .......... $FRESH"
@@ -153,6 +170,17 @@ echo
 if [[ "$DRY_RUN" == "true" ]]; then
   echo "[dry-run] Nao executado."
   exit 0
+fi
+
+# Parar loop de falha do mosquitto se ficou a reiniciar de tentativas anteriores
+if systemctl is-failed --quiet mosquitto 2>/dev/null || \
+   systemctl is-active --quiet mosquitto 2>/dev/null; then
+  if [[ "$WITH_MQTT" != "true" ]]; then
+    echo "[INFO] A desactivar mosquitto (nao necessario para este perfil TotemDigital)..."
+    sudo systemctl stop mosquitto 2>/dev/null || true
+    sudo systemctl disable mosquitto 2>/dev/null || true
+    sudo systemctl reset-failed mosquitto 2>/dev/null || true
+  fi
 fi
 
 exec "${CMD[@]}"
