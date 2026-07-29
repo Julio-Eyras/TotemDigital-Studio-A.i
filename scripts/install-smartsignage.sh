@@ -7353,8 +7353,8 @@ EOF
                     grep -vE '^REACT_APP_API_URL=|^PUBLIC_API_BASE_URL=|^PLAYER_AD_DEFAULT_SERVER_URL=' "$f" > "$tmp" 2>/dev/null || cp "$f" "$tmp" || true
                     mv -f "$tmp" "$f" 2>/dev/null || true
                     {
-                        echo "REACT_APP_API_URL=https://${DOMAIN_NAME}"
-                        echo "PUBLIC_API_BASE_URL=https://${DOMAIN_NAME}"
+                        echo "REACT_APP_API_URL=https://${DOMAIN_NAME}/api"
+                        echo "PUBLIC_API_BASE_URL=https://${DOMAIN_NAME}/api"
                         echo "PLAYER_AD_DEFAULT_SERVER_URL=https://${DOMAIN_NAME}"
                     } >> "$f" 2>/dev/null || true
                 done
@@ -7374,8 +7374,8 @@ EOF
                 mv -f "$tmp" "$f" 2>/dev/null || true
                 {
                     echo "DOMAIN_NAME=${DOMAIN_NAME}"
-                    echo "REACT_APP_API_URL=https://${DOMAIN_NAME}"
-                    echo "PUBLIC_API_BASE_URL=https://${DOMAIN_NAME}"
+                    echo "REACT_APP_API_URL=https://${DOMAIN_NAME}/api"
+                    echo "PUBLIC_API_BASE_URL=https://${DOMAIN_NAME}/api"
                     echo "PLAYER_AD_DEFAULT_SERVER_URL=https://${DOMAIN_NAME}"
                 } >> "$f" 2>/dev/null || true
             done
@@ -14939,8 +14939,8 @@ main() {
                 grep -vE '^REACT_APP_API_URL=|^PUBLIC_API_BASE_URL=|^PLAYER_AD_DEFAULT_SERVER_URL=' "$f" > "$tmp" 2>/dev/null || cp "$f" "$tmp" || true
                 mv -f "$tmp" "$f" 2>/dev/null || true
                 {
-                    echo "REACT_APP_API_URL=https://${DOMAIN_NAME}"
-                    echo "PUBLIC_API_BASE_URL=https://${DOMAIN_NAME}"
+                    echo "REACT_APP_API_URL=https://${DOMAIN_NAME}/api"
+                    echo "PUBLIC_API_BASE_URL=https://${DOMAIN_NAME}/api"
                     echo "PLAYER_AD_DEFAULT_SERVER_URL=https://${DOMAIN_NAME}"
                 } >> "$f" 2>/dev/null || true
             done
