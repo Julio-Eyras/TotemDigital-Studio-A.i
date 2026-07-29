@@ -2185,7 +2185,36 @@ setup_mosquitto_local() {
     fi
 
     log "Configurando Mosquitto local (produção)..."
-    sudo apt install -y mosquitto mosquitto-clients
+
+    # Contabo/Ubuntu Server: snap mosquitto (porta 1883) impede o pacote apt de arrancar.
+    if command -v snap >/dev/null 2>&1 && snap list mosquitto >/dev/null 2>&1; then
+        warning "Snap 'mosquitto' detectado — a remover (conflito com apt na porta 1883)..."
+        sudo snap stop mosquitto 2>/dev/null || true
+        sudo snap remove mosquitto 2>/dev/null || true
+    fi
+
+    # Libertar portas típicas se outro processo (snap residual / docker) as ocupar
+    local _p
+    for _p in 1883 9001; do
+        if command -v ss >/dev/null 2>&1 && ss -tlnp 2>/dev/null | grep -qE ":${_p}\\b"; then
+            warning "Porta ${_p} em uso — a tentar libertar processos mosquitto..."
+            sudo pkill -f '/snap/mosquitto' 2>/dev/null || true
+            sudo pkill -x mosquitto 2>/dev/null || true
+            sleep 1
+        fi
+    done
+
+    # apt postinst falha se o serviço não sobe; instalar e corrigir config depois
+    if ! sudo DEBIAN_FRONTEND=noninteractive apt-get install -y mosquitto mosquitto-clients; then
+        warning "apt install mosquitto reportou erro (comum se o serviço não arrancou). A continuar com configuração própria..."
+        sudo dpkg --configure -a 2>/dev/null || true
+        sudo apt-get install -f -y 2>/dev/null || true
+    fi
+
+    if ! command -v mosquitto >/dev/null 2>&1; then
+        error "❌ Pacote mosquitto não ficou instalado. Verifique: sudo apt-get install -y mosquitto mosquitto-clients"
+        exit 1
+    fi
 
     local conf_dir="/etc/mosquitto/conf.d"
     local conf_file="${conf_dir}/smartsignage-production.conf"
@@ -2193,6 +2222,7 @@ setup_mosquitto_local() {
     local acl_file="/etc/mosquitto/acl"
 
     sudo mkdir -p "$conf_dir"
+    sudo systemctl stop mosquitto 2>/dev/null || true
 
     # Recriar senha de forma idempotente para refletir credenciais atuais do instalador
     sudo rm -f "$passwd_file"
@@ -2213,7 +2243,26 @@ topic write smartdisplay/+/telemetry
 topic read \$SYS/broker/version
 EOF
 
-    sudo chmod 600 "$passwd_file" "$acl_file"
+    # Mosquitto corre como user 'mosquitto' — root:600 impede leitura do passwd/acl
+    if id mosquitto >/dev/null 2>&1; then
+        sudo chown mosquitto:mosquitto "$passwd_file" "$acl_file"
+        sudo chmod 640 "$passwd_file" "$acl_file"
+    else
+        sudo chmod 644 "$passwd_file" "$acl_file"
+    fi
+
+    # Evitar listener duplicado em conf.d (ficheiros default de outros pacotes)
+    if [[ -d "$conf_dir" ]]; then
+        local _other
+        for _other in "$conf_dir"/*.conf; do
+            [[ -f "$_other" ]] || continue
+            [[ "$_other" == "$conf_file" ]] && continue
+            if grep -qE '^[[:space:]]*listener[[:space:]]+' "$_other" 2>/dev/null; then
+                warning "A desactivar conf com listener em conflito: $_other"
+                sudo mv -f "$_other" "${_other}.disabled-by-smartsignage" 2>/dev/null || true
+            fi
+        done
+    fi
 
     sudo tee "$conf_file" > /dev/null <<'EOF'
 # SmartSignage Mosquitto production profile
@@ -2227,25 +2276,61 @@ persistence_location /var/lib/mosquitto/
 autosave_interval 180
 autosave_on_changes true
 
-listener 1883
+listener 1883 0.0.0.0
 protocol mqtt
 
-listener 9001
+listener 9001 0.0.0.0
 protocol websockets
 
+log_dest stderr
 log_type error
 log_type warning
 log_type notice
 log_type information
 EOF
 
-    sudo systemctl enable mosquitto
-    sudo systemctl restart mosquitto
+    # Validar sintaxe antes do systemd (Mosquitto 2: -t / test)
+    if sudo mosquitto -c /etc/mosquitto/mosquitto.conf -t >/tmp/mosquitto-config-test.log 2>&1; then
+        log "✅ Configuração Mosquitto válida"
+    else
+        warning "Validação mosquitto -t falhou; a tentar sem websockets (9001)..."
+        sudo tee "$conf_file" > /dev/null <<'EOF'
+# SmartSignage Mosquitto production profile (sem websockets)
+per_listener_settings false
+allow_anonymous false
+password_file /etc/mosquitto/passwd
+acl_file /etc/mosquitto/acl
+persistence true
+persistence_location /var/lib/mosquitto/
+listener 1883 0.0.0.0
+protocol mqtt
+log_dest stderr
+log_type error
+log_type warning
+log_type notice
+EOF
+        if ! sudo mosquitto -c /etc/mosquitto/mosquitto.conf -t >/tmp/mosquitto-config-test.log 2>&1; then
+            warning "Conteúdo de /tmp/mosquitto-config-test.log:"
+            sudo cat /tmp/mosquitto-config-test.log 2>/dev/null || true
+        fi
+    fi
+
+    sudo systemctl enable mosquitto 2>/dev/null || true
+    sudo systemctl restart mosquitto || true
+    sleep 1
 
     if systemctl is-active --quiet mosquitto; then
-        log "✅ Mosquitto local ativo (1883/TCP, 9001/WS)"
+        log "✅ Mosquitto local ativo (1883/TCP, 9001/WS se habilitado)"
     else
-        error "❌ Mosquitto não iniciou corretamente. Verifique: sudo systemctl status mosquitto"
+        error "❌ Mosquitto não iniciou. Diagnóstico:"
+        sudo systemctl status mosquitto --no-pager -l 2>/dev/null | tail -40 || true
+        sudo journalctl -u mosquitto -n 40 --no-pager 2>/dev/null || true
+        warning "Portas 1883/9001:"
+        ss -tlnp 2>/dev/null | grep -E ':1883|:9001' || true
+        warning "Snaps mosquitto: $(snap list mosquitto 2>/dev/null || echo nenhum)"
+        error "Corrija o Mosquitto e volte a correr o install. Comandos úteis:"
+        error "  sudo snap remove mosquitto; sudo pkill -x mosquitto; sudo systemctl restart mosquitto"
+        error "  sudo journalctl -u mosquitto -n 80 --no-pager"
         exit 1
     fi
 }

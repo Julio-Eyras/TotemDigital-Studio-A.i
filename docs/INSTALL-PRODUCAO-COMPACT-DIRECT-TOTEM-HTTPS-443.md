@@ -130,6 +130,27 @@ Confirme no log: Let’s Encrypt activo e layout dividido 80/8080 → 443.
 
 ---
 
+## Se o Mosquitto falhar no install (produção)
+
+Sintoma: `Job for mosquitto.service failed` e o script pára **antes** de Nginx/LE/schema.
+
+Causa frequente no Ubuntu Server: **snap** `mosquitto` a ocupar a porta **1883**, ou `passwd`/`acl` só legíveis por root.
+
+No servidor (diagnóstico + limpeza):
+
+```bash
+sudo journalctl -u mosquitto -n 80 --no-pager
+snap list mosquitto 2>/dev/null || true
+ss -tlnp | grep -E ':1883|:9001' || true
+
+sudo snap remove mosquitto 2>/dev/null || true
+sudo pkill -x mosquitto 2>/dev/null || true
+sudo systemctl restart mosquitto
+sudo systemctl status mosquitto --no-pager
+```
+
+Depois `git pull` e volte a correr o wrapper (o instalador actual trata snap/portas/ownership).
+
 ## Se o HTTPS falhar a meio (servidor já com cert)
 
 Não precisa reinstalar tudo:
