@@ -2266,15 +2266,12 @@ EOF
 
     sudo tee "$conf_file" > /dev/null <<'EOF'
 # SmartSignage Mosquitto production profile
+# NÃO repetir persistence / persistence_location / log_dest aqui:
+# o /etc/mosquitto/mosquitto.conf do Ubuntu já os define (Duplicate * = falha).
 per_listener_settings false
 allow_anonymous false
 password_file /etc/mosquitto/passwd
 acl_file /etc/mosquitto/acl
-
-persistence true
-persistence_location /var/lib/mosquitto/
-autosave_interval 180
-autosave_on_changes true
 
 listener 1883 0.0.0.0
 protocol mqtt
@@ -2282,7 +2279,6 @@ protocol mqtt
 listener 9001 0.0.0.0
 protocol websockets
 
-log_dest stderr
 log_type error
 log_type warning
 log_type notice
@@ -2300,11 +2296,8 @@ per_listener_settings false
 allow_anonymous false
 password_file /etc/mosquitto/passwd
 acl_file /etc/mosquitto/acl
-persistence true
-persistence_location /var/lib/mosquitto/
 listener 1883 0.0.0.0
 protocol mqtt
-log_dest stderr
 log_type error
 log_type warning
 log_type notice
