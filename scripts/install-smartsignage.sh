@@ -7636,6 +7636,10 @@ apply_split_nginx_corporate_https_after_le() {
     fi
 
     sudo ufw allow 443/tcp 2>/dev/null || true
+    # Painel HTTP auxiliar (layout dividido) — Contabo costuma ter TCP 8080 aberto
+    if [[ "${SYSTEM_HTTP_PORT}" != "80" ]] && [[ "${SYSTEM_HTTP_PORT}" != "443" ]]; then
+        sudo ufw allow "${SYSTEM_HTTP_PORT}/tcp" 2>/dev/null || true
+    fi
 
     sudo tee "$NGINX_CONFIG" > /dev/null << EOF
 ${map_block}
@@ -7740,27 +7744,34 @@ ${ssl_extra}
         proxy_set_header Host \$host;
     }
 
-    # Assets do painel React (CRA)
-    location /static/ {
+    # Assets do painel React (CRA) — nunca pelo site corporativo
+    location ^~ /static/ {
         alias ${FRONTEND_BUILD_DIR}/static/;
         expires 1y;
         add_header Cache-Control "public, immutable";
         access_log off;
     }
 
-    # Site corporativo: ficheiro estático se existir.
-    # Rotas do painel (/login, /dashboard, …) NÃO existem no site → @panel_spa.
-    # IMPORTANTE: em @panel_spa usar "rewrite … break" (não try_files /index.html),
-    # senão o nginx faz redirect interno e location / volta a servir o index corporativo.
+    # Rotas do painel (ex-8080). rewrite break: nao reentra em location / do site.
+    location ~ ^/(login|subscriber-login|forgot-password|reset-password|dashboard|publish-totem|campaigns|media|medias|playlists|totems|locals|subscribers|publishers|reports|analytics|settings|users|plans|contracts|billing|smart-tvs|ota)(/|$) {
+        root ${FRONTEND_BUILD_DIR};
+        rewrite ^ /index.html break;
+    }
+
+    location = /manifest.json {
+        root ${FRONTEND_BUILD_DIR};
+        try_files /manifest.json =404;
+    }
+    location = /favicon.svg {
+        root ${FRONTEND_BUILD_DIR};
+        try_files /favicon.svg =404;
+    }
+
+    # Site corporativo (apresentacao) na raiz
     location / {
         root ${CORPORATE_WEB_ROOT};
         index index.html;
-        try_files \$uri \$uri/ @panel_spa;
-    }
-
-    location @panel_spa {
-        root ${FRONTEND_BUILD_DIR};
-        rewrite ^ /index.html break;
+        try_files \$uri \$uri/ /index.html;
     }
 
     gzip on;
