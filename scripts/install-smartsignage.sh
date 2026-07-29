@@ -7876,10 +7876,11 @@ ${ssl_extra}
         access_log off;
     }
 
-    # Rotas do painel (ex-8080). rewrite break: nao reentra em location / do site.
+    # Rotas do painel SPA — aceita GET e POST (ex: /login com POST para /api/auth)
+    # try_files serve /index.html estatico; chamadas de API vao para location ^~ /api/ (priority maior)
     location ~ ^/(login|subscriber-login|forgot-password|reset-password|dashboard|publish-totem|campaigns|media|medias|playlists|totems|locals|subscribers|publishers|reports|analytics|settings|users|plans|contracts|billing|smart-tvs|ota)(/|$) {
         root ${FRONTEND_BUILD_DIR};
-        rewrite ^ /index.html break;
+        try_files /index.html =404;
     }
 
     location = /manifest.json {
@@ -7891,13 +7892,30 @@ ${ssl_extra}
         try_files /favicon.svg =404;
     }
 
-    # Site corporativo (apresentacao) na raiz
+    # Raiz: no modo direct-totem serve o painel React; caso contrario serve o site corporativo
+EOF
+
+    if [[ "${INSTALL_DIRECT_TOTEM_MODE:-true}" == "true" ]]; then
+        sudo tee -a "$NGINX_CONFIG" > /dev/null << 'EOFDT'
+    location / {
+        root FRONTEND_BUILD_DIR_PLACEHOLDER;
+        index index.html;
+        try_files $uri $uri/ /index.html;
+    }
+EOFDT
+        # substitui o placeholder pelo valor real (nao pode usar heredoc com variavel e aspas simples ao mesmo tempo)
+        sudo sed -i "s|FRONTEND_BUILD_DIR_PLACEHOLDER|${FRONTEND_BUILD_DIR}|g" "$NGINX_CONFIG"
+    else
+        sudo tee -a "$NGINX_CONFIG" > /dev/null << EOF
     location / {
         root ${CORPORATE_WEB_ROOT};
         index index.html;
         try_files \$uri \$uri/ /index.html;
     }
+EOF
+    fi
 
+    sudo tee -a "$NGINX_CONFIG" > /dev/null << EOF
     gzip on;
     gzip_vary on;
     gzip_min_length 1024;
@@ -15259,6 +15277,26 @@ main() {
     # Configurar assets públicos e aplicar DDL/seeds (idempotente)
     setup_assets_and_db
     setup_letsencrypt || true  # Configurar Let's Encrypt se escolhido (nunca abortar install)
+
+    # Reconstruir frontend se o LE foi aplicado e mudou o REACT_APP_API_URL para https://
+    # O build anterior usou URL HTTP; agora o .env tem https:// — rebuild garante URL correcto.
+    if [[ "${ENABLE_HTTPS_LETSENCRYPT:-false}" == "true" ]] && [[ -n "${DOMAIN_NAME:-}" ]]; then
+        local _api_url_now
+        _api_url_now=$(grep -E '^REACT_APP_API_URL=' "${INSTALL_DIR}/.env" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs)
+        if [[ "$_api_url_now" == https://* ]]; then
+            log "🔄 LE activo — reconstruindo frontend com REACT_APP_API_URL=$_api_url_now ..."
+            export REACT_APP_API_URL="$_api_url_now"
+            export_frontend_build_env
+            local _prev_skip_back="$SKIP_BACKEND_DEPS_BUILD"
+            local _prev_skip_front="$SKIP_FRONTEND_DEPS_BUILD"
+            SKIP_BACKEND_DEPS_BUILD=true
+            SKIP_FRONTEND_DEPS_BUILD=false
+            install_project_dependencies || warn "⚠️  Rebuild do frontend pós-LE falhou (sistema continua com build HTTP)"
+            SKIP_BACKEND_DEPS_BUILD="$_prev_skip_back"
+            SKIP_FRONTEND_DEPS_BUILD="$_prev_skip_front"
+        fi
+    fi
+
     create_systemd_service
     # Garantia explícita: single-server sem unit em /etc/systemd não é instalação válida
     if [[ "$INSTALL_MODE" == "single-server" ]]; then

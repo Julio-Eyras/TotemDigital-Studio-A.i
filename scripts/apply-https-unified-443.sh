@@ -61,5 +61,26 @@ env_set_system_port_8080() {
 
 env_set_system_port_8080 "$ENVF"
 
+# Verificar se existe certificado Let's Encrypt antes de aplicar HTTPS
+_domain=""
+if [[ -f "$ENVF" ]]; then
+  _domain=$(grep -E '^DOMAIN_NAME=' "$ENVF" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs || true)
+fi
+if [[ -z "$_domain" ]] && [[ -f "${ROOT}/backend/.env" ]]; then
+  _domain=$(grep -E '^DOMAIN_NAME=' "${ROOT}/backend/.env" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs || true)
+fi
+
+if [[ -n "$_domain" ]]; then
+  if ! sudo test -f "/etc/letsencrypt/live/${_domain}/fullchain.pem" 2>/dev/null; then
+    echo "[ERRO] Certificado Let's Encrypt não encontrado em /etc/letsencrypt/live/${_domain}/"
+    echo "       Execute primeiro: sudo certbot certonly --webroot -w /var/www/certbot -d ${_domain}"
+    echo "       Ou: sudo certbot --nginx -d ${_domain}"
+    exit 1
+  fi
+  echo "[INFO] Certificado encontrado para ${_domain} — aplicando Nginx HTTPS..."
+else
+  echo "[AVISO] DOMAIN_NAME não encontrado no .env — continuando sem validação de cert..."
+fi
+
 export SMARTSIGNAGE_SYSTEM_HTTP_PORT="${SMARTSIGNAGE_SYSTEM_HTTP_PORT:-8080}"
 exec bash "$ROOT/scripts/install-smartsignage.sh" --apply-le-https-only "$@"
