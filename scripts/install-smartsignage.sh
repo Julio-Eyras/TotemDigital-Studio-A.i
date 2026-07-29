@@ -7892,30 +7892,13 @@ ${ssl_extra}
         try_files /favicon.svg =404;
     }
 
-    # Raiz: no modo direct-totem serve o painel React; caso contrario serve o site corporativo
-EOF
-
-    if [[ "${INSTALL_DIRECT_TOTEM_MODE:-true}" == "true" ]]; then
-        sudo tee -a "$NGINX_CONFIG" > /dev/null << 'EOFDT'
-    location / {
-        root FRONTEND_BUILD_DIR_PLACEHOLDER;
-        index index.html;
-        try_files $uri $uri/ /index.html;
-    }
-EOFDT
-        # substitui o placeholder pelo valor real (nao pode usar heredoc com variavel e aspas simples ao mesmo tempo)
-        sudo sed -i "s|FRONTEND_BUILD_DIR_PLACEHOLDER|${FRONTEND_BUILD_DIR}|g" "$NGINX_CONFIG"
-    else
-        sudo tee -a "$NGINX_CONFIG" > /dev/null << EOF
+    # Site corporativo na raiz (/). Painel fica em /login e demais rotas SPA acima.
     location / {
         root ${CORPORATE_WEB_ROOT};
         index index.html;
         try_files \$uri \$uri/ /index.html;
     }
-EOF
-    fi
 
-    sudo tee -a "$NGINX_CONFIG" > /dev/null << EOF
     gzip on;
     gzip_vary on;
     gzip_min_length 1024;
