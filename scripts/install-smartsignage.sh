@@ -15287,13 +15287,27 @@ main() {
             log "🔄 LE activo — reconstruindo frontend com REACT_APP_API_URL=$_api_url_now ..."
             export REACT_APP_API_URL="$_api_url_now"
             export_frontend_build_env
-            local _prev_skip_back="$SKIP_BACKEND_DEPS_BUILD"
-            local _prev_skip_front="$SKIP_FRONTEND_DEPS_BUILD"
-            SKIP_BACKEND_DEPS_BUILD=true
-            SKIP_FRONTEND_DEPS_BUILD=false
-            install_project_dependencies || warn "⚠️  Rebuild do frontend pós-LE falhou (sistema continua com build HTTP)"
-            SKIP_BACKEND_DEPS_BUILD="$_prev_skip_back"
-            SKIP_FRONTEND_DEPS_BUILD="$_prev_skip_front"
+            # Apenas recompilar (node_modules já instalado no passo anterior); não reinstalar deps.
+            local _fe_dir="${INSTALL_DIR}/frontend"
+            if [[ -d "$_fe_dir/node_modules" ]]; then
+                (
+                    cd "$_fe_dir"
+                    log "Compilando frontend (rebuild pós-LE, sem reinstalar node_modules)..."
+                    NODE_OPTIONS="--max-old-space-size=${FRONTEND_NODE_MAX_OLD_SPACE_SIZE:-4096}" \
+                        npm run build 2>&1 | tee -a "${INSTALL_DIR}/logs/frontend-build-post-le.log" \
+                        && log "✅ Frontend recompilado com REACT_APP_API_URL=https://" \
+                        || warn "⚠️  Rebuild do frontend pós-LE falhou — verifique ${INSTALL_DIR}/logs/frontend-build-post-le.log"
+                )
+                # Copiar build actualizado para o diretório público
+                if [[ -d "$_fe_dir/build" ]]; then
+                    sudo rsync -a --delete "$_fe_dir/build/" /opt/smart-signage/frontend/build/ 2>/dev/null \
+                        || sudo cp -a "$_fe_dir/build/." /opt/smart-signage/frontend/build/ 2>/dev/null \
+                        || warn "⚠️  Não foi possível copiar build pós-LE para /opt/smart-signage/frontend/build"
+                    log "✅ Build pós-LE copiado para /opt/smart-signage/frontend/build"
+                fi
+            else
+                warn "⚠️  node_modules do frontend não encontrado — pulando rebuild pós-LE"
+            fi
         fi
     fi
 
