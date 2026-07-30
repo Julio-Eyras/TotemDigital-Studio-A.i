@@ -42,6 +42,7 @@ const Campaigns = React.lazy(() => import('./pages/Campaigns/Campaigns'));
 const Reports = React.lazy(() => import('./pages/Reports/Reports'));
 const Analytics = React.lazy(() => import('./pages/Analytics/Analytics'));
 const Settings = React.lazy(() => import('./pages/Settings/Settings'));
+const SystemModules = React.lazy(() => import('./pages/Settings/SystemModules'));
 const AI = React.lazy(() => import('./pages/AI/AI'));
 const SmartPlaylist = React.lazy(() => import('./pages/SmartPlaylist/SmartPlaylist'));
 const Totems = React.lazy(() => import('./pages/Totems/Totems'));
@@ -599,6 +600,14 @@ const AppContent: React.FC = () => {
             element={
               <ProtectedRoute>
                 <Settings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings/system-modules"
+            element={
+              <ProtectedRoute>
+                <SystemModules />
               </ProtectedRoute>
             }
           />

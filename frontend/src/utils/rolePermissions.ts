@@ -127,6 +127,7 @@ export const menuPermissions: MenuItemPermission[] = [
   
   // Configurações - disponível para perfis de operação do produto
   { path: '/settings', roles: ['owner_system', 'admin_sql', 'operator', 'admin', 'publisher_user', 'subscriber_user'] },
+  { path: '/settings/system-modules', roles: ['owner_system', 'admin_sql'] },
   
   // Planos → organizações — admin_sql, admin
   { path: '/plan-publisher-access', roles: ['admin_sql', 'admin'] },

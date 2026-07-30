@@ -19,6 +19,7 @@ import {
   VideoLibrary,
   Settings,
   AdminPanelSettings,
+  Extension,
   Warning,
   Link,
   QueueMusic,
@@ -292,6 +293,7 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
         { text: 'Relatórios', icon: <Assessment />, path: '/reports' },
         { text: 'Admin Tools', icon: <Build />, path: '/admin-tools' },
         dispatcherBlock,
+        { text: 'Complementos do sistema', icon: <Extension />, path: '/settings/system-modules' },
         { text: 'Configurações', icon: <Settings />, path: '/settings' },
         { text: 'Templates publicação', icon: <AutoAwesome />, path: '/publish-templates-admin' },
       ],
@@ -313,6 +315,14 @@ function getDirectTotemMenu(role: UserRole): HierarchicalMenuItem[] {
       text: 'Usuários e acessos',
       icon: <People />,
       path: '/users',
+    });
+  }
+
+  if (role === 'owner_system' || role === 'admin_sql') {
+    items.push({
+      text: 'Complementos do sistema',
+      icon: <Extension />,
+      path: '/settings/system-modules',
     });
   }
 
@@ -532,6 +542,7 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
         { text: 'Relatórios', icon: <Assessment />, path: '/reports' },
         { text: 'Admin Tools', icon: <Build />, path: '/admin-tools' },
         dispatcherMenuBlock,
+        { text: 'Complementos do sistema', icon: <Extension />, path: '/settings/system-modules' },
         { text: 'Configurações', icon: <Settings />, path: '/settings' },
       ],
     },

@@ -1,4 +1,9 @@
 import { TOTEMDIGITAL_COMPACT } from '../config/featureFlags';
+import {
+  InstallationModuleFlags,
+  buildDefaultInstallationModules,
+  mergeInstallationModules,
+} from './installationModules';
 
 export type InstallationProfile = 'single_publisher' | 'multi_agency';
 
@@ -19,6 +24,11 @@ export interface InstallationCapabilities {
   simpleTotemMode: boolean;
   /** Branch direc-totem: menu Publicar em Totem, uma organização. */
   directTotemMode: boolean;
+  /**
+   * Complementos de produto (instalação). Distinto de flag_smart_* (permissão de utilizador).
+   * Fase A: expostos para UI admin; Fase B: gates de menu/API.
+   */
+  modules: InstallationModuleFlags;
 }
 
 /** Perfil derivado do ambiente (build/deploy). DB pode refinir via installationProfileService. */
@@ -34,14 +44,15 @@ export function isSinglePublisherInstallation(profile?: InstallationProfile): bo
 
 export function buildInstallationCapabilities(
   profile: InstallationProfile = getInstallationProfileFromEnv(),
-  simpleTotemMode?: boolean
+  simpleTotemMode?: boolean,
+  moduleOverrides?: Partial<Record<string, boolean>> | null
 ): InstallationCapabilities {
   const single = profile === 'single_publisher';
   const simple =
     simpleTotemMode ??
     (process.env.SIMPLE_TOTEM_MODE_DEFAULT === 'true' ||
       (process.env.SIMPLE_TOTEM_MODE_DEFAULT !== 'false' && single));
-  return {
+  const base = {
     profile,
     totemDigitalCompact: single,
     multiAgency: !single,
@@ -53,10 +64,24 @@ export function buildInstallationCapabilities(
     bullExportQueues: !single,
     subdomainTenancy: !single,
     subscriberPortal: !single,
-  /** Studio/mono: menu oculto; rotas API mantidas para evolução futura. */
+    /** Studio/mono: menu oculto; rotas API mantidas para evolução futura. */
     smartDisplayFx: !single,
     simpleTotemMode: simple,
-    directTotemMode:
-      process.env.DIRECT_TOTEM_MODE !== 'false',
+    directTotemMode: process.env.DIRECT_TOTEM_MODE !== 'false',
+  };
+
+  const defaults = buildDefaultInstallationModules({
+    multiAgency: base.multiAgency,
+    directTotemMode: base.directTotemMode,
+    simpleTotemMode: base.simpleTotemMode,
+    smartDisplayFx: base.smartDisplayFx,
+    subscriberPortal: base.subscriberPortal,
+  });
+
+  const modules = mergeInstallationModules(defaults, moduleOverrides);
+
+  return {
+    ...base,
+    modules,
   };
 }

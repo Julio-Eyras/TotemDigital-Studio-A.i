@@ -233,20 +233,7 @@ export interface DashboardUiContext {
   totemDigitalCompact: boolean;
   installationProfile?: 'single_publisher' | 'multi_agency';
   directCampaignTotemHint?: string;
-  capabilities?: {
-    profile: 'single_publisher' | 'multi_agency';
-    totemDigitalCompact: boolean;
-    multiAgency: boolean;
-    publisherBillingForAdmins: boolean;
-    stripeSubscriptions: boolean;
-    playlistMixWorker: boolean;
-    playlistEngineWorker: boolean;
-    alertCron: boolean;
-    bullExportQueues: boolean;
-    subdomainTenancy: boolean;
-    subscriberPortal: boolean;
-    smartDisplayFx: boolean;
-  };
+  capabilities?: import('../../types/installationCapabilities').InstallationCapabilities;
 }
 
 export const dashboardApi = {
@@ -257,6 +244,7 @@ export const dashboardApi = {
 
   getStats: async (): Promise<DashboardStats> => {
     const response = await api.get('/dashboard/stats');
+
     return response.data;
   },
 
@@ -273,6 +261,21 @@ export const dashboardApi = {
   getUsageCharts: async () => {
     const response = await api.get('/dashboard/charts');
     return response.data;
+  },
+};
+
+// =============================================
+// INSTALLATION MODULES (complementos de produto)
+// =============================================
+
+export const installationModulesApi = {
+  getAll: async () => {
+    const response = await api.get('/installation/modules');
+    return response.data.data;
+  },
+  update: async (modules: Record<string, boolean>) => {
+    const response = await api.put('/installation/modules', { modules });
+    return response.data.data;
   },
 };
 

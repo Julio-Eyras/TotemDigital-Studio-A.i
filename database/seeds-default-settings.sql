@@ -466,6 +466,28 @@ ON CONFLICT (setting_key) DO UPDATE SET
   options = EXCLUDED.options,
   updated_at = CURRENT_TIMESTAMP;
 
+-- Complementos de produto (Fase A: persistência; Fase B: gates menu/API)
+INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description, is_public, is_editable, default_value, validation, options)
+VALUES
+  (
+    'installation.modules',
+    '{}',
+    'json',
+    'system',
+    'Complementos de produto da instalação (JSON). Distinto de flag_smart_* por utilizador. {} = defaults do perfil.',
+    false,
+    true,
+    '{}',
+    NULL,
+    NULL
+  )
+ON CONFLICT (setting_key) DO UPDATE SET
+  description = EXCLUDED.description,
+  is_public = EXCLUDED.is_public,
+  is_editable = EXCLUDED.is_editable,
+  default_value = EXCLUDED.default_value,
+  updated_at = CURRENT_TIMESTAMP;
+
 -- Financeiro: bloqueio operacional por inadimplência
 INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description, is_public, is_editable, default_value, validation, options)
 VALUES
