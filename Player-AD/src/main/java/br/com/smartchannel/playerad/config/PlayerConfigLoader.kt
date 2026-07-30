@@ -173,10 +173,22 @@ class PlayerConfigLoader(private val context: Context) {
         }
 
         fun displayRotationLabel(rotation: Int): String = when ((rotation % 4 + 4) % 4) {
-            1 -> "90° — paisagem (landscape)"
-            2 -> "180° — retrato invertido"
-            3 -> "270° — paisagem invertida"
-            else -> "0° — retrato (portrait)"
+            1 -> "90° paisagem"
+            2 -> "180° retrato invertido"
+            3 -> "270° paisagem invertida"
+            else -> "0° retrato"
+        }
+
+        /** Avança montagem +90° (sentido horário): 0→1→2→3→0 */
+        fun rotateClockwise(rotation: Int): Int {
+            val n = ((rotation % 4) + 4) % 4
+            return (n + 1) % 4
+        }
+
+        /** Avança montagem −90° (anti-horário): 0→3→2→1→0 */
+        fun rotateCounterClockwise(rotation: Int): Int {
+            val n = ((rotation % 4) + 4) % 4
+            return (n + 3) % 4
         }
 
         private fun resolveScreenOrientation(json: JSONObject): ScreenOrientationMode {

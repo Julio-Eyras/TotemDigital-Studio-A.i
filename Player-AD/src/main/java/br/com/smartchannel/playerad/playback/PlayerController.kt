@@ -1673,7 +1673,7 @@ class PlayerController(
                 try {
                     exoPlayer.pause()
                 } catch (_: Exception) { }
-                playerView.visibility = View.GONE
+                concealPlayerSurface()
                 playerView.alpha = 1f
                 applyImageOrientationCorrection(
                     bitmap,
@@ -1686,7 +1686,7 @@ class PlayerController(
                 try {
                     exoPlayer.pause()
                 } catch (_: Exception) { }
-                playerView.visibility = View.GONE
+                concealPlayerSurface()
                 resetMediaViewOrientation()
                 imageView.setImageDrawable(null)
             }
@@ -1742,6 +1742,8 @@ class PlayerController(
         MediaLayerTransition.cover(mediaTransitionOverlay)
         imageView.visibility = View.GONE
         imageView.setImageDrawable(null)
+        playerView.setBackgroundColor(Color.BLACK)
+        playerView.setShutterBackgroundColor(Color.BLACK)
         playerView.alpha = 0f
         playerView.visibility = View.VISIBLE
         detachVideoOrientationListener()
@@ -1832,8 +1834,11 @@ class PlayerController(
         resetMediaViewOrientation()
         MediaLayerTransition.cover(mediaTransitionOverlay)
         hideImageLayer()
-        exoPlayer.stop()
-        playerView.visibility = View.GONE
+        // Não stop(): limpa TextureView e provoca flicker/ghosting em landscape.
+        try {
+            exoPlayer.pause()
+        } catch (_: Exception) { }
+        concealPlayerSurface()
         MediaLayerTransition.reveal(mediaTransitionOverlay)
 
         val exposureSec = item.duration?.takeIf { it > 0L }
@@ -1901,7 +1906,7 @@ class PlayerController(
         }
         HtmlWebViewPlayback.stop(htmlWebView)
         hideImageLayer()
-        playerView.visibility = View.GONE
+        concealPlayerSurface()
         PlayerAdLogger.logPlaybackEnd("html", item.mediaId, durationSeconds)
         PlayerAdLogger.i(
             "PLAYBACK",
@@ -1917,6 +1922,16 @@ class PlayerController(
     private fun hideImageLayer() {
         imageView.visibility = View.GONE
         imageView.setImageDrawable(null)
+    }
+
+    /**
+     * Esconde a superfície de vídeo sem destruir o TextureView (GONE limpa o buffer
+     * e em montagem landscape provoca ghosting entre mídias).
+     */
+    private fun concealPlayerSurface() {
+        playerView.setBackgroundColor(Color.BLACK)
+        playerView.setShutterBackgroundColor(Color.BLACK)
+        playerView.visibility = View.INVISIBLE
     }
 
     private fun resetMediaViewOrientation() {

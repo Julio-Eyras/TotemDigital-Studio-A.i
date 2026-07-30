@@ -56,7 +56,11 @@ class DebugConfigActivity : AppCompatActivity() {
     private lateinit var switchAllowPlaybackAudio: SwitchCompat
     private lateinit var switchStrongKiosk: SwitchCompat
     private lateinit var spinnerScreenOrientation: Spinner
+    private lateinit var btnRotateCw: Button
+    private lateinit var btnRotateCcw: Button
     private lateinit var textOrientationDegrees: TextView
+    /** Montagem actual na UI (0–3); sincronizada com botões CW/CCW. */
+    private var selectedDisplayRotation: Int = 0
     private lateinit var editMaxSecondsWithoutServerCheck: EditText
     private lateinit var editBatimentoCardiaco: EditText
     private lateinit var switchPollSleepEnabled: SwitchCompat
@@ -131,6 +135,8 @@ class DebugConfigActivity : AppCompatActivity() {
         switchAllowPlaybackAudio = findViewById(R.id.switchAllowPlaybackAudio)
         switchStrongKiosk = findViewById(R.id.switchStrongKiosk)
         spinnerScreenOrientation = findViewById(R.id.spinnerScreenOrientation)
+        btnRotateCw = findViewById(R.id.btnRotateCw)
+        btnRotateCcw = findViewById(R.id.btnRotateCcw)
         textOrientationDegrees = findViewById(R.id.textOrientationDegrees)
         editMaxSecondsWithoutServerCheck = findViewById(R.id.editMaxSecondsWithoutServerCheck)
         editBatimentoCardiaco = findViewById(R.id.editBatimentoCardiaco)
@@ -568,33 +574,31 @@ class DebugConfigActivity : AppCompatActivity() {
     }
 
     private fun bindScreenOrientationSpinner(current: PlayerConfig) {
-        val orientationValues = resources.getStringArray(R.array.player_screen_orientations)
-        val orientationLabels = resources.getStringArray(R.array.player_screen_orientation_labels)
-        val orientAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, orientationLabels)
-        orientAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        spinnerScreenOrientation.adapter = orientAdapter
-        val modeKey = PlayerConfigLoader.screenOrientationToJsonValue(current.screenOrientation)
-        val sel = orientationValues.indexOf(modeKey).let { if (it >= 0) it else 0 }
-        spinnerScreenOrientation.setSelection(sel)
-        updateOrientationHint(current.displayRotation)
-        spinnerScreenOrientation.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            private var skipFirst = true
-
-            override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
-                val mode = PlayerConfigLoader.parseScreenOrientation(orientationValues[position])
-                val rotation = PlayerConfigLoader.displayRotationFromMode(mode)
-                updateOrientationHint(rotation)
-                if (skipFirst) {
-                    skipFirst = false
-                    return
-                }
-                val base = readConfigOrNull() ?: return
-                val preview = base.copy(displayRotation = rotation, screenOrientation = mode)
-                applyConfigOrientationPreview(preview.displayRotation)
-            }
-
-            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        selectedDisplayRotation = ((current.displayRotation % 4) + 4) % 4
+        updateOrientationHint(selectedDisplayRotation)
+        btnRotateCw.setOnClickListener {
+            val prev = selectedDisplayRotation
+            selectedDisplayRotation = PlayerConfigLoader.rotateClockwise(selectedDisplayRotation)
+            onOrientationStep("CW", prev, selectedDisplayRotation)
         }
+        btnRotateCcw.setOnClickListener {
+            val prev = selectedDisplayRotation
+            selectedDisplayRotation = PlayerConfigLoader.rotateCounterClockwise(selectedDisplayRotation)
+            onOrientationStep("CCW", prev, selectedDisplayRotation)
+        }
+    }
+
+    private fun onOrientationStep(dir: String, from: Int, to: Int) {
+        updateOrientationHint(to)
+        PlayerAdLogger.i(
+            "ORIENT",
+            "mount=${to * 90}° (${PlayerConfigLoader.displayRotationLabel(to)}) dir=$dir step=${to + 1}/4 from=${from * 90}°",
+        )
+        appendStatus("Orientação: ${PlayerConfigLoader.displayRotationLabel(to)} ($dir)")
+        val base = readConfigOrNull() ?: return
+        val mode = PlayerConfigLoader.displayRotationToMode(to)
+        val preview = base.copy(displayRotation = to, screenOrientation = mode)
+        applyConfigOrientationPreview(preview.displayRotation)
     }
 
     private fun applyConfigOrientationPreview(displayRotation: Int) {
@@ -642,9 +646,7 @@ class DebugConfigActivity : AppCompatActivity() {
     }
 
     private fun readSelectedScreenOrientation(): ScreenOrientationMode {
-        val orientationValues = resources.getStringArray(R.array.player_screen_orientations)
-        val pos = spinnerScreenOrientation.selectedItemPosition.coerceIn(0, orientationValues.size - 1)
-        return PlayerConfigLoader.parseScreenOrientation(orientationValues[pos])
+        return PlayerConfigLoader.displayRotationToMode(selectedDisplayRotation)
     }
 
     private fun updateOrientationHint(displayRotation: Int) {

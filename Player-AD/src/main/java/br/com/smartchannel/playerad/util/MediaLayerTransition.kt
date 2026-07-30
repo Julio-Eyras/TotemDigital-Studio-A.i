@@ -16,20 +16,18 @@ object MediaLayerTransition {
 
     /** Pico do véu — opaco na troca (evita ver camada de baixo nas letterboxes). */
     const val PEAK_ALPHA = 1.0f
-    const val FADE_IN_MS = 70L
-    const val FADE_OUT_MS = 100L
+    /** Cover imediato (sem fade-in): em landscape o fade deixava ver TextureView residual. */
+    const val FADE_IN_MS = 0L
+    const val FADE_OUT_MS = 90L
 
     suspend fun cover(overlay: View?) {
         val view = overlay ?: return
         cancelRunning(view)
         view.visibility = View.VISIBLE
         view.bringToFront()
-        val from = view.alpha.coerceIn(0f, 1f)
-        if (from >= PEAK_ALPHA - 0.02f) {
-            view.alpha = PEAK_ALPHA
-            return
-        }
-        animateAlpha(view, from, PEAK_ALPHA, FADE_IN_MS)
+        view.elevation = 48f
+        // Opaco já no 1º frame — crítico em displayRotation landscape (matrix/TextureView).
+        view.alpha = PEAK_ALPHA
     }
 
     suspend fun reveal(overlay: View?) {

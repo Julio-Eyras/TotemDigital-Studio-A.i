@@ -10,13 +10,18 @@ import {
   FormControl,
   FormControlLabel,
   FormGroup,
+  IconButton,
   InputLabel,
   MenuItem,
   Select,
+  Stack,
   Switch,
   TextField,
   Typography,
 } from '@mui/material';
+import RotateRightIcon from '@mui/icons-material/RotateRight';
+import RotateLeftIcon from '@mui/icons-material/RotateLeft';
+import ScreenRotationIcon from '@mui/icons-material/ScreenRotation';
 import { totemApi, UpdatePlayerRequest } from '../../services/api';
 import { getTotemIdFromRow, getTotemLocalIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
@@ -43,6 +48,22 @@ export interface TotemEditDialogProps {
 type DisplayScheduleForm = DisplayScheduleInfo;
 type PollAdaptiveForm = PollAdaptiveInfo;
 
+type PlayerAdForm = {
+  serverUrl: string;
+  deviceId: string;
+  displayRotation: number;
+  kioskMode: 'strong' | 'immersive';
+  acceptImagesInPlaylist: boolean;
+  allowPlaybackAudio: boolean;
+  batimentoCardiaco: number;
+  maxSecondsWithoutServerCheck: number;
+  storage: string;
+  storagePathOverride: string;
+  maxCacheSizeMb: number;
+  maxCachePercentOfVolume: string;
+  allowIdentityChange: boolean;
+};
+
 const DAY_OPTIONS = DISPLAY_SCHEDULE_DAY_OPTIONS;
 
 const TIMEZONE_OPTIONS = [
@@ -59,6 +80,61 @@ const TIMEZONE_OPTIONS = [
 
 const DEFAULT_SCHEDULE = DEFAULT_DISPLAY_SCHEDULE;
 
+const DEFAULT_PLAYER_AD: PlayerAdForm = {
+  serverUrl: 'https://totemdigital.app.br',
+  deviceId: '',
+  displayRotation: 0,
+  kioskMode: 'strong',
+  acceptImagesInPlaylist: true,
+  allowPlaybackAudio: false,
+  batimentoCardiaco: 30,
+  maxSecondsWithoutServerCheck: 180,
+  storage: 'external_primary',
+  storagePathOverride: '',
+  maxCacheSizeMb: 1000,
+  maxCachePercentOfVolume: '',
+  allowIdentityChange: false,
+};
+
+function orientationLabel(rotation: number): string {
+  switch (((rotation % 4) + 4) % 4) {
+    case 1:
+      return '90° paisagem';
+    case 2:
+      return '180° retrato invertido';
+    case 3:
+      return '270° paisagem invertida';
+    default:
+      return '0° retrato';
+  }
+}
+
+function readPlayerAdFromTotem(totem: Record<string, unknown> | null): PlayerAdForm {
+  const settings = ((totem?.playerSettings || totem?.player_settings || {}) as Record<string, unknown>) || {};
+  const rotRaw = Number(settings.displayRotation ?? 0);
+  const rot = Number.isFinite(rotRaw) ? ((rotRaw % 4) + 4) % 4 : 0;
+  const kiosk = String(settings.kioskMode || 'strong').toLowerCase() === 'immersive' ? 'immersive' : 'strong';
+  return {
+    ...DEFAULT_PLAYER_AD,
+    serverUrl: String(settings.serverUrl || DEFAULT_PLAYER_AD.serverUrl),
+    deviceId: String(settings.deviceId || totem?.deviceId || totem?.device_id || ''),
+    displayRotation: rot,
+    kioskMode: kiosk,
+    acceptImagesInPlaylist: settings.acceptImagesInPlaylist !== false,
+    allowPlaybackAudio: settings.allowPlaybackAudio === true,
+    batimentoCardiaco: Math.min(3600, Math.max(15, Number(settings.batimentoCardiaco) || 30)),
+    maxSecondsWithoutServerCheck: Math.min(3600, Math.max(30, Number(settings.maxSecondsWithoutServerCheck) || 180)),
+    storage: String(settings.storage || 'external_primary'),
+    storagePathOverride: String(settings.storagePathOverride || ''),
+    maxCacheSizeMb: Math.min(8192, Math.max(50, Number(settings.maxCacheSizeMb) || 1000)),
+    maxCachePercentOfVolume:
+      settings.maxCachePercentOfVolume != null && settings.maxCachePercentOfVolume !== ''
+        ? String(settings.maxCachePercentOfVolume)
+        : '',
+    allowIdentityChange: false,
+  };
+}
+
 const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose, onSaved }) => {
   const [form, setForm] = useState<UpdatePlayerRequest>({
     name: '',
@@ -69,6 +145,7 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
   });
   const [schedule, setSchedule] = useState<DisplayScheduleForm>(DEFAULT_SCHEDULE);
   const [pollAdaptive, setPollAdaptive] = useState<PollAdaptiveForm>(DEFAULT_POLL_ADAPTIVE);
+  const [playerAd, setPlayerAd] = useState<PlayerAdForm>(DEFAULT_PLAYER_AD);
   const [deviceClock, setDeviceClock] = useState<DeviceClockInfo | null>(null);
   const [lastHeartbeat, setLastHeartbeat] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -91,6 +168,7 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
     });
     setSchedule(readScheduleFromTotem(totem));
     setPollAdaptive(readPollAdaptiveFromTotem(totem));
+    setPlayerAd(readPlayerAdFromTotem(totem));
     setDeviceClock(readDeviceClockFromTotem(totem));
     setLastHeartbeat(
       totem.lastHeartbeat
@@ -120,6 +198,7 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
           }));
           setSchedule(readScheduleFromTotem(full as any));
           setPollAdaptive(readPollAdaptiveFromTotem(full as any));
+          setPlayerAd(readPlayerAdFromTotem(full as any));
           formHydratedRef.current = true;
         }
         setDeviceClock(readDeviceClockFromTotem(full as any));
@@ -232,11 +311,40 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
             idleHeartbeatSeconds: pollAdaptive.idleHeartbeatSeconds,
             idleDispatchSeconds: pollAdaptive.idleDispatchSeconds,
           },
+          displayRotation: playerAd.displayRotation,
+          screenOrientation:
+            playerAd.displayRotation === 1
+              ? 'landscape'
+              : playerAd.displayRotation === 2
+                ? 'reverse_portrait'
+                : playerAd.displayRotation === 3
+                  ? 'reverse_landscape'
+                  : 'portrait',
+          kioskMode: playerAd.kioskMode,
+          acceptImagesInPlaylist: playerAd.acceptImagesInPlaylist,
+          allowPlaybackAudio: playerAd.allowPlaybackAudio,
+          batimentoCardiaco: playerAd.batimentoCardiaco,
+          maxSecondsWithoutServerCheck: playerAd.maxSecondsWithoutServerCheck,
+          storage: playerAd.storage,
+          storagePathOverride: playerAd.storagePathOverride || undefined,
+          maxCacheSizeMb: playerAd.maxCacheSizeMb,
+          maxCachePercentOfVolume: playerAd.maxCachePercentOfVolume
+            ? Number(playerAd.maxCachePercentOfVolume)
+            : null,
+          allowIdentityChange: playerAd.allowIdentityChange,
+          ...(playerAd.allowIdentityChange
+            ? {
+                serverUrl: playerAd.serverUrl.trim(),
+                deviceId: playerAd.deviceId.trim(),
+                uin,
+              }
+            : {}),
         },
       };
       if (name) payload.name = name;
       if (uin) payload.uin = uin;
       if (form.localId) payload.localId = form.localId;
+      if (playerAd.deviceId.trim()) payload.deviceId = playerAd.deviceId.trim();
 
       await totemApi.update(totemId, payload);
       onSaved();
@@ -250,12 +358,18 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
 
   const title = String(totem?.name || totem?.identifier || 'Totem');
 
+  const rotateCw = () =>
+    setPlayerAd((prev) => ({ ...prev, displayRotation: (prev.displayRotation + 1) % 4 }));
+  const rotateCcw = () =>
+    setPlayerAd((prev) => ({ ...prev, displayRotation: (prev.displayRotation + 3) % 4 }));
+
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth scroll="paper">
       <DialogTitle>Editar totem</DialogTitle>
-      <DialogContent>
+      <DialogContent dividers>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Ajuste o nome, identificador, código de ativação e horário de tela de <strong>{title}</strong>.
+          Parâmetros do totem e config do Player-AD (empurrados via <code>apply_player_config</code>) para{' '}
+          <strong>{title}</strong>.
         </Typography>
         {error && (
           <Typography color="error" variant="body2" sx={{ mb: 2 }}>
@@ -297,6 +411,181 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
           }
           label="Totem habilitado"
         />
+
+        <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+            <ScreenRotationIcon fontSize="small" color="primary" />
+            <Typography variant="subtitle1">Configuração Player-AD</Typography>
+          </Stack>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            Espelho do painel de configuração do aparelho. Alterações são enviadas ao totem no próximo
+            heartbeat.
+          </Typography>
+
+          <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+            Orientação do painel
+          </Typography>
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+            <IconButton aria-label="Rodar 90 anti-horário" onClick={rotateCcw} color="primary">
+              <RotateLeftIcon />
+            </IconButton>
+            <Typography variant="body1" sx={{ minWidth: 180, textAlign: 'center', fontWeight: 600 }}>
+              {orientationLabel(playerAd.displayRotation)}
+            </Typography>
+            <IconButton aria-label="Rodar 90 horário" onClick={rotateCw} color="primary">
+              <RotateRightIcon />
+            </IconButton>
+          </Stack>
+
+          <TextField
+            fullWidth
+            label="URL do servidor (serverUrl)"
+            margin="dense"
+            value={playerAd.serverUrl}
+            onChange={(e) => setPlayerAd((prev) => ({ ...prev, serverUrl: e.target.value }))}
+            helperText="Ex.: https://totemdigital.app.br — só aplica no aparelho se permitir alterar identidade"
+          />
+          <TextField
+            fullWidth
+            label="ID do dispositivo (deviceId)"
+            margin="dense"
+            value={playerAd.deviceId}
+            onChange={(e) => setPlayerAd((prev) => ({ ...prev, deviceId: e.target.value }))}
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={playerAd.allowIdentityChange}
+                onChange={(e) =>
+                  setPlayerAd((prev) => ({ ...prev, allowIdentityChange: e.target.checked }))
+                }
+              />
+            }
+            label="Permitir alterar URL / UIN / deviceId no totem (allowIdentityChange)"
+          />
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={playerAd.kioskMode === 'strong'}
+                onChange={(e) =>
+                  setPlayerAd((prev) => ({
+                    ...prev,
+                    kioskMode: e.target.checked ? 'strong' : 'immersive',
+                  }))
+                }
+              />
+            }
+            label="Kiosk forte (bloqueio HOME/recents)"
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={playerAd.acceptImagesInPlaylist}
+                onChange={(e) =>
+                  setPlayerAd((prev) => ({ ...prev, acceptImagesInPlaylist: e.target.checked }))
+                }
+              />
+            }
+            label="Aceitar imagens na playlist"
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={playerAd.allowPlaybackAudio}
+                onChange={(e) =>
+                  setPlayerAd((prev) => ({ ...prev, allowPlaybackAudio: e.target.checked }))
+                }
+              />
+            }
+            label="Áudio na reprodução (vídeo)"
+          />
+
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 1 }}>
+            <TextField
+              label="Batimento (s)"
+              type="number"
+              size="small"
+              value={playerAd.batimentoCardiaco}
+              onChange={(e) =>
+                setPlayerAd((prev) => ({
+                  ...prev,
+                  batimentoCardiaco: Math.min(3600, Math.max(15, Number(e.target.value) || 30)),
+                }))
+              }
+              inputProps={{ min: 15, max: 3600 }}
+              sx={{ width: 140 }}
+            />
+            <TextField
+              label="Atualizar plano (s)"
+              type="number"
+              size="small"
+              value={playerAd.maxSecondsWithoutServerCheck}
+              onChange={(e) =>
+                setPlayerAd((prev) => ({
+                  ...prev,
+                  maxSecondsWithoutServerCheck: Math.min(
+                    3600,
+                    Math.max(30, Number(e.target.value) || 180)
+                  ),
+                }))
+              }
+              inputProps={{ min: 30, max: 3600 }}
+              sx={{ width: 160 }}
+            />
+            <TextField
+              label="Cache máx. (MB)"
+              type="number"
+              size="small"
+              value={playerAd.maxCacheSizeMb}
+              onChange={(e) =>
+                setPlayerAd((prev) => ({
+                  ...prev,
+                  maxCacheSizeMb: Math.min(8192, Math.max(50, Number(e.target.value) || 1000)),
+                }))
+              }
+              inputProps={{ min: 50, max: 8192 }}
+              sx={{ width: 140 }}
+            />
+            <TextField
+              label="% volume (opc.)"
+              size="small"
+              value={playerAd.maxCachePercentOfVolume}
+              onChange={(e) =>
+                setPlayerAd((prev) => ({ ...prev, maxCachePercentOfVolume: e.target.value }))
+              }
+              sx={{ width: 130 }}
+            />
+          </Box>
+
+          <FormControl fullWidth margin="dense" size="small" sx={{ mt: 1, maxWidth: 360 }}>
+            <InputLabel id="player-storage-label">Storage</InputLabel>
+            <Select
+              labelId="player-storage-label"
+              label="Storage"
+              value={playerAd.storage}
+              onChange={(e) => setPlayerAd((prev) => ({ ...prev, storage: String(e.target.value) }))}
+            >
+              <MenuItem value="auto">auto</MenuItem>
+              <MenuItem value="internal">internal</MenuItem>
+              <MenuItem value="external_primary">external_primary</MenuItem>
+              <MenuItem value="sdcard">sdcard</MenuItem>
+              <MenuItem value="removable_preferred">removable_preferred</MenuItem>
+              <MenuItem value="path_override">path_override</MenuItem>
+            </Select>
+          </FormControl>
+          {playerAd.storage === 'path_override' && (
+            <TextField
+              fullWidth
+              margin="dense"
+              label="Caminho absoluto (storagePathOverride)"
+              value={playerAd.storagePathOverride}
+              onChange={(e) =>
+                setPlayerAd((prev) => ({ ...prev, storagePathOverride: e.target.value }))
+              }
+            />
+          )}
+        </Box>
 
         <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
           <Box

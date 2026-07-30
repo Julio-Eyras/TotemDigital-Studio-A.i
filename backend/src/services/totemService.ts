@@ -1166,22 +1166,54 @@ export class TotemService {
       // Invalidar cache relacionado
       await this.cache.invalidateEntity('totem', totemId).catch(() => {});
 
-      // Se o horário de tela mudou, empurra apply_player_config para o player.
-      if (data.playerSettings && (data.playerSettings as any).displaySchedule !== undefined) {
+      // Empurra apply_player_config para o player quando player_settings mudam.
+      if (data.playerSettings && typeof data.playerSettings === 'object') {
         try {
           const settings = (updatedTotem as any).playerSettings || (updatedTotem as any).player_settings || {};
-          await getRemoteCommandService().createCommand(
-            {
-              totemId,
-              commandType: 'apply_player_config',
-              commandData: {
-                displaySchedule: settings.displaySchedule ?? null,
+          const patch = data.playerSettings as Record<string, unknown>;
+          const commandData: Record<string, unknown> = {};
+
+          const copyKeys = [
+            'displaySchedule',
+            'pollAdaptive',
+            'displayRotation',
+            'screenOrientation',
+            'kioskMode',
+            'batimentoCardiaco',
+            'maxSecondsWithoutServerCheck',
+            'acceptImagesInPlaylist',
+            'allowPlaybackAudio',
+            'storage',
+            'storagePathOverride',
+            'maxCacheSizeMb',
+            'maxCachePercentOfVolume',
+          ] as const;
+          for (const key of copyKeys) {
+            if (patch[key] !== undefined) {
+              commandData[key] = settings[key] ?? patch[key];
+            }
+          }
+
+          const allowIdentity = patch.allowIdentityChange === true;
+          if (allowIdentity) {
+            commandData.allowIdentityChange = true;
+            if (patch.serverUrl !== undefined) commandData.serverUrl = patch.serverUrl;
+            if (patch.uin !== undefined) commandData.uin = patch.uin;
+            if (patch.deviceId !== undefined) commandData.deviceId = patch.deviceId;
+          }
+
+          if (Object.keys(commandData).length > 0) {
+            await getRemoteCommandService().createCommand(
+              {
+                totemId,
+                commandType: 'apply_player_config',
+                commandData,
               },
-            },
-            updatedBy
-          );
+              updatedBy
+            );
+          }
         } catch (e: any) {
-          await logError('Falha ao enfileirar apply_player_config após displaySchedule', e, { totemId });
+          await logError('Falha ao enfileirar apply_player_config após update totem', e, { totemId });
         }
       }
 
