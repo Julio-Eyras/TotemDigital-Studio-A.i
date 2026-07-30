@@ -215,10 +215,14 @@ export class TotemDirectMediaService {
   async addMediaToTotem(totemId: number, mediaId: number): Promise<TotemDirectMediaItem[]> {
     const ctx = await this.getTotemPublisherContext(totemId);
     const media = await this.db.findFirst(
-      `SELECT media_id, subscriber_id, publisher_id FROM medias WHERE media_id = $1 AND is_active = true`,
+      `SELECT media_id, subscriber_id, publisher_id, COALESCE(is_active, true) AS is_active
+       FROM medias WHERE media_id = $1`,
       [mediaId]
     );
     if (!media?.media_id) throw new Error('Mídia não encontrada');
+    if (media.is_active === false) {
+      throw new Error('Mídia desabilitada na biblioteca. Reative-a em Mídias antes de anexar a totens.');
+    }
     if (isDirectTotemMode()) {
       if (!media.publisher_id) {
         throw new Error('Mídia não pertence à biblioteca desta organização');

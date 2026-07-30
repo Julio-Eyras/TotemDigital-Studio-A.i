@@ -381,6 +381,11 @@ const Media: React.FC = () => {
   }, [attachMedia, attachTotems]);
 
   const openAttachTotemsDialog = async (media: MediaItem) => {
+    const mediaActive = (media as any).isActive !== false && (media as any).is_active !== false;
+    if (!mediaActive) {
+      setError('Mídia desabilitada na biblioteca. Reative-a antes de anexar a totens.');
+      return;
+    }
     setAttachMedia(media);
     setAttachSelectedIds([]);
     setAttachTotemsOpen(true);
@@ -418,6 +423,12 @@ const Media: React.FC = () => {
 
   const handleAttachSelectedTotems = async () => {
     if (!attachMedia?.media_id || attachSelectedIds.length === 0) return;
+    const mediaActive =
+      (attachMedia as any).isActive !== false && (attachMedia as any).is_active !== false;
+    if (!mediaActive) {
+      setError('Mídia desabilitada na biblioteca. Reative-a antes de anexar a totens.');
+      return;
+    }
     const mediaId = Number(attachMedia.media_id);
     try {
       setAttachSaving(true);
@@ -1172,20 +1183,31 @@ const Media: React.FC = () => {
                         variant="outlined"
                         sx={{ fontSize: '0.7rem' }}
                       />
-                      <Tooltip title="Anexar a totens">
-                        <IconButton
-                          size="small"
-                          color="primary"
-                          aria-label="Anexar a totens"
-                          onClick={() => void openAttachTotemsDialog(media)}
-                          sx={{
-                            border: `1px dashed ${theme.palette.primary.main}`,
-                            width: 28,
-                            height: 28,
-                          }}
-                        >
-                          <Add fontSize="small" />
-                        </IconButton>
+                      <Tooltip
+                        title={
+                          mediaActive
+                            ? 'Anexar a totens'
+                            : 'Mídia desabilitada na biblioteca — reative antes de anexar'
+                        }
+                      >
+                        <span>
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            aria-label="Anexar a totens"
+                            disabled={!mediaActive}
+                            onClick={() => void openAttachTotemsDialog(media)}
+                            sx={{
+                              border: `1px dashed ${
+                                mediaActive ? theme.palette.primary.main : theme.palette.divider
+                              }`,
+                              width: 28,
+                              height: 28,
+                            }}
+                          >
+                            <Add fontSize="small" />
+                          </IconButton>
+                        </span>
                       </Tooltip>
                       <Typography variant="caption" color="text.secondary" sx={{ ml: 0.25 }}>
                         + totem
