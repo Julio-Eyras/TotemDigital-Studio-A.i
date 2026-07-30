@@ -314,13 +314,33 @@ export class UserService {
         throw new Error('Email é obrigatório');
       }
 
-      // Verificar se username já existe
-      const existingUser = await this.db.findFirst(`
-        SELECT id FROM users WHERE username = $1
-      `, [username]);
+      // Verificar conflitos de username/email (exclusão é soft delete)
+      const existingByUsername = await this.db.findFirst(`
+        SELECT id, is_active, email
+        FROM users
+        WHERE username = $1
+      `, [username]) as { id: number; is_active: boolean; email: string } | null;
 
-      if (existingUser) {
+      if (existingByUsername?.is_active) {
         throw new Error('Nome de usuário já existe');
+      }
+
+      const existingByEmail = await this.db.findFirst(`
+        SELECT id, is_active, username
+        FROM users
+        WHERE lower(email) = lower($1)
+      `, [emailNorm]) as { id: number; is_active: boolean; username: string } | null;
+
+      if (existingByEmail && existingByEmail.id !== existingByUsername?.id) {
+        if (existingByEmail.is_active) {
+          throw new Error('Email já existe');
+        }
+        // Libera email de outro usuário já excluído (soft) para permitir recriação
+        await this.db.executeRaw(`
+          UPDATE users
+          SET email = $1, updated_at = CURRENT_TIMESTAMP
+          WHERE id = $2
+        `, [`deleted_${existingByEmail.id}_${Date.now()}_${emailNorm}`, existingByEmail.id]);
       }
 
       // Mapeamento de roles para recursos
@@ -414,6 +434,46 @@ export class UserService {
       // Hash da senha
       const bcrypt = require('bcryptjs');
       const hashedPassword = await bcrypt.hash(password, 12);
+
+      // Usuário excluído (soft): reativa e atualiza em vez de bloquear o username
+      if (existingByUsername && !existingByUsername.is_active) {
+        const reactivateId = existingByUsername.id;
+        await this.db.executeRaw(`
+          UPDATE users
+          SET
+            email = $1,
+            password_hash = $2,
+            name = $3,
+            role = $4,
+            publisher_id = $5,
+            subscriber_id = $6,
+            user_type = $7,
+            is_tenant_user = $8,
+            is_active = true,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = $9
+        `, [
+          emailNorm,
+          hashedPassword,
+          name,
+          role,
+          finalPublisherId,
+          finalSubscriberId,
+          finalUserType,
+          finalIsTenantUser,
+          reactivateId,
+        ]);
+
+        if (flags && Object.keys(flags).length > 0) {
+          await this.updateUserFlags(reactivateId, flags, reactivateId);
+        }
+
+        const reactivatedUser = await this.getUserById(reactivateId);
+        if (!reactivatedUser) {
+          throw new Error('Erro ao reativar usuário');
+        }
+        return reactivatedUser;
+      }
 
       // Criar usuário
       const result = await this.db.executeRaw(`
