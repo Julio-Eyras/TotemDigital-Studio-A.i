@@ -80,8 +80,17 @@ export function buildInstallationCapabilities(
 
   const modules = mergeInstallationModules(defaults, moduleOverrides);
 
+  // Fase B: módulos sobrescrevem capabilities legadas usadas pela UI/runtime
   return {
     ...base,
+    multiAgency: modules.multi_agency,
+    totemDigitalCompact: !modules.multi_agency,
+    bullExportQueues: modules.multi_agency,
+    subdomainTenancy: modules.subscriber_portal || modules.multi_agency,
+    subscriberPortal: modules.subscriber_portal,
+    smartDisplayFx: modules.smart_display_fx,
+    simpleTotemMode: modules.simple_totem_mode,
+    directTotemMode: modules.direct_totem_mode,
     modules,
   };
 }

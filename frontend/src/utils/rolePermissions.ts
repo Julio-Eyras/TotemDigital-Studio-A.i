@@ -1,4 +1,5 @@
 import { isStudioMode } from '../config/studioMode';
+import { isPathAllowedByInstallationModules } from './installationModuleAccess';
 /**
  * Role Permissions Utility
  * Define quais recursos cada role pode acessar
@@ -165,6 +166,11 @@ export function canAccess(
   userFlags?: UserFlags | Record<string, boolean> | null
 ): boolean {
   const pathForPermission = (path || '').split('?')[0] || '/';
+
+  // Módulo de produto (instalação) — aplica a todos, incluindo owner
+  if (!isPathAllowedByInstallationModules(pathForPermission)) {
+    return false;
+  }
 
   // Owner system sempre tem acesso (exceto se explicitamente negado)
   if (userRole === 'owner_system') {

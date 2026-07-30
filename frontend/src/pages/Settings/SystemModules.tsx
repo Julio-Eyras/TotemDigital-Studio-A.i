@@ -71,9 +71,9 @@ const SystemModules: React.FC = () => {
       setModules(data?.modules || null);
       setProfile(data?.profile || '');
       setPhaseNote(
-        data?.enforcement === 'persist_only'
-          ? 'Fase A: as alterações são guardadas. O menu/API ainda seguem o perfil actual até a Fase B.'
-          : ''
+        data?.enforcement === 'menu_and_api'
+          ? 'Fase B: os interruptores afectam menu e API. Após Guardar, a página recarrega para aplicar.'
+          : 'As alterações são guardadas na instalação.'
       );
     } catch (e) {
       setError(pickApiErrorMessage(e, 'Erro ao carregar complementos'));
@@ -110,7 +110,10 @@ const SystemModules: React.FC = () => {
       setSuccess(null);
       const data = await installationModulesApi.update(modules);
       setModules(data?.modules || modules);
-      setSuccess('Complementos guardados com sucesso.');
+      setSuccess('Complementos guardados. A aplicar…');
+      window.setTimeout(() => {
+        window.location.reload();
+      }, 600);
     } catch (e) {
       setError(pickApiErrorMessage(e, 'Erro ao guardar complementos'));
     } finally {

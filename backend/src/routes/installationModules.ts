@@ -47,8 +47,8 @@ router.get(
           profile: view.capabilities.profile,
           note:
             'Módulos controlam o produto da instalação. flag_smart_* controla permissões por utilizador.',
-          phase: 'A',
-          enforcement: 'persist_only',
+          phase: 'B',
+          enforcement: 'menu_and_api',
         },
       });
     } catch (error: any) {
@@ -78,7 +78,7 @@ router.put(
       res.json({
         success: true,
         message:
-          'Complementos guardados. Na Fase A o menu/API ainda seguem o perfil actual; a Fase B aplicará os gates.',
+          'Complementos guardados. O menu e a API passam a respeitar os módulos (recarregue a aplicação).',
         data: { modules },
       });
     } catch (error: any) {

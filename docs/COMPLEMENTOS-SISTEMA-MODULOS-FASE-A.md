@@ -42,12 +42,9 @@ Login owner/admin_sql → menu **Complementos do sistema** → alterar → Guard
 SELECT setting_value FROM system_settings WHERE setting_key = 'installation.modules';
 ```
 
-## Fase B (próximo passo autorizado)
+## Fase B (concluída na branch)
 
-1. `requireModule('billing')` nas rotas sensíveis  
-2. `menuHierarchy` / `canAccess` filtrar por `capabilities.modules`  
-3. Sync opcional Direct Totem / Simple Mode a partir dos módulos  
-4. Checklist de activação (seeds/DNS) por módulo comercial  
+Ver `docs/COMPLEMENTOS-SISTEMA-MODULOS-FASE-B.md`: gates de menu/API + sync de modos.
 
 ## Autorização
 

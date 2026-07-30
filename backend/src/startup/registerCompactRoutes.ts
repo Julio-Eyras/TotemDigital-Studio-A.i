@@ -36,34 +36,63 @@ import subscriberAccessRoutes from '../routes/subscriber-access';
 import smartTvRoutes from '../routes/smart-tvs';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
+import { requireModule } from '../middleware/moduleAuth.middleware';
 
 /**
  * Rotas expostas no perfil TotemDigital compacto (monousuário).
  * Inclui faturamento (subscriber/publisher billing, assinaturas e rota billing legada)
  * alinhado à versão Pro, com o mesmo middleware de auth e bloqueio operator.
+ * Fase B: requireModule nas superfícies complementares.
  */
 export function registerCompactRoutes(app: Express): void {
   app.use('/api/auth', authRoutes);
-  app.use('/api/plans', plansRoutes);
-  app.use('/api/contracts', contractRoutes);
+  app.use('/api/plans', requireModule('plans') as any, plansRoutes);
+  app.use('/api/contracts', requireModule('contracts') as any, contractRoutes);
   app.use('/api/publishers', authMiddleware as any, publisherRoutes);
-  app.use('/api/subscriber-access', subscriberAccessRoutes);
-  app.use('/api/subscribers', authMiddleware as any, blockClientDataAccess as any, subscriberRoutes);
+  app.use('/api/subscriber-access', requireModule('subscribers') as any, subscriberAccessRoutes);
+  app.use(
+    '/api/subscribers',
+    authMiddleware as any,
+    requireModule('subscribers') as any,
+    blockClientDataAccess as any,
+    subscriberRoutes
+  );
   app.use('/api/locals', authMiddleware as any, localRoutes);
-  app.use('/api/smart-tvs', smartTvRoutes);
+  app.use('/api/smart-tvs', requireModule('devices') as any, smartTvRoutes);
   app.use('/api/totems', totemRoutes);
   app.use('/api/dispatcher-totem', dispatcherTotemRoutes);
-  app.use('/api/dispatcher-debug', dispatcherDebugRoutes);
-  app.use('/api/players', authMiddleware as any, playerRoutes);
+  app.use('/api/dispatcher-debug', requireModule('dispatcher_admin') as any, dispatcherDebugRoutes);
+  app.use('/api/players', authMiddleware as any, requireModule('devices') as any, playerRoutes);
   app.use('/api/media', blockClientDataAccess as any, mediaRoutes);
-  app.use('/api/playlists', blockClientDataAccess as any, playlistRoutes);
-  app.use('/api/campaigns', blockClientDataAccess as any, campaignRoutes);
-  app.use('/api/quick-publish', blockClientDataAccess as any, quickPublishRoutes);
+  app.use(
+    '/api/playlists',
+    requireModule('playlists_advanced') as any,
+    blockClientDataAccess as any,
+    playlistRoutes
+  );
+  app.use(
+    '/api/campaigns',
+    requireModule('campaigns') as any,
+    blockClientDataAccess as any,
+    campaignRoutes
+  );
+  app.use(
+    '/api/quick-publish',
+    requireModule('quick_publish') as any,
+    blockClientDataAccess as any,
+    quickPublishRoutes
+  );
   app.use('/api/simple-publish', blockClientDataAccess as any, simplePublishRoutes);
-  app.use('/api/publish-templates', authMiddleware as any, publishTemplatesRoutes);
+  app.use(
+    '/api/publish-templates',
+    authMiddleware as any,
+    requireModule('quick_publish') as any,
+    publishTemplatesRoutes
+  );
   app.use(
     '/api/subscribers/:subscriberId/menu-catalog',
     authMiddleware as any,
+    requireModule('quick_publish') as any,
     blockClientDataAccess as any,
     menuCatalogRoutes
   );
@@ -71,6 +100,7 @@ export function registerCompactRoutes(app: Express): void {
   app.use(
     '/api/subscribers/:subscriberId/publish-board',
     authMiddleware as any,
+    requireModule('quick_publish') as any,
     blockClientDataAccess as any,
     publishBoardRoutes
   );
@@ -83,16 +113,40 @@ export function registerCompactRoutes(app: Express): void {
   app.use('/api/playlist-engine', playlistEngineRoutes);
   app.use('/api/health', healthRoutes);
 
-  app.use('/api/billing', authMiddleware as any, blockClientDataAccess as any, (_req, res, next) => {
+  app.use('/api/billing', authMiddleware as any, requireModule('billing') as any, blockClientDataAccess as any, (_req, res, next) => {
     res.setHeader('X-Deprecated-Route', 'true');
     res.setHeader('X-Deprecated-Message', 'Esta rota está deprecated. Use /api/subscriber-billing ou /api/publisher-billing');
     next();
   }, billingRoutes);
-  app.use('/api/subscriber-billing', authMiddleware as any, blockClientDataAccess as any, subscriberBillingRoutes);
-  app.use('/api/publisher-billing', authMiddleware as any, blockClientDataAccess as any, publisherBillingRoutes);
-  app.use('/api/billing-control', authMiddleware as any, blockClientDataAccess as any, billingControlRoutes);
+  app.use(
+    '/api/subscriber-billing',
+    authMiddleware as any,
+    requireModule('billing') as any,
+    blockClientDataAccess as any,
+    subscriberBillingRoutes
+  );
+  app.use(
+    '/api/publisher-billing',
+    authMiddleware as any,
+    requireModule('billing') as any,
+    blockClientDataAccess as any,
+    publisherBillingRoutes
+  );
+  app.use(
+    '/api/billing-control',
+    authMiddleware as any,
+    requireModule('billing') as any,
+    blockClientDataAccess as any,
+    billingControlRoutes
+  );
   app.use('/api/financial-admin', financialPixWebhookRoutes);
-  app.use('/api/financial-admin', authMiddleware as any, blockClientDataAccess as any, financialAdminRoutes);
-  app.use('/api/subscriptions', subscriptionsRoutes);
+  app.use(
+    '/api/financial-admin',
+    authMiddleware as any,
+    requireModule('billing') as any,
+    blockClientDataAccess as any,
+    financialAdminRoutes
+  );
+  app.use('/api/subscriptions', requireModule('billing') as any, subscriptionsRoutes);
 }
 

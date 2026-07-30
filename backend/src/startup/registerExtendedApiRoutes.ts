@@ -42,6 +42,7 @@ import notificationsRoutes from '../routes/notifications';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { rateLimitHeavyOperations } from '../middleware/rateLimitUser.middleware';
+import { requireModule } from '../middleware/moduleAuth.middleware';
 
 export function registerExtendedApiRoutes(app: Express): void {
   app.use('/api/clients', authMiddleware as any, blockClientDataAccess as any, (_req, res, next) => {
@@ -50,31 +51,44 @@ export function registerExtendedApiRoutes(app: Express): void {
     next();
   }, clientRoutes);
 
-  app.use('/api/playlist-mix', authMiddleware as any, playlistMixRoutes);
-  app.use('/api/analytics', blockClientDataAccess as any, analyticsRoutes);
-  app.use('/api/reports', blockClientDataAccess as any, reportsRoutes);
-  app.use('/api/ai', aiRoutes);
-  app.use('/api/smart-playlist', blockClientDataAccess as any, smartPlaylistRoutes);
-  app.use('/api/export-queries', exportQueriesRoutes);
-  app.use('/api/export-schedules', exportSchedulesRoutes);
-  app.use('/api/export-executions', exportExecutionsRoutes);
+  app.use('/api/playlist-mix', authMiddleware as any, requireModule('dispatcher_admin') as any, playlistMixRoutes);
+  app.use('/api/analytics', requireModule('analytics') as any, blockClientDataAccess as any, analyticsRoutes);
+  app.use('/api/reports', requireModule('commercial_reports') as any, blockClientDataAccess as any, reportsRoutes);
+  app.use('/api/ai', requireModule('analytics') as any, aiRoutes);
+  app.use(
+    '/api/smart-playlist',
+    requireModule('playlists_advanced') as any,
+    blockClientDataAccess as any,
+    smartPlaylistRoutes
+  );
+  app.use('/api/export-queries', requireModule('dispatcher_admin') as any, exportQueriesRoutes);
+  app.use('/api/export-schedules', requireModule('dispatcher_admin') as any, exportSchedulesRoutes);
+  app.use('/api/export-executions', requireModule('dispatcher_admin') as any, exportExecutionsRoutes);
   app.use('/api/advanced-schedules', advancedSchedulesRoutes);
   app.use('/api/email', emailRoutes);
-  app.use('/api/ota-updates', otaUpdatesRoutes);
-  app.use('/api/publish-templates', publishTemplatesRoutes);
-  app.use('/api/subscribers/:subscriberId/menu-catalog', menuCatalogRoutes);
+  app.use('/api/ota-updates', requireModule('ota') as any, otaUpdatesRoutes);
+  app.use('/api/publish-templates', requireModule('quick_publish') as any, publishTemplatesRoutes);
+  app.use(
+    '/api/subscribers/:subscriberId/menu-catalog',
+    requireModule('quick_publish') as any,
+    menuCatalogRoutes
+  );
   app.use('/api/publish-board', publishBoardPublicRoutes);
-  app.use('/api/subscribers/:subscriberId/publish-board', publishBoardRoutes);
+  app.use(
+    '/api/subscribers/:subscriberId/publish-board',
+    requireModule('quick_publish') as any,
+    publishBoardRoutes
+  );
   app.use('/api/tags', blockClientDataAccess as any, tagsRoutes);
   app.use('/api/facial-recognition', blockClientDataAccess as any, facialRecognitionRoutes);
   app.use('/api/network', networkRoutes);
-  app.use('/api/smartdisplayfx', smartDisplayFxRoutes);
-  app.use('/api/smartdisplayfx/effects', smartDisplayFxEffectsRoutes);
-  app.use('/api/smartdisplayfx/rules', smartDisplayFxRulesRoutes);
-  app.use('/api/smartdisplayfx/timelines', smartDisplayFxTimelinesRoutes);
-  app.use('/api/smartdisplayfx/sites', smartDisplayFxSitesRoutes);
-  app.use('/api/smartdisplayfx/telemetry', smartDisplayFxTelemetryRoutes);
-  app.use('/api/smartdisplayfx/analytics', smartDisplayFxAnalyticsRoutes);
+  app.use('/api/smartdisplayfx', requireModule('smart_display_fx') as any, smartDisplayFxRoutes);
+  app.use('/api/smartdisplayfx/effects', requireModule('smart_display_fx') as any, smartDisplayFxEffectsRoutes);
+  app.use('/api/smartdisplayfx/rules', requireModule('smart_display_fx') as any, smartDisplayFxRulesRoutes);
+  app.use('/api/smartdisplayfx/timelines', requireModule('smart_display_fx') as any, smartDisplayFxTimelinesRoutes);
+  app.use('/api/smartdisplayfx/sites', requireModule('smart_display_fx') as any, smartDisplayFxSitesRoutes);
+  app.use('/api/smartdisplayfx/telemetry', requireModule('smart_display_fx') as any, smartDisplayFxTelemetryRoutes);
+  app.use('/api/smartdisplayfx/analytics', requireModule('smart_display_fx') as any, smartDisplayFxAnalyticsRoutes);
   app.use('/api/roles', rolesRoutes);
   app.use('/api/users', blockClientDataAccess as any, usersRoutes);
   app.use('/api/permissions', permissionsRoutes);

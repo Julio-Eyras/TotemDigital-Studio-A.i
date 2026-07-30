@@ -45,6 +45,7 @@ import { getInstallationCapabilities, isSimpleTotemMode } from '../config/instal
 import { isDirectTotemMode } from '../config/directTotemMode';
 import { isStudioMode } from '../config/studioMode';
 import { getProductTerminology, isSingleOrganizationProfile } from '../config/productTerminology';
+import { isPathAllowedByInstallationModules } from './installationModuleAccess';
 
 /** Pro com dashboard comercial: menos ruído técnico no menu (alinhado à Fase 5 do roadmap V3x). */
 const isCommercialProMenu = (): boolean => {
@@ -86,9 +87,14 @@ function filterHierarchicalMenu(
       continue;
     }
 
+    // Módulos de produto (Fase B)
+    const pathKey = (item.path || '').split('?')[0] || '/';
+    if (!isPathAllowedByInstallationModules(pathKey)) {
+      continue;
+    }
+
     // Verificar se o item principal tem acesso
     // canAccess(userRole, path, userFlags) - verifica role e flags automaticamente
-    const pathKey = (item.path || '').split('?')[0] || '/';
     if (!canAccess(userRole, pathKey, userFlags)) {
       continue; // Pular este item
     }
