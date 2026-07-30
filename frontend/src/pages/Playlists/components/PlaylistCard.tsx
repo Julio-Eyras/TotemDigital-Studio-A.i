@@ -27,6 +27,7 @@ import {
   AccessTime,
 } from '@mui/icons-material';
 import { PlaylistItem } from '../../../services/api';
+import { getDisabledContainerSx, getDisabledTextColor } from '../../../utils/disabledVisualIdentity';
 
 export interface PlaylistCardProps {
   playlist: PlaylistItem;
@@ -44,6 +45,7 @@ const PlaylistCard: React.FC<PlaylistCardProps> = ({
   highlighted = false,
 }) => {
   const theme = useTheme();
+  const isInactive = playlist.is_active === false;
 
   return (
     <Card
@@ -54,6 +56,7 @@ const PlaylistCard: React.FC<PlaylistCardProps> = ({
         transition: 'transform 0.2s, box-shadow 0.2s',
         border: highlighted ? `2px solid ${theme.palette.primary.main}` : 'none',
         boxShadow: highlighted ? theme.shadows[8] : theme.shadows[1],
+        ...getDisabledContainerSx(theme, isInactive ? 'disabled-global' : 'default'),
         '&:hover': {
           transform: 'translateY(-4px)',
           boxShadow: theme.shadows[8],
@@ -73,21 +76,30 @@ const PlaylistCard: React.FC<PlaylistCardProps> = ({
             <QueueMusic />
           </Avatar>
           <Box sx={{ flexGrow: 1 }}>
-            <Typography variant="h6" component="div" noWrap>
+            <Typography
+              variant="h6"
+              component="div"
+              noWrap
+              sx={isInactive ? { fontWeight: 700 } : undefined}
+            >
               {playlist.name}
             </Typography>
             <Chip
               label={playlist.is_active ? 'Ativa' : 'Inativa'}
               size="small"
-              color={playlist.is_active ? 'success' : 'default'}
-              sx={{ mt: 0.5 }}
+              color={playlist.is_active ? 'success' : 'warning'}
+              sx={{ mt: 0.5, ...(isInactive ? { fontWeight: 700 } : {}) }}
             />
           </Box>
         </Box>
 
         <Stack spacing={1} sx={{ mt: 2 }}>
           {playlist.description && (
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            <Typography
+              variant="body2"
+              color={getDisabledTextColor(theme, isInactive ? 'disabled-global' : 'default')}
+              sx={{ mb: 1 }}
+            >
               {playlist.description.length > 100
                 ? `${playlist.description.substring(0, 100)}...`
                 : playlist.description}
@@ -106,7 +118,10 @@ const PlaylistCard: React.FC<PlaylistCardProps> = ({
           {playlist.media_count !== undefined && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <VideoLibrary fontSize="small" color="action" />
-              <Typography variant="body2" color="text.secondary">
+              <Typography
+                variant="body2"
+                color={getDisabledTextColor(theme, isInactive ? 'disabled-global' : 'default')}
+              >
                 {playlist.media_count} Mídia{playlist.media_count !== 1 ? 's' : ''}
               </Typography>
             </Box>
@@ -115,7 +130,10 @@ const PlaylistCard: React.FC<PlaylistCardProps> = ({
           {playlist.total_duration !== undefined && playlist.total_duration > 0 && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <AccessTime fontSize="small" color="action" />
-              <Typography variant="body2" color="text.secondary">
+              <Typography
+                variant="body2"
+                color={getDisabledTextColor(theme, isInactive ? 'disabled-global' : 'default')}
+              >
                 {Math.floor(playlist.total_duration / 60)}:{String(Math.floor(playlist.total_duration % 60)).padStart(2, '0')}
               </Typography>
             </Box>

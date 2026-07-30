@@ -270,7 +270,8 @@ const SubscriberDetails: React.FC<SubscriberDetailsProps> = ({
                     <Chip
                       label={subscriber.is_active ? 'Ativo' : 'Inativo'}
                       size="small"
-                      color={subscriber.is_active ? 'success' : 'error'}
+                      color={subscriber.is_active ? 'success' : 'warning'}
+                      sx={!subscriber.is_active ? { fontWeight: 700 } : undefined}
                     />
                   </TableCell>
                 </TableRow>

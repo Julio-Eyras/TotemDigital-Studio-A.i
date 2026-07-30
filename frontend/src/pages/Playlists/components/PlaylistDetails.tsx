@@ -211,8 +211,9 @@ const PlaylistDetails: React.FC<PlaylistDetailsProps> = ({
                     <Chip
                       label={playlist.is_active ? 'Ativa' : 'Inativa'}
                       size="small"
-                      color={playlist.is_active ? 'success' : 'default'}
+                      color={playlist.is_active ? 'success' : 'warning'}
                       icon={playlist.is_active ? <CheckCircle /> : <Stop />}
+                      sx={!playlist.is_active ? { fontWeight: 700 } : undefined}
                     />
                   </TableCell>
                 </TableRow>

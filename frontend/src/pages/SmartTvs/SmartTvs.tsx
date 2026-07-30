@@ -40,6 +40,7 @@ import { useAppSelector } from '../../store';
 import { getForeignTotemIdFromRow, getTotemIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
+import { getDisabledContainerSx, getDisabledTextColor } from '../../utils/disabledVisualIdentity';
 
 const SmartTvs: React.FC = () => {
   const theme = useTheme();
@@ -370,7 +371,9 @@ const SmartTvs: React.FC = () => {
       </Card>
 
       <Grid container spacing={3}>
-        {smartTvs.map((smartTv) => (
+        {smartTvs.map((smartTv) => {
+          const isInactive = smartTv.is_active === false;
+          return (
           <Grid item xs={12} sm={6} md={4} key={smartTv.smart_tv_id}>
             <Card
               sx={{
@@ -378,22 +381,30 @@ const SmartTvs: React.FC = () => {
                 display: 'flex',
                 flexDirection: 'column',
                 transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+                ...getDisabledContainerSx(theme, isInactive ? 'disabled-global' : 'default'),
                 '&:hover': { transform: 'translateY(-4px)', boxShadow: theme.shadows[8] },
               }}
             >
               <CardContent>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 2 }}>
                   <Box>
-                    <Typography variant="h6" component="h2">
+                    <Typography variant="h6" component="h2" sx={isInactive ? { fontWeight: 700 } : undefined}>
                       {smartTv.name || smartTv.identifier}
                     </Typography>
                     {smartTv.totem_name && (
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography
+                        variant="caption"
+                        color={getDisabledTextColor(theme, isInactive ? 'disabled-global' : 'default')}
+                      >
                         Totem: {smartTv.totem_name}
                       </Typography>
                     )}
                     {smartTv.local_name && (
-                      <Typography variant="caption" color="text.secondary" display="block">
+                      <Typography
+                        variant="caption"
+                        color={getDisabledTextColor(theme, isInactive ? 'disabled-global' : 'default')}
+                        display="block"
+                      >
                         Local: {smartTv.local_name}
                       </Typography>
                     )}
@@ -407,7 +418,10 @@ const SmartTvs: React.FC = () => {
 
                 {smartTv.brand && smartTv.model && (
                   <Box sx={{ mb: 1 }}>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography
+                      variant="body2"
+                      color={getDisabledTextColor(theme, isInactive ? 'disabled-global' : 'default')}
+                    >
                       {smartTv.brand} {smartTv.model}
                     </Typography>
                   </Box>
@@ -415,7 +429,10 @@ const SmartTvs: React.FC = () => {
 
                 {smartTv.platform && (
                   <Box sx={{ mb: 1 }}>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography
+                      variant="body2"
+                      color={getDisabledTextColor(theme, isInactive ? 'disabled-global' : 'default')}
+                    >
                       Plataforma: {smartTv.platform}
                     </Typography>
                   </Box>
@@ -423,7 +440,10 @@ const SmartTvs: React.FC = () => {
 
                 {smartTv.resolution_width && smartTv.resolution_height && (
                   <Box sx={{ mb: 1 }}>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography
+                      variant="body2"
+                      color={getDisabledTextColor(theme, isInactive ? 'disabled-global' : 'default')}
+                    >
                       Resolução: {smartTv.resolution_width}x{smartTv.resolution_height}
                     </Typography>
                   </Box>
@@ -439,9 +459,9 @@ const SmartTvs: React.FC = () => {
 
                 <Chip
                   label={smartTv.is_active ? 'Ativo' : 'Inativo'}
-                  color={smartTv.is_active ? 'success' : 'default'}
+                  color={smartTv.is_active ? 'success' : 'warning'}
                   size="small"
-                  sx={{ mb: 1 }}
+                  sx={{ mb: 1, ...(isInactive ? { fontWeight: 700 } : {}) }}
                 />
 
                 <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between', mt: 2 }}>
@@ -470,7 +490,7 @@ const SmartTvs: React.FC = () => {
               </CardContent>
             </Card>
           </Grid>
-        ))}
+        );})}
       </Grid>
 
       {smartTvs.length === 0 && !loading && (

@@ -21,6 +21,7 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
+  useTheme,
 } from '@mui/material';
 import {
   Business,
@@ -53,6 +54,7 @@ import {
   getSubscriberFinancialListChip,
   resolveLastActivityLabel,
 } from '../subscriberCardMetrics';
+import { getDisabledContainerSx, getDisabledTextColor } from '../../../utils/disabledVisualIdentity';
 
 export interface SubscriberCardProps {
   subscriber: Subscriber;
@@ -87,7 +89,9 @@ const SubscriberCard: React.FC<SubscriberCardProps> = ({
   onMenuCatalog,
   onStudio,
 }) => {
+  const theme = useTheme();
   const [contactAnchor, setContactAnchor] = useState<HTMLElement | null>(null);
+  const isInactive = subscriber.is_active === false;
 
   const activeContracts = subscriber.active_contracts_count || 0;
   const mediaCount = subscriber.media_count || 0;
@@ -160,6 +164,7 @@ const SubscriberCard: React.FC<SubscriberCardProps> = ({
         flexDirection: 'column',
         transition: 'transform 0.2s, box-shadow 0.2s',
         ...subscriberAlertCardSx(cardHealth),
+        ...getDisabledContainerSx(theme, isInactive ? 'disabled-global' : 'default'),
         '&:hover': {
           transform: 'translateY(-4px)',
           boxShadow: 4,
@@ -172,14 +177,20 @@ const SubscriberCard: React.FC<SubscriberCardProps> = ({
             <Business />
           </Avatar>
           <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-            <Typography variant="h6" component="div" noWrap>
+            <Typography
+              variant="h6"
+              component="div"
+              noWrap
+              sx={isInactive ? { fontWeight: 700 } : undefined}
+            >
               {subscriber.name}
             </Typography>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
               <Chip
                 label={subscriber.is_active ? 'Ativo' : 'Inactivo'}
                 size="small"
-                color={subscriber.is_active ? 'success' : 'default'}
+                color={subscriber.is_active ? 'success' : 'warning'}
+                sx={!subscriber.is_active ? { fontWeight: 700 } : undefined}
               />
               <Tooltip title={contractChip.tooltip}>
                 <Chip
@@ -274,7 +285,11 @@ const SubscriberCard: React.FC<SubscriberCardProps> = ({
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
             <LocationOn fontSize="small" color="action" />
             <Tooltip title={coverageLabel}>
-              <Typography variant="caption" color="text.secondary" noWrap>
+              <Typography
+                variant="caption"
+                color={getDisabledTextColor(theme, isInactive ? 'disabled-global' : 'default')}
+                noWrap
+              >
                 {coverageLabel}
               </Typography>
             </Tooltip>

@@ -32,6 +32,7 @@ import {
   OpenInNew,
 } from '@mui/icons-material';
 import { Campaign } from '../../../services/api';
+import { getDisabledContainerSx, getDisabledTextColor } from '../../../utils/disabledVisualIdentity';
 
 export interface CampaignCardProps {
   campaign: Campaign;
@@ -146,6 +147,7 @@ const CampaignCard: React.FC<CampaignCardProps> = ({
         transition: 'transform 0.2s, box-shadow 0.2s',
         border: highlighted ? `2px solid ${theme.palette.primary.main}` : 'none',
         boxShadow: highlighted ? theme.shadows[8] : theme.shadows[1],
+        ...getDisabledContainerSx(theme, isActive ? 'default' : 'disabled-global'),
         '&:hover': {
           transform: 'translateY(-4px)',
           boxShadow: theme.shadows[8],
@@ -191,19 +193,30 @@ const CampaignCard: React.FC<CampaignCardProps> = ({
             right: 16,
           }}
         >
-          <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+          <Typography
+            variant="caption"
+            sx={{ color: getDisabledTextColor(theme, isActive ? 'default' : 'disabled-global') }}
+          >
             {getCampaignTypeLabel(campaign.campaign_type || 'general')}
           </Typography>
         </Box>
       </Box>
 
       <CardContent sx={{ flexGrow: 1 }}>
-        <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }} noWrap>
+        <Typography
+          variant="h6"
+          sx={{ fontWeight: isActive ? 'bold' : 700, mb: 1 }}
+          noWrap
+        >
           {campaign.title}
         </Typography>
 
         {campaign.description && (
-          <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1 }} noWrap>
+          <Typography
+            variant="body2"
+            sx={{ color: getDisabledTextColor(theme, isActive ? 'default' : 'disabled-global'), mb: 1 }}
+            noWrap
+          >
             {campaign.description}
           </Typography>
         )}
@@ -212,7 +225,10 @@ const CampaignCard: React.FC<CampaignCardProps> = ({
           {campaign.start_date && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <CalendarToday fontSize="small" color="action" />
-              <Typography variant="body2" color="text.secondary">
+              <Typography
+                variant="body2"
+                color={getDisabledTextColor(theme, isActive ? 'default' : 'disabled-global')}
+              >
                 {formatDate(campaign.start_date)}
                 {campaign.end_date && ` - ${formatDate(campaign.end_date)}`}
               </Typography>

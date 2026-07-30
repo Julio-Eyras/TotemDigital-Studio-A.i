@@ -1077,8 +1077,9 @@ const PlanPublisherAccessPage: React.FC = () => {
                         <Chip
                           icon={getPlanIsActive(plan) ? <CheckCircle /> : <Cancel />}
                           label={getPlanIsActive(plan) ? 'Ativo' : 'Inativo'}
-                          color={getPlanIsActive(plan) ? 'success' : 'default'}
+                      color={getPlanIsActive(plan) ? 'success' : 'warning'}
                           size="small"
+                      sx={!getPlanIsActive(plan) ? { fontWeight: 700 } : undefined}
                         />
                       </TableCell>
                       <TableCell>

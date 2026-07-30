@@ -15,6 +15,7 @@ import {
   IconButton,
   Tooltip,
   Stack,
+  useTheme,
 } from '@mui/material';
 import {
   Business,
@@ -26,6 +27,7 @@ import {
 } from '@mui/icons-material';
 import { Publisher } from '../../../services/api';
 import { getProductTerminology } from '../../../config/productTerminology';
+import { getDisabledContainerSx, getDisabledTextColor } from '../../../utils/disabledVisualIdentity';
 
 export interface PublisherCardProps {
   publisher: Publisher;
@@ -66,9 +68,11 @@ const PublisherCard: React.FC<PublisherCardProps> = ({
   onDelete,
   onView,
 }) => {
+  const theme = useTheme();
   const totemsCount = Number(publisher.totems_count ?? 0);
   const localsCount = Number(publisher.locals_count ?? 0);
   const category = String(publisher.category_segment || '').trim();
+  const isInactive = (publisher.active ?? publisher.is_active) === false;
   // Segmento da org + quantidade de totens dessa organização (ex.: «Totens (3)»).
   const segmentChipLabel = category
     ? `${category} (${totemsCount})`
@@ -81,6 +85,7 @@ const PublisherCard: React.FC<PublisherCardProps> = ({
         display: 'flex',
         flexDirection: 'column',
         transition: 'transform 0.2s, box-shadow 0.2s',
+        ...getDisabledContainerSx(theme, isInactive ? 'disabled-global' : 'default'),
         '&:hover': {
           transform: 'translateY(-4px)',
           boxShadow: 4,
@@ -100,14 +105,20 @@ const PublisherCard: React.FC<PublisherCardProps> = ({
             <Business />
           </Avatar>
           <Box sx={{ flexGrow: 1 }}>
-            <Typography variant="h6" component="div" noWrap>
+            <Typography
+              variant="h6"
+              component="div"
+              noWrap
+              sx={isInactive ? { fontWeight: 700 } : undefined}
+            >
               {publisher.name}
             </Typography>
             <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5, flexWrap: 'wrap' }}>
               <Chip
                 label={(publisher.active ?? publisher.is_active) ? 'Ativo' : 'Inativo'}
                 size="small"
-                color={(publisher.active ?? publisher.is_active) ? 'success' : 'default'}
+                color={(publisher.active ?? publisher.is_active) ? 'success' : 'warning'}
+                sx={isInactive ? { fontWeight: 700 } : undefined}
               />
               {publisher.client_type && (
                 <Chip
@@ -125,7 +136,11 @@ const PublisherCard: React.FC<PublisherCardProps> = ({
           {publisher.email && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Email fontSize="small" color="action" />
-              <Typography variant="body2" color="text.secondary" noWrap>
+              <Typography
+                variant="body2"
+                color={getDisabledTextColor(theme, isInactive ? 'disabled-global' : 'default')}
+                noWrap
+              >
                 {publisher.email}
               </Typography>
             </Box>
@@ -134,7 +149,10 @@ const PublisherCard: React.FC<PublisherCardProps> = ({
           {publisher.phone && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Phone fontSize="small" color="action" />
-              <Typography variant="body2" color="text.secondary">
+              <Typography
+                variant="body2"
+                color={getDisabledTextColor(theme, isInactive ? 'disabled-global' : 'default')}
+              >
                 {publisher.phone}
               </Typography>
             </Box>

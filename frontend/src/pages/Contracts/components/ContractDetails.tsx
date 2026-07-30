@@ -326,8 +326,8 @@ const ContractDetails: React.FC<ContractDetailsProps> = ({
                         <Chip
                           label={publisher.is_active ? 'Ativo' : 'Inativo'}
                           size="small"
-                          color={publisher.is_active ? 'success' : 'default'}
-                          sx={{ ml: 'auto' }}
+                          color={publisher.is_active ? 'success' : 'warning'}
+                          sx={{ ml: 'auto', ...(publisher.is_active ? {} : { fontWeight: 700 }) }}
                         />
                       </Box>
                       {publisher.email && (

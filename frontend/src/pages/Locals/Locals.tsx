@@ -55,6 +55,7 @@ import {
   Tv,
   Assignment,
 } from '@mui/icons-material';
+import { getDisabledContainerSx, getDisabledTextColor } from '../../utils/disabledVisualIdentity';
 import { 
   localApi, 
   Local, 
@@ -575,6 +576,7 @@ const Locals: React.FC = () => {
               const totens = local.totem_count ?? localStats[local.local_id]?.totens ?? 0;
               const smartTvs = local.smart_tv_count ?? localStats[local.local_id]?.smartTvs ?? 0;
               const isStock = isStockLocal(local);
+              const localVisualState = isStock || local.is_active === false ? 'disabled-global' : 'default';
               return (
                 <Grid item xs={12} sm={6} md={4} lg={3} key={local.local_id}>
                   <Card
@@ -583,6 +585,7 @@ const Locals: React.FC = () => {
                       display: 'flex',
                       flexDirection: 'column',
                       transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+                      ...getDisabledContainerSx(theme, localVisualState),
                       '&:hover': {
                         transform: 'translateY(-4px)',
                         boxShadow: theme.shadows[8],
@@ -592,10 +595,19 @@ const Locals: React.FC = () => {
                     <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
                         <Box sx={{ minWidth: 0 }}>
-                          <Typography variant="h6" sx={{ fontWeight: 'bold' }} noWrap>
+                          <Typography
+                            variant="h6"
+                            sx={{ fontWeight: localVisualState !== 'default' ? 700 : 'bold' }}
+                            noWrap
+                          >
                             {local.name}
                           </Typography>
-                          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }} noWrap>
+                          <Typography
+                            variant="body2"
+                            color={getDisabledTextColor(theme, localVisualState)}
+                            sx={{ mt: 0.5 }}
+                            noWrap
+                          >
                             {local.address || 'Sem endereço'}
                             {local.city ? `, ${local.city}` : ''}
                             {local.state ? ` - ${local.state}` : ''}
@@ -603,9 +615,10 @@ const Locals: React.FC = () => {
                         </Box>
                         <Chip
                           label={isStock ? 'Inoperante' : (local.is_active ? 'Ativo' : 'Inativo')}
-                          color={isStock ? 'default' : (local.is_active ? 'success' : 'default')}
+                          color={isStock ? 'warning' : (local.is_active ? 'success' : 'warning')}
                           size="small"
                           variant={isStock ? 'outlined' : 'filled'}
+                          sx={localVisualState !== 'default' ? { fontWeight: 700 } : undefined}
                         />
                       </Box>
 
@@ -843,7 +856,8 @@ const Locals: React.FC = () => {
                           <Chip
                             label={selectedPublisher.active ? 'Ativo' : 'Inativo'}
                             size="small"
-                            color={selectedPublisher.active ? 'success' : 'error'}
+                            color={selectedPublisher.active ? 'success' : 'warning'}
+                            sx={!selectedPublisher.active ? { fontWeight: 700 } : undefined}
                           />
                         </TableCell>
                       </TableRow>
@@ -921,8 +935,9 @@ const Locals: React.FC = () => {
                           <Chip
                             label={isStockLocal(selectedLocal) ? 'Inoperante' : (selectedLocal.is_active ? 'Ativo' : 'Inativo')}
                             size="small"
-                            color={isStockLocal(selectedLocal) ? 'default' : (selectedLocal.is_active ? 'success' : 'error')}
+                            color={isStockLocal(selectedLocal) ? 'warning' : (selectedLocal.is_active ? 'success' : 'warning')}
                             variant={isStockLocal(selectedLocal) ? 'outlined' : 'filled'}
+                            sx={isStockLocal(selectedLocal) || !selectedLocal.is_active ? { fontWeight: 700 } : undefined}
                           />
                         </TableCell>
                       </TableRow>

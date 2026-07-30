@@ -52,6 +52,7 @@ import {
   ReceiptLong,
   Email,
 } from '@mui/icons-material';
+import { getDisabledContainerSx, getDisabledTextColor } from '../../utils/disabledVisualIdentity';
 import {
   billingControlApi,
   BillingControlDashboard,
@@ -1122,7 +1123,9 @@ const Billing: React.FC = () => {
         </Box>
 
         <Grid container spacing={3}>
-          {plans.map((plan) => (
+          {plans.map((plan) => {
+            const isInactive = plan.is_active === false;
+            return (
             <Grid item xs={12} md={4} key={getPlanId(plan)}>
               <Card
                 sx={{
@@ -1131,29 +1134,39 @@ const Billing: React.FC = () => {
                   flexDirection: 'column',
                   border: plan.is_active ? '2px solid' : '1px solid',
                   borderColor: plan.is_active ? 'primary.main' : 'divider',
+                  ...getDisabledContainerSx(theme, isInactive ? 'disabled-global' : 'default'),
                 }}
               >
                 <CardContent sx={{ flexGrow: 1 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                    <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                    <Typography variant="h5" sx={{ fontWeight: isInactive ? 700 : 600 }}>
                       {plan.name}
                     </Typography>
                     <Chip
                       label={plan.is_active ? 'Ativo' : 'Inativo'}
-                      color={plan.is_active ? 'success' : 'default'}
+                      color={plan.is_active ? 'success' : 'warning'}
                       size="small"
+                      sx={!plan.is_active ? { fontWeight: 700 } : undefined}
                     />
                   </Box>
 
                   <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
                     {formatCurrency(getPlanPrice(plan), plan.currency || 'BRL')}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  <Typography
+                    variant="body2"
+                    color={getDisabledTextColor(theme, isInactive ? 'disabled-global' : 'default')}
+                    sx={{ mb: 2 }}
+                  >
                     / {getPlanBillingInterval(plan) === 'month' ? 'mês' : 'ano'}
                   </Typography>
 
                   {plan.description && (
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    <Typography
+                      variant="body2"
+                      color={getDisabledTextColor(theme, isInactive ? 'disabled-global' : 'default')}
+                      sx={{ mb: 2 }}
+                    >
                       {plan.description}
                     </Typography>
                   )}
@@ -1185,7 +1198,7 @@ const Billing: React.FC = () => {
                 </CardActions>
               </Card>
             </Grid>
-          ))}
+          );})}
         </Grid>
       </TabPanel>
 

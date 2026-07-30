@@ -50,6 +50,13 @@ const SubscriberPlaylistsTab: React.FC<SubscriberPlaylistsTabProps> = ({
                 borderColor: 'divider',
                 borderRadius: 1,
                 mb: 1,
+                ...(playlist.is_active
+                  ? {}
+                  : {
+                      borderLeft: '5px solid',
+                      borderLeftColor: 'warning.main',
+                      backgroundColor: 'rgba(237, 108, 2, 0.12)',
+                    }),
               }}
             >
               <ListItemIcon>
@@ -67,7 +74,8 @@ const SubscriberPlaylistsTab: React.FC<SubscriberPlaylistsTabProps> = ({
                     <Chip
                       label={playlist.is_active ? 'Ativa' : 'Inativa'}
                       size="small"
-                      color={playlist.is_active ? 'success' : 'default'}
+                      color={playlist.is_active ? 'success' : 'warning'}
+                      sx={!playlist.is_active ? { fontWeight: 700 } : undefined}
                     />
                   </Box>
                 }

@@ -51,6 +51,7 @@ import {
   VideoLibrary,
 } from '@mui/icons-material';
 import { clientApi, Client, CreateClientRequest, userApi, User, playerApi, Player, playlistApi, PlaylistItem, mediaApi, MediaItem } from '../../services/api';
+import { getDisabledContainerSx, getDisabledTextColor } from '../../utils/disabledVisualIdentity';
 
 const Clients: React.FC = () => {
   const theme = useTheme();
@@ -242,13 +243,16 @@ const Clients: React.FC = () => {
 
       {/* Clients Grid */}
       <Grid container spacing={3}>
-        {clients.map((client) => (
+        {clients.map((client) => {
+          const isInactive = client.is_active === false;
+          return (
           <Grid item xs={12} sm={6} md={4} lg={3} key={client.client_id}>
             <Card sx={{ 
               height: '100%',
               display: 'flex',
               flexDirection: 'column',
               transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+              ...getDisabledContainerSx(theme, isInactive ? 'disabled-global' : 'default'),
               '&:hover': {
                 transform: 'translateY(-4px)',
                 boxShadow: theme.shadows[8],
@@ -274,8 +278,8 @@ const Clients: React.FC = () => {
                     position: 'absolute',
                     top: 16,
                     right: 16,
-                    backgroundColor: alpha(client.is_active ? theme.palette.success.main : theme.palette.error.main, 0.1),
-                    color: client.is_active ? theme.palette.success.main : theme.palette.error.main,
+                    backgroundColor: alpha(client.is_active ? theme.palette.success.main : theme.palette.warning.main, 0.1),
+                    color: client.is_active ? theme.palette.success.main : theme.palette.warning.main,
                     fontWeight: 'bold',
                   }}
                 />
@@ -286,21 +290,32 @@ const Clients: React.FC = () => {
                   left: 16, 
                   right: 16,
                 }}>
-                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: getDisabledTextColor(theme, isInactive ? 'disabled-global' : 'default') }}
+                  >
                     Criado em {formatDate(client.created_at)}
                   </Typography>
                 </Box>
               </Box>
 
               <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }} noWrap>
+                <Typography
+                  variant="h6"
+                  sx={{ fontWeight: isInactive ? 700 : 'bold', mb: 1 }}
+                  noWrap
+                >
                   {client.name}
                 </Typography>
                 
                 {client.contact_name && (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
                     <People fontSize="small" color="action" />
-                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }} noWrap>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: getDisabledTextColor(theme, isInactive ? 'disabled-global' : 'default') }}
+                      noWrap
+                    >
                       Contato: {client.contact_name}
                     </Typography>
                   </Box>
@@ -309,7 +324,11 @@ const Clients: React.FC = () => {
                 {client.email && (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
                     <Email fontSize="small" color="action" />
-                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }} noWrap>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: getDisabledTextColor(theme, isInactive ? 'disabled-global' : 'default') }}
+                      noWrap
+                    >
                       {client.email}
                     </Typography>
                   </Box>
@@ -318,7 +337,11 @@ const Clients: React.FC = () => {
                 {client.phone && (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
                     <Phone fontSize="small" color="action" />
-                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }} noWrap>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: getDisabledTextColor(theme, isInactive ? 'disabled-global' : 'default') }}
+                      noWrap
+                    >
                       {client.phone}
                     </Typography>
                   </Box>
@@ -327,7 +350,11 @@ const Clients: React.FC = () => {
                 {client.whatsapp && (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
                     <Phone fontSize="small" color="action" />
-                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }} noWrap>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: getDisabledTextColor(theme, isInactive ? 'disabled-global' : 'default') }}
+                      noWrap
+                    >
                       WhatsApp: {client.whatsapp}
                     </Typography>
                   </Box>
@@ -336,7 +363,11 @@ const Clients: React.FC = () => {
                 {client.address && (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
                     <LocationOn fontSize="small" color="action" />
-                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }} noWrap>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: getDisabledTextColor(theme, isInactive ? 'disabled-global' : 'default') }}
+                      noWrap
+                    >
                       {client.address}
                     </Typography>
                   </Box>
@@ -371,7 +402,7 @@ const Clients: React.FC = () => {
               </CardContent>
             </Card>
           </Grid>
-        ))}
+        );})}
       </Grid>
 
       {/* Empty State */}

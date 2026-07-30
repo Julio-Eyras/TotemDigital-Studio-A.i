@@ -476,8 +476,9 @@ const Users: React.FC = () => {
                     <Chip
                       label={user.is_active ? 'Ativo' : 'Inativo'}
                       size="small"
-                      color={user.is_active ? 'success' : 'default'}
+                      color={user.is_active ? 'success' : 'warning'}
                       variant="outlined"
+                      sx={!user.is_active ? { fontWeight: 700 } : undefined}
                     />
                   </TableCell>
                   <TableCell align="right">

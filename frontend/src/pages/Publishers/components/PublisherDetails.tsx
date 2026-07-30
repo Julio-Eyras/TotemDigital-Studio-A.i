@@ -279,7 +279,8 @@ const PublisherDetails: React.FC<PublisherDetailsProps> = ({
                     <Chip
                       label={(publisher.active ?? publisher.is_active) ? 'Ativo' : 'Inativo'}
                       size="small"
-                      color={(publisher.active ?? publisher.is_active) ? 'success' : 'error'}
+                      color={(publisher.active ?? publisher.is_active) ? 'success' : 'warning'}
+                      sx={!(publisher.active ?? publisher.is_active) ? { fontWeight: 700 } : undefined}
                     />
                   </TableCell>
                 </TableRow>

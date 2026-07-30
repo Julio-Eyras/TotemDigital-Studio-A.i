@@ -49,6 +49,7 @@ import {
 import { playerApi, Player, CreatePlayerRequest, playlistApi, PlaylistItem } from '../../services/api';
 import { getTotemIdFromRow } from '../../utils/totemRowIds';
 import { getProductTerminology } from '../../config/productTerminology';
+import { getDisabledContainerSx, getDisabledTextColor } from '../../utils/disabledVisualIdentity';
 
 const Players: React.FC = () => {
   const theme = useTheme();
@@ -285,7 +286,9 @@ const Players: React.FC = () => {
 
       {/* Players Grid */}
       <Grid container spacing={3}>
-        {players.map((player) => (
+        {players.map((player) => {
+          const isInactive = player.is_active === false;
+          return (
           <Grid
             item
             xs={12}
@@ -299,6 +302,7 @@ const Players: React.FC = () => {
               display: 'flex',
               flexDirection: 'column',
               transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+              ...getDisabledContainerSx(theme, isInactive ? 'disabled-global' : 'default'),
               '&:hover': {
                 transform: 'translateY(-4px)',
                 boxShadow: theme.shadows[8],
@@ -341,7 +345,10 @@ const Players: React.FC = () => {
                 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     {getStatusIcon(player.status)}
-                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                    <Typography
+                      variant="caption"
+                      sx={{ color: getDisabledTextColor(theme, isInactive ? 'disabled-global' : 'default') }}
+                    >
                       {formatLastSeen(player.last_heartbeat)}
                     </Typography>
                   </Box>
@@ -349,14 +356,22 @@ const Players: React.FC = () => {
               </Box>
 
               <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }} noWrap>
+                <Typography
+                  variant="h6"
+                  sx={{ fontWeight: isInactive ? 700 : 'bold', mb: 1 }}
+                  noWrap
+                >
                   {player.name}
                 </Typography>
                 
                 {player.location && (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
                     <LocationOn fontSize="small" color="action" />
-                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }} noWrap>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: getDisabledTextColor(theme, isInactive ? 'disabled-global' : 'default') }}
+                      noWrap
+                    >
                       {player.location}
                     </Typography>
                   </Box>
@@ -366,8 +381,9 @@ const Players: React.FC = () => {
                   <Chip
                     label={player.is_active ? 'Ativo' : 'Inativo'}
                     size="small"
-                    color={player.is_active ? 'success' : 'default'}
+                    color={player.is_active ? 'success' : 'warning'}
                     variant="outlined"
+                    sx={!player.is_active ? { fontWeight: 700 } : undefined}
                   />
                   
                   <Box>
@@ -403,7 +419,7 @@ const Players: React.FC = () => {
               </CardContent>
             </Card>
           </Grid>
-        ))}
+        );})}
       </Grid>
 
       {/* Empty State */}

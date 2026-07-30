@@ -97,7 +97,8 @@ const SubscriberCampaignsTab: React.FC<SubscriberCampaignsTabProps> = ({
                 <Chip
                   label={campaign.is_active !== undefined ? (campaign.is_active ? 'Ativa' : 'Inativa') : 'N/A'}
                   size="small"
-                  color={campaign.is_active ? 'success' : 'default'}
+                  color={campaign.is_active ? 'success' : 'warning'}
+                  sx={campaign.is_active === false ? { fontWeight: 700 } : undefined}
                 />
                 <Chip
                   label={campaign.status || 'draft'}
