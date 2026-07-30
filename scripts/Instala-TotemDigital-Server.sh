@@ -16,12 +16,15 @@
 # =============================================================================
 set -euo pipefail
 
-readonly SCRIPT_VERSION="1.0.0"
+readonly SCRIPT_VERSION="1.1.0"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 readonly ENGINE="$SCRIPT_DIR/install-smartsignage.sh"
 readonly FIX_ENV="$SCRIPT_DIR/fix-env-shell-quoting.sh"
 readonly FIX_HTTPS="$SCRIPT_DIR/apply-https-unified-443.sh"
+readonly TDI_LIB="$SCRIPT_DIR/lib/totemdigital-instancia.sh"
+# shellcheck source=lib/totemdigital-instancia.sh
+source "$TDI_LIB"
 
 # Cores (só se terminal)
 if [[ -t 1 ]]; then
@@ -40,6 +43,8 @@ fi
 # Estado / defaults
 # -----------------------------------------------------------------------------
 MODO=""                         # producao|atualizar|reparar|docker|wipe
+INSTANCIA="${INSTANCIA:-producao}" # producao|dev|teste
+INSTANCIA_SET=false
 DOMAIN="${DOMAIN:-totemdigital.app.br}"
 SSL_EMAIL="${SSL_EMAIL:-}"
 OWNER_USER="${OWNER_USER:-Owner}"
@@ -369,7 +374,12 @@ post_rebuild_backend() {
 }
 
 show_final_summary() {
-  title "Concluído — TotemDigital Server"
+  if tdi_is_non_prod; then
+    tdi_load_profile "$INSTANCIA" 2>/dev/null || true
+    tdi_show_final_summary
+    return 0
+  fi
+  title "Concluído — TotemDigital Server (produção)"
   local ipv4
   ipv4="$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -Eo '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || echo '<IP>')"
   echo "  Site ............. https://${DOMAIN}/"
@@ -390,6 +400,16 @@ show_final_summary() {
 # Modos
 # -----------------------------------------------------------------------------
 modo_producao() {
+  if tdi_is_non_prod; then
+    title "Modo 1 — Instalação instância ${INSTANCIA} (HTTPS 443)"
+    echo "Stack isolada: clone próprio, BD própria, portas e Nginx dedicados."
+    echo "NÃO usa install-smartsignage.sh — produção em /opt/smart-signage fica intacta."
+    echo
+    pause_enter
+    collect_common_params
+    tdi_instancia_install
+    return $?
+  fi
   title "Modo 1 — Instalação de produção (HTTPS 443)"
   echo "Perfil: compact + direct-totem + site :80 + painel :8080 + Let's Encrypt."
   if [[ "$WITH_MQTT" == "true" ]]; then
@@ -415,6 +435,13 @@ modo_producao() {
 }
 
 modo_atualizar() {
+  if tdi_is_non_prod; then
+    title "Modo 2 — Actualizar instância ${INSTANCIA} (SEM apagar BD)"
+    pause_enter
+    collect_common_params_light
+    tdi_instancia_update
+    return $?
+  fi
   title "Modo 2 — Actualizar / reaplicar (SEM apagar a base de dados)"
   echo "Isto faz:"
   echo "  • (opcional) git pull"
@@ -443,6 +470,13 @@ modo_atualizar() {
 }
 
 modo_reparar() {
+  if tdi_is_non_prod; then
+    title "Modo 3 — Reparar instância ${INSTANCIA}"
+    pause_enter
+    collect_common_params_light
+    tdi_instancia_repair
+    return $?
+  fi
   title "Modo 3 — Só reparar (rápido)"
   echo "Corrige:"
   echo "  • .env com aspas (evita CHANNEL: command not found)"
@@ -463,6 +497,11 @@ modo_reparar() {
 }
 
 modo_docker() {
+  if tdi_is_non_prod; then
+    err "Modo Docker não suporta --instancia dev|teste nesta versão."
+    err "Use --instancia producao ou instale dev/test com --modo producao --instancia dev."
+    return 1
+  fi
   title "Modo 4 — Docker"
   echo "Usa o motor: install-smartsignage.sh --mode docker"
   echo "Perfil TotemDigital compact + direct-totem."
@@ -481,6 +520,16 @@ modo_docker() {
 }
 
 modo_wipe() {
+  if tdi_is_non_prod; then
+    title "Modo 5 — Wipe instância ${INSTANCIA} (APAGA SÓ ESTA BD)"
+    echo "${C_RED}${C_BOLD}PERIGO:${C_RESET} apaga apenas ${INSTANCIA} (BD isolada)."
+    echo "Produção (/opt/smart-signage · smartsignage) NÃO é afectada."
+    echo
+    pause_enter
+    collect_common_params
+    tdi_instancia_wipe
+    return $?
+  fi
   title "Modo 5 — Reinstalação LIMPA (APAGA DADOS)"
   echo "${C_RED}${C_BOLD}PERIGO:${C_RESET} isto pede ao motor --fresh e pode"
   echo "  • apagar a base de dados PostgreSQL smartsignage"
@@ -531,9 +580,39 @@ collect_common_params_light() {
 # -----------------------------------------------------------------------------
 # Menu
 # -----------------------------------------------------------------------------
+ask_instancia_interactive() {
+  [[ "$INSTANCIA_SET" == "true" ]] && return 0
+  [[ "$NON_INTERACTIVE" == "true" ]] && return 0
+  echo
+  echo "  Instância actual: ${C_BOLD}${INSTANCIA}${C_RESET}"
+  echo "    1) producao   2) dev   3) teste   [Enter mantém]"
+  local choice
+  read -r -p "Instância [${INSTANCIA}]: " choice || true
+  choice="${choice:-$INSTANCIA}"
+  case "$choice" in
+    1|producao|prod) INSTANCIA=producao ;;
+    2|dev) INSTANCIA=dev ;;
+    3|teste|test) INSTANCIA=teste ;;
+    "") ;;
+    *) warn "Instância inválida — mantém ${INSTANCIA}." ;;
+  esac
+}
+
+apply_instancia_domain_defaults() {
+  case "$INSTANCIA" in
+    dev)
+      [[ "$DOMAIN" == "totemdigital.app.br" ]] && DOMAIN="dev.totemdigital.app.br"
+      ;;
+    teste)
+      [[ "$DOMAIN" == "totemdigital.app.br" ]] && DOMAIN="test.totemdigital.app.br"
+      ;;
+  esac
+}
+
 show_menu() {
   title "TotemDigital Server — Instalador v${SCRIPT_VERSION}"
   echo "  Repositório: $ROOT"
+  echo "  Instância: ${INSTANCIA}  ${C_DIM}(--instancia producao|dev|teste)${C_RESET}"
   echo
   echo "  Escolha o modo:"
   echo
@@ -576,12 +655,15 @@ Uso:
   bash scripts/Instala-TotemDigital-Server.sh --modo producao --sim
   bash scripts/Instala-TotemDigital-Server.sh --modo atualizar --dominio totemdigital.app.br
   bash scripts/Instala-TotemDigital-Server.sh --modo reparar
+  bash scripts/Instala-TotemDigital-Server.sh --modo producao --instancia dev --sim
+  bash scripts/Instala-TotemDigital-Server.sh --modo atualizar --instancia teste --git-pull
   bash scripts/Instala-TotemDigital-Server.sh --modo docker --sim
-  bash scripts/Instala-TotemDigital-Server.sh --dry-run --modo producao
+  bash scripts/Instala-TotemDigital-Server.sh --dry-run --modo producao --instancia dev
 
 Opções:
   --modo <nome>     producao | atualizar | reparar | docker | wipe
-  --dominio <fqdn>  Domínio (default: totemdigital.app.br)
+  --instancia <id>  producao | dev | teste  (default: producao)
+  --dominio <fqdn>  Domínio (default por instância)
   --email <addr>    E-mail LE / owner
   --owner-user <u>  Admin inicial
   --owner-name <t>  Nome da organização
@@ -594,6 +676,7 @@ Opções:
   --ajuda | -h      Esta ajuda
 
 Doc: docs/INSTALA-TOTEMDIGITAL-SERVER.md
+     docs/MULTI-INSTANCIA-PROD-DEV-TESTE.md
 EOF
 }
 
@@ -618,6 +701,12 @@ parse_args() {
       --com-mqtt|--with-mqtt) WITH_MQTT=true; shift ;;
       --com-players|--with-players) SKIP_PLAYERS=false; shift ;;
       --com-seeds|--with-seeds) NO_SEEDS=false; shift ;;
+      --instancia|--instance)
+        local _raw="${2:-}"
+        INSTANCIA="$(tdi_normalize_instancia "$_raw")" || { err "Instância inválida: $_raw"; usage; exit 1; }
+        INSTANCIA_SET=true
+        shift 2
+        ;;
       --git-pull) DO_GIT_PULL=true; shift ;;
       --sim|--yes|--non-interactive) NON_INTERACTIVE=true; shift ;;
       --dry-run) DRY_RUN=true; shift ;;
@@ -626,6 +715,7 @@ parse_args() {
     esac
   done
   [[ -n "$SSL_EMAIL" ]] || SSL_EMAIL="admin@${DOMAIN}"
+  apply_instancia_domain_defaults
 }
 
 run_selected_mode() {
@@ -659,7 +749,20 @@ main() {
     fi
   fi
 
-  title "Plano: modo=${MODO} · domínio=${DOMAIN}"
+  if [[ "$MODO" != "docker" ]]; then
+    ask_instancia_interactive
+  fi
+  apply_instancia_domain_defaults
+  tdi_load_profile "$INSTANCIA" 2>/dev/null || true
+
+  title "Plano: modo=${MODO} · instância=${INSTANCIA} · domínio=${DOMAIN}"
+  if tdi_is_non_prod; then
+    echo "  Clone ............ ${TDI_CLONE_DIR:-?}"
+    echo "  Deploy ........... ${TDI_OPT_ROOT:-?}"
+    echo "  BD ............... ${TDI_DB_NAME:-?}"
+    echo "  Backend .......... :${TDI_BACKEND_PORT:-?}"
+    echo "  Painel HTTP ...... :${TDI_HTTP_PORT:-?}"
+  fi
   echo "  E-mail ........... $SSL_EMAIL"
   echo "  Owner ............ $OWNER_USER ($OWNER_NAME)"
   echo "  MQTT ............. $([[ "$WITH_MQTT" == "true" ]] && echo sim || echo nao)"

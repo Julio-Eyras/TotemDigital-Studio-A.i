@@ -1,7 +1,7 @@
 # Instala TotemDigital Server
 
 **Script oficial:** `scripts/Instala-TotemDigital-Server.sh`  
-**Versão do instalador:** 1.0.0  
+**Versão do instalador:** 1.1.0  
 **Idioma:** português  
 **Motor:** `scripts/install-smartsignage.sh` (**não é alterado** — apenas envolvido)
 
@@ -25,6 +25,15 @@ bash scripts/Instala-TotemDigital-Server.sh --modo producao --sim \
   --email admin@totemdigital.app.br \
   --owner-user ismael
 ```
+
+**Dev / test no mesmo VPS** (stack isolada, sem motor):
+
+```bash
+bash scripts/Instala-TotemDigital-Server.sh --modo producao --instancia dev --sim
+bash scripts/Instala-TotemDigital-Server.sh --modo atualizar --instancia teste --git-pull
+```
+
+Ver [MULTI-INSTANCIA-PROD-DEV-TESTE.md](./MULTI-INSTANCIA-PROD-DEV-TESTE.md).
 
 Dry-run (só mostra o plano):
 
@@ -51,7 +60,8 @@ bash scripts/Instala-TotemDigital-Server.sh --modo producao --dry-run
 | Opção | Descrição |
 |-------|-----------|
 | `--modo <nome>` | `producao` \| `atualizar` \| `reparar` \| `docker` \| `wipe` |
-| `--dominio <fqdn>` | Default `totemdigital.app.br` |
+| `--instancia <id>` | `producao` (default) \| `dev` \| `teste` — paths, BD, portas e Nginx isolados |
+| `--dominio <fqdn>` | Default: apex prod; `dev.` / `test.` se `--instancia` correspondente |
 | `--email <addr>` | LE + owner |
 | `--owner-user` / `--owner-name` | Admin e organização |
 | `--com-mqtt` | Mosquitto (só SmartDisplayFX) |
