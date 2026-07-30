@@ -16,7 +16,7 @@
 # =============================================================================
 set -euo pipefail
 
-readonly SCRIPT_VERSION="1.1.0"
+readonly SCRIPT_VERSION="1.1.1"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 readonly ENGINE="$SCRIPT_DIR/install-smartsignage.sh"
@@ -601,10 +601,14 @@ ask_instancia_interactive() {
 apply_instancia_domain_defaults() {
   case "$INSTANCIA" in
     dev)
-      [[ "$DOMAIN" == "totemdigital.app.br" ]] && DOMAIN="dev.totemdigital.app.br"
+      if [[ "$DOMAIN" == "totemdigital.app.br" ]]; then
+        DOMAIN="dev.totemdigital.app.br"
+      fi
       ;;
     teste)
-      [[ "$DOMAIN" == "totemdigital.app.br" ]] && DOMAIN="test.totemdigital.app.br"
+      if [[ "$DOMAIN" == "totemdigital.app.br" ]]; then
+        DOMAIN="test.totemdigital.app.br"
+      fi
       ;;
   esac
 }
