@@ -49,18 +49,18 @@
                 android:visibility="gone" />
 
         </br.com.smartchannel.playerad.ui.PortraitViewportLayout>
-
-        <!-- Véu curto entre mídias — cobre frame residual (acima do player/imagem) -->
-        <View
-            android:id="@+id/mediaTransitionOverlay"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="#000000"
-            android:clickable="false"
-            android:focusable="false"
-            android:visibility="gone"
-            android:alpha="0" />
     </FrameLayout>
+
+    <!-- Fora do contentHost: cobre TextureView mesmo com transform/punch-through em landscape -->
+    <View
+        android:id="@+id/mediaTransitionOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#000000"
+        android:clickable="false"
+        android:focusable="false"
+        android:visibility="gone"
+        android:alpha="0" />
 
     <!-- Fora do horário de trabalho: preto total sem encerrar o processo -->
     <View

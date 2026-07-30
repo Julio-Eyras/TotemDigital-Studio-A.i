@@ -21,4 +21,23 @@ describe('mixPlaybackCycle', () => {
     expect(expanded).toHaveLength(6);
     expect(expanded.map((i) => i.media_id)).toEqual([10, 20, 10, 20, 10, 20]);
   });
+
+  it('não triplica plano com uma única mídia (evita flicker no player)', () => {
+    const items = [{ media_id: 42, campaign_id: 1 }];
+    const expanded = expandMixItemsForPlaybackCycle(items, 50);
+    expect(expanded).toHaveLength(1);
+    expect(expanded[0].media_id).toBe(42);
+    expect(expanded[0].order_index).toBe(1);
+  });
+
+  it('colapsa cópias repetidas da mesma mídia num único item', () => {
+    const items = [
+      { media_id: 7, campaign_id: 1 },
+      { media_id: 7, campaign_id: 1 },
+      { media_id: 7, campaign_id: 1 },
+    ];
+    const expanded = expandMixItemsForPlaybackCycle(items, 50);
+    expect(expanded).toHaveLength(1);
+    expect(expanded[0].media_id).toBe(7);
+  });
 });

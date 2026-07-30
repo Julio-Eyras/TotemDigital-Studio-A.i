@@ -50,7 +50,9 @@ export function interleaveMixItemPools<T extends MixPlaybackItem>(
 
 /**
  * Monta lista de reprodução para o player (repetição permitida).
- * Evita plano com 1 único item quando há várias mídias/campanhas no mix.
+ * Com várias mídias: expande até ~3× para o ciclo não colapsar num plano curto.
+ * Com uma única mídia distinta: **não** triplica — o player faz loop no índice;
+ * triplicar forçava 3 teardowns ExoPlayer do mesmo ficheiro (flick a cada fim).
  */
 export function expandMixItemsForPlaybackCycle<T extends MixPlaybackItem>(
   orderedItems: T[],
@@ -58,6 +60,12 @@ export function expandMixItemsForPlaybackCycle<T extends MixPlaybackItem>(
 ): T[] {
   if (!orderedItems.length) return [];
   const cap = Math.max(1, Math.min(maxItems || 50, 1000));
+  const distinctIds = new Set(orderedItems.map((i) => Number(i.media_id)));
+  if (distinctIds.size <= 1) {
+    const src = orderedItems[0];
+    return [{ ...src, order_index: 1 }];
+  }
+
   const unique = orderedItems.length;
   const target = Math.min(cap, Math.max(unique, Math.min(unique * 3, cap)));
 

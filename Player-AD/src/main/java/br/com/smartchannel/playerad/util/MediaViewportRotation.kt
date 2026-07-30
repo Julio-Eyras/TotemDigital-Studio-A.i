@@ -252,12 +252,13 @@ object MediaViewportRotation {
             }
             playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             applyTextureTransform(texture, rotationDegrees, videoWidth, videoHeight, scaleMode)
-            // Reaplicar após layout tardio (Allwinner / ViewDisplayRotation)
-            texture.postDelayed({
+            // Reaplicar só no próximo frame (layout tardio). NÃO usar delay longo:
+            // 200ms pós-reveal causava snap/flick visível em landscape FIT.
+            texture.post {
                 if (texture.width > 0 && texture.height > 0) {
                     applyTextureTransform(texture, rotationDegrees, videoWidth, videoHeight, scaleMode)
                 }
-            }, 200L)
+            }
             PlayerAdLogger.i(
                 "DISPLAY",
                 "TextureView ${scaleMode.name} ${rotationDegrees.toInt()}° " +

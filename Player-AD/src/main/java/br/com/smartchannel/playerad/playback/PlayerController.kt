@@ -22,6 +22,7 @@ import android.content.Intent
 import br.com.smartchannel.playerad.config.DisplaySchedule
 import br.com.smartchannel.playerad.config.DisplayScheduleStore
 import br.com.smartchannel.playerad.config.PollAdaptiveConfig
+import android.view.TextureView
 import android.view.View
 import android.graphics.Color
 import android.webkit.WebView
@@ -34,6 +35,7 @@ import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.Dispatchers
@@ -88,7 +90,13 @@ class PlayerController(
 ) {
     private var restartRequested = false
     private var videoOrientationListener: Player.Listener? = null
-    private var pendingVideoOrientationReveal = false
+    /** Completa quando a matrix FIT do TextureView foi aplicada (antes do reveal). */
+    private var videoOrientationReady: CompletableDeferred<Unit>? = null
+    /** Última mídia de vídeo realmente carregada no ExoPlayer (para replay contínuo). */
+    private var activeVideoMediaId: Long = -1L
+    private var activeVideoContentVersion: String? = null
+    /** Última imagem visível no ImageView (evita véu ao repetir o mesmo item). */
+    private var activeImageMediaId: Long = -1L
     @Volatile
     private var nowPlayingSnapshot: JSONObject? = null
     @Volatile
@@ -1633,6 +1641,31 @@ class PlayerController(
             val durationSeconds = exposureSec ?: DEFAULT_IMAGE_DURATION_SECONDS
             val durationMs = durationSeconds * 1000L
 
+            // Mesmo item já visível (plano com 1 mídia / cópias): não refaz véu/decode.
+            if (
+                item.mediaId > 0L &&
+                item.mediaId == activeImageMediaId &&
+                imageView.visibility == View.VISIBLE &&
+                imageView.drawable != null
+            ) {
+                PlayerAdLogger.i(
+                    "PLAYBACK",
+                    "Imagem contínua mediaId=${item.mediaId} — sem transição"
+                )
+                PlayerAdLogger.logPlaybackStart(
+                    "imagem",
+                    item.mediaId,
+                    plan.playlistName,
+                    plan.playlistId
+                )
+                setNowPlaying("image", item, plan.playlistName)
+                delay(durationMs)
+                PlayerAdLogger.logPlaybackEnd("imagem", item.mediaId, durationSeconds)
+                return t
+            }
+            activeVideoMediaId = -1L
+            activeVideoContentVersion = null
+
             // Tentar obter bitmap ANTES de esconder vídeo — evita ecrã preto na troca.
             val imageUri = when {
                 isFileUrl -> Uri.parse(item.url)
@@ -1668,13 +1701,12 @@ class PlayerController(
 
             if (bitmap != null) {
                 val imagePath = if (imageUri.scheme == "file") imageUri.path else null
-                // Véu opaco: ImageView com letterbox não pode deixar ver o TextureView por baixo.
+                // Véu opaco no root: ImageView com letterbox não pode deixar ver TextureView.
                 MediaLayerTransition.cover(mediaTransitionOverlay)
                 try {
                     exoPlayer.pause()
                 } catch (_: Exception) { }
                 concealPlayerSurface()
-                playerView.alpha = 1f
                 applyImageOrientationCorrection(
                     bitmap,
                     imagePath,
@@ -1695,7 +1727,13 @@ class PlayerController(
             imageView.visibility = View.VISIBLE
             imageView.bringToFront()
             mediaTransitionOverlay?.bringToFront()
+            MediaLayerTransition.awaitFrames(mediaTransitionOverlay, 2)
             MediaLayerTransition.reveal(mediaTransitionOverlay)
+            if (bitmap != null) {
+                activeImageMediaId = item.mediaId
+            } else {
+                activeImageMediaId = -1L
+            }
 
             try {
                 t = eventsClient.sendEvent(
@@ -1717,8 +1755,13 @@ class PlayerController(
         }
 
         hideHtmlLayer()
-        pendingVideoOrientationReveal = false
         applyPlaybackVolumePolicy()
+
+        // Replay contínuo: mesmo vídeo já no ExoPlayer (playlist de 1 item / expand antigo).
+        if (canSeamlessReplayVideo(item)) {
+            return playVideoSeamlessReplay(plan, item, t)
+        }
+        activeImageMediaId = -1L
 
         PlayerAdLogger.logPlaybackStart(
             "vídeo",
@@ -1737,16 +1780,19 @@ class PlayerController(
             else -> MediaItem.fromUri(Uri.parse(item.url))
         }
 
-        // 1) Véu opaco  2) esconde imagem (letterbox transparente vazava o vídeo)  3) prepara
-        // 4) 1º frame novo  5) revela — nunca ImageView+PlayerView visíveis ao mesmo tempo.
+        // 1) Véu no root  2) esconde imagem  3) prepara com TextureView oculto
+        // 4) 1º frame + matrix FIT  5) frames GPU  6) revela — sem reapply pós-reveal.
         MediaLayerTransition.cover(mediaTransitionOverlay)
         imageView.visibility = View.GONE
         imageView.setImageDrawable(null)
+        concealPlayerSurface()
         playerView.setBackgroundColor(Color.BLACK)
         playerView.setShutterBackgroundColor(Color.BLACK)
-        playerView.alpha = 0f
+        // Mantém VISIBLE (surface viva) mas alpha 0 no TextureView — evita residual.
         playerView.visibility = View.VISIBLE
         detachVideoOrientationListener()
+        val orientationGate = CompletableDeferred<Unit>()
+        videoOrientationReady = orientationGate
         exoPlayer.setMediaItem(mediaItem, /* resetPosition= */ true)
         val cacheAlreadyRotated =
             hasValidCache && (cacheManager.getMetadata(item.mediaId)?.cacheRotated == true)
@@ -1760,10 +1806,16 @@ class PlayerController(
         playerView.post { FullscreenViewport.applyToPlayerView(playerView) }
 
         awaitFirstVideoFrame(8_000L)
-        playerView.alpha = 1f
+        withTimeoutOrNull(1_500L) { orientationGate.await() }
+            ?: PlayerAdLogger.w("DISPLAY", "Timeout matrix orientação; revelando com FIT atual")
+        // Matrix pode ter sido postada no próximo frame — espera composição.
+        MediaLayerTransition.awaitFrames(mediaTransitionOverlay, 2)
+        showPlayerSurface()
         playerView.bringToFront()
         mediaTransitionOverlay?.bringToFront()
         MediaLayerTransition.reveal(mediaTransitionOverlay)
+        activeVideoMediaId = item.mediaId
+        activeVideoContentVersion = item.contentVersion
 
         try {
             t = eventsClient.sendEvent(
@@ -1777,13 +1829,6 @@ class PlayerController(
                 metadata = emptyMap()
             )
         } catch (_: Exception) { }
-
-        playerView.postDelayed({
-            if (pendingVideoOrientationReveal) {
-                PlayerAdLogger.w("DISPLAY", "Reveal vídeo sem onVideoSizeChanged (timeout)")
-                revealVideoAfterOrientation()
-            }
-        }, 800L)
 
         val playbackTimeoutMs = videoWatchdogTimeoutMs(item)
         val playedMs = withTimeoutOrNull(playbackTimeoutMs) {
@@ -1821,6 +1866,115 @@ class PlayerController(
         return t
     }
 
+    private fun canSeamlessReplayVideo(item: DispatchMediaItem): Boolean {
+        if (item.mediaId <= 0L || item.mediaId != activeVideoMediaId) return false
+        val expectedVersion = item.contentVersion
+        if (!expectedVersion.isNullOrBlank() && expectedVersion != activeVideoContentVersion) {
+            return false
+        }
+        if (exoPlayer.mediaItemCount <= 0) return false
+        // Surface tem de estar visível (já revelada na 1ª passagem).
+        if (playerView.visibility != View.VISIBLE) return false
+        return true
+    }
+
+    /**
+     * Mesmo mediaId já carregado: seek(0) + play sem véu/teardown (elimina flick no loop de 1 item).
+     */
+    private suspend fun playVideoSeamlessReplay(
+        plan: DispatchPlan,
+        item: DispatchMediaItem,
+        token: String,
+    ): String {
+        var t = token
+        PlayerAdLogger.i(
+            "PLAYBACK",
+            "Vídeo contínuo mediaId=${item.mediaId} — seek(0) sem transição"
+        )
+        PlayerAdLogger.logPlaybackStart(
+            "vídeo",
+            item.mediaId,
+            plan.playlistName,
+            plan.playlistId
+        )
+        setNowPlaying("video", item, plan.playlistName)
+        applyPlaybackVolumePolicy()
+
+        try {
+            exoPlayer.seekTo(0L)
+            exoPlayer.playWhenReady = true
+            if (exoPlayer.playbackState == Player.STATE_IDLE) {
+                exoPlayer.prepare()
+                exoPlayer.playWhenReady = true
+            }
+            // seek a partir de ENDED é assíncrono — não chamar waitForPlaybackEnd
+            // enquanto ainda STATE_ENDED (sairia de imediato sem tocar de novo).
+            withTimeoutOrNull(3_000L) {
+                while (exoPlayer.playbackState == Player.STATE_ENDED) {
+                    delay(16L)
+                }
+            }
+            awaitPlayerReady(3_000L)
+        } catch (e: Exception) {
+            PlayerAdLogger.e("PLAYBACK", "Falha no replay contínuo; força troca completa no próximo ciclo", e)
+            activeVideoMediaId = -1L
+            activeVideoContentVersion = null
+            try {
+                exoPlayer.seekTo(0L)
+                exoPlayer.prepare()
+                exoPlayer.playWhenReady = true
+                awaitPlayerReady(3_000L)
+            } catch (_: Exception) { }
+        }
+
+        try {
+            t = eventsClient.sendEvent(
+                token = t,
+                eventType = "video_playback_start",
+                mediaId = item.mediaId,
+                playlistId = plan.playlistId,
+                campaignId = plan.campaignId,
+                durationSeconds = null,
+                completed = null,
+                metadata = emptyMap()
+            )
+        } catch (_: Exception) { }
+
+        val playbackTimeoutMs = videoWatchdogTimeoutMs(item)
+        val playedMs = withTimeoutOrNull(playbackTimeoutMs) {
+            waitForPlaybackEnd()
+        } ?: run {
+            val currentPosition = exoPlayer.currentPosition
+            PlayerAdLogger.w(
+                "WATCHDOG",
+                "Timeout de reprodução (contínuo) mediaId=${item.mediaId}; avançando após ${playbackTimeoutMs / 1000L}s"
+            )
+            try {
+                exoPlayer.pause()
+            } catch (_: Exception) { }
+            currentPosition
+        }
+        PlayerAdLogger.logPlaybackEnd(
+            "vídeo",
+            item.mediaId,
+            (playedMs / 1000L).coerceAtLeast(0L)
+        )
+
+        try {
+            t = eventsClient.sendEvent(
+                token = t,
+                eventType = "video_playback_end",
+                mediaId = item.mediaId,
+                playlistId = plan.playlistId,
+                campaignId = plan.campaignId,
+                durationSeconds = (playedMs / 1000L).coerceAtLeast(0L),
+                completed = true,
+                metadata = emptyMap()
+            )
+        } catch (_: Exception) { }
+        return t
+    }
+
     private suspend fun playHtmlItem(
         plan: DispatchPlan,
         item: DispatchMediaItem,
@@ -1831,6 +1985,9 @@ class PlayerController(
         today: String
     ): String {
         var t = token
+        activeVideoMediaId = -1L
+        activeVideoContentVersion = null
+        activeImageMediaId = -1L
         resetMediaViewOrientation()
         MediaLayerTransition.cover(mediaTransitionOverlay)
         hideImageLayer()
@@ -1927,17 +2084,37 @@ class PlayerController(
     /**
      * Esconde a superfície de vídeo sem destruir o TextureView (GONE limpa o buffer
      * e em montagem landscape provoca ghosting entre mídias).
+     * Em Allwinner o TextureView pode ignorar alpha do PlayerView — zerar o surface.
      */
     private fun concealPlayerSurface() {
         playerView.setBackgroundColor(Color.BLACK)
         playerView.setShutterBackgroundColor(Color.BLACK)
+        playerView.alpha = 0f
+        try {
+            (playerView.videoSurfaceView as? TextureView)?.alpha = 0f
+        } catch (_: Exception) { }
         playerView.visibility = View.INVISIBLE
+    }
+
+    /** Mostra TextureView só depois do 1º frame + matrix, ainda sob o véu. */
+    private fun showPlayerSurface() {
+        playerView.setBackgroundColor(Color.BLACK)
+        playerView.setShutterBackgroundColor(Color.BLACK)
+        playerView.visibility = View.VISIBLE
+        try {
+            (playerView.videoSurfaceView as? TextureView)?.alpha = 1f
+        } catch (_: Exception) { }
+        playerView.alpha = 1f
     }
 
     private fun resetMediaViewOrientation() {
         detachVideoOrientationListener()
-        pendingVideoOrientationReveal = false
+        videoOrientationReady?.cancel()
+        videoOrientationReady = null
         playerView.alpha = 1f
+        try {
+            (playerView.videoSurfaceView as? TextureView)?.alpha = 1f
+        } catch (_: Exception) { }
         MediaLayerTransition.reset(mediaTransitionOverlay)
         applyFullscreenVideoScale()
         MediaViewportRotation.resetPlayerView(playerView)
@@ -1960,6 +2137,7 @@ class PlayerController(
         cacheAlreadyRotated: Boolean = false,
     ) {
         if (!AUTO_MEDIA_ORIENTATION && !MediaViewportRotation.needsLandscapeStripFlip(deliveryRotation)) {
+            signalVideoOrientationReady()
             return
         }
         detachVideoOrientationListener()
@@ -1978,13 +2156,14 @@ class PlayerController(
                         rawH,
                         VIDEO_VIEWPORT_SCALE,
                     )
-                    revealVideoAfterOrientation()
+                    signalVideoOrientationReady()
                     return
                 }
                 if (AUTO_MEDIA_ORIENTATION) {
                     applyVideoOrientationCorrection(videoSize, deliveryRotation, deliveryBakeVersion)
                 } else {
                     applyLandscapeStripFlipIfNeeded(videoSize, deliveryRotation)
+                    signalVideoOrientationReady()
                 }
             }
         }
@@ -2071,13 +2250,13 @@ class PlayerController(
                 rawH,
                 VIDEO_VIEWPORT_SCALE,
             )
-            revealVideoAfterOrientation()
+            signalVideoOrientationReady()
         } catch (e: Exception) {
             PlayerAdLogger.e("DISPLAY", "Falha ao corrigir orientação do vídeo; mantém FIT matrix", e)
             try {
                 val (w, h) = MediaViewportRotation.rawVideoSize(videoSize)
                 if (w <= 0 || h <= 0) {
-                    revealVideoAfterOrientation()
+                    signalVideoOrientationReady()
                     return
                 }
                 applyFullscreenVideoScale()
@@ -2092,7 +2271,7 @@ class PlayerController(
                 MediaViewportRotation.resetPlayerView(playerView)
                 applyFullscreenVideoScale()
             }
-            revealVideoAfterOrientation()
+            signalVideoOrientationReady()
         }
     }
 
@@ -2106,10 +2285,11 @@ class PlayerController(
         }
     }
 
-    private fun revealVideoAfterOrientation() {
-        if (!pendingVideoOrientationReveal) return
-        pendingVideoOrientationReveal = false
-        playerView.alpha = 1f
+    private fun signalVideoOrientationReady() {
+        val gate = videoOrientationReady ?: return
+        if (!gate.isCompleted) {
+            gate.complete(Unit)
+        }
     }
 
     private fun applyImageOrientationCorrection(
