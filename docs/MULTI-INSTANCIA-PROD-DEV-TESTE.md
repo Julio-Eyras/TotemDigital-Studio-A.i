@@ -108,12 +108,22 @@ bash scripts/Instala-TotemDigital-Server.sh --modo atualizar --instancia dev --g
 bash scripts/Instala-TotemDigital-Server.sh --modo wipe --instancia dev
 ```
 
+Credenciais mínimas provisionadas:
+
+- `dev / dev123` — login principal da instância
+- `dev.publisher / dev123` — publisher técnico
+
 ### Testes / homologação
 
 ```bash
 bash scripts/Instala-TotemDigital-Server.sh --modo producao --instancia teste --sim
 bash scripts/Instala-TotemDigital-Server.sh --modo wipe --instancia teste   # interactivo
 ```
+
+Credenciais mínimas provisionadas:
+
+- `test / test123` — login principal da instância
+- `test.publisher / test123` — publisher técnico
 
 ### Dry-run (ver plano sem executar)
 

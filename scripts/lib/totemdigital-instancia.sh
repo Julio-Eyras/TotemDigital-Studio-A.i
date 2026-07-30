@@ -26,9 +26,54 @@ TDI_HTTP_PORT=""
 TDI_SERVICE=""
 TDI_NGINX_SITE=""
 TDI_RUN_USER="${SUDO_USER:-$(whoami)}"
+TDI_LOGIN_USERNAME=""
+TDI_LOGIN_PASSWORD=""
+TDI_PUBLISHER_USERNAME=""
+TDI_PUBLISHER_PASSWORD=""
 
 tdi_random_secret() {
   openssl rand -base64 48 2>/dev/null | tr -d '/+=' | head -c 48
+}
+
+tdi_escape_sql_literal() {
+  local raw="${1:-}"
+  printf '%s' "${raw//\'/\'\'}"
+}
+
+tdi_bcrypt_hash() {
+  local password="${1:-admin123}"
+  local hash=""
+
+  if [[ -d "$TDI_CLONE_DIR/backend/node_modules" ]] && command -v node >/dev/null 2>&1; then
+    hash=$(PASSWORD_TO_HASH="$password" INSTALL_DIR="$TDI_CLONE_DIR" node - <<'NODE' 2>/dev/null
+const password = process.env.PASSWORD_TO_HASH || 'admin123';
+let hash = '';
+try {
+  const path = require('path');
+  const backendBcrypt = path.resolve(process.env.INSTALL_DIR || process.cwd(), 'backend', 'node_modules', 'bcryptjs');
+  let bcrypt;
+  try {
+    bcrypt = require(backendBcrypt);
+  } catch (e) {
+    bcrypt = require('bcryptjs');
+  }
+  hash = bcrypt.hashSync(password, 12);
+} catch (err) {
+  process.stderr.write(err?.message || String(err));
+}
+if (hash) process.stdout.write(hash);
+NODE
+)
+    hash="$(echo -n "$hash" | tr -d '\r')"
+  fi
+
+  if [[ -z "$hash" || ${#hash} -ne 60 ]]; then
+    hash='$2a$12$eenSYwwg9qOkcleFuH2lrOL5u3nAMN8MqQlsOQJh59mg16gcBu5A2'
+  fi
+  if [[ "$hash" == \$2y\$* ]]; then
+    hash="\$2b\$${hash:4}"
+  fi
+  printf '%s' "$hash"
 }
 
 tdi_normalize_instancia() {
@@ -85,6 +130,10 @@ tdi_load_profile() {
       TDI_HTTP_PORT="8081"
       TDI_SERVICE="smart-signage-dev"
       TDI_NGINX_SITE="totemdigital-dev"
+      TDI_LOGIN_USERNAME="dev"
+      TDI_LOGIN_PASSWORD="dev123"
+      TDI_PUBLISHER_USERNAME="dev.publisher"
+      TDI_PUBLISHER_PASSWORD="dev123"
       ;;
     teste)
       TDI_LABEL="Testes / homologação"
@@ -98,6 +147,10 @@ tdi_load_profile() {
       TDI_HTTP_PORT="8082"
       TDI_SERVICE="smart-signage-test"
       TDI_NGINX_SITE="totemdigital-test"
+      TDI_LOGIN_USERNAME="test"
+      TDI_LOGIN_PASSWORD="test123"
+      TDI_PUBLISHER_USERNAME="test.publisher"
+      TDI_PUBLISHER_PASSWORD="test123"
       ;;
     *)
       err "Instância desconhecida: $id (use producao|dev|teste)"
@@ -145,6 +198,10 @@ tdi_render_template() {
     "@@TDI_SERVICE@@|$TDI_SERVICE"
     "@@TDI_NGINX_SITE@@|$TDI_NGINX_SITE"
     "@@TDI_RUN_USER@@|$TDI_RUN_USER"
+    "@@TDI_LOGIN_USERNAME@@|$TDI_LOGIN_USERNAME"
+    "@@TDI_LOGIN_PASSWORD@@|$TDI_LOGIN_PASSWORD"
+    "@@TDI_PUBLISHER_USERNAME@@|$TDI_PUBLISHER_USERNAME"
+    "@@TDI_PUBLISHER_PASSWORD@@|$TDI_PUBLISHER_PASSWORD"
     "@@TDI_JWT_SECRET@@|$jwt"
     "@@TDI_2FA_KEY@@|$tfa"
     "@@TDI_TOTEM_SECRET@@|$totem"
@@ -179,6 +236,10 @@ tdi_show_profile_plan() {
   echo "  Painel HTTP ....... :${TDI_HTTP_PORT}"
   echo "  systemd ........... ${TDI_SERVICE}.service"
   echo "  Nginx ............. /etc/nginx/sites-available/${TDI_NGINX_SITE}"
+  if [[ -n "$TDI_LOGIN_USERNAME" ]]; then
+    echo "  Login principal ... ${TDI_LOGIN_USERNAME} / ${TDI_LOGIN_PASSWORD}"
+    echo "  Publisher técnico . ${TDI_PUBLISHER_USERNAME} / ${TDI_PUBLISHER_PASSWORD}"
+  fi
   echo
 }
 
@@ -316,6 +377,194 @@ tdi_write_env() {
     fi
     ok ".env em $out"
   fi
+}
+
+tdi_provision_instance_access() {
+  [[ -n "$TDI_LOGIN_USERNAME" ]] || return 0
+  [[ "$DRY_RUN" == "true" ]] && { log "Dry-run: garantiria users ${TDI_LOGIN_USERNAME} e ${TDI_PUBLISHER_USERNAME}"; return 0; }
+
+  local db_url="postgresql://${TDI_DB_USER}:${TDI_DB_PASSWORD}@localhost:5432/${TDI_DB_NAME}"
+  local owner_name owner_email owner_contact owner_description
+  local owner_username owner_password owner_hash owner_email_login
+  local publisher_username publisher_password publisher_hash publisher_email
+
+  owner_name="$(tdi_escape_sql_literal "${OWNER_NAME:-Totem Digital}")"
+  owner_email="$(tdi_escape_sql_literal "${SSL_EMAIL:-admin@${TDI_DOMAIN}}")"
+  owner_contact="$(tdi_escape_sql_literal "Contato ${OWNER_NAME:-Totem Digital}")"
+  owner_description="$(tdi_escape_sql_literal "Organização owner ${OWNER_NAME:-Totem Digital} (${TDI_ID})")"
+
+  owner_username="$(tdi_escape_sql_literal "$TDI_LOGIN_USERNAME")"
+  owner_password="$TDI_LOGIN_PASSWORD"
+  owner_hash="$(tdi_escape_sql_literal "$(tdi_bcrypt_hash "$owner_password")")"
+  owner_email_login="$(tdi_escape_sql_literal "${TDI_LOGIN_USERNAME}@${TDI_DOMAIN}")"
+
+  publisher_username="$(tdi_escape_sql_literal "$TDI_PUBLISHER_USERNAME")"
+  publisher_password="$TDI_PUBLISHER_PASSWORD"
+  publisher_hash="$(tdi_escape_sql_literal "$(tdi_bcrypt_hash "$publisher_password")")"
+  publisher_email="$(tdi_escape_sql_literal "${TDI_PUBLISHER_USERNAME}@${TDI_DOMAIN}")"
+
+  log "A garantir users mínimos da instância (${TDI_LOGIN_USERNAME} / ${TDI_PUBLISHER_USERNAME}) ..."
+  PGPASSWORD="$TDI_DB_PASSWORD" psql "$db_url" -v ON_ERROR_STOP=1 <<SQL
+DO \$\$
+DECLARE
+  v_publisher_id INTEGER;
+  v_owner_user_id INTEGER;
+  v_publisher_user_id INTEGER;
+  v_owner_role_id INTEGER;
+  v_publisher_role_id INTEGER;
+BEGIN
+  SELECT publisher_id INTO v_publisher_id
+  FROM publishers
+  WHERE is_active = true
+    AND (
+      is_system_owner = true
+      OR LOWER(name) = LOWER('${owner_name}')
+      OR LOWER(COALESCE(email, '')) = LOWER('${owner_email}')
+    )
+  ORDER BY
+    CASE WHEN is_system_owner = true THEN 0 ELSE 1 END,
+    publisher_id ASC
+  LIMIT 1;
+
+  IF v_publisher_id IS NULL THEN
+    INSERT INTO publishers (
+      name, contact_name, email, phone, whatsapp,
+      category_segment, description, is_subscriber, is_publisher, client_type, is_active, is_system_owner
+    ) VALUES (
+      '${owner_name}',
+      '${owner_contact}',
+      '${owner_email}',
+      NULL, NULL,
+      'Totens',
+      '${owner_description}',
+      false, true, 'publisher', true, true
+    )
+    RETURNING publisher_id INTO v_publisher_id;
+  ELSE
+    UPDATE publishers SET
+      name = '${owner_name}',
+      contact_name = '${owner_contact}',
+      email = '${owner_email}',
+      description = COALESCE(NULLIF(TRIM(description), ''), '${owner_description}'),
+      is_publisher = true,
+      client_type = 'publisher',
+      is_active = true,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE publisher_id = v_publisher_id;
+  END IF;
+
+  UPDATE publishers
+  SET is_system_owner = false, updated_at = CURRENT_TIMESTAMP
+  WHERE is_system_owner = true AND publisher_id IS DISTINCT FROM v_publisher_id;
+
+  UPDATE publishers
+  SET is_system_owner = true, updated_at = CURRENT_TIMESTAMP
+  WHERE publisher_id = v_publisher_id;
+
+  INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description)
+  VALUES ('installation.profile', 'single_publisher', 'string', 'system', 'Perfil de instalação (instância multi-ambiente)')
+  ON CONFLICT (setting_key) DO UPDATE SET
+    setting_value = EXCLUDED.setting_value,
+    updated_at = CURRENT_TIMESTAMP;
+
+  INSERT INTO users (
+    username, email, password_hash,
+    first_name, last_name, name, phone,
+    role, user_type, is_tenant_user,
+    publisher_id, subscriber_id,
+    is_active, email_verified,
+    last_login, created_at, updated_at
+  )
+  VALUES (
+    '${owner_username}', '${owner_email_login}', '${owner_hash}',
+    '${owner_username}', 'System', '${owner_name}', NULL,
+    'owner_system', 'system_user', true,
+    NULL, NULL,
+    true, true,
+    NOW(), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+  )
+  ON CONFLICT (username) DO UPDATE SET
+    email = EXCLUDED.email,
+    password_hash = EXCLUDED.password_hash,
+    first_name = EXCLUDED.first_name,
+    last_name = EXCLUDED.last_name,
+    name = EXCLUDED.name,
+    role = 'owner_system',
+    user_type = 'system_user',
+    is_tenant_user = true,
+    publisher_id = NULL,
+    subscriber_id = NULL,
+    is_active = true,
+    email_verified = true,
+    updated_at = CURRENT_TIMESTAMP
+  RETURNING id INTO v_owner_user_id;
+
+  SELECT role_id INTO v_owner_role_id FROM roles WHERE name = 'owner_system' LIMIT 1;
+  IF v_owner_role_id IS NOT NULL THEN
+    INSERT INTO user_roles (user_id, role_id, assigned_by)
+    VALUES (v_owner_user_id, v_owner_role_id, v_owner_user_id)
+    ON CONFLICT DO NOTHING;
+  END IF;
+
+  INSERT INTO user_flags (
+    user_id,
+    flag_smart_0, flag_smart_1, flag_smart_2, flag_smart_3, flag_smart_4,
+    flag_smart_5, flag_smart_6, flag_smart_7, flag_smart_8, flag_smart_9
+  )
+  VALUES (v_owner_user_id, true, true, true, true, true, true, true, true, true, true)
+  ON CONFLICT (user_id) DO UPDATE SET
+    flag_smart_0 = true, flag_smart_1 = true, flag_smart_2 = true, flag_smart_3 = true, flag_smart_4 = true,
+    flag_smart_5 = true, flag_smart_6 = true, flag_smart_7 = true, flag_smart_8 = true, flag_smart_9 = true,
+    updated_at = CURRENT_TIMESTAMP;
+
+  INSERT INTO users (
+    username, email, password_hash,
+    first_name, last_name, name, phone,
+    role, user_type, is_tenant_user,
+    publisher_id, subscriber_id,
+    is_active, email_verified,
+    last_login, created_at, updated_at
+  )
+  VALUES (
+    '${publisher_username}', '${publisher_email}', '${publisher_hash}',
+    '${TDI_LOGIN_USERNAME}', 'Publisher', '${owner_name} Publisher', NULL,
+    'publisher_user', 'publisher_user', false,
+    v_publisher_id, NULL,
+    true, true,
+    NOW(), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+  )
+  ON CONFLICT (username) DO UPDATE SET
+    email = EXCLUDED.email,
+    password_hash = EXCLUDED.password_hash,
+    role = EXCLUDED.role,
+    user_type = EXCLUDED.user_type,
+    is_tenant_user = EXCLUDED.is_tenant_user,
+    publisher_id = EXCLUDED.publisher_id,
+    subscriber_id = EXCLUDED.subscriber_id,
+    is_active = EXCLUDED.is_active,
+    email_verified = EXCLUDED.email_verified,
+    updated_at = CURRENT_TIMESTAMP
+  RETURNING id INTO v_publisher_user_id;
+
+  SELECT role_id INTO v_publisher_role_id FROM roles WHERE name = 'publisher_user' LIMIT 1;
+  IF v_publisher_role_id IS NOT NULL THEN
+    INSERT INTO user_roles (user_id, role_id, assigned_by)
+    VALUES (v_publisher_user_id, v_publisher_role_id, v_publisher_user_id)
+    ON CONFLICT DO NOTHING;
+  END IF;
+
+  INSERT INTO user_flags (
+    user_id,
+    flag_smart_0, flag_smart_1, flag_smart_2, flag_smart_3, flag_smart_4,
+    flag_smart_5, flag_smart_6, flag_smart_7, flag_smart_8, flag_smart_9
+  )
+  VALUES (v_publisher_user_id, true, false, false, true, false, true, true, false, true, false)
+  ON CONFLICT (user_id) DO UPDATE SET
+    updated_at = CURRENT_TIMESTAMP;
+END
+\$\$;
+SQL
+  ok "Credenciais da instância garantidas: ${TDI_LOGIN_USERNAME}/${TDI_LOGIN_PASSWORD}"
 }
 
 tdi_apply_schema() {
@@ -503,6 +752,7 @@ tdi_instancia_install() {
   tdi_apply_schema || return 1
   tdi_load_seeds
   tdi_npm_install_build || return 1
+  tdi_provision_instance_access || return 1
   tdi_rsync_deploy
   tdi_install_systemd
   tdi_ensure_le_cert || return 1
@@ -534,6 +784,7 @@ tdi_instancia_update() {
   fi
 
   tdi_npm_install_build || return 1
+  tdi_provision_instance_access || return 1
   tdi_rsync_deploy
   tdi_install_systemd
   tdi_ensure_le_cert || true
@@ -582,6 +833,7 @@ tdi_instancia_wipe() {
   tdi_apply_schema || return 1
   tdi_load_seeds
   tdi_npm_install_build || return 1
+  tdi_provision_instance_access || return 1
   tdi_rsync_deploy
   tdi_install_systemd
   tdi_ensure_le_cert || true
@@ -604,5 +856,9 @@ tdi_show_final_summary() {
   echo "  BD ............... ${TDI_DB_NAME}"
   echo "  Clone ............ ${TDI_CLONE_DIR}"
   echo "  Deploy ........... ${TDI_OPT_ROOT}"
+  if [[ -n "$TDI_LOGIN_USERNAME" ]]; then
+    echo "  Login principal .. ${TDI_LOGIN_USERNAME} / ${TDI_LOGIN_PASSWORD}"
+    echo "  Publisher técnico  ${TDI_PUBLISHER_USERNAME} / ${TDI_PUBLISHER_PASSWORD}"
+  fi
   echo
 }
