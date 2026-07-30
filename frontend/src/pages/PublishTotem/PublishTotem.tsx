@@ -29,6 +29,7 @@ import {
   TextField,
   Tooltip,
   Typography,
+  useTheme,
 } from '@mui/material';
 import { Add, CloudUpload, ContentCopy, Delete, Edit, PhotoLibrary, PowerSettingsNew, Refresh, Settings, Tv } from '@mui/icons-material';
 import { mediaApi, MediaItem, totemApi, totemDirectMediaApi, Player, CreatePlayerRequest } from '../../services/api';
@@ -42,6 +43,9 @@ import { useMediaThumbnailUrls } from '../../hooks/useMediaThumbnailUrls';
 import { getTotemIdFromRow } from '../../utils/totemRowIds';
 import { buildMediaThumbnailApiPath } from '../../utils/mediaPreviewUrl';
 import { buildMediaMetaSummary } from '../../utils/mediaDisplayMeta';
+import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { formatTotemScheduleCardLines } from '../../utils/totemDisplaySchedule';
+import { getDisabledContainerSx } from '../../utils/disabledVisualIdentity';
 
 function isTotemRowActive(row: unknown): boolean {
   const r = row as Record<string, unknown> | null | undefined;
@@ -50,8 +54,6 @@ function isTotemRowActive(row: unknown): boolean {
   if (active === false || active === 0 || active === 'false' || active === '0') return false;
   return true;
 }
-import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
-import { formatTotemScheduleCardLines } from '../../utils/totemDisplaySchedule';
 
 function createActivationCode(): string {
   const segment = () => Math.random().toString(36).slice(2, 6).toUpperCase().padEnd(4, '0');
@@ -66,6 +68,7 @@ function getOperationalStatus(totem: any): { label: string; color: 'default' | '
 }
 
 const PublishTotem: React.FC = () => {
+  const theme = useTheme();
   const navigate = useNavigate();
   const breadcrumbs = useBreadcrumbs();
   const [totems, setTotems] = useState<Player[]>([]);
@@ -370,7 +373,12 @@ const PublishTotem: React.FC = () => {
             const scheduleLines = formatTotemScheduleCardLines(t as Record<string, unknown>);
             return (
               <Grid item xs={12} sm={6} md={4} key={String(totemId ?? idx)}>
-                <Card sx={{ height: '100%', opacity: totemActive ? 1 : 0.72 }}>
+                <Card
+                  sx={{
+                    height: '100%',
+                    ...getDisabledContainerSx(theme, totemActive ? 'default' : 'disabled-global'),
+                  }}
+                >
                   <CardActionArea
                     onClick={() => totemId && navigate(`/publish-totem/${totemId}`)}
                     sx={{ height: '100%' }}
@@ -386,7 +394,12 @@ const PublishTotem: React.FC = () => {
                           </Typography>
                           <Chip size="small" label={op.label} color={op.color} sx={{ mt: 0.5 }} />
                           {!totemActive && (
-                            <Chip size="small" label="Desabilitado" color="warning" sx={{ mt: 0.5, ml: 0.5 }} />
+                            <Chip
+                              size="small"
+                              label="Desabilitado"
+                              color="warning"
+                              sx={{ mt: 0.5, ml: 0.5, fontWeight: 700 }}
+                            />
                           )}
                           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                             {mediaCount} {mediaCount === 1 ? 'mídia' : 'mídias'}

@@ -762,7 +762,12 @@ const CronSQL: React.FC = () => {
                       <TableCell>{query.provider}</TableCell>
                       <TableCell>{(query.export_config?.format || 'xlsx').toUpperCase()}</TableCell>
                       <TableCell>
-                        <Chip size="small" label={query.enabled ? 'Ativo' : 'Inativo'} color={query.enabled ? 'success' : 'default'} />
+                        <Chip
+                          size="small"
+                          label={query.enabled ? 'Ativo' : 'Inativo'}
+                          color={query.enabled ? 'success' : 'warning'}
+                          sx={!query.enabled ? { fontWeight: 700 } : undefined}
+                        />
                       </TableCell>
                       <TableCell>{formatDateTime(query.updated_at)}</TableCell>
                       <TableCell align="right">
@@ -915,7 +920,8 @@ const CronSQL: React.FC = () => {
                           <Chip
                             size="small"
                             label={schedule.enabled ? 'Ativo' : 'Inativo'}
-                            color={schedule.enabled ? 'success' : 'default'}
+                            color={schedule.enabled ? 'success' : 'warning'}
+                            sx={!schedule.enabled ? { fontWeight: 700 } : undefined}
                           />
                         </TableCell>
                         <TableCell>{formatDateTime(schedule.next_execution)}</TableCell>

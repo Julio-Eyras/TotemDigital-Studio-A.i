@@ -644,7 +644,8 @@ const Clients: React.FC = () => {
                               <Chip
                                 label={selectedClient?.is_active ? 'Ativo' : 'Inativo'}
                                 size="small"
-                                color={selectedClient?.is_active ? 'success' : 'error'}
+                                color={selectedClient?.is_active ? 'success' : 'warning'}
+                                sx={!selectedClient?.is_active ? { fontWeight: 700 } : undefined}
                               />
                             </TableCell>
                           </TableRow>

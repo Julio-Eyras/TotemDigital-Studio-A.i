@@ -357,7 +357,8 @@ const PlaylistDetails: React.FC<PlaylistDetailsProps> = ({
                           <Chip
                             label={campaign.is_active ? 'Sim' : 'Não'}
                             size="small"
-                            color={campaign.is_active ? 'success' : 'default'}
+                            color={campaign.is_active ? 'success' : 'warning'}
+                            sx={!campaign.is_active ? { fontWeight: 700 } : undefined}
                           />
                         </TableCell>
                         <TableCell>

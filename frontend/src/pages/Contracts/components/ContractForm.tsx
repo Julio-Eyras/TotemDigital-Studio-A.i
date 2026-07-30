@@ -535,8 +535,8 @@ const ContractForm: React.FC<ContractFormProps> = ({
                         <Chip
                           label={publisher.active ? 'Ativo' : 'Inativo'}
                           size="small"
-                          color={publisher.active ? 'success' : 'default'}
-                          sx={{ mt: 0.5 }}
+                          color={publisher.active ? 'success' : 'warning'}
+                          sx={{ mt: 0.5, ...(!publisher.active ? { fontWeight: 700 } : {}) }}
                         />
                       </>
                     }

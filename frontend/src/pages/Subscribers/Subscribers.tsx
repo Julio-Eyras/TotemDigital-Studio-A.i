@@ -3769,7 +3769,20 @@ const Subscribers: React.FC = () => {
               {editPlaylists.length > 0 ? (
                 <List>
                   {editPlaylists.map((playlist, index) => (
-                    <ListItem key={playlist.playlist_id} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}>
+                    <ListItem
+                      key={playlist.playlist_id}
+                      sx={{
+                        border: `1px solid ${theme.palette.divider}`,
+                        borderRadius: 1,
+                        mb: 1,
+                        ...(!playlist.is_active
+                          ? {
+                              borderLeft: `5px solid ${theme.palette.warning.main}`,
+                              backgroundColor: alpha(theme.palette.warning.main, 0.2),
+                            }
+                          : {}),
+                      }}
+                    >
                       <ListItemIcon><QueueMusic /></ListItemIcon>
                       <ListItemText
                         primary={
@@ -3787,8 +3800,8 @@ const Subscribers: React.FC = () => {
                       <Chip
                         label={playlist.is_active ? 'Ativa' : 'Inativa'}
                         size="small"
-                        color={playlist.is_active ? 'success' : 'default'}
-                        sx={{ mr: 1 }}
+                        color={playlist.is_active ? 'success' : 'warning'}
+                        sx={{ mr: 1, ...(!playlist.is_active ? { fontWeight: 700 } : {}) }}
                       />
                       <IconButton size="small" onClick={() => handleStartEditPlaylist(index)}>
                         <Edit />
@@ -3858,7 +3871,20 @@ const Subscribers: React.FC = () => {
                     const campaignId = campaign.campaign_id || (campaign as any).id;
                     const contractId = campaign.contract_id || (campaign as any).contractId;
                     return (
-                    <ListItem key={campaignId} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 1, mb: 1 }}>
+                    <ListItem
+                      key={campaignId}
+                      sx={{
+                        border: `1px solid ${theme.palette.divider}`,
+                        borderRadius: 1,
+                        mb: 1,
+                        ...(campaign.is_active === false
+                          ? {
+                              borderLeft: `5px solid ${theme.palette.warning.main}`,
+                              backgroundColor: alpha(theme.palette.warning.main, 0.2),
+                            }
+                          : {}),
+                      }}
+                    >
                       <ListItemIcon><CampaignIcon /></ListItemIcon>
                       <ListItemText
                         primary={
@@ -3898,8 +3924,8 @@ const Subscribers: React.FC = () => {
                       <Chip
                         label={campaign.is_active !== undefined ? (campaign.is_active ? 'Ativa' : 'Inativa') : 'N/A'}
                         size="small"
-                        color={campaign.is_active ? 'success' : 'default'}
-                        sx={{ mr: 1 }}
+                        color={campaign.is_active ? 'success' : 'warning'}
+                        sx={{ mr: 1, ...(campaign.is_active === false ? { fontWeight: 700 } : {}) }}
                       />
                       <Chip
                         label={campaign.status || 'draft'}

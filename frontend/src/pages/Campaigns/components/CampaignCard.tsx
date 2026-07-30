@@ -267,7 +267,8 @@ const CampaignCard: React.FC<CampaignCardProps> = ({
           <Chip
             label={isActive ? 'Ativa' : 'Inativa'}
             size="small"
-            color={isActive ? 'success' : 'default'}
+            color={isActive ? 'success' : 'warning'}
+            sx={!isActive ? { fontWeight: 700 } : undefined}
           />
           {campaign.priority && (
             <Typography variant="caption" color="text.secondary">
