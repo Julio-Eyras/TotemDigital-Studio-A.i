@@ -363,13 +363,32 @@ tdi_npm_install_build() {
     return 0
   fi
 
-  log "npm install backend ..."
-  (cd "$be" && npm ci 2>/dev/null || npm install)
+  log "npm install backend (incl. devDependencies para tsc) ..."
+  (
+    cd "$be"
+    npm ci --include=dev 2>/dev/null || npm install --include=dev
+  )
   log "Compilar backend ..."
-  (cd "$be" && npm run build 2>/dev/null || npx tsc -p tsconfig.json)
+  (
+    cd "$be"
+    if [[ -x ./node_modules/.bin/tsc ]]; then
+      npm run build || ./node_modules/.bin/tsc -p tsconfig.json
+    else
+      err "TypeScript não instalado em $be — npm install --include=dev falhou?"
+      return 1
+    fi
+  ) || return 1
+  if [[ ! -f "$be/dist/index.js" ]]; then
+    err "Backend não compilado: falta $be/dist/index.js"
+    return 1
+  fi
+  ok "Backend compilado."
 
   log "npm install frontend ..."
-  (cd "$fe" && npm ci 2>/dev/null || npm install)
+  (
+    cd "$fe"
+    npm ci --include=dev 2>/dev/null || npm install --include=dev
+  )
   log "Build frontend (REACT_APP_API_URL=${api}) ..."
   (
     cd "$fe"
@@ -378,7 +397,11 @@ tdi_npm_install_build() {
     export REACT_APP_DIRECT_TOTEM_MODE=true
     export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}"
     npm run build
-  )
+  ) || return 1
+  if [[ ! -f "$fe/build/index.html" ]]; then
+    err "Frontend não compilado: falta $fe/build/index.html"
+    return 1
+  fi
   ok "Build concluído."
 }
 

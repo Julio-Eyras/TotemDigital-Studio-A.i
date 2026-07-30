@@ -16,7 +16,7 @@
 # =============================================================================
 set -euo pipefail
 
-readonly SCRIPT_VERSION="1.1.1"
+readonly SCRIPT_VERSION="1.1.2"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 readonly ENGINE="$SCRIPT_DIR/install-smartsignage.sh"
@@ -361,7 +361,12 @@ post_rebuild_backend() {
   fi
   (
     cd "$be"
-    npm run build 2>/dev/null || npx tsc -p tsconfig.json
+    if [[ ! -d node_modules/typescript ]] && [[ ! -x node_modules/.bin/tsc ]]; then
+      npm install --include=dev 2>/dev/null || npm install
+    fi
+    npm run build || {
+      [[ -x ./node_modules/.bin/tsc ]] && ./node_modules/.bin/tsc -p tsconfig.json
+    }
   )
   if [[ -d /opt/smart-signage/backend ]]; then
     sudo rsync -a "$be/dist/" /opt/smart-signage/backend/dist/ 2>/dev/null || true
