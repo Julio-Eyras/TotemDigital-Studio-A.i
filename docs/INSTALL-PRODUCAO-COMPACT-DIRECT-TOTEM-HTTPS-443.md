@@ -7,8 +7,11 @@ Guia **só** para instalação do zero no domínio **`totemdigital.app.br`**, co
 - layout site `:80` + painel `:8080`
 - **Let’s Encrypt** → HTTPS unificado na **443**
 
-**Wrapper (recomendado):** `bash scripts/install-totemdigital-prod-https.sh`  
-Script base: `bash scripts/install-smartsignage.sh`  
+**Wrapper (recomendado):** `bash scripts/Instala-TotemDigital-Server.sh`  
+*(legado / depreciado: `scripts/install-totemdigital-prod-https.sh` → redirecciona para o oficial)*  
+
+Doc do instalador: [INSTALA-TOTEMDIGITAL-SERVER.md](./INSTALA-TOTEMDIGITAL-SERVER.md)  
+Script base (motor, inalterado): `bash scripts/install-smartsignage.sh`  
 Correr como utilizador normal (ex.: `smartchannel`), **não** `sudo bash` no início.  
 Repo actualizado: `cd ~/TotemDigital-Studio && git pull`
 

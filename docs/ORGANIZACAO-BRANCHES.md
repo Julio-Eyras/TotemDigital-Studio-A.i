@@ -74,6 +74,7 @@ Nomes observados nos remotes — usar como referência, não como lista obrigat�
 | Prefixo / nome | Onde costuma viver | Ideia |
 |----------------|--------------------|--------|
 | `SmartSignage-direc-totem` | **Studio (`origin`)** | Linha actual compact + totem directo |
+| `Instala-TotemDigital-Server.sh` | `scripts/` no Studio | Instalador oficial servidor (menu PT) |
 | `Smart-Signage-Studio-V3x` / `Vx4` / `Vx5` | Legado (`totemdigital`) | Gerações Studio anteriores |
 | `Totem-Digital-V3x` | Legado | Linha Totem Digital clássica |
 | `main` | Legado (`totemdigital`) | Default histórico do repo antigo |
