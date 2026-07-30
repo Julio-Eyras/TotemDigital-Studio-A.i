@@ -1142,16 +1142,26 @@ const Media: React.FC = () => {
                     height: media.height,
                     tags: media.tags,
                     sizeBytes: media.size_bytes ?? media.fileSizeBytes,
-                    extras: !mediaActive ? ['desabilitada'] : [],
                   });
-                  if (!metaLine) return null;
+                  if (!metaLine && mediaActive) return null;
                   return (
                     <Typography
                       variant="body2"
-                      color={disabledLibraryVisual ? 'warning.dark' : 'text.secondary'}
+                      color="text.secondary"
                       sx={{ mb: 1, lineHeight: 1.35 }}
                     >
                       {metaLine}
+                      {!mediaActive && (
+                        <>
+                          {metaLine ? ' · ' : null}
+                          <Box
+                            component="span"
+                            sx={{ color: 'error.main', fontWeight: 800 }}
+                          >
+                            desabilitada
+                          </Box>
+                        </>
+                      )}
                     </Typography>
                   );
                 })()}
@@ -1216,8 +1226,8 @@ const Media: React.FC = () => {
                         <Chip
                           label="Desabilitada na biblioteca"
                           size="small"
-                          color="warning"
-                          sx={{ fontSize: '0.7rem', fontWeight: 700 }}
+                          color="error"
+                          sx={{ fontSize: '0.7rem', fontWeight: 800 }}
                         />
                       )}
                     </Box>

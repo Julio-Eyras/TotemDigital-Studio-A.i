@@ -176,20 +176,71 @@ const TotemMediaPage: React.FC = () => {
           tags: lib?.tags,
           durationSeconds,
           omitFileSize: true,
-          extras: [
-            item.is_active === false ? 'desabilitada neste totem' : null,
-            item.media_is_active === false ? 'desabilitada na biblioteca' : null,
-          ],
         });
         const detailLine = buildMediaSizeDurationDateLine({
           sizeBytes,
           durationSeconds,
           uploadedAt,
         });
-        const secondary =
+        const baseSecondary =
           metaLine && detailLine
             ? `${metaLine} · ${detailLine}`
             : metaLine || detailLine || undefined;
+
+        const statusParts: React.ReactNode[] = [];
+        if (item.is_active === false) {
+          statusParts.push(
+            <Box
+              key="disabled-local"
+              component="span"
+              sx={{ color: 'warning.dark', fontWeight: 700 }}
+            >
+              desabilitada neste totem
+            </Box>
+          );
+        }
+        if (item.media_is_active === false) {
+          statusParts.push(
+            <Box
+              key="disabled-global"
+              component="span"
+              sx={{ color: 'error.main', fontWeight: 800 }}
+            >
+              desabilitada na biblioteca
+            </Box>
+          );
+        }
+
+        let secondary: React.ReactNode = baseSecondary;
+        if (statusParts.length > 0) {
+          secondary = (
+            <Box
+              component="span"
+              sx={{
+                display: 'block',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {baseSecondary ? (
+                <>
+                  <Box component="span" sx={{ color: 'text.secondary' }}>
+                    {baseSecondary}
+                  </Box>
+                  {' · '}
+                </>
+              ) : null}
+              {statusParts.map((part, idx) => (
+                <React.Fragment key={idx}>
+                  {idx > 0 ? ' · ' : null}
+                  {part}
+                </React.Fragment>
+              ))}
+            </Box>
+          );
+        }
+
         const visualState =
           item.media_is_active === false
             ? 'disabled-global'
