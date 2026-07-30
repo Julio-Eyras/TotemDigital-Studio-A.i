@@ -872,13 +872,19 @@ const Media: React.FC = () => {
       <Grid container spacing={3}>
         {Array.isArray(mediaItems) && mediaItems.map((media) => {
           const mediaActive = (media as any).isActive !== false && (media as any).is_active !== false;
+          const disabledLibraryVisual = !mediaActive;
           return (
           <Grid item xs={12} sm={6} md={4} lg={3} key={media.media_id}>
             <Card sx={{ 
               height: '100%',
               display: 'flex',
               flexDirection: 'column',
-              opacity: mediaActive ? 1 : 0.72,
+              opacity: mediaActive ? 1 : 1,
+              borderLeft: disabledLibraryVisual ? `5px solid ${theme.palette.warning.main}` : '5px solid transparent',
+              backgroundColor: disabledLibraryVisual ? alpha(theme.palette.warning.main, 0.20) : theme.palette.background.paper,
+              boxShadow: disabledLibraryVisual
+                ? `inset 0 0 0 1px ${alpha(theme.palette.warning.main, 0.18)}`
+                : undefined,
               transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
               '&:hover': {
                 transform: 'translateY(-4px)',
@@ -1109,7 +1115,11 @@ const Media: React.FC = () => {
               </Box>
 
               <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 0.5 }} noWrap>
+                <Typography
+                  variant="h6"
+                  sx={{ fontWeight: disabledLibraryVisual ? 700 : 'bold', mb: 0.5 }}
+                  noWrap
+                >
                   {media.name}
                 </Typography>
 
@@ -1127,7 +1137,7 @@ const Media: React.FC = () => {
                   return (
                     <Typography
                       variant="body2"
-                      color="text.secondary"
+                      color={disabledLibraryVisual ? 'warning.dark' : 'text.secondary'}
                       sx={{ mb: 1, lineHeight: 1.35 }}
                     >
                       {metaLine}
@@ -1181,7 +1191,12 @@ const Media: React.FC = () => {
                         + totem
                       </Typography>
                       {!mediaActive && (
-                        <Chip label="Desabilitada" size="small" color="warning" sx={{ fontSize: '0.7rem' }} />
+                        <Chip
+                          label="Desabilitada na biblioteca"
+                          size="small"
+                          color="warning"
+                          sx={{ fontSize: '0.7rem', fontWeight: 700 }}
+                        />
                       )}
                     </Box>
                     {Array.isArray(media.totemNames) && media.totemNames.length > 0 ? (

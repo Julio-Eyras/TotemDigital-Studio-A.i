@@ -1,0 +1,25 @@
+---
+description: Identidade visual para estados desabilitados na UX
+globs: frontend/**/*.{ts,tsx,js,jsx,css,scss}
+alwaysApply: false
+---
+
+# Estados Desabilitados na UX
+
+Use esta regra em toda a interface do produto quando um item estiver desabilitado, inoperante ou bloqueado.
+
+- Preferir sinalização no container inteiro do item (linha, card, tile, bloco), não só em texto pequeno ou ícone.
+- Manter hierarquia visual consistente:
+  - desabilitado localmente / no contexto actual: laranja suave
+  - desabilitado globalmente / na origem / em todos os contextos: laranja mais intenso
+- O estado global deve ter prioridade visual sobre o estado local.
+- O utilizador deve perceber o estado "a bater o olho", sem depender de leitura detalhada.
+- Manter contraste, legibilidade e tom profissional; evitar cores agressivas ou erro/vermelho quando não se trata de falha crítica.
+- Sempre que possível, combinar cor de fundo suave com um reforço secundário discreto, como borda, badge ou label explicativa.
+
+Exemplo de intenção:
+
+- "Desabilitada neste totem" -> fundo laranja claro, destaque moderado
+- "Desabilitada na biblioteca / todos os totens" -> fundo laranja mais forte, destaque superior
+
+Esta linguagem visual deve ser tratada como identidade de UX reutilizável em listas, cartões, tabelas, painéis e estados semelhantes do frontend.

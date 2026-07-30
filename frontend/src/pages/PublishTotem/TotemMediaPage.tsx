@@ -190,6 +190,12 @@ const TotemMediaPage: React.FC = () => {
           metaLine && detailLine
             ? `${metaLine} · ${detailLine}`
             : metaLine || detailLine || undefined;
+        const visualState =
+          item.media_is_active === false
+            ? 'disabled-global'
+            : item.is_active === false
+              ? 'disabled-local'
+              : 'default';
 
         return {
           id: item.media_id,
@@ -202,6 +208,7 @@ const TotemMediaPage: React.FC = () => {
             mediaHeight: item.height ?? lib?.height ?? null,
           },
           active: item.is_active !== false && item.media_is_active !== false,
+          visualState,
         };
       }),
     [items, libraryById, urlsById],

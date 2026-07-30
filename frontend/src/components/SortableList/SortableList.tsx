@@ -25,6 +25,7 @@ import {
   Box,
   Paper,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import { DragIndicator, Delete, PowerSettingsNew, Visibility } from '@mui/icons-material';
 import { MediaPortraitThumb } from '../Media/MediaPortraitThumb';
 
@@ -43,6 +44,7 @@ interface SortableItemProps {
   mediaWidth?: number | null;
   mediaHeight?: number | null;
   active?: boolean;
+  visualState?: 'default' | 'disabled-local' | 'disabled-global';
   onDelete?: (id: string | number) => void;
   onToggleActive?: (id: string | number) => void;
   onPreview?: (id: string | number) => void;
@@ -56,6 +58,7 @@ const SortableItem = memo(function SortableItem({
   mediaWidth,
   mediaHeight,
   active = true,
+  visualState = 'default',
   onDelete,
   onToggleActive,
   onPreview,
@@ -76,6 +79,7 @@ const SortableItem = memo(function SortableItem({
   };
 
   const hasActions = Boolean(onDelete || onToggleActive || onPreview);
+  const isDisabledVisual = visualState === 'disabled-local' || visualState === 'disabled-global';
 
   return (
     <ListItem
@@ -86,10 +90,29 @@ const SortableItem = memo(function SortableItem({
       sx={{
         mb: 1,
         borderRadius: 1,
-        opacity: active ? 1 : 0.55,
+        opacity: active || isDisabledVisual ? 1 : 0.55,
         overflow: 'hidden',
         alignItems: 'center',
         py: 0.5,
+        borderLeft: (theme) => {
+          if (visualState === 'disabled-global') return `5px solid ${theme.palette.warning.main}`;
+          if (visualState === 'disabled-local') return `5px solid ${alpha(theme.palette.warning.main, 0.65)}`;
+          return '5px solid transparent';
+        },
+        backgroundColor: (theme) => {
+          if (visualState === 'disabled-global') return alpha(theme.palette.warning.main, 0.20);
+          if (visualState === 'disabled-local') return alpha(theme.palette.warning.light, 0.18);
+          return theme.palette.background.paper;
+        },
+        boxShadow: (theme) => {
+          if (visualState === 'disabled-global') {
+            return `inset 0 0 0 1px ${alpha(theme.palette.warning.main, 0.18)}`;
+          }
+          if (visualState === 'disabled-local') {
+            return `inset 0 0 0 1px ${alpha(theme.palette.warning.main, 0.10)}`;
+          }
+          return undefined;
+        },
       }}
       secondaryAction={
         hasActions ? (
@@ -167,10 +190,21 @@ const SortableItem = memo(function SortableItem({
           primary={label}
           secondary={secondary}
           sx={{ minWidth: 0, overflow: 'hidden', ml: 1 }}
-          primaryTypographyProps={{ noWrap: true }}
+          primaryTypographyProps={{
+            noWrap: true,
+            sx: visualState === 'disabled-global' ? { fontWeight: 700 } : undefined,
+          }}
           secondaryTypographyProps={
             typeof secondary === 'string'
-              ? { noWrap: true }
+              ? {
+                  noWrap: true,
+                  sx:
+                    visualState === 'disabled-global'
+                      ? { color: 'warning.dark' }
+                      : visualState === 'disabled-local'
+                        ? { color: 'warning.main' }
+                        : undefined,
+                }
               : { component: 'div', sx: { mt: 0.25 } }
           }
         />
@@ -187,6 +221,7 @@ interface SortableListProps {
     preview?: SortableListPreview;
     thumbnailSrc?: string;
     active?: boolean;
+    visualState?: 'default' | 'disabled-local' | 'disabled-global';
   }>;
   onReorder: (newOrder: Array<string | number>) => void;
   onDelete?: (id: string | number) => void;
@@ -259,6 +294,7 @@ export function SortableList({
               mediaWidth={item.preview?.mediaWidth}
               mediaHeight={item.preview?.mediaHeight}
               active={item.active !== false}
+              visualState={item.visualState ?? 'default'}
               onDelete={onDelete}
               onToggleActive={onToggleActive}
               onPreview={onPreview}
