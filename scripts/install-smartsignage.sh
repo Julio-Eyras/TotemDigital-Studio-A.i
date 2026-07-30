@@ -6484,6 +6484,14 @@ resolve_financial_public_app_url() {
     printf '%s' "$fin_url"
 }
 
+# Aspas duplas para valores com espaços / * / <> — evita "CHANNEL: command not found" ao source .env.
+env_quote() {
+    local v="${1-}"
+    v="${v//\\/\\\\}"
+    v="${v//\"/\\\"}"
+    printf '"%s"' "$v"
+}
+
 # Bloco .env: financeiro, Stripe e SMTP (placeholders; preencher PIX/SMTP em produção).
 build_financial_env_block() {
     local fin_url fin_webhook_secret
@@ -6505,29 +6513,29 @@ STRIPE_API_VERSION=2024-11-20.acacia
 # FINANCEIRO / PIX (faturas anunciantes e exibidor)
 # =============================================
 FINANCIAL_PIX_KEY=
-FINANCIAL_PIX_MERCHANT_NAME=SMART CHANNEL
-FINANCIAL_PIX_MERCHANT_CITY=SAO PAULO
+FINANCIAL_PIX_MERCHANT_NAME=$(env_quote "SMART CHANNEL")
+FINANCIAL_PIX_MERCHANT_CITY=$(env_quote "SAO PAULO")
 FINANCIAL_PIX_WEBHOOK_SECRET=${fin_webhook_secret}
 FINANCIAL_INVOICE_DUE_DAYS=7
 FINANCIAL_DUE_SOON_DAYS=30
-FINANCIAL_PUBLIC_APP_URL=${fin_url}
+FINANCIAL_PUBLIC_APP_URL=$(env_quote "${fin_url}")
 FINANCIAL_WHATSAPP_NUMBER=
-FINANCIAL_CRON_ENFORCE_BLOCKS=15 4 * * *
+FINANCIAL_CRON_ENFORCE_BLOCKS=$(env_quote "15 4 * * *")
 # WhatsApp Cloud API (Meta) — envio automático; sem isto usa link wa.me no e-mail
 WHATSAPP_CLOUD_API_TOKEN=
 WHATSAPP_PHONE_NUMBER_ID=
 WHATSAPP_API_VERSION=v21.0
 FINANCIAL_WORKER_ENABLED=true
-FINANCIAL_CRON_ISSUE=30 2 * * *
-FINANCIAL_CRON_OVERDUE=30 3 * * *
-FINANCIAL_CRON_REMINDERS=0 9 * * *
+FINANCIAL_CRON_ISSUE=$(env_quote "30 2 * * *")
+FINANCIAL_CRON_OVERDUE=$(env_quote "30 3 * * *")
+FINANCIAL_CRON_REMINDERS=$(env_quote "0 9 * * *")
 EOF
     if [[ "${INSTALL_TOTEMDIGITAL_COMPACT:-false}" == "true" ]]; then
         cat <<EOF
 FINANCIAL_AUTO_REVENUE_SHARE=true
 FINANCIAL_NOTIFY_REVENUE_SHARE_PAYOUT=true
 FINANCIAL_REVENUE_SHARE_SINCE_DAYS=90
-FINANCIAL_CRON_REVENUE_SHARE=0 4 * * *
+FINANCIAL_CRON_REVENUE_SHARE=$(env_quote "0 4 * * *")
 EOF
     fi
     cat <<EOF
@@ -6541,9 +6549,60 @@ SMTP_PORT=587
 SMTP_SECURE=false
 SMTP_USER=
 SMTP_PASS=
-SMTP_FROM=Smart Signage <noreply@smartsignage.com>
+SMTP_FROM=$(env_quote "Smart Signage <noreply@smartsignage.com>")
 SMTP_TLS_REJECT_UNAUTHORIZED=true
 EOF
+}
+
+# Corrige .env já gravado sem aspas (reinstall / servidor existente).
+repair_env_shell_quoting() {
+    local env_file="${1:-}"
+    [[ -n "$env_file" && -f "$env_file" ]] || return 0
+    local tmp
+    tmp="$(mktemp)" || return 0
+    # shellcheck disable=SC2016
+    if ! awk '
+      BEGIN {
+        q["FINANCIAL_PIX_MERCHANT_NAME"] = 1
+        q["FINANCIAL_PIX_MERCHANT_CITY"] = 1
+        q["FINANCIAL_PUBLIC_APP_URL"] = 1
+        q["FINANCIAL_CRON_ENFORCE_BLOCKS"] = 1
+        q["FINANCIAL_CRON_ISSUE"] = 1
+        q["FINANCIAL_CRON_OVERDUE"] = 1
+        q["FINANCIAL_CRON_REMINDERS"] = 1
+        q["FINANCIAL_CRON_REVENUE_SHARE"] = 1
+        q["SMTP_FROM"] = 1
+        q["SYSTEM_OWNER_NAME"] = 1
+        q["SYSTEM_OWNER_CONTACT_NAME"] = 1
+        q["SYSTEM_OWNER_PLAN_NAME"] = 1
+        q["SYSTEM_OWNER_CITY"] = 1
+      }
+      function needs_quote(v) {
+        return (v ~ /[[:space:]<>*]/ || v ~ /#/)
+      }
+      /^[[:space:]]*#/ || /^[[:space:]]*$/ || index($0, "=") == 0 { print; next }
+      {
+        key = $0
+        sub(/=.*/, "", key)
+        val = $0
+        sub(/^[^=]*=/, "", val)
+        if (!(key in q)) { print; next }
+        if (val ~ /^".*"$/ || val ~ /^\x27.*\x27$/) { print; next }
+        if (!needs_quote(val) && key !~ /^SMTP_FROM$/) { print; next }
+        gsub(/\\/, "\\\\", val)
+        gsub(/"/, "\\\"", val)
+        print key "=\"" val "\""
+      }
+    ' "$env_file" > "$tmp"; then
+        rm -f "$tmp"
+        return 0
+    fi
+    if ! cmp -s "$env_file" "$tmp" 2>/dev/null; then
+        cp -a "$env_file" "${env_file}.bak-shell-quote.$(date +%Y%m%d%H%M%S)" 2>/dev/null || true
+        cat "$tmp" > "$env_file"
+        log "✅ .env com aspas shell-safe: $env_file"
+    fi
+    rm -f "$tmp"
 }
 
 # Aplicar schemas adicionais (export/export views)
@@ -6682,6 +6741,8 @@ SMARTDISPLAYFX_MQTT_PREFIX=smartdisplay
 ${FINANCIAL_ENV_BLOCK}
 EOF
 
+    repair_env_shell_quoting "$ENV_FILE"
+
     log "Variáveis de ambiente configuradas em $ENV_FILE"
     log "Financeiro: FINANCIAL_PUBLIC_APP_URL=$(resolve_financial_public_app_url) (defina FINANCIAL_PIX_KEY no .env para PIX real)"
     
@@ -6771,6 +6832,7 @@ SMARTDISPLAYFX_MQTT_PREFIX=smartdisplay
 ${FINANCIAL_ENV_BLOCK}
 EOF
         }
+        repair_env_shell_quoting "$BACKEND_ENV_FILE"
         log "✅ .env criado no diretório backend: $BACKEND_ENV_FILE"
     fi
 }
@@ -10236,18 +10298,25 @@ validate_system_complete() {
             ENV_FILE="$INSTALL_DIR/.env"
             [ ! -f "$ENV_FILE" ] && ENV_FILE="$INSTALL_DIR/backend/.env"
             
-            DB_NAME=$(grep "^DB_NAME=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "smartsignage")
-            DB_USER=$(grep "^DB_USER=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "smartsignage")
-            DB_HOST=$(grep "^DB_HOST=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "localhost")
-            DB_PORT=$(grep "^DB_PORT=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs || echo "5432")
-            
-            export PGPASSWORD="${DB_PASSWORD:-smartsignage123}"
+            DB_NAME=$(grep "^DB_NAME=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" | xargs || echo "smartsignage")
+            DB_USER=$(grep "^DB_USER=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" | xargs || echo "smartsignage")
+            DB_HOST=$(grep "^DB_HOST=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" | xargs || echo "localhost")
+            DB_PORT=$(grep "^DB_PORT=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" | xargs || echo "5432")
+            _db_pass=$(grep "^DB_PASSWORD=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" | xargs || true)
+            if [[ -z "${_db_pass:-}" ]]; then
+                _dburl=$(grep "^DATABASE_URL=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
+                if [[ "$_dburl" =~ ://[^:]+:([^@]+)@ ]]; then
+                    _db_pass="${BASH_REMATCH[1]}"
+                fi
+            fi
+            export PGPASSWORD="${_db_pass:-${DB_PASSWORD:-smartsignage123}}"
             if PGPASSWORD="$PGPASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "SELECT 1;" > /dev/null 2>&1; then
                 test_result "Conexao ao banco de dados" true "Database: $DB_NAME"
             else
                 test_result "Conexao ao banco de dados" false "Nao foi possivel conectar"
             fi
             unset PGPASSWORD
+            unset _db_pass _dburl
         fi
     fi
     
