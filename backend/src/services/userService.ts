@@ -310,11 +310,8 @@ export class UserService {
 
       // Email é NOT NULL no schema; normalizar vazio para evitar 500
       const emailNorm = (email != null && String(email).trim() !== '') ? String(email).trim() : null;
-      if (emailNorm === null) {
-        throw new Error('Email é obrigatório');
-      }
 
-      // Verificar conflitos de username/email (exclusão é soft delete)
+      // Verificar username (exclusão é soft delete)
       const existingByUsername = await this.db.findFirst(`
         SELECT id, is_active, email
         FROM users
@@ -325,13 +322,43 @@ export class UserService {
         throw new Error('Nome de usuário já existe');
       }
 
+      // Usuário excluído: reativa preservando email/role/etc.; exige apenas senha nova
+      if (existingByUsername && !existingByUsername.is_active) {
+        if (!password || String(password).trim() === '') {
+          throw new Error('Senha nova é obrigatória para reativar o usuário');
+        }
+
+        const bcrypt = require('bcryptjs');
+        const hashedPassword = await bcrypt.hash(password, 12);
+        const reactivateId = existingByUsername.id;
+
+        await this.db.executeRaw(`
+          UPDATE users
+          SET
+            password_hash = $1,
+            is_active = true,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = $2
+        `, [hashedPassword, reactivateId]);
+
+        const reactivatedUser = await this.getUserById(reactivateId);
+        if (!reactivatedUser) {
+          throw new Error('Erro ao reativar usuário');
+        }
+        return reactivatedUser;
+      }
+
+      if (emailNorm === null) {
+        throw new Error('Email é obrigatório');
+      }
+
       const existingByEmail = await this.db.findFirst(`
         SELECT id, is_active, username
         FROM users
         WHERE lower(email) = lower($1)
       `, [emailNorm]) as { id: number; is_active: boolean; username: string } | null;
 
-      if (existingByEmail && existingByEmail.id !== existingByUsername?.id) {
+      if (existingByEmail) {
         if (existingByEmail.is_active) {
           throw new Error('Email já existe');
         }
@@ -434,46 +461,6 @@ export class UserService {
       // Hash da senha
       const bcrypt = require('bcryptjs');
       const hashedPassword = await bcrypt.hash(password, 12);
-
-      // Usuário excluído (soft): reativa e atualiza em vez de bloquear o username
-      if (existingByUsername && !existingByUsername.is_active) {
-        const reactivateId = existingByUsername.id;
-        await this.db.executeRaw(`
-          UPDATE users
-          SET
-            email = $1,
-            password_hash = $2,
-            name = $3,
-            role = $4,
-            publisher_id = $5,
-            subscriber_id = $6,
-            user_type = $7,
-            is_tenant_user = $8,
-            is_active = true,
-            updated_at = CURRENT_TIMESTAMP
-          WHERE id = $9
-        `, [
-          emailNorm,
-          hashedPassword,
-          name,
-          role,
-          finalPublisherId,
-          finalSubscriberId,
-          finalUserType,
-          finalIsTenantUser,
-          reactivateId,
-        ]);
-
-        if (flags && Object.keys(flags).length > 0) {
-          await this.updateUserFlags(reactivateId, flags, reactivateId);
-        }
-
-        const reactivatedUser = await this.getUserById(reactivateId);
-        if (!reactivatedUser) {
-          throw new Error('Erro ao reativar usuário');
-        }
-        return reactivatedUser;
-      }
 
       // Criar usuário
       const result = await this.db.executeRaw(`
