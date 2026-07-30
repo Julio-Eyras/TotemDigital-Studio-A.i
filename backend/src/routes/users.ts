@@ -414,10 +414,10 @@ router.get('/:id/flags',
 /**
  * @route PUT /api/users/:id/flags
  * @desc Atualizar flags de um usuário
- * @access Private (Admin SQL, Owner System)
+ * @access Private (Admin, Admin SQL, Owner System)
  */
 router.put('/:id/flags',
-  authorizeRole(['admin_sql', 'owner_system']),
+  authorizeRole(['admin', 'admin_sql', 'owner_system']),
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   body('flags').isObject().withMessage('Flags deve ser um objeto'),
   validateRequest,
@@ -449,10 +449,10 @@ router.put('/:id/flags',
 /**
  * @route POST /api/users/:id/flags/:flagName
  * @desc Ativar flag específica de um usuário
- * @access Private (Admin SQL, Owner System)
+ * @access Private (Admin, Admin SQL, Owner System)
  */
 router.post('/:id/flags/:flagName',
-  authorizeRole(['admin_sql', 'owner_system']),
+  authorizeRole(['admin', 'admin_sql', 'owner_system']),
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   param('flagName').isIn(VALID_FLAGS).withMessage('Flag inválida'),
   validateRequest,
@@ -480,10 +480,10 @@ router.post('/:id/flags/:flagName',
 /**
  * @route DELETE /api/users/:id/flags/:flagName
  * @desc Desativar flag específica de um usuário
- * @access Private (Admin SQL, Owner System)
+ * @access Private (Admin, Admin SQL, Owner System)
  */
 router.delete('/:id/flags/:flagName',
-  authorizeRole(['admin_sql', 'owner_system']),
+  authorizeRole(['admin', 'admin_sql', 'owner_system']),
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   param('flagName').isIn(VALID_FLAGS).withMessage('Flag inválida'),
   validateRequest,

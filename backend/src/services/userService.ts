@@ -647,6 +647,7 @@ export class UserService {
   async getUserFlags(userId: number): Promise<UserFlags> {
     try {
       // Buscar flags do usuário (user_flags) ou usar flags padrão da role
+      // role_flags_default usa PK `role` (texto), não role_id
       const userFlags = await this.db.findFirst(`
         SELECT 
           COALESCE(uf.flag_smart_0, rfd.flag_smart_0, false) as flag_smart_0,
@@ -661,8 +662,7 @@ export class UserService {
           COALESCE(uf.flag_smart_9, rfd.flag_smart_9, false) as flag_smart_9
         FROM users u
         LEFT JOIN user_flags uf ON u.id = uf.user_id
-        LEFT JOIN roles r ON u.role = r.name
-        LEFT JOIN role_flags_default rfd ON r.role_id = rfd.role_id
+        LEFT JOIN role_flags_default rfd ON u.role = rfd.role
         WHERE u.id = $1
       `, [userId]);
 
@@ -737,9 +737,9 @@ export class UserService {
           INSERT INTO user_flags (
             user_id, flag_smart_0, flag_smart_1, flag_smart_2, flag_smart_3, flag_smart_4,
             flag_smart_5, flag_smart_6, flag_smart_7, flag_smart_8, flag_smart_9,
-            updated_by, created_at, updated_at
+            updated_by, updated_at
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP)
         `, [
           userId,
           flags.flag_smart_0 ?? false,

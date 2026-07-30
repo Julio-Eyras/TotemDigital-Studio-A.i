@@ -227,12 +227,13 @@ const Users: React.FC = () => {
 
   const handleOpenFlagsDialog = async (user: User) => {
     try {
+      setError(null);
       setSelectedUser(user);
       const flags = await userApi.getFlags(user.user_id);
       setSelectedUserFlags(flags);
       setFlagsDialogOpen(true);
     } catch (error) {
-      setError('Erro ao carregar flags do usuário');
+      setError(pickApiErrorMessage(error, 'Erro ao carregar flags do usuário'));
     }
   };
 
@@ -240,13 +241,14 @@ const Users: React.FC = () => {
     if (!selectedUser || !selectedUserFlags) return;
     
     try {
+      setError(null);
       await userApi.updateFlags(selectedUser.user_id, selectedUserFlags);
       setFlagsDialogOpen(false);
       setSelectedUser(null);
       setSelectedUserFlags(null);
       loadUsers();
     } catch (error) {
-      setError('Erro ao salvar flags');
+      setError(pickApiErrorMessage(error, 'Erro ao salvar flags'));
     }
   };
 
