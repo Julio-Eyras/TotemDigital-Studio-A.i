@@ -69,6 +69,7 @@ import {
 import UserRolePicker, { UserRoleFilterSelect } from '../../components/Users/UserRolePicker';
 import { useAppSelector } from '../../store';
 import { isDirectTotemMode } from '../../config/directTotemMode';
+import { getUserFlagLabel } from '../../utils/userFlagLabels';
 
 const userDialogProps = {
   disableEnforceFocus: true,
@@ -146,7 +147,7 @@ const Users: React.FC = () => {
       });
       setUsers(response.data);
     } catch (error) {
-      setError('Erro ao carregar lista de usuários');
+      setError(pickApiErrorMessage(error, 'Erro ao carregar lista de usuários'));
     } finally {
       setLoading(false);
     }
@@ -220,7 +221,7 @@ const Users: React.FC = () => {
         await userApi.delete(id);
         loadUsers();
       } catch (error) {
-        setError('Erro ao excluir usuário');
+        setError(pickApiErrorMessage(error, 'Erro ao excluir usuário'));
       }
     }
   };
@@ -807,12 +808,14 @@ const Users: React.FC = () => {
             Configure as permissões específicas deste usuário. As flags sobrescrevem as permissões padrão da role.
           </Typography>
           <Grid container spacing={2}>
-            {selectedUserFlags && Object.entries(selectedUserFlags).map(([flagName, value]) => (
+            {selectedUserFlags && Object.entries(selectedUserFlags).map(([flagName, value]) => {
+              const flagLabel = getUserFlagLabel(flagName);
+              return (
               <Grid item xs={12} sm={6} key={flagName}>
                 <FormControlLabel
                   control={
                     <Switch
-                      checked={value}
+                      checked={Boolean(value)}
                       onChange={(e) => {
                         setSelectedUserFlags({
                           ...selectedUserFlags,
@@ -824,20 +827,17 @@ const Users: React.FC = () => {
                   label={
                     <Box>
                       <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                        {flagName.replace('flag_smart_', 'Flag ').toUpperCase()}
+                        {flagLabel.title}
                       </Typography>
                       <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                        {flagName === 'flag_smart_0' && 'Acesso técnico (totens, Smart TVs, players)'}
-                        {flagName === 'flag_smart_1' && 'OTA Updates'}
-                        {flagName === 'flag_smart_2' && 'Admin Tools'}
-                        {flagName === 'flag_smart_3' && 'Faturamento'}
-                        {flagName.startsWith('flag_smart_') && !['flag_smart_0', 'flag_smart_1', 'flag_smart_2', 'flag_smart_3'].includes(flagName) && 'Reservado'}
+                        {flagLabel.description}
                       </Typography>
                     </Box>
                   }
                 />
               </Grid>
-            ))}
+              );
+            })}
           </Grid>
         </DialogContent>
         <DialogActions>
