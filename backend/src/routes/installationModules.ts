@@ -5,6 +5,7 @@ import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import {
   getInstallationModulesAdminView,
   saveInstallationModules,
+  setMultiAgencyMode,
 } from '../services/installationModulesService';
 import { logError } from '../utils/loggerHelper';
 import { createDatabaseWrapper } from '../config/database-pg';
@@ -45,9 +46,11 @@ router.get(
           defaults: view.defaults,
           overrides: view.overrides,
           profile: view.capabilities.profile,
+          multiAgencyEnabled: view.multiAgencyEnabled,
+          multiAgencyPresetIds: view.multiAgencyPresetIds,
           note:
-            'Módulos controlam o produto da instalação. flag_smart_* controla permissões por utilizador.',
-          phase: 'B',
+            'Use o botão Modo multi-agência para o preset. Opções avançadas = módulos individuais. flag_smart_* = permissão por utilizador.',
+          phase: 'multi_agency_master',
           enforcement: 'menu_and_api',
         },
       });
@@ -62,8 +65,39 @@ router.get(
 );
 
 /**
+ * @route PUT /api/installation/multi-agency
+ * @desc Master switch — preset atómico multi-agência ON/OFF
+ * @access owner_system, admin_sql
+ */
+router.put(
+  '/multi-agency',
+  authorizeRole(['owner_system', 'admin_sql']),
+  body('enabled').isBoolean().withMessage('enabled deve ser boolean'),
+  validateRequest,
+  async (req: any, res: any) => {
+    try {
+      const db = createDatabaseWrapper();
+      const result = await setMultiAgencyMode(db, Boolean(req.body.enabled), req.user?.id);
+      res.json({
+        success: true,
+        message: result.message,
+        data: result,
+      });
+    } catch (error: any) {
+      await logError('Erro ao alterar modo multi-agência', error);
+      const msg = error?.message || 'Erro ao alterar modo multi-agência';
+      const status = msg.includes('requer') ? 400 : 500;
+      res.status(status).json({
+        success: false,
+        error: msg,
+      });
+    }
+  }
+);
+
+/**
  * @route PUT /api/installation/modules
- * @desc Actualiza complementos de produto (Fase A: persiste; Fase B: gates)
+ * @desc Actualiza complementos individuais (opções avançadas)
  * @access owner_system, admin_sql
  */
 router.put(

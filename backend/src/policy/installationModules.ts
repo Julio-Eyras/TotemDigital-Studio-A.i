@@ -254,3 +254,82 @@ export function isInstallationModuleEnabled(
   if (!flags) return false;
   return flags[moduleId] === true;
 }
+
+/** Módulos ligados automaticamente pelo master switch multi-agência (sem portal/FX). */
+export const MULTI_AGENCY_PRESET_MODULE_IDS: InstallationModuleId[] = [
+  'multi_agency',
+  'subscribers',
+  'campaigns',
+  'playlists_advanced',
+  'quick_publish',
+  'contracts',
+  'plans',
+  'billing',
+  'commercial_reports',
+  'devices',
+  'ota',
+  'dispatcher_admin',
+  'analytics',
+];
+
+/**
+ * Preset núcleo (multi-agência OFF): Direct Totem + simple on; comercial off.
+ * Dados existentes não são apagados — só ficam inacessíveis na UI/API.
+ */
+export function buildCoreOperationPreset(): InstallationModuleFlags {
+  return enforceLockedModules({
+    ...emptyModuleFlags(false),
+    core_publish: true,
+    organization: true,
+    direct_totem_mode: true,
+    simple_totem_mode: true,
+    multi_agency: false,
+    subscriber_portal: false,
+    smart_display_fx: false,
+  });
+}
+
+/**
+ * Preset multi-agência ON: Direct Totem off; pacote comercial/ops on.
+ * Portal e SmartDisplayFX ficam só se já estavam on (avançado) — não entram no botão.
+ */
+export function buildMultiAgencyOperationPreset(preserveAdvanced?: {
+  subscriber_portal?: boolean;
+  smart_display_fx?: boolean;
+}): InstallationModuleFlags {
+  return enforceLockedModules({
+    ...emptyModuleFlags(false),
+    core_publish: true,
+    organization: true,
+    multi_agency: true,
+    direct_totem_mode: false,
+    simple_totem_mode: false,
+    subscribers: true,
+    campaigns: true,
+    playlists_advanced: true,
+    quick_publish: true,
+    contracts: true,
+    plans: true,
+    billing: true,
+    commercial_reports: true,
+    devices: true,
+    ota: true,
+    dispatcher_admin: true,
+    analytics: true,
+    subscriber_portal: preserveAdvanced?.subscriber_portal === true,
+    smart_display_fx: preserveAdvanced?.smart_display_fx === true,
+  });
+}
+
+export function applyMultiAgencyMasterSwitch(
+  enabled: boolean,
+  current?: InstallationModuleFlags | null
+): InstallationModuleFlags {
+  if (enabled) {
+    return buildMultiAgencyOperationPreset({
+      subscriber_portal: current?.subscriber_portal === true,
+      smart_display_fx: current?.smart_display_fx === true,
+    });
+  }
+  return buildCoreOperationPreset();
+}

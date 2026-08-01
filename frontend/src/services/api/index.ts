@@ -277,6 +277,13 @@ export const installationModulesApi = {
     const response = await api.put('/installation/modules', { modules });
     return response.data.data;
   },
+  setMultiAgency: async (enabled: boolean) => {
+    const response = await api.put('/installation/multi-agency', { enabled });
+    return {
+      message: response.data.message as string | undefined,
+      ...(response.data.data || {}),
+    };
+  },
 };
 
 // =============================================
