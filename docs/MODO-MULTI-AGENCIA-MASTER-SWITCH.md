@@ -3,6 +3,22 @@
 **Branch:** `TotemDigital-MultiAgencia`  
 **Repo:** TotemDigital-Studio  
 
+## Decisão de produto (2026-08) — Direct Totem vs Pro
+
+Concordância validada:
+
+| Opção | Ideia | Estado |
+|-------|--------|--------|
+| **A** | Dois produtos claros: **Direct Totem** *ou* **Pro multi-agência** | **Agora** — venda e suporte simples |
+| **B** | Perfil futuro `multi_agency_lite`: várias orgs + publicar + mídias, **sem** billing/campanhas/playlists | **Só se** clientes pedirem multi-loja sem ERP de mídia |
+| **C** | Multi-agência ON + Direct Totem ON no mesmo painel | **Evitar** — menus e expectativas colidem |
+
+Implicações:
+
+- O master switch continua **mutuamente exclusivo** (ON = Pro; OFF = Direct Totem). Não implementar C.
+- D3 mantém-se: OFF **não apaga** dados (arquivo silencioso). Purge só como fluxo destrutivo explícito, separado.
+- `multi_agency_lite` (B) **não** entra no roadmap activo até haver pedido comercial claro.
+
 ## Decisões (validadas)
 
 | ID | Escolha |
@@ -12,6 +28,7 @@
 | D3 | Ao desligar: **não apaga dados**; esconde menu/API |
 | D4 | Botão: `owner_system` e `admin_sql` |
 | D5 | Painel de módulos em **Opções avançadas** (colapsado) |
+| D6 | Produto: A agora · B sob procura · C proibido (ver secção acima) |
 
 ## Comportamento
 
