@@ -45,7 +45,12 @@ import { rateLimitHeavyOperations } from '../middleware/rateLimitUser.middleware
 import { requireModule } from '../middleware/moduleAuth.middleware';
 
 export function registerExtendedApiRoutes(app: Express): void {
-  app.use('/api/clients', authMiddleware as any, blockClientDataAccess as any, (_req, res, next) => {
+  app.use(
+    '/api/clients',
+    authMiddleware as any,
+    requireModule('subscribers') as any,
+    blockClientDataAccess as any,
+    (_req, res, next) => {
     res.setHeader('X-Deprecated-Route', 'true');
     res.setHeader('X-Deprecated-Message', 'Esta rota está deprecated. Use /api/subscribers');
     next();
@@ -64,7 +69,7 @@ export function registerExtendedApiRoutes(app: Express): void {
   app.use('/api/export-queries', requireModule('dispatcher_admin') as any, exportQueriesRoutes);
   app.use('/api/export-schedules', requireModule('dispatcher_admin') as any, exportSchedulesRoutes);
   app.use('/api/export-executions', requireModule('dispatcher_admin') as any, exportExecutionsRoutes);
-  app.use('/api/advanced-schedules', advancedSchedulesRoutes);
+  app.use('/api/advanced-schedules', requireModule('dispatcher_admin') as any, advancedSchedulesRoutes);
   app.use('/api/email', emailRoutes);
   app.use('/api/ota-updates', requireModule('ota') as any, otaUpdatesRoutes);
   app.use('/api/publish-templates', requireModule('quick_publish') as any, publishTemplatesRoutes);

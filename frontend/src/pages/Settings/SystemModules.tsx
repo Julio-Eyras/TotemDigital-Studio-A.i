@@ -68,6 +68,14 @@ const PRESET_OFF_LABELS = [
   'Portal / SmartDisplayFX (avançado) também desligam com o modo',
 ];
 
+type ChecklistItem = {
+  id: string;
+  label: string;
+  ok: boolean;
+  severity: 'info' | 'warning' | 'blocking';
+  detail?: string;
+};
+
 const SystemModules: React.FC = () => {
   const theme = useTheme();
   const breadcrumbs = useBreadcrumbs();
@@ -82,6 +90,7 @@ const SystemModules: React.FC = () => {
   const [modules, setModules] = useState<InstallationModuleFlags | null>(null);
   const [profile, setProfile] = useState<string>('');
   const [multiAgencyEnabled, setMultiAgencyEnabled] = useState(false);
+  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingEnabled, setPendingEnabled] = useState<boolean | null>(null);
 
@@ -99,6 +108,7 @@ const SystemModules: React.FC = () => {
       setModules(data?.modules || null);
       setProfile(data?.profile || '');
       setMultiAgencyEnabled(Boolean(data?.multiAgencyEnabled ?? data?.modules?.multi_agency));
+      setChecklist(Array.isArray(data?.activationChecklist?.items) ? data.activationChecklist.items : []);
     } catch (e) {
       setError(pickApiErrorMessage(e, 'Erro ao carregar modo da instalação'));
     } finally {
@@ -261,6 +271,27 @@ const SystemModules: React.FC = () => {
               <Alert severity="info" sx={{ mt: 2 }} icon={<Extension />}>
                 Desactivar não apaga dados — apenas esconde menu/API até voltar a activar.
               </Alert>
+              {checklist.length > 0 && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                    Checklist de activação
+                  </Typography>
+                  <List dense>
+                    {checklist.map((item) => (
+                      <ListItem key={item.id} sx={{ py: 0.25, alignItems: 'flex-start' }}>
+                        <ListItemText
+                          primary={
+                            <Typography variant="body2" fontWeight={600}>
+                              {item.ok ? '✓' : '⚠'} {item.label}
+                            </Typography>
+                          }
+                          secondary={item.detail}
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                </Box>
+              )}
             </CardContent>
           </Card>
 

@@ -6,6 +6,7 @@ import {
   getInstallationModulesAdminView,
   saveInstallationModules,
   setMultiAgencyMode,
+  getMultiAgencyActivationChecklist,
 } from '../services/installationModulesService';
 import { logError } from '../utils/loggerHelper';
 import { createDatabaseWrapper } from '../config/database-pg';
@@ -38,6 +39,7 @@ router.get(
     try {
       const db = createDatabaseWrapper();
       const view = await getInstallationModulesAdminView(db);
+      const checklist = await getMultiAgencyActivationChecklist(db);
       res.json({
         success: true,
         data: {
@@ -48,6 +50,7 @@ router.get(
           profile: view.capabilities.profile,
           multiAgencyEnabled: view.multiAgencyEnabled,
           multiAgencyPresetIds: view.multiAgencyPresetIds,
+          activationChecklist: checklist,
           note:
             'Use o botão Modo multi-agência para o preset. Opções avançadas = módulos individuais. flag_smart_* = permissão por utilizador.',
           phase: 'multi_agency_master',

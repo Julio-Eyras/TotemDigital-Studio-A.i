@@ -209,3 +209,90 @@ export async function setMultiAgencyMode(
       : 'Modo multi-agência desactivado. Dados comerciais não foram apagados — ficam inacessíveis até voltar a activar. Direct Totem voltou a ser o modo de operação.',
   };
 }
+
+export type MultiAgencyChecklistItem = {
+  id: string;
+  label: string;
+  ok: boolean;
+  severity: 'info' | 'warning' | 'blocking';
+  detail?: string;
+};
+
+/**
+ * Checklist de activação (não bloqueia o switch; informa riscos).
+ */
+export async function getMultiAgencyActivationChecklist(db: DbLike): Promise<{
+  canEnableSafely: boolean;
+  items: MultiAgencyChecklistItem[];
+}> {
+  const items: MultiAgencyChecklistItem[] = [];
+
+  let publisherCount = 0;
+  let totemCount = 0;
+  try {
+    const pub = await db.findFirst(
+      `SELECT COUNT(*)::int AS c FROM publishers WHERE COALESCE(is_active, true) = true`
+    );
+    publisherCount = Number(pub?.c ?? 0);
+  } catch {
+    publisherCount = 0;
+  }
+  try {
+    const tot = await db.findFirst(
+      `SELECT COUNT(*)::int AS c FROM totems WHERE COALESCE(is_active, true) = true`
+    );
+    totemCount = Number(tot?.c ?? 0);
+  } catch {
+    totemCount = 0;
+  }
+
+  items.push({
+    id: 'organization',
+    label: 'Existe pelo menos uma organização activa',
+    ok: publisherCount > 0,
+    severity: publisherCount > 0 ? 'info' : 'warning',
+    detail:
+      publisherCount > 0
+        ? `${publisherCount} organização(ões) activa(s)`
+        : 'Crie/ative uma organização antes de operar multi-agência.',
+  });
+
+  items.push({
+    id: 'totems',
+    label: 'Há totems activos na instalação',
+    ok: totemCount > 0,
+    severity: 'info',
+    detail: totemCount > 0 ? `${totemCount} totem(ns) activo(s)` : 'Opcional — pode activar o modo sem totems.',
+  });
+
+  const redisUrl = process.env.REDIS_URL || process.env.REDIS_HOST;
+  items.push({
+    id: 'redis',
+    label: 'Redis configurado (filas Bull / export)',
+    ok: Boolean(redisUrl),
+    severity: redisUrl ? 'info' : 'warning',
+    detail: redisUrl
+      ? 'Redis detectado no ambiente.'
+      : 'Sem Redis, exports em fila podem não arrancar após activar multi-agência. Reinicie o backend depois.',
+  });
+
+  items.push({
+    id: 'portal_dns',
+    label: 'Portal anunciante / subdomínios',
+    ok: true,
+    severity: 'info',
+    detail:
+      'Não entra no botão principal. Active só em Opções avançadas após DNS/Nginx estarem prontos.',
+  });
+
+  items.push({
+    id: 'data_safety',
+    label: 'Desactivar não apaga dados',
+    ok: true,
+    severity: 'info',
+    detail: 'Ao desligar, dados comerciais ficam preservados e inacessíveis até reactivar.',
+  });
+
+  const canEnableSafely = items.filter((i) => i.severity === 'blocking').every((i) => i.ok);
+  return { canEnableSafely, items };
+}

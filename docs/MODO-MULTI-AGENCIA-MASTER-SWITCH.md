@@ -38,3 +38,9 @@ bash scripts/Instala-TotemDigital-Server.sh --modo atualizar --instancia dev --g
 - DNS/portal one-click  
 - Seeds automáticos de 2ª agência  
 - Apagar dados ao desligar  
+
+## Hardening (seguinte)
+
+- Checklist de activação no painel (organização, totems, Redis, portal)
+- 403 `MODULE_DISABLED` com mensagem a apontar para o Modo multi-agência
+- Gates extra: `/api/clients`, `/api/advanced-schedules`
