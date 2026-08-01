@@ -1,18 +1,33 @@
 # TotemDigital — instância @@TDI_ID@@ (@@TDI_DOMAIN@@)
 # Gerado por Instala-TotemDigital-Server.sh
 # sites-available/@@TDI_NGINX_SITE@@
+#
+# Portal por slug (opcional): include do snippet gerado por sync-portal-hosts.sh
+# include /etc/nginx/snippets/totemdigital-portal-tenants.conf;
 
 map $host $smssi_sd_type_@@TDI_ID@@ {
     default main;
     publisher.@@TDI_DOMAIN@@ publisher;
     subscriber.@@TDI_DOMAIN@@ subscriber;
+    ~^(?<td_slug>[a-z0-9-]+)\.publisher\.@@TDI_DOMAIN@@$ publisher;
+    ~^(?<td_slug>[a-z0-9-]+)\.subscriber\.@@TDI_DOMAIN@@$ subscriber;
+}
+
+map $host $td_portal_tenant_slug_@@TDI_ID@@ {
+    default "";
+    ~^(?<td_slug>[a-z0-9-]+)\.publisher\.@@TDI_DOMAIN@@$ $td_slug;
+    ~^(?<td_slug>[a-z0-9-]+)\.subscriber\.@@TDI_DOMAIN@@$ $td_slug;
 }
 
 # HTTP — ACME + redireccionamento HTTPS
 server {
     listen 80;
     listen [::]:80;
-    server_name @@TDI_DOMAIN@@;
+    server_name @@TDI_DOMAIN@@
+                publisher.@@TDI_DOMAIN@@
+                subscriber.@@TDI_DOMAIN@@
+                *.publisher.@@TDI_DOMAIN@@
+                *.subscriber.@@TDI_DOMAIN@@;
 
     location ^~ /.well-known/acme-challenge/ {
         root /var/www/certbot;
@@ -23,10 +38,15 @@ server {
 }
 
 # HTTPS — painel React + API + player
+# Nota: wildcard HTTPS exige certificado que cubra *.publisher / *.subscriber (DNS-01)
 server {
     listen 443 ssl;
     listen [::]:443 ssl;
-    server_name @@TDI_DOMAIN@@;
+    server_name @@TDI_DOMAIN@@
+                publisher.@@TDI_DOMAIN@@
+                subscriber.@@TDI_DOMAIN@@
+                *.publisher.@@TDI_DOMAIN@@
+                *.subscriber.@@TDI_DOMAIN@@;
 
     ssl_certificate /etc/letsencrypt/live/@@TDI_DOMAIN@@/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/@@TDI_DOMAIN@@/privkey.pem;
@@ -53,6 +73,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Subdomain-Type $smssi_sd_type_@@TDI_ID@@;
+        proxy_set_header X-Tenant-Slug $td_portal_tenant_slug_@@TDI_ID@@;
         proxy_cache_bypass $http_upgrade;
         proxy_read_timeout 300s;
         proxy_connect_timeout 75s;
@@ -97,6 +118,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Subdomain-Type $smssi_sd_type_@@TDI_ID@@;
+        proxy_set_header X-Tenant-Slug $td_portal_tenant_slug_@@TDI_ID@@;
     }
 
     location ^~ /assets/ {

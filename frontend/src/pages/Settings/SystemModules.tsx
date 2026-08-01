@@ -23,7 +23,9 @@ import {
   List,
   ListItem,
   ListItemText,
+  MenuItem,
   Switch,
+  TextField,
   Typography,
   useTheme,
 } from '@mui/material';
@@ -93,13 +95,16 @@ const SystemModules: React.FC = () => {
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingEnabled, setPendingEnabled] = useState<boolean | null>(null);
-  const [restartNeeded, setRestartNeeded] = useState(() => {
-    try {
-      return sessionStorage.getItem('ssp.restartBackendNeeded') === '1';
-    } catch {
-      return false;
-    }
-  });
+  const [portalBaseDomain, setPortalBaseDomain] = useState('');
+  const [portalDnsMode, setPortalDnsMode] = useState<'off' | 'public_wildcard' | 'local_dnsmasq'>(
+    'off'
+  );
+  const [portalSyncEnabled, setPortalSyncEnabled] = useState(false);
+  const [portalHosts, setPortalHosts] = useState<
+    Array<{ role: string; slug: string; host: string; name: string }>
+  >([]);
+  const [portalPatterns, setPortalPatterns] = useState<Record<string, string | null>>({});
+  const [portalSyncMsg, setPortalSyncMsg] = useState<string | null>(null);
 
   const markRestartNeeded = (needed: boolean) => {
     setRestartNeeded(needed);
@@ -126,6 +131,16 @@ const SystemModules: React.FC = () => {
       setProfile(data?.profile || '');
       setMultiAgencyEnabled(Boolean(data?.multiAgencyEnabled ?? data?.modules?.multi_agency));
       setChecklist(Array.isArray(data?.activationChecklist?.items) ? data.activationChecklist.items : []);
+      try {
+        const portal = await installationModulesApi.getPortal();
+        setPortalBaseDomain(portal?.settings?.baseDomain || '');
+        setPortalDnsMode(portal?.settings?.dnsMode || 'off');
+        setPortalSyncEnabled(Boolean(portal?.settings?.syncEnabled));
+        setPortalHosts(Array.isArray(portal?.hosts) ? portal.hosts : []);
+        setPortalPatterns(portal?.patterns || {});
+      } catch {
+        /* portal opcional se schema antigo */
+      }
     } catch (e) {
       setError(pickApiErrorMessage(e, 'Erro ao carregar modo da instalação'));
     } finally {
@@ -185,6 +200,42 @@ const SystemModules: React.FC = () => {
       setSaving(false);
     } finally {
       setPendingEnabled(null);
+    }
+  };
+
+  const handleSavePortal = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      const data = await installationModulesApi.savePortal({
+        baseDomain: portalBaseDomain,
+        dnsMode: portalDnsMode,
+        syncEnabled: portalSyncEnabled,
+      });
+      setPortalBaseDomain(data?.settings?.baseDomain || portalBaseDomain);
+      setPortalDnsMode(data?.settings?.dnsMode || portalDnsMode);
+      setSuccess('Definições de portal guardadas.');
+    } catch (e) {
+      setError(pickApiErrorMessage(e, 'Erro ao guardar portal DNS'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSyncPortal = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      const result = await installationModulesApi.syncPortal();
+      setPortalSyncMsg(result.message || 'Sync concluído');
+      setSuccess(result.message || 'Snippets Nginx/dnsmasq gerados');
+      const portal = await installationModulesApi.getPortal();
+      setPortalHosts(Array.isArray(portal?.hosts) ? portal.hosts : []);
+      setPortalPatterns(portal?.patterns || {});
+    } catch (e) {
+      setError(pickApiErrorMessage(e, 'Erro ao sincronizar portal hosts'));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -332,6 +383,86 @@ const SystemModules: React.FC = () => {
                             </Typography>
                           }
                           secondary={item.detail}
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card variant="outlined" sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" fontWeight={800} sx={{ mb: 1 }}>
+                Portal DNS / Nginx
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Parametrização por organização e anunciante via slug. Padrões:{' '}
+                <code>{portalPatterns.publisherTenant || '{slug}.publisher.…'}</code> ·{' '}
+                <code>{portalPatterns.subscriberTenant || '{slug}.subscriber.…'}</code>
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Domínio base"
+                    value={portalBaseDomain}
+                    onChange={(e) => setPortalBaseDomain(e.target.value)}
+                    helperText="Ex.: totemdigital.app.br (vazio = só .local)"
+                  />
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <TextField
+                    select
+                    fullWidth
+                    label="Modo DNS"
+                    value={portalDnsMode}
+                    onChange={(e) =>
+                      setPortalDnsMode(
+                        e.target.value as 'off' | 'public_wildcard' | 'local_dnsmasq'
+                      )
+                    }
+                  >
+                    <MenuItem value="off">off</MenuItem>
+                    <MenuItem value="public_wildcard">public_wildcard</MenuItem>
+                    <MenuItem value="local_dnsmasq">local_dnsmasq</MenuItem>
+                  </TextField>
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={portalSyncEnabled}
+                        onChange={(e) => setPortalSyncEnabled(e.target.checked)}
+                      />
+                    }
+                    label="Sync automático (sudo)"
+                  />
+                </Grid>
+              </Grid>
+              <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
+                <Button variant="contained" disabled={saving} onClick={() => void handleSavePortal()}>
+                  Guardar portal
+                </Button>
+                <Button variant="outlined" disabled={saving} onClick={() => void handleSyncPortal()}>
+                  Gerar / sync Nginx+DNS
+                </Button>
+              </Box>
+              {portalSyncMsg && (
+                <Alert severity="info" sx={{ mt: 2 }} onClose={() => setPortalSyncMsg(null)}>
+                  {portalSyncMsg}
+                </Alert>
+              )}
+              {portalHosts.length > 0 && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2">Hosts com slug</Typography>
+                  <List dense>
+                    {portalHosts.map((h) => (
+                      <ListItem key={`${h.role}-${h.slug}`} sx={{ py: 0 }}>
+                        <ListItemText
+                          primary={`${h.host}`}
+                          secondary={`${h.role} · ${h.name} · slug=${h.slug}`}
                         />
                       </ListItem>
                     ))}

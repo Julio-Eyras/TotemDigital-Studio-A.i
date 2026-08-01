@@ -79,22 +79,29 @@ const SubscriberContracts = React.lazy(() => import('./pages/SubscriberContracts
 const PublisherContracts = React.lazy(() => import('./pages/PublisherContracts/PublisherContracts'));
 
 /**
- * Detecta o tipo de subdomínio da requisição
+ * Detecta o tipo de subdomínio da requisição (papel + tenant slug).
+ * - publisher.dominio / subscriber.dominio
+ * - {slug}.publisher.dominio / {slug}.subscriber.dominio
+ * - {slug}.publisher.local / {slug}.subscriber.local
  */
 const detectSubdomainType = (): 'publisher' | 'subscriber' | 'main' => {
   if (isStudioMode()) return 'main';
   if (typeof window === 'undefined') return 'main';
-  
-  const hostname = window.location.hostname;
-  const parts = hostname.split('.');
-  
-  // Se houver mais de 2 partes, o primeiro é o subdomínio
-  if (parts.length > 2) {
-    const subdomain = parts[0].toLowerCase();
-    if (subdomain === 'publisher') return 'publisher';
-    if (subdomain === 'subscriber') return 'subscriber';
+
+  const hostname = window.location.hostname.toLowerCase();
+  const parts = hostname.split('.').filter(Boolean);
+
+  if (parts.length >= 3) {
+    const [a, b] = parts;
+    if (b === 'publisher' || b === 'subscriber') return b;
+    if (a === 'publisher' || a === 'subscriber') return a;
   }
-  
+
+  if (parts.length === 2 && parts[1] === 'local') {
+    if (/^publisher\d+$/.test(parts[0])) return 'publisher';
+    if (/^subscriber\d+$/.test(parts[0])) return 'subscriber';
+  }
+
   return 'main';
 };
 

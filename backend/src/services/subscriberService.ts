@@ -9,6 +9,10 @@ import {
   normalizeLimitInt,
   resolveLimitWithDefault,
 } from '../utils/subscriberLimitsPolicy';
+import {
+  assertPortalSlugAvailable,
+  maybeSyncPortalHostsAfterSlugChange,
+} from './portalHostService';
 
 /** Campanha considerada activa para totais comerciais (alinhado a getSubscriberStats / dispatcher). */
 const ACTIVE_CAMPAIGN_SQL = `
@@ -29,6 +33,7 @@ export interface Subscriber {
   city?: string;
   category_segment?: string;
   description?: string;
+  portal_slug?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -80,6 +85,7 @@ export interface CreateSubscriberRequest {
   address?: string;
   category_segment?: string;
   description?: string;
+  portal_slug?: string | null;
 }
 
 export interface UpdateSubscriberRequest {
@@ -91,6 +97,7 @@ export interface UpdateSubscriberRequest {
   address?: string;
   category_segment?: string;
   description?: string;
+  portal_slug?: string | null;
   isActive?: boolean;
 }
 
@@ -729,6 +736,11 @@ export class SubscriberService {
       const address = (data.address && String(data.address).trim() !== '') ? String(data.address).trim() : null;
       const category_segment = (data.category_segment && String(data.category_segment).trim() !== '') ? String(data.category_segment).trim() : null;
       const description = (data.description && String(data.description).trim() !== '') ? String(data.description).trim() : null;
+      const portalSlug = await assertPortalSlugAvailable(
+        this.db as any,
+        data.portal_slug ?? null,
+        { role: 'subscriber' }
+      );
 
       // Validar contrato apenas se contract_id foi fornecido
       if (contract_id) {
@@ -780,10 +792,10 @@ export class SubscriberService {
 
       // Criar subscriber
       const result = await this.db.executeRaw(`
-        INSERT INTO subscribers (name, contact_name, email, phone, whatsapp, address, category_segment, description, is_active, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        INSERT INTO subscribers (name, contact_name, email, phone, whatsapp, address, category_segment, description, portal_slug, is_active, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING subscriber_id
-      `, [name, contact_name, email, phone, whatsapp, address, category_segment, description]);
+      `, [name, contact_name, email, phone, whatsapp, address, category_segment, description, portalSlug]);
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar subscriber');
@@ -814,6 +826,10 @@ export class SubscriberService {
 
       if (!newSubscriber) {
         throw new Error('Erro ao buscar subscriber criado');
+      }
+
+      if (portalSlug) {
+        await maybeSyncPortalHostsAfterSlugChange(this.db as any);
       }
 
       return newSubscriber;
@@ -908,7 +924,7 @@ export class SubscriberService {
    */
   async updateSubscriber(id: number, data: UpdateSubscriberRequest): Promise<Subscriber> {
     try {
-      const { name, contact_name: raw_contact_name, email: raw_email, phone: raw_phone, whatsapp: raw_whatsapp, address: raw_address, category_segment: raw_category_segment, description: raw_description, isActive } = data;
+      const { name, contact_name: raw_contact_name, email: raw_email, phone: raw_phone, whatsapp: raw_whatsapp, address: raw_address, category_segment: raw_category_segment, description: raw_description, portal_slug, isActive } = data;
       const contact_name = (raw_contact_name !== undefined && raw_contact_name !== null && String(raw_contact_name).trim() !== '') ? String(raw_contact_name).trim() : undefined;
       const email = (raw_email !== undefined && raw_email !== null && String(raw_email).trim() !== '') ? String(raw_email).trim() : undefined;
       const phone = (raw_phone !== undefined && raw_phone !== null && String(raw_phone).trim() !== '') ? String(raw_phone).trim() : undefined;
@@ -998,6 +1014,17 @@ export class SubscriberService {
         paramIndex++;
       }
 
+      if (portal_slug !== undefined) {
+        const portalSlug = await assertPortalSlugAvailable(
+          this.db as any,
+          portal_slug,
+          { role: 'subscriber', excludeId: id }
+        );
+        updateFields.push(`portal_slug = $${paramIndex}`);
+        updateParams.push(portalSlug);
+        paramIndex++;
+      }
+
       if (isActive !== undefined) {
         updateFields.push(`is_active = $${paramIndex}`);
         updateParams.push(isActive);
@@ -1016,6 +1043,10 @@ export class SubscriberService {
       const updatedSubscriber = await this.getSubscriberById(id);
       if (!updatedSubscriber) {
         throw new Error('Erro ao buscar subscriber atualizado');
+      }
+
+      if (portal_slug !== undefined) {
+        await maybeSyncPortalHostsAfterSlugChange(this.db as any);
       }
 
       return updatedSubscriber;

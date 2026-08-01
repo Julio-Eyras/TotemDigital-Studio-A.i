@@ -438,11 +438,24 @@ export async function getMultiAgencyActivationChecklist(db: DbLike): Promise<{
 
   items.push({
     id: 'portal_dns',
-    label: 'Portal anunciante / subdomínios',
+    label: 'Portal anunciante / DNS parametrizável',
     ok: true,
     severity: 'info',
-    detail:
-      'Não entra no botão principal. Active só em Opções avançadas após DNS/Nginx estarem prontos.',
+    detail: await (async () => {
+      try {
+        const { getPortalSettings } = await import('./portalHostService');
+        const portal = await getPortalSettings(db);
+        if (portal.dnsMode === 'off') {
+          return 'portal.dns_mode=off. Em Complementos → Portal DNS, defina domínio e modo (wildcard ou dnsmasq).';
+        }
+        if (portal.dnsMode === 'public_wildcard' && !portal.baseDomain) {
+          return 'Modo public_wildcard sem portal.base_domain — configure o domínio base.';
+        }
+        return `Modo ${portal.dnsMode}${portal.baseDomain ? ` · base ${portal.baseDomain}` : ''}. Slugs em organização/anunciante; sync via POST /api/installation/portal/sync.`;
+      } catch {
+        return 'Portal fora do botão principal — configure em Opções avançadas / Portal DNS após Nginx.';
+      }
+    })(),
   });
 
   items.push({

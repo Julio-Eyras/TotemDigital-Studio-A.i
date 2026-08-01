@@ -8,6 +8,12 @@ import {
   setMultiAgencyMode,
   getMultiAgencyActivationChecklist,
 } from '../services/installationModulesService';
+import {
+  getPortalSettings,
+  savePortalSettings,
+  listPortalHosts,
+  syncPortalHosts,
+} from '../services/portalHostService';
 import { logError } from '../utils/loggerHelper';
 import { createDatabaseWrapper } from '../config/database-pg';
 
@@ -26,6 +32,97 @@ const validateRequest = (req: any, res: any, next: any) => {
   }
   next();
 };
+
+/**
+ * @route GET /api/installation/portal
+ * @desc Settings + inventário de hosts por slug
+ */
+router.get(
+  '/portal',
+  authorizeRole(['owner_system', 'admin_sql']),
+  async (_req: any, res: any) => {
+    try {
+      const db = createDatabaseWrapper();
+      const settings = await getPortalSettings(db);
+      const hosts = await listPortalHosts(db);
+      res.json({
+        success: true,
+        data: {
+          settings,
+          hosts,
+          patterns: {
+            publisherTenant: settings.baseDomain
+              ? `{slug}.publisher.${settings.baseDomain}`
+              : '{slug}.publisher.local',
+            subscriberTenant: settings.baseDomain
+              ? `{slug}.subscriber.${settings.baseDomain}`
+              : '{slug}.subscriber.local',
+            rolePublisher: settings.roleHosts.publisher,
+            roleSubscriber: settings.roleHosts.subscriber,
+          },
+        },
+      });
+    } catch (error: any) {
+      await logError('Erro ao listar portal hosts', error);
+      res.status(500).json({ success: false, error: error.message || 'Erro ao listar portal' });
+    }
+  }
+);
+
+/**
+ * @route PUT /api/installation/portal
+ * @desc Actualiza portal.base_domain / dns_mode / sync_enabled
+ */
+router.put(
+  '/portal',
+  authorizeRole(['owner_system', 'admin_sql']),
+  body('baseDomain').optional().isString(),
+  body('dnsMode').optional().isIn(['off', 'public_wildcard', 'local_dnsmasq']),
+  body('syncEnabled').optional().isBoolean(),
+  validateRequest,
+  async (req: any, res: any) => {
+    try {
+      const db = createDatabaseWrapper();
+      const settings = await savePortalSettings(db, {
+        baseDomain: req.body.baseDomain,
+        dnsMode: req.body.dnsMode,
+        syncEnabled: req.body.syncEnabled,
+      });
+      res.json({
+        success: true,
+        message: 'Definições de portal guardadas',
+        data: { settings },
+      });
+    } catch (error: any) {
+      await logError('Erro ao guardar portal settings', error);
+      const status = error?.message?.includes('inválido') ? 400 : 500;
+      res.status(status).json({ success: false, error: error.message || 'Erro ao guardar portal' });
+    }
+  }
+);
+
+/**
+ * @route POST /api/installation/portal/sync
+ * @desc Gera snippets Nginx/dnsmasq e opcionalmente aplica via script
+ */
+router.post(
+  '/portal/sync',
+  authorizeRole(['owner_system', 'admin_sql']),
+  async (_req: any, res: any) => {
+    try {
+      const db = createDatabaseWrapper();
+      const result = await syncPortalHosts(db);
+      res.status(result.ok ? 200 : 500).json({
+        success: result.ok,
+        message: result.message,
+        data: result,
+      });
+    } catch (error: any) {
+      await logError('Erro ao sincronizar portal hosts', error);
+      res.status(500).json({ success: false, error: error.message || 'Erro no sync de portal' });
+    }
+  }
+);
 
 /**
  * @route GET /api/installation/modules

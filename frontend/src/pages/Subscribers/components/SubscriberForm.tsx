@@ -255,6 +255,26 @@ const SubscriberForm: React.FC<SubscriberFormProps> = ({
           />
         </Grid>
 
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Slug do portal (DNS)"
+            value={getFieldValue('portal_slug')}
+            onChange={(e) =>
+              handleFieldChange(
+                'portal_slug',
+                e.target.value.trim().toLowerCase() || null
+              )
+            }
+            margin="normal"
+            error={hasError('portal_slug')}
+            helperText={getHelperText(
+              'portal_slug',
+              'Ex.: loja-abc → loja-abc.subscriber.seudominio'
+            )}
+          />
+        </Grid>
+
         {mode === 'edit' && subscriber && (
           <Grid item xs={12} md={6}>
             <FormControl fullWidth margin="normal">

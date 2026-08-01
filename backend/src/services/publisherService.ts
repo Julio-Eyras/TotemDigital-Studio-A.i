@@ -1,6 +1,10 @@
 import { getDatabase } from '../config/database';
 import { isStudioRuntime } from '../config/installationRuntime';
 import { logError } from '../utils/loggerHelper';
+import {
+  assertPortalSlugAvailable,
+  maybeSyncPortalHostsAfterSlugChange,
+} from './portalHostService';
 
 export interface Publisher {
   publisher_id: number;
@@ -11,6 +15,7 @@ export interface Publisher {
   whatsapp?: string;
   category_segment?: string;
   description?: string;
+  portal_slug?: string | null;
   // Regra do domínio: publisher não pode ser subscriber/ambos.
   // Campos mantidos por compatibilidade com schema, mas devem ser fixos: is_subscriber=false, is_publisher=true, client_type='publisher'
   is_subscriber: boolean;
@@ -30,6 +35,7 @@ export interface CreatePublisherRequest {
   whatsapp?: string;
   category_segment?: string;
   description?: string;
+  portal_slug?: string | null;
   // Campos removidos/ignorados: publisher não pode ser subscriber/ambos
 }
 
@@ -41,6 +47,7 @@ export interface UpdatePublisherRequest {
   whatsapp?: string;
   category_segment?: string;
   description?: string;
+  portal_slug?: string | null;
   /** API/frontend pode enviar "active"; BD usa coluna is_active */
   active?: boolean;
   is_active?: boolean;
@@ -243,8 +250,15 @@ export class PublisherService {
         phone, 
         whatsapp, 
         category_segment,
-        description
+        description,
+        portal_slug
       } = data;
+
+      const portalSlug = await assertPortalSlugAvailable(
+        this.db as any,
+        portal_slug ?? null,
+        { role: 'publisher' }
+      );
 
       if (isStudioRuntime()) {
         const pubCount = await this.db.findFirst(`
@@ -305,12 +319,12 @@ export class PublisherService {
       // Criar publisher
       const result = await this.db.executeRaw(`
         INSERT INTO publishers (
-          name, contact_name, email, phone, whatsapp, category_segment, description,
+          name, contact_name, email, phone, whatsapp, category_segment, description, portal_slug,
           is_subscriber, is_publisher, client_type, is_active, created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING publisher_id
-      `, [name, contact_name || null, emailNorm, phone || null, whatsapp || null, category_segment || null, description || null, finalIsSubscriber, finalIsPublisher, finalClientType]);
+      `, [name, contact_name || null, emailNorm, phone || null, whatsapp || null, category_segment || null, description || null, portalSlug, finalIsSubscriber, finalIsPublisher, finalClientType]);
 
       if (!result.rows || result.rows.length === 0) {
         throw new Error('Erro ao criar publisher');
@@ -325,6 +339,10 @@ export class PublisherService {
           SET publisher_id = $1, updated_at = CURRENT_TIMESTAMP
           WHERE contract_id = $2
         `, [publisherId, contract_id]);
+      }
+
+      if (portalSlug) {
+        await maybeSyncPortalHostsAfterSlugChange(this.db as any);
       }
 
       const newPublisher = await this.getPublisherById(publisherId);
@@ -423,6 +441,7 @@ export class PublisherService {
         whatsapp, 
         category_segment,
         description,
+        portal_slug,
         active,
         is_active: isActiveReq
       } = data;
@@ -497,6 +516,17 @@ export class PublisherService {
         paramIndex++;
       }
 
+      if (portal_slug !== undefined) {
+        const portalSlug = await assertPortalSlugAvailable(
+          this.db as any,
+          portal_slug,
+          { role: 'publisher', excludeId: id }
+        );
+        updateFields.push(`portal_slug = $${paramIndex}`);
+        updateParams.push(portalSlug);
+        paramIndex++;
+      }
+
       // Sempre forçar os flags para o estado correto (publisher-only)
       updateFields.push(`is_subscriber = $${paramIndex}`);
       updateParams.push(finalIsSubscriber);
@@ -528,6 +558,10 @@ export class PublisherService {
       const updatedPublisher = await this.getPublisherById(id);
       if (!updatedPublisher) {
         throw new Error('Erro ao buscar publisher atualizado');
+      }
+
+      if (portal_slug !== undefined) {
+        await maybeSyncPortalHostsAfterSlugChange(this.db as any);
       }
 
       return updatedPublisher;

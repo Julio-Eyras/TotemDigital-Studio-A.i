@@ -44,6 +44,14 @@ COMMENT ON COLUMN subscribers.category_segment IS 'Categoria/segmento do assinan
 COMMENT ON COLUMN subscribers.description IS 'Descrição/observações sobre o assinante';
 COMMENT ON COLUMN subscribers.is_active IS 'Se false, assinante está inativo';
 
+-- Slug de portal por anunciante (ex.: acme → acme.subscriber.dominio)
+ALTER TABLE IF EXISTS subscribers
+    ADD COLUMN IF NOT EXISTS portal_slug TEXT;
+COMMENT ON COLUMN subscribers.portal_slug IS 'Slug DNS/Nginx do portal do anunciante (único). NULL = sem host dedicado.';
+CREATE UNIQUE INDEX IF NOT EXISTS uq_subscribers_portal_slug_idx
+    ON subscribers (portal_slug)
+    WHERE portal_slug IS NOT NULL AND btrim(portal_slug) <> '';
+
 -- =============================================
 -- PUBLISHERS (antes: hosts)
 -- =============================================
@@ -85,6 +93,14 @@ COMMENT ON COLUMN publishers.is_subscriber IS 'Fixado: false (publisher não pod
 COMMENT ON COLUMN publishers.is_publisher IS 'Fixado: true';
 COMMENT ON COLUMN publishers.client_type IS 'Fixado: publisher';
 COMMENT ON COLUMN publishers.is_system_owner IS 'True para o exibidor dono da instalação (perfil single_publisher)';
+
+-- Slug de portal por organização (ex.: rede-x → rede-x.publisher.dominio)
+ALTER TABLE IF EXISTS publishers
+    ADD COLUMN IF NOT EXISTS portal_slug TEXT;
+COMMENT ON COLUMN publishers.portal_slug IS 'Slug DNS/Nginx do portal da organização (único). NULL = sem host dedicado.';
+CREATE UNIQUE INDEX IF NOT EXISTS uq_publishers_portal_slug_idx
+    ON publishers (portal_slug)
+    WHERE portal_slug IS NOT NULL AND btrim(portal_slug) <> '';
 
 -- Idempotente em bases já provisionadas
 ALTER TABLE IF EXISTS publishers

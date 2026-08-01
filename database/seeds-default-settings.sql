@@ -488,6 +488,54 @@ ON CONFLICT (setting_key) DO UPDATE SET
   default_value = EXCLUDED.default_value,
   updated_at = CURRENT_TIMESTAMP;
 
+-- Portal DNS/Nginx por publisher/anunciante
+INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description, is_public, is_editable, default_value, validation, options)
+VALUES
+  (
+    'portal.base_domain',
+    '',
+    'string',
+    'portal',
+    'Domínio base dos portais (ex.: totemdigital.app.br). Vazio = só DNS local / hosts manuais.',
+    false,
+    true,
+    '',
+    NULL,
+    NULL
+  ),
+  (
+    'portal.dns_mode',
+    'off',
+    'string',
+    'portal',
+    'Modo DNS/Nginx: off | public_wildcard | local_dnsmasq',
+    false,
+    true,
+    'off',
+    '^(off|public_wildcard|local_dnsmasq)$',
+    '["off","public_wildcard","local_dnsmasq"]'
+  ),
+  (
+    'portal.sync_enabled',
+    'false',
+    'boolean',
+    'portal',
+    'Se true, a API tenta correr scripts/sync-portal-hosts.sh após alterar slugs (requer sudoers).',
+    false,
+    true,
+    'false',
+    '^(true|false)$',
+    '["true","false"]'
+  )
+ON CONFLICT (setting_key) DO UPDATE SET
+  description = EXCLUDED.description,
+  is_public = EXCLUDED.is_public,
+  is_editable = EXCLUDED.is_editable,
+  default_value = EXCLUDED.default_value,
+  validation = EXCLUDED.validation,
+  options = EXCLUDED.options,
+  updated_at = CURRENT_TIMESTAMP;
+
 -- Financeiro: bloqueio operacional por inadimplência
 INSERT INTO system_settings (setting_key, setting_value, setting_type, category, description, is_public, is_editable, default_value, validation, options)
 VALUES
@@ -513,7 +561,7 @@ VALUES
     true,
     'true',
     '^(true|false)$',
-    '["true", "false"]'
+    '["true","false"]'
   ),
   (
     'financial.block_publish_overdue_grace_days',

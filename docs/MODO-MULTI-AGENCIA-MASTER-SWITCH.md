@@ -44,6 +44,7 @@ bash scripts/Instala-TotemDigital-Server.sh --modo atualizar --instancia dev --g
 
 ## Fora de escopo
 
-- DNS/portal one-click  
+- ~~DNS/portal one-click~~ → Fase 1 em `docs/PORTAL-DNS-NGINX-PARAMETRIZAVEL.md`  
 - Seed automático de 2ª agência / anunciante demo  
 - Apagar dados ao desligar  
+- Emissão automática de cert wildcard / API DNS do provedor  

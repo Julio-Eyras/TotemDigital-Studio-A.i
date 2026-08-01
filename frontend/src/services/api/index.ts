@@ -284,6 +284,25 @@ export const installationModulesApi = {
       ...(response.data.data || {}),
     };
   },
+  getPortal: async () => {
+    const response = await api.get('/installation/portal');
+    return response.data.data;
+  },
+  savePortal: async (payload: {
+    baseDomain?: string;
+    dnsMode?: 'off' | 'public_wildcard' | 'local_dnsmasq';
+    syncEnabled?: boolean;
+  }) => {
+    const response = await api.put('/installation/portal', payload);
+    return response.data.data;
+  },
+  syncPortal: async () => {
+    const response = await api.post('/installation/portal/sync');
+    return {
+      message: response.data.message as string | undefined,
+      ...(response.data.data || {}),
+    };
+  },
 };
 
 // =============================================
@@ -3552,6 +3571,8 @@ export interface Publisher {
   whatsapp?: string;
   category_segment?: string;
   description?: string;
+  /** Slug DNS/Nginx: {slug}.publisher.{dominio} */
+  portal_slug?: string | null;
   is_subscriber?: boolean;
   is_publisher?: boolean;
   client_type?: 'subscriber' | 'publisher' | 'both';
@@ -3574,6 +3595,7 @@ export interface CreatePublisherRequest {
   whatsapp?: string;
   category_segment?: string;
   description?: string;
+  portal_slug?: string | null;
   is_subscriber?: boolean;
   is_publisher?: boolean;
   client_type?: 'subscriber' | 'publisher' | 'both';
@@ -3587,6 +3609,7 @@ export interface UpdatePublisherRequest {
   whatsapp?: string;
   category_segment?: string;
   description?: string;
+  portal_slug?: string | null;
   is_subscriber?: boolean;
   is_publisher?: boolean;
   client_type?: 'subscriber' | 'publisher' | 'both';
@@ -3704,6 +3727,8 @@ export interface Subscriber {
   city?: string;
   category_segment?: string;
   description?: string;
+  /** Slug DNS/Nginx: {slug}.subscriber.{dominio} */
+  portal_slug?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at?: string;
@@ -3760,6 +3785,7 @@ export interface CreateSubscriberRequest {
   address?: string;
   category_segment?: string;
   description?: string;
+  portal_slug?: string | null;
 }
 
 export interface UpdateSubscriberRequest {
@@ -3771,6 +3797,7 @@ export interface UpdateSubscriberRequest {
   address?: string;
   category_segment?: string;
   description?: string;
+  portal_slug?: string | null;
   isActive?: boolean;
 }
 

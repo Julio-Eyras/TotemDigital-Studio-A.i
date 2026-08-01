@@ -212,6 +212,26 @@ const PublisherForm: React.FC<PublisherFormProps> = ({
             helperText={getHelperText('description')}
           />
         </Grid>
+
+        <Grid item xs={12} md={6}>
+          <TextField
+            fullWidth
+            label="Slug do portal (DNS)"
+            value={getFieldValue('portal_slug')}
+            onChange={(e) =>
+              handleFieldChange(
+                'portal_slug',
+                e.target.value.trim().toLowerCase() || null
+              )
+            }
+            margin="normal"
+            error={hasError('portal_slug')}
+            helperText={getHelperText(
+              'portal_slug',
+              'Ex.: rede-x → rede-x.publisher.seudominio (ou .local)'
+            )}
+          />
+        </Grid>
       </Grid>
 
       {mode === 'create' && (
