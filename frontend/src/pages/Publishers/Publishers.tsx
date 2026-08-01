@@ -1266,6 +1266,7 @@ const Publishers: React.FC = () => {
         phone: selectedPublisher.phone,
         whatsapp: selectedPublisher.whatsapp,
         description: selectedPublisher.description,
+        portal_slug: selectedPublisher.portal_slug ?? null,
         is_subscriber: selectedPublisher.is_subscriber,
         is_publisher: selectedPublisher.is_publisher,
         client_type: selectedPublisher.client_type,
