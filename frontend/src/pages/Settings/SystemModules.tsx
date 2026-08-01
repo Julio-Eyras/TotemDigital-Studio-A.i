@@ -391,6 +391,12 @@ const SystemModules: React.FC = () => {
               </ListItem>
             ))}
           </List>
+          {pendingEnabled && checklist.some((i) => !i.ok && i.severity === 'warning') && (
+            <Alert severity="warning" sx={{ mt: 1 }}>
+              Há avisos no checklist (ex.: organização ou Redis). Pode activar na mesma; corrija depois se
+              necessário.
+            </Alert>
+          )}
         </DialogContent>
         <DialogActions>
           <Button disabled={saving} onClick={() => setConfirmOpen(false)}>
