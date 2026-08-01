@@ -42,10 +42,15 @@ bash scripts/Instala-TotemDigital-Server.sh --modo atualizar --instancia dev --g
 - Workers condicionados aos módulos no boot — `docs/ETAPA-E-MULTI-AGENCIA-WORKERS.md`
 - Hot-reload de workers ao mudar o modo — `docs/ETAPA-F-MULTI-AGENCIA-HOT-RELOAD-WORKERS.md`
 
-## Fora de escopo
+## Fora de escopo (produto)
 
-- ~~DNS/portal one-click~~ → Fase 1 em `docs/PORTAL-DNS-NGINX-PARAMETRIZAVEL.md`  
-- Seed automático de 2ª agência / anunciante demo → **entregue** (`ensureDemoSecondAgencyIfNeeded`, `portal.seed_second_agency`)
-- Portal Cloudflare DNS + LE wildcard DNS-01 → ver `docs/PORTAL-DNS-NGINX-PARAMETRIZAVEL.md`  
-- Apagar dados ao desligar  
-- Emissão automática de cert wildcard / API DNS do provedor  
+- Apagar dados ao desligar multi-agência  
+
+## Operacional restante (VPS)
+
+1. `git pull` + update com seeds `portal.*`
+2. Complementos → Portal: domínio, Cloudflare zone/IP, SSL email
+3. Env: `CLOUDFLARE_API_TOKEN=…`
+4. Sync Nginx: `sudo PORTAL_NGINX_SITE=/etc/nginx/sites-available/… bash scripts/sync-portal-hosts.sh`
+5. Cert wildcard: `sudo bash scripts/issue-portal-wildcard-cert.sh --base-domain … --email …`  
+   (re-render da instância passa a preferir `portal-wildcard-*` automaticamente)

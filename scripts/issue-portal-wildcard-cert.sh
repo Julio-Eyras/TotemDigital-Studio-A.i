@@ -132,4 +132,20 @@ else
 fi
 
 log "Certificado em /etc/letsencrypt/live/${CERT_NAME}/"
-log "Actualize ssl_certificate / ssl_certificate_key no Nginx e faça reload"
+
+# Preferir este cert no Nginx da instância se PORTAL_NGINX_SITE estiver definido
+INST_NGINX="${PORTAL_NGINX_SITE:-}"
+if [[ -n "$INST_NGINX" && -f "$INST_NGINX" ]]; then
+  if grep -qE 'ssl_certificate .*/live/.*/fullchain.pem' "$INST_NGINX"; then
+    sed -i.bak \
+      -e "s|ssl_certificate .*/live/.*/fullchain.pem;|ssl_certificate /etc/letsencrypt/live/${CERT_NAME}/fullchain.pem;|" \
+      -e "s|ssl_certificate_key .*/live/.*/privkey.pem;|ssl_certificate_key /etc/letsencrypt/live/${CERT_NAME}/privkey.pem;|" \
+      "$INST_NGINX"
+    log "Nginx actualizado para usar cert $CERT_NAME ($INST_NGINX)"
+    if command -v nginx >/dev/null 2>&1; then
+      nginx -t && (systemctl reload nginx || service nginx reload || true)
+    fi
+  fi
+else
+  log "Actualize ssl_certificate / ssl_certificate_key no Nginx para /etc/letsencrypt/live/${CERT_NAME}/ e faça reload"
+fi

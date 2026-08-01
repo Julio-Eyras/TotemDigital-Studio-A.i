@@ -71,7 +71,31 @@ log "Nginx snippet → $NGINX_DST"
 INST_NGINX="${PORTAL_NGINX_SITE:-}"
 if [[ -n "$INST_NGINX" && -f "$INST_NGINX" ]]; then
   if ! grep -q "totemdigital-portal-tenants.conf" "$INST_NGINX"; then
-    warn "Adicione manualmente: include $NGINX_DST;  e use \$td_portal_sd_type / \$td_portal_tenant_slug nos proxy_set_header"
+    # Auto-wire: descomentar/inserir include após o cabeçalho se houver marcador
+    if grep -q "TDI_PORTAL_SNIPPET_INCLUDE\|# include /etc/nginx/snippets/totemdigital-portal-tenants.conf" "$INST_NGINX"; then
+      sed -i.bak \
+        -e 's|# include /etc/nginx/snippets/totemdigital-portal-tenants.conf;.*|include /etc/nginx/snippets/totemdigital-portal-tenants.conf;|' \
+        -e 's|# @@TDI_PORTAL_SNIPPET_INCLUDE@@|include /etc/nginx/snippets/totemdigital-portal-tenants.conf;|' \
+        "$INST_NGINX" || true
+      if grep -q "totemdigital-portal-tenants.conf" "$INST_NGINX"; then
+        log "Include do snippet activado em $INST_NGINX"
+      else
+        warn "Não foi possível auto-activar include em $INST_NGINX — adicione manualmente: include $NGINX_DST;"
+      fi
+    else
+      # Inserir após a primeira linha de comentário do ficheiro
+      tmp="$(mktemp)"
+      {
+        head -n 3 "$INST_NGINX"
+        echo "include $NGINX_DST;"
+        tail -n +4 "$INST_NGINX"
+      } > "$tmp"
+      cp -f "$tmp" "$INST_NGINX"
+      rm -f "$tmp"
+      log "Include inserido em $INST_NGINX"
+    fi
+  else
+    log "Include do portal já presente em $INST_NGINX"
   fi
 fi
 

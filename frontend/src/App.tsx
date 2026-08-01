@@ -16,6 +16,7 @@ import { canAccess } from './utils/rolePermissions';
 import { setTheme, setDarkTone } from './store/slices/uiSlice';
 import { isStudioMode } from './config/studioMode';
 import { getAppHomePath, isDirectTotemMode } from './config/directTotemMode';
+import { detectPortalFromHostname, persistPortalHost } from './utils/portalHost';
 
 // Pages
 import LoginPage from './pages/Auth/LoginPage';
@@ -87,22 +88,7 @@ const PublisherContracts = React.lazy(() => import('./pages/PublisherContracts/P
 const detectSubdomainType = (): 'publisher' | 'subscriber' | 'main' => {
   if (isStudioMode()) return 'main';
   if (typeof window === 'undefined') return 'main';
-
-  const hostname = window.location.hostname.toLowerCase();
-  const parts = hostname.split('.').filter(Boolean);
-
-  if (parts.length >= 3) {
-    const [a, b] = parts;
-    if (b === 'publisher' || b === 'subscriber') return b;
-    if (a === 'publisher' || a === 'subscriber') return a;
-  }
-
-  if (parts.length === 2 && parts[1] === 'local') {
-    if (/^publisher\d+$/.test(parts[0])) return 'publisher';
-    if (/^subscriber\d+$/.test(parts[0])) return 'subscriber';
-  }
-
-  return 'main';
+  return detectPortalFromHostname().subdomainType;
 };
 
 const SmartDisplayFxRoute: React.FC = () => {
@@ -118,6 +104,7 @@ const AppContent: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [subdomainType, setSubdomainType] = useState<'publisher' | 'subscriber' | 'main'>('main');
+  const [tenantSlug, setTenantSlug] = useState<string | undefined>(undefined);
   
   // Hook para lidar com rate limiting
   useRateLimit();
@@ -126,8 +113,15 @@ const AppContent: React.FC = () => {
   const commandPalette = useCommandPalette();
 
   useEffect(() => {
-    const detected = installationCaps.subdomainTenancy ? detectSubdomainType() : 'main';
-    setSubdomainType(detected);
+    if (installationCaps.subdomainTenancy) {
+      const portal = detectPortalFromHostname();
+      setSubdomainType(portal.subdomainType);
+      setTenantSlug(portal.tenantSlug);
+      persistPortalHost(portal);
+    } else {
+      setSubdomainType('main');
+      setTenantSlug(undefined);
+    }
     
     // Token em páginas públicas (ex.: login) não implica sessão válida — evita redirect com JWT expirado
     const token = localStorage.getItem('token');
@@ -145,6 +139,18 @@ const AppContent: React.FC = () => {
     
     setLoading(false);
   }, [installationCaps.subdomainTenancy]);
+
+  // Expor slug no document para CSS/debug e layouts
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (tenantSlug) {
+      document.documentElement.setAttribute('data-portal-slug', tenantSlug);
+      document.documentElement.setAttribute('data-portal-role', subdomainType);
+    } else {
+      document.documentElement.removeAttribute('data-portal-slug');
+      document.documentElement.setAttribute('data-portal-role', subdomainType);
+    }
+  }, [tenantSlug, subdomainType]);
 
   const handleLoginSuccess = (_token: string, _user: any) => {
     setIsAuthenticated(true);

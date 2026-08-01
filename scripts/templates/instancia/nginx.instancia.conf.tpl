@@ -2,8 +2,9 @@
 # Gerado por Instala-TotemDigital-Server.sh
 # sites-available/@@TDI_NGINX_SITE@@
 #
-# Portal por slug (opcional): include do snippet gerado por sync-portal-hosts.sh
-# include /etc/nginx/snippets/totemdigital-portal-tenants.conf;
+# Maps de portal por slug estão inline abaixo.
+# Snippet extra (hosts nomeados gerados pela API) — aplicado por sync-portal-hosts.sh:
+# @@TDI_PORTAL_SNIPPET_INCLUDE@@
 
 map $host $smssi_sd_type_@@TDI_ID@@ {
     default main;
@@ -48,8 +49,8 @@ server {
                 *.publisher.@@TDI_DOMAIN@@
                 *.subscriber.@@TDI_DOMAIN@@;
 
-    ssl_certificate /etc/letsencrypt/live/@@TDI_DOMAIN@@/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/@@TDI_DOMAIN@@/privkey.pem;
+    ssl_certificate @@TDI_SSL_CERT_DIR@@/fullchain.pem;
+    ssl_certificate_key @@TDI_SSL_CERT_DIR@@/privkey.pem;
 @@TDI_SSL_EXTRA@@
     ssl_protocols TLSv1.2 TLSv1.3;
 

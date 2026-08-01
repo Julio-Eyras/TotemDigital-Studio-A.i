@@ -178,6 +178,25 @@ async function main() {
     'owner_system bypass'
   );
 
+  console.log('6) Detecção frontend de host');
+  function detectFe(hostname) {
+    const parts = hostname.toLowerCase().split('.').filter(Boolean);
+    if (parts.length >= 3) {
+      const [a, b] = parts;
+      if (b === 'publisher' || b === 'subscriber') {
+        return { subdomainType: b, tenantSlug: a, rolePortal: false };
+      }
+      if (a === 'publisher' || a === 'subscriber') {
+        return { subdomainType: a, rolePortal: true };
+      }
+    }
+    return { subdomainType: 'main', rolePortal: false };
+  }
+  const fe = detectFe('agencia-demo-2.publisher.sim.totemdigital.test');
+  assert(fe.tenantSlug === 'agencia-demo-2', 'FE tenantSlug');
+  assert(fe.subdomainType === 'publisher', 'FE subdomainType');
+  assert(detectFe('publisher.sim.totemdigital.test').rolePortal === true, 'FE role portal');
+
   const summary = {
     ok: true,
     steps: results.length,

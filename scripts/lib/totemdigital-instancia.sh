@@ -164,8 +164,18 @@ tdi_render_template() {
   local out="$2"
   [[ -f "$tpl" ]] || { err "Template em falta: $tpl"; return 1; }
 
-  local content ssl_extra=""
+  local content ssl_extra="" ssl_cert_dir portal_snippet_include=""
   content="$(cat "$tpl")"
+
+  # Preferir cert wildcard do portal (DNS-01) se existir; senão apex HTTP-01
+  local portal_cert_name="portal-wildcard-${TDI_DOMAIN//./-}"
+  if sudo test -f "/etc/letsencrypt/live/${portal_cert_name}/fullchain.pem" 2>/dev/null; then
+    ssl_cert_dir="/etc/letsencrypt/live/${portal_cert_name}"
+  elif sudo test -f "/etc/letsencrypt/live/${TDI_DOMAIN}/fullchain.pem" 2>/dev/null; then
+    ssl_cert_dir="/etc/letsencrypt/live/${TDI_DOMAIN}"
+  else
+    ssl_cert_dir="/etc/letsencrypt/live/${TDI_DOMAIN}"
+  fi
 
   if sudo test -f /etc/letsencrypt/options-ssl-nginx.conf 2>/dev/null; then
     ssl_extra="    include /etc/letsencrypt/options-ssl-nginx.conf;"
@@ -173,6 +183,12 @@ tdi_render_template() {
   if sudo test -f /etc/letsencrypt/ssl-dhparams.pem 2>/dev/null; then
     ssl_extra="${ssl_extra}
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;"
+  fi
+
+  if sudo test -f /etc/nginx/snippets/totemdigital-portal-tenants.conf 2>/dev/null; then
+    portal_snippet_include="include /etc/nginx/snippets/totemdigital-portal-tenants.conf;"
+  else
+    portal_snippet_include="# include /etc/nginx/snippets/totemdigital-portal-tenants.conf;  # gerado por sync-portal-hosts.sh"
   fi
 
   local jwt="${TDI_JWT_SECRET:-$(tdi_random_secret)}"
@@ -206,6 +222,8 @@ tdi_render_template() {
     "@@TDI_2FA_KEY@@|$tfa"
     "@@TDI_TOTEM_SECRET@@|$totem"
     "@@TDI_SSL_EXTRA@@|$ssl_extra"
+    "@@TDI_SSL_CERT_DIR@@|$ssl_cert_dir"
+    "@@TDI_PORTAL_SNIPPET_INCLUDE@@|$portal_snippet_include"
     "@@OWNER_USER@@|${OWNER_USER:-Owner}"
     "@@OWNER_NAME@@|${OWNER_NAME:-Totem Digital}"
     "@@SSL_EMAIL@@|${SSL_EMAIL:-admin@${TDI_DOMAIN}}"
