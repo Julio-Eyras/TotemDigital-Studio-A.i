@@ -28,6 +28,8 @@
    - `scripts/sim-portal-pipeline.mjs` (teste local sem VPS)
 5. Isolamento JWT ↔ `tenantSlug` (403 `TENANT_HOST_MISMATCH`; bypass `owner_system`)
 6. Seed 2ª agência + anunciante demo ao activar multi-agência (se só existir 1 org)
+7. Nginx instância: preferência automática do cert `portal-wildcard-*`; sync auto-activa `include` do snippet
+8. Frontend: detecta e persiste `tenantSlug` (`data-portal-slug` + sessionStorage)
 
 ## Como activar (VPS)
 
