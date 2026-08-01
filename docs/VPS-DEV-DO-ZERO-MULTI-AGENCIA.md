@@ -154,6 +154,17 @@ git -C ~/TotemDigital-Studio-dev rev-parse --abbrev-ref HEAD
 # → TotemDigital-MultiAgencia
 ```
 
+## 9. Emulação automática (antes do VPS)
+
+No PC ou no próprio VPS (sem instalar nada):
+
+```bash
+cd ~/TotemDigital-Studio   # ou C:\TotemDigital-Studio
+node scripts/sim-vps-dev-pipeline.mjs
+```
+
+Plano completo: `docs/PLANO-TESTES-MULTI-AGENCIA-DEV.md` (níveis L0/L1/L2).
+
 ---
 
 ## Notas

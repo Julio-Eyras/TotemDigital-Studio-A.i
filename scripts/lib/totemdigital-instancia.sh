@@ -769,6 +769,10 @@ tdi_restart_service() {
 tdi_instancia_install() {
   tdi_load_profile "$INSTANCIA" || return 1
   tdi_show_profile_plan
+  if [[ "${DRY_RUN:-false}" == "true" ]]; then
+    warn "Dry-run: instalação da instância ${INSTANCIA} não executada (clone/BD/Nginx/LE)."
+    return 0
+  fi
   pause_enter
 
   tdi_ensure_clone || return 1
