@@ -2052,6 +2052,7 @@ const Subscribers: React.FC = () => {
         whatsapp: selectedSubscriber.whatsapp,
         category_segment: selectedSubscriber.category_segment,
         description: selectedSubscriber.description,
+        portal_slug: (selectedSubscriber as any).portal_slug ?? null,
         isActive: isActivePayload,
       };
       await subscriberApi.update(selectedSubscriber.subscriber_id, updateData);
