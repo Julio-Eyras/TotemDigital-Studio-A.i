@@ -110,7 +110,11 @@ export function registerCompactRoutes(app: Express): void {
   app.use('/api/dashboard', dashboardRoutes);
   app.use('/api/alerts', alertsRoutes);
   app.use('/api/logs', logsRoutes);
-  app.use('/api/playlist-engine', playlistEngineRoutes);
+  app.use(
+    '/api/playlist-engine',
+    requireModule('playlists_advanced') as any,
+    playlistEngineRoutes
+  );
   app.use('/api/health', healthRoutes);
 
   app.use('/api/billing', authMiddleware as any, requireModule('billing') as any, blockClientDataAccess as any, (_req, res, next) => {

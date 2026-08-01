@@ -863,12 +863,26 @@ async function startServer() {
     }
 
     const { isStudioRuntime } = await import('./config/installationRuntime');
+    const { resolveInstallationCapabilities } = await import('./services/installationProfileService');
+    const { buildOperationalWorkerFlags } = await import('./policy/installationPolicy');
+    const capsForWorkers = await resolveInstallationCapabilities(createDatabaseWrapper());
+    const workerFlags = buildOperationalWorkerFlags(capsForWorkers);
+    await logInfo('Workers condicionados às capabilities da instalação', {
+      multiAgency: capsForWorkers.multiAgency,
+      ...workerFlags,
+    });
     if (isStudioRuntime()) {
       const { initializeCompactStartup } = await import('./startup/startupCompact');
-      await initializeCompactStartup({ redisEnabled: config.redis.enabled });
+      await initializeCompactStartup({
+        redisEnabled: config.redis.enabled,
+        workerFlags,
+      });
     } else {
       const { initializeProStartup } = await import('./startup/startupPro');
-      await initializeProStartup({ redisEnabled: config.redis.enabled });
+      await initializeProStartup({
+        redisEnabled: config.redis.enabled,
+        workerFlags,
+      });
     }
     
     // Inicializar logger

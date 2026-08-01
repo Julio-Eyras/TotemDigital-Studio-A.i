@@ -111,12 +111,13 @@ router.put(
   async (req: any, res: any) => {
     try {
       const db = createDatabaseWrapper();
-      const modules = await saveInstallationModules(db, req.body.modules || {}, req.user?.id);
+      const result = await saveInstallationModules(db, req.body.modules || {}, req.user?.id);
       res.json({
         success: true,
-        message:
-          'Complementos guardados. O menu e a API passam a respeitar os módulos (recarregue a aplicação).',
-        data: { modules },
+        message: result.requiresBackendRestart
+          ? 'Complementos guardados. Reinicie o backend para aplicar alterações em filas/workers; depois recarregue a aplicação.'
+          : 'Complementos guardados. O menu e a API passam a respeitar os módulos (recarregue a aplicação).',
+        data: result,
       });
     } catch (error: any) {
       await logError('Erro ao guardar módulos da instalação', error);

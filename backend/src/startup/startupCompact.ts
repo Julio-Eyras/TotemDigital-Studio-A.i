@@ -1,13 +1,18 @@
 import { logInfo } from '../utils/loggerHelper';
-import { initializeOperationalWorkers } from './startupOperationalWorkers';
+import {
+  initializeOperationalWorkers,
+  OperationalWorkersOptions,
+} from './startupOperationalWorkers';
 
 interface CompactStartupOptions {
   redisEnabled: boolean;
+  /** Flags derivadas de capabilities; se omitidas, Studio sem Bull. */
+  workerFlags?: Omit<OperationalWorkersOptions, 'redisEnabled' | 'logLabel'>;
 }
 
 /**
  * Arranque modo compacto / Smart Signage Studio (mono).
- * Paridade operacional com Pro: mix, alertas, Stripe; Bull export só se Redis + perfil Pro.
+ * Workers seguem capabilities (Etapa E); default sem Bull.
  */
 export async function initializeCompactStartup(options: CompactStartupOptions): Promise<void> {
   if (options.redisEnabled) {
@@ -16,9 +21,19 @@ export async function initializeCompactStartup(options: CompactStartupOptions): 
     await logInfo('Modo Studio (compacto): Redis desabilitado');
   }
 
+  const flags = options.workerFlags || {
+    enableBullQueues: false,
+    enableBillingWorkers: false,
+    enablePlaylistMix: false,
+    enablePlaylistEngine: false,
+    enableAlertCron: false,
+    enableSubscriberAccessWorker: false,
+  };
+
   await initializeOperationalWorkers({
     redisEnabled: options.redisEnabled,
-    enableBullQueues: false,
+    ...flags,
+    enableBullQueues: false, // Studio: nunca Bull export (perfil mono)
     logLabel: 'Modo Studio (compacto)',
   });
 }

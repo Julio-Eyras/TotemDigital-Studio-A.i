@@ -52,6 +52,9 @@ export function buildInstallationCapabilities(
     simpleTotemMode ??
     (process.env.SIMPLE_TOTEM_MODE_DEFAULT === 'true' ||
       (process.env.SIMPLE_TOTEM_MODE_DEFAULT !== 'false' && single));
+  const dtFromEnv = process.env.DIRECT_TOTEM_MODE;
+  const directTotemDefault =
+    dtFromEnv === 'true' ? true : dtFromEnv === 'false' ? false : single;
   const base = {
     profile,
     totemDigitalCompact: single,
@@ -67,7 +70,7 @@ export function buildInstallationCapabilities(
     /** Studio/mono: menu oculto; rotas API mantidas para evolução futura. */
     smartDisplayFx: !single,
     simpleTotemMode: simple,
-    directTotemMode: process.env.DIRECT_TOTEM_MODE !== 'false',
+    directTotemMode: directTotemDefault,
   };
 
   const defaults = buildDefaultInstallationModules({
@@ -80,17 +83,40 @@ export function buildInstallationCapabilities(
 
   const modules = mergeInstallationModules(defaults, moduleOverrides);
 
-  // Fase B: módulos sobrescrevem capabilities legadas usadas pela UI/runtime
+  // Fase B+: módulos sobrescrevem capabilities legadas (UI + workers no boot)
   return {
     ...base,
     multiAgency: modules.multi_agency,
     totemDigitalCompact: !modules.multi_agency,
     bullExportQueues: modules.multi_agency,
+    playlistMixWorker: modules.playlists_advanced === true,
+    playlistEngineWorker: modules.playlists_advanced === true,
+    alertCron: modules.dispatcher_admin === true || modules.multi_agency === true,
+    stripeSubscriptions: modules.billing === true,
     subdomainTenancy: modules.subscriber_portal || modules.multi_agency,
     subscriberPortal: modules.subscriber_portal,
     smartDisplayFx: modules.smart_display_fx,
     simpleTotemMode: modules.simple_totem_mode,
     directTotemMode: modules.direct_totem_mode,
     modules,
+  };
+}
+
+/** Flags de arranque de workers derivadas das capabilities (Etapa E). */
+export function buildOperationalWorkerFlags(caps: InstallationCapabilities): {
+  enableBullQueues: boolean;
+  enableBillingWorkers: boolean;
+  enablePlaylistMix: boolean;
+  enablePlaylistEngine: boolean;
+  enableAlertCron: boolean;
+  enableSubscriberAccessWorker: boolean;
+} {
+  return {
+    enableBullQueues: caps.bullExportQueues === true,
+    enableBillingWorkers: caps.stripeSubscriptions === true || caps.modules.billing === true,
+    enablePlaylistMix: caps.playlistMixWorker === true,
+    enablePlaylistEngine: caps.playlistEngineWorker === true,
+    enableAlertCron: caps.alertCron === true,
+    enableSubscriberAccessWorker: caps.modules.subscribers === true,
   };
 }

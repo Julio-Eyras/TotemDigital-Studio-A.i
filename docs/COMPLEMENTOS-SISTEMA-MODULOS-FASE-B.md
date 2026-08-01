@@ -29,6 +29,7 @@ bash scripts/Instala-TotemDigital-Server.sh --modo atualizar --instancia dev --g
 
 ## Ainda não coberto (próximas ondas)
 
-- Seeds/DNS automáticos ao ligar multi-agência / portal
-- Workers Bull só quando `multi_agency` on (hoje a capability muda; arranque do worker pode exigir restart)
+- ~~Workers Bull só quando `multi_agency` on~~ → feito na Etapa E (`docs/ETAPA-E-MULTI-AGENCIA-WORKERS.md`)
+- Seeds/DNS automáticos de portal / 2ª agência
+- Hot-reload de workers sem restart
 - Checklist comercial completo por módulo

@@ -93,6 +93,7 @@ const SystemModules: React.FC = () => {
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingEnabled, setPendingEnabled] = useState<boolean | null>(null);
+  const [restartNeeded, setRestartNeeded] = useState(false);
 
   const load = useCallback(async () => {
     if (!canManage) {
@@ -147,13 +148,18 @@ const SystemModules: React.FC = () => {
       setModules(result.modules || modules);
       setMultiAgencyEnabled(Boolean(result.enabled));
       setProfile(result.profile || profile);
-      const restartHint = result.requiresBackendRestart
-        ? ' Reinicie o backend se usar filas Bull/export.'
-        : '';
-      setSuccess(`${result.message || 'Modo actualizado.'}${restartHint} A aplicar…`);
+      const needsRestart = Boolean(result.requiresBackendRestart);
+      setRestartNeeded(needsRestart);
+      if (needsRestart) {
+        setSuccess(
+          `${result.message || 'Modo actualizado.'} A UI vai recarregar — reinicie também o serviço backend.`
+        );
+      } else {
+        setSuccess(`${result.message || 'Modo actualizado.'} A aplicar…`);
+      }
       window.setTimeout(() => {
         window.location.reload();
-      }, 900);
+      }, needsRestart ? 2200 : 900);
     } catch (e) {
       setError(pickApiErrorMessage(e, 'Erro ao alterar modo multi-agência'));
       setSaving(false);
@@ -177,10 +183,17 @@ const SystemModules: React.FC = () => {
       const data = await installationModulesApi.update(modules);
       setModules(data?.modules || modules);
       setMultiAgencyEnabled(Boolean(data?.modules?.multi_agency));
-      setSuccess('Opções avançadas guardadas. A aplicar…');
+      if (data?.profile) setProfile(data.profile);
+      const needsRestart = Boolean(data?.requiresBackendRestart);
+      setRestartNeeded(needsRestart);
+      setSuccess(
+        needsRestart
+          ? 'Opções avançadas guardadas. Reinicie o backend para filas/workers; a UI vai recarregar.'
+          : 'Opções avançadas guardadas. A aplicar…'
+      );
       window.setTimeout(() => {
         window.location.reload();
-      }, 600);
+      }, needsRestart ? 2200 : 600);
     } catch (e) {
       setError(pickApiErrorMessage(e, 'Erro ao guardar opções avançadas'));
     } finally {
@@ -208,6 +221,13 @@ const SystemModules: React.FC = () => {
       {success && (
         <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>
           {success}
+        </Alert>
+      )}
+      {restartNeeded && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Reinício do backend necessário: filas Bull, billing e playlist mix/engine só mudam no
+          arranque do serviço (ex.: <code>systemctl restart</code> ou o script de update da
+          instância). Recarregar a UI não basta.
         </Alert>
       )}
 
@@ -391,6 +411,9 @@ const SystemModules: React.FC = () => {
               </ListItem>
             ))}
           </List>
+          <Alert severity="warning" sx={{ mt: 1 }}>
+            Após confirmar, reinicie o backend para aplicar/parar workers (Bull, billing, playlists).
+          </Alert>
           {pendingEnabled && checklist.some((i) => !i.ok && i.severity === 'warning') && (
             <Alert severity="warning" sx={{ mt: 1 }}>
               Há avisos no checklist (ex.: organização ou Redis). Pode activar na mesma; corrija depois se

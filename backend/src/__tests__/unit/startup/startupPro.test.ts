@@ -21,17 +21,37 @@ describe('initializeProStartup', () => {
     expect(initializeOperationalWorkers).toHaveBeenCalledWith({
       redisEnabled: true,
       enableBullQueues: true,
+      enableBillingWorkers: true,
+      enablePlaylistMix: true,
+      enablePlaylistEngine: true,
+      enableAlertCron: true,
+      enableSubscriberAccessWorker: true,
       logLabel: 'Modo Pro',
     });
   });
 
-  it('deve delegar workers sem Bull quando redis desativado', async () => {
-    await initializeProStartup({ redisEnabled: false });
+  it('deve desligar Bull quando redis desativado mesmo com flag pedida', async () => {
+    await initializeProStartup({
+      redisEnabled: false,
+      workerFlags: {
+        enableBullQueues: true,
+        enableBillingWorkers: false,
+        enablePlaylistMix: true,
+        enablePlaylistEngine: true,
+        enableAlertCron: false,
+        enableSubscriberAccessWorker: true,
+      },
+    });
 
     expect(logInfo).toHaveBeenCalledWith('Modo Pro sem Redis: filas Bull não serão inicializadas');
     expect(initializeOperationalWorkers).toHaveBeenCalledWith({
       redisEnabled: false,
       enableBullQueues: false,
+      enableBillingWorkers: false,
+      enablePlaylistMix: true,
+      enablePlaylistEngine: true,
+      enableAlertCron: false,
+      enableSubscriberAccessWorker: true,
       logLabel: 'Modo Pro',
     });
   });

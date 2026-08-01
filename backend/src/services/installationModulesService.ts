@@ -107,10 +107,10 @@ export async function getInstallationModulesAdminView(db: DbLike): Promise<{
   const capabilities = buildInstallationCapabilities(profile, simpleTotemMode, overrides);
   const defaults = buildDefaultInstallationModules({
     multiAgency: profile === 'multi_agency',
-    directTotemMode: process.env.DIRECT_TOTEM_MODE !== 'false',
+    directTotemMode: capabilities.directTotemMode,
     simpleTotemMode,
-    smartDisplayFx: profile === 'multi_agency',
-    subscriberPortal: profile === 'multi_agency',
+    smartDisplayFx: capabilities.smartDisplayFx,
+    subscriberPortal: capabilities.subscriberPortal,
   });
   return {
     catalog: INSTALLATION_MODULE_CATALOG,
@@ -148,19 +148,113 @@ export async function saveInstallationModules(
   db: DbLike,
   nextFlags: Partial<Record<InstallationModuleId, boolean>>,
   _updatedBy?: number
-): Promise<InstallationModuleFlags> {
+): Promise<{
+  modules: InstallationModuleFlags;
+  profile: 'single_publisher' | 'multi_agency';
+  requiresBackendRestart: boolean;
+}> {
   if (!db.executeRaw) {
     throw new Error('Base de dados sem suporte a escrita');
   }
 
   const view = await getInstallationModulesAdminView(db);
+  const previous = view.modules;
   const merged = mergeInstallationModules(view.modules, {
     ...nextFlags,
   });
   if (!merged.multi_agency) {
     merged.subscriber_portal = false;
   }
-  return persistModulesFlags(db, merged);
+  const modules = await persistModulesFlags(db, merged);
+
+  const profile = modules.multi_agency ? 'multi_agency' : 'single_publisher';
+  if (Boolean(previous.multi_agency) !== Boolean(modules.multi_agency)) {
+    await upsertSystemSetting(
+      db,
+      INSTALLATION_PROFILE_SETTING_KEY,
+      profile,
+      'string',
+      'Perfil de instalação: single_publisher (Studio/mono) ou multi_agency (Pro)'
+    );
+    resetInstallationProfileCache();
+  }
+
+  const requiresBackendRestart = workersAffectingModulesChanged(previous, modules);
+
+  return { modules, profile, requiresBackendRestart };
+}
+
+function workersAffectingModulesChanged(
+  previous: InstallationModuleFlags,
+  next: InstallationModuleFlags
+): boolean {
+  const keys: InstallationModuleId[] = [
+    'multi_agency',
+    'playlists_advanced',
+    'billing',
+    'subscribers',
+    'dispatcher_admin',
+  ];
+  return keys.some((k) => Boolean(previous[k]) !== Boolean(next[k]));
+}
+
+/**
+ * Se não existir nenhuma organização activa, cria a organização owner do sistema.
+ * Não cria 2ª agência — só bootstrap mínimo para instalação vazia.
+ */
+export async function ensureSystemOwnerPublisherIfEmpty(db: DbLike): Promise<{
+  created: boolean;
+  publisherId?: number;
+  detail: string;
+}> {
+  try {
+    const row = await db.findFirst(
+      `SELECT COUNT(*)::int AS c FROM publishers WHERE COALESCE(is_active, true) = true`
+    );
+    const count = Number(row?.c ?? 0);
+    if (count > 0) {
+      return {
+        created: false,
+        detail: `${count} organização(ões) já activa(s) — sem seed.`,
+      };
+    }
+  } catch {
+    return { created: false, detail: 'Não foi possível contar publishers — seed ignorado.' };
+  }
+
+  if (!db.executeRaw) {
+    return { created: false, detail: 'Base sem escrita — seed ignorado.' };
+  }
+
+  const name = (process.env.SYSTEM_OWNER_NAME || 'Totem Digital').trim();
+  const email = (process.env.SYSTEM_OWNER_EMAIL || 'contato@totemdigital.local').trim();
+
+  try {
+    await db.executeRaw(
+      `
+      INSERT INTO publishers (
+        name, contact_name, email, category_segment, description,
+        is_subscriber, is_publisher, client_type, is_active, is_system_owner
+      ) VALUES (
+        $1, $2, $3, 'Totens', 'Organização owner criada ao activar multi-agência (instalação vazia)',
+        false, true, 'publisher', true, true
+      )
+    `,
+      [name, `Contato ${name}`, email]
+    );
+    const created = await db.findFirst(
+      `SELECT publisher_id FROM publishers WHERE is_system_owner = true ORDER BY publisher_id ASC LIMIT 1`
+    );
+    const publisherId = created?.publisher_id ? Number(created.publisher_id) : undefined;
+    return {
+      created: true,
+      publisherId,
+      detail: `Organização owner «${name}» criada (publisher_id=${publisherId ?? '?'}).`,
+    };
+  } catch (error) {
+    await logError('Falha ao criar organização owner no bootstrap multi-agência', error);
+    return { created: false, detail: 'Falha ao criar organização owner — crie manualmente.' };
+  }
 }
 
 /**
@@ -176,6 +270,7 @@ export async function setMultiAgencyMode(
   modules: InstallationModuleFlags;
   profile: 'single_publisher' | 'multi_agency';
   requiresBackendRestart: boolean;
+  bootstrap?: { created: boolean; publisherId?: number; detail: string };
   message: string;
 }> {
   if (!db.executeRaw) {
@@ -197,16 +292,27 @@ export async function setMultiAgencyMode(
   );
   resetInstallationProfileCache();
 
-  const workersChanged = Boolean(previous.multi_agency) !== Boolean(modules.multi_agency);
+  let bootstrap: { created: boolean; publisherId?: number; detail: string } | undefined;
+  if (enabled) {
+    bootstrap = await ensureSystemOwnerPublisherIfEmpty(db);
+  }
+
+  const workersChanged = workersAffectingModulesChanged(previous, modules);
+
+  const bootstrapHint =
+    bootstrap?.created === true
+      ? ` ${bootstrap.detail}`
+      : '';
 
   return {
     enabled: modules.multi_agency === true,
     modules,
     profile,
     requiresBackendRestart: workersChanged,
+    bootstrap,
     message: enabled
-      ? 'Modo multi-agência activado. Dados anteriores (se existirem) permanecem; o menu/API comerciais ficam disponíveis.'
-      : 'Modo multi-agência desactivado. Dados comerciais não foram apagados — ficam inacessíveis até voltar a activar. Direct Totem voltou a ser o modo de operação.',
+      ? `Modo multi-agência activado. Dados anteriores (se existirem) permanecem; o menu/API comerciais ficam disponíveis.${bootstrapHint} Reinicie o backend para aplicar filas/workers.`
+      : 'Modo multi-agência desactivado. Dados comerciais não foram apagados — ficam inacessíveis até voltar a activar. Direct Totem voltou a ser o modo de operação. Reinicie o backend para parar filas comerciais.',
   };
 }
 
@@ -291,6 +397,15 @@ export async function getMultiAgencyActivationChecklist(db: DbLike): Promise<{
     ok: true,
     severity: 'info',
     detail: 'Ao desligar, dados comerciais ficam preservados e inacessíveis até reactivar.',
+  });
+
+  items.push({
+    id: 'workers_restart',
+    label: 'Reinício do backend após mudar o modo',
+    ok: true,
+    severity: 'warning',
+    detail:
+      'Filas Bull, billing e playlist mix/engine só arrancam no boot conforme os módulos. Após activar/desactivar, reinicie o serviço backend.',
   });
 
   const canEnableSafely = items.filter((i) => i.severity === 'blocking').every((i) => i.ok);
