@@ -19,6 +19,10 @@ export class InvoiceWorker {
    * Inicia o worker
    */
   start(): void {
+    if (this.cronJob) {
+      logInfo('Invoice Worker já está em execução', {});
+      return;
+    }
     // Executar diariamente às 2h da manhã
     this.cronJob = cron.schedule('0 2 * * *', async () => {
       try {

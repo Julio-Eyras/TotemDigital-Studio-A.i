@@ -152,6 +152,8 @@ export async function saveInstallationModules(
   modules: InstallationModuleFlags;
   profile: 'single_publisher' | 'multi_agency';
   requiresBackendRestart: boolean;
+  workersReconciled: boolean;
+  workersReconcileError?: string;
 }> {
   if (!db.executeRaw) {
     throw new Error('Base de dados sem suporte a escrita');
@@ -179,9 +181,19 @@ export async function saveInstallationModules(
     resetInstallationProfileCache();
   }
 
-  const requiresBackendRestart = workersAffectingModulesChanged(previous, modules);
+  const workersTouch = workersAffectingModulesChanged(previous, modules);
+  let workersReconciled = false;
+  let workersReconcileError: string | undefined;
+  let requiresBackendRestart = false;
 
-  return { modules, profile, requiresBackendRestart };
+  if (workersTouch) {
+    const hot = await applyWorkersHotReload(db);
+    workersReconciled = hot.ok;
+    workersReconcileError = hot.error;
+    requiresBackendRestart = !hot.ok;
+  }
+
+  return { modules, profile, requiresBackendRestart, workersReconciled, workersReconcileError };
 }
 
 function workersAffectingModulesChanged(
@@ -196,6 +208,28 @@ function workersAffectingModulesChanged(
     'dispatcher_admin',
   ];
   return keys.some((k) => Boolean(previous[k]) !== Boolean(next[k]));
+}
+
+async function applyWorkersHotReload(db: DbLike): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const { warmInstallationRuntime } = await import('../config/installationRuntime');
+    await warmInstallationRuntime(db as any);
+    const { resolveInstallationCapabilities } = await import('./installationProfileService');
+    const caps = await resolveInstallationCapabilities(db as any);
+    const { config } = await import('../config/env');
+    const { reconcileWorkersFromCapabilities } = await import(
+      '../startup/operationalWorkersLifecycle'
+    );
+    const result = await reconcileWorkersFromCapabilities(
+      caps,
+      Boolean(config.redis?.enabled),
+      'Hot-reload workers'
+    );
+    return { ok: result.ok, error: result.error };
+  } catch (error: any) {
+    await logError('Hot-reload de workers falhou', error);
+    return { ok: false, error: error?.message || 'Falha no hot-reload' };
+  }
 }
 
 /**
@@ -270,6 +304,8 @@ export async function setMultiAgencyMode(
   modules: InstallationModuleFlags;
   profile: 'single_publisher' | 'multi_agency';
   requiresBackendRestart: boolean;
+  workersReconciled: boolean;
+  workersReconcileError?: string;
   bootstrap?: { created: boolean; publisherId?: number; detail: string };
   message: string;
 }> {
@@ -297,22 +333,40 @@ export async function setMultiAgencyMode(
     bootstrap = await ensureSystemOwnerPublisherIfEmpty(db);
   }
 
-  const workersChanged = workersAffectingModulesChanged(previous, modules);
+  const workersTouch = workersAffectingModulesChanged(previous, modules);
+  let workersReconciled = false;
+  let workersReconcileError: string | undefined;
+  let requiresBackendRestart = false;
+
+  if (workersTouch) {
+    const hot = await applyWorkersHotReload(db);
+    workersReconciled = hot.ok;
+    workersReconcileError = hot.error;
+    requiresBackendRestart = !hot.ok;
+  }
 
   const bootstrapHint =
     bootstrap?.created === true
       ? ` ${bootstrap.detail}`
       : '';
 
+  const workersHint = workersTouch
+    ? workersReconciled
+      ? ' Workers (Bull/billing/playlists) aplicados em runtime — sem precisar reiniciar o backend.'
+      : ' Hot-reload de workers falhou — reinicie o backend para aplicar filas/workers.'
+    : '';
+
   return {
     enabled: modules.multi_agency === true,
     modules,
     profile,
-    requiresBackendRestart: workersChanged,
+    requiresBackendRestart,
+    workersReconciled,
+    workersReconcileError,
     bootstrap,
     message: enabled
-      ? `Modo multi-agência activado. Dados anteriores (se existirem) permanecem; o menu/API comerciais ficam disponíveis.${bootstrapHint} Reinicie o backend para aplicar filas/workers.`
-      : 'Modo multi-agência desactivado. Dados comerciais não foram apagados — ficam inacessíveis até voltar a activar. Direct Totem voltou a ser o modo de operação. Reinicie o backend para parar filas comerciais.',
+      ? `Modo multi-agência activado. Dados anteriores (se existirem) permanecem; o menu/API comerciais ficam disponíveis.${bootstrapHint}${workersHint}`
+      : `Modo multi-agência desactivado. Dados comerciais não foram apagados — ficam inacessíveis até voltar a activar. Direct Totem voltou a ser o modo de operação.${workersHint}`,
   };
 }
 
@@ -401,11 +455,11 @@ export async function getMultiAgencyActivationChecklist(db: DbLike): Promise<{
 
   items.push({
     id: 'workers_restart',
-    label: 'Reinício do backend após mudar o modo',
+    label: 'Workers aplicados em runtime (hot-reload)',
     ok: true,
-    severity: 'warning',
+    severity: 'info',
     detail:
-      'Filas Bull, billing e playlist mix/engine só arrancam no boot conforme os módulos. Após activar/desactivar, reinicie o serviço backend.',
+      'Ao activar/desactivar, Bull/billing/playlists tentam ligar/desligar sem reiniciar o processo. Só peça restart se o hot-reload falhar.',
   });
 
   const canEnableSafely = items.filter((i) => i.severity === 'blocking').every((i) => i.ok);

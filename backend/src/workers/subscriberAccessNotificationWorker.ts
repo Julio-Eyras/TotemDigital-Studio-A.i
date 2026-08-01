@@ -16,6 +16,10 @@ export class SubscriberAccessNotificationWorker {
    * Inicia o worker
    */
   start(): void {
+    if (this.cronJob30Days || this.cronJobExpired) {
+      logInfo('Subscriber Access Notification Worker já está em execução', {});
+      return;
+    }
     // Executar diariamente às 8h da manhã para verificar acessos expirando em múltiplos períodos (7, 15, 30 dias)
     this.cronJob30Days = cron.schedule('0 8 * * *', async () => {
       try {

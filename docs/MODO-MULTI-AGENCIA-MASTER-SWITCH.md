@@ -36,14 +36,14 @@ bash scripts/Instala-TotemDigital-Server.sh --modo atualizar --instancia dev --g
 
 ## Hardening entregue
 
-- Checklist de activação no painel (organização, totems, Redis, portal, restart)
+- Checklist de activação no painel (organização, totems, Redis, portal, workers)
 - 403 `MODULE_DISABLED` com mensagem a apontar para o Modo multi-agência
 - Gates: `/api/clients`, `/api/advanced-schedules`, `/api/playlist-engine`
-- Workers condicionados aos módulos no boot — ver `docs/ETAPA-E-MULTI-AGENCIA-WORKERS.md`
+- Workers condicionados aos módulos no boot — `docs/ETAPA-E-MULTI-AGENCIA-WORKERS.md`
+- Hot-reload de workers ao mudar o modo — `docs/ETAPA-F-MULTI-AGENCIA-HOT-RELOAD-WORKERS.md`
 
 ## Fora de escopo
 
 - DNS/portal one-click  
 - Seed automático de 2ª agência / anunciante demo  
-- Hot-reload de workers sem restart do processo  
 - Apagar dados ao desligar  

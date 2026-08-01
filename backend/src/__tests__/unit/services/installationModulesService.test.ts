@@ -1,5 +1,5 @@
 /**
- * Unit tests for multi-agency activation bootstrap + restart detection.
+ * Unit tests for multi-agency activation bootstrap + hot-reload workers.
  */
 import {
   ensureSystemOwnerPublisherIfEmpty,
@@ -9,15 +9,56 @@ import {
 
 jest.mock('../../../utils/loggerHelper', () => ({
   logError: jest.fn().mockResolvedValue(undefined),
+  logInfo: jest.fn().mockResolvedValue(undefined),
+  logWarn: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('../../../services/installationProfileService', () => ({
   resolveInstallationProfile: jest.fn().mockResolvedValue('single_publisher'),
+  resolveInstallationCapabilities: jest.fn().mockResolvedValue({
+    multiAgency: false,
+    bullExportQueues: false,
+    playlistMixWorker: false,
+    playlistEngineWorker: false,
+    alertCron: false,
+    stripeSubscriptions: false,
+    modules: {
+      multi_agency: false,
+      billing: false,
+      playlists_advanced: false,
+      subscribers: false,
+      dispatcher_admin: false,
+    },
+  }),
   resetInstallationProfileCache: jest.fn(),
 }));
 
 jest.mock('../../../services/totemSimpleModeService', () => ({
   resolveInstallationSimpleTotemMode: jest.fn().mockResolvedValue(true),
+}));
+
+jest.mock('../../../config/installationRuntime', () => ({
+  warmInstallationRuntime: jest.fn().mockResolvedValue('multi_agency'),
+}));
+
+jest.mock('../../../config/env', () => ({
+  config: { redis: { enabled: true } },
+}));
+
+jest.mock('../../../startup/operationalWorkersLifecycle', () => ({
+  reconcileWorkersFromCapabilities: jest.fn().mockResolvedValue({
+    ok: true,
+    changed: true,
+    applied: {
+      redisEnabled: true,
+      enableBullQueues: true,
+      enableBillingWorkers: true,
+      enablePlaylistMix: true,
+      enablePlaylistEngine: true,
+      enableAlertCron: true,
+      enableSubscriberAccessWorker: true,
+    },
+  }),
 }));
 
 function makeDb(opts?: {
@@ -26,8 +67,6 @@ function makeDb(opts?: {
   profile?: string;
 }) {
   const publisherCount = opts?.publisherCount ?? 1;
-  const modulesJson = opts?.modulesJson ?? '{}';
-  const profile = opts?.profile ?? 'single_publisher';
   const inserted: unknown[][] = [];
 
   return {
@@ -38,15 +77,6 @@ function makeDb(opts?: {
       }
       if (sql.includes('COUNT(*)') && sql.includes('totems')) {
         return { c: 0 };
-      }
-      if (sql.includes("setting_key = $1") || sql.includes("installation.modules")) {
-        if (sql.includes('installation.modules') || (arguments as any)) {
-          // handled below by params
-        }
-      }
-      if (sql.includes('system_settings')) {
-        // Called with params; we inspect in mockImplementation below
-        return null;
       }
       if (sql.includes('is_system_owner')) {
         return { publisher_id: 99 };
@@ -83,7 +113,7 @@ describe('ensureSystemOwnerPublisherIfEmpty', () => {
 });
 
 describe('setMultiAgencyMode', () => {
-  it('ao activar com publishers existentes não faz seed e pede restart', async () => {
+  it('ao activar com publishers existentes não faz seed e reconcilia workers', async () => {
     const db = makeDb({ publisherCount: 1 });
     // Module/profile lookups
     db.findFirst = jest.fn(async (sql: string, params?: unknown[]) => {
@@ -100,14 +130,15 @@ describe('setMultiAgencyMode', () => {
 
     const result = await setMultiAgencyMode(db as any, true, 1);
     expect(result.enabled).toBe(true);
-    expect(result.requiresBackendRestart).toBe(true);
     expect(result.modules.multi_agency).toBe(true);
     expect(result.modules.direct_totem_mode).toBe(false);
     expect(result.bootstrap?.created).toBe(false);
+    expect(result.workersReconciled).toBe(true);
+    expect(result.requiresBackendRestart).toBe(false);
     expect(db.executeRaw).toHaveBeenCalled();
   });
 
-  it('ao desactivar restaura Direct Totem e pede restart', async () => {
+  it('ao desactivar restaura Direct Totem e reconcilia workers', async () => {
     const db = makeDb({ publisherCount: 1 });
     db.findFirst = jest.fn(async (sql: string, params?: unknown[]) => {
       if (sql.includes('system_settings') && params?.[0] === 'installation.modules') {
@@ -138,12 +169,13 @@ describe('setMultiAgencyMode', () => {
     const result = await setMultiAgencyMode(db as any, false, 1);
     expect(result.enabled).toBe(false);
     expect(result.modules.direct_totem_mode).toBe(true);
-    expect(result.requiresBackendRestart).toBe(true);
+    expect(result.workersReconciled).toBe(true);
+    expect(result.requiresBackendRestart).toBe(false);
   });
 });
 
 describe('saveInstallationModules', () => {
-  it('devolve requiresBackendRestart quando billing muda', async () => {
+  it('devolve workersReconciled quando billing muda', async () => {
     const db = makeDb();
     db.findFirst = jest.fn(async (sql: string, params?: unknown[]) => {
       if (sql.includes('system_settings') && params?.[0] === 'installation.modules') {
@@ -171,7 +203,8 @@ describe('saveInstallationModules', () => {
 
     const result = await saveInstallationModules(db as any, { billing: true }, 1);
     expect(result.modules.billing).toBe(true);
-    expect(result.requiresBackendRestart).toBe(true);
+    expect(result.workersReconciled).toBe(true);
+    expect(result.requiresBackendRestart).toBe(false);
     expect(result.profile).toBe('multi_agency');
   });
 });

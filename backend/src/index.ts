@@ -13,7 +13,7 @@ import { apiLimiter, validatePayloadSize, sanitizeQueryParams, validateOrigin, p
 import { config } from './config/env';
 import { initializeDatabase, closeDatabase } from './config/database';
 import { initializeRedis, closeRedis, testRedisConnection } from './config/redis';
-import { closeExportQueue, closeAdvancedScheduleQueue } from './config/queue';
+import { stopOperationalWorkers } from './startup/operationalWorkersLifecycle';
 import { errorHandler } from './middleware/error.middleware';
 import { requestLogger } from './middleware/logger.middleware';
 import { responseFormatMiddleware } from './middleware/responseFormat.middleware';
@@ -679,18 +679,10 @@ async function gracefulShutdown(signal: string): Promise<void> {
   }
   
   try {
-    // Export queue
+    // Workers operacionais (Bull + crons) — antes de fechar Redis
     try {
-      await closeExportQueue();
-      await logInfo('Queue de exportação fechada');
-    } catch {
-      shutdownFailed = true;
-    }
-    
-    // Advanced schedule queue
-    try {
-      await closeAdvancedScheduleQueue();
-      await logInfo('Queue de agendamento avançado fechada');
+      await stopOperationalWorkers('Shutdown');
+      await logInfo('Workers operacionais parados');
     } catch {
       shutdownFailed = true;
     }
@@ -699,49 +691,6 @@ async function gracefulShutdown(signal: string): Promise<void> {
     try {
       await closeRedis();
       await logInfo('Redis desconectado');
-    } catch {
-      shutdownFailed = true;
-    }
-    
-    // Invoice Worker
-    try {
-      if ((global as any).invoiceWorker) {
-        (global as any).invoiceWorker.stop();
-        await logInfo('Invoice Worker parado');
-      }
-    } catch {
-      shutdownFailed = true;
-    }
-
-    try {
-      if ((global as any).financialBillingWorker) {
-        (global as any).financialBillingWorker.stop();
-        await logInfo('Financial Billing Worker parado');
-      }
-    } catch {
-      shutdownFailed = true;
-    }
-    
-    // Subscriber Access Notification Worker
-    try {
-      if ((global as any).subscriberAccessNotificationWorker) {
-        (global as any).subscriberAccessNotificationWorker.stop();
-        await logInfo('Subscriber Access Notification Worker parado');
-      }
-      if ((global as any).playlistEngineWorker) {
-        (global as any).playlistEngineWorker.stop();
-        await logInfo('Playlist Engine Worker parado');
-      }
-    } catch {
-      shutdownFailed = true;
-    }
-    
-    // Playlist Mix Worker
-    try {
-      if ((global as any).playlistMixWorker) {
-        (global as any).playlistMixWorker.stop();
-        await logInfo('Playlist Mix Worker parado');
-      }
     } catch {
       shutdownFailed = true;
     }

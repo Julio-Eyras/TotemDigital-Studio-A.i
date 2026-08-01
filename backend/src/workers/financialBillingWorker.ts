@@ -21,6 +21,10 @@ export class FinancialBillingWorker {
   }
 
   start(): void {
+    if (this.jobs.length > 0) {
+      logInfo('Financial Billing Worker já está em execução', {});
+      return;
+    }
     if (!financialConfig.workerEnabled) {
       logInfo('Financial Billing Worker desabilitado (FINANCIAL_WORKER_ENABLED=false)', {});
       return;

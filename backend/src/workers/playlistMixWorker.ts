@@ -17,6 +17,10 @@ export class PlaylistMixWorker {
    * Inicia o worker de regeneração automática
    */
   start(): void {
+    if (this.jobs.length > 0) {
+      logInfo('Playlist Mix Worker já está em execução', { service: 'playlist-mix-worker' });
+      return;
+    }
     logInfo('Iniciando Playlist Mix Worker...', { service: 'playlist-mix-worker' });
 
     // Regenerar mixagens a cada hora (no minuto 0)

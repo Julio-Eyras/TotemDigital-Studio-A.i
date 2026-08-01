@@ -364,13 +364,24 @@ async function processPlaylistSchedule(playlistId: number, config: any): Promise
 }
 
 // Registrar worker
+let advancedScheduleWorkerRegistered = false;
+
+export function resetAdvancedScheduleWorkerRegistration(): void {
+  advancedScheduleWorkerRegistered = false;
+}
+
 export function registerAdvancedScheduleWorker(): void {
+  if (advancedScheduleWorkerRegistered) {
+    logInfoSync('Worker de agendamento avançado já registado — ignorando', {});
+    return;
+  }
   const queue = getAdvancedScheduleQueue();
-  
+
   queue.process(async (job: Job<AdvancedScheduleJobData>) => {
     return await processAdvancedScheduleJob(job);
   });
 
+  advancedScheduleWorkerRegistered = true;
   logInfoSync('Worker de agendamento avançado registrado', {});
 }
 

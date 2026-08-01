@@ -115,8 +115,10 @@ router.put(
       res.json({
         success: true,
         message: result.requiresBackendRestart
-          ? 'Complementos guardados. Reinicie o backend para aplicar alterações em filas/workers; depois recarregue a aplicação.'
-          : 'Complementos guardados. O menu e a API passam a respeitar os módulos (recarregue a aplicação).',
+          ? 'Complementos guardados. Hot-reload de workers falhou — reinicie o backend; depois recarregue a aplicação.'
+          : result.workersReconciled
+            ? 'Complementos guardados. Workers aplicados em runtime; recarregue a aplicação para o menu.'
+            : 'Complementos guardados. O menu e a API passam a respeitar os módulos (recarregue a aplicação).',
         data: result,
       });
     } catch (error: any) {

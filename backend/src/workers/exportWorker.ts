@@ -469,13 +469,24 @@ async function executePrometheusQueryWrapper(query: string, databaseConfig: any)
 }
 
 // Registrar worker
+let exportWorkerRegistered = false;
+
+export function resetExportWorkerRegistration(): void {
+  exportWorkerRegistered = false;
+}
+
 export function registerExportWorker(): void {
+  if (exportWorkerRegistered) {
+    logInfoSync('Worker de exportação já registado — ignorando', {});
+    return;
+  }
   const queue = getExportQueue();
   
   queue.process(async (job: Job<ExportJobData>) => {
     return await processExportJob(job);
   });
 
+  exportWorkerRegistered = true;
   logInfoSync('Worker de exportação registrado', {});
 }
 

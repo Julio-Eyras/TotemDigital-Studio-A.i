@@ -168,7 +168,11 @@ const SystemModules: React.FC = () => {
       markRestartNeeded(needsRestart);
       if (needsRestart) {
         setSuccess(
-          `${result.message || 'Modo actualizado.'} A UI vai recarregar — reinicie também o serviço backend.`
+          `${result.message || 'Modo actualizado.'} Hot-reload falhou — reinicie o backend. A UI vai recarregar.`
+        );
+      } else if (result.workersReconciled) {
+        setSuccess(
+          `${result.message || 'Modo actualizado.'} Workers aplicados em runtime. A aplicar menu…`
         );
       } else {
         setSuccess(`${result.message || 'Modo actualizado.'} A aplicar…`);
@@ -204,8 +208,10 @@ const SystemModules: React.FC = () => {
       markRestartNeeded(needsRestart);
       setSuccess(
         needsRestart
-          ? 'Opções avançadas guardadas. Reinicie o backend para filas/workers; a UI vai recarregar.'
-          : 'Opções avançadas guardadas. A aplicar…'
+          ? 'Opções avançadas guardadas. Hot-reload falhou — reinicie o backend; a UI vai recarregar.'
+          : data?.workersReconciled
+            ? 'Opções avançadas guardadas. Workers aplicados em runtime. A aplicar menu…'
+            : 'Opções avançadas guardadas. A aplicar…'
       );
       window.setTimeout(() => {
         window.location.reload();
@@ -245,9 +251,9 @@ const SystemModules: React.FC = () => {
           sx={{ mb: 2 }}
           onClose={() => markRestartNeeded(false)}
         >
-          Reinício do backend necessário: filas Bull, billing e playlist mix/engine só mudam no
-          arranque do serviço (ex.: <code>systemctl restart</code> ou o script de update da
-          instância). Recarregar a UI não basta.
+          Reinício do backend necessário: o hot-reload de workers falhou. Reinicie o serviço
+          (ex.: <code>systemctl restart</code> ou o script de update da instância). Recarregar a
+          UI não basta.
         </Alert>
       )}
 
@@ -431,8 +437,9 @@ const SystemModules: React.FC = () => {
               </ListItem>
             ))}
           </List>
-          <Alert severity="warning" sx={{ mt: 1 }}>
-            Após confirmar, reinicie o backend para aplicar/parar workers (Bull, billing, playlists).
+          <Alert severity="info" sx={{ mt: 1 }}>
+            Workers (Bull, billing, playlists) tentam ligar/desligar em runtime. Só será preciso
+            reiniciar o backend se o hot-reload falhar.
           </Alert>
           {pendingEnabled && checklist.some((i) => !i.ok && i.severity === 'warning') && (
             <Alert severity="warning" sx={{ mt: 1 }}>
