@@ -1,18 +1,23 @@
 /**
- * Unit: initializeOperationalWorkers respects capability flags (Etapa E).
+ * Unit: initializeOperationalWorkers respects capability flags (Etapa E/F).
  */
-import { initializeOperationalWorkers } from '../../../startup/startupOperationalWorkers';
+import {
+  initializeOperationalWorkers,
+  resetOperationalWorkersStateForTests,
+} from '../../../startup/startupOperationalWorkers';
 
 const startInvoice = jest.fn();
 const startFinancial = jest.fn();
 const startSubscriber = jest.fn();
 const startEngine = jest.fn();
 const startMix = jest.fn();
-const cronSchedule = jest.fn();
+const cronSchedule = jest.fn(() => ({ stop: jest.fn() }));
 const initExport = jest.fn();
 const regExport = jest.fn();
 const initAdv = jest.fn();
 const regAdv = jest.fn();
+const closeExport = jest.fn().mockResolvedValue(undefined);
+const closeAdv = jest.fn().mockResolvedValue(undefined);
 const loadSchedules = jest.fn().mockResolvedValue(undefined);
 
 jest.mock('node-cron', () => ({
@@ -23,14 +28,18 @@ jest.mock('node-cron', () => ({
 jest.mock('../../../config/queue', () => ({
   initializeExportQueue: () => initExport(),
   initializeAdvancedScheduleQueue: () => initAdv(),
+  closeExportQueue: () => closeExport(),
+  closeAdvancedScheduleQueue: () => closeAdv(),
 }));
 
 jest.mock('../../../workers/exportWorker', () => ({
   registerExportWorker: () => regExport(),
+  resetExportWorkerRegistration: jest.fn(),
 }));
 
 jest.mock('../../../workers/advancedScheduleWorker', () => ({
   registerAdvancedScheduleWorker: () => regAdv(),
+  resetAdvancedScheduleWorkerRegistration: jest.fn(),
 }));
 
 jest.mock('../../../services/exportScheduleService', () => ({
@@ -40,25 +49,29 @@ jest.mock('../../../services/exportScheduleService', () => ({
 }));
 
 jest.mock('../../../workers/invoiceWorker', () => ({
-  InvoiceWorker: jest.fn().mockImplementation(() => ({ start: startInvoice })),
+  InvoiceWorker: jest.fn().mockImplementation(() => ({ start: startInvoice, stop: jest.fn() })),
 }));
 
 jest.mock('../../../workers/financialBillingWorker', () => ({
-  FinancialBillingWorker: jest.fn().mockImplementation(() => ({ start: startFinancial })),
+  FinancialBillingWorker: jest.fn().mockImplementation(() => ({
+    start: startFinancial,
+    stop: jest.fn(),
+  })),
 }));
 
 jest.mock('../../../workers/subscriberAccessNotificationWorker', () => ({
   SubscriberAccessNotificationWorker: jest.fn().mockImplementation(() => ({
     start: startSubscriber,
+    stop: jest.fn(),
   })),
 }));
 
 jest.mock('../../../workers/playlistEngineWorker', () => ({
-  getPlaylistEngineWorkerInstance: () => ({ start: startEngine }),
+  getPlaylistEngineWorkerInstance: () => ({ start: startEngine, stop: jest.fn() }),
 }));
 
 jest.mock('../../../workers/playlistMixWorker', () => ({
-  getPlaylistMixWorker: () => ({ start: startMix }),
+  getPlaylistMixWorker: () => ({ start: startMix, stop: jest.fn() }),
 }));
 
 jest.mock('../../../services/alertService', () => ({
@@ -74,6 +87,7 @@ jest.mock('../../../utils/loggerHelper', () => ({
 describe('initializeOperationalWorkers', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    resetOperationalWorkersStateForTests();
   });
 
   it('núcleo: sem Bull, billing, playlists nem alertas', async () => {
@@ -120,5 +134,33 @@ describe('initializeOperationalWorkers', () => {
     expect(startEngine).toHaveBeenCalled();
     expect(startMix).toHaveBeenCalled();
     expect(cronSchedule).toHaveBeenCalled();
+  });
+
+  it('hot-reload: desligar Bull fecha filas sem reiniciar processo', async () => {
+    await initializeOperationalWorkers({
+      redisEnabled: true,
+      enableBullQueues: true,
+      enableBillingWorkers: true,
+      enablePlaylistMix: false,
+      enablePlaylistEngine: false,
+      enableAlertCron: false,
+      enableSubscriberAccessWorker: false,
+      logLabel: 'test',
+    });
+    expect(initExport).toHaveBeenCalled();
+
+    await initializeOperationalWorkers({
+      redisEnabled: true,
+      enableBullQueues: false,
+      enableBillingWorkers: false,
+      enablePlaylistMix: false,
+      enablePlaylistEngine: false,
+      enableAlertCron: false,
+      enableSubscriberAccessWorker: false,
+      logLabel: 'test',
+    });
+
+    expect(closeExport).toHaveBeenCalled();
+    expect(closeAdv).toHaveBeenCalled();
   });
 });
