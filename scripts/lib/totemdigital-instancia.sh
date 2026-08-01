@@ -276,13 +276,22 @@ tdi_ensure_clone() {
   fi
   remote="${remote:-https://github.com/Julio-Eyras/TotemDigital-Studio.git}"
 
-  log "A clonar repositório para ${TDI_CLONE_DIR} ..."
+  local branch="${TDI_GIT_BRANCH:-}"
+  if [[ -z "$branch" ]] && [[ -d "${ROOT:-}/.git" ]]; then
+    branch="$(git -C "${ROOT}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  fi
+  # Evitar detached HEAD / nomes inválidos
+  if [[ -z "$branch" || "$branch" == "HEAD" ]]; then
+    branch="TotemDigital-MultiAgencia"
+  fi
+
+  log "A clonar repositório (${branch}) para ${TDI_CLONE_DIR} ..."
   if [[ "$DRY_RUN" == "true" ]]; then
     warn "Dry-run: git clone não executado."
     return 0
   fi
-  git clone --branch SmartSignage-direc-totem "$remote" "$TDI_CLONE_DIR"
-  ok "Clone criado."
+  git clone --branch "$branch" "$remote" "$TDI_CLONE_DIR"
+  ok "Clone criado (branch ${branch})."
 }
 
 tdi_ensure_deploy_dirs() {

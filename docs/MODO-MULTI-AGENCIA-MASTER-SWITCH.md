@@ -65,9 +65,12 @@ bash scripts/Instala-TotemDigital-Server.sh --modo atualizar --instancia dev --g
 
 ## Operacional restante (VPS)
 
+Guia passo a passo: **`docs/VPS-DEV-DO-ZERO-MULTI-AGENCIA.md`**
+
 1. `git pull` + update com seeds `portal.*`
 2. Complementos → Portal: domínio, Cloudflare zone/IP, SSL email
 3. Env: `CLOUDFLARE_API_TOKEN=…`
 4. Sync Nginx: `sudo PORTAL_NGINX_SITE=/etc/nginx/sites-available/… bash scripts/sync-portal-hosts.sh`
 5. Cert wildcard: `sudo bash scripts/issue-portal-wildcard-cert.sh --base-domain … --email …`  
-   (re-render da instância passa a preferir `portal-wildcard-*` automaticamente)
+
+Purge explícito (desenho): `docs/DESENHO-PURGE-DADOS-COMERCIAIS.md`
