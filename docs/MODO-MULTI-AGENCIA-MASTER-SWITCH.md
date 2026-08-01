@@ -45,6 +45,7 @@ bash scripts/Instala-TotemDigital-Server.sh --modo atualizar --instancia dev --g
 ## Fora de escopo
 
 - ~~DNS/portal one-click~~ → Fase 1 em `docs/PORTAL-DNS-NGINX-PARAMETRIZAVEL.md`  
-- Seed automático de 2ª agência / anunciante demo  
+- Seed automático de 2ª agência / anunciante demo → **entregue** (`ensureDemoSecondAgencyIfNeeded`, `portal.seed_second_agency`)
+- Portal Cloudflare DNS + LE wildcard DNS-01 → ver `docs/PORTAL-DNS-NGINX-PARAMETRIZAVEL.md`  
 - Apagar dados ao desligar  
 - Emissão automática de cert wildcard / API DNS do provedor  

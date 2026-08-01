@@ -1,7 +1,7 @@
 # Portal DNS/Nginx parametrizável por organização e anunciante
 
 **Branch:** `TotemDigital-MultiAgencia`  
-**Estado:** Fase 1 entregue (slug + settings + sync + Nginx wildcard)
+**Estado:** Fase 2 entregue (Cloudflare DNS + LE wildcard DNS-01 + seed 2ª agência + isolamento JWT)
 
 ## Modelo de hosts
 
@@ -15,15 +15,19 @@
 ## O que foi entregue
 
 1. Colunas `portal_slug` em `publishers` e `subscribers` (schema part2 + índices únicos)
-2. Settings: `portal.base_domain`, `portal.dns_mode` (`off` \| `public_wildcard` \| `local_dnsmasq`), `portal.sync_enabled`
+2. Settings: `portal.base_domain`, `portal.dns_mode`, `portal.sync_enabled`, `portal.dns_provider`, `portal.cloudflare_zone_id`, `portal.dns_target_ipv4`, `portal.ssl_*`, `portal.seed_second_agency`
 3. API:
    - `GET/PUT /api/installation/portal`
-   - `POST /api/installation/portal/sync` → gera snippets em `runtime/portal-hosts/`
-4. Script: `scripts/sync-portal-hosts.sh` (copia para `/etc/nginx/snippets` e dnsmasq)
-5. Template multi-instância com wildcards + headers `X-Subdomain-Type` / `X-Tenant-Slug`
-6. Middleware e frontend detectam `{slug}.publisher|subscriber.…`
-7. UI: Complementos → **Portal DNS / Nginx**; formulários de organização/anunciante com campo slug
-8. Isolamento JWT ↔ `tenantSlug`: resolve slug→id no host; 403 `TENANT_HOST_MISMATCH` se o token não for do tenant (bypass só `owner_system`)
+   - `POST /api/installation/portal/sync` (opcional Cloudflare dry-run)
+   - `POST /api/installation/portal/dns/cloudflare`
+   - `POST /api/installation/portal/ssl/issue` (**dryRun=true por defeito**)
+   - `POST /api/installation/portal/seed-second-agency`
+4. Scripts:
+   - `scripts/sync-portal-hosts.sh` (`--sim` sem root)
+   - `scripts/issue-portal-wildcard-cert.sh` (`--sim` / DNS-01 Cloudflare)
+   - `scripts/sim-portal-pipeline.mjs` (teste local sem VPS)
+5. Isolamento JWT ↔ `tenantSlug` (403 `TENANT_HOST_MISMATCH`; bypass `owner_system`)
+6. Seed 2ª agência + anunciante demo ao activar multi-agência (se só existir 1 org)
 
 ## Como activar (VPS)
 
@@ -34,20 +38,25 @@ bash scripts/Instala-TotemDigital-Server.sh --modo atualizar --instancia dev --g
 ```
 
 1. Complementos → Portal DNS: domínio base + modo `public_wildcard`
-2. Em organização/anunciante: definir `portal_slug` (ex. `rede-x`, `loja-abc`)
-3. **Gerar / sync Nginx+DNS** (ou `sudo bash scripts/sync-portal-hosts.sh`)
-4. DNS público: `*.publisher.BASE` e `*.subscriber.BASE` → IP do VPS  
-5. Certificado HTTPS: wildcard (DNS-01) recomendado para HTTPS nos subdomínios
+2. Provedor `cloudflare` + Zone ID + IPv4 do VPS; token **só** em env: `CLOUDFLARE_API_TOKEN` / `PORTAL_CLOUDFLARE_API_TOKEN`
+3. Em organização/anunciante: definir `portal_slug`
+4. **Gerar / sync** (UI ou API); no VPS: `sudo bash scripts/sync-portal-hosts.sh`
+5. SSL: `POST .../portal/ssl/issue` com `{ "dryRun": false }` **ou**  
+   `sudo bash scripts/issue-portal-wildcard-cert.sh --base-domain BASE --email ops@…`
+
+### Teste simulado (local, sem root)
+
+```bash
+node scripts/sim-portal-pipeline.mjs
+# opcional (Git Bash / WSL):
+bash scripts/issue-portal-wildcard-cert.sh --sim --base-domain sim.test --email ops@sim.test
+bash scripts/sync-portal-hosts.sh --sim runtime/portal-pipeline-sim/portal-hosts
+```
 
 ### Sync automático (opcional)
 
 - Ligar `portal.sync_enabled` **só** com sudoers estreito, ex.:
   `smartsignage ALL=(root) NOPASSWD: /opt/.../scripts/sync-portal-hosts.sh`
-
-## Ainda não coberto
-
-- Emissão automática de certificados LE wildcard
-- Integração API do provedor DNS (Cloudflare/etc.) one-click remoto
 
 ## Isolamento JWT ↔ tenantSlug
 
@@ -55,8 +64,13 @@ Quando o host é `{slug}.publisher|subscriber.BASE`:
 
 1. `detectSubdomain` resolve `portal_slug` → `req.portalTenant` (404 `UNKNOWN_TENANT_SLUG` se inexistente)
 2. Após autenticação, `enforcePortalTenantAccess` exige JWT alinhado ao tenant
-   - publisher: `user.publisherId === portalTenant.publisherId`
-   - subscriber/client: `user.subscriberId` (ou `clientId`) === `portalTenant.subscriberId`
-   - bypass: apenas `owner_system`
-3. Listagens `GET /api/publishers` e `GET /api/subscribers` no host tenant devolvem só o registo do slug
-4. `resolveTenantScope` (dashboard/analytics) respeita `portalTenant`
+3. Listagens no host tenant devolvem só o registo do slug
+4. `resolveTenantScope` respeita `portalTenant`
+
+## Seed 2ª agência
+
+Ao activar multi-agência (`portal.seed_second_agency=true`, default):
+
+1. Se BD vazia → cria org owner (`portal_slug=org-owner`)
+2. Se exactamente 1 org → cria `Agência Demo 2` (`agencia-demo-2`) + `Anunciante Demo` (`anunciante-demo`)
+3. Idempotente: não duplica se já existirem ≥2 orgs ou slug ocupado

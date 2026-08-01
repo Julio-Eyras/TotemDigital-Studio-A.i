@@ -1,7 +1,9 @@
 #!/bin/bash
 # =============================================================================
 # Aplica snippets de portal gerados pelo backend (portalHostService.syncPortalHosts)
-# Uso: sudo bash scripts/sync-portal-hosts.sh [runtime_dir]
+# Uso:
+#   sudo bash scripts/sync-portal-hosts.sh [runtime_dir]
+#   bash scripts/sync-portal-hosts.sh --sim [runtime_dir]   # sem root / sem nginx
 # Default runtime_dir: <repo>/runtime/portal-hosts  ou  $PORTAL_HOSTS_RUNTIME_DIR
 # =============================================================================
 set -euo pipefail
@@ -11,17 +13,47 @@ log() { echo -e "${GREEN}[OK]${NC} $1"; }
 warn() { echo -e "${YELLOW}[AVISO]${NC} $1"; }
 err() { echo -e "${RED}[ERRO]${NC} $1"; }
 
-if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
-  err "Execute como root (sudo)"
-  exit 1
-fi
+SIM=0
+ARGS=()
+for a in "$@"; do
+  case "$a" in
+    --sim|--dry-run) SIM=1 ;;
+    *) ARGS+=("$a") ;;
+  esac
+done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-RUNTIME_DIR="${1:-${PORTAL_HOSTS_RUNTIME_DIR:-$REPO_ROOT/runtime/portal-hosts}}"
+RUNTIME_DIR="${ARGS[0]:-${PORTAL_HOSTS_RUNTIME_DIR:-$REPO_ROOT/runtime/portal-hosts}}"
 
 NGINX_SRC="$RUNTIME_DIR/totemdigital-portal-tenants.conf"
 DNS_SRC="$RUNTIME_DIR/totemdigital-portal-tenants.dnsmasq"
+
+if [[ "$SIM" -eq 1 ]]; then
+  SIM_OUT="${PORTAL_SYNC_SIM_DIR:-$REPO_ROOT/runtime/portal-hosts-sim}"
+  mkdir -p "$SIM_OUT"
+  if [[ ! -f "$NGINX_SRC" ]]; then
+    err "Snippet Nginx não encontrado: $NGINX_SRC"
+    err "Gere primeiro via API POST /api/installation/portal/sync (ou o sim-portal-pipeline)"
+    exit 1
+  fi
+  cp -f "$NGINX_SRC" "$SIM_OUT/totemdigital-portal-tenants.conf"
+  [[ -f "$DNS_SRC" ]] && cp -f "$DNS_SRC" "$SIM_OUT/totemdigital-portal-tenants.dnsmasq" || true
+  [[ -f "$RUNTIME_DIR/manifest.json" ]] && cp -f "$RUNTIME_DIR/manifest.json" "$SIM_OUT/manifest.json" || true
+  {
+    echo "SIMULAÇÃO sync-portal-hosts — nginx/dnsmasq NÃO recarregados"
+    echo "source=$RUNTIME_DIR"
+    echo "dest=$SIM_OUT"
+    date -Iseconds 2>/dev/null || date
+  } > "$SIM_OUT/SIM.txt"
+  log "Simulação: ficheiros copiados para $SIM_OUT (sem root)"
+  exit 0
+fi
+
+if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
+  err "Execute como root (sudo) ou use --sim"
+  exit 1
+fi
 
 NGINX_DST="${PORTAL_NGINX_SNIPPET:-/etc/nginx/snippets/totemdigital-portal-tenants.conf}"
 DNS_DST="${PORTAL_DNSMASQ_CONF:-/etc/dnsmasq.d/totemdigital-portal-tenants.conf}"
@@ -36,7 +68,6 @@ mkdir -p "$(dirname "$NGINX_DST")"
 cp -f "$NGINX_SRC" "$NGINX_DST"
 log "Nginx snippet → $NGINX_DST"
 
-# Garantir include no conf da instância se existir marcador
 INST_NGINX="${PORTAL_NGINX_SITE:-}"
 if [[ -n "$INST_NGINX" && -f "$INST_NGINX" ]]; then
   if ! grep -q "totemdigital-portal-tenants.conf" "$INST_NGINX"; then

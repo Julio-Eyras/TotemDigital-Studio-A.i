@@ -13,7 +13,11 @@ import {
   savePortalSettings,
   listPortalHosts,
   syncPortalHosts,
+  syncPortalCloudflareDns,
+  issuePortalSsl,
 } from '../services/portalHostService';
+import { ensureDemoSecondAgencyIfNeeded } from '../services/installationModulesService';
+import { buildPortalWildcardSslPlan } from '../services/portalSslService';
 import { logError } from '../utils/loggerHelper';
 import { createDatabaseWrapper } from '../config/database-pg';
 
@@ -50,6 +54,12 @@ router.get(
         data: {
           settings,
           hosts,
+          sslPlan: settings.baseDomain
+            ? buildPortalWildcardSslPlan({
+                baseDomain: settings.baseDomain,
+                email: settings.sslEmail,
+              })
+            : null,
           patterns: {
             publisherTenant: settings.baseDomain
               ? `{slug}.publisher.${settings.baseDomain}`
@@ -71,7 +81,7 @@ router.get(
 
 /**
  * @route PUT /api/installation/portal
- * @desc Actualiza portal.base_domain / dns_mode / sync_enabled
+ * @desc Actualiza portal.* (domínio, DNS, Cloudflare zone, SSL, seed)
  */
 router.put(
   '/portal',
@@ -79,6 +89,12 @@ router.put(
   body('baseDomain').optional().isString(),
   body('dnsMode').optional().isIn(['off', 'public_wildcard', 'local_dnsmasq']),
   body('syncEnabled').optional().isBoolean(),
+  body('dnsProvider').optional().isIn(['off', 'manual', 'cloudflare']),
+  body('cloudflareZoneId').optional().isString(),
+  body('dnsTargetIpv4').optional().isString(),
+  body('sslWildcardEnabled').optional().isBoolean(),
+  body('sslEmail').optional().isString(),
+  body('seedSecondAgency').optional().isBoolean(),
   validateRequest,
   async (req: any, res: any) => {
     try {
@@ -87,6 +103,12 @@ router.put(
         baseDomain: req.body.baseDomain,
         dnsMode: req.body.dnsMode,
         syncEnabled: req.body.syncEnabled,
+        dnsProvider: req.body.dnsProvider,
+        cloudflareZoneId: req.body.cloudflareZoneId,
+        dnsTargetIpv4: req.body.dnsTargetIpv4,
+        sslWildcardEnabled: req.body.sslWildcardEnabled,
+        sslEmail: req.body.sslEmail,
+        seedSecondAgency: req.body.seedSecondAgency,
       });
       res.json({
         success: true,
@@ -103,15 +125,21 @@ router.put(
 
 /**
  * @route POST /api/installation/portal/sync
- * @desc Gera snippets Nginx/dnsmasq e opcionalmente aplica via script
+ * @desc Gera snippets Nginx/dnsmasq e opcionalmente Cloudflare + script local
  */
 router.post(
   '/portal/sync',
   authorizeRole(['owner_system', 'admin_sql']),
-  async (_req: any, res: any) => {
+  body('dryRunDns').optional().isBoolean(),
+  body('applyCloudflare').optional().isBoolean(),
+  validateRequest,
+  async (req: any, res: any) => {
     try {
       const db = createDatabaseWrapper();
-      const result = await syncPortalHosts(db);
+      const result = await syncPortalHosts(db, {
+        dryRunDns: req.body?.dryRunDns,
+        applyCloudflare: req.body?.applyCloudflare,
+      });
       res.status(result.ok ? 200 : 500).json({
         success: result.ok,
         message: result.message,
@@ -120,6 +148,84 @@ router.post(
     } catch (error: any) {
       await logError('Erro ao sincronizar portal hosts', error);
       res.status(500).json({ success: false, error: error.message || 'Erro no sync de portal' });
+    }
+  }
+);
+
+/**
+ * @route POST /api/installation/portal/dns/cloudflare
+ * @desc Sync DNS wildcards na Cloudflare (dryRun por defeito se sem token)
+ */
+router.post(
+  '/portal/dns/cloudflare',
+  authorizeRole(['owner_system', 'admin_sql']),
+  body('dryRun').optional().isBoolean(),
+  validateRequest,
+  async (req: any, res: any) => {
+    try {
+      const db = createDatabaseWrapper();
+      const dryRun =
+        req.body?.dryRun === true ||
+        process.env.PORTAL_DNS_DRY_RUN === 'true';
+      const result = await syncPortalCloudflareDns(db, { dryRun });
+      res.status(result.ok ? 200 : 400).json({
+        success: result.ok,
+        message: result.message,
+        data: result,
+      });
+    } catch (error: any) {
+      await logError('Erro Cloudflare portal DNS', error);
+      res.status(500).json({ success: false, error: error.message || 'Erro Cloudflare' });
+    }
+  }
+);
+
+/**
+ * @route POST /api/installation/portal/ssl/issue
+ * @desc Emite ou simula LE wildcard DNS-01
+ */
+router.post(
+  '/portal/ssl/issue',
+  authorizeRole(['owner_system', 'admin_sql']),
+  body('dryRun').optional().isBoolean(),
+  validateRequest,
+  async (req: any, res: any) => {
+    try {
+      const db = createDatabaseWrapper();
+      // Por segurança: dryRun=true por defeito; dryRun=false explícito para emissão real
+      const dryRun = req.body?.dryRun !== false;
+      const result = await issuePortalSsl(db, { dryRun });
+      res.status(result.ok ? 200 : 400).json({
+        success: result.ok,
+        message: result.message,
+        data: result,
+      });
+    } catch (error: any) {
+      await logError('Erro ao emitir SSL portal', error);
+      res.status(500).json({ success: false, error: error.message || 'Erro SSL portal' });
+    }
+  }
+);
+
+/**
+ * @route POST /api/installation/portal/seed-second-agency
+ * @desc Cria 2ª agência + anunciante demo (idempotente)
+ */
+router.post(
+  '/portal/seed-second-agency',
+  authorizeRole(['owner_system', 'admin_sql']),
+  async (_req: any, res: any) => {
+    try {
+      const db = createDatabaseWrapper();
+      const result = await ensureDemoSecondAgencyIfNeeded(db);
+      res.json({
+        success: true,
+        message: result.detail,
+        data: result,
+      });
+    } catch (error: any) {
+      await logError('Erro seed 2ª agência', error);
+      res.status(500).json({ success: false, error: error.message || 'Erro no seed' });
     }
   }
 );

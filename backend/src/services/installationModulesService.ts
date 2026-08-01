@@ -268,10 +268,10 @@ export async function ensureSystemOwnerPublisherIfEmpty(db: DbLike): Promise<{
       `
       INSERT INTO publishers (
         name, contact_name, email, category_segment, description,
-        is_subscriber, is_publisher, client_type, is_active, is_system_owner
+        is_subscriber, is_publisher, client_type, is_active, is_system_owner, portal_slug
       ) VALUES (
         $1, $2, $3, 'Totens', 'Organização owner criada ao activar multi-agência (instalação vazia)',
-        false, true, 'publisher', true, true
+        false, true, 'publisher', true, true, 'org-owner'
       )
     `,
       [name, `Contato ${name}`, email]
@@ -292,6 +292,143 @@ export async function ensureSystemOwnerPublisherIfEmpty(db: DbLike): Promise<{
 }
 
 /**
+ * Com multi-agência ON e exactamente 1 org (owner): cria 2ª agência + anunciante demo
+ * (idempotente — não duplica se já existirem ≥2 publishers ou slug ocupado).
+ */
+export async function ensureDemoSecondAgencyIfNeeded(db: DbLike): Promise<{
+  created: boolean;
+  publisherId?: number;
+  subscriberId?: number;
+  detail: string;
+}> {
+  try {
+    const seedFlag = await db.findFirst(
+      `SELECT setting_value FROM system_settings WHERE setting_key = $1 LIMIT 1`,
+      ['portal.seed_second_agency']
+    );
+    const flagRaw = String(seedFlag?.setting_value ?? 'true').toLowerCase();
+    if (flagRaw === 'false' || flagRaw === '0') {
+      return { created: false, detail: 'portal.seed_second_agency=false — seed 2ª agência desligado.' };
+    }
+  } catch {
+    /* default true */
+  }
+
+  let count = 0;
+  try {
+    const row = await db.findFirst(
+      `SELECT COUNT(*)::int AS c FROM publishers WHERE COALESCE(is_active, true) = true`
+    );
+    count = Number(row?.c ?? 0);
+  } catch {
+    return { created: false, detail: 'Não foi possível contar publishers.' };
+  }
+
+  if (count === 0) {
+    return { created: false, detail: 'Sem organização owner — seed 2ª agência adiado.' };
+  }
+  if (count >= 2) {
+    return {
+      created: false,
+      detail: `${count} organizações activas — 2ª agência demo não necessária.`,
+    };
+  }
+
+  if (!db.executeRaw) {
+    return { created: false, detail: 'Base sem escrita — seed 2ª agência ignorado.' };
+  }
+
+  const agencyName = (process.env.DEMO_SECOND_AGENCY_NAME || 'Agência Demo 2').trim();
+  const agencySlug = (process.env.DEMO_SECOND_AGENCY_SLUG || 'agencia-demo-2').trim().toLowerCase();
+  const agencyEmail =
+    (process.env.DEMO_SECOND_AGENCY_EMAIL || 'agencia2@totemdigital.local').trim().toLowerCase();
+  const subName = (process.env.DEMO_SUBSCRIBER_NAME || 'Anunciante Demo').trim();
+  const subSlug = (process.env.DEMO_SUBSCRIBER_SLUG || 'anunciante-demo').trim().toLowerCase();
+  const subEmail =
+    (process.env.DEMO_SUBSCRIBER_EMAIL || 'anunciante@totemdigital.local').trim().toLowerCase();
+
+  try {
+    const slugTaken = await db.findFirst(
+      `
+      SELECT publisher_id FROM publishers WHERE portal_slug = $1
+      UNION ALL
+      SELECT subscriber_id FROM subscribers WHERE portal_slug = $1
+      LIMIT 1
+    `,
+      [agencySlug]
+    );
+    if (slugTaken) {
+      return {
+        created: false,
+        detail: `Slug «${agencySlug}» já em uso — seed 2ª agência ignorado.`,
+      };
+    }
+
+    await db.executeRaw(
+      `
+      INSERT INTO publishers (
+        name, contact_name, email, category_segment, description,
+        is_subscriber, is_publisher, client_type, is_active, is_system_owner, portal_slug
+      ) VALUES (
+        $1, $2, $3, 'Agências', 'Segunda organização demo (multi-agência)',
+        false, true, 'publisher', true, false, $4
+      )
+    `,
+      [agencyName, `Contato ${agencyName}`, agencyEmail, agencySlug]
+    );
+
+    const pub = await db.findFirst(
+      `SELECT publisher_id FROM publishers WHERE portal_slug = $1 LIMIT 1`,
+      [agencySlug]
+    );
+    const publisherId = pub?.publisher_id ? Number(pub.publisher_id) : undefined;
+
+    let subscriberId: number | undefined;
+    try {
+      const subExists = await db.findFirst(
+        `SELECT subscriber_id FROM subscribers WHERE portal_slug = $1 OR email = $2 LIMIT 1`,
+        [subSlug, subEmail]
+      );
+      if (!subExists) {
+        await db.executeRaw(
+          `
+          INSERT INTO subscribers (
+            name, contact_name, email, category_segment, description,
+            portal_slug, is_active, created_at, updated_at
+          ) VALUES (
+            $1, $2, $3, 'Demo', 'Anunciante demo criado com a 2ª agência',
+            $4, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+          )
+        `,
+          [subName, `Contato ${subName}`, subEmail, subSlug]
+        );
+        const sub = await db.findFirst(
+          `SELECT subscriber_id FROM subscribers WHERE portal_slug = $1 LIMIT 1`,
+          [subSlug]
+        );
+        subscriberId = sub?.subscriber_id ? Number(sub.subscriber_id) : undefined;
+      } else {
+        subscriberId = Number(subExists.subscriber_id);
+      }
+    } catch (subErr) {
+      await logError('Seed anunciante demo falhou (agência já criada)', subErr);
+    }
+
+    return {
+      created: true,
+      publisherId,
+      subscriberId,
+      detail: `2ª agência «${agencyName}» (slug=${agencySlug}, id=${publisherId ?? '?'})${
+        subscriberId ? ` + anunciante demo id=${subscriberId}` : ''
+      }.`,
+    };
+  } catch (error) {
+    await logError('Falha ao criar 2ª agência demo', error);
+    return { created: false, detail: 'Falha ao criar 2ª agência demo — crie manualmente.' };
+  }
+}
+
+/**
  * Master switch: aplica preset atómico e sincroniza installation.profile.
  * Não apaga dados — apenas esconde superfícies (menu/API).
  */
@@ -306,7 +443,17 @@ export async function setMultiAgencyMode(
   requiresBackendRestart: boolean;
   workersReconciled: boolean;
   workersReconcileError?: string;
-  bootstrap?: { created: boolean; publisherId?: number; detail: string };
+  bootstrap?: {
+    created: boolean;
+    publisherId?: number;
+    detail: string;
+  };
+  secondAgency?: {
+    created: boolean;
+    publisherId?: number;
+    subscriberId?: number;
+    detail: string;
+  };
   message: string;
 }> {
   if (!db.executeRaw) {
@@ -329,8 +476,12 @@ export async function setMultiAgencyMode(
   resetInstallationProfileCache();
 
   let bootstrap: { created: boolean; publisherId?: number; detail: string } | undefined;
+  let secondAgency:
+    | { created: boolean; publisherId?: number; subscriberId?: number; detail: string }
+    | undefined;
   if (enabled) {
     bootstrap = await ensureSystemOwnerPublisherIfEmpty(db);
+    secondAgency = await ensureDemoSecondAgencyIfNeeded(db);
   }
 
   const workersTouch = workersAffectingModulesChanged(previous, modules);
@@ -349,6 +500,12 @@ export async function setMultiAgencyMode(
     bootstrap?.created === true
       ? ` ${bootstrap.detail}`
       : '';
+  const secondHint =
+    secondAgency?.created === true
+      ? ` ${secondAgency.detail}`
+      : secondAgency?.detail
+        ? ` (${secondAgency.detail})`
+        : '';
 
   const workersHint = workersTouch
     ? workersReconciled
@@ -364,8 +521,9 @@ export async function setMultiAgencyMode(
     workersReconciled,
     workersReconcileError,
     bootstrap,
+    secondAgency,
     message: enabled
-      ? `Modo multi-agência activado. Dados anteriores (se existirem) permanecem; o menu/API comerciais ficam disponíveis.${bootstrapHint}${workersHint}`
+      ? `Modo multi-agência activado. Dados anteriores (se existirem) permanecem; o menu/API comerciais ficam disponíveis.${bootstrapHint}${secondHint}${workersHint}`
       : `Modo multi-agência desactivado. Dados comerciais não foram apagados — ficam inacessíveis até voltar a activar. Direct Totem voltou a ser o modo de operação.${workersHint}`,
   };
 }

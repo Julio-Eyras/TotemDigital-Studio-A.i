@@ -526,6 +526,78 @@ VALUES
     'false',
     '^(true|false)$',
     '["true","false"]'
+  ),
+  (
+    'portal.dns_provider',
+    'off',
+    'string',
+    'portal',
+    'Provedor DNS: off | manual | cloudflare (token só via env CLOUDFLARE_API_TOKEN).',
+    false,
+    true,
+    'off',
+    '^(off|manual|cloudflare)$',
+    '["off","manual","cloudflare"]'
+  ),
+  (
+    'portal.cloudflare_zone_id',
+    '',
+    'string',
+    'portal',
+    'Cloudflare Zone ID para sync de wildcards.',
+    false,
+    true,
+    '',
+    NULL,
+    NULL
+  ),
+  (
+    'portal.dns_target_ipv4',
+    '',
+    'string',
+    'portal',
+    'IPv4 alvo dos registos A wildcard do portal.',
+    false,
+    true,
+    '',
+    NULL,
+    NULL
+  ),
+  (
+    'portal.ssl_wildcard_enabled',
+    'false',
+    'boolean',
+    'portal',
+    'Permite emitir/planear LE wildcard DNS-01 para *.publisher / *.subscriber.',
+    false,
+    true,
+    'false',
+    '^(true|false)$',
+    '["true","false"]'
+  ),
+  (
+    'portal.ssl_email',
+    '',
+    'string',
+    'portal',
+    'Email Let''s Encrypt para certificado wildcard do portal.',
+    false,
+    true,
+    '',
+    NULL,
+    NULL
+  ),
+  (
+    'portal.seed_second_agency',
+    'true',
+    'boolean',
+    'portal',
+    'Ao activar multi-agência com 1 org, cria 2ª agência + anunciante demo.',
+    false,
+    true,
+    'true',
+    '^(true|false)$',
+    '["true","false"]'
   )
 ON CONFLICT (setting_key) DO UPDATE SET
   description = EXCLUDED.description,

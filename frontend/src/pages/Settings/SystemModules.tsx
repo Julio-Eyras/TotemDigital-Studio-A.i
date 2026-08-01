@@ -100,6 +100,13 @@ const SystemModules: React.FC = () => {
     'off'
   );
   const [portalSyncEnabled, setPortalSyncEnabled] = useState(false);
+  const [portalDnsProvider, setPortalDnsProvider] = useState<'off' | 'manual' | 'cloudflare'>('off');
+  const [portalCfZoneId, setPortalCfZoneId] = useState('');
+  const [portalDnsIpv4, setPortalDnsIpv4] = useState('');
+  const [portalSslEnabled, setPortalSslEnabled] = useState(false);
+  const [portalSslEmail, setPortalSslEmail] = useState('');
+  const [portalSeedSecond, setPortalSeedSecond] = useState(true);
+  const [portalTokenConfigured, setPortalTokenConfigured] = useState(false);
   const [portalHosts, setPortalHosts] = useState<
     Array<{ role: string; slug: string; host: string; name: string }>
   >([]);
@@ -136,6 +143,13 @@ const SystemModules: React.FC = () => {
         setPortalBaseDomain(portal?.settings?.baseDomain || '');
         setPortalDnsMode(portal?.settings?.dnsMode || 'off');
         setPortalSyncEnabled(Boolean(portal?.settings?.syncEnabled));
+        setPortalDnsProvider(portal?.settings?.dnsProvider || 'off');
+        setPortalCfZoneId(portal?.settings?.cloudflareZoneId || '');
+        setPortalDnsIpv4(portal?.settings?.dnsTargetIpv4 || '');
+        setPortalSslEnabled(Boolean(portal?.settings?.sslWildcardEnabled));
+        setPortalSslEmail(portal?.settings?.sslEmail || '');
+        setPortalSeedSecond(portal?.settings?.seedSecondAgency !== false);
+        setPortalTokenConfigured(Boolean(portal?.settings?.cloudflareTokenConfigured));
         setPortalHosts(Array.isArray(portal?.hosts) ? portal.hosts : []);
         setPortalPatterns(portal?.patterns || {});
       } catch {
@@ -211,9 +225,23 @@ const SystemModules: React.FC = () => {
         baseDomain: portalBaseDomain,
         dnsMode: portalDnsMode,
         syncEnabled: portalSyncEnabled,
+        dnsProvider: portalDnsProvider,
+        cloudflareZoneId: portalCfZoneId,
+        dnsTargetIpv4: portalDnsIpv4,
+        sslWildcardEnabled: portalSslEnabled,
+        sslEmail: portalSslEmail,
+        seedSecondAgency: portalSeedSecond,
       });
-      setPortalBaseDomain(data?.settings?.baseDomain || portalBaseDomain);
-      setPortalDnsMode(data?.settings?.dnsMode || portalDnsMode);
+      const s = data?.settings;
+      setPortalBaseDomain(s?.baseDomain || portalBaseDomain);
+      setPortalDnsMode(s?.dnsMode || portalDnsMode);
+      setPortalDnsProvider(s?.dnsProvider || portalDnsProvider);
+      setPortalCfZoneId(s?.cloudflareZoneId || '');
+      setPortalDnsIpv4(s?.dnsTargetIpv4 || '');
+      setPortalSslEnabled(Boolean(s?.sslWildcardEnabled));
+      setPortalSslEmail(s?.sslEmail || '');
+      setPortalSeedSecond(s?.seedSecondAgency !== false);
+      setPortalTokenConfigured(Boolean(s?.cloudflareTokenConfigured));
       setSuccess('Definições de portal guardadas.');
     } catch (e) {
       setError(pickApiErrorMessage(e, 'Erro ao guardar portal DNS'));
@@ -226,7 +254,10 @@ const SystemModules: React.FC = () => {
     try {
       setSaving(true);
       setError(null);
-      const result = await installationModulesApi.syncPortal();
+      const result = await installationModulesApi.syncPortal({
+        dryRunDns: true,
+        applyCloudflare: portalDnsProvider === 'cloudflare',
+      });
       setPortalSyncMsg(result.message || 'Sync concluído');
       setSuccess(result.message || 'Snippets Nginx/dnsmasq gerados');
       const portal = await installationModulesApi.getPortal();
@@ -234,6 +265,35 @@ const SystemModules: React.FC = () => {
       setPortalPatterns(portal?.patterns || {});
     } catch (e) {
       setError(pickApiErrorMessage(e, 'Erro ao sincronizar portal hosts'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSimSsl = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      const result = await installationModulesApi.issuePortalSsl({ dryRun: true });
+      setPortalSyncMsg(result.message || 'SSL simulado');
+      setSuccess(result.message || 'Plano SSL gerado (sim)');
+    } catch (e) {
+      setError(pickApiErrorMessage(e, 'Erro ao simular SSL wildcard'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSeedSecondAgency = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      const result = await installationModulesApi.seedSecondAgency();
+      setSuccess(result.message || result.detail || 'Seed 2ª agência');
+      const portal = await installationModulesApi.getPortal();
+      setPortalHosts(Array.isArray(portal?.hosts) ? portal.hosts : []);
+    } catch (e) {
+      setError(pickApiErrorMessage(e, 'Erro ao criar 2ª agência demo'));
     } finally {
       setSaving(false);
     }
@@ -440,13 +500,90 @@ const SystemModules: React.FC = () => {
                     label="Sync automático (sudo)"
                   />
                 </Grid>
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    select
+                    fullWidth
+                    label="Provedor DNS"
+                    value={portalDnsProvider}
+                    onChange={(e) =>
+                      setPortalDnsProvider(e.target.value as 'off' | 'manual' | 'cloudflare')
+                    }
+                    helperText={
+                      portalTokenConfigured
+                        ? 'Token Cloudflare detectado no ambiente'
+                        : 'Token: CLOUDFLARE_API_TOKEN no .env (nunca na BD)'
+                    }
+                  >
+                    <MenuItem value="off">off</MenuItem>
+                    <MenuItem value="manual">manual</MenuItem>
+                    <MenuItem value="cloudflare">cloudflare</MenuItem>
+                  </TextField>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    fullWidth
+                    label="Cloudflare Zone ID"
+                    value={portalCfZoneId}
+                    onChange={(e) => setPortalCfZoneId(e.target.value)}
+                  />
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    fullWidth
+                    label="IPv4 alvo (A records)"
+                    value={portalDnsIpv4}
+                    onChange={(e) => setPortalDnsIpv4(e.target.value)}
+                    helperText="IP público do VPS"
+                  />
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={portalSslEnabled}
+                        onChange={(e) => setPortalSslEnabled(e.target.checked)}
+                      />
+                    }
+                    label="LE wildcard DNS-01"
+                  />
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    fullWidth
+                    label="Email Let's Encrypt"
+                    value={portalSslEmail}
+                    onChange={(e) => setPortalSslEmail(e.target.value)}
+                  />
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={portalSeedSecond}
+                        onChange={(e) => setPortalSeedSecond(e.target.checked)}
+                      />
+                    }
+                    label="Seed 2ª agência ao activar"
+                  />
+                </Grid>
               </Grid>
               <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
                 <Button variant="contained" disabled={saving} onClick={() => void handleSavePortal()}>
                   Guardar portal
                 </Button>
                 <Button variant="outlined" disabled={saving} onClick={() => void handleSyncPortal()}>
-                  Gerar / sync Nginx+DNS
+                  Gerar / sync (DNS dry-run)
+                </Button>
+                <Button variant="outlined" disabled={saving} onClick={() => void handleSimSsl()}>
+                  Simular SSL wildcard
+                </Button>
+                <Button
+                  variant="outlined"
+                  disabled={saving}
+                  onClick={() => void handleSeedSecondAgency()}
+                >
+                  Seed 2ª agência
                 </Button>
               </Box>
               {portalSyncMsg && (

@@ -292,12 +292,39 @@ export const installationModulesApi = {
     baseDomain?: string;
     dnsMode?: 'off' | 'public_wildcard' | 'local_dnsmasq';
     syncEnabled?: boolean;
+    dnsProvider?: 'off' | 'manual' | 'cloudflare';
+    cloudflareZoneId?: string;
+    dnsTargetIpv4?: string;
+    sslWildcardEnabled?: boolean;
+    sslEmail?: string;
+    seedSecondAgency?: boolean;
   }) => {
     const response = await api.put('/installation/portal', payload);
     return response.data.data;
   },
-  syncPortal: async () => {
-    const response = await api.post('/installation/portal/sync');
+  syncPortal: async (payload?: { dryRunDns?: boolean; applyCloudflare?: boolean }) => {
+    const response = await api.post('/installation/portal/sync', payload || {});
+    return {
+      message: response.data.message as string | undefined,
+      ...(response.data.data || {}),
+    };
+  },
+  syncCloudflareDns: async (payload?: { dryRun?: boolean }) => {
+    const response = await api.post('/installation/portal/dns/cloudflare', payload || {});
+    return {
+      message: response.data.message as string | undefined,
+      ...(response.data.data || {}),
+    };
+  },
+  issuePortalSsl: async (payload?: { dryRun?: boolean }) => {
+    const response = await api.post('/installation/portal/ssl/issue', payload || {});
+    return {
+      message: response.data.message as string | undefined,
+      ...(response.data.data || {}),
+    };
+  },
+  seedSecondAgency: async () => {
+    const response = await api.post('/installation/portal/seed-second-agency');
     return {
       message: response.data.message as string | undefined,
       ...(response.data.data || {}),

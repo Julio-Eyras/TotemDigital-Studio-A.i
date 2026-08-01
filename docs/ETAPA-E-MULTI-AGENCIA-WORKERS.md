@@ -33,4 +33,4 @@ bash scripts/Instala-TotemDigital-Server.sh --modo atualizar --instancia dev --g
 
 - ~~Hot-reload de workers sem restart do processo~~ → Etapa F (`docs/ETAPA-F-MULTI-AGENCIA-HOT-RELOAD-WORKERS.md`)
 - DNS/portal one-click
-- Seed automático de 2ª organização / anunciante demo
+- Seed automático de 2ª organização / anunciante demo → **entregue** (ver portal Fase 2)

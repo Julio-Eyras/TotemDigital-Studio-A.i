@@ -11,6 +11,12 @@ import {
   normalizePortalSlug,
   validatePortalSlug,
 } from '../utils/portalHost';
+import {
+  PortalDnsProvider,
+  hasCloudflareTokenConfigured,
+  syncCloudflarePortalDns,
+} from './portalDnsCloudflareService';
+import { buildPortalWildcardSslPlan, issuePortalWildcardCertificate } from './portalSslService';
 import { logError, logInfo, logWarn } from '../utils/loggerHelper';
 
 type DbLike = {
@@ -22,6 +28,12 @@ type DbLike = {
 const SETTING_BASE = 'portal.base_domain';
 const SETTING_MODE = 'portal.dns_mode';
 const SETTING_SYNC = 'portal.sync_enabled';
+const SETTING_DNS_PROVIDER = 'portal.dns_provider';
+const SETTING_CF_ZONE = 'portal.cloudflare_zone_id';
+const SETTING_DNS_IP = 'portal.dns_target_ipv4';
+const SETTING_SSL_ENABLED = 'portal.ssl_wildcard_enabled';
+const SETTING_SSL_EMAIL = 'portal.ssl_email';
+const SETTING_SEED_SECOND = 'portal.seed_second_agency';
 
 async function readSetting(db: DbLike, key: string): Promise<string | null> {
   try {
@@ -67,6 +79,13 @@ export type PortalSettings = {
   baseDomain: string;
   dnsMode: PortalDnsMode;
   syncEnabled: boolean;
+  dnsProvider: PortalDnsProvider;
+  cloudflareZoneId: string;
+  dnsTargetIpv4: string;
+  sslWildcardEnabled: boolean;
+  sslEmail: string;
+  seedSecondAgency: boolean;
+  cloudflareTokenConfigured: boolean;
   roleHosts: { publisher: string | null; subscriber: string | null };
 };
 
@@ -79,6 +98,12 @@ export type PortalHostEntry = {
   active: boolean;
 };
 
+function parseBool(raw: string | null, defaultValue = false): boolean {
+  if (raw == null || raw === '') return defaultValue;
+  const v = raw.trim().toLowerCase();
+  return v === 'true' || v === '1' || v === 'yes';
+}
+
 export async function getPortalSettings(db: DbLike): Promise<PortalSettings> {
   const baseDomain = ((await readSetting(db, SETTING_BASE)) || '').trim().toLowerCase();
   const modeRaw = ((await readSetting(db, SETTING_MODE)) || 'off').trim().toLowerCase();
@@ -86,12 +111,28 @@ export async function getPortalSettings(db: DbLike): Promise<PortalSettings> {
     modeRaw === 'public_wildcard' || modeRaw === 'local_dnsmasq' || modeRaw === 'off'
       ? modeRaw
       : 'off';
-  const syncRaw = ((await readSetting(db, SETTING_SYNC)) || 'false').trim().toLowerCase();
-  const syncEnabled = syncRaw === 'true' || syncRaw === '1';
+  const syncEnabled = parseBool(await readSetting(db, SETTING_SYNC), false);
+  const providerRaw = ((await readSetting(db, SETTING_DNS_PROVIDER)) || 'off').trim().toLowerCase();
+  const dnsProvider: PortalDnsProvider =
+    providerRaw === 'cloudflare' || providerRaw === 'manual' || providerRaw === 'off'
+      ? providerRaw
+      : 'off';
+  const cloudflareZoneId = ((await readSetting(db, SETTING_CF_ZONE)) || '').trim();
+  const dnsTargetIpv4 = ((await readSetting(db, SETTING_DNS_IP)) || '').trim();
+  const sslWildcardEnabled = parseBool(await readSetting(db, SETTING_SSL_ENABLED), false);
+  const sslEmail = ((await readSetting(db, SETTING_SSL_EMAIL)) || '').trim().toLowerCase();
+  const seedSecondAgency = parseBool(await readSetting(db, SETTING_SEED_SECOND), true);
   return {
     baseDomain,
     dnsMode,
     syncEnabled,
+    dnsProvider,
+    cloudflareZoneId,
+    dnsTargetIpv4,
+    sslWildcardEnabled,
+    sslEmail,
+    seedSecondAgency,
+    cloudflareTokenConfigured: hasCloudflareTokenConfigured(),
     roleHosts: {
       publisher: buildRolePortalHost({ role: 'publisher', baseDomain }),
       subscriber: buildRolePortalHost({ role: 'subscriber', baseDomain }),
@@ -101,7 +142,17 @@ export async function getPortalSettings(db: DbLike): Promise<PortalSettings> {
 
 export async function savePortalSettings(
   db: DbLike,
-  input: { baseDomain?: string; dnsMode?: PortalDnsMode; syncEnabled?: boolean }
+  input: {
+    baseDomain?: string;
+    dnsMode?: PortalDnsMode;
+    syncEnabled?: boolean;
+    dnsProvider?: PortalDnsProvider;
+    cloudflareZoneId?: string;
+    dnsTargetIpv4?: string;
+    sslWildcardEnabled?: boolean;
+    sslEmail?: string;
+    seedSecondAgency?: boolean;
+  }
 ): Promise<PortalSettings> {
   if (input.baseDomain !== undefined) {
     const base = String(input.baseDomain || '')
@@ -139,6 +190,67 @@ export async function savePortalSettings(
       input.syncEnabled ? 'true' : 'false',
       'boolean',
       'Se true, tenta sync-portal-hosts.sh após alterar slugs'
+    );
+  }
+  if (input.dnsProvider !== undefined) {
+    if (!['off', 'manual', 'cloudflare'].includes(input.dnsProvider)) {
+      throw new Error('portal.dns_provider inválido');
+    }
+    await upsertSetting(
+      db,
+      SETTING_DNS_PROVIDER,
+      input.dnsProvider,
+      'string',
+      'Provedor DNS: off | manual | cloudflare'
+    );
+  }
+  if (input.cloudflareZoneId !== undefined) {
+    await upsertSetting(
+      db,
+      SETTING_CF_ZONE,
+      String(input.cloudflareZoneId || '').trim(),
+      'string',
+      'Cloudflare Zone ID (token só via env)'
+    );
+  }
+  if (input.dnsTargetIpv4 !== undefined) {
+    const ip = String(input.dnsTargetIpv4 || '').trim();
+    if (ip && !/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) {
+      throw new Error('portal.dns_target_ipv4 inválido');
+    }
+    await upsertSetting(
+      db,
+      SETTING_DNS_IP,
+      ip,
+      'string',
+      'IPv4 alvo dos wildcards A no DNS público'
+    );
+  }
+  if (input.sslWildcardEnabled !== undefined) {
+    await upsertSetting(
+      db,
+      SETTING_SSL_ENABLED,
+      input.sslWildcardEnabled ? 'true' : 'false',
+      'boolean',
+      'Se true, permite emitir/planear LE wildcard DNS-01'
+    );
+  }
+  if (input.sslEmail !== undefined) {
+    await upsertSetting(
+      db,
+      SETTING_SSL_EMAIL,
+      String(input.sslEmail || '').trim().toLowerCase(),
+      'string',
+      'Email Let\'s Encrypt para wildcard do portal'
+    );
+  }
+  if (input.seedSecondAgency !== undefined) {
+    await upsertSetting(
+      db,
+      SETTING_SEED_SECOND,
+      input.seedSecondAgency ? 'true' : 'false',
+      'boolean',
+      'Ao activar multi-agência, criar 2ª organização demo se só existir owner'
     );
   }
   return getPortalSettings(db);
@@ -290,6 +402,8 @@ export type PortalSyncResult = {
   nginxSnippet: string;
   dnsmasqSnippet: string;
   dnsInstructions: string[];
+  cloudflare?: Awaited<ReturnType<typeof syncCloudflarePortalDns>>;
+  sslPlan?: ReturnType<typeof buildPortalWildcardSslPlan>;
 };
 
 function resolveRuntimeDir(): string {
@@ -299,7 +413,10 @@ function resolveRuntimeDir(): string {
   );
 }
 
-export async function syncPortalHosts(db: DbLike): Promise<PortalSyncResult> {
+export async function syncPortalHosts(
+  db: DbLike,
+  opts?: { dryRunDns?: boolean; applyCloudflare?: boolean }
+): Promise<PortalSyncResult> {
   const settings = await getPortalSettings(db);
   const hosts = await listPortalHosts(db);
   const nginxSnippet = renderPortalNginxSnippet(settings, hosts);
@@ -327,7 +444,7 @@ export async function syncPortalHosts(db: DbLike): Promise<PortalSyncResult> {
       `Opcional: publisher.${settings.baseDomain} e subscriber.${settings.baseDomain} → mesmo IP`
     );
     dnsInstructions.push(
-      'Certificado: use wildcard LE (DNS-01) ou SAN que cubra *.publisher / *.subscriber'
+      'Certificado: use wildcard LE (DNS-01) via POST /api/installation/portal/ssl/issue (--sim / dryRun)'
     );
   } else if (settings.dnsMode === 'local_dnsmasq') {
     dnsInstructions.push(
@@ -339,6 +456,36 @@ export async function syncPortalHosts(db: DbLike): Promise<PortalSyncResult> {
   dnsInstructions.push(
     `Nginx: include o snippet ${nginxPath} (ou copie para /etc/nginx/snippets/) e faça nginx -t && reload`
   );
+
+  let cloudflare: PortalSyncResult['cloudflare'];
+  const wantCf =
+    opts?.applyCloudflare === true ||
+    (settings.dnsProvider === 'cloudflare' && settings.dnsMode === 'public_wildcard');
+  if (wantCf) {
+    cloudflare = await syncCloudflarePortalDns({
+      baseDomain: settings.baseDomain,
+      zoneId: settings.cloudflareZoneId,
+      targetIpv4: settings.dnsTargetIpv4,
+      dryRun:
+        opts?.dryRunDns === true ||
+        process.env.PORTAL_DNS_DRY_RUN === 'true',
+    });
+    if (cloudflare.dryRun) {
+      dnsInstructions.push(`Cloudflare (sim): ${cloudflare.message}`);
+    } else if (cloudflare.ok) {
+      dnsInstructions.push(`Cloudflare: ${cloudflare.message}`);
+    } else {
+      dnsInstructions.push(`Cloudflare falhou: ${cloudflare.message}`);
+    }
+  }
+
+  const sslPlan =
+    settings.sslWildcardEnabled && settings.baseDomain
+      ? buildPortalWildcardSslPlan({
+          baseDomain: settings.baseDomain,
+          email: settings.sslEmail,
+        })
+      : undefined;
 
   let syncRan = false;
   let syncOutput = '';
@@ -365,12 +512,15 @@ export async function syncPortalHosts(db: DbLike): Promise<PortalSyncResult> {
         nginxSnippet,
         dnsmasqSnippet,
         dnsInstructions,
+        cloudflare,
+        sslPlan,
       };
     }
   }
 
+  const cfOk = !cloudflare || cloudflare.ok;
   return {
-    ok: true,
+    ok: cfOk,
     written: [nginxPath, dnsPath, manifestPath],
     syncRan,
     syncOutput: syncOutput || undefined,
@@ -380,7 +530,38 @@ export async function syncPortalHosts(db: DbLike): Promise<PortalSyncResult> {
     nginxSnippet,
     dnsmasqSnippet,
     dnsInstructions,
+    cloudflare,
+    sslPlan,
   };
+}
+
+export async function syncPortalCloudflareDns(
+  db: DbLike,
+  opts?: { dryRun?: boolean }
+) {
+  const settings = await getPortalSettings(db);
+  return syncCloudflarePortalDns({
+    baseDomain: settings.baseDomain,
+    zoneId: settings.cloudflareZoneId,
+    targetIpv4: settings.dnsTargetIpv4,
+    dryRun: opts?.dryRun,
+  });
+}
+
+export async function issuePortalSsl(
+  db: DbLike,
+  opts?: { dryRun?: boolean }
+) {
+  const settings = await getPortalSettings(db);
+  if (!settings.sslWildcardEnabled && opts?.dryRun !== true) {
+    // still allow dry-run for preview
+  }
+  return issuePortalWildcardCertificate({
+    baseDomain: settings.baseDomain,
+    email: settings.sslEmail,
+    dryRun: opts?.dryRun ?? !settings.sslWildcardEnabled,
+    zoneId: settings.cloudflareZoneId,
+  });
 }
 
 function runSyncScript(scriptPath: string, runtimeDir: string): Promise<string> {

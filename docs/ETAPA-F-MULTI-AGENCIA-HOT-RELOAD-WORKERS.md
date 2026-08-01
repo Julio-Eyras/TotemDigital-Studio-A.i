@@ -31,4 +31,4 @@ bash scripts/Instala-TotemDigital-Server.sh --modo atualizar --instancia dev --g
 ## Ainda fora
 
 - DNS/portal one-click
-- Seed automático de 2ª organização / anunciante demo
+- Seed automático de 2ª organização / anunciante demo → **entregue** (ver portal Fase 2)

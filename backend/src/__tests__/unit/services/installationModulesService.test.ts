@@ -3,6 +3,7 @@
  */
 import {
   ensureSystemOwnerPublisherIfEmpty,
+  ensureDemoSecondAgencyIfNeeded,
   setMultiAgencyMode,
   saveInstallationModules,
 } from '../../../services/installationModulesService';
@@ -89,6 +90,37 @@ function makeDb(opts?: {
     }),
   };
 }
+
+describe('ensureDemoSecondAgencyIfNeeded', () => {
+  it('não cria se já existirem 2+ organizações', async () => {
+    const db = makeDb({ publisherCount: 2 });
+    const result = await ensureDemoSecondAgencyIfNeeded(db as any);
+    expect(result.created).toBe(false);
+    expect(db.executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('cria 2ª agência + anunciante quando só existe owner', async () => {
+    const db = makeDb({ publisherCount: 1 });
+    let inserts = 0;
+    db.findFirst = jest.fn(async (sql: string) => {
+      if (sql.includes('portal.seed_second_agency')) return { setting_value: 'true' };
+      if (sql.includes('COUNT(*)') && sql.includes('publishers')) return { c: 1 };
+      if (sql.includes('UNION ALL') || sql.includes('portal_slug = $1\n      UNION')) return null;
+      if (sql.includes('FROM publishers WHERE portal_slug')) return { publisher_id: 7 };
+      if (sql.includes('FROM subscribers WHERE portal_slug = $1 OR email')) return null;
+      if (sql.includes('FROM subscribers WHERE portal_slug')) return { subscriber_id: 3 };
+      return null;
+    });
+    db.executeRaw = jest.fn(async () => {
+      inserts += 1;
+    });
+    const result = await ensureDemoSecondAgencyIfNeeded(db as any);
+    expect(result.created).toBe(true);
+    expect(result.publisherId).toBe(7);
+    expect(result.subscriberId).toBe(3);
+    expect(inserts).toBeGreaterThanOrEqual(1);
+  });
+});
 
 describe('ensureSystemOwnerPublisherIfEmpty', () => {
   it('não cria publisher se já existir organização', async () => {
