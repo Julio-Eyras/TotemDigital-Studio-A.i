@@ -93,7 +93,23 @@ const SystemModules: React.FC = () => {
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingEnabled, setPendingEnabled] = useState<boolean | null>(null);
-  const [restartNeeded, setRestartNeeded] = useState(false);
+  const [restartNeeded, setRestartNeeded] = useState(() => {
+    try {
+      return sessionStorage.getItem('ssp.restartBackendNeeded') === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  const markRestartNeeded = (needed: boolean) => {
+    setRestartNeeded(needed);
+    try {
+      if (needed) sessionStorage.setItem('ssp.restartBackendNeeded', '1');
+      else sessionStorage.removeItem('ssp.restartBackendNeeded');
+    } catch {
+      /* ignore */
+    }
+  };
 
   const load = useCallback(async () => {
     if (!canManage) {
@@ -149,7 +165,7 @@ const SystemModules: React.FC = () => {
       setMultiAgencyEnabled(Boolean(result.enabled));
       setProfile(result.profile || profile);
       const needsRestart = Boolean(result.requiresBackendRestart);
-      setRestartNeeded(needsRestart);
+      markRestartNeeded(needsRestart);
       if (needsRestart) {
         setSuccess(
           `${result.message || 'Modo actualizado.'} A UI vai recarregar — reinicie também o serviço backend.`
@@ -185,7 +201,7 @@ const SystemModules: React.FC = () => {
       setMultiAgencyEnabled(Boolean(data?.modules?.multi_agency));
       if (data?.profile) setProfile(data.profile);
       const needsRestart = Boolean(data?.requiresBackendRestart);
-      setRestartNeeded(needsRestart);
+      markRestartNeeded(needsRestart);
       setSuccess(
         needsRestart
           ? 'Opções avançadas guardadas. Reinicie o backend para filas/workers; a UI vai recarregar.'
@@ -224,7 +240,11 @@ const SystemModules: React.FC = () => {
         </Alert>
       )}
       {restartNeeded && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
+        <Alert
+          severity="warning"
+          sx={{ mb: 2 }}
+          onClose={() => markRestartNeeded(false)}
+        >
           Reinício do backend necessário: filas Bull, billing e playlist mix/engine só mudam no
           arranque do serviço (ex.: <code>systemctl restart</code> ou o script de update da
           instância). Recarregar a UI não basta.
