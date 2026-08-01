@@ -201,6 +201,7 @@ export class SubscriberService {
           s.address,
           s.category_segment,
           s.description,
+          s.portal_slug,
           s.is_active,
           s.created_at,
           s.updated_at
@@ -706,6 +707,7 @@ export class SubscriberService {
           s.address,
           s.category_segment,
           s.description,
+          s.portal_slug,
           s.is_active,
           s.created_at,
           s.updated_at

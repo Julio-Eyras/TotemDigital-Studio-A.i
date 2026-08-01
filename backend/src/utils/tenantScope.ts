@@ -26,6 +26,8 @@ export function isAdminRole(role?: string): boolean {
 
 /**
  * Resolve escopo a partir do request autenticado (admin → null).
+ * Se o host portal força tenant (`portalTenant`), esse escopo prevalece
+ * (exceto owner_system, que mantém visão global via isAdminRole).
  */
 export async function resolveTenantScope(req: {
   user?: {
@@ -36,7 +38,21 @@ export async function resolveTenantScope(req: {
     userType?: string;
   };
   subscriberId?: number;
+  portalTenant?: {
+    role: 'publisher' | 'subscriber';
+    publisherId?: number;
+    subscriberId?: number;
+  };
 }): Promise<TenantScope | null> {
+  if (req.portalTenant && req.user?.role !== 'owner_system') {
+    if (req.portalTenant.role === 'publisher' && req.portalTenant.publisherId != null) {
+      return { scopedPublisherId: Number(req.portalTenant.publisherId) };
+    }
+    if (req.portalTenant.role === 'subscriber' && req.portalTenant.subscriberId != null) {
+      return { scopedSubscriberId: Number(req.portalTenant.subscriberId) };
+    }
+  }
+
   if (isAdminRole(req.user?.role)) {
     return null;
   }

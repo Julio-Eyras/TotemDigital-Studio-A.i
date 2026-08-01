@@ -405,6 +405,66 @@ function runSyncScript(scriptPath: string, runtimeDir: string): Promise<string> 
   });
 }
 
+export type ResolvedPortalTenant = {
+  role: 'publisher' | 'subscriber';
+  slug: string;
+  publisherId?: number;
+  subscriberId?: number;
+  name?: string;
+  active: boolean;
+};
+
+/**
+ * Resolve portal_slug → publisher_id ou subscriber_id (ativo).
+ * Retorna null se o slug não existir no papel pedido.
+ */
+export async function resolvePortalTenantBySlug(
+  db: DbLike,
+  slug: string,
+  role: 'publisher' | 'subscriber'
+): Promise<ResolvedPortalTenant | null> {
+  const normalized = normalizePortalSlug(slug);
+  if (!normalized) return null;
+
+  if (role === 'publisher') {
+    const row = await db.findFirst(
+      `
+      SELECT publisher_id AS id, name, portal_slug AS slug, COALESCE(is_active, true) AS active
+      FROM publishers
+      WHERE portal_slug = $1
+      LIMIT 1
+    `,
+      [normalized]
+    );
+    if (!row || row.active === false) return null;
+    return {
+      role: 'publisher',
+      slug: String(row.slug || normalized),
+      publisherId: Number(row.id),
+      name: row.name != null ? String(row.name) : undefined,
+      active: true,
+    };
+  }
+
+  const row = await db.findFirst(
+    `
+    SELECT subscriber_id AS id, name, portal_slug AS slug, COALESCE(is_active, true) AS active
+    FROM subscribers
+    WHERE portal_slug = $1
+    LIMIT 1
+  `,
+    [normalized]
+  );
+  if (!row || row.active === false) return null;
+  return {
+    role: 'subscriber',
+    slug: String(row.slug || normalized),
+    subscriberId: Number(row.id),
+    name: row.name != null ? String(row.name) : undefined,
+    active: true,
+  };
+}
+
 export async function assertPortalSlugAvailable(
   db: DbLike,
   slug: string | null,

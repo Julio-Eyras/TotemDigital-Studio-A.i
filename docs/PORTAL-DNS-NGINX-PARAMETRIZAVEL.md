@@ -23,6 +23,7 @@
 5. Template multi-instância com wildcards + headers `X-Subdomain-Type` / `X-Tenant-Slug`
 6. Middleware e frontend detectam `{slug}.publisher|subscriber.…`
 7. UI: Complementos → **Portal DNS / Nginx**; formulários de organização/anunciante com campo slug
+8. Isolamento JWT ↔ `tenantSlug`: resolve slug→id no host; 403 `TENANT_HOST_MISMATCH` se o token não for do tenant (bypass só `owner_system`)
 
 ## Como activar (VPS)
 
@@ -45,6 +46,17 @@ bash scripts/Instala-TotemDigital-Server.sh --modo atualizar --instancia dev --g
 
 ## Ainda não coberto
 
-- Isolamento de dados JWT ↔ `tenantSlug` (host força tenant)
 - Emissão automática de certificados LE wildcard
 - Integração API do provedor DNS (Cloudflare/etc.) one-click remoto
+
+## Isolamento JWT ↔ tenantSlug
+
+Quando o host é `{slug}.publisher|subscriber.BASE`:
+
+1. `detectSubdomain` resolve `portal_slug` → `req.portalTenant` (404 `UNKNOWN_TENANT_SLUG` se inexistente)
+2. Após autenticação, `enforcePortalTenantAccess` exige JWT alinhado ao tenant
+   - publisher: `user.publisherId === portalTenant.publisherId`
+   - subscriber/client: `user.subscriberId` (ou `clientId`) === `portalTenant.subscriberId`
+   - bypass: apenas `owner_system`
+3. Listagens `GET /api/publishers` e `GET /api/subscribers` no host tenant devolvem só o registo do slug
+4. `resolveTenantScope` (dashboard/analytics) respeita `portalTenant`

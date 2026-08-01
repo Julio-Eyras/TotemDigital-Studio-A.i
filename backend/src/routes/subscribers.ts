@@ -7,6 +7,7 @@ import { getSubscriberService } from '../services/subscriberService';
 import { logError } from '../utils/loggerHelper';
 import { isDatabaseError, isUniqueViolationError } from '../utils/dbErrors';
 import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
+import { assertResourceMatchesPortalTenant } from '../utils/portalTenantAccess';
 import { 
   paginationValidators, 
   searchValidators, 
@@ -49,6 +50,15 @@ const validateRequest = (req: any, res: any, next: any) => {
 };
 
 async function ensureSubscriberResourceAccess(req: any, res: any, subscriberId: number): Promise<boolean> {
+  const portalCheck = assertResourceMatchesPortalTenant(req.portalTenant, { subscriberId });
+  if (!portalCheck.ok) {
+    res.status(portalCheck.status).json({
+      success: false,
+      error: portalCheck.error,
+      code: portalCheck.code,
+    });
+    return false;
+  }
   try {
     await assertTenantClientParamAccess(req, subscriberId);
     return true;
@@ -98,6 +108,17 @@ router.get('/',
         createdFrom,
         createdTo
       } = req.query;
+
+      // Host tenant: lista só o anunciante do slug
+      if (req.portalTenant?.role === 'subscriber' && req.portalTenant.subscriberId != null) {
+        const one = await getSubscriberService().getSubscriberById(req.portalTenant.subscriberId);
+        return res.json({
+          data: one ? [one] : [],
+          total: one ? 1 : 0,
+          page: 1,
+          limit: 1,
+        });
+      }
       
       const activeFilter =
         is_active !== undefined

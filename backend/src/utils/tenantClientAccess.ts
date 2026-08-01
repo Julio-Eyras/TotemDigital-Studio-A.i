@@ -66,6 +66,29 @@ export async function assertTenantClientParamAccess(
 ): Promise<void> {
   const allowPublisherSelf = options?.allowPublisherViewOwnPublisherId === true;
 
+  // Host com slug: bloquear id de outro tenant do mesmo papel (exceto owner_system)
+  if (req.portalTenant && req.user?.role !== 'owner_system') {
+    if (
+      req.portalTenant.role === 'subscriber' &&
+      Number(requestedId) !== Number(req.portalTenant.subscriberId)
+    ) {
+      const err: any = new Error('Acesso negado: recurso fora do tenant do host.');
+      err.statusCode = 403;
+      err.code = 'TENANT_HOST_MISMATCH';
+      throw err;
+    }
+    if (
+      req.portalTenant.role === 'publisher' &&
+      options?.requestedIdIsPublisherScope === true &&
+      Number(requestedId) !== Number(req.portalTenant.publisherId)
+    ) {
+      const err: any = new Error('Acesso negado: recurso fora do tenant do host.');
+      err.statusCode = 403;
+      err.code = 'TENANT_HOST_MISMATCH';
+      throw err;
+    }
+  }
+
   if (isAdminRole(req.user?.role)) {
     return;
   }

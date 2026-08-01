@@ -9,6 +9,8 @@ import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
 import { config } from '../config/env';
 import { UserFlags } from '../utils/flagChecker';
+import { enforcePortalTenantAccess, validateSubdomainAccess } from './subdomain.middleware';
+import type { PortalTenantResolved } from '../utils/portalTenantAccess';
 
 // Declaração de módulo para estender tipos do Express
 declare global {
@@ -28,6 +30,10 @@ declare global {
         flags?: UserFlags; // NOVO: Flags de permissão do usuário
       };
       subscriberId?: number; // Adicionado pelo subscriberIsolationMiddleware
+      portalTenant?: PortalTenantResolved;
+      tenantSlug?: string;
+      subdomainType?: 'publisher' | 'subscriber' | 'main';
+      rolePortal?: boolean;
     }
   }
 }
@@ -104,7 +110,7 @@ export const authMiddleware = async (
     const user = await db.findFirst(`
       SELECT 
         id, username, email, role, 
-        publisher_id, user_type, is_tenant_user,
+        publisher_id, subscriber_id, user_type, is_tenant_user,
         is_active
       FROM users 
       WHERE id = $1 AND is_active = true
@@ -119,14 +125,14 @@ export const authMiddleware = async (
     }
 
     // Determinar subscriberId se aplicável
-    // Prioridade: 1) subscriberId do token (login subscriber), 2) publisher com is_subscriber, 3) clientId do token
+    // Prioridade: 1) token, 2) users.subscriber_id, 3) publisher is_subscriber+email, 4) clientId token
     let subscriberId: number | undefined = undefined;
     
-    // 1. Se o token tem subscriberId (login subscriber)
     if (decoded.subscriberId) {
       subscriberId = decoded.subscriberId;
+    } else if (user.subscriber_id) {
+      subscriberId = Number(user.subscriber_id);
     } else if (user.publisher_id) {
-      // 2. Buscar publisher e verificar se é subscriber
       const publisher = await db.findFirst(`
         SELECT publisher_id, is_subscriber, email
         FROM publishers 
@@ -134,7 +140,6 @@ export const authMiddleware = async (
       `, [user.publisher_id]);
       
       if (publisher?.is_subscriber) {
-        // Buscar subscriber pelo email do publisher
         const subscriber = await db.findFirst(`
           SELECT subscriber_id
           FROM subscribers
@@ -147,7 +152,6 @@ export const authMiddleware = async (
       }
     }
     
-    // 3. Fallback: usar clientId do token se disponível (compatibilidade)
     if (!subscriberId && decoded.clientId) {
       subscriberId = decoded.clientId;
     }
@@ -210,7 +214,11 @@ export const authMiddleware = async (
       flags: userFlags // NOVO: Flags de permissão
     };
 
-    next();
+    // Host com portal_slug força o tenant; portal de papel valida userType
+    enforcePortalTenantAccess(req as any, res, (err?: any) => {
+      if (err) return next(err);
+      validateSubdomainAccess(req as any, res, next);
+    });
 
   } catch (error: any) {
     if (error.name === 'JsonWebTokenError') {
@@ -444,16 +452,19 @@ export const optionalAuth = async (
     const user = await db.findFirst(`
       SELECT 
         id, username, email, role, 
-        publisher_id, user_type, is_tenant_user,
+        publisher_id, subscriber_id, user_type, is_tenant_user,
         is_active
       FROM users 
       WHERE id = $1 AND is_active = true
     `, [decoded.userId]);
 
     if (user) {
-      // Determinar subscriberId se aplicável (mesma lógica do authMiddleware)
       let subscriberId: number | undefined = undefined;
-      if (user.publisher_id) {
+      if (decoded.subscriberId) {
+        subscriberId = decoded.subscriberId;
+      } else if (user.subscriber_id) {
+        subscriberId = Number(user.subscriber_id);
+      } else if (user.publisher_id) {
         const publisher = await db.findFirst(`
           SELECT publisher_id, is_subscriber 
           FROM publishers 
@@ -463,6 +474,9 @@ export const optionalAuth = async (
         if (publisher?.is_subscriber) {
           subscriberId = user.publisher_id;
         }
+      }
+      if (!subscriberId && decoded.clientId) {
+        subscriberId = decoded.clientId;
       }
 
       req.user = {
@@ -477,6 +491,11 @@ export const optionalAuth = async (
         userType: user.user_type || undefined,
         isTenantUser: user.is_tenant_user || false
       };
+
+      return enforcePortalTenantAccess(req as any, _res, (err?: any) => {
+        if (err) return next(err);
+        validateSubdomainAccess(req as any, _res, next);
+      });
     }
 
     next();

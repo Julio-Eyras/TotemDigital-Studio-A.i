@@ -12,6 +12,7 @@ import { param, query, body, validationResult } from 'express-validator';
 import { logError, logDebug } from '../utils/loggerHelper';
 import { errorResponse } from '../utils/apiResponse';
 import { isDatabaseError } from '../utils/dbErrors';
+import { assertResourceMatchesPortalTenant } from '../utils/portalTenantAccess';
 import { 
   paginationValidators, 
   searchValidators, 
@@ -25,6 +26,23 @@ const router = Router();
 
 // Middleware de autenticação para todas as rotas
 router.use(authMiddleware);
+
+function rejectIfPortalTenantMismatch(
+  req: AuthenticatedRequest,
+  res: Response,
+  resource: { publisherId?: number; subscriberId?: number }
+): boolean {
+  const check = assertResourceMatchesPortalTenant(req.portalTenant, resource);
+  if (!check.ok) {
+    res.status(check.status).json({
+      success: false,
+      error: check.error,
+      code: check.code,
+    });
+    return true;
+  }
+  return false;
+}
 
 // Lazy initialization - PublisherService (CRUD)
 function getPublisherService(): PublisherService {
@@ -90,6 +108,18 @@ router.get('/',
         createdFrom,
         createdTo
       } = req.query;
+
+      // Host tenant: lista só a organização do slug
+      if (req.portalTenant?.role === 'publisher' && req.portalTenant.publisherId != null) {
+        const one = await getPublisherService().getPublisherById(req.portalTenant.publisherId);
+        return res.json({
+          success: true,
+          data: one ? [one] : [],
+          total: one ? 1 : 0,
+          page: 1,
+          limit: 1,
+        });
+      }
       
       const result = await getPublisherService().getAllPublishers({
         page: parseInt(page as string),
@@ -384,8 +414,12 @@ router.get('/:id',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { id } = req.params;
+      const pid = parseInt(id, 10);
+      if (rejectIfPortalTenantMismatch(req, res, { publisherId: pid })) {
+        return;
+      }
       
-      const publisher = await getPublisherService().getPublisherById(parseInt(id));
+      const publisher = await getPublisherService().getPublisherById(pid);
       
       if (!publisher) {
         return res.status(404).json(errorResponse('Publisher não encontrado'));
@@ -409,6 +443,10 @@ router.put('/:id',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { id } = req.params;
+      const pid = parseInt(id, 10);
+      if (rejectIfPortalTenantMismatch(req, res, { publisherId: pid })) {
+        return;
+      }
       const { name, contact_name, email, phone, whatsapp, category_segment, description, portal_slug, active, is_active } = req.body;
       // Aceitar active ou is_active (frontend pode enviar qualquer um); BD usa coluna is_active
       const activeValue = active !== undefined ? !!active : (is_active !== undefined ? !!is_active : undefined);
@@ -443,8 +481,12 @@ router.delete('/:id',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { id } = req.params;
+      const pid = parseInt(id, 10);
+      if (rejectIfPortalTenantMismatch(req, res, { publisherId: pid })) {
+        return;
+      }
       
-      await getPublisherService().deletePublisher(parseInt(id));
+      await getPublisherService().deletePublisher(pid);
       
       return res.json({ success: true, message: 'Publisher deletado com sucesso' });
     } catch (error: any) {
