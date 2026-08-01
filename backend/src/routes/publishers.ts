@@ -126,12 +126,12 @@ router.post('/',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const pubBody = req.body && req.body.publisher ? req.body.publisher : req.body;
-      const { name, contact_name, email, phone, whatsapp, category_segment, description, contract_id } = pubBody;
+      const { name, contact_name, email, phone, whatsapp, category_segment, description, portal_slug, contract_id } = pubBody;
 
       // Se o payload trouxer recursos aninhados (locals/totems/smartTvs/contracts), usar criação transacional
       if (req.body.locals || req.body.totems || req.body.smartTvs || req.body.contracts) {
         const payload = {
-          publisher: { name, contact_name, email, phone, whatsapp, category_segment, description, contract_id },
+          publisher: { name, contact_name, email, phone, whatsapp, category_segment, description, portal_slug, contract_id },
           locals: req.body.locals,
           totems: req.body.totems,
           smartTvs: req.body.smartTvs,
@@ -149,6 +149,7 @@ router.post('/',
         whatsapp,
         category_segment,
         description,
+        portal_slug,
         contract_id, // Opcional - vincula publisher ao contrato (para rastreabilidade)
       });
 
@@ -408,7 +409,7 @@ router.put('/:id',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { id } = req.params;
-      const { name, contact_name, email, phone, whatsapp, category_segment, description, active, is_active } = req.body;
+      const { name, contact_name, email, phone, whatsapp, category_segment, description, portal_slug, active, is_active } = req.body;
       // Aceitar active ou is_active (frontend pode enviar qualquer um); BD usa coluna is_active
       const activeValue = active !== undefined ? !!active : (is_active !== undefined ? !!is_active : undefined);
       
@@ -420,6 +421,7 @@ router.put('/:id',
         whatsapp,
         category_segment,
         description,
+        portal_slug,
         is_active: activeValue
       });
       

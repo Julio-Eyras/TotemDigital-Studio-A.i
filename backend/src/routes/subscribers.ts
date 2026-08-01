@@ -182,7 +182,7 @@ router.post('/',
         return res.status(201).json(newSubscriber);
       }
 
-      const { name, contact_name, email, phone, whatsapp, address, category_segment, description, contract_id } = req.body;
+      const { name, contact_name, email, phone, whatsapp, address, category_segment, description, portal_slug, contract_id } = req.body;
 
       const newSubscriber = await getSubscriberService().createSubscriber({
         name,
@@ -193,6 +193,7 @@ router.post('/',
         address,
         category_segment,
         description,
+        portal_slug,
         contract_id,
       });
 
@@ -227,7 +228,7 @@ router.put('/:id',
       if (!(await ensureSubscriberResourceAccess(req, res, sid))) {
         return;
       }
-      const { name, contact_name, email, phone, whatsapp, address, category_segment, description } = req.body;
+      const { name, contact_name, email, phone, whatsapp, address, category_segment, description, portal_slug, isActive, is_active } = req.body;
 
       const updatedSubscriber = await getSubscriberService().updateSubscriber(sid, {
         name,
@@ -238,6 +239,8 @@ router.put('/:id',
         address,
         category_segment,
         description,
+        portal_slug,
+        isActive: isActive !== undefined ? isActive : is_active,
       });
 
       return res.json(updatedSubscriber);

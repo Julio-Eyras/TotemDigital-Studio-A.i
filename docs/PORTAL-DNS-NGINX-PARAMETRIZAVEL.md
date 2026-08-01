@@ -35,8 +35,8 @@ bash scripts/Instala-TotemDigital-Server.sh --modo atualizar --instancia dev --g
 1. Complementos → Portal DNS: domínio base + modo `public_wildcard`
 2. Em organização/anunciante: definir `portal_slug` (ex. `rede-x`, `loja-abc`)
 3. **Gerar / sync Nginx+DNS** (ou `sudo bash scripts/sync-portal-hosts.sh`)
-4. DNS público: `*.publisher.BASE` e `*.subscriber.BASE` → IP do VPS
-5. Certificado: wildcard (DNS-01) recomendado para HTTPS nos subdomínios
+4. DNS público: `*.publisher.BASE` e `*.subscriber.BASE` → IP do VPS  
+5. Certificado HTTPS: wildcard (DNS-01) recomendado para HTTPS nos subdomínios
 
 ### Sync automático (opcional)
 
