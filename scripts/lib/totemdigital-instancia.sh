@@ -347,10 +347,6 @@ tdi_ensure_database() {
   fi
 
   local pass="${TDI_DB_PASSWORD:-}"
-  if [[ -z "$pass" ]]; then
-    pass="$(tdi_random_secret)"
-    TDI_DB_PASSWORD="$pass"
-  fi
 
   if [[ "$wipe" == "true" ]]; then
     log "A recriar base ${TDI_DB_NAME} (wipe)..."
@@ -359,8 +355,17 @@ SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${TDI_DB
 DROP DATABASE IF EXISTS ${TDI_DB_NAME};
 DROP ROLE IF EXISTS ${TDI_DB_USER};
 SQL
-    pass="$(tdi_random_secret)"
-    TDI_DB_PASSWORD="$pass"
+    # Reutilizar password do .env se existir — senão o wipe gera role nova e o
+    # tdi_write_env preserva o .env antigo → password authentication failed.
+    if tdi_read_existing_db_password; then
+      pass="$TDI_DB_PASSWORD"
+      log "Wipe: a reutilizar DB_PASSWORD do .env existente."
+    else
+      pass="$(tdi_random_secret)"
+      TDI_DB_PASSWORD="$pass"
+    fi
+  elif [[ -n "$pass" ]]; then
+    :
   elif tdi_read_existing_db_password; then
     pass="$TDI_DB_PASSWORD"
   else
@@ -368,13 +373,14 @@ SQL
     TDI_DB_PASSWORD="$pass"
   fi
 
+  # Sempre alinhar role ↔ password em memória/.env (evita drift em reinstall)
   sudo -u postgres psql -v ON_ERROR_STOP=1 <<SQL
 DO \$\$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${TDI_DB_USER}') THEN
     CREATE ROLE ${TDI_DB_USER} LOGIN PASSWORD '${pass}';
-  ELSIF '${wipe}' = 'true' THEN
-    ALTER ROLE ${TDI_DB_USER} WITH PASSWORD '${pass}';
+  ELSE
+    ALTER ROLE ${TDI_DB_USER} WITH LOGIN PASSWORD '${pass}';
   END IF;
 END
 \$\$;
@@ -382,6 +388,7 @@ SELECT 'CREATE DATABASE ${TDI_DB_NAME} OWNER ${TDI_DB_USER}'
 WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '${TDI_DB_NAME}')\gexec
 GRANT ALL PRIVILEGES ON DATABASE ${TDI_DB_NAME} TO ${TDI_DB_USER};
 SQL
+  TDI_DB_PASSWORD="$pass"
   ok "PostgreSQL: ${TDI_DB_NAME}"
 }
 
@@ -601,16 +608,23 @@ tdi_apply_schema() {
     log "Dry-run: aplicaria schema em ${TDI_DB_NAME}"
     return 0
   fi
+  # Garantir PGPASSWORD alinhado ao .env (write_env pode ter re-lido)
+  tdi_read_existing_db_password || true
+  [[ -n "${TDI_DB_PASSWORD:-}" ]] || { err "DB_PASSWORD em falta para aplicar schema"; return 1; }
   log "A aplicar schema v2 em ${TDI_DB_NAME} ..."
-  (
+  if (
     cd "$TDI_CLONE_DIR/database"
     export DB_NAME="$TDI_DB_NAME"
     export DB_USER="$TDI_DB_USER"
     export PGPASSWORD="$TDI_DB_PASSWORD"
     export SKIP_CONFIRM=true
     bash ./apply-schema-v2.sh
-  )
-  ok "Schema aplicado."
+  ); then
+    ok "Schema aplicado."
+    return 0
+  fi
+  err "Falha ao aplicar schema em ${TDI_DB_NAME}"
+  return 1
 }
 
 tdi_load_seeds() {

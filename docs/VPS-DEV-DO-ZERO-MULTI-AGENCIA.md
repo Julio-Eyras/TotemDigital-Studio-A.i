@@ -171,4 +171,5 @@ Plano completo: `docs/PLANO-TESTES-MULTI-AGENCIA-DEV.md` (níveis L0/L1/L2).
 
 - `--modo producao --instancia dev` **não** mexe em `/opt/smart-signage` (produção).
 - `TDI_GIT_BRANCH` controla a branch do clone novo (default: branch actual do `~/TotemDigital-Studio`, senão `TotemDigital-MultiAgencia`).
-- Purge comercial destrutivo: ver `docs/DESENHO-PURGE-DADOS-COMERCIAIS.md` (ainda não implementado).
+- Purge comercial: ver `docs/DESENHO-PURGE-DADOS-COMERCIAIS.md` (implementado na branch).
+- Se o wipe falhar com `password authentication failed`, alinhe o role à password do `.env` (o instalador actual já reutiliza `DB_PASSWORD` no wipe).
