@@ -1,5 +1,8 @@
 # VPS — criar instância **dev** do zero (branch MultiAgência)
 
+**Handoff completo (objectivos, procedimentos, próximos passos):**  
+→ [`docs/HANDOFF-MULTI-AGENCIA-CONTINUIDADE.md`](./HANDOFF-MULTI-AGENCIA-CONTINUIDADE.md)
+
 **Repo:** `https://github.com/Julio-Eyras/TotemDigital-Studio.git`  
 **Branch:** `TotemDigital-MultiAgencia`  
 **Domínio:** `dev.totemdigital.app.br`  
@@ -7,6 +10,7 @@
 **Deploy:** `/opt/totemdigital-dev` · BD `smartsignage_dev` · API `:3001`
 
 > Correr como **utilizador normal** (não root). O script pede `sudo` quando precisa.
+> **Não** use a pasta de produção `~/TotemDigital-Studio` para checkout desta branch — clone paralelo `TotemDigital-Studio-multiagencia`.
 
 ---
 
@@ -121,9 +125,12 @@ bash scripts/Instala-TotemDigital-Server.sh \
 ## 6. Testar multi-agência no painel
 
 1. Login `dev` / `dev123`
-2. Complementos do sistema → activar **Modo multi-agência**
-3. Recarregar UI (hot-reload de workers; se o aviso pedir, `sudo systemctl restart smart-signage-dev`)
-4. Portal DNS (opcional): domínio `dev.totemdigital.app.br`, modo `public_wildcard`
+2. Complementos do sistema → select **Modo**: `lite` ou `Pro` (full) → confirmar → reload
+3. Se o aviso pedir: `sudo systemctl restart smart-signage-dev`
+4. Seed 2ª agência (botão na secção Portal)
+5. Portal DNS (opcional): domínio `dev.totemdigital.app.br`, modo `public_wildcard`
+
+Detalhe passo a passo: `docs/HANDOFF-MULTI-AGENCIA-CONTINUIDADE.md` §5.6–5.7.
 
 Pipeline simulado no clone:
 

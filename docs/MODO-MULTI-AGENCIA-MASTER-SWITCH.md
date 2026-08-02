@@ -1,5 +1,7 @@
 # Modo multi-agência — master switch
 
+**Handoff de continuidade:** [`HANDOFF-MULTI-AGENCIA-CONTINUIDADE.md`](./HANDOFF-MULTI-AGENCIA-CONTINUIDADE.md)
+
 **Branch:** `TotemDigital-MultiAgencia`  
 **Repo:** TotemDigital-Studio  
 
