@@ -3,7 +3,8 @@ import {
   InstallationModuleFlags,
   InstallationModuleId,
   MULTI_AGENCY_PRESET_MODULE_IDS,
-  applyMultiAgencyMasterSwitch,
+  applyMultiAgencyMode,
+  resolveMultiAgencyMode,
   mergeInstallationModules,
   validateInstallationModuleDependencies,
   buildDefaultInstallationModules,
@@ -99,6 +100,7 @@ export async function getInstallationModulesAdminView(db: DbLike): Promise<{
   overrides: Partial<Record<string, boolean>> | null;
   capabilities: InstallationCapabilities;
   multiAgencyEnabled: boolean;
+  multiAgencyMode: 'off' | 'lite' | 'full';
   multiAgencyPresetIds: InstallationModuleId[];
 }> {
   const profile = await resolveInstallationProfile(db as any);
@@ -119,6 +121,7 @@ export async function getInstallationModulesAdminView(db: DbLike): Promise<{
     overrides,
     capabilities,
     multiAgencyEnabled: capabilities.modules.multi_agency === true,
+    multiAgencyMode: resolveMultiAgencyMode(capabilities.modules),
     multiAgencyPresetIds: MULTI_AGENCY_PRESET_MODULE_IDS,
   };
 }
@@ -434,10 +437,11 @@ export async function ensureDemoSecondAgencyIfNeeded(db: DbLike): Promise<{
  */
 export async function setMultiAgencyMode(
   db: DbLike,
-  enabled: boolean,
+  enabledOrMode: boolean | 'off' | 'lite' | 'full',
   _updatedBy?: number
 ): Promise<{
   enabled: boolean;
+  mode: 'off' | 'lite' | 'full';
   modules: InstallationModuleFlags;
   profile: 'single_publisher' | 'multi_agency';
   requiresBackendRestart: boolean;
@@ -460,18 +464,25 @@ export async function setMultiAgencyMode(
     throw new Error('Base de dados sem suporte a escrita');
   }
 
+  const mode: 'off' | 'lite' | 'full' =
+    typeof enabledOrMode === 'string'
+      ? enabledOrMode
+      : enabledOrMode
+        ? 'full'
+        : 'off';
+
   const view = await getInstallationModulesAdminView(db);
   const previous = view.modules;
-  const next = applyMultiAgencyMasterSwitch(enabled, previous);
+  const next = applyMultiAgencyMode(mode, previous);
   const modules = await persistModulesFlags(db, next);
 
-  const profile = enabled ? 'multi_agency' : 'single_publisher';
+  const profile = mode === 'off' ? 'single_publisher' : 'multi_agency';
   await upsertSystemSetting(
     db,
     INSTALLATION_PROFILE_SETTING_KEY,
     profile,
     'string',
-    'Perfil de instalação: single_publisher (Studio/mono) ou multi_agency (Pro)'
+    'Perfil de instalação: single_publisher (Studio/mono) ou multi_agency (Pro/lite)'
   );
   resetInstallationProfileCache();
 
@@ -479,7 +490,7 @@ export async function setMultiAgencyMode(
   let secondAgency:
     | { created: boolean; publisherId?: number; subscriberId?: number; detail: string }
     | undefined;
-  if (enabled) {
+  if (mode !== 'off') {
     bootstrap = await ensureSystemOwnerPublisherIfEmpty(db);
     secondAgency = await ensureDemoSecondAgencyIfNeeded(db);
   }
@@ -515,6 +526,7 @@ export async function setMultiAgencyMode(
 
   return {
     enabled: modules.multi_agency === true,
+    mode,
     modules,
     profile,
     requiresBackendRestart,
@@ -522,9 +534,12 @@ export async function setMultiAgencyMode(
     workersReconcileError,
     bootstrap,
     secondAgency,
-    message: enabled
-      ? `Modo multi-agência activado. Dados anteriores (se existirem) permanecem; o menu/API comerciais ficam disponíveis.${bootstrapHint}${secondHint}${workersHint}`
-      : `Modo multi-agência desactivado. Dados comerciais não foram apagados — ficam inacessíveis até voltar a activar. Direct Totem voltou a ser o modo de operação.${workersHint}`,
+    message:
+      mode === 'full'
+        ? `Modo multi-agência Pro activado. Dados anteriores permanecem; superfícies comerciais disponíveis.${bootstrapHint}${secondHint}${workersHint}`
+        : mode === 'lite'
+          ? `Modo multi-agência lite activado (várias orgs + publicar/mídias, sem billing/campanhas/playlists).${bootstrapHint}${secondHint}${workersHint}`
+          : `Modo multi-agência desactivado. Dados comerciais não foram apagados. Direct Totem voltou a ser o modo de operação.${workersHint}`,
   };
 }
 

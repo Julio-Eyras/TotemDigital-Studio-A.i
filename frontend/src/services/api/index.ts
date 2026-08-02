@@ -277,8 +277,57 @@ export const installationModulesApi = {
     const response = await api.put('/installation/modules', { modules });
     return response.data.data;
   },
-  setMultiAgency: async (enabled: boolean) => {
-    const response = await api.put('/installation/multi-agency', { enabled });
+  setMultiAgency: async (enabledOrMode: boolean | 'off' | 'lite' | 'full') => {
+    const body =
+      typeof enabledOrMode === 'string'
+        ? { mode: enabledOrMode }
+        : { enabled: enabledOrMode };
+    const response = await api.put('/installation/multi-agency', body);
+    return {
+      message: response.data.message as string | undefined,
+      ...(response.data.data || {}),
+    };
+  },
+  previewCommercialPurge: async (payload?: {
+    scopes?: string[];
+    publisherId?: number | null;
+    keepMediaFiles?: boolean;
+    keepPublishers?: boolean;
+  }) => {
+    const response = await api.post('/installation/commercial-purge/preview', payload || {});
+    return response.data.data;
+  },
+  runCommercialPurge: async (payload: {
+    dryRun?: boolean;
+    confirmPhrase?: string;
+    scopes?: string[];
+    publisherId?: number | null;
+    keepMediaFiles?: boolean;
+    keepPublishers?: boolean;
+  }) => {
+    const response = await api.post('/installation/commercial-purge', payload);
+    return {
+      message: response.data.message as string | undefined,
+      ...(response.data.data || {}),
+    };
+  },
+  getLastCommercialPurge: async () => {
+    const response = await api.get('/installation/commercial-purge/last');
+    return response.data.data;
+  },
+  getCommercialPurgeSchedule: async () => {
+    const response = await api.get('/installation/commercial-purge/schedule');
+    return response.data.data;
+  },
+  saveCommercialPurgeSchedule: async (payload: {
+    cronExpression: string;
+    scopes?: string[];
+    publisherId?: number | null;
+    keepMediaFiles?: boolean;
+    keepPublishers?: boolean;
+    enabled?: boolean;
+  }) => {
+    const response = await api.put('/installation/commercial-purge/schedule', payload);
     return {
       message: response.data.message as string | undefined,
       ...(response.data.data || {}),

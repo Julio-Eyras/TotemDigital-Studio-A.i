@@ -10,14 +10,14 @@ Concordância validada:
 | Opção | Ideia | Estado |
 |-------|--------|--------|
 | **A** | Dois produtos claros: **Direct Totem** *ou* **Pro multi-agência** | **Agora** — venda e suporte simples |
-| **B** | Perfil futuro `multi_agency_lite`: várias orgs + publicar + mídias, **sem** billing/campanhas/playlists | **Só se** clientes pedirem multi-loja sem ERP de mídia |
+| **B** | Perfil `multi_agency_lite`: várias orgs + publicar + mídias, **sem** billing/campanhas/playlists | **Implementado** — `mode: "lite"` |
 | **C** | Multi-agência ON + Direct Totem ON no mesmo painel | **Evitar** — menus e expectativas colidem |
 
 Implicações:
 
-- O master switch continua **mutuamente exclusivo** (ON = Pro; OFF = Direct Totem). Não implementar C.
-- D3 mantém-se: OFF **não apaga** dados (arquivo silencioso). Purge só como fluxo destrutivo explícito, separado.
-- `multi_agency_lite` (B) **não** entra no roadmap activo até haver pedido comercial claro.
+- O master switch é **mutuamente exclusivo** com Direct Totem (off = Direct Totem; lite/full = Pro parcial/completo). Não implementar C.
+- D3 mantém-se: OFF **não apaga** dados (arquivo silencioso). Purge = fluxo explícito separado (`DESENHO-PURGE-DADOS-COMERCIAIS.md`).
+- `multi_agency_lite` (B) está disponível via API/UI (`mode: "lite"`).
 
 ## Decisões (validadas)
 
@@ -28,16 +28,17 @@ Implicações:
 | D3 | Ao desligar: **não apaga dados**; esconde menu/API |
 | D4 | Botão: `owner_system` e `admin_sql` |
 | D5 | Painel de módulos em **Opções avançadas** (colapsado) |
-| D6 | Produto: A agora · B sob procura · C proibido (ver secção acima) |
+| D6 | Produto: A agora · **B implementado (lite)** · C proibido |
 
 ## Comportamento
 
-- **OFF (default lógico do preset núcleo):** Direct Totem + simple; comercial off  
-- **ON:** preset comercial/ops; Direct Totem off; portal/FX preservados se já estavam on  
+- **off:** Direct Totem + simple; comercial off  
+- **lite:** várias orgs + publicar + mídias + devices; sem billing/campanhas/playlists/contratos; Direct Totem off  
+- **full:** preset comercial/ops completo; Direct Totem off; portal/FX preservados se já estavam on  
 - Persiste `installation.modules` + sincroniza `installation.profile`  
-- API: `PUT /api/installation/multi-agency` body `{ "enabled": true|false }`  
-- UI: `/settings/system-modules`
-- Ao activar com **zero** organizações: cria organização owner (bootstrap mínimo)
+- API: `PUT /api/installation/multi-agency` body `{ "mode": "off"|"lite"|"full" }` (legado: `{ "enabled": true|false }`)  
+- UI: `/settings/system-modules` (select off/lite/full)
+- Ao activar lite/full com **zero** organizações: cria organização owner (bootstrap mínimo)
 
 ## Testar
 

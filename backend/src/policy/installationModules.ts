@@ -321,15 +321,74 @@ export function buildMultiAgencyOperationPreset(preserveAdvanced?: {
   });
 }
 
+/**
+ * Preset multi-agência lite (D6-B): várias orgs + publicar + mídias + devices,
+ * sem billing/campanhas/playlists/contratos. Direct Totem continua OFF (D6-C).
+ */
+export function buildMultiAgencyLitePreset(preserveAdvanced?: {
+  subscriber_portal?: boolean;
+  smart_display_fx?: boolean;
+}): InstallationModuleFlags {
+  return enforceLockedModules({
+    ...emptyModuleFlags(false),
+    core_publish: true,
+    organization: true,
+    multi_agency: true,
+    direct_totem_mode: false,
+    simple_totem_mode: false,
+    quick_publish: true,
+    devices: true,
+    subscribers: false,
+    campaigns: false,
+    playlists_advanced: false,
+    contracts: false,
+    plans: false,
+    billing: false,
+    commercial_reports: false,
+    ota: false,
+    dispatcher_admin: false,
+    analytics: false,
+    subscriber_portal: preserveAdvanced?.subscriber_portal === true,
+    smart_display_fx: preserveAdvanced?.smart_display_fx === true,
+  });
+}
+
+export type MultiAgencyMode = 'off' | 'lite' | 'full';
+
 export function applyMultiAgencyMasterSwitch(
   enabled: boolean,
   current?: InstallationModuleFlags | null
 ): InstallationModuleFlags {
-  if (enabled) {
+  return applyMultiAgencyMode(enabled ? 'full' : 'off', current);
+}
+
+export function applyMultiAgencyMode(
+  mode: MultiAgencyMode,
+  current?: InstallationModuleFlags | null
+): InstallationModuleFlags {
+  if (mode === 'full') {
     return buildMultiAgencyOperationPreset({
       subscriber_portal: current?.subscriber_portal === true,
       smart_display_fx: current?.smart_display_fx === true,
     });
   }
+  if (mode === 'lite') {
+    return buildMultiAgencyLitePreset({
+      subscriber_portal: current?.subscriber_portal === true,
+      smart_display_fx: current?.smart_display_fx === true,
+    });
+  }
   return buildCoreOperationPreset();
+}
+
+/** Infere off | lite | full a partir das flags actuais. */
+export function resolveMultiAgencyMode(modules: InstallationModuleFlags): MultiAgencyMode {
+  if (!modules.multi_agency) return 'off';
+  const commercialHeavy =
+    modules.billing === true ||
+    modules.campaigns === true ||
+    modules.subscribers === true ||
+    modules.playlists_advanced === true ||
+    modules.contracts === true;
+  return commercialHeavy ? 'full' : 'lite';
 }

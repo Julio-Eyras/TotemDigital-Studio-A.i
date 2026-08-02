@@ -7,6 +7,7 @@ import {
   saveInstallationModules,
   setMultiAgencyMode,
   getMultiAgencyActivationChecklist,
+  ensureDemoSecondAgencyIfNeeded,
 } from '../services/installationModulesService';
 import {
   getPortalSettings,
@@ -16,8 +17,16 @@ import {
   syncPortalCloudflareDns,
   issuePortalSsl,
 } from '../services/portalHostService';
-import { ensureDemoSecondAgencyIfNeeded } from '../services/installationModulesService';
 import { buildPortalWildcardSslPlan } from '../services/portalSslService';
+import {
+  previewCommercialPurge,
+  runCommercialPurge,
+  getLastPurgeRun,
+  getPurgeSchedule,
+  upsertPurgeSchedule,
+  PURGE_CONFIRM_PHRASE,
+  ALL_PURGE_SCOPES,
+} from '../services/commercialPurgeService';
 import { logError } from '../utils/loggerHelper';
 import { createDatabaseWrapper } from '../config/database-pg';
 
@@ -252,10 +261,11 @@ router.get(
           overrides: view.overrides,
           profile: view.capabilities.profile,
           multiAgencyEnabled: view.multiAgencyEnabled,
+          multiAgencyMode: view.multiAgencyMode,
           multiAgencyPresetIds: view.multiAgencyPresetIds,
           activationChecklist: checklist,
           note:
-            'Use o botão Modo multi-agência para o preset. Opções avançadas = módulos individuais. flag_smart_* = permissão por utilizador.',
+            'Use o botão Modo multi-agência para o preset (off/lite/full). Opções avançadas = módulos individuais. flag_smart_* = permissão por utilizador.',
           phase: 'multi_agency_master',
           enforcement: 'menu_and_api',
         },
@@ -272,18 +282,31 @@ router.get(
 
 /**
  * @route PUT /api/installation/multi-agency
- * @desc Master switch — preset atómico multi-agência ON/OFF
+ * @desc Master switch — mode off | lite | full (ou enabled boolean legado)
  * @access owner_system, admin_sql
  */
 router.put(
   '/multi-agency',
   authorizeRole(['owner_system', 'admin_sql']),
-  body('enabled').isBoolean().withMessage('enabled deve ser boolean'),
+  body('mode').optional().isIn(['off', 'lite', 'full']),
+  body('enabled').optional().isBoolean(),
   validateRequest,
   async (req: any, res: any) => {
     try {
       const db = createDatabaseWrapper();
-      const result = await setMultiAgencyMode(db, Boolean(req.body.enabled), req.user?.id);
+      const mode =
+        typeof req.body.mode === 'string'
+          ? (req.body.mode as 'off' | 'lite' | 'full')
+          : typeof req.body.enabled === 'boolean'
+            ? req.body.enabled
+            : null;
+      if (mode === null) {
+        return res.status(400).json({
+          success: false,
+          error: 'Informe mode (off|lite|full) ou enabled (boolean)',
+        });
+      }
+      const result = await setMultiAgencyMode(db, mode, req.user?.id);
       res.json({
         success: true,
         message: result.message,
@@ -332,6 +355,148 @@ router.put(
         success: false,
         error: msg,
       });
+    }
+  }
+);
+
+/**
+ * @route POST /api/installation/commercial-purge/preview
+ */
+router.post(
+  '/commercial-purge/preview',
+  authorizeRole(['owner_system', 'admin_sql']),
+  body('scopes').optional().isArray(),
+  body('publisherId').optional({ nullable: true }).isInt(),
+  body('keepMediaFiles').optional().isBoolean(),
+  body('keepPublishers').optional().isBoolean(),
+  validateRequest,
+  async (req: any, res: any) => {
+    try {
+      const db = createDatabaseWrapper();
+      const result = await previewCommercialPurge(db, {
+        scopes: req.body.scopes,
+        publisherId: req.body.publisherId,
+        keepMediaFiles: req.body.keepMediaFiles,
+        keepPublishers: req.body.keepPublishers,
+      });
+      res.json({ success: true, data: result, confirmPhraseHint: PURGE_CONFIRM_PHRASE });
+    } catch (error: any) {
+      await logError('Erro preview purge comercial', error);
+      res.status(500).json({ success: false, error: error.message || 'Erro no preview' });
+    }
+  }
+);
+
+/**
+ * @route POST /api/installation/commercial-purge
+ * @desc dryRun=true por defeito; execução real exige frase tipada
+ */
+router.post(
+  '/commercial-purge',
+  authorizeRole(['owner_system', 'admin_sql']),
+  body('dryRun').optional().isBoolean(),
+  body('confirmPhrase').optional().isString(),
+  body('scopes').optional().isArray(),
+  body('publisherId').optional({ nullable: true }).isInt(),
+  body('keepMediaFiles').optional().isBoolean(),
+  body('keepPublishers').optional().isBoolean(),
+  validateRequest,
+  async (req: any, res: any) => {
+    try {
+      const db = createDatabaseWrapper();
+      const dryRun = req.body.dryRun !== false;
+      const result = await runCommercialPurge(db, {
+        dryRun,
+        confirmPhrase: req.body.confirmPhrase,
+        scopes: req.body.scopes,
+        publisherId: req.body.publisherId,
+        keepMediaFiles: req.body.keepMediaFiles,
+        keepPublishers: req.body.keepPublishers,
+        triggeredBy: req.user?.id ?? null,
+      });
+      const status = result.ok ? 200 : 400;
+      res.status(status).json({
+        success: result.ok,
+        message: result.message,
+        data: result,
+        availableScopes: ALL_PURGE_SCOPES,
+      });
+    } catch (error: any) {
+      await logError('Erro purge comercial', error);
+      res.status(500).json({ success: false, error: error.message || 'Erro no purge' });
+    }
+  }
+);
+
+/**
+ * @route GET /api/installation/commercial-purge/last
+ */
+router.get(
+  '/commercial-purge/last',
+  authorizeRole(['owner_system', 'admin_sql']),
+  async (_req: any, res: any) => {
+    try {
+      const db = createDatabaseWrapper();
+      const last = await getLastPurgeRun(db);
+      res.json({ success: true, data: { last } });
+    } catch (error: any) {
+      await logError('Erro ao ler último purge', error);
+      res.status(500).json({ success: false, error: error.message || 'Erro' });
+    }
+  }
+);
+
+/**
+ * @route GET /api/installation/commercial-purge/schedule
+ */
+router.get(
+  '/commercial-purge/schedule',
+  authorizeRole(['owner_system', 'admin_sql']),
+  async (_req: any, res: any) => {
+    try {
+      const db = createDatabaseWrapper();
+      const schedule = await getPurgeSchedule(db);
+      res.json({ success: true, data: { schedule } });
+    } catch (error: any) {
+      await logError('Erro ao ler schedule purge', error);
+      res.status(500).json({ success: false, error: error.message || 'Erro' });
+    }
+  }
+);
+
+/**
+ * @route PUT /api/installation/commercial-purge/schedule
+ */
+router.put(
+  '/commercial-purge/schedule',
+  authorizeRole(['owner_system', 'admin_sql']),
+  body('cronExpression').isString().withMessage('cronExpression obrigatório'),
+  body('scopes').optional().isArray(),
+  body('publisherId').optional({ nullable: true }).isInt(),
+  body('keepMediaFiles').optional().isBoolean(),
+  body('keepPublishers').optional().isBoolean(),
+  body('enabled').optional().isBoolean(),
+  validateRequest,
+  async (req: any, res: any) => {
+    try {
+      const db = createDatabaseWrapper();
+      const schedule = await upsertPurgeSchedule(db, {
+        cronExpression: req.body.cronExpression,
+        scopes: req.body.scopes,
+        publisherId: req.body.publisherId,
+        keepMediaFiles: req.body.keepMediaFiles,
+        keepPublishers: req.body.keepPublishers,
+        enabled: req.body.enabled,
+      });
+      res.json({
+        success: true,
+        message: 'Agendamento de purge guardado',
+        data: { schedule },
+      });
+    } catch (error: any) {
+      await logError('Erro ao guardar schedule purge', error);
+      const status = error?.message?.includes('em falta') ? 400 : 500;
+      res.status(status).json({ success: false, error: error.message || 'Erro' });
     }
   }
 );

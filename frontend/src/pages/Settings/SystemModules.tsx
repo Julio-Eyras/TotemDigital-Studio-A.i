@@ -55,11 +55,18 @@ const GROUP_LABEL: Record<CatalogItem['group'], string> = {
 };
 
 const PRESET_ON_LABELS = [
-  'Várias organizações (multi-agência)',
+  'Várias organizações (multi-agência Pro)',
   'Anunciantes, contratos, planos e faturamento',
   'Campanhas, playlists avançadas e quick-publish',
   'Devices, OTA, dispatcher e analytics',
   'Menu Direct Totem desactiva-se (UI completa)',
+];
+
+const PRESET_LITE_LABELS = [
+  'Várias organizações + publicar + mídias + devices',
+  'Sem billing, campanhas, playlists avançadas nem anunciantes ERP',
+  'Direct Totem desactiva-se (mutuamente exclusivo)',
+  'Ideal para multi-loja sem ERP comercial completo',
 ];
 
 const PRESET_OFF_LABELS = [
@@ -69,6 +76,10 @@ const PRESET_OFF_LABELS = [
   'Dados existentes NÃO são apagados',
   'Portal / SmartDisplayFX (avançado) também desligam com o modo',
 ];
+
+const PURGE_CONFIRM_PHRASE = 'APAGAR DADOS COMERCIAIS DESTA INSTALAÇÃO';
+
+type MultiAgencyMode = 'off' | 'lite' | 'full';
 
 type ChecklistItem = {
   id: string;
@@ -86,15 +97,24 @@ const SystemModules: React.FC = () => {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [restartNeeded, setRestartNeeded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [modules, setModules] = useState<InstallationModuleFlags | null>(null);
   const [profile, setProfile] = useState<string>('');
   const [multiAgencyEnabled, setMultiAgencyEnabled] = useState(false);
+  const [multiAgencyMode, setMultiAgencyMode] = useState<MultiAgencyMode>('off');
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [pendingEnabled, setPendingEnabled] = useState<boolean | null>(null);
+  const [pendingMode, setPendingMode] = useState<MultiAgencyMode | null>(null);
+  const [purgePreview, setPurgePreview] = useState<any>(null);
+  const [purgePhrase, setPurgePhrase] = useState('');
+  const [purgePublisherId, setPurgePublisherId] = useState('');
+  const [purgeKeepMedia, setPurgeKeepMedia] = useState(true);
+  const [purgeMsg, setPurgeMsg] = useState<string | null>(null);
+  const [purgeCron, setPurgeCron] = useState('0 3 * * 0');
+  const [purgeScheduleEnabled, setPurgeScheduleEnabled] = useState(false);
   const [portalBaseDomain, setPortalBaseDomain] = useState('');
   const [portalDnsMode, setPortalDnsMode] = useState<'off' | 'public_wildcard' | 'local_dnsmasq'>(
     'off'
@@ -137,7 +157,17 @@ const SystemModules: React.FC = () => {
       setModules(data?.modules || null);
       setProfile(data?.profile || '');
       setMultiAgencyEnabled(Boolean(data?.multiAgencyEnabled ?? data?.modules?.multi_agency));
+      setMultiAgencyMode((data?.multiAgencyMode as MultiAgencyMode) || 'off');
       setChecklist(Array.isArray(data?.activationChecklist?.items) ? data.activationChecklist.items : []);
+      try {
+        const sched = await installationModulesApi.getCommercialPurgeSchedule();
+        if (sched?.schedule) {
+          setPurgeCron(String(sched.schedule.cron_expression || '0 3 * * 0'));
+          setPurgeScheduleEnabled(Boolean(sched.schedule.enabled));
+        }
+      } catch {
+        /* schema antigo */
+      }
       try {
         const portal = await installationModulesApi.getPortal();
         setPortalBaseDomain(portal?.settings?.baseDomain || '');
@@ -176,22 +206,23 @@ const SystemModules: React.FC = () => {
     return map;
   }, [catalog]);
 
-  const requestMasterToggle = (checked: boolean) => {
-    if (saving) return;
-    setPendingEnabled(checked);
+  const requestModeChange = (mode: MultiAgencyMode) => {
+    if (saving || mode === multiAgencyMode) return;
+    setPendingMode(mode);
     setConfirmOpen(true);
   };
 
   const confirmMasterToggle = async () => {
-    if (pendingEnabled === null) return;
+    if (pendingMode === null) return;
     try {
       setSaving(true);
       setError(null);
       setSuccess(null);
       setConfirmOpen(false);
-      const result = await installationModulesApi.setMultiAgency(pendingEnabled);
+      const result = await installationModulesApi.setMultiAgency(pendingMode);
       setModules(result.modules || modules);
       setMultiAgencyEnabled(Boolean(result.enabled));
+      setMultiAgencyMode((result.mode as MultiAgencyMode) || pendingMode);
       setProfile(result.profile || profile);
       const needsRestart = Boolean(result.requiresBackendRestart);
       markRestartNeeded(needsRestart);
@@ -213,7 +244,7 @@ const SystemModules: React.FC = () => {
       setError(pickApiErrorMessage(e, 'Erro ao alterar modo multi-agência'));
       setSaving(false);
     } finally {
-      setPendingEnabled(null);
+      setPendingMode(null);
     }
   };
 
@@ -334,7 +365,74 @@ const SystemModules: React.FC = () => {
     }
   };
 
-  const confirmLabels = pendingEnabled ? PRESET_ON_LABELS : PRESET_OFF_LABELS;
+  const handlePurgePreview = async () => {
+    try {
+      setSaving(true);
+      setPurgeMsg(null);
+      const pubId = purgePublisherId.trim() ? Number(purgePublisherId) : null;
+      const data = await installationModulesApi.previewCommercialPurge({
+        publisherId: Number.isFinite(pubId as number) ? pubId : null,
+        keepMediaFiles: purgeKeepMedia,
+        keepPublishers: true,
+      });
+      setPurgePreview(data);
+      setPurgeMsg(data?.message || 'Preview OK');
+    } catch (e) {
+      setError(pickApiErrorMessage(e, 'Erro no preview de purge'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePurgeRun = async (dryRun: boolean) => {
+    try {
+      setSaving(true);
+      setPurgeMsg(null);
+      const pubId = purgePublisherId.trim() ? Number(purgePublisherId) : null;
+      const result = await installationModulesApi.runCommercialPurge({
+        dryRun,
+        confirmPhrase: dryRun ? undefined : purgePhrase,
+        publisherId: Number.isFinite(pubId as number) ? pubId : null,
+        keepMediaFiles: purgeKeepMedia,
+        keepPublishers: true,
+      });
+      setPurgePreview(result);
+      setPurgeMsg(result.message || (dryRun ? 'Dry-run OK' : 'Purge executado'));
+      if (!dryRun && result.ok) setPurgePhrase('');
+    } catch (e) {
+      setError(pickApiErrorMessage(e, 'Erro ao executar purge'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSavePurgeSchedule = async () => {
+    try {
+      setSaving(true);
+      const result = await installationModulesApi.saveCommercialPurgeSchedule({
+        cronExpression: purgeCron,
+        enabled: purgeScheduleEnabled,
+        keepMediaFiles: purgeKeepMedia,
+        keepPublishers: true,
+      });
+      setPurgeMsg(result.message || 'Agendamento guardado');
+      setSuccess(result.message || 'Agendamento de purge guardado');
+    } catch (e) {
+      setError(pickApiErrorMessage(e, 'Erro ao guardar agendamento'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const confirmLabels =
+    pendingMode === 'full'
+      ? PRESET_ON_LABELS
+      : pendingMode === 'lite'
+        ? PRESET_LITE_LABELS
+        : PRESET_OFF_LABELS;
+
+  const modeLabel =
+    multiAgencyMode === 'full' ? 'Pro' : multiAgencyMode === 'lite' ? 'Lite' : 'Desactivado';
 
   return (
     <Box>
@@ -394,9 +492,8 @@ const SystemModules: React.FC = () => {
                     Modo multi-agência
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Um único interruptor para alternar entre operação núcleo (TotemDigital) e rede
-                    Pro (várias organizações, anunciantes, comercial). Portal e SmartDisplayFX
-                    ficam nas opções avançadas.
+                    Escolha Direct Totem (off), multi-agência lite (várias orgs sem ERP) ou Pro
+                    completo. Portal e SmartDisplayFX ficam nas opções avançadas.
                   </Typography>
                   {profile && (
                     <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
@@ -406,24 +503,25 @@ const SystemModules: React.FC = () => {
                       <Chip
                         size="small"
                         color={multiAgencyEnabled ? 'primary' : 'default'}
-                        label={multiAgencyEnabled ? 'Activado' : 'Desactivado'}
+                        label={modeLabel}
                         sx={{ ml: 0.5, fontWeight: 700 }}
                       />
                     </Typography>
                   )}
                 </Box>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={multiAgencyEnabled}
-                      disabled={saving}
-                      color="primary"
-                      onChange={(e) => requestMasterToggle(e.target.checked)}
-                    />
-                  }
-                  label={multiAgencyEnabled ? 'Activado' : 'Desactivado'}
-                  sx={{ ml: 0 }}
-                />
+                <TextField
+                  select
+                  size="small"
+                  label="Modo"
+                  value={multiAgencyMode}
+                  disabled={saving}
+                  onChange={(e) => requestModeChange(e.target.value as MultiAgencyMode)}
+                  sx={{ minWidth: 160 }}
+                >
+                  <MenuItem value="off">Direct Totem (off)</MenuItem>
+                  <MenuItem value="lite">Multi-agência lite</MenuItem>
+                  <MenuItem value="full">Multi-agência Pro</MenuItem>
+                </TextField>
               </Box>
               <Alert severity="info" sx={{ mt: 2 }} icon={<Extension />}>
                 Desactivar não apaga dados — apenas esconde menu/API até voltar a activar.
@@ -609,6 +707,137 @@ const SystemModules: React.FC = () => {
             </CardContent>
           </Card>
 
+          <Accordion
+            disableGutters
+            elevation={0}
+            sx={{
+              mb: 2,
+              border: `1px solid ${theme.palette.error.light}`,
+              bgcolor: theme.palette.mode === 'dark' ? 'rgba(244,67,54,0.06)' : 'rgba(244,67,54,0.03)',
+            }}
+          >
+            <AccordionSummary expandIcon={<ExpandMore />}>
+              <Typography fontWeight={700} color="error">
+                Zona de perigo — Purge de dados comerciais
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                Independente do OFF do multi-agência. Dry-run por defeito. Execução real exige a frase
+                exacta: <code>{PURGE_CONFIRM_PHRASE}</code>
+              </Alert>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    fullWidth
+                    label="publisher_id (opcional)"
+                    value={purgePublisherId}
+                    onChange={(e) => setPurgePublisherId(e.target.value)}
+                    helperText="Vazio = instalação inteira"
+                  />
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={purgeKeepMedia}
+                        onChange={(e) => setPurgeKeepMedia(e.target.checked)}
+                      />
+                    }
+                    label="Manter ficheiros de media"
+                  />
+                </Grid>
+                <Grid item xs={12} md={8}>
+                  <TextField
+                    fullWidth
+                    label="Frase de confirmação (só para execução real)"
+                    value={purgePhrase}
+                    onChange={(e) => setPurgePhrase(e.target.value)}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    <Button variant="outlined" disabled={saving} onClick={() => void handlePurgePreview()}>
+                      Pré-visualizar
+                    </Button>
+                    <Button variant="outlined" disabled={saving} onClick={() => void handlePurgeRun(true)}>
+                      Dry-run
+                    </Button>
+                    <Button
+                      variant="contained"
+                      color="error"
+                      disabled={saving || purgePhrase !== PURGE_CONFIRM_PHRASE}
+                      onClick={() => void handlePurgeRun(false)}
+                    >
+                      Executar purge
+                    </Button>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Cron do agendamento"
+                    value={purgeCron}
+                    onChange={(e) => setPurgeCron(e.target.value)}
+                    helperText="Ex.: 0 3 * * 0 (domingo 03:00)"
+                  />
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={purgeScheduleEnabled}
+                        onChange={(e) => setPurgeScheduleEnabled(e.target.checked)}
+                      />
+                    }
+                    label="Agendamento activo"
+                  />
+                </Grid>
+                <Grid item xs={12} md={3}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    disabled={saving}
+                    onClick={() => void handleSavePurgeSchedule()}
+                  >
+                    Guardar agenda
+                  </Button>
+                </Grid>
+              </Grid>
+              {purgeMsg && (
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  {purgeMsg}
+                </Alert>
+              )}
+              {purgePreview && (
+                <Box
+                  component="pre"
+                  sx={{
+                    mt: 2,
+                    p: 1.5,
+                    maxHeight: 240,
+                    overflow: 'auto',
+                    bgcolor: 'action.hover',
+                    borderRadius: 1,
+                    fontSize: 12,
+                  }}
+                >
+                  {JSON.stringify(
+                    {
+                      counts: purgePreview.counts,
+                      warnings: purgePreview.warnings,
+                      deleted: purgePreview.deleted,
+                      filesDeleted: purgePreview.filesDeleted,
+                      message: purgePreview.message,
+                    },
+                    null,
+                    2
+                  )}
+                </Box>
+              )}
+            </AccordionDetails>
+          </Accordion>
+
           <Accordion disableGutters elevation={0} sx={{ border: `1px solid ${theme.palette.divider}` }}>
             <AccordionSummary expandIcon={<ExpandMore />}>
               <Typography fontWeight={700}>Opções avançadas (módulos individuais)</Typography>
@@ -692,7 +921,11 @@ const SystemModules: React.FC = () => {
         fullWidth
       >
         <DialogTitle>
-          {pendingEnabled ? 'Activar modo multi-agência?' : 'Desactivar modo multi-agência?'}
+          {pendingMode === 'full'
+            ? 'Activar multi-agência Pro?'
+            : pendingMode === 'lite'
+              ? 'Activar multi-agência lite?'
+              : 'Desactivar modo multi-agência?'}
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
@@ -709,7 +942,7 @@ const SystemModules: React.FC = () => {
             Workers (Bull, billing, playlists) tentam ligar/desligar em runtime. Só será preciso
             reiniciar o backend se o hot-reload falhar.
           </Alert>
-          {pendingEnabled && checklist.some((i) => !i.ok && i.severity === 'warning') && (
+          {pendingMode && pendingMode !== 'off' && checklist.some((i) => !i.ok && i.severity === 'warning') && (
             <Alert severity="warning" sx={{ mt: 1 }}>
               Há avisos no checklist (ex.: organização ou Redis). Pode activar na mesma; corrija depois se
               necessário.
@@ -722,7 +955,7 @@ const SystemModules: React.FC = () => {
           </Button>
           <Button
             variant="contained"
-            color={pendingEnabled ? 'primary' : 'warning'}
+            color={pendingMode === 'off' ? 'warning' : 'primary'}
             disabled={saving}
             onClick={() => void confirmMasterToggle()}
           >

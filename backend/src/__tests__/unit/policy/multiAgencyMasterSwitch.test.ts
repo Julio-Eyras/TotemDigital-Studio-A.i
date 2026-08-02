@@ -3,7 +3,10 @@
  */
 import {
   applyMultiAgencyMasterSwitch,
+  applyMultiAgencyMode,
   buildCoreOperationPreset,
+  buildMultiAgencyLitePreset,
+  resolveMultiAgencyMode,
 } from '../../../policy/installationModules';
 
 describe('multi-agency master switch helpers', () => {
@@ -26,5 +29,23 @@ describe('multi-agency master switch helpers', () => {
     expect(on.subscriber_portal).toBe(true);
     expect(on.smart_display_fx).toBe(true);
     expect(on.direct_totem_mode).toBe(false);
+  });
+
+  it('lite liga multi_agency sem billing/campanhas', () => {
+    const lite = buildMultiAgencyLitePreset();
+    expect(lite.multi_agency).toBe(true);
+    expect(lite.direct_totem_mode).toBe(false);
+    expect(lite.core_publish).toBe(true);
+    expect(lite.devices).toBe(true);
+    expect(lite.billing).toBe(false);
+    expect(lite.campaigns).toBe(false);
+    expect(lite.subscribers).toBe(false);
+    expect(resolveMultiAgencyMode(lite)).toBe('lite');
+  });
+
+  it('applyMultiAgencyMode cobre off/lite/full', () => {
+    expect(applyMultiAgencyMode('off').multi_agency).toBe(false);
+    expect(applyMultiAgencyMode('lite').billing).toBe(false);
+    expect(applyMultiAgencyMode('full').billing).toBe(true);
   });
 });

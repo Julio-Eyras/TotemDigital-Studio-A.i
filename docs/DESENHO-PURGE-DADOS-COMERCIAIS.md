@@ -1,108 +1,88 @@
 # Desenho — Purge explícito de dados comerciais (multi-agência OFF)
 
 **Branch:** `TotemDigital-MultiAgencia`  
-**Estado:** desenho (não implementado)  
+**Estado:** implementado (API + service + UI + schedule)  
 **Relacionado:** D3 / D6 em `MODO-MULTI-AGENCIA-MASTER-SWITCH.md`
 
 ## Objectivo
 
-Permitir **apagar de propósito** dados comerciais (billing, contratos, campanhas, playlists, anunciantes opcional) **sem** ligar isso ao botão OFF do multi-agência.
+Permitir **apagar de propósito** dados comerciais (billing, contratos, campanhas, playlists, anunciantes opcional, media em disco opcional) **sem** ligar isso ao botão OFF do multi-agência.
 
 O OFF continua a só **esconder** superfícies (arquivo silencioso).
 
 ## Princípios
 
-1. **Nunca** cascade delete no `PUT /api/installation/multi-agency { enabled: false }`
-2. Purge = acção separada, só `owner_system` (+ opcional `admin_sql` com 2FA)
+1. **Nunca** cascade delete no `PUT /api/installation/multi-agency { mode: "off" }`
+2. Purge = acção separada, `owner_system` / `admin_sql`
 3. Ordem destrutiva segura (filhos → pais)
 4. Dry-run por defeito; execução real exige confirmação tipada
-5. Audit log + backup/export obrigatório antes do hard delete
+5. Audit log + export JSON em `runtime/purges/<timestamp>/`
 
 ## Confirmação tipada
 
 ```text
-Confirme escrevendo exactamente:
-  APAGAR DADOS COMERCIAIS DESTA INSTALAÇÃO
+APAGAR DADOS COMERCIAIS DESTA INSTALAÇÃO
 ```
 
-Body adicional:
+Body:
 
 ```json
 {
   "dryRun": false,
   "confirmPhrase": "APAGAR DADOS COMERCIAIS DESTA INSTALAÇÃO",
-  "scopes": ["billing", "campaigns", "playlists", "contracts", "subscribers"],
+  "scopes": ["billing", "campaigns", "playlists", "contracts", "subscribers", "media_files"],
+  "publisherId": null,
   "keepPublishers": true,
   "keepMediaFiles": true
 }
 ```
 
-## Scopes (fases)
+- `publisherId` preenchido → purge **parcial** só dessa organização
+- `keepMediaFiles: false` → inclui scope `media_files` (BD + disco via StorageService)
 
-| Scope | O que apaga (resumo) | Nota |
-|-------|----------------------|------|
-| `billing` | faturas, cobranças, pix/webhook logs ligados a contratos | primeiro |
-| `campaigns` | campanhas, itens, mixes, schedules avançados | |
-| `playlists` | playlists, engine jobs, mix | |
-| `contracts` | `subscriber_contracts`, planos de acesso publisher | após billing |
-| `subscribers` | anunciantes + users `subscriber_user` | opcional / perigoso |
-| `publishers_extra` | orgs que **não** são `is_system_owner` | só se `keepPublishers=false` |
+## Scopes
 
-**Fora do purge v1:** ficheiros em disco de media (só BD), logs de sistema, OTA, players físicos.
+| Scope | O que apaga | Nota |
+|-------|-------------|------|
+| `billing` | billing publisher/subscriber | primeiro |
+| `campaigns` | campanhas + relações | |
+| `playlists` | playlists + items | |
+| `contracts` | contratos | após billing |
+| `media_files` | `medias` + ficheiros em disco | só se `keepMediaFiles=false` |
+| `subscribers` | anunciantes + SPA | opcional / perigoso |
+| `publishers_extra` | orgs não system owner | só se `keepPublishers=false` |
 
-## API (proposta)
+## API
 
 ```
-POST /api/installation/commercial-purge/preview   → contagens por scope
-POST /api/installation/commercial-purge           → dryRun default true
-GET  /api/installation/commercial-purge/last      → último relatório
+POST /api/installation/commercial-purge/preview
+POST /api/installation/commercial-purge          → dryRun default true
+GET  /api/installation/commercial-purge/last
+GET  /api/installation/commercial-purge/schedule
+PUT  /api/installation/commercial-purge/schedule → cron + enabled
 ```
 
-Resposta preview:
+Schema: `installation_purge_runs`, `installation_purge_schedules` (part2 tables-base).
 
-```json
-{
-  "scopes": {
-    "billing": { "invoices": 12, "charges": 40 },
-    "campaigns": { "campaigns": 8 },
-    "playlists": { "playlists": 5 },
-    "contracts": { "subscriber_contracts": 3 },
-    "subscribers": { "subscribers": 2 }
-  },
-  "warnings": ["Existem faturas pagas — purge é irreversível"]
-}
-```
-
-## Ordem SQL (conceito)
-
-1. Soft-disable workers / gates (já cobertos pelo OFF)
-2. Export JSON/CSV → `runtime/purges/<timestamp>/`
-3. DELETE/TRUNCATE por scope na ordem da tabela acima (transacção por scope)
-4. `VACUUM` opcional
-5. Relatório + audit (`system_logs` / tabela `installation_purge_runs`)
+Worker: tick minuto a minuto em `operationalWorkersLifecycle` → `tickPurgeSchedule`.
 
 ## UI
 
-Complementos → secção perigo (acordeão vermelho):
+Complementos → acordeão vermelho «Zona de perigo»:
 
-1. Pré-visualizar contagens  
-2. Escolher scopes  
-3. Frase de confirmação  
-4. Botão só activo com frase correcta + `dryRun=false`  
-5. Mostrar relatório
-
-## Fora de v1
-
-- Apagar media files do disco  
-- Purge parcial por organização (só global da instalação)  
-- Agendar purge  
-- `multi_agency_lite` (D6-B)
+1. Pré-visualizar / dry-run  
+2. `publisher_id` opcional  
+3. Manter media (switch)  
+4. Frase + executar  
+5. Agendar cron
 
 ## Critérios de aceite
 
-- [ ] OFF multi-agência **não** chama purge  
-- [ ] Preview sem escrita  
-- [ ] Frase errada → 400  
-- [ ] dryRun=true → zero DELETE  
-- [ ] Audit + pasta de export criada  
-- [ ] Owner system only  
+- [x] OFF multi-agência **não** chama purge  
+- [x] Preview sem escrita  
+- [x] Frase errada → 400  
+- [x] dryRun=true → zero DELETE  
+- [x] Audit + pasta de export  
+- [x] Media em disco (scope opcional)  
+- [x] Purge parcial por org  
+- [x] Agendamento  

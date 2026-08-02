@@ -41,6 +41,7 @@ type AppliedFlags = WorkerRuntimeFlags & { redisEnabled: boolean };
 
 let applied: AppliedFlags | null = null;
 let alertCronTask: ScheduledTask | null = null;
+let purgeCronTask: ScheduledTask | null = null;
 let reconcileLock: Promise<void> = Promise.resolve();
 
 function g(): any {
@@ -203,12 +204,42 @@ function stopAlertCron(logLabel: string): void {
   void logInfo(`${logLabel}: cron de alertas parado`);
 }
 
+/** Cron leve (1m) para purge comercial agendado — independente do master switch. */
+function ensurePurgeScheduleCron(logLabel: string): void {
+  if (purgeCronTask) return;
+  purgeCronTask = cron.schedule('* * * * *', async () => {
+    try {
+      const { createDatabaseWrapper } = await import('../config/database-pg');
+      const { tickPurgeSchedule } = await import('../services/commercialPurgeService');
+      await tickPurgeSchedule(createDatabaseWrapper());
+    } catch (error: any) {
+      await logError(`${logLabel}: erro no tick de purge agendado`, error, {});
+    }
+  });
+  g().purgeCronTask = purgeCronTask;
+  void logInfo(`${logLabel}: cron de purge comercial activo (* * * * *)`);
+}
+
+function stopPurgeScheduleCron(logLabel: string): void {
+  if (purgeCronTask) {
+    try {
+      purgeCronTask.stop();
+    } catch {
+      /* ignore */
+    }
+    purgeCronTask = null;
+  }
+  g().purgeCronTask = undefined;
+  void logInfo(`${logLabel}: cron de purge comercial parado`);
+}
+
 /**
  * Arranque inicial (boot). Idempotente via reconcile.
  */
 export async function initializeOperationalWorkers(
   options: OperationalWorkersOptions
 ): Promise<void> {
+  ensurePurgeScheduleCron(options.logLabel || 'Workers');
   await reconcileOperationalWorkers(normalizeFlags(options), options.logLabel || 'Workers');
 }
 
@@ -216,6 +247,7 @@ export async function initializeOperationalWorkers(
  * Para todos os workers operacionais (sem fechar Redis/DB).
  */
 export async function stopOperationalWorkers(logLabel = 'Workers'): Promise<void> {
+  stopPurgeScheduleCron(logLabel);
   stopAlertCron(logLabel);
   stopPlaylistMix(logLabel);
   stopPlaylistEngine(logLabel);
@@ -254,6 +286,7 @@ export async function reconcileOperationalWorkers(
       prev.enableSubscriberAccessWorker === next.enableSubscriberAccessWorker;
 
     if (same) {
+      ensurePurgeScheduleCron(logLabel);
       return { changed: false, applied: next };
     }
 
@@ -311,6 +344,8 @@ export async function reconcileOperationalWorkers(
     else if (!next.enableAlertCron && !prev) {
       await logInfo(`${logLabel}: cron de alertas desactivado`);
     }
+
+    ensurePurgeScheduleCron(logLabel);
 
     applied = next;
     return { changed: true, applied: next };
@@ -370,5 +405,6 @@ export function getAppliedOperationalWorkerFlags(): AppliedFlags | null {
 export function resetOperationalWorkersStateForTests(): void {
   applied = null;
   alertCronTask = null;
+  purgeCronTask = null;
   reconcileLock = Promise.resolve();
 }

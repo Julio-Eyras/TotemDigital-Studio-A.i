@@ -370,6 +370,40 @@ CREATE TABLE IF NOT EXISTS system_logs (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Purge comercial explícito (não ligado ao OFF multi-agência)
+CREATE TABLE IF NOT EXISTS installation_purge_runs (
+    run_id SERIAL PRIMARY KEY,
+    dry_run BOOLEAN DEFAULT false,
+    publisher_id INTEGER,
+    scopes JSONB NOT NULL DEFAULT '[]',
+    counts JSONB,
+    deleted JSONB,
+    files_deleted JSONB,
+    export_dir TEXT,
+    warnings JSONB,
+    triggered_by INTEGER,
+    scheduled BOOLEAN DEFAULT false,
+    message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS installation_purge_schedules (
+    schedule_id INTEGER PRIMARY KEY DEFAULT 1,
+    cron_expression TEXT NOT NULL,
+    scopes JSONB NOT NULL DEFAULT '["billing","campaigns","playlists"]',
+    publisher_id INTEGER,
+    keep_media_files BOOLEAN DEFAULT true,
+    keep_publishers BOOLEAN DEFAULT true,
+    enabled BOOLEAN DEFAULT false,
+    last_run_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT installation_purge_schedules_singleton CHECK (schedule_id = 1)
+);
+
+COMMENT ON TABLE installation_purge_runs IS 'Histórico de purges comerciais (preview/execução)';
+COMMENT ON TABLE installation_purge_schedules IS 'Agendamento singleton do purge comercial (cron)';
+
 CREATE TABLE IF NOT EXISTS webhook_configs (
     id SERIAL PRIMARY KEY,
     url TEXT NOT NULL,

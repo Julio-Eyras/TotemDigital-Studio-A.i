@@ -162,6 +162,7 @@ describe('setMultiAgencyMode', () => {
 
     const result = await setMultiAgencyMode(db as any, true, 1);
     expect(result.enabled).toBe(true);
+    expect(result.mode).toBe('full');
     expect(result.modules.multi_agency).toBe(true);
     expect(result.modules.direct_totem_mode).toBe(false);
     expect(result.bootstrap?.created).toBe(false);
