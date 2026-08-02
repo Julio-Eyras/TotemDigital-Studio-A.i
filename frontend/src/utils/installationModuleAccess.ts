@@ -12,7 +12,7 @@ const PATH_MODULE_RULES: Array<{ prefix: string; module: InstallationModuleId }>
   { prefix: '/smart-playlist', module: 'playlists_advanced' },
   { prefix: '/playlist-mix', module: 'dispatcher_admin' },
   { prefix: '/quick-publish', module: 'quick_publish' },
-  { prefix: '/menu-catalog', module: 'quick_publish' },
+  { prefix: '/menu-catalog', module: 'subscribers' },
   { prefix: '/publish-board', module: 'quick_publish' },
   { prefix: '/publish-templates-admin', module: 'quick_publish' },
   { prefix: '/subscribers', module: 'subscribers' },
@@ -81,5 +81,13 @@ export function isPathAllowedByInstallationModules(path: string): boolean {
   if (!caps?.modules) return true;
   // Núcleo locked
   if (moduleId === 'core_publish' || moduleId === 'organization') return true;
+  return caps.modules[moduleId] === true;
+}
+
+/** True se o módulo de produto está activo nas capabilities actuais. */
+export function isInstallationModuleOn(moduleId: InstallationModuleId): boolean {
+  if (moduleId === 'core_publish' || moduleId === 'organization') return true;
+  const caps = getInstallationCapabilities();
+  if (!caps?.modules) return true;
   return caps.modules[moduleId] === true;
 }

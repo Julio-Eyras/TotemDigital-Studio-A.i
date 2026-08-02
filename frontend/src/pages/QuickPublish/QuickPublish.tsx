@@ -47,6 +47,7 @@ import {
 } from '../../services/api';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { resolveMediaId, sanitizeMediaIdList } from '../../utils/mediaId';
+import { isInstallationModuleOn } from '../../utils/installationModuleAccess';
 import {
   isPublishBoardHtmlMedia,
   parsePublishBoardPresetFromTags,
@@ -320,6 +321,13 @@ const QuickPublish: React.FC = () => {
     try {
       setLoadingInitial(true);
       setError(null);
+      if (!isInstallationModuleOn('subscribers')) {
+        setSubscribers([]);
+        setError(
+          'Anunciantes desactivados neste modo. Em Complementos do sistema, escolha Multi-agência Pro.'
+        );
+        return;
+      }
       const response = await subscriberApi.getAll({ active_only: true, limit: 1000 });
       setSubscribers(Array.isArray(response.data) ? response.data : []);
     } catch (e) {

@@ -38,6 +38,7 @@ import {
 import { defaultSegmentForPreset } from '../../config/publishTemplates';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
+import { isInstallationModuleOn } from '../../utils/installationModuleAccess';
 
 const MenuCatalog: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -63,8 +64,19 @@ const MenuCatalog: React.FC = () => {
     'Alteração salva. Telas com cardápio HTML ao vivo atualizam preços automaticamente (sem republicar campanha).';
 
   const loadSubscribers = useCallback(async () => {
-    const res = await subscriberApi.getAll({ limit: 500, active_only: true });
-    setSubscribers(res.data || []);
+    if (!isInstallationModuleOn('subscribers')) {
+      setSubscribers([]);
+      setError(
+        'Anunciantes estão desactivados neste modo. Em Complementos, escolha Multi-agência Pro (full).'
+      );
+      return;
+    }
+    try {
+      const res = await subscriberApi.getAll({ limit: 500, active_only: true });
+      setSubscribers(res.data || []);
+    } catch (e) {
+      setError(pickApiErrorMessage(e, 'Erro ao carregar anunciantes.'));
+    }
   }, []);
 
   const loadCatalog = useCallback(async (sid: number) => {

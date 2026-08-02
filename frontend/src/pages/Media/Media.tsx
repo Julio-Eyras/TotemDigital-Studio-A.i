@@ -76,6 +76,7 @@ import { useMediaRotationTransform, mediaLibraryPreviewSx, mediaPortraitPreviewF
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { isDirectTotemMode } from '../../config/directTotemMode';
 import { isStudioMode } from '../../config/studioMode';
+import { isInstallationModuleOn } from '../../utils/installationModuleAccess';
 import { buildMediaMetaSummary, formatMediaDuration, formatMediaFileSize } from '../../utils/mediaDisplayMeta';
 import { getTotemIdFromRow } from '../../utils/totemRowIds';
 
@@ -305,7 +306,7 @@ const Media: React.FC = () => {
   }, [mediaItems]);
 
   const loadSubscribers = async () => {
-    if (isStudioMode()) return;
+    if (isStudioMode() || isDirectTotemMode() || !isInstallationModuleOn('subscribers')) return;
     try {
       // "aptos": apenas subscribers ativos
       const response = await subscriberApi.getAll({ limit: 1000, active_only: true });

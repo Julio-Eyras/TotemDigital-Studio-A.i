@@ -64,9 +64,9 @@ const PRESET_ON_LABELS = [
 
 const PRESET_LITE_LABELS = [
   'Várias organizações + publicar + mídias + devices',
-  'Sem billing, campanhas, playlists avançadas nem anunciantes ERP',
+  'Sem anunciantes, billing, campanhas nem playlists avançadas',
   'Direct Totem desactiva-se (mutuamente exclusivo)',
-  'Ideal para multi-loja sem ERP comercial completo',
+  'Para cadastrar anunciantes use Multi-agência Pro',
 ];
 
 const PRESET_OFF_LABELS = [
@@ -492,8 +492,9 @@ const SystemModules: React.FC = () => {
                     Modo multi-agência
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Escolha Direct Totem (off), multi-agência lite (várias orgs sem ERP) ou Pro
-                    completo. Portal e SmartDisplayFX ficam nas opções avançadas.
+                    Escolha Direct Totem (off), multi-agência lite (várias orgs sem anunciantes/ERP) ou
+                    Pro completo (anunciantes, comercial, OTA). Portal e SmartDisplayFX ficam nas opções
+                    avançadas.
                   </Typography>
                   {profile && (
                     <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>

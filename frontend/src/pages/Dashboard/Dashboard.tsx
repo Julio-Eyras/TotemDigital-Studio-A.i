@@ -51,6 +51,7 @@ import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { isStudioMode } from '../../config/studioMode';
 import {DASHBOARD_COMMERCIAL_FOCUS} from '../../config/featureFlags';
+import { isInstallationModuleOn } from '../../utils/installationModuleAccess';
 import {
   FEATURED_TEMPLATES,
   FEATURED_SEGMENT_CHIPS,
@@ -243,13 +244,15 @@ const Dashboard: React.FC = () => {
         );
       }
     }).catch(() => undefined);
-    otaApi.getStats().then((res) => {
-      const pending =
-        (res.data?.totems?.updateAvailable || 0) +
-        (res.data?.totems?.downloading || 0) +
-        (res.data?.totems?.installing || 0);
-      setOtaPendingCount(pending);
-    }).catch(() => undefined);
+    if (isInstallationModuleOn('ota')) {
+      otaApi.getStats().then((res) => {
+        const pending =
+          (res.data?.totems?.updateAvailable || 0) +
+          (res.data?.totems?.downloading || 0) +
+          (res.data?.totems?.installing || 0);
+        setOtaPendingCount(pending);
+      }).catch(() => undefined);
+    }
   }, []);
 
   const loadDashboardData = async () => {

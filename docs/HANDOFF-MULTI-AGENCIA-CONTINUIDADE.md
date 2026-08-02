@@ -210,12 +210,16 @@ Com o fix `bcecb077` puxado, o wipe deve reutilizar `DB_PASSWORD` do `.env`.
 
 1. Login `https://dev.totemdigital.app.br/login` → `dev` / `dev123` (ou owner)
 2. **Complementos do sistema**
-3. Select **Modo** → `Multi-agência Pro` (ou `lite`) → confirmar → reload
-4. Se aviso de restart: `sudo systemctl restart smart-signage-dev`
-5. Botão **Seed 2ª agência** (ou seed automático se toggle ON)
-6. Validar menu Pro / org demo
-7. Testar OFF → Direct Totem volta, dados intactos; voltar a Pro
-8. **Não** usar Purge neste smoke
+3. Select **Modo** → **`Multi-agência Pro`** (não `lite` se precisar de anunciantes) → confirmar → reload
+4. Confirme chip **Pro** e perfil `multi_agency`
+5. Se aviso de restart: `sudo systemctl restart smart-signage-dev`
+6. Menu: **Organizações** → **Adicionar organização** (só em perfil multi; Direct Totem/single só edita a org implícita)
+7. Menu: **Anunciantes** → cadastrar (só com Pro; lite/off → 403 `MODULE_DISABLED`)
+8. Botão **Seed 2ª agência** (secção Portal)
+9. Testar OFF → Direct Totem volta, dados intactos; voltar a Pro
+10. **Não** usar Purge neste smoke
+
+**Nota:** `api/subscribers` / `api/ota-updates/stats` 403 com `MODULE_DISABLED` = módulo off (lite ou Direct Totem), não falha de auth. Os erros de extensão do browser (`message channel closed`) podem ignorar.
 
 ### 5.7 Portal DNS (opcional)
 
@@ -258,6 +262,7 @@ Com Portal `off`, o multi-agência funciona no host único `dev.totemdigital.app
 | Prioridade | Item |
 |------------|------|
 | Alta | Completar checklist L2 no VPS (`PLANO-TESTES` V01–V10): Pro/lite/off, seed, portal se aplicável, JWT mismatch |
+| Alta | Para **anunciantes + OTA + campanhas**: usar modo **Pro (full)** — lite/off devolvem 403 `MODULE_DISABLED` em `/api/subscribers` e `/api/ota-updates` |
 | Alta | Garantir que `~/TotemDigital-Studio-dev` e multiagencia estão em `TotemDigital-MultiAgencia` com pull pós-`bcecb077` |
 | Média | Estender harness L0 a asserts de `mode lite` + rotas purge (hoje cobre sobretudo docs/presets) |
 | Média | L1 (Docker/WSL + Postgres) se quiserem CI sem VPS |
