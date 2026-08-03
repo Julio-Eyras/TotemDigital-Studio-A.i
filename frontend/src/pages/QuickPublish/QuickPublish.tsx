@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link as RouterLink, useSearchParams } from 'react-router-dom';
+import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Autocomplete,
@@ -48,6 +48,7 @@ import {
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { resolveMediaId, sanitizeMediaIdList } from '../../utils/mediaId';
 import { isInstallationModuleOn } from '../../utils/installationModuleAccess';
+import { getInstallationCapabilities } from '../../config/installationCapabilities';
 import {
   isPublishBoardHtmlMedia,
   parsePublishBoardPresetFromTags,
@@ -132,6 +133,7 @@ function normalizePublicAssetUrl(raw?: string | null): string | undefined {
 
 const QuickPublish: React.FC = () => {
   const theme = useTheme();
+  const navigate = useNavigate();
   const user = useAppSelector((state) => state.auth.user);
   const breadcrumbs = useBreadcrumbs();
   const { presets: publishPresets, getPreset } = usePublishTemplatesFromApi();
@@ -323,8 +325,11 @@ const QuickPublish: React.FC = () => {
       setError(null);
       if (!isInstallationModuleOn('subscribers')) {
         setSubscribers([]);
+        const caps = getInstallationCapabilities();
         setError(
-          'Anunciantes desactivados neste modo. Em Complementos do sistema, escolha Multi-agência Pro.'
+          caps.multiAgency
+            ? 'Anunciantes desligados no preset actual. Abra Complementos do sistema e volte a escolher Lite ou Pro (reaplica o modo).'
+            : 'Anunciantes desactivados no Direct Totem. Abra Complementos do sistema e escolha Multi-agência Lite ou Pro.'
         );
         return;
       }
@@ -859,7 +864,16 @@ const QuickPublish: React.FC = () => {
       />
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+        <Alert
+          severity="error"
+          sx={{ mb: 2 }}
+          onClose={() => setError(null)}
+          action={
+            <Button color="inherit" size="small" onClick={() => navigate('/settings/system-modules')}>
+              Abrir Complementos
+            </Button>
+          }
+        >
           {error}
         </Alert>
       )}

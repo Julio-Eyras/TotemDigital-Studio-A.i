@@ -67,7 +67,7 @@ const MenuCatalog: React.FC = () => {
     if (!isInstallationModuleOn('subscribers')) {
       setSubscribers([]);
       setError(
-        'Anunciantes estão desactivados neste modo. Em Complementos, escolha Multi-agência Pro (full).'
+        'Anunciantes estão desactivados neste modo. Abra Complementos do sistema e escolha Lite ou Pro.'
       );
       return;
     }

@@ -67,7 +67,9 @@ export interface HierarchicalMenuItem {
 }
 
 /**
- * Filtra itens hierárquicos baseado em permissões (role e flags)
+ * Filtra itens hierárquicos baseado em permissões (role, flags e módulos).
+ * Secções com filhos: se algum filho sobreviver, a secção mantém-se mesmo que o
+ * path do pai aponte para um módulo desligado (ex.: Administração sob /plans).
  */
 function filterHierarchicalMenu(
   items: HierarchicalMenuItem[],
@@ -75,7 +77,8 @@ function filterHierarchicalMenu(
   userFlags?: UserFlags | null
 ): HierarchicalMenuItem[] {
   const filtered: HierarchicalMenuItem[] = [];
-  
+  const isAdminRole = userRole === 'owner_system' || userRole === 'admin_sql' || userRole === 'admin';
+
   for (const item of items) {
     if (isStudioMode() && item.hiddenInCompact) {
       continue;
@@ -87,45 +90,40 @@ function filterHierarchicalMenu(
       continue;
     }
 
-    // Módulos de produto (Fase B)
-    const pathKey = (item.path || '').split('?')[0] || '/';
-    if (!isPathAllowedByInstallationModules(pathKey)) {
+    if (item.requiredFlag && userFlags && !userFlags[item.requiredFlag] && !isAdminRole) {
       continue;
     }
 
-    // Verificar se o item principal tem acesso
-    // canAccess(userRole, path, userFlags) - verifica role e flags automaticamente
-    if (!canAccess(userRole, pathKey, userFlags)) {
-      continue; // Pular este item
-    }
-    
-    // Verificar flag específica se necessário
-    // Para roles administrativas (owner_system, admin_sql, admin), não bloquear por flag
-    const isAdminRole = userRole === 'owner_system' || userRole === 'admin_sql' || userRole === 'admin';
-    if (item.requiredFlag && userFlags && !userFlags[item.requiredFlag] && !isAdminRole) {
-      continue; // Pular este item apenas se não for role administrativa
-    }
-
-    // Filtrar children recursivamente
-    let filteredChildren: HierarchicalMenuItem[] | undefined = undefined;
+    let filteredChildren: HierarchicalMenuItem[] | undefined;
     if (item.children && item.children.length > 0) {
       filteredChildren = filterHierarchicalMenu(item.children, userRole, userFlags);
     }
 
-    // Se não tem children ou todos foram filtrados, remover children
-    if (!filteredChildren || filteredChildren.length === 0) {
-      filtered.push({
-        ...item,
-        children: undefined, // Remover children vazios
-      });
-    } else {
+    const pathKey = (item.path || '').split('?')[0] || '/';
+    const moduleOk = isPathAllowedByInstallationModules(pathKey);
+    const roleOk = canAccess(userRole, pathKey, userFlags);
+    const hasVisibleChildren = Boolean(filteredChildren && filteredChildren.length > 0);
+
+    // Contentor: preservar se houver filhos visíveis (Complementos não pode desaparecer
+    // porque o path-pai era /plan-publisher-access com plans off no lite).
+    if (hasVisibleChildren) {
       filtered.push({
         ...item,
         children: filteredChildren,
       });
+      continue;
     }
+
+    if (!moduleOk || !roleOk) {
+      continue;
+    }
+
+    filtered.push({
+      ...item,
+      children: undefined,
+    });
   }
-  
+
   return filtered;
 }
 
@@ -263,6 +261,11 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
   return [
     { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
     {
+      text: 'Complementos do sistema',
+      icon: <Extension />,
+      path: '/settings/system-modules',
+    },
+    {
       text: 'Anunciantes',
       icon: <Campaign />,
       path: '/quick-publish',
@@ -281,7 +284,7 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
     {
       text: 'Administração',
       icon: <AdminPanelSettings />,
-      path: '/plan-publisher-access',
+      path: '/settings',
       children: [
         {
           text: 'Planos & Acessos',
@@ -485,6 +488,15 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
 
   return [
     { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+    ...(role === 'owner_system' || role === 'admin_sql'
+      ? [
+          {
+            text: 'Complementos do sistema',
+            icon: <Extension />,
+            path: '/settings/system-modules',
+          } as HierarchicalMenuItem,
+        ]
+      : []),
     ...(isCommercialProMenu()
       ? [{ text: 'Nova publicação', icon: <Add />, path: '/quick-publish' } as HierarchicalMenuItem]
       : []),
@@ -530,7 +542,7 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
     {
       text: 'Administração',
       icon: <AdminPanelSettings />,
-      path: '/users',
+      path: '/settings',
       children: [
         { text: 'Usuários', icon: <People />, path: '/users' },
         { text: 'Tags', icon: <Assignment />, path: '/tags' },
