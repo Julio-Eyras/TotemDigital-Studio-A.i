@@ -37,6 +37,7 @@ describe('multi-agency master switch helpers', () => {
     expect(lite.direct_totem_mode).toBe(false);
     expect(lite.core_publish).toBe(true);
     expect(lite.devices).toBe(true);
+    expect(lite.quick_publish).toBe(false);
     expect(lite.billing).toBe(false);
     expect(lite.campaigns).toBe(false);
     expect(lite.subscribers).toBe(false);

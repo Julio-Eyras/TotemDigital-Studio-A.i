@@ -67,6 +67,7 @@ import { buildAutoOpenMenus, menuKeyFromText, menuPathMatches, resolveAppBarTitl
 import { leaveAdminSessionViewport } from '../../utils/appViewport';
 import { ADMIN_DRAWER_WIDTH } from '../../config/adminLayout';
 import AppVersionLines from '../AppVersionLines/AppVersionLines';
+import { useInstallationCapabilities } from '../../contexts/InstallationCapabilitiesContext';
 
 const drawerWidth = ADMIN_DRAWER_WIDTH;
 
@@ -103,6 +104,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const canReadAlerts = ['admin', 'admin_sql', 'owner_system'].includes(user?.role || '');
   const { data: alerts = [] } = useSystemAlerts(10, canReadAlerts);
   const { flags } = useFlags(); // Hook para acessar flags do usuário
+  const installationCapabilities = useInstallationCapabilities();
 
   useEffect(() => {
     document.title = APP_DISPLAY_NAME;
@@ -123,6 +125,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   // Obter menu hierárquico baseado na role do usuário e filtrar por permissões
   const getMenuItems = (): HierarchicalMenuItem[] => {
+    // Dependência intencional: modules/profile mudam o menu (lite vs Pro)
+    void installationCapabilities.modules;
+    void installationCapabilities.multiAgency;
+    void installationCapabilities.directTotemMode;
+
     if (!user?.role) {
       // Fallback para menu padrão se não houver role
       return [

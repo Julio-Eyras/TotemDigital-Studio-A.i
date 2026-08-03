@@ -63,10 +63,10 @@ const PRESET_ON_LABELS = [
 ];
 
 const PRESET_LITE_LABELS = [
-  'Várias organizações + publicar + mídias + devices',
-  'Sem anunciantes, billing, campanhas nem playlists avançadas',
-  'Direct Totem desactiva-se (mutuamente exclusivo)',
-  'Para cadastrar anunciantes use Multi-agência Pro',
+  'Várias organizações + mídias + devices (sem anunciantes)',
+  'Sem Publicar em Tela / cardápio por cliente (isso exige anunciante = Pro)',
+  'Sem billing, campanhas nem playlists avançadas',
+  'Direct Totem desactiva-se. Para anunciantes use Multi-agência Pro',
 ];
 
 const PRESET_OFF_LABELS = [

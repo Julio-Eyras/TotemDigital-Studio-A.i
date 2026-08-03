@@ -100,6 +100,7 @@ function buildLitePreset() {
     billing: false,
     campaigns: false,
     ota: false,
+    quick_publish: false,
   };
 }
 

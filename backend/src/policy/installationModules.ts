@@ -336,7 +336,7 @@ export function buildMultiAgencyLitePreset(preserveAdvanced?: {
     multi_agency: true,
     direct_totem_mode: false,
     simple_totem_mode: false,
-    quick_publish: true,
+    quick_publish: false,
     devices: true,
     subscribers: false,
     campaigns: false,

@@ -365,8 +365,6 @@ export const getMenuHierarchyByRole = (
       return filterHierarchicalMenu(getMarketingTeamMenu(), role, userFlags);
     }
     const menu = getSystemAdminMenu(role);
-    const compactFullNav = role === 'owner_system' || role === 'admin_sql' || role === 'admin';
-    if (compactFullNav) return menu;
     return filterHierarchicalMenu(menu, role, userFlags);
   }
 
