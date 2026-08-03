@@ -262,7 +262,7 @@ Com Portal `off`, o multi-agência funciona no host único `dev.totemdigital.app
 | Prioridade | Item |
 |------------|------|
 | Alta | Completar checklist L2 no VPS (`PLANO-TESTES` V01–V10): Pro/lite/off, seed, portal se aplicável, JWT mismatch |
-| Alta | Para **anunciantes + OTA + campanhas**: usar modo **Pro (full)** — lite/off devolvem 403 `MODULE_DISABLED` em `/api/subscribers` e `/api/ota-updates` |
+| Alta | Para **billing/contratos/OTA/dispatcher**: modo **Pro**. Lite já inclui anunciantes + publicar. |
 | Alta | Garantir que `~/TotemDigital-Studio-dev` e multiagencia estão em `TotemDigital-MultiAgencia` com pull pós-`bcecb077` |
 | Média | Estender harness L0 a asserts de `mode lite` + rotas purge (hoje cobre sobretudo docs/presets) |
 | Média | L1 (Docker/WSL + Postgres) se quiserem CI sem VPS |
