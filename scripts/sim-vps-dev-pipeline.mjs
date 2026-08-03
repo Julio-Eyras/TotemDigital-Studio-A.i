@@ -90,6 +90,19 @@ function checkPortalTenantAccess(portalTenant, user) {
   return { ok: Number(sid) === Number(portalTenant.subscriberId) };
 }
 
+function buildLitePreset() {
+  return {
+    core_publish: true,
+    organization: true,
+    multi_agency: true,
+    direct_totem_mode: false,
+    subscribers: false,
+    billing: false,
+    campaigns: false,
+    ota: false,
+  };
+}
+
 async function main() {
   console.log('\n=== sim-vps-dev-pipeline (L0) ===\n');
   fs.mkdirSync(OUT, { recursive: true });
@@ -101,14 +114,18 @@ async function main() {
   assert('T01c', existsRel('docs/DESENHO-PURGE-DADOS-COMERCIAIS.md'), 'desenho purge');
   assert('T01d', existsRel('docs/PLANO-TESTES-MULTI-AGENCIA-DEV.md'), 'plano de testes');
   assert('T01e', existsRel('scripts/lib/totemdigital-instancia.sh'), 'lib instância');
+  assert('T01f', existsRel('scripts/bot-multiagencia-emulate.mjs'), 'bot emulação');
 
   // T02–T04 presets
-  console.log('T02–T04 Presets Direct Totem / Pro / anti-C');
+  console.log('T02–T04 Presets Direct Totem / Pro / lite / anti-C');
   const off = buildCorePreset();
   const on = buildProPreset();
+  const lite = buildLitePreset();
   assert('T02', off.direct_totem_mode && !off.multi_agency && !off.billing, 'OFF = Direct Totem');
   assert('T03', on.multi_agency && !on.direct_totem_mode && on.billing && on.campaigns, 'ON = Pro');
+  assert('T03b', lite.multi_agency && !lite.subscribers && !lite.billing && !lite.direct_totem_mode, 'lite sem anunciantes/billing');
   assert('T04', !(on.multi_agency && on.direct_totem_mode), 'D6-C: Pro+DT simultâneo proibido no preset');
+  assert('T04b', !(lite.multi_agency && lite.direct_totem_mode), 'D6-C: lite+DT simultâneo proibido');
 
   // T05 portal
   console.log('T05 Portal pipeline');

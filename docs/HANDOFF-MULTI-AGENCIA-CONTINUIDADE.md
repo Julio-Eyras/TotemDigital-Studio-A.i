@@ -291,6 +291,7 @@ Com Portal `off`, o multi-agência funciona no host único `dev.totemdigital.app
 
 ### Docs satélite
 
+- `docs/BOT-EMULACAO-MULTI-AGENCIA.md` — bot L0/L1/L2  
 - `docs/MODO-MULTI-AGENCIA-MASTER-SWITCH.md` — decisões + comportamento do switch  
 - `docs/DESENHO-PURGE-DADOS-COMERCIAIS.md` — purge (implementado)  
 - `docs/VPS-DEV-DO-ZERO-MULTI-AGENCIA.md` — install VPS `dev`  

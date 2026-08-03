@@ -1,0 +1,65 @@
+# Emulação Multi-agência — Postgres efémero + runner Ubuntu
+# Não substitui VPS real (Nginx/systemd/LE). Serve L1: schema + testes unitários + smoke.
+#
+# Uso:
+#   docker compose -f docker-compose.multiagencia-emu.yml up --build --abort-on-container-exit
+#   # ou via bot:
+#   node scripts/bot-multiagencia-emulate.mjs --level l1
+
+services:
+  postgres-emu:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: smartsignage_emu
+      POSTGRES_USER: smartsignage_emu
+      POSTGRES_PASSWORD: emu_pass_change_me
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - ./database/smartchannel-db-v2-refactored-apply-all.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./database/smartchannel-db-v2-refactored-part1-schema-setup.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part1-schema-setup.sql:ro
+      - ./database/smartchannel-db-v2-refactored-part2-tables-base.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part2-tables-base.sql:ro
+      - ./database/smartchannel-db-v2-refactored-part3-tables-dependent.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part3-tables-dependent.sql:ro
+      - ./database/smartchannel-db-v2-refactored-part4-billing-contracts.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part4-billing-contracts.sql:ro
+      - ./database/smartchannel-db-v2-refactored-part5-tables-relationships.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part5-tables-relationships.sql:ro
+      - ./database/smartchannel-db-v2-refactored-part6-tables-other.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part6-tables-other.sql:ro
+      - ./database/smartchannel-db-v2-refactored-part7-foreign-keys.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part7-foreign-keys.sql:ro
+      - ./database/smartchannel-db-v2-refactored-part8-indexes.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part8-indexes.sql:ro
+      - ./database/smartchannel-db-v2-refactored-part9-triggers-functions.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part9-triggers-functions.sql:ro
+      - ./database/smartchannel-db-v2-refactored-part10-views.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part10-views.sql:ro
+      - ./database/smartchannel-db-v2-refactored-part11-playlist-mix.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part11-playlist-mix.sql:ro
+      - ./database/smartchannel-db-v2-refactored-part12-playlist-mix-functions.sql:/docker-entrypoint-initdb.d/smartchannel-db-v2-refactored-part12-playlist-mix-functions.sql:ro
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smartsignage_emu -d smartsignage_emu"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - multiagencia-emu
+
+  ubuntu-runner:
+    build:
+      context: .
+      dockerfile: scripts/emu/Dockerfile.ubuntu-runner
+    depends_on:
+      postgres-emu:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres-emu
+      DB_PORT: "5432"
+      DB_NAME: smartsignage_emu
+      DB_USER: smartsignage_emu
+      PGPASSWORD: emu_pass_change_me
+      TDI_GIT_BRANCH: TotemDigital-MultiAgencia
+      CI: "true"
+    volumes:
+      - ./:/workspace:rw
+    working_dir: /workspace
+    command: ["bash", "scripts/emu/l1-ubuntu-runner.sh"]
+    networks:
+      - multiagencia-emu
+
+networks:
+  multiagencia-emu:
+    driver: bridge

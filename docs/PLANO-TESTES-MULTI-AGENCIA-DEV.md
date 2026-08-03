@@ -9,11 +9,12 @@
 | Nível | Onde | O que cobre | Limite |
 |-------|------|-------------|--------|
 | **L0 — Estático** | PC / CI | Ficheiros, presets A/B/C, portal sim, dry-run instalador | Sem Postgres/Nginx reais |
-| **L1 — Emulado** | WSL/Docker (futuro) | BD efémera + API health + gates módulos | Sem LE/DNS público |
-| **L2 — VPS `dev`** | `dev.totemdigital.app.br` | Install do zero, HTTPS, login, master switch, portal | Ambiente real |
+| **L1 — Emulado** | Docker Ubuntu + Postgres | Schema efémero + Jest multi-agência/purge + L0 + dry-run | Sem LE/DNS público |
+| **L2 — VPS `dev`** | Contabo / `dev.totemdigital.app.br` | Health + SSH branch/serviço (+ checklist manual UI) | Ambiente real |
 
-Este documento + harness cobrem **L0 agora**. L1/L2 são checklists manuais/automatizáveis no servidor.
+**Bot orquestrador:** `node scripts/bot-multiagencia-emulate.mjs` — ver `docs/BOT-EMULACAO-MULTI-AGENCIA.md`.
 
+Este documento + harness cobrem **L0**; L1 via Docker; L2 smoke opcional por SSH.
 ## 2. Casos de teste (L0 — automático)
 
 | ID | Caso | Critério de aceite |
@@ -45,15 +46,18 @@ Este documento + harness cobrem **L0 agora**. L1/L2 são checklists manuais/auto
 | V09 | JWT noutro tenant | 403 `TENANT_HOST_MISMATCH` |
 | V10 | Wipe BD só `dev` | produção intacta |
 
-## 4. Como correr o harness (L0)
+## 4. Como correr
 
 ```bash
-# Windows (Git Bash / WSL) ou Linux
-cd /path/to/TotemDigital-Studio   # ou /mnt/c/TotemDigital-Studio
+# Bot (recomendado)
+node scripts/bot-multiagencia-emulate.mjs --level all
+
+# Só L0
 node scripts/sim-vps-dev-pipeline.mjs
 ```
 
-Saída: `runtime/vps-dev-sim/REPORT.json` + exit code 0/1.
+Saída L0: `runtime/vps-dev-sim/REPORT.json`  
+Saída bot: `runtime/multiagencia-emu/BOT-REPORT.json`
 
 ## 5. Emulação de “máquina”
 
