@@ -76,6 +76,17 @@ Confirme no plano: clone `~/TotemDigital-Studio-dev`, domínio `dev.totemdigital
 
 ---
 
+## 4b. Assistente interactivo (pergunta parâmetros)
+
+```bash
+cd ~/TotemDigital-Studio-multiagencia   # ou o clone da branch MultiAgência
+bash scripts/run-instala-totemdigital-prompt.sh --defaults-dev
+```
+
+O script pede modo, instância, e-mail, owner, branch (`TDI_GIT_BRANCH`), flags (`--sim`, `--git-pull`, dry-run, etc.), exporta as variáveis e dispara `Instala-TotemDigital-Server.sh`.
+
+---
+
 ## 4. Instalação do zero (cria clone + BD + Nginx + systemd + LE)
 
 ```bash
