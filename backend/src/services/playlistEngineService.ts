@@ -460,25 +460,36 @@ export class PlaylistEngineService {
   }
 
   /**
-   * Busca todos os subscribers que têm acesso a um publisher
-   * Acesso validado APENAS via plan_publisher_access (removido subscriber_publisher_access)
+   * Busca subscribers com acesso a um publisher:
+   * - via contrato+plano (plan_publisher_access) — Pro
+   * - via subscriber_publisher_access activo — Multi Lite / override
    */
   private async getAccessibleSubscribers(publisherId: number): Promise<number[]> {
     try {
-      // Buscar subscribers com contratos ativos que têm planos com acesso a este publisher
-      const subscribersViaPlans = await this.db.findMany(`
-        SELECT DISTINCT sc.subscriber_id
-        FROM subscriber_contracts sc
-        INNER JOIN plan_publisher_access ppa ON sc.plan_id = ppa.plan_id
-        WHERE ppa.publisher_id = $1
-          AND ppa.is_allowed = true
-          AND sc.status = 'active'
-          AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)
-      `, [publisherId]);
+      const rows = await this.db.findMany(
+        `
+        SELECT DISTINCT subscriber_id FROM (
+          SELECT sc.subscriber_id
+          FROM subscriber_contracts sc
+          INNER JOIN plan_publisher_access ppa ON sc.plan_id = ppa.plan_id
+          WHERE ppa.publisher_id = $1
+            AND ppa.is_allowed = true
+            AND COALESCE(ppa.is_active, true) = true
+            AND sc.status = 'active'
+            AND (sc.end_date IS NULL OR sc.end_date >= CURRENT_DATE)
+            AND (sc.start_date IS NULL OR sc.start_date <= CURRENT_DATE)
 
-      // Retornar IDs únicos
-      const subscriberIds = subscribersViaPlans.map(s => s.subscriber_id);
-      return subscriberIds;
+          UNION
+
+          SELECT spa.subscriber_id
+          FROM subscriber_publisher_access_active spa
+          WHERE spa.publisher_id = $1
+        ) accessible
+      `,
+        [publisherId]
+      );
+
+      return rows.map((s: any) => Number(s.subscriber_id)).filter((id) => Number.isInteger(id) && id > 0);
     } catch (error: any) {
       await logError('Erro ao buscar subscribers acessíveis', error, { publisherId });
       return [];

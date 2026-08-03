@@ -686,6 +686,95 @@ export class DispatcherTotemService {
             AND COALESCE(t_plan.is_active, true) = true
             AND c.is_active = true
             AND c.status = 'active'
+
+          UNION
+
+          -- Multi Lite / SPA: campanhas directas no totem com acesso subscriber_publisher_access
+          SELECT DISTINCT
+            c.campaign_id,
+            c.subscriber_id,
+            c.contract_id,
+            c.title as campaign_title,
+            c.priority,
+            c.commercial_tier,
+            c.default_time_share_percent,
+            c.max_consecutive_slots,
+            CAST(c.start_date AS timestamp without time zone) as start_date,
+            CAST(c.end_date AS timestamp without time zone) as end_date,
+            c.start_time::text,
+            c.end_time::text,
+            c.days_of_week::text,
+            c.timezone,
+            c.status,
+            c.is_active,
+            ct.totem_id,
+            CAST(ct.start_date AS timestamp without time zone) as ct_start_date,
+            CAST(ct.end_date AS timestamp without time zone) as ct_end_date,
+            ct.start_time::text as ct_start_time,
+            ct.end_time::text as ct_end_time,
+            ct.days_of_week::text as ct_days_of_week,
+            ct.priority as ct_priority,
+            'direct' as source_type,
+            ct.campaign_id as source_id,
+            NULL::integer as cp_time_share_percent,
+            NULL::integer as cp_max_impressions_per_hour
+          FROM campaigns c
+          INNER JOIN campaign_totems ct ON c.campaign_id = ct.campaign_id
+          INNER JOIN totems t_spa_d ON ct.totem_id = t_spa_d.totem_id
+          INNER JOIN locals l_spa_d ON t_spa_d.local_id = l_spa_d.local_id
+          INNER JOIN subscriber_publisher_access_active spa_d
+            ON spa_d.subscriber_id = c.subscriber_id
+           AND spa_d.publisher_id = l_spa_d.publisher_id
+          WHERE ct.totem_id = $1
+            AND COALESCE(t_spa_d.is_active, true) = true
+            AND ct.is_active = true
+            AND c.is_active = true
+            AND c.status = 'active'
+            AND ($2::boolean)
+
+          UNION
+
+          -- Multi Lite / SPA: campanhas via publisher com acesso subscriber_publisher_access
+          SELECT DISTINCT
+            c.campaign_id,
+            c.subscriber_id,
+            c.contract_id,
+            c.title as campaign_title,
+            c.priority,
+            c.commercial_tier,
+            c.default_time_share_percent,
+            c.max_consecutive_slots,
+            CAST(c.start_date AS timestamp without time zone) as start_date,
+            CAST(c.end_date AS timestamp without time zone) as end_date,
+            c.start_time::text,
+            c.end_time::text,
+            c.days_of_week::text,
+            c.timezone,
+            c.status,
+            c.is_active,
+            t.totem_id,
+            NULL::timestamp without time zone as ct_start_date,
+            NULL::timestamp without time zone as ct_end_date,
+            NULL::text as ct_start_time,
+            NULL::text as ct_end_time,
+            NULL::text as ct_days_of_week,
+            NULL::integer as ct_priority,
+            'publisher' as source_type,
+            cp.publisher_id as source_id,
+            cp.time_share_percent as cp_time_share_percent,
+            cp.max_impressions_per_hour as cp_max_impressions_per_hour
+          FROM campaigns c
+          INNER JOIN campaign_publishers cp ON c.campaign_id = cp.campaign_id
+          INNER JOIN subscriber_publisher_access_active spa_g
+            ON spa_g.subscriber_id = c.subscriber_id
+           AND spa_g.publisher_id = cp.publisher_id
+          INNER JOIN locals l ON cp.publisher_id = l.publisher_id
+          INNER JOIN totems t ON l.local_id = t.local_id
+          WHERE t.totem_id = $1
+            AND COALESCE(t.is_active, true) = true
+            AND cp.is_active = true
+            AND c.is_active = true
+            AND c.status = 'active'
         )
         SELECT 
           tc.campaign_id,

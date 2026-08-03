@@ -49,6 +49,7 @@ import ResponsiveSectionNav from '../../components/Navigation/ResponsiveSectionN
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { getProductTerminology } from '../../config/productTerminology';
 import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
+import { isInstallationModuleOn } from '../../utils/installationModuleAccess';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -151,15 +152,21 @@ const SubscriberPublisherAccessPage: React.FC = () => {
     try {
       setError(null);
 
-      if (!grantFormData.subscriberId || !grantFormData.publisherId || !grantFormData.contractId) {
-        setError(`Anunciante, ${getProductTerminology().organization.toLowerCase()} e contrato são obrigatórios`);
+      if (!grantFormData.subscriberId || !grantFormData.publisherId) {
+        setError(`Anunciante e ${getProductTerminology().organization.toLowerCase()} são obrigatórios`);
+        return;
+      }
+      if (isInstallationModuleOn('contracts') && !grantFormData.contractId) {
+        setError('Contrato é obrigatório quando o módulo de contratos está activo');
         return;
       }
 
       await subscriberAccessApi.grantAccess({
         subscriberId: parseInt(grantFormData.subscriberId),
         publisherId: parseInt(grantFormData.publisherId),
-        contractId: parseInt(grantFormData.contractId),
+        ...(grantFormData.contractId
+          ? { contractId: parseInt(grantFormData.contractId) }
+          : {}),
         expiresAt: grantFormData.expiresAt || undefined,
         notes: grantFormData.notes || undefined,
       });
@@ -492,12 +499,16 @@ const SubscriberPublisherAccessPage: React.FC = () => {
 
             <TextField
               fullWidth
-              label="ID do Contrato *"
+              label={isInstallationModuleOn('contracts') ? 'ID do Contrato *' : 'ID do Contrato (opcional)'}
               type="number"
               value={grantFormData.contractId}
               onChange={(e) => setGrantFormData({ ...grantFormData, contractId: e.target.value })}
               margin="normal"
-              helperText="ID do contrato que concede este acesso"
+              helperText={
+                isInstallationModuleOn('contracts')
+                  ? 'ID do contrato que concede este acesso'
+                  : 'No Multi Lite pode deixar vazio — vínculo directo anunciante ↔ organização'
+              }
             />
 
             <TextField
@@ -527,7 +538,11 @@ const SubscriberPublisherAccessPage: React.FC = () => {
           <Button
             variant="contained"
             onClick={handleGrantAccess}
-            disabled={!grantFormData.subscriberId || !grantFormData.publisherId || !grantFormData.contractId}
+            disabled={
+              !grantFormData.subscriberId ||
+              !grantFormData.publisherId ||
+              (isInstallationModuleOn('contracts') && !grantFormData.contractId)
+            }
           >
             Conceder
           </Button>

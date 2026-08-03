@@ -381,10 +381,10 @@ router.get('/:subscriberId/publishers/:publisherId/check',
  * @access Private (Admin)
  */
 router.post('/grant',
-  authorizeRole(['admin', 'admin_sql']),
+  authorizeRole(['admin', 'admin_sql', 'owner_system']),
   body('subscriberId').isInt({ min: 1 }),
   body('publisherId').isInt({ min: 1 }),
-  body('contractId').isInt({ min: 1 }),
+  body('contractId').optional({ nullable: true }).isInt({ min: 1 }),
   body('expiresAt').optional({ nullable: true }).isISO8601(),
   body('notes').optional({ nullable: true }).isString(),
   validateRequest,
@@ -404,7 +404,7 @@ router.post('/grant',
       const access = await accessService.grantAccess(
         subscriberId,
         publisherId,
-        contractId,
+        contractId ?? null,
         grantedBy,
         expiresAt ? new Date(expiresAt) : undefined,
         notes
@@ -413,7 +413,7 @@ router.post('/grant',
       await logInfo('Acesso subscriber → publisher concedido', {
         subscriberId,
         publisherId,
-        contractId,
+        contractId: contractId ?? null,
         grantedBy
       });
 

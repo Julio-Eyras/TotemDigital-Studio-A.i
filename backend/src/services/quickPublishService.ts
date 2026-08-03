@@ -10,7 +10,8 @@ export type QuickPublishPreset = 'menu' | 'promotion' | 'ad' | 'announcement' | 
 
 export interface QuickPublishRequest {
   subscriberId: number;
-  contractId: number;
+  /** Opcional no Multi Lite: publicação via subscriber_publisher_access. */
+  contractId?: number | null;
   totemIds: number[];
   mediaIds: number[];
   preset: QuickPublishPreset;
@@ -90,7 +91,9 @@ export class QuickPublishService {
     options?: { userRole?: string }
   ): Promise<QuickPublishResult> {
     const subscriberId = Number(input.subscriberId);
-    const contractId = Number(input.contractId);
+    const rawContractId = input.contractId != null ? Number(input.contractId) : NaN;
+    const contractId =
+      Number.isInteger(rawContractId) && rawContractId > 0 ? rawContractId : null;
     const totemIds = normalizePositiveIds(input.totemIds);
     const mediaIds = normalizePositiveIds(input.mediaIds);
     const preset = normalizePreset(input.preset);
@@ -102,9 +105,6 @@ export class QuickPublishService {
 
     if (!Number.isInteger(subscriberId) || subscriberId <= 0) {
       throw new Error('subscriberId é obrigatório');
-    }
-    if (!Number.isInteger(contractId) || contractId <= 0) {
-      throw new Error('contractId é obrigatório para publicação rápida');
     }
     if (!title) {
       throw new Error('Título da publicação é obrigatório');
@@ -131,17 +131,36 @@ export class QuickPublishService {
         options?.userRole
       );
 
-      const contracts = await subscriberService.getSubscriberContracts(subscriberId, true);
-      const contract = contracts.find((item: any) => Number(item.contract_id) === contractId);
-      if (!contract) {
-        throw new Error('Contrato ativo não encontrado para este anunciante');
+      let eligibleTotems: any[];
+      if (contractId != null) {
+        const contracts = await subscriberService.getSubscriberContracts(subscriberId, true);
+        const contract = contracts.find((item: any) => Number(item.contract_id) === contractId);
+        if (!contract) {
+          throw new Error('Contrato ativo não encontrado para este anunciante');
+        }
+        eligibleTotems = await subscriberService.getTotemsBySubscriberContract(
+          subscriberId,
+          contractId
+        );
+      } else {
+        // Multi Lite / sem contrato: totens via subscriber_publisher_access
+        eligibleTotems = await subscriberService.getTotemsBySubscriber(subscriberId);
       }
-
-      const eligibleTotems = await subscriberService.getTotemsBySubscriberContract(subscriberId, contractId);
       const eligibleTotemIds = new Set(eligibleTotems.map((item: any) => Number(item.totem_id)));
       const invalidTotemIds = totemIds.filter((id) => !eligibleTotemIds.has(id));
       if (invalidTotemIds.length > 0) {
-        throw new Error(`Totens fora do contrato/plano selecionado: ${invalidTotemIds.join(', ')}`);
+        throw new Error(
+          contractId != null
+            ? `Totens fora do contrato/plano selecionado: ${invalidTotemIds.join(', ')}`
+            : `Totens fora do acesso do anunciante às organizações: ${invalidTotemIds.join(', ')}. Conceda acesso em Anunciante ↔ Organização.`
+        );
+      }
+      if (eligibleTotemIds.size === 0) {
+        throw new Error(
+          contractId != null
+            ? 'Nenhum totem elegível para este contrato/plano'
+            : 'Anunciante sem acesso a organizações/totens. Conceda acesso em Anunciante ↔ Organização.'
+        );
       }
 
       const mediaRows = await this.db.findMany(`
@@ -241,7 +260,11 @@ export class QuickPublishService {
           description,
           publishNow ? 'active' : 'draft',
           publishNow,
-          JSON.stringify({ source: 'quick_publish', preset }),
+          JSON.stringify({
+            source: 'quick_publish',
+            preset,
+            accessMode: contractId != null ? 'contract_plan' : 'subscriber_publisher_access',
+          }),
         ]);
 
         const campaignId = Number(campaignResult.rows[0]?.campaign_id);

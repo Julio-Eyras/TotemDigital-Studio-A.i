@@ -1744,7 +1744,8 @@ export type QuickPublishPreset = 'menu' | 'promotion' | 'ad' | 'announcement' | 
 
 export interface QuickPublishRequest {
   subscriberId: number;
-  contractId: number;
+  /** Opcional no Multi Lite (SPA). */
+  contractId?: number | null;
   totemIds: number[];
   mediaIds: number[];
   preset: QuickPublishPreset;
@@ -2522,7 +2523,7 @@ export const publishBoardApi = {
     subscriberId: number,
     preset: QuickPublishPreset,
     payload: {
-      contractId: number;
+      contractId?: number | null;
       totemIds: number[];
       title?: string;
       description?: string;
@@ -4605,7 +4606,7 @@ export const subscriberAccessApi = {
   grantAccess: async (data: {
     subscriberId: number;
     publisherId: number;
-    contractId: number;
+    contractId?: number | null;
     expiresAt?: string;
     notes?: string;
   }): Promise<SubscriberPublisherAccess> => {

@@ -271,6 +271,7 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
       path: '/subscribers',
       children: [
         { text: 'Cadastro de Anunciantes', icon: <People />, path: '/subscribers' },
+        { text: 'Anunciante ↔ Organização', icon: <Link />, path: '/subscriber-publisher-access' },
         { text: 'Publicar em tela', icon: <Add />, path: '/quick-publish' },
         { text: 'Criar conteúdo', icon: <AutoAwesome />, path: '/quick-publish?mode=create' },
         { text: 'Cardápio por cliente', icon: <Storefront />, path: '/menu-catalog' },
@@ -510,6 +511,7 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
       path: '/subscribers',
       children: [
         { text: 'Cadastro de Anunciantes', icon: <People />, path: '/subscribers' },
+        { text: 'Anunciante ↔ Organização', icon: <Link />, path: '/subscriber-publisher-access' },
         { text: 'Publicar em Tela', icon: <Add />, path: '/quick-publish' },
         { text: 'Criar conteúdo', icon: <AutoAwesome />, path: '/quick-publish?mode=create' },
         { text: 'Cardápio por cliente', icon: <Storefront />, path: '/menu-catalog' },

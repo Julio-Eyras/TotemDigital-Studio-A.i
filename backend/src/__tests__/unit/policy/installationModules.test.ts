@@ -8,6 +8,7 @@ import {
   healStaleMultiAgencyLiteModules,
   mergeInstallationModules,
   resolveMultiAgencyMode,
+  usesDirectSubscriberOrgAccess,
   validateInstallationModuleDependencies,
 } from '../../../policy/installationModules';
 
@@ -126,5 +127,12 @@ describe('installationModules', () => {
     const lite = applyMultiAgencyMode('lite');
     expect(lite.subscribers).toBe(true);
     expect(lite.billing).toBe(false);
+  });
+
+  it('usesDirectSubscriberOrgAccess só no lite sem plans', () => {
+    const lite = buildMultiAgencyLitePreset();
+    const full = buildMultiAgencyOperationPreset();
+    expect(usesDirectSubscriberOrgAccess(lite)).toBe(true);
+    expect(usesDirectSubscriberOrgAccess(full)).toBe(false);
   });
 });

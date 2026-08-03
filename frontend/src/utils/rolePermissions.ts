@@ -134,7 +134,7 @@ export const menuPermissions: MenuItemPermission[] = [
   { path: '/plan-publisher-access', roles: ['admin_sql', 'admin'] },
   
   // Anunciante → organização — admin_sql, admin
-  { path: '/subscriber-publisher-access', roles: ['admin_sql', 'admin'] },
+  { path: '/subscriber-publisher-access', roles: ['owner_system', 'admin_sql', 'admin'] },
   
   // Rotas de subitens (herdam permissões do path pai)
   { path: '/users/new', roles: ['owner_system', 'admin_sql', 'admin'] },

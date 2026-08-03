@@ -22,7 +22,7 @@ export interface AutoPublishLayoutInput {
 
 export interface AutoPublishOrchestratorInput {
   subscriberId: number;
-  contractId: number;
+  contractId?: number | null;
   totemIds: number[];
   preset: PublishBoardPresetType;
   userId: number;

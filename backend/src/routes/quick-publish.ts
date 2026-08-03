@@ -47,7 +47,7 @@ router.post(
     return next();
   },
   body('subscriberId').isInt({ min: 1 }).withMessage('subscriberId inválido'),
-  body('contractId').isInt({ min: 1 }).withMessage('contractId inválido'),
+  body('contractId').optional({ nullable: true }).isInt({ min: 1 }).withMessage('contractId inválido'),
   body('totemIds').isArray({ min: 1 }).withMessage('Selecione ao menos um totem'),
   body('totemIds.*').isInt({ min: 1 }).withMessage('totemId inválido'),
   body('mediaIds').isArray({ min: 1 }).withMessage('Selecione ao menos uma mídia'),
@@ -60,10 +60,15 @@ router.post(
   validateRequest,
   async (req: any, res: any) => {
     try {
+      const rawContract = req.body.contractId;
+      const contractId =
+        rawContract === undefined || rawContract === null || rawContract === ''
+          ? null
+          : Number(rawContract);
       const result = await getQuickPublishService().publish(
         {
           subscriberId: Number(req.body.subscriberId),
-          contractId: Number(req.body.contractId),
+          contractId,
           totemIds: req.body.totemIds,
           mediaIds: req.body.mediaIds,
           preset: req.body.preset,

@@ -433,6 +433,60 @@ export async function ensureDemoSecondAgencyIfNeeded(db: DbLike): Promise<{
       } else {
         subscriberId = Number(subExists.subscriber_id);
       }
+
+      // Multi Lite: conceder SPA directo do anunciante demo → orgs (owner + 2ª agência)
+      if (subscriberId) {
+        const owner = await db.findFirst(
+          `SELECT publisher_id FROM publishers WHERE is_system_owner = true ORDER BY publisher_id ASC LIMIT 1`
+        );
+        const ownerId = owner?.publisher_id ? Number(owner.publisher_id) : undefined;
+        const targets = [ownerId, publisherId].filter(
+          (id): id is number => typeof id === 'number' && Number.isInteger(id) && id > 0
+        );
+        for (const pubId of [...new Set(targets)]) {
+          try {
+            const existingSpa = await db.findFirst(
+              `
+              SELECT access_id FROM subscriber_publisher_access
+              WHERE subscriber_id = $1 AND publisher_id = $2
+              ORDER BY access_id DESC LIMIT 1
+            `,
+              [subscriberId, pubId]
+            );
+            if (existingSpa?.access_id) {
+              await db.executeRaw(
+                `
+                UPDATE subscriber_publisher_access SET
+                  is_active = true,
+                  revoked_at = NULL,
+                  access_type = 'override',
+                  contract_id = NULL,
+                  plan_id = NULL,
+                  notes = COALESCE(notes, 'Seed demo multi-agência (SPA directo Lite)'),
+                  updated_at = CURRENT_TIMESTAMP
+                WHERE access_id = $1
+              `,
+                [Number(existingSpa.access_id)]
+              );
+            } else {
+              await db.executeRaw(
+                `
+                INSERT INTO subscriber_publisher_access (
+                  subscriber_id, publisher_id, contract_id, plan_id, access_type,
+                  granted_by, notes, is_active
+                ) VALUES (
+                  $1, $2, NULL, NULL, 'override', NULL,
+                  'Seed demo multi-agência (SPA directo Lite)', true
+                )
+              `,
+                [subscriberId, pubId]
+              );
+            }
+          } catch (spaErr) {
+            await logError('Seed SPA demo falhou', spaErr, { subscriberId, pubId });
+          }
+        }
+      }
     } catch (subErr) {
       await logError('Seed anunciante demo falhou (agência já criada)', subErr);
     }

@@ -190,6 +190,9 @@ const QuickPublish: React.FC = () => {
     () => subscribers.find((subscriber) => subscriber.subscriber_id === subscriberId) || null,
     [subscriberId, subscribers]
   );
+  /** Multi Lite: sem módulo contracts → totens via Anunciante↔Organização (SPA). */
+  const contractsRequired = isInstallationModuleOn('contracts');
+  const spaAccessMode = !contractsRequired;
 
   const selectedPreset = useMemo(
     () => getPreset(preset),
@@ -204,11 +207,11 @@ const QuickPublish: React.FC = () => {
   const safeMediaIds = useMemo(() => sanitizeMediaIdList(mediaIds), [mediaIds]);
 
   const activeStep = useMemo(() => {
-    if (!subscriberId || !contractId) return 0;
+    if (!subscriberId || (contractsRequired && !contractId)) return 0;
     if (totemIds.length === 0) return 1;
     if (safeMediaIds.length === 0 || !title.trim()) return 2;
     return 3;
-  }, [contractId, safeMediaIds.length, subscriberId, title, totemIds.length]);
+  }, [contractId, contractsRequired, safeMediaIds.length, subscriberId, title, totemIds.length]);
 
   const selectedMedias = useMemo(
     () =>
@@ -288,7 +291,7 @@ const QuickPublish: React.FC = () => {
 
   const canPublish = Boolean(
     subscriberId &&
-      contractId &&
+      (!contractsRequired || contractId) &&
       totemIds.length > 0 &&
       safeMediaIds.length > 0 &&
       title.trim() &&
@@ -297,20 +300,26 @@ const QuickPublish: React.FC = () => {
 
   const autoPublishReady = useMemo(
     () =>
-      Boolean(subscriberId && contractId && totemIds.length > 0 && title.trim() && !billingBlocksPublish),
-    [billingBlocksPublish, contractId, subscriberId, title, totemIds.length]
+      Boolean(
+        subscriberId &&
+          (!contractsRequired || contractId) &&
+          totemIds.length > 0 &&
+          title.trim() &&
+          !billingBlocksPublish
+      ),
+    [billingBlocksPublish, contractId, contractsRequired, subscriberId, title, totemIds.length]
   );
 
   const autoPublishContext = useMemo(() => {
-    if (!subscriberId || !contractId || totemIds.length === 0) return null;
+    if (!subscriberId || (contractsRequired && !contractId) || totemIds.length === 0) return null;
     return {
-      contractId: Number(contractId),
+      contractId: contractId === '' ? undefined : Number(contractId),
       totemIds,
       title: title.trim(),
       description: description.trim() || undefined,
       durationMs,
     };
-  }, [contractId, description, durationMs, subscriberId, title, totemIds]);
+  }, [contractId, contractsRequired, description, durationMs, subscriberId, title, totemIds]);
 
   const loadApprovedMedias = useCallback(async (targetSubscriberId: number) => {
     const mediaResult = await mediaApi.getAll({ subscriberId: targetSubscriberId, limit: 1000 });
@@ -523,12 +532,14 @@ const QuickPublish: React.FC = () => {
         setTotemIds([]);
         const fromUrl = parseIdListParam(searchParams.get('mediaIds'));
         const [contractsResult, approvedMedias] = await Promise.all([
-          subscriberApi.getContracts(Number(subscriberId), { activeOnly: true }),
+          contractsRequired
+            ? subscriberApi.getContracts(Number(subscriberId), { activeOnly: true })
+            : Promise.resolve([]),
           loadApprovedMedias(Number(subscriberId)),
         ]);
         const activeContracts = Array.isArray(contractsResult) ? contractsResult : [];
         setContracts(activeContracts);
-        setContractId(activeContracts[0]?.contract_id || '');
+        setContractId(contractsRequired ? activeContracts[0]?.contract_id || '' : '');
         const validMedia = fromUrl.filter((id) =>
           approvedMedias.some((m) => m.media_id === id)
         );
@@ -573,10 +584,10 @@ const QuickPublish: React.FC = () => {
     };
 
     loadSubscriberDetails();
-  }, [loadApprovedMedias, searchParams, subscriberId]);
+  }, [contractsRequired, loadApprovedMedias, searchParams, spaAccessMode, subscriberId]);
 
   useEffect(() => {
-    if (!subscriberId || !contractId) {
+    if (!subscriberId || (contractsRequired && !contractId)) {
       setTotems([]);
       setTotemIds([]);
       return;
@@ -587,7 +598,10 @@ const QuickPublish: React.FC = () => {
         setLoadingDetails(true);
         setError(null);
         setTotemIds([]);
-        const rows = await subscriberApi.getTotems(Number(subscriberId), { contractId: Number(contractId) });
+        const rows = await subscriberApi.getTotems(
+          Number(subscriberId),
+          contractsRequired && contractId ? { contractId: Number(contractId) } : undefined
+        );
         setTotems(Array.isArray(rows) ? rows : []);
       } catch (e) {
         setError(pickApiErrorMessage(e, 'Erro ao carregar telas/totens do contrato.'));
@@ -597,12 +611,12 @@ const QuickPublish: React.FC = () => {
     };
 
     loadTotems();
-  }, [contractId, subscriberId]);
+  }, [contractId, contractsRequired, spaAccessMode, subscriberId]);
 
   /** Sem totens definidos: selecionar todos os elegíveis do contrato (mesma regra das campanhas). */
   useEffect(() => {
-    if (!subscriberId || !contractId || loadingDetails) return;
-    const cid = Number(contractId);
+    if (!subscriberId || (contractsRequired && !contractId) || loadingDetails) return;
+    const cid = contractsRequired ? Number(contractId) : Number(subscriberId);
     if (eligibleTotemIds.length === 0) return;
 
     if (totemIds.length > 0) {
@@ -613,11 +627,11 @@ const QuickPublish: React.FC = () => {
 
     autoTotemSelectionContractRef.current = cid;
     setTotemIds([...eligibleTotemIds]);
-  }, [contractId, eligibleTotemIds, loadingDetails, subscriberId, totemIds.length]);
+  }, [contractId, contractsRequired, eligibleTotemIds, loadingDetails, subscriberId, totemIds.length]);
 
   /** Remove totens que deixaram de ser elegíveis sem apagar seleção quando a lista ainda está vazia. */
   useEffect(() => {
-    if (!subscriberId || !contractId || loadingDetails) return;
+    if (!subscriberId || (contractsRequired && !contractId) || loadingDetails) return;
     if (totems.length === 0) return;
     const ids = totemIds.filter((id) => Number.isInteger(id) && id > 0);
     if (ids.length === 0) return;
@@ -625,7 +639,7 @@ const QuickPublish: React.FC = () => {
     const pruned = ids.filter((id) => allowed.has(id));
     if (pruned.length === ids.length) return;
     setTotemIds(pruned);
-  }, [contractId, eligibleTotemIds, loadingDetails, subscriberId, totems.length, totemIds]);
+  }, [contractId, contractsRequired, eligibleTotemIds, loadingDetails, subscriberId, totems.length, totemIds]);
 
   useEffect(() => {
     if (!title.trim() && selectedSubscriber) {
@@ -696,7 +710,7 @@ const QuickPublish: React.FC = () => {
     if (publishInFlightRef.current || publishing) return;
 
     const publishMediaIds = sanitizeMediaIdList(mediaIds);
-    if (!subscriberId || !contractId || totemIds.length === 0 || publishMediaIds.length === 0 || !title.trim()) {
+    if (!subscriberId || (contractsRequired && !contractId) || totemIds.length === 0 || publishMediaIds.length === 0 || !title.trim()) {
       setError('Preencha cliente, contrato, tela, mídia válida e título antes de publicar.');
       return;
     }
@@ -709,7 +723,7 @@ const QuickPublish: React.FC = () => {
       setPartialRegenWarning(null);
       const result = await quickPublishApi.publish({
         subscriberId: Number(subscriberId),
-        contractId: Number(contractId),
+        ...(contractsRequired && contractId ? { contractId: Number(contractId) } : {}),
         totemIds,
         mediaIds: publishMediaIds,
         preset,
@@ -920,7 +934,7 @@ const QuickPublish: React.FC = () => {
         </Alert>
       )}
 
-      {subscriberId && !loadingDetails && contracts.length === 0 && (
+      {subscriberId && !loadingDetails && contractsRequired && contracts.length === 0 && (
         <Alert severity="warning" sx={{ mb: 2 }}>
           Este anunciante não possui contrato ativo.{' '}
           <Button component={RouterLink} to="/subscriber-contracts" size="small" sx={{ ml: 0.5 }}>
@@ -963,6 +977,7 @@ const QuickPublish: React.FC = () => {
               </FormControl>
             </Grid>
 
+            {contractsRequired ? (
             <Grid item xs={12} md={6}>
               <FormControl fullWidth size="small" disabled={!subscriberId || loadingDetails || publishing}>
                 <InputLabel>Contrato ativo</InputLabel>
@@ -983,10 +998,22 @@ const QuickPublish: React.FC = () => {
                 </Select>
               </FormControl>
             </Grid>
+            ) : (
+            <Grid item xs={12} md={6}>
+              <Alert severity="info">
+                Multi Lite: vincule telas em{' '}
+                <Button component={RouterLink} to="/subscriber-publisher-access" size="small">
+                  Anunciante ↔ Organização
+                </Button>
+              </Alert>
+            </Grid>
+            )}
 
             <Grid item xs={12}>
-              {loadingDetails && contractId ? <LinearProgress sx={{ mb: 1 }} /> : null}
-              {contractId && eligibleTotemIds.length > 0 && (
+              {loadingDetails && (contractsRequired ? Boolean(contractId) : Boolean(subscriberId)) ? (
+                <LinearProgress sx={{ mb: 1 }} />
+              ) : null}
+              {(spaAccessMode || Boolean(contractId)) && eligibleTotemIds.length > 0 && (
                 <FormControlLabel
                   sx={{ mb: 1, display: 'flex', alignItems: 'center' }}
                   control={
@@ -1104,7 +1131,7 @@ const QuickPublish: React.FC = () => {
                     }
                   />
                 )}
-                disabled={!contractId || loadingDetails || publishing || totems.length === 0}
+                disabled={(contractsRequired && !contractId) || loadingDetails || publishing || totems.length === 0}
                 noOptionsText="Nenhum totem elegível para este contrato."
               />
             </Grid>

@@ -128,72 +128,143 @@ export class SubscriberAccessService {
   }
 
   /**
-   * Concede acesso de subscriber a publisher via contrato
+   * Concede acesso de subscriber a publisher.
+   * Com `contractId`: access_type=contract (+ plan_id do contrato).
+   * Sem `contractId`: access_type=override (Multi Lite / vínculo directo anunciante↔org).
    */
   async grantAccess(
     subscriberId: number,
     publisherId: number,
-    contractId: number,
+    contractId: number | null | undefined,
     grantedBy: number,
     expiresAt?: Date,
     notes?: string
   ): Promise<SubscriberPublisherAccess> {
     try {
-      // Buscar plan_id do contrato
-      const contract = await this.db.findFirst(`
-        SELECT plan_id
-        FROM subscriber_contracts
-        WHERE contract_id = $1
-      `, [contractId]);
+      const hasContract =
+        contractId != null && Number.isInteger(Number(contractId)) && Number(contractId) > 0;
+      let planId: number | null = null;
+      if (hasContract) {
+        const contract = await this.db.findFirst(
+          `
+          SELECT plan_id
+          FROM subscriber_contracts
+          WHERE contract_id = $1
+        `,
+          [Number(contractId)]
+        );
+        if (!contract) {
+          throw new Error('Contrato não encontrado');
+        }
+        planId = contract.plan_id != null ? Number(contract.plan_id) : null;
+      }
 
-      const result = await this.db.executeRaw(`
-        INSERT INTO subscriber_publisher_access (
-          subscriber_id,
-          publisher_id,
-          contract_id,
-          plan_id,
-          access_type,
-          granted_by,
-          expires_at,
-          notes,
-          is_active
-        )
-        VALUES ($1, $2, $3, $4, 'contract', $5, $6, $7, true)
-        RETURNING 
-          access_id as "accessId",
-          subscriber_id as "subscriberId",
-          publisher_id as "publisherId",
-          contract_id as "contractId",
-          plan_id as "planId",
-          access_type as "accessType",
-          granted_at as "grantedAt",
-          expires_at as "expiresAt",
-          is_active as "isActive"
-      `, [
-        subscriberId,
-        publisherId,
-        contractId,
-        contract?.plan_id || null,
-        grantedBy,
-        expiresAt || null,
-        notes || null
-      ]);
+      const accessType = hasContract ? 'contract' : 'override';
+
+      // Reactivar linha existente (mesmo par subscriber/publisher) em vez de duplicar
+      const existing = await this.db.findFirst(
+        `
+        SELECT access_id
+        FROM subscriber_publisher_access
+        WHERE subscriber_id = $1 AND publisher_id = $2
+        ORDER BY access_id DESC
+        LIMIT 1
+      `,
+        [subscriberId, publisherId]
+      );
+
+      let result: any;
+      if (existing?.access_id) {
+        result = await this.db.executeRaw(
+          `
+          UPDATE subscriber_publisher_access SET
+            contract_id = $1,
+            plan_id = $2,
+            access_type = $3,
+            granted_by = $4,
+            granted_at = CURRENT_TIMESTAMP,
+            expires_at = $5,
+            revoked_at = NULL,
+            notes = $6,
+            is_active = true,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE access_id = $7
+          RETURNING
+            access_id as "accessId",
+            subscriber_id as "subscriberId",
+            publisher_id as "publisherId",
+            contract_id as "contractId",
+            plan_id as "planId",
+            access_type as "accessType",
+            granted_at as "grantedAt",
+            expires_at as "expiresAt",
+            is_active as "isActive"
+        `,
+          [
+            hasContract ? Number(contractId) : null,
+            planId,
+            accessType,
+            grantedBy,
+            expiresAt || null,
+            notes || null,
+            Number(existing.access_id),
+          ]
+        );
+      } else {
+        result = await this.db.executeRaw(
+          `
+          INSERT INTO subscriber_publisher_access (
+            subscriber_id,
+            publisher_id,
+            contract_id,
+            plan_id,
+            access_type,
+            granted_by,
+            expires_at,
+            notes,
+            is_active
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)
+          RETURNING
+            access_id as "accessId",
+            subscriber_id as "subscriberId",
+            publisher_id as "publisherId",
+            contract_id as "contractId",
+            plan_id as "planId",
+            access_type as "accessType",
+            granted_at as "grantedAt",
+            expires_at as "expiresAt",
+            is_active as "isActive"
+        `,
+          [
+            subscriberId,
+            publisherId,
+            hasContract ? Number(contractId) : null,
+            planId,
+            accessType,
+            grantedBy,
+            expiresAt || null,
+            notes || null,
+          ]
+        );
+      }
 
       await logInfo('Acesso subscriber → publisher concedido', {
         subscriberId,
         publisherId,
-        contractId,
-        grantedBy
+        contractId: hasContract ? Number(contractId) : null,
+        accessType,
+        grantedBy,
       });
 
-      return result;
+      return Array.isArray(result) ? result[0] : result;
     } catch (error: any) {
       await logError('Erro ao conceder acesso', error, {
         subscriberId,
         publisherId,
-        contractId
+        contractId,
       });
-      throw new Error('Erro ao conceder acesso');
+      throw new Error(error?.message || 'Erro ao conceder acesso');
     }
   }
 

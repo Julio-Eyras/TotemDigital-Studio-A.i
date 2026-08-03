@@ -44,7 +44,7 @@ import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 const PRESET_TABS: QuickPublishPreset[] = ['menu', 'promotion', 'ad', 'announcement', 'institutional'];
 
 export interface AutoPublishContext {
-  contractId: number;
+  contractId?: number;
   totemIds: number[];
   title: string;
   description?: string;
@@ -264,7 +264,9 @@ export const CreatePublishPanel: React.FC<CreatePublishPanelProps> = ({
       setError(null);
       setSuccess(null);
       const res = await publishBoardApi.autoPublish(subscriberId, preset, {
-        contractId: autoPublishContext.contractId,
+        ...(autoPublishContext.contractId
+          ? { contractId: autoPublishContext.contractId }
+          : {}),
         totemIds: autoPublishContext.totemIds,
         title: autoPublishContext.title,
         description: autoPublishContext.description,

@@ -427,3 +427,12 @@ export function resolveMultiAgencyMode(modules: InstallationModuleFlags): MultiA
     modules.playlists_advanced === true;
   return isPro ? 'full' : 'lite';
 }
+
+/**
+ * Lite (sem módulo plans): o vínculo anunciante→org/totem é via
+ * `subscriber_publisher_access` directo (access_type override), não via plano/contrato.
+ * Pro continua a usar planos; SPA directo também é aceite como caminho paralelo.
+ */
+export function usesDirectSubscriberOrgAccess(modules: InstallationModuleFlags): boolean {
+  return modules.multi_agency === true && modules.plans !== true;
+}
