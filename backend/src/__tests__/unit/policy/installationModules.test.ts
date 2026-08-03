@@ -1,9 +1,13 @@
 import {
   applyMultiAgencyMasterSwitch,
+  applyMultiAgencyMode,
   buildDefaultInstallationModules,
   buildCoreOperationPreset,
   buildMultiAgencyOperationPreset,
+  buildMultiAgencyLitePreset,
+  healStaleMultiAgencyLiteModules,
   mergeInstallationModules,
+  resolveMultiAgencyMode,
   validateInstallationModuleDependencies,
 } from '../../../policy/installationModules';
 
@@ -51,6 +55,51 @@ describe('installationModules', () => {
     expect(on.smart_display_fx).toBe(false);
   });
 
+  it('preset lite liga anunciantes sem ERP Pro', () => {
+    const lite = buildMultiAgencyLitePreset();
+    expect(lite.multi_agency).toBe(true);
+    expect(lite.subscribers).toBe(true);
+    expect(lite.quick_publish).toBe(true);
+    expect(lite.campaigns).toBe(true);
+    expect(lite.billing).toBe(false);
+    expect(lite.contracts).toBe(false);
+    expect(lite.plans).toBe(false);
+    expect(resolveMultiAgencyMode(lite)).toBe('lite');
+  });
+
+  it('heal corrige lite antigo sem anunciantes no merge', () => {
+    const defaults = buildDefaultInstallationModules({
+      multiAgency: true,
+      directTotemMode: false,
+      simpleTotemMode: false,
+      smartDisplayFx: false,
+      subscriberPortal: false,
+    });
+    const merged = mergeInstallationModules(defaults, {
+      multi_agency: true,
+      subscribers: false,
+      quick_publish: true,
+      campaigns: true,
+      billing: false,
+      plans: false,
+      contracts: false,
+      commercial_reports: false,
+      ota: false,
+      dispatcher_admin: false,
+      analytics: false,
+      playlists_advanced: false,
+      direct_totem_mode: false,
+    });
+    expect(merged.subscribers).toBe(true);
+    expect(merged.devices).toBe(true);
+    expect(resolveMultiAgencyMode(merged)).toBe('lite');
+  });
+
+  it('healStaleMultiAgencyLiteModules não altera Pro', () => {
+    const full = buildMultiAgencyOperationPreset();
+    expect(healStaleMultiAgencyLiteModules(full)).toEqual(full);
+  });
+
   it('preset núcleo OFF restaura Direct Totem', () => {
     const off = buildCoreOperationPreset();
     expect(off.multi_agency).toBe(false);
@@ -71,5 +120,11 @@ describe('installationModules', () => {
     expect(off.subscriber_portal).toBe(false);
     expect(off.smart_display_fx).toBe(false);
     expect(off.direct_totem_mode).toBe(true);
+  });
+
+  it('applyMultiAgencyMode lite usa preset com anunciantes', () => {
+    const lite = applyMultiAgencyMode('lite');
+    expect(lite.subscribers).toBe(true);
+    expect(lite.billing).toBe(false);
   });
 });

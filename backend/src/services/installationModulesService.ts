@@ -8,6 +8,7 @@ import {
   mergeInstallationModules,
   validateInstallationModuleDependencies,
   buildDefaultInstallationModules,
+  healStaleMultiAgencyLiteModules,
 } from '../policy/installationModules';
 import {
   buildInstallationCapabilities,
@@ -106,7 +107,26 @@ export async function getInstallationModulesAdminView(db: DbLike): Promise<{
   const profile = await resolveInstallationProfile(db as any);
   const simpleTotemMode = await resolveInstallationSimpleTotemMode(db as any);
   const overrides = await loadInstallationModuleOverrides(db);
-  const capabilities = buildInstallationCapabilities(profile, simpleTotemMode, overrides);
+  let capabilities = buildInstallationCapabilities(profile, simpleTotemMode, overrides);
+
+  // Persistência: lite antigo com subscribers:false → gravar preset correcto
+  const liteNeedsPersist =
+    resolveMultiAgencyMode(capabilities.modules) === 'lite' &&
+    overrides != null &&
+    (overrides.subscribers === false ||
+      overrides.quick_publish === false ||
+      overrides.campaigns === false ||
+      overrides.devices === false);
+  if (liteNeedsPersist && db.executeRaw) {
+    try {
+      const healed = healStaleMultiAgencyLiteModules(capabilities.modules);
+      await persistModulesFlags(db, healed);
+      capabilities = buildInstallationCapabilities(profile, simpleTotemMode, healed);
+    } catch (error) {
+      await logError('Falha ao persistir heal do preset multi-lite', error);
+    }
+  }
+
   const defaults = buildDefaultInstallationModules({
     multiAgency: profile === 'multi_agency',
     directTotemMode: capabilities.directTotemMode,

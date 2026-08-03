@@ -209,14 +209,41 @@ export function mergeInstallationModules(
   overrides: Partial<Record<string, boolean>> | null | undefined
 ): InstallationModuleFlags {
   const merged = { ...defaults };
-  if (!overrides || typeof overrides !== 'object') return enforceLockedModules(merged);
+  if (!overrides || typeof overrides !== 'object') {
+    return healStaleMultiAgencyLiteModules(enforceLockedModules(merged));
+  }
 
   for (const id of INSTALLATION_MODULE_IDS) {
     if (typeof overrides[id] === 'boolean') {
       merged[id] = overrides[id] as boolean;
     }
   }
-  return enforceLockedModules(merged);
+  return healStaleMultiAgencyLiteModules(enforceLockedModules(merged));
+}
+
+/**
+ * Lite antigo (antes da correção de produto) gravava `subscribers: false`.
+ * Lite correcto exige anunciantes + publicar/campanhas/devices.
+ * Reaplica o preset lite sem promover a Pro.
+ */
+export function healStaleMultiAgencyLiteModules(
+  modules: InstallationModuleFlags
+): InstallationModuleFlags {
+  if (resolveMultiAgencyMode(modules) !== 'lite') {
+    return modules;
+  }
+  if (
+    modules.subscribers === true &&
+    modules.quick_publish === true &&
+    modules.campaigns === true &&
+    modules.devices === true
+  ) {
+    return modules;
+  }
+  return buildMultiAgencyLitePreset({
+    subscriber_portal: modules.subscriber_portal === true,
+    smart_display_fx: modules.smart_display_fx === true,
+  });
 }
 
 export function enforceLockedModules(flags: InstallationModuleFlags): InstallationModuleFlags {

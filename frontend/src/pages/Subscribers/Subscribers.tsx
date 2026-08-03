@@ -128,6 +128,7 @@ import {
   parsePublishBoardPresetFromTags,
 } from '../../utils/publishBoardMedia';
 import { findPublishPreset } from '../../config/publishTemplates';
+import { isInstallationModuleOn } from '../../utils/installationModuleAccess';
 import {
   billingIntervalLabel,
   contractEndDateHelperText,
@@ -2384,12 +2385,18 @@ const Subscribers: React.FC = () => {
           {/* Aba Contratos */}
           {createTab === 1 && (
             <Box>
-              <Typography variant="h6" sx={{ mb: 2 }}>Contratos do Anunciante *</Typography>
-              <Alert severity="warning" sx={{ mb: 2 }}>
-                <strong>Obrigatório:</strong> Um anunciante deve ter pelo menos um contrato. 
-                Adicione pelo menos um contrato antes de criar o anunciante.
-              </Alert>
-              
+              <Typography variant="h6" sx={{ mb: 2 }}>Contratos do Anunciante</Typography>
+              {!isInstallationModuleOn('contracts') ? (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  No Multi Lite pode criar o anunciante sem contrato. Contratos e planos fazem parte do Multi Pro.
+                </Alert>
+              ) : (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Opcional: pode criar o anunciante sem contrato e associar depois.
+                </Alert>
+              )}
+              {isInstallationModuleOn('contracts') && (
+              <>
               {/* Formulário para criar/editar Subscriber Contract */}
               <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 1, bgcolor: editingSubscriberContractIndexCreate !== null ? alpha(theme.palette.primary.main, 0.05) : 'transparent' }}>
                 <Typography variant="subtitle2" sx={{ mb: 2 }}>
@@ -2728,9 +2735,11 @@ const Subscribers: React.FC = () => {
                   ))}
                 </List>
               ) : (
-                <Alert severity="warning">
-                  <strong>Nenhum contrato adicionado.</strong> É obrigatório adicionar pelo menos um contrato antes de criar o anunciante.
+                <Alert severity="info">
+                  Nenhum contrato adicionado ainda. Pode criar o anunciante e associar contratos depois.
                 </Alert>
+              )}
+              </>
               )}
             </Box>
           )}
@@ -2791,12 +2800,7 @@ const Subscribers: React.FC = () => {
           <Button 
             variant="contained" 
             onClick={handleCreateSubscriber}
-            disabled={!newSubscriber.name?.trim() || !tempSubscriberContracts || tempSubscriberContracts.length === 0}
-            title={
-              (!tempSubscriberContracts || tempSubscriberContracts.length === 0) 
-                ? 'Adicione pelo menos um contrato na aba "Contratos"' 
-                : ''
-            }
+            disabled={!newSubscriber.name?.trim()}
           >
             Criar Anunciante
           </Button>

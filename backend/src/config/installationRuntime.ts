@@ -22,10 +22,24 @@ export function isStudioRuntime(): boolean {
 
 export async function warmInstallationRuntime(db?: {
   findFirst: (sql: string, params?: unknown[]) => Promise<{ setting_value?: string } | null>;
+  executeRaw?: (sql: string, params?: unknown[]) => Promise<unknown>;
 }): Promise<InstallationProfile> {
   resetInstallationProfileCache();
   runtimeProfile = await resolveInstallationProfile(db);
   resetCompactOwnerPublisherCache();
+
+  // Heal + persist lite antigo (subscribers:false) no arranque, se BD permitir escrita
+  if (db?.executeRaw) {
+    try {
+      const { getInstallationModulesAdminView } = await import(
+        '../services/installationModulesService'
+      );
+      await getInstallationModulesAdminView(db as any);
+    } catch {
+      /* ignore — capabilities em memória ainda passam pelo heal no merge */
+    }
+  }
+
   return runtimeProfile;
 }
 

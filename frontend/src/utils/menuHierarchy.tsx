@@ -267,13 +267,13 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
     },
     {
       text: 'Anunciantes',
-      icon: <Campaign />,
-      path: '/quick-publish',
+      icon: <People />,
+      path: '/subscribers',
       children: [
+        { text: 'Cadastro de Anunciantes', icon: <People />, path: '/subscribers' },
         { text: 'Publicar em tela', icon: <Add />, path: '/quick-publish' },
         { text: 'Criar conteúdo', icon: <AutoAwesome />, path: '/quick-publish?mode=create' },
         { text: 'Cardápio por cliente', icon: <Storefront />, path: '/menu-catalog' },
-        { text: 'Manutenção Anunciante', icon: <People />, path: '/subscribers' },
         { text: 'Manutenção de Contratos', icon: <Description />, path: '/subscriber-contracts' },
         { text: 'Biblioteca de Mídias', icon: <VideoLibrary />, path: '/media' },
         { text: 'Biblioteca de Vinhetas', icon: <VideoLibrary />, path: '/vinhetas' },
@@ -506,13 +506,13 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
     // Anunciantes (conteúdo + campanhas)
     {
       text: 'Anunciantes',
-      icon: <Campaign />,
+      icon: <People />,
       path: '/subscribers',
       children: [
+        { text: 'Cadastro de Anunciantes', icon: <People />, path: '/subscribers' },
         { text: 'Publicar em Tela', icon: <Add />, path: '/quick-publish' },
         { text: 'Criar conteúdo', icon: <AutoAwesome />, path: '/quick-publish?mode=create' },
         { text: 'Cardápio por cliente', icon: <Storefront />, path: '/menu-catalog' },
-        { text: 'Anunciantes', icon: <People />, path: '/subscribers' },
         { text: 'Mídias', icon: <VideoLibrary />, path: '/media' },
         { text: 'Vinhetas', icon: <VideoLibrary />, path: '/vinhetas' },
         { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
