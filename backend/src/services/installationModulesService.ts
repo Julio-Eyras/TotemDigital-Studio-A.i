@@ -538,7 +538,7 @@ export async function setMultiAgencyMode(
       mode === 'full'
         ? `Modo multi-agência Pro activado. Dados anteriores permanecem; superfícies comerciais disponíveis.${bootstrapHint}${secondHint}${workersHint}`
         : mode === 'lite'
-          ? `Modo multi-agência lite activado (várias orgs + publicar/mídias, sem billing/campanhas/playlists).${bootstrapHint}${secondHint}${workersHint}`
+          ? `Modo multi-agência lite activado (orgs + anunciantes + publicar/mídias; sem billing/planos/contratos/OTA).${bootstrapHint}${secondHint}${workersHint}`
           : `Modo multi-agência desactivado. Dados comerciais não foram apagados. Direct Totem voltou a ser o modo de operação.${workersHint}`,
   };
 }

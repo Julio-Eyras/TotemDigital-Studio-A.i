@@ -322,8 +322,10 @@ export function buildMultiAgencyOperationPreset(preserveAdvanced?: {
 }
 
 /**
- * Preset multi-agência lite (D6-B): várias orgs + publicar + mídias + devices,
- * sem billing/campanhas/playlists/contratos. Direct Totem continua OFF (D6-C).
+ * Preset multi-agência lite (D6-B):
+ * várias orgs + anunciantes/clientes + publicar/mídias/devices/campanhas leves.
+ * Sem billing, planos, contratos, reports, OTA, dispatcher, analytics (isso é Pro).
+ * Direct Totem continua OFF (D6-C).
  */
 export function buildMultiAgencyLitePreset(preserveAdvanced?: {
   subscriber_portal?: boolean;
@@ -336,10 +338,10 @@ export function buildMultiAgencyLitePreset(preserveAdvanced?: {
     multi_agency: true,
     direct_totem_mode: false,
     simple_totem_mode: false,
-    quick_publish: false,
+    subscribers: true,
+    quick_publish: true,
+    campaigns: true,
     devices: true,
-    subscribers: false,
-    campaigns: false,
     playlists_advanced: false,
     contracts: false,
     plans: false,
@@ -381,14 +383,20 @@ export function applyMultiAgencyMode(
   return buildCoreOperationPreset();
 }
 
-/** Infere off | lite | full a partir das flags actuais. */
+/** Infere off | lite | full a partir das flags actuais.
+ * Pro = stack administrativa/ERP (billing, planos, contratos, reports…).
+ * Lite = multi-agência com anunciantes/publicação, sem esse ERP.
+ */
 export function resolveMultiAgencyMode(modules: InstallationModuleFlags): MultiAgencyMode {
   if (!modules.multi_agency) return 'off';
-  const commercialHeavy =
+  const isPro =
     modules.billing === true ||
-    modules.campaigns === true ||
-    modules.subscribers === true ||
-    modules.playlists_advanced === true ||
-    modules.contracts === true;
-  return commercialHeavy ? 'full' : 'lite';
+    modules.plans === true ||
+    modules.contracts === true ||
+    modules.commercial_reports === true ||
+    modules.ota === true ||
+    modules.dispatcher_admin === true ||
+    modules.analytics === true ||
+    modules.playlists_advanced === true;
+  return isPro ? 'full' : 'lite';
 }

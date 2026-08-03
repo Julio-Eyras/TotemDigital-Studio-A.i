@@ -29,7 +29,7 @@ Produto alvo: instalação que o cliente opera como **TotemDigital Direct** (nú
 | ID | Decisão |
 |----|---------|
 | **A** | Dois produtos: Direct Totem **ou** Pro multi-agência |
-| **B** | `multi_agency_lite` — várias orgs + publicar/mídias/devices, **sem** billing/campanhas/playlists — **implementado** (`mode: lite`) |
+| **B** | `multi_agency_lite` — orgs + **anunciantes** + publicar/mídias/campanhas; **sem** billing/planos/contratos/OTA — **implementado** (`mode: lite`) |
 | **C** | Pro + Direct Totem ON juntos — **proibido** |
 | **D1** | Ao desligar multi-agência, Direct Totem volta automaticamente |
 | **D2** | Portal e SmartDisplayFX **fora** do botão master (só avançado / secção Portal) |
@@ -210,16 +210,16 @@ Com o fix `bcecb077` puxado, o wipe deve reutilizar `DB_PASSWORD` do `.env`.
 
 1. Login `https://dev.totemdigital.app.br/login` → `dev` / `dev123` (ou owner)
 2. **Complementos do sistema**
-3. Select **Modo** → **`Multi-agência Pro`** (não `lite` se precisar de anunciantes) → confirmar → reload
-4. Confirme chip **Pro** e perfil `multi_agency`
+3. Select **Modo** → **`lite`** (anunciantes + publicar, sem billing) ou **`Pro`** (pacote agência completo) → confirmar → reload
+4. Confirme o chip **Lite** ou **Pro** e perfil `multi_agency`
 5. Se aviso de restart: `sudo systemctl restart smart-signage-dev`
 6. Menu: **Organizações** → **Adicionar organização** (só em perfil multi; Direct Totem/single só edita a org implícita)
-7. Menu: **Anunciantes** → cadastrar (só com Pro; lite/off → 403 `MODULE_DISABLED`)
+7. Menu: **Anunciantes** → cadastrar e **Publicar em Tela** (disponível em lite e Pro; em Direct Totem/off fica oculto)
 8. Botão **Seed 2ª agência** (secção Portal)
-9. Testar OFF → Direct Totem volta, dados intactos; voltar a Pro
+9. Testar OFF → Direct Totem volta, dados intactos; voltar a lite/Pro
 10. **Não** usar Purge neste smoke
 
-**Nota:** `api/subscribers` / `api/ota-updates/stats` 403 com `MODULE_DISABLED` = módulo off (lite ou Direct Totem), não falha de auth. Os erros de extensão do browser (`message channel closed`) podem ignorar.
+**Nota:** `api/billing` / OTA / dispatcher 403 com `MODULE_DISABLED` em **lite** é esperado (ERP/ops só no Pro). Anunciantes em lite devem funcionar.
 
 ### 5.7 Portal DNS (opcional)
 

@@ -96,11 +96,14 @@ function buildLitePreset() {
     organization: true,
     multi_agency: true,
     direct_totem_mode: false,
-    subscribers: false,
+    subscribers: true,
+    quick_publish: true,
+    campaigns: true,
+    devices: true,
     billing: false,
-    campaigns: false,
+    contracts: false,
+    plans: false,
     ota: false,
-    quick_publish: false,
   };
 }
 
@@ -124,7 +127,7 @@ async function main() {
   const lite = buildLitePreset();
   assert('T02', off.direct_totem_mode && !off.multi_agency && !off.billing, 'OFF = Direct Totem');
   assert('T03', on.multi_agency && !on.direct_totem_mode && on.billing && on.campaigns, 'ON = Pro');
-  assert('T03b', lite.multi_agency && !lite.subscribers && !lite.billing && !lite.direct_totem_mode, 'lite sem anunciantes/billing');
+  assert('T03b', lite.multi_agency && lite.subscribers && lite.quick_publish && !lite.billing && !lite.direct_totem_mode, 'lite = anunciantes sem billing');
   assert('T04', !(on.multi_agency && on.direct_totem_mode), 'D6-C: Pro+DT simultâneo proibido no preset');
   assert('T04b', !(lite.multi_agency && lite.direct_totem_mode), 'D6-C: lite+DT simultâneo proibido');
 

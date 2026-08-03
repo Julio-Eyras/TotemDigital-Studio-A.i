@@ -31,21 +31,25 @@ describe('multi-agency master switch helpers', () => {
     expect(on.direct_totem_mode).toBe(false);
   });
 
-  it('lite liga multi_agency sem billing/campanhas', () => {
+  it('lite liga multi_agency com anunciantes, sem billing/ERP', () => {
     const lite = buildMultiAgencyLitePreset();
     expect(lite.multi_agency).toBe(true);
     expect(lite.direct_totem_mode).toBe(false);
     expect(lite.core_publish).toBe(true);
+    expect(lite.subscribers).toBe(true);
+    expect(lite.quick_publish).toBe(true);
+    expect(lite.campaigns).toBe(true);
     expect(lite.devices).toBe(true);
-    expect(lite.quick_publish).toBe(false);
     expect(lite.billing).toBe(false);
-    expect(lite.campaigns).toBe(false);
-    expect(lite.subscribers).toBe(false);
+    expect(lite.contracts).toBe(false);
+    expect(lite.plans).toBe(false);
+    expect(lite.ota).toBe(false);
     expect(resolveMultiAgencyMode(lite)).toBe('lite');
   });
 
   it('applyMultiAgencyMode cobre off/lite/full', () => {
     expect(applyMultiAgencyMode('off').multi_agency).toBe(false);
+    expect(applyMultiAgencyMode('lite').subscribers).toBe(true);
     expect(applyMultiAgencyMode('lite').billing).toBe(false);
     expect(applyMultiAgencyMode('full').billing).toBe(true);
   });

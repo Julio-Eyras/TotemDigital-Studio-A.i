@@ -54,19 +54,19 @@ const GROUP_LABEL: Record<CatalogItem['group'], string> = {
   ops: 'Operação avançada',
 };
 
-const PRESET_ON_LABELS = [
-  'Várias organizações (multi-agência Pro)',
-  'Anunciantes, contratos, planos e faturamento',
-  'Campanhas, playlists avançadas e quick-publish',
-  'Devices, OTA, dispatcher e analytics',
-  'Menu Direct Totem desactiva-se (UI completa)',
+const PRESET_LITE_LABELS = [
+  'Várias organizações + anunciantes/clientes + publicar em tela + mídias',
+  'Campanhas simples e devices — fonte de receita das propagandas',
+  'Sem billing, planos, contratos, OTA, dispatcher nem analytics (isso é Pro)',
+  'Direct Totem desactiva-se (mutuamente exclusivo)',
 ];
 
-const PRESET_LITE_LABELS = [
-  'Várias organizações + mídias + devices (sem anunciantes)',
-  'Sem Publicar em Tela / cardápio por cliente (isso exige anunciante = Pro)',
-  'Sem billing, campanhas nem playlists avançadas',
-  'Direct Totem desactiva-se. Para anunciantes use Multi-agência Pro',
+const PRESET_ON_LABELS = [
+  'Tudo do lite + pacote profissional para agências',
+  'Anunciantes, contratos, planos e faturamento (billing)',
+  'Playlists avançadas, OTA, dispatcher e analytics',
+  'Operação remota completa de painéis/totens',
+  'Menu Direct Totem desactiva-se (UI completa)',
 ];
 
 const PRESET_OFF_LABELS = [
@@ -492,9 +492,9 @@ const SystemModules: React.FC = () => {
                     Modo multi-agência
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Escolha Direct Totem (off), multi-agência lite (várias orgs sem anunciantes/ERP) ou
-                    Pro completo (anunciantes, comercial, OTA). Portal e SmartDisplayFX ficam nas opções
-                    avançadas.
+                    <strong>Lite:</strong> orgs + anunciantes + publicar/mídias (receita de propaganda), sem
+                    billing/ERP. <strong>Pro:</strong> pacote completo para agências e gestão remota de
+                    painéis. Portal e SmartDisplayFX ficam nas opções avançadas.
                   </Typography>
                   {profile && (
                     <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>

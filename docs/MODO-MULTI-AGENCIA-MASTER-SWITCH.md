@@ -12,14 +12,15 @@ Concordância validada:
 | Opção | Ideia | Estado |
 |-------|--------|--------|
 | **A** | Dois produtos claros: **Direct Totem** *ou* **Pro multi-agência** | **Agora** — venda e suporte simples |
-| **B** | Perfil `multi_agency_lite`: várias orgs + publicar + mídias, **sem** billing/campanhas/playlists | **Implementado** — `mode: "lite"` |
+| **B** | Perfil `multi_agency_lite`: várias orgs + **anunciantes/clientes** + publicar/mídias/campanhas leves, **sem** billing/planos/contratos/OTA/dispatcher | **Implementado** — `mode: "lite"` |
 | **C** | Multi-agência ON + Direct Totem ON no mesmo painel | **Evitar** — menus e expectativas colidem |
 
 Implicações:
 
 - O master switch é **mutuamente exclusivo** com Direct Totem (off = Direct Totem; lite/full = Pro parcial/completo). Não implementar C.
 - D3 mantém-se: OFF **não apaga** dados (arquivo silencioso). Purge = fluxo explícito separado (`DESENHO-PURGE-DADOS-COMERCIAIS.md`).
-- `multi_agency_lite` (B) está disponível via API/UI (`mode: "lite"`).
+- **Lite** = operação comercial leve (anunciantes = fonte de receita das propagandas), sem ERP administrativo.
+- **Pro** = pacote completo para agências de marketing e gestão remota profissional de painéis/totens.
 
 ## Decisões (validadas)
 
@@ -35,8 +36,8 @@ Implicações:
 ## Comportamento
 
 - **off:** Direct Totem + simple; comercial off  
-- **lite:** várias orgs + publicar + mídias + devices; sem billing/campanhas/playlists/contratos; Direct Totem off  
-- **full:** preset comercial/ops completo; Direct Totem off; portal/FX preservados se já estavam on  
+- **lite:** várias orgs + **anunciantes** + publicar/mídias/campanhas; sem billing/planos/contratos/OTA/dispatcher/analytics; Direct Totem off  
+- **full (Pro):** preset comercial/ops completo (billing, contratos, playlists avançadas, OTA…); Direct Totem off; portal/FX preservados se já estavam on  
 - Persiste `installation.modules` + sincroniza `installation.profile`  
 - API: `PUT /api/installation/multi-agency` body `{ "mode": "off"|"lite"|"full" }` (legado: `{ "enabled": true|false }`)  
 - UI: `/settings/system-modules` (select off/lite/full)
