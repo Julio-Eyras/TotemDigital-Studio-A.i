@@ -41,15 +41,25 @@ import {
   Info,
   Refresh,
 } from '@mui/icons-material';
-import { clientApi, Client } from '../../services/api';
 import { publisherApi, Publisher } from '../../services/api';
 import { subscriberAccessApi, SubscriberPublisherAccessDetail } from '../../services/api';
 import { planApi, Plan } from '../../services/api';
+import { subscriberApi } from '../../services/api';
 import ResponsiveSectionNav from '../../components/Navigation/ResponsiveSectionNav';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { getProductTerminology } from '../../config/productTerminology';
 import { selectLabelShrinkProps } from '../../utils/muiSelectLabel';
 import { isInstallationModuleOn } from '../../utils/installationModuleAccess';
+
+type SubscriberOption = {
+  id: number;
+  name: string;
+};
+
+function subscriberOptionId(row: { subscriber_id?: number; client_id?: number; id?: number }): number | null {
+  const id = Number(row.subscriber_id ?? row.client_id ?? row.id);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -70,13 +80,15 @@ const SubscriberPublisherAccessPage: React.FC = () => {
   const theme = useTheme();
   const isMobileNav = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
   const [tabValue, setTabValue] = useState(0);
-  const [subscribers, setSubscribers] = useState<Client[]>([]);
+  const [subscribers, setSubscribers] = useState<SubscriberOption[]>([]);
   const [publishers, setPublishers] = useState<Publisher[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [accessList, setAccessList] = useState<SubscriberPublisherAccessDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [grantDialogOpen, setGrantDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const plansModuleOn = isInstallationModuleOn('plans');
+  const contractsModuleOn = isInstallationModuleOn('contracts');
   const [filters, setFilters] = useState({
     subscriberId: '',
     publisherId: '',
@@ -102,22 +114,41 @@ const SubscriberPublisherAccessPage: React.FC = () => {
       setLoading(true);
       setError(null);
 
+      // Multi Lite: não chamar /api/plans (módulo off → 403 «Planos e acessos»).
       const [subscribersRes, publishersRes, plansRes, accessRes] = await Promise.all([
-        clientApi.getAll(),
+        subscriberApi.getAll({ active_only: true, limit: 500 }),
         publisherApi.getAll({ active_only: true }),
-        planApi.getAll(),
+        plansModuleOn ? planApi.getAll() : Promise.resolve([] as Plan[]),
         subscriberAccessApi.getAllAccess({
           subscriberId: filters.subscriberId ? parseInt(filters.subscriberId) : undefined,
           publisherId: filters.publisherId ? parseInt(filters.publisherId) : undefined,
           contractId: filters.contractId ? parseInt(filters.contractId) : undefined,
-          planId: filters.planId ? parseInt(filters.planId) : undefined,
+          planId: plansModuleOn && filters.planId ? parseInt(filters.planId) : undefined,
           isActive: filters.isActive,
         }),
       ]);
 
-      setSubscribers(subscribersRes.data || []);
-      setPublishers(publishersRes.data || []);
-      setPlans(plansRes || []);
+      const rawSubs = Array.isArray(subscribersRes?.data)
+        ? subscribersRes.data
+        : Array.isArray(subscribersRes)
+          ? (subscribersRes as any[])
+          : [];
+      const mappedSubs: SubscriberOption[] = rawSubs
+        .map((s: any) => {
+          const id = subscriberOptionId(s);
+          if (!id) return null;
+          return { id, name: String(s.name || `Anunciante #${id}`) };
+        })
+        .filter((s: SubscriberOption | null): s is SubscriberOption => s != null);
+
+      setSubscribers(mappedSubs);
+      const pubs = Array.isArray(publishersRes)
+        ? publishersRes
+        : Array.isArray((publishersRes as any)?.data)
+          ? (publishersRes as any).data
+          : [];
+      setPublishers(pubs);
+      setPlans(plansModuleOn ? plansRes || [] : []);
       setAccessList(accessRes);
     } catch (error: any) {
       setError(pickApiErrorMessage(error, 'Erro ao carregar dados'));
@@ -156,7 +187,7 @@ const SubscriberPublisherAccessPage: React.FC = () => {
         setError(`Anunciante e ${getProductTerminology().organization.toLowerCase()} são obrigatórios`);
         return;
       }
-      if (isInstallationModuleOn('contracts') && !grantFormData.contractId) {
+      if (contractsModuleOn && !grantFormData.contractId) {
         setError('Contrato é obrigatório quando o módulo de contratos está activo');
         return;
       }
@@ -247,7 +278,7 @@ const SubscriberPublisherAccessPage: React.FC = () => {
                 >
                   <MenuItem value="">Todos</MenuItem>
                   {subscribers.map((subscriber) => (
-                    <MenuItem key={subscriber.client_id} value={subscriber.client_id.toString()}>
+                    <MenuItem key={subscriber.id} value={subscriber.id.toString()}>
                       {subscriber.name}
                     </MenuItem>
                   ))}
@@ -291,6 +322,7 @@ const SubscriberPublisherAccessPage: React.FC = () => {
                 </Select>
               </FormControl>
             </Grid>
+            {plansModuleOn && (
             <Grid item xs={12} md={2}>
               <FormControl fullWidth>
                 <InputLabel {...selectLabelShrinkProps}>Plano</InputLabel>
@@ -311,6 +343,7 @@ const SubscriberPublisherAccessPage: React.FC = () => {
                 </Select>
               </FormControl>
             </Grid>
+            )}
             <Grid item xs={12} md={2}>
               <Button fullWidth variant="outlined" startIcon={<Refresh />} onClick={loadData}>
                 Atualizar
@@ -474,7 +507,7 @@ const SubscriberPublisherAccessPage: React.FC = () => {
               >
                 <MenuItem value="">Selecione um anunciante</MenuItem>
                 {subscribers.map((subscriber) => (
-                  <MenuItem key={subscriber.client_id} value={subscriber.client_id.toString()}>
+                  <MenuItem key={subscriber.id} value={subscriber.id.toString()}>
                     {subscriber.name}
                   </MenuItem>
                 ))}
@@ -499,13 +532,13 @@ const SubscriberPublisherAccessPage: React.FC = () => {
 
             <TextField
               fullWidth
-              label={isInstallationModuleOn('contracts') ? 'ID do Contrato *' : 'ID do Contrato (opcional)'}
+              label={contractsModuleOn ? 'ID do Contrato *' : 'ID do Contrato (opcional)'}
               type="number"
               value={grantFormData.contractId}
               onChange={(e) => setGrantFormData({ ...grantFormData, contractId: e.target.value })}
               margin="normal"
               helperText={
-                isInstallationModuleOn('contracts')
+                contractsModuleOn
                   ? 'ID do contrato que concede este acesso'
                   : 'No Multi Lite pode deixar vazio — vínculo directo anunciante ↔ organização'
               }
@@ -541,7 +574,7 @@ const SubscriberPublisherAccessPage: React.FC = () => {
             disabled={
               !grantFormData.subscriberId ||
               !grantFormData.publisherId ||
-              (isInstallationModuleOn('contracts') && !grantFormData.contractId)
+              (contractsModuleOn && !grantFormData.contractId)
             }
           >
             Conceder
