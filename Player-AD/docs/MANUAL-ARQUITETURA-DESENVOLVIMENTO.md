@@ -186,6 +186,8 @@ Campos:
 - `deviceId` (obrigatório)
 - `acceptImagesInPlaylist` (opcional, default `true`)
 - `allowPlaybackAudio` (opcional, default `false`)
+- `mediaTransitionEnabled` (opcional, default `1`) — `0` desliga o véu preto na troca de mídia; `1` liga
+- `fallbackPropagandasPerVinheta` (opcional)
 - `fallbackPropagandasPerVinheta` (opcional, mínimo `1`, default `3`)
 - `batimentoCardiaco` / `maxSecondsWithoutServerCheck` / `pollAdaptive` (opcionais)
 - `kioskMode`, `displayRotation` / `screenOrientation` (opcionais)

@@ -8,6 +8,7 @@
   "displayRotation": 0,
   "screenOrientation": "portrait",
   "allowPlaybackAudio": false,
+  "mediaTransitionEnabled": 1,
   "fallbackPropagandasPerVinheta": 3,
   "batimentoCardiaco": 30,
   "maxSecondsWithoutServerCheck": 180,

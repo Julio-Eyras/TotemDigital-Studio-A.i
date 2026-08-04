@@ -29,6 +29,10 @@ object PlayerConfigStore {
         put("deviceId", cfg.deviceId)
         put("acceptImagesInPlaylist", cfg.acceptImagesInPlaylist)
         put("allowPlaybackAudio", cfg.allowPlaybackAudio)
+        put(
+            "mediaTransitionEnabled",
+            PlayerConfigLoader.coerceMediaTransitionEnabled(cfg.mediaTransitionEnabled),
+        )
         put("fallbackPropagandasPerVinheta", cfg.fallbackPropagandasPerVinheta)
         put("batimentoCardiaco", cfg.batimentoCardiaco)
         put("maxSecondsWithoutServerCheck", cfg.maxSecondsWithoutServerCheck)

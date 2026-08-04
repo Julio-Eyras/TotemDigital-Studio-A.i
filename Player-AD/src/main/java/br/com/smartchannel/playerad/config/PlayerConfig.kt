@@ -11,6 +11,12 @@ data class PlayerConfig(
      * Imagens já não têm som; o interruptor só afeta mídia tocada pelo player.
      */
     val allowPlaybackAudio: Boolean = false,
+    /**
+     * Véu preto curto na troca de mídia (`MediaLayerTransition`).
+     * Campo JSON: `mediaTransitionEnabled` — **0** = desligado, **1** (ou ≠0) = ligado.
+     * Default 1 (comportamento actual).
+     */
+    val mediaTransitionEnabled: Int = 1,
     /** Quantas propagandas/campanha tocar antes de inserir 1 vinheta (dispatch online e fallback local). */
     val fallbackPropagandasPerVinheta: Int = 3,
     /**

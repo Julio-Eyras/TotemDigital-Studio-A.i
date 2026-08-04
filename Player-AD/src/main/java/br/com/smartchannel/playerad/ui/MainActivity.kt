@@ -151,6 +151,7 @@ class MainActivity : AppCompatActivity() {
                         htmlWebView,
                         config.acceptImagesInPlaylist,
                         config.allowPlaybackAudio,
+                        config.mediaTransitionEnabled,
                         config.fallbackPropagandasPerVinheta,
                         config.batimentoCardiaco,
                         config.maxSecondsWithoutServerCheck,

@@ -54,6 +54,7 @@ class DebugConfigActivity : AppCompatActivity() {
     private lateinit var editDeviceId: EditText
     private lateinit var switchAcceptImages: SwitchCompat
     private lateinit var switchAllowPlaybackAudio: SwitchCompat
+    private lateinit var switchMediaTransition: SwitchCompat
     private lateinit var switchStrongKiosk: SwitchCompat
     private lateinit var spinnerScreenOrientation: Spinner
     private lateinit var btnRotateCw: Button
@@ -133,6 +134,7 @@ class DebugConfigActivity : AppCompatActivity() {
         editDeviceId = findViewById(R.id.editDeviceId)
         switchAcceptImages = findViewById(R.id.switchAcceptImages)
         switchAllowPlaybackAudio = findViewById(R.id.switchAllowPlaybackAudio)
+        switchMediaTransition = findViewById(R.id.switchMediaTransition)
         switchStrongKiosk = findViewById(R.id.switchStrongKiosk)
         spinnerScreenOrientation = findViewById(R.id.spinnerScreenOrientation)
         btnRotateCw = findViewById(R.id.btnRotateCw)
@@ -201,6 +203,8 @@ class DebugConfigActivity : AppCompatActivity() {
         editDeviceId.setText(current.deviceId)
         switchAcceptImages.isChecked = current.acceptImagesInPlaylist
         switchAllowPlaybackAudio.isChecked = current.allowPlaybackAudio
+        switchMediaTransition.isChecked =
+            PlayerConfigLoader.isMediaTransitionEnabled(current.mediaTransitionEnabled)
         switchStrongKiosk.isChecked = current.kioskMode == br.com.smartchannel.playerad.config.KioskMode.STRONG
         editBatimentoCardiaco.setText(current.batimentoCardiaco.toString())
         editMaxSecondsWithoutServerCheck.setText(current.maxSecondsWithoutServerCheck.toString())
@@ -533,6 +537,7 @@ class DebugConfigActivity : AppCompatActivity() {
             deviceId = deviceId,
             acceptImagesInPlaylist = switchAcceptImages.isChecked,
             allowPlaybackAudio = switchAllowPlaybackAudio.isChecked,
+            mediaTransitionEnabled = if (switchMediaTransition.isChecked) 1 else 0,
             fallbackPropagandasPerVinheta = loaded.fallbackPropagandasPerVinheta,
             batimentoCardiaco = batimento,
             maxSecondsWithoutServerCheck = maxSeconds,

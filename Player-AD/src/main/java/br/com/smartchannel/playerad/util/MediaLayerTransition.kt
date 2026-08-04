@@ -12,6 +12,8 @@ import kotlin.coroutines.resume
 /**
  * Véu opaco no root (acima do contentHost): cobre frame residual do TextureView
  * e revela o conteúdo novo — evita “flick”/ghosting entre mídias (pior em landscape).
+ *
+ * Pode ser desligado via `mediaTransitionEnabled=0` em `player-config.json`.
  */
 object MediaLayerTransition {
 
@@ -21,7 +23,11 @@ object MediaLayerTransition {
     /** Reveal curto; conteúdo já está pronto por baixo. */
     const val FADE_OUT_MS = 60L
 
-    suspend fun cover(overlay: View?) {
+    suspend fun cover(overlay: View?, enabled: Boolean = true) {
+        if (!enabled) {
+            reset(overlay)
+            return
+        }
         val view = overlay ?: return
         cancelRunning(view)
         view.visibility = View.VISIBLE
@@ -33,7 +39,11 @@ object MediaLayerTransition {
         awaitFrames(view, 1)
     }
 
-    suspend fun reveal(overlay: View?) {
+    suspend fun reveal(overlay: View?, enabled: Boolean = true) {
+        if (!enabled) {
+            reset(overlay)
+            return
+        }
         val view = overlay ?: return
         cancelRunning(view)
         if (view.visibility != View.VISIBLE || view.alpha <= 0.02f) {

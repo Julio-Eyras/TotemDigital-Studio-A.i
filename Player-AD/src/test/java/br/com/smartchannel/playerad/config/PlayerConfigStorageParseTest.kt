@@ -29,6 +29,47 @@ class PlayerConfigStorageParseTest {
     }
 
     @Test
+    fun coerceMediaTransitionEnabled_zeroOffElseOn() {
+        assertEquals(0, PlayerConfigLoader.coerceMediaTransitionEnabled(0))
+        assertEquals(1, PlayerConfigLoader.coerceMediaTransitionEnabled(1))
+        assertEquals(1, PlayerConfigLoader.coerceMediaTransitionEnabled(2))
+        assertEquals(1, PlayerConfigLoader.coerceMediaTransitionEnabled(-1))
+    }
+
+    @Test
+    fun parseMediaTransitionEnabled_intAndBoolean() {
+        assertEquals(1, PlayerConfigLoader.parseMediaTransitionEnabled(org.json.JSONObject(), 1))
+        assertEquals(
+            0,
+            PlayerConfigLoader.parseMediaTransitionEnabled(
+                org.json.JSONObject().put("mediaTransitionEnabled", 0),
+                1,
+            ),
+        )
+        assertEquals(
+            1,
+            PlayerConfigLoader.parseMediaTransitionEnabled(
+                org.json.JSONObject().put("mediaTransitionEnabled", true),
+                0,
+            ),
+        )
+        assertEquals(
+            0,
+            PlayerConfigLoader.parseMediaTransitionEnabled(
+                org.json.JSONObject().put("mediaTransitionEnabled", false),
+                1,
+            ),
+        )
+        assertEquals(
+            0,
+            PlayerConfigLoader.parseMediaTransitionEnabled(
+                org.json.JSONObject().put("mediaTransitionEnabled", "off"),
+                1,
+            ),
+        )
+    }
+
+    @Test
     fun coerceMaxCacheSizeMb_clamps() {
         assertEquals(50, PlayerConfigLoader.coerceMaxCacheSizeMb(1))
         assertEquals(8192, PlayerConfigLoader.coerceMaxCacheSizeMb(99999))

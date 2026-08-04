@@ -73,6 +73,11 @@ class PlayerController(
     private val acceptImagesInPlaylist: Boolean = true,
     /** Se false, [exoPlayer] permanece em volume 0 durante vídeo/áudio. */
     private val allowPlaybackAudio: Boolean = false,
+    /**
+     * Véu preto na troca de mídia: 0 = desligado, ≠0 = ligado.
+     * Ver [br.com.smartchannel.playerad.config.PlayerConfig.mediaTransitionEnabled].
+     */
+    private val mediaTransitionEnabled: Int = 1,
     private val fallbackPropagandasPerVinheta: Int = 3,
     /** Intervalo do batimento cardiaco (segundos) — heartbeat sem dispatch. */
     private val batimentoCardiaco: Int = 30,
@@ -88,6 +93,24 @@ class PlayerController(
     /** Véu de transição entre mídias (cobre frame residual). */
     private val mediaTransitionOverlay: View? = null,
 ) {
+    private val mediaTransitionOn: Boolean =
+        br.com.smartchannel.playerad.config.PlayerConfigLoader.isMediaTransitionEnabled(
+            mediaTransitionEnabled,
+        )
+
+    private suspend fun mediaTransitionCover() {
+        MediaLayerTransition.cover(mediaTransitionOverlay, enabled = mediaTransitionOn)
+    }
+
+    private suspend fun mediaTransitionReveal() {
+        MediaLayerTransition.reveal(mediaTransitionOverlay, enabled = mediaTransitionOn)
+    }
+
+    private suspend fun mediaTransitionAwaitFrames(count: Int) {
+        if (!mediaTransitionOn) return
+        MediaLayerTransition.awaitFrames(mediaTransitionOverlay, count)
+    }
+
     private var restartRequested = false
     private var videoOrientationListener: Player.Listener? = null
     /** Completa quando a matrix FIT do TextureView foi aplicada (antes do reveal). */
@@ -1073,6 +1096,11 @@ class PlayerController(
                     )
                     put("batimentoCardiaco", cfg.batimentoCardiaco)
                     put("maxSecondsWithoutServerCheck", cfg.maxSecondsWithoutServerCheck)
+                    put(
+                        "mediaTransitionEnabled",
+                        br.com.smartchannel.playerad.config.PlayerConfigLoader
+                            .coerceMediaTransitionEnabled(cfg.mediaTransitionEnabled),
+                    )
                     put("appVersion", apiClient.appVersion)
                     put("displayIdle", displayIdle)
                     put("displaySchedule", displaySchedule.toJson())
@@ -1243,6 +1271,12 @@ class PlayerController(
                 data.optBoolean("allowPlaybackAudio", current.allowPlaybackAudio)
             } else {
                 current.allowPlaybackAudio
+            },
+            mediaTransitionEnabled = if (data.has("mediaTransitionEnabled")) {
+                br.com.smartchannel.playerad.config.PlayerConfigLoader
+                    .parseMediaTransitionEnabled(data, current.mediaTransitionEnabled)
+            } else {
+                current.mediaTransitionEnabled
             },
             storageMode = if (data.has("storage")) {
                 br.com.smartchannel.playerad.config.PlayerConfigLoader.parseStorageMode(
@@ -1702,7 +1736,7 @@ class PlayerController(
             if (bitmap != null) {
                 val imagePath = if (imageUri.scheme == "file") imageUri.path else null
                 // Véu opaco no root: ImageView com letterbox não pode deixar ver TextureView.
-                MediaLayerTransition.cover(mediaTransitionOverlay)
+                mediaTransitionCover()
                 try {
                     exoPlayer.pause()
                 } catch (_: Exception) { }
@@ -1714,7 +1748,7 @@ class PlayerController(
                     item.deliveryBakeVersion,
                 )
             } else {
-                MediaLayerTransition.cover(mediaTransitionOverlay)
+                mediaTransitionCover()
                 try {
                     exoPlayer.pause()
                 } catch (_: Exception) { }
@@ -1727,8 +1761,8 @@ class PlayerController(
             imageView.visibility = View.VISIBLE
             imageView.bringToFront()
             mediaTransitionOverlay?.bringToFront()
-            MediaLayerTransition.awaitFrames(mediaTransitionOverlay, 2)
-            MediaLayerTransition.reveal(mediaTransitionOverlay)
+            mediaTransitionAwaitFrames(2)
+            mediaTransitionReveal()
             if (bitmap != null) {
                 activeImageMediaId = item.mediaId
             } else {
@@ -1782,7 +1816,7 @@ class PlayerController(
 
         // 1) Véu no root  2) esconde imagem  3) prepara com TextureView oculto
         // 4) 1º frame + matrix FIT  5) frames GPU  6) revela — sem reapply pós-reveal.
-        MediaLayerTransition.cover(mediaTransitionOverlay)
+        mediaTransitionCover()
         imageView.visibility = View.GONE
         imageView.setImageDrawable(null)
         concealPlayerSurface()
@@ -1809,11 +1843,11 @@ class PlayerController(
         withTimeoutOrNull(1_500L) { orientationGate.await() }
             ?: PlayerAdLogger.w("DISPLAY", "Timeout matrix orientação; revelando com FIT atual")
         // Matrix pode ter sido postada no próximo frame — espera composição.
-        MediaLayerTransition.awaitFrames(mediaTransitionOverlay, 2)
+        mediaTransitionAwaitFrames(2)
         showPlayerSurface()
         playerView.bringToFront()
         mediaTransitionOverlay?.bringToFront()
-        MediaLayerTransition.reveal(mediaTransitionOverlay)
+        mediaTransitionReveal()
         activeVideoMediaId = item.mediaId
         activeVideoContentVersion = item.contentVersion
 
@@ -1989,14 +2023,14 @@ class PlayerController(
         activeVideoContentVersion = null
         activeImageMediaId = -1L
         resetMediaViewOrientation()
-        MediaLayerTransition.cover(mediaTransitionOverlay)
+        mediaTransitionCover()
         hideImageLayer()
         // Não stop(): limpa TextureView e provoca flicker/ghosting em landscape.
         try {
             exoPlayer.pause()
         } catch (_: Exception) { }
         concealPlayerSurface()
-        MediaLayerTransition.reveal(mediaTransitionOverlay)
+        mediaTransitionReveal()
 
         val exposureSec = item.duration?.takeIf { it > 0L }
         val durationSeconds = when {

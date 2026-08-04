@@ -6,7 +6,8 @@ import java.io.File
 
 /**
  * Carrega configuração do Player-AD (serverUrl, uin, deviceId, acceptImagesInPlaylist,
- * allowPlaybackAudio, fallbackPropagandasPerVinheta, batimentoCardiaco, maxSecondsWithoutServerCheck, storage, storagePathOverride).
+ * allowPlaybackAudio, mediaTransitionEnabled, fallbackPropagandasPerVinheta, batimentoCardiaco,
+ * maxSecondsWithoutServerCheck, storage, storagePathOverride).
  *
  * Ordem de busca:
  * 1. Arquivo interno em filesDir/player-config.json (se existir)
@@ -38,6 +39,7 @@ class PlayerConfigLoader(private val context: Context) {
             deviceId = "T1000-Exterminator",
             acceptImagesInPlaylist = true,
             allowPlaybackAudio = false,
+            mediaTransitionEnabled = 1,
             fallbackPropagandasPerVinheta = 3,
             batimentoCardiaco = 30,
             maxSecondsWithoutServerCheck = 180,
@@ -63,6 +65,7 @@ class PlayerConfigLoader(private val context: Context) {
             } else {
                 val acceptImages = json.optBoolean("acceptImagesInPlaylist", true)
                 val allowAudio = json.optBoolean("allowPlaybackAudio", false)
+                val mediaTransitionEnabled = parseMediaTransitionEnabled(json, default = 1)
                 val fallbackRatioRaw = json.optInt("fallbackPropagandasPerVinheta", 3)
                 val fallbackRatio = fallbackRatioRaw.coerceAtLeast(1)
                 val batimentoRaw = json.optInt("batimentoCardiaco", 30)
@@ -89,6 +92,7 @@ class PlayerConfigLoader(private val context: Context) {
                     deviceId = deviceId,
                     acceptImagesInPlaylist = acceptImages,
                     allowPlaybackAudio = allowAudio,
+                    mediaTransitionEnabled = mediaTransitionEnabled,
                     fallbackPropagandasPerVinheta = fallbackRatio,
                     batimentoCardiaco = batimento,
                     maxSecondsWithoutServerCheck = maxSeconds,
@@ -114,6 +118,34 @@ class PlayerConfigLoader(private val context: Context) {
 
         fun coerceMaxCacheSizeMb(raw: Int): Int =
             raw.coerceIn(MAX_CACHE_SIZE_MB_MIN, MAX_CACHE_SIZE_MB_MAX)
+
+        /** 0 = desligado; qualquer outro valor → 1 (ligado). */
+        fun coerceMediaTransitionEnabled(raw: Int): Int = if (raw == 0) 0 else 1
+
+        fun isMediaTransitionEnabled(raw: Int): Boolean = coerceMediaTransitionEnabled(raw) != 0
+
+        /**
+         * Lê `mediaTransitionEnabled` de JSON: aceita `0`/`1` ou boolean.
+         * Ausente → [default] (normalmente 1).
+         */
+        fun parseMediaTransitionEnabled(json: JSONObject, default: Int = 1): Int {
+            if (!json.has("mediaTransitionEnabled") || json.isNull("mediaTransitionEnabled")) {
+                return coerceMediaTransitionEnabled(default)
+            }
+            val raw = json.opt("mediaTransitionEnabled")
+            return when (raw) {
+                is Boolean -> if (raw) 1 else 0
+                is Number -> coerceMediaTransitionEnabled(raw.toInt())
+                is String -> {
+                    val t = raw.trim().lowercase()
+                    when (t) {
+                        "0", "false", "off", "no", "disabled" -> 0
+                        else -> coerceMediaTransitionEnabled(t.toIntOrNull() ?: default)
+                    }
+                }
+                else -> coerceMediaTransitionEnabled(json.optInt("mediaTransitionEnabled", default))
+            }
+        }
 
         fun parseMaxCachePercentOfVolume(json: JSONObject): Int? {
             if (!json.has("maxCachePercentOfVolume") || json.isNull("maxCachePercentOfVolume")) {
