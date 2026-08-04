@@ -385,7 +385,16 @@ router.post('/grant',
   body('subscriberId').isInt({ min: 1 }),
   body('publisherId').isInt({ min: 1 }),
   body('contractId').optional({ nullable: true }).isInt({ min: 1 }),
-  body('expiresAt').optional({ nullable: true }).isISO8601(),
+  body('expiresAt')
+    .optional({ nullable: true, checkFalsy: true })
+    .custom((value) => {
+      if (value == null || value === '') return true;
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) {
+        throw new Error('expiresAt deve ser uma data válida');
+      }
+      return true;
+    }),
   body('notes').optional({ nullable: true }).isString(),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
@@ -401,12 +410,16 @@ router.post('/grant',
       }
 
       const accessService = getSubscriberAccessServiceInstance();
+      const expiresDate =
+        expiresAt != null && String(expiresAt).trim() !== ''
+          ? new Date(expiresAt)
+          : undefined;
       const access = await accessService.grantAccess(
         subscriberId,
         publisherId,
         contractId ?? null,
         grantedBy,
-        expiresAt ? new Date(expiresAt) : undefined,
+        expiresDate && !Number.isNaN(expiresDate.getTime()) ? expiresDate : undefined,
         notes
       );
 

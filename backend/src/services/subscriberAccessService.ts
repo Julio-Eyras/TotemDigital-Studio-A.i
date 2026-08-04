@@ -173,9 +173,9 @@ export class SubscriberAccessService {
         [subscriberId, publisherId]
       );
 
-      let result: any;
+      let rawResult: any;
       if (existing?.access_id) {
-        result = await this.db.executeRaw(
+        rawResult = await this.db.executeRaw(
           `
           UPDATE subscriber_publisher_access SET
             contract_id = $1,
@@ -211,7 +211,7 @@ export class SubscriberAccessService {
           ]
         );
       } else {
-        result = await this.db.executeRaw(
+        rawResult = await this.db.executeRaw(
           `
           INSERT INTO subscriber_publisher_access (
             subscriber_id,
@@ -249,6 +249,16 @@ export class SubscriberAccessService {
         );
       }
 
+      const result = Array.isArray(rawResult)
+        ? rawResult[0]
+        : Array.isArray(rawResult?.rows)
+          ? rawResult.rows[0]
+          : rawResult;
+
+      if (!result) {
+        throw new Error('Falha ao gravar acesso subscriber → publisher');
+      }
+
       await logInfo('Acesso subscriber → publisher concedido', {
         subscriberId,
         publisherId,
@@ -257,7 +267,7 @@ export class SubscriberAccessService {
         grantedBy,
       });
 
-      return Array.isArray(result) ? result[0] : result;
+      return result;
     } catch (error: any) {
       await logError('Erro ao conceder acesso', error, {
         subscriberId,
@@ -489,26 +499,26 @@ export class SubscriberAccessService {
 
       const access = await this.db.findMany(`
         SELECT 
-          spa.access_id,
-          spa.subscriber_id,
-          s.name as subscriber_name,
-          spa.publisher_id,
-          p.name as publisher_name,
-          spa.contract_id,
-          sc.contract_number,
-          spa.plan_id,
-          pl.name as plan_name,
-          spa.access_type,
-          spa.granted_at,
-          spa.expires_at,
-          spa.revoked_at,
-          spa.is_active,
-          spa.granted_by,
-          u.username as granted_by_name,
+          spa.access_id as "accessId",
+          spa.subscriber_id as "subscriberId",
+          s.name as "subscriberName",
+          spa.publisher_id as "publisherId",
+          p.name as "publisherName",
+          spa.contract_id as "contractId",
+          sc.contract_number as "contractNumber",
+          spa.plan_id as "planId",
+          pl.name as "planName",
+          spa.access_type as "accessType",
+          spa.granted_at as "grantedAt",
+          spa.expires_at as "expiresAt",
+          spa.revoked_at as "revokedAt",
+          spa.is_active as "isActive",
+          spa.granted_by as "grantedBy",
+          u.username as "grantedByName",
           spa.notes,
           spa.metadata,
-          spa.created_at,
-          spa.updated_at
+          spa.created_at as "createdAt",
+          spa.updated_at as "updatedAt"
         FROM subscriber_publisher_access spa
         JOIN subscribers s ON spa.subscriber_id = s.subscriber_id
         JOIN publishers p ON spa.publisher_id = p.publisher_id

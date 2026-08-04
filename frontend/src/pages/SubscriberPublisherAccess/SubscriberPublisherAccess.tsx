@@ -86,7 +86,10 @@ const SubscriberPublisherAccessPage: React.FC = () => {
   const [accessList, setAccessList] = useState<SubscriberPublisherAccessDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [grantDialogOpen, setGrantDialogOpen] = useState(false);
+  const [grantSubmitting, setGrantSubmitting] = useState(false);
+  const [grantDialogError, setGrantDialogError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const plansModuleOn = isInstallationModuleOn('plans');
   const contractsModuleOn = isInstallationModuleOn('contracts');
   const [filters, setFilters] = useState({
@@ -165,11 +168,14 @@ const SubscriberPublisherAccessPage: React.FC = () => {
       expiresAt: '',
       notes: '',
     });
+    setGrantDialogError(null);
     setGrantDialogOpen(true);
   };
 
   const handleCloseGrantDialog = () => {
     setGrantDialogOpen(false);
+    setGrantDialogError(null);
+    setGrantSubmitting(false);
     setGrantFormData({
       subscriberId: '',
       publisherId: '',
@@ -182,30 +188,48 @@ const SubscriberPublisherAccessPage: React.FC = () => {
   const handleGrantAccess = async () => {
     try {
       setError(null);
+      setGrantDialogError(null);
+      setSuccess(null);
 
       if (!grantFormData.subscriberId || !grantFormData.publisherId) {
-        setError(`Anunciante e ${getProductTerminology().organization.toLowerCase()} são obrigatórios`);
+        setGrantDialogError(
+          `Anunciante e ${getProductTerminology().organization.toLowerCase()} são obrigatórios`
+        );
         return;
       }
       if (contractsModuleOn && !grantFormData.contractId) {
-        setError('Contrato é obrigatório quando o módulo de contratos está activo');
+        setGrantDialogError('Contrato é obrigatório quando o módulo de contratos está activo');
         return;
       }
 
+      let expiresAtIso: string | undefined;
+      if (grantFormData.expiresAt) {
+        const d = new Date(grantFormData.expiresAt);
+        if (Number.isNaN(d.getTime())) {
+          setGrantDialogError('Data de expiração inválida');
+          return;
+        }
+        expiresAtIso = d.toISOString();
+      }
+
+      setGrantSubmitting(true);
       await subscriberAccessApi.grantAccess({
-        subscriberId: parseInt(grantFormData.subscriberId),
-        publisherId: parseInt(grantFormData.publisherId),
+        subscriberId: parseInt(grantFormData.subscriberId, 10),
+        publisherId: parseInt(grantFormData.publisherId, 10),
         ...(grantFormData.contractId
-          ? { contractId: parseInt(grantFormData.contractId) }
+          ? { contractId: parseInt(grantFormData.contractId, 10) }
           : {}),
-        expiresAt: grantFormData.expiresAt || undefined,
+        expiresAt: expiresAtIso,
         notes: grantFormData.notes || undefined,
       });
 
       handleCloseGrantDialog();
+      setSuccess('Acesso concedido com sucesso');
       await loadData();
     } catch (error: any) {
-      setError(pickApiErrorMessage(error, 'Erro ao conceder acesso'));
+      setGrantDialogError(pickApiErrorMessage(error, 'Erro ao conceder acesso'));
+    } finally {
+      setGrantSubmitting(false);
     }
   };
 
@@ -232,8 +256,14 @@ const SubscriberPublisherAccessPage: React.FC = () => {
     return new Date(expiresAt) < new Date();
   };
 
-  const activeAccess = accessList.filter(a => a.isActive && !isExpired(a.expiresAt));
-  const inactiveAccess = accessList.filter(a => !a.isActive || isExpired(a.expiresAt));
+  const accessIsActive = (a: SubscriberPublisherAccessDetail & { is_active?: boolean }) =>
+    a.isActive === true || (a as { is_active?: boolean }).is_active === true;
+  const activeAccess = accessList.filter(
+    (a) => accessIsActive(a) && !isExpired(a.expiresAt || (a as { expires_at?: string }).expires_at)
+  );
+  const inactiveAccess = accessList.filter(
+    (a) => !accessIsActive(a) || isExpired(a.expiresAt || (a as { expires_at?: string }).expires_at)
+  );
   const accessSections = [
     { icon: CheckCircle, label: `Acessos Ativos (${activeAccess.length})` },
     { icon: History, label: `Histórico (${inactiveAccess.length})` },
@@ -353,10 +383,15 @@ const SubscriberPublisherAccessPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Error Alert */}
+      {/* Error / Success */}
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
           {error}
+        </Alert>
+      )}
+      {success && (
+        <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess(null)}>
+          {success}
         </Alert>
       )}
 
@@ -498,6 +533,11 @@ const SubscriberPublisherAccessPage: React.FC = () => {
         <DialogTitle>Conceder Acesso</DialogTitle>
         <DialogContent>
           <Box sx={{ pt: 2 }}>
+            {grantDialogError && (
+              <Alert severity="error" sx={{ mb: 2 }} onClose={() => setGrantDialogError(null)}>
+                {grantDialogError}
+              </Alert>
+            )}
             <FormControl fullWidth margin="normal">
               <InputLabel {...selectLabelShrinkProps}>Anunciante *</InputLabel>
               <Select
@@ -572,12 +612,13 @@ const SubscriberPublisherAccessPage: React.FC = () => {
             variant="contained"
             onClick={handleGrantAccess}
             disabled={
+              grantSubmitting ||
               !grantFormData.subscriberId ||
               !grantFormData.publisherId ||
               (contractsModuleOn && !grantFormData.contractId)
             }
           >
-            Conceder
+            {grantSubmitting ? 'A conceder…' : 'Conceder'}
           </Button>
         </DialogActions>
       </Dialog>
