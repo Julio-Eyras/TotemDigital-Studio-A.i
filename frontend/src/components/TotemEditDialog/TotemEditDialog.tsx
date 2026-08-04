@@ -55,6 +55,8 @@ type PlayerAdForm = {
   kioskMode: 'strong' | 'immersive';
   acceptImagesInPlaylist: boolean;
   allowPlaybackAudio: boolean;
+  /** 0 = off, 1 = on — véu preto na troca de mídia (Player-AD). */
+  mediaTransitionEnabled: number;
   batimentoCardiaco: number;
   maxSecondsWithoutServerCheck: number;
   storage: string;
@@ -87,6 +89,7 @@ const DEFAULT_PLAYER_AD: PlayerAdForm = {
   kioskMode: 'strong',
   acceptImagesInPlaylist: true,
   allowPlaybackAudio: false,
+  mediaTransitionEnabled: 1,
   batimentoCardiaco: 30,
   maxSecondsWithoutServerCheck: 180,
   storage: 'external_primary',
@@ -122,6 +125,13 @@ function readPlayerAdFromTotem(totem: Record<string, unknown> | null): PlayerAdF
     kioskMode: kiosk,
     acceptImagesInPlaylist: settings.acceptImagesInPlaylist !== false,
     allowPlaybackAudio: settings.allowPlaybackAudio === true,
+    mediaTransitionEnabled: (() => {
+      const raw = settings.mediaTransitionEnabled;
+      if (raw === false || raw === 0 || raw === '0' || raw === 'false' || raw === 'off') return 0;
+      if (raw === true || raw === 1 || raw === '1' || raw === 'true') return 1;
+      if (raw == null || raw === '') return 1;
+      return Number(raw) === 0 ? 0 : 1;
+    })(),
     batimentoCardiaco: Math.min(3600, Math.max(15, Number(settings.batimentoCardiaco) || 30)),
     maxSecondsWithoutServerCheck: Math.min(3600, Math.max(30, Number(settings.maxSecondsWithoutServerCheck) || 180)),
     storage: String(settings.storage || 'external_primary'),
@@ -323,6 +333,7 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
           kioskMode: playerAd.kioskMode,
           acceptImagesInPlaylist: playerAd.acceptImagesInPlaylist,
           allowPlaybackAudio: playerAd.allowPlaybackAudio,
+          mediaTransitionEnabled: playerAd.mediaTransitionEnabled === 0 ? 0 : 1,
           batimentoCardiaco: playerAd.batimentoCardiaco,
           maxSecondsWithoutServerCheck: playerAd.maxSecondsWithoutServerCheck,
           storage: playerAd.storage,
@@ -500,6 +511,23 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
             }
             label="Áudio na reprodução (vídeo)"
           />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={playerAd.mediaTransitionEnabled !== 0}
+                onChange={(e) =>
+                  setPlayerAd((prev) => ({
+                    ...prev,
+                    mediaTransitionEnabled: e.target.checked ? 1 : 0,
+                  }))
+                }
+              />
+            }
+            label="Transição escura entre mídias (Player-AD)"
+          />
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: -0.5, mb: 1, ml: 4 }}>
+            Ligado (1): véu preto curto na troca. Desligado (0): troca directa sem escurecer.
+          </Typography>
 
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 1 }}>
             <TextField

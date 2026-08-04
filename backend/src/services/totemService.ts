@@ -1183,6 +1183,7 @@ export class TotemService {
             'maxSecondsWithoutServerCheck',
             'acceptImagesInPlaylist',
             'allowPlaybackAudio',
+            'mediaTransitionEnabled',
             'storage',
             'storagePathOverride',
             'maxCacheSizeMb',
