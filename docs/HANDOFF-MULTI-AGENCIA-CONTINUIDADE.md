@@ -6,7 +6,9 @@
 **Não confundir com:** pasta de **produção** no VPS (`~/TotemDigital-Studio` → `/opt/smart-signage`)  
 **Instância de laboratório:** `dev` → `dev.totemdigital.app.br` · `/opt/totemdigital-dev` · BD `smartsignage_dev`
 
-Este documento é a **fonte de continuidade**: objectivos, decisões, o que já está feito, procedimentos operacionais, armadilhas e próximos passos. Os docs satélite listados no fim detalham tópicos; **comece por aqui**.
+**Manuais de produto/operação (2026-08):** comece por [`docs/manuais/README.md`](./manuais/README.md) (instalação, 1ª vez, módulos, admin, E.R./API).
+
+Este documento é a **fonte de continuidade**: objectivos, decisões, o que já está feito, procedimentos operacionais, armadilhas e próximos passos. Os docs satélite listados no fim detalham tópicos; **comece por aqui** (handoff) ou pelos **manuais** se for onboarding de utilizador/admin.
 
 ---
 
@@ -291,6 +293,7 @@ Com Portal `off`, o multi-agência funciona no host único `dev.totemdigital.app
 
 ### Docs satélite
 
+- **`docs/manuais/README.md`** — manuais: visão, instalação, 1ª vez, módulos, admin, E.R./API  
 - `docs/BOT-EMULACAO-MULTI-AGENCIA.md` — bot L0/L1/L2  
 - `docs/MODO-MULTI-AGENCIA-MASTER-SWITCH.md` — decisões + comportamento do switch  
 - `docs/DESENHO-PURGE-DADOS-COMERCIAIS.md` — purge (implementado)  
@@ -298,6 +301,7 @@ Com Portal `off`, o multi-agência funciona no host único `dev.totemdigital.app
 - `docs/PLANO-TESTES-MULTI-AGENCIA-DEV.md` — L0/L1/L2  
 - `docs/MULTI-INSTANCIA-PROD-DEV-TESTE.md` — modelo multi-instância  
 - `docs/ETAPA-E-MULTI-AGENCIA-WORKERS.md` / `ETAPA-F-…` — workers  
+- `docs/INSTALA-TOTEMDIGITAL-SERVER.md` — CLI do instalador
 
 ---
 
@@ -317,8 +321,9 @@ Com Portal `off`, o multi-agência funciona no host único `dev.totemdigital.app
 
 ```text
 Continua o trabalho na branch TotemDigital-MultiAgencia do repo TotemDigital-Studio.
-Lê primeiro docs/HANDOFF-MULTI-AGENCIA-CONTINUIDADE.md.
+Lê primeiro docs/HANDOFF-MULTI-AGENCIA-CONTINUIDADE.md e docs/manuais/README.md.
 Respeita decisões A/B/C e D1–D6; schema definitivo; não misturar installation.modules com flag_smart_*.
+Lite: anunciantes + SPA (sem plans/contracts); Pro: ERP completo.
 Instância de teste: VPS dev (dev.totemdigital.app.br), isolada da produção.
 Objectivo imediato: [descrever tarefa]. Respostas em português.
 ```

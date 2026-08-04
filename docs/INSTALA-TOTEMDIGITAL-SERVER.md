@@ -98,6 +98,9 @@ Player-AD (APK) **não** é instalado por este script — use ADB/pendrive.
 
 ## Relação com outros docs
 
+- **[Manuais (índice)](./manuais/README.md)** — visão geral, instalação, 1ª vez, módulos, admin, técnico E.R./API
 - [ORGANIZACAO-BRANCHES.md](./ORGANIZACAO-BRANCHES.md) — repo/branch
 - [INSTALL-PRODUCAO-COMPACT-DIRECT-TOTEM-HTTPS-443.md](./INSTALL-PRODUCAO-COMPACT-DIRECT-TOTEM-HTTPS-443.md) — detalhe técnico do perfil produção
 - [INSTALL-SMARTSIGNAGE-MENU-OPCOES.md](./INSTALL-SMARTSIGNAGE-MENU-OPCOES.md) — menu legado do motor
+- [MULTI-INSTANCIA-PROD-DEV-TESTE.md](./MULTI-INSTANCIA-PROD-DEV-TESTE.md) — instâncias `dev` / `teste`
+- [HANDOFF-MULTI-AGENCIA-CONTINUIDADE.md](./HANDOFF-MULTI-AGENCIA-CONTINUIDADE.md) — continuidade multi-agência
