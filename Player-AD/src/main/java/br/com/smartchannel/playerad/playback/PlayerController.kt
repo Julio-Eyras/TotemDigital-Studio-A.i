@@ -487,8 +487,25 @@ class PlayerController(
     private suspend fun downloadToCache(item: DispatchMediaItem) = withContext(Dispatchers.IO) {
         try {
             val url = java.net.URL(item.url)
-            val conn = url.openConnection()
+            val conn = url.openConnection() as java.net.HttpURLConnection
+            conn.instanceFollowRedirects = true
+            conn.connectTimeout = 20_000
+            conn.readTimeout = 120_000
             conn.connect()
+            val code = conn.responseCode
+            if (code !in 200..299) {
+                throw IllegalStateException("HTTP $code ao baixar mediaId=${item.mediaId}")
+            }
+            val contentType = (conn.contentType ?: "").lowercase()
+            if (
+                contentType.contains("svg") ||
+                contentType.contains("text/html") ||
+                contentType.contains("application/json")
+            ) {
+                throw IllegalStateException(
+                    "Resposta inválida ($contentType) — ficheiro ausente no servidor? mediaId=${item.mediaId}"
+                )
+            }
             val declared = try {
                 conn.contentLengthLong
             } catch (_: Exception) {
@@ -514,9 +531,20 @@ class PlayerController(
             val fileName = "${item.mediaId}.$ext"
             val outFile = File(propagandasDir, fileName)
 
-            conn.getInputStream().use { input ->
+            conn.inputStream.use { input ->
                 FileOutputStream(outFile).use { out ->
                     input.copyTo(out)
+                }
+            }
+
+            // Placeholder SVG antigo ou HTML gravado como .mp4
+            if (outFile.length() < 512L) {
+                val head = outFile.inputStream().use { it.readBytes().decodeToString() }
+                if (head.contains("<svg") || head.contains("<!DOCTYPE") || head.contains("<html")) {
+                    outFile.delete()
+                    throw IllegalStateException(
+                        "Download parece placeholder/HTML (ficheiro em falta no servidor) mediaId=${item.mediaId}"
+                    )
                 }
             }
 

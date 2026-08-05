@@ -181,24 +181,18 @@ app.get(/^\/assets\/uploads\/(.*)$/, (req, res): void => {
     res.status(404).end();
     return;
   }
-  try {
-    const base = getStoragePath();
-    if (!base) {
-      const placeholderSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="225" viewBox="0 0 400 225" role="img" aria-label="Mídia não encontrada"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#1e293b"/><stop offset="100%" stop-color="#0f172a"/></linearGradient></defs><rect width="400" height="225" fill="url(#bg)"/><rect x="32" y="32" width="336" height="161" rx="12" ry="12" fill="none" stroke="#475569" stroke-width="2" stroke-dasharray="6 6"/><text x="150" y="110" fill="#e5e7eb" font-family="system-ui,sans-serif" font-size="18">Pré-visualização indisponível</text></svg>`;
-      res.status(200).type('image/svg+xml').send(placeholderSvg.trim());
+  const wantsPlayerBinary = /\.(mp4|webm|mov|mkv|m4v|avi|mp3|wav|ogg|aac)$/i.test(subpath);
+  const sendMissingPlaceholder = (): void => {
+    // UI (img): SVG amigável. Player-AD: NUNCA — grava SVG como .mp4 e fica ecrã preto.
+    if (wantsPlayerBinary) {
+      res.status(404).json({
+        success: false,
+        error: 'Arquivo de mídia não encontrado no servidor',
+        path: `/assets/uploads/${subpath}`,
+      });
       return;
     }
-    const filePath = path.join(base, subpath);
-    const resolvedBase = path.resolve(base);
-    const resolvedFile = path.resolve(filePath);
-    if (!resolvedFile.startsWith(resolvedBase)) {
-      res.status(403).end();
-      return;
-    }
-    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-      // Fallback amigável: se o arquivo físico não existe (ex.: mídias demo não copiadas),
-      // devolver um SVG simples em vez de 404 para evitar erros visuais na UI.
-      const placeholderSvg = `
+    const placeholderSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="400" height="225" viewBox="0 0 400 225" role="img" aria-label="Mídia não encontrada">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
@@ -217,7 +211,23 @@ app.get(/^\/assets\/uploads\/(.*)$/, (req, res): void => {
     Arquivo de mídia não encontrado no servidor.
   </text>
 </svg>`;
-      res.status(200).type('image/svg+xml').send(placeholderSvg.trim());
+    res.status(200).type('image/svg+xml').send(placeholderSvg.trim());
+  };
+  try {
+    const base = getStoragePath();
+    if (!base) {
+      sendMissingPlaceholder();
+      return;
+    }
+    const filePath = path.join(base, subpath);
+    const resolvedBase = path.resolve(base);
+    const resolvedFile = path.resolve(filePath);
+    if (!resolvedFile.startsWith(resolvedBase)) {
+      res.status(403).end();
+      return;
+    }
+    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+      sendMissingPlaceholder();
       return;
     }
     res.sendFile(filePath);
