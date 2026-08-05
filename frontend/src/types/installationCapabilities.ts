@@ -69,7 +69,7 @@ function defaultModules(compact: boolean, directTotem: boolean): InstallationMod
     commercial_reports: !dt && !compact,
     devices: !dt,
     ota: !dt,
-    dispatcher_admin: !dt,
+    dispatcher_admin: true,
     smart_display_fx: !compact,
     analytics: !dt,
   };

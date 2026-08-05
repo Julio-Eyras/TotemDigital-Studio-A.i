@@ -336,6 +336,19 @@ function getDirectTotemMenu(role: UserRole): HierarchicalMenuItem[] {
     });
   }
 
+  items.push({
+    text: 'Dispatcher',
+    icon: <MonitorHeart />,
+    path: '/dispatcher-manager',
+    requiredFlag: 'flag_smart_2',
+    children: [
+      { text: 'Gerenciar', icon: <Shuffle />, path: '/dispatcher-manager' },
+      { text: 'Monitor', icon: <MonitorHeart />, path: '/dispatcher-monitor' },
+      { text: 'Debug Online', icon: <BugReport />, path: '/dispatcher-debug' },
+      { text: 'Timeline', icon: <ViewTimeline />, path: '/dispatcher-manager?tab=timeline' },
+    ],
+  });
+
   items.push({ text: 'Configurações', icon: <Settings />, path: '/settings' });
   return items;
 }

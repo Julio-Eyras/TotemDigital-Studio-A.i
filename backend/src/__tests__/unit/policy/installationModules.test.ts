@@ -65,7 +65,24 @@ describe('installationModules', () => {
     expect(lite.billing).toBe(false);
     expect(lite.contracts).toBe(false);
     expect(lite.plans).toBe(false);
+    expect(lite.dispatcher_admin).toBe(true);
     expect(resolveMultiAgencyMode(lite)).toBe('lite');
+  });
+
+  it('dispatcher_admin fica ligado nos três modos e não promove Lite a Pro', () => {
+    const core = buildCoreOperationPreset();
+    const lite = buildMultiAgencyLitePreset();
+    const full = buildMultiAgencyOperationPreset();
+    expect(core.dispatcher_admin).toBe(true);
+    expect(lite.dispatcher_admin).toBe(true);
+    expect(full.dispatcher_admin).toBe(true);
+    expect(resolveMultiAgencyMode(core)).toBe('off');
+    expect(resolveMultiAgencyMode(lite)).toBe('lite');
+    expect(resolveMultiAgencyMode(full)).toBe('full');
+
+    const forcedOff = mergeInstallationModules(lite, { dispatcher_admin: false });
+    expect(forcedOff.dispatcher_admin).toBe(true);
+    expect(resolveMultiAgencyMode(forcedOff)).toBe('lite');
   });
 
   it('heal corrige lite antigo sem anunciantes no merge', () => {
@@ -107,6 +124,7 @@ describe('installationModules', () => {
     expect(off.direct_totem_mode).toBe(true);
     expect(off.billing).toBe(false);
     expect(off.core_publish).toBe(true);
+    expect(off.dispatcher_admin).toBe(true);
   });
 
   it('master switch preserva portal/FX avançados só no ON', () => {

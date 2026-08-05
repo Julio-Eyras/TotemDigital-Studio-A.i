@@ -69,9 +69,11 @@ OFF **não apaga** dados. Purge é acção separada e explícita.
 |----|--------|:----:|:---:|
 | `playlists_advanced` | Playlists avançadas / mix | off | on |
 | `ota` | OTA | off | on |
-| `dispatcher_admin` | Dispatcher / admin tools | off | on |
+| `dispatcher_admin` | Dispatcher / debug mensageria | **on** (todos os modos) | **on** |
 | `analytics` | Analytics / IA | off | on |
 | `smart_display_fx` | SmartDisplayFX | opcional | opcional |
+
+O **Dispatcher** (monitor/debug de tráfego) é módulo **locked**: fica activo em Direct Totem, Multi Lite e Multi Pro.
 
 Código-fonte: `backend/src/policy/installationModules.ts` (`INSTALLATION_MODULE_CATALOG`, presets lite/full/core).
 

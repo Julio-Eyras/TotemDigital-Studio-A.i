@@ -145,7 +145,9 @@ export const INSTALLATION_MODULE_CATALOG: InstallationModuleDefinition[] = [
   {
     id: 'dispatcher_admin',
     title: 'Dispatcher e ferramentas admin',
-    description: 'Monitorização do dispatcher, mix e Admin Tools.',
+    description:
+      'Monitorização do dispatcher (tráfego/mensageria), debug e Admin Tools — disponível em Direct Totem, Multi Lite e Multi Pro.',
+    locked: true,
     group: 'ops',
   },
   {
@@ -198,7 +200,7 @@ export function buildDefaultInstallationModules(input: {
     commercial_reports: !dt && input.multiAgency,
     devices: !dt,
     ota: !dt,
-    dispatcher_admin: !dt,
+    dispatcher_admin: true,
     smart_display_fx: input.smartDisplayFx,
     analytics: !dt,
   };
@@ -313,6 +315,7 @@ export function buildCoreOperationPreset(): InstallationModuleFlags {
     multi_agency: false,
     subscriber_portal: false,
     smart_display_fx: false,
+    dispatcher_admin: true,
   });
 }
 
@@ -351,7 +354,8 @@ export function buildMultiAgencyOperationPreset(preserveAdvanced?: {
 /**
  * Preset multi-agência lite (D6-B):
  * várias orgs + anunciantes/clientes + publicar/mídias/devices/campanhas leves.
- * Sem billing, planos, contratos, reports, OTA, dispatcher, analytics (isso é Pro).
+ * Sem billing, planos, contratos, reports, OTA, analytics (isso é Pro).
+ * Dispatcher fica ON (debug de mensageria em todos os modos).
  * Direct Totem continua OFF (D6-C).
  */
 export function buildMultiAgencyLitePreset(preserveAdvanced?: {
@@ -375,7 +379,7 @@ export function buildMultiAgencyLitePreset(preserveAdvanced?: {
     billing: false,
     commercial_reports: false,
     ota: false,
-    dispatcher_admin: false,
+    dispatcher_admin: true,
     analytics: false,
     subscriber_portal: preserveAdvanced?.subscriber_portal === true,
     smart_display_fx: preserveAdvanced?.smart_display_fx === true,
@@ -413,6 +417,7 @@ export function applyMultiAgencyMode(
 /** Infere off | lite | full a partir das flags actuais.
  * Pro = stack administrativa/ERP (billing, planos, contratos, reports…).
  * Lite = multi-agência com anunciantes/publicação, sem esse ERP.
+ * Nota: `dispatcher_admin` é núcleo de debug e NÃO distingue Lite de Pro.
  */
 export function resolveMultiAgencyMode(modules: InstallationModuleFlags): MultiAgencyMode {
   if (!modules.multi_agency) return 'off';
@@ -422,7 +427,6 @@ export function resolveMultiAgencyMode(modules: InstallationModuleFlags): MultiA
     modules.contracts === true ||
     modules.commercial_reports === true ||
     modules.ota === true ||
-    modules.dispatcher_admin === true ||
     modules.analytics === true ||
     modules.playlists_advanced === true;
   return isPro ? 'full' : 'lite';

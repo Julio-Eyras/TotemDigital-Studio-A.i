@@ -80,13 +80,25 @@ export function isPathAllowedByInstallationModules(path: string): boolean {
   const caps = getInstallationCapabilities();
   if (!caps?.modules) return true;
   // Núcleo locked
-  if (moduleId === 'core_publish' || moduleId === 'organization') return true;
+  if (
+    moduleId === 'core_publish' ||
+    moduleId === 'organization' ||
+    moduleId === 'dispatcher_admin'
+  ) {
+    return true;
+  }
   return caps.modules[moduleId] === true;
 }
 
 /** True se o módulo de produto está activo nas capabilities actuais. */
 export function isInstallationModuleOn(moduleId: InstallationModuleId): boolean {
-  if (moduleId === 'core_publish' || moduleId === 'organization') return true;
+  if (
+    moduleId === 'core_publish' ||
+    moduleId === 'organization' ||
+    moduleId === 'dispatcher_admin'
+  ) {
+    return true;
+  }
   const caps = getInstallationCapabilities();
   if (!caps?.modules) return true;
   return caps.modules[moduleId] === true;

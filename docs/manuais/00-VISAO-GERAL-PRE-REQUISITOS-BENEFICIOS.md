@@ -20,7 +20,7 @@
 | Um código, três modos | Direct / Lite / Pro sem forks de produto |
 | OFF sem perda de dados | Desligar multi-agência arquiva o menu/API; dados ficam |
 | Lite sem ERP | Propaganda com anunciantes sem planos/billing/OTA |
-| Pro completo | Planos, contratos, faturamento, OTA, dispatcher, analytics |
+| Pro completo | Planos, contratos, faturamento, OTA, analytics (Dispatcher em todos os modos) |
 | Instalador unificado | HTTPS, Nginx, systemd, BD, rebuild FE/BE |
 | Isolamento de ambientes | Dev/teste não tocam na BD/paths de produção |
 
@@ -70,7 +70,8 @@
 | Anunciantes | não* | **sim** | sim |
 | Publicar anunciante → totens | — | via **SPA** | via **plano+contrato** (e SPA) |
 | Planos / contratos / billing | não | **não** | sim |
-| OTA / dispatcher admin / analytics | não | não | sim |
+| OTA / analytics | não | não | sim |
+| Dispatcher (debug mensageria) | **sim** | **sim** | **sim** |
 | Portal por subdomínio | não | opcional avançado | opcional |
 
 \* Em Direct o foco é a org implícita; módulos comerciais ficam off.
