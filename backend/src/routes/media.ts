@@ -30,6 +30,15 @@ import { getMediaConfig, getAllowedMimeTypes, getStoragePath } from '../config/m
 
 const router = Router();
 
+/** Nome exibido na BD/UI — ficheiros de download podem ter nomes muito longos. */
+const MEDIA_DISPLAY_NAME_MAX = 255;
+
+function truncateMediaDisplayName(raw: string): string {
+  const trimmed = String(raw || '').trim() || 'midia';
+  if (trimmed.length <= MEDIA_DISPLAY_NAME_MAX) return trimmed;
+  return trimmed.slice(0, MEDIA_DISPLAY_NAME_MAX - 1).trimEnd() + '…';
+}
+
 // GET thumbnail SEM auth - <img src="/api/media/:id/thumbnail"> não envia Authorization
 router.get('/:id/thumbnail',
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
@@ -315,10 +324,14 @@ router.post('/upload', uploadLimiter,
       });
     }
   },
-  body('name').optional({ nullable: true }).isString().isLength({ min: 1, max: 100 }),
-  body('description').optional({ nullable: true }).isString(),
-  body('tags').optional({ nullable: true }).isString(),
-  body('subscriberId').optional({ nullable: true }).isInt({ min: 1 }),
+  body('name')
+    .optional({ nullable: true, checkFalsy: true })
+    .isString()
+    .isLength({ min: 1, max: 255 })
+    .withMessage('Nome da mídia deve ter entre 1 e 255 caracteres'),
+  body('description').optional({ nullable: true, checkFalsy: true }).isString(),
+  body('tags').optional({ nullable: true, checkFalsy: true }).isString(),
+  body('subscriberId').optional({ nullable: true, checkFalsy: true }).isInt({ min: 1 }),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -427,7 +440,7 @@ router.post('/upload', uploadLimiter,
       }
 
       const media = await getMediaService().createMedia({
-        name: req.body.name || req.file.originalname,
+        name: truncateMediaDisplayName(String(req.body.name || req.file.originalname || 'midia')),
         description: req.body.description,
         tags: processedTags,
         subscriberId: finalSubscriberId,

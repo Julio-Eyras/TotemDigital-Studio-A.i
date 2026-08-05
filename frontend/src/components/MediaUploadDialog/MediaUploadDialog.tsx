@@ -350,15 +350,24 @@ const MediaUploadDialog: React.FC<UploadDialogProps> = ({
         return base || fileName;
       };
 
+      const truncateMediaName = (raw: string, max = 255): string => {
+        const t = raw.trim() || 'midia';
+        if (t.length <= max) return t;
+        return `${t.slice(0, max - 1).trimEnd()}…`;
+      };
+
       /** Garante nomes únicos no lote (evita colisão se "Nome da Mídia" for partilhado). */
       const usedNames = new Set<string>();
       const uniqueNameFor = (preferred: string, file: File, index: number): string => {
-        let base = preferred.trim() || mediaStem(file.name);
+        let base = truncateMediaName(preferred.trim() || mediaStem(file.name));
         if (!base) base = `midia-${index + 1}`;
         let candidate = base;
         let n = 2;
         while (usedNames.has(candidate.toLowerCase())) {
-          candidate = `${base} (${n})`;
+          const suffix = ` (${n})`;
+          candidate = truncateMediaName(
+            `${base.slice(0, Math.max(1, 255 - suffix.length))}${suffix}`
+          );
           n += 1;
         }
         usedNames.add(candidate.toLowerCase());
