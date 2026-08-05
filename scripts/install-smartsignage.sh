@@ -11292,7 +11292,7 @@ validate_complete_installation() {
     # 2. Verificar configuração no banco de dados (se disponível)
     if command -v psql &> /dev/null && [[ -n "$DATABASE_URL" ]]; then
         log "Verificando configuração media.storage.path no banco de dados..."
-        EXPECTED_PATH="/opt/smart-signage/public/assets/uploads"
+        EXPECTED_PATH="${MEDIA_STORAGE_PATH:-${SMART_SIGNAGE_OPT_ROOT:-/opt/smart-signage}/public/assets/uploads}"
         
         # Tentar extrair informações do DATABASE_URL
         if [[ "$DATABASE_URL" =~ postgresql://([^:]+):([^@]+)@([^:]+):([^/]+)/(.+) ]]; then
@@ -12142,11 +12142,10 @@ setup_first_boot() {
         exit 1
     fi
 
-    # Atualizar configuração media.storage.path para SEMPRE usar /opt/smart-signage
-    # Isso garante que arquivos sejam salvos no local correto, mesmo se INSTALL_DIR for diferente
-    MEDIA_STORAGE_PATH="/opt/smart-signage/public/assets/uploads"
+    # Instância única (produção): default /opt/smart-signage.
+    # Multi-instância (dev/teste) sobrescreve via totemdigital-instancia.sh → TDI_OPT_ROOT.
+    MEDIA_STORAGE_PATH="${MEDIA_STORAGE_PATH:-${SMART_SIGNAGE_OPT_ROOT:-/opt/smart-signage}/public/assets/uploads}"
     log "Configurando caminho de armazenamento de mídia para: ${MEDIA_STORAGE_PATH}"
-    log "⚠️  IMPORTANTE: Usando /opt/smart-signage mesmo que INSTALL_DIR seja diferente"
     sudo -u postgres psql -d "$TARGET_DB" -c "
         UPDATE system_settings 
         SET setting_value = '${MEDIA_STORAGE_PATH}',

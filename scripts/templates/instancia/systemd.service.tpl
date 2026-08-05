@@ -16,6 +16,8 @@ StandardOutput=journal
 StandardError=journal
 Environment=NODE_ENV=production
 Environment=PLAYER_DIR=@@TDI_OPT_ROOT@@/player-web
+Environment=UPLOAD_PATH=@@TDI_OPT_ROOT@@/public/assets/uploads
+Environment=ASSETS_BASE_PATH=@@TDI_OPT_ROOT@@/public/assets
 EnvironmentFile=-@@TDI_CLONE_DIR@@/.env
 LimitNOFILE=65536
 LimitNPROC=4096

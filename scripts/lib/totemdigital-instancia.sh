@@ -392,6 +392,101 @@ SQL
   ok "PostgreSQL: ${TDI_DB_NAME}"
 }
 
+tdi_upsert_env_key() {
+  local file="$1"
+  local key="$2"
+  local value="$3"
+  [[ -n "$file" && -n "$key" ]] || return 1
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "Dry-run: ${key}=${value} → ${file}"
+    return 0
+  fi
+  mkdir -p "$(dirname "$file")" 2>/dev/null || true
+  if [[ ! -f "$file" ]]; then
+    printf '%s=%s\n' "$key" "$value" >"$file"
+    return 0
+  fi
+  if grep -q "^${key}=" "$file" 2>/dev/null; then
+    # sed portátil: escapar / e &
+    local esc
+    esc="$(printf '%s' "$value" | sed -e 's/[\/&]/\\&/g')"
+    sed -i "s|^${key}=.*|${key}=${esc}|" "$file"
+  else
+    printf '\n%s=%s\n' "$key" "$value" >>"$file"
+  fi
+}
+
+# Garante storage de mídias isolado por instância:
+# - pastas em TDI_OPT_ROOT
+# - UPLOAD_PATH / ASSETS_BASE_PATH no .env (clone + backend)
+# - media.storage.path na BD da instância (sobrescreve seed /opt/smart-signage)
+tdi_ensure_media_storage() {
+  local upload_path="${TDI_OPT_ROOT}/public/assets/uploads"
+  local assets_base="${TDI_OPT_ROOT}/public/assets"
+  local env_root="${TDI_CLONE_DIR}/.env"
+  local env_be="${TDI_CLONE_DIR}/backend/.env"
+
+  log "A garantir storage de mídias da instância (${upload_path}) ..."
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "Dry-run: media.storage.path → ${upload_path}"
+    return 0
+  fi
+
+  sudo mkdir -p "$upload_path"
+  sudo chown -R "${TDI_RUN_USER}:${TDI_RUN_USER}" "${TDI_OPT_ROOT}/public" 2>/dev/null || true
+  sudo chmod -R u+rwX,g+rX "${TDI_OPT_ROOT}/public" 2>/dev/null || true
+
+  for envf in "$env_root" "$env_be"; do
+    tdi_upsert_env_key "$envf" "UPLOAD_PATH" "$upload_path"
+    tdi_upsert_env_key "$envf" "ASSETS_BASE_PATH" "$assets_base"
+  done
+
+  # Também no deploy /opt (se existir cópia de .env)
+  if [[ -d "${TDI_OPT_ROOT}/backend" ]]; then
+    tdi_upsert_env_key "${TDI_OPT_ROOT}/backend/.env" "UPLOAD_PATH" "$upload_path" 2>/dev/null || true
+    tdi_upsert_env_key "${TDI_OPT_ROOT}/backend/.env" "ASSETS_BASE_PATH" "$assets_base" 2>/dev/null || true
+  fi
+
+  if [[ -z "${TDI_DB_PASSWORD:-}" ]]; then
+    tdi_read_existing_db_password || true
+  fi
+  if [[ -z "${TDI_DB_PASSWORD:-}" ]]; then
+    warn "DB_PASSWORD em falta — não foi possível gravar media.storage.path na BD."
+    return 0
+  fi
+
+  local db_url="postgresql://${TDI_DB_USER}:${TDI_DB_PASSWORD}@localhost:5432/${TDI_DB_NAME}"
+  if PGPASSWORD="$TDI_DB_PASSWORD" psql "$db_url" -v ON_ERROR_STOP=1 <<SQL
+INSERT INTO system_settings (
+  setting_key, setting_value, setting_type, category, description,
+  is_public, is_editable, default_value, updated_at
+) VALUES (
+  'media.storage.path',
+  '${upload_path}',
+  'string',
+  'media',
+  'Caminho base para armazenamento de mídias (instância ${TDI_ID})',
+  false,
+  true,
+  '${upload_path}',
+  CURRENT_TIMESTAMP
+)
+ON CONFLICT (setting_key) DO UPDATE SET
+  setting_value = EXCLUDED.setting_value,
+  default_value = EXCLUDED.default_value,
+  description = EXCLUDED.description,
+  updated_at = CURRENT_TIMESTAMP;
+SQL
+  then
+    ok "media.storage.path = ${upload_path}"
+  else
+    warn "Falha ao gravar media.storage.path na BD ${TDI_DB_NAME}"
+    return 1
+  fi
+  return 0
+}
+
 tdi_write_env() {
   local tpl="$TDI_TEMPLATES_DIR/env.instancia.example"
   local out="$TDI_CLONE_DIR/.env"
@@ -796,6 +891,7 @@ tdi_instancia_install() {
   tdi_write_env
   tdi_apply_schema || return 1
   tdi_load_seeds
+  tdi_ensure_media_storage || warn "Storage de mídias não ficou alinhado — verifique media.storage.path"
   tdi_npm_install_build || return 1
   tdi_provision_instance_access || return 1
   tdi_rsync_deploy
@@ -828,6 +924,7 @@ tdi_instancia_update() {
     tdi_write_env
   fi
 
+  tdi_ensure_media_storage || warn "Storage de mídias não ficou alinhado — verifique media.storage.path"
   tdi_npm_install_build || return 1
   tdi_provision_instance_access || return 1
   tdi_rsync_deploy
@@ -847,6 +944,8 @@ tdi_instancia_repair() {
   if [[ -x "${FIX_ENV:-}" ]] || [[ -f "${FIX_ENV:-}" ]]; then
     bash "${FIX_ENV}" "$TDI_CLONE_DIR/.env" "$TDI_CLONE_DIR/backend/.env" 2>/dev/null || bash "${FIX_ENV}" || true
   fi
+  tdi_read_existing_db_password || true
+  tdi_ensure_media_storage || warn "Storage de mídias não ficou alinhado — verifique media.storage.path"
   tdi_install_systemd
   tdi_ensure_le_cert || true
   tdi_install_nginx || true
@@ -877,6 +976,7 @@ tdi_instancia_wipe() {
   tdi_write_env
   tdi_apply_schema || return 1
   tdi_load_seeds
+  tdi_ensure_media_storage || warn "Storage de mídias não ficou alinhado — verifique media.storage.path"
   tdi_npm_install_build || return 1
   tdi_provision_instance_access || return 1
   tdi_rsync_deploy
