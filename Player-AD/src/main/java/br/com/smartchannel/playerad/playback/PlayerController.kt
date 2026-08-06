@@ -70,19 +70,19 @@ class PlayerController(
     private val playerView: PlayerView,
     private val imageView: ImageView,
     private val htmlWebView: WebView,
-    private val acceptImagesInPlaylist: Boolean = true,
+    initialAcceptImagesInPlaylist: Boolean = true,
     /** Se false, [exoPlayer] permanece em volume 0 durante vídeo/áudio. */
-    private val allowPlaybackAudio: Boolean = false,
+    initialAllowPlaybackAudio: Boolean = false,
     /**
      * Véu preto na troca de mídia: 0 = desligado, ≠0 = ligado.
      * Ver [br.com.smartchannel.playerad.config.PlayerConfig.mediaTransitionEnabled].
      */
-    private val mediaTransitionEnabled: Int = 1,
+    initialMediaTransitionEnabled: Int = 1,
     private val fallbackPropagandasPerVinheta: Int = 3,
     /** Intervalo do batimento cardiaco (segundos) — heartbeat sem dispatch. */
-    private val batimentoCardiaco: Int = 30,
+    initialBatimentoCardiaco: Int = 30,
     /** Intervalo (segundos) para atualizar dispatch/plano — independente do ciclo de reprodução. */
-    private val maxSecondsWithoutServerCheck: Int = 180,
+    initialMaxSecondsWithoutServerCheck: Int = 180,
     /** Sonolência / backoff parametrizável. */
     private val pollAdaptive: PollAdaptiveConfig = PollAdaptiveConfig.DEFAULT,
     /** Montagem do painel (0=portrait … 3=landscape invertido) — alinha orientação da mídia. */
@@ -93,21 +93,32 @@ class PlayerController(
     /** Véu de transição entre mídias (cobre frame residual). */
     private val mediaTransitionOverlay: View? = null,
 ) {
-    private val mediaTransitionOn: Boolean =
+    @Volatile
+    private var acceptImagesInPlaylist: Boolean = initialAcceptImagesInPlaylist
+    @Volatile
+    private var allowPlaybackAudio: Boolean = initialAllowPlaybackAudio
+    @Volatile
+    private var mediaTransitionEnabledRuntime: Int = initialMediaTransitionEnabled
+    @Volatile
+    private var batimentoCardiacoRuntime: Int = initialBatimentoCardiaco
+    @Volatile
+    private var maxSecondsWithoutServerCheckRuntime: Int = initialMaxSecondsWithoutServerCheck
+
+    private fun mediaTransitionOn(): Boolean =
         br.com.smartchannel.playerad.config.PlayerConfigLoader.isMediaTransitionEnabled(
-            mediaTransitionEnabled,
+            mediaTransitionEnabledRuntime,
         )
 
     private suspend fun mediaTransitionCover() {
-        MediaLayerTransition.cover(mediaTransitionOverlay, enabled = mediaTransitionOn)
+        MediaLayerTransition.cover(mediaTransitionOverlay, enabled = mediaTransitionOn())
     }
 
     private suspend fun mediaTransitionReveal() {
-        MediaLayerTransition.reveal(mediaTransitionOverlay, enabled = mediaTransitionOn)
+        MediaLayerTransition.reveal(mediaTransitionOverlay, enabled = mediaTransitionOn())
     }
 
     private suspend fun mediaTransitionAwaitFrames(count: Int) {
-        if (!mediaTransitionOn) return
+        if (!mediaTransitionOn()) return
         MediaLayerTransition.awaitFrames(mediaTransitionOverlay, count)
     }
 
@@ -133,6 +144,13 @@ class PlayerController(
     @Volatile
     private var knownPlanVersion: String? = null
     private var lastDispatchFetchAtMs: Long = 0L
+    /** Pollers do loop actual — para soft-apply de intervalos sem restart. */
+    @Volatile
+    private var heartbeatPollRef: AdaptivePollScheduler? = null
+    @Volatile
+    private var dispatchPollRef: AdaptivePollScheduler? = null
+    /** Backoff de download por mediaId (ms epoch até quando não re-tentar). */
+    private val downloadFailUntilMs = mutableMapOf<Long, Long>()
 
     private enum class PlanSource { ONLINE, PERSISTED, FALLBACK_LOCAL }
 
@@ -217,9 +235,9 @@ class PlayerController(
         updatePlanSource(initialSource, "Fonte inicial do plano")
         PlayerAdLogger.i(
             "LIFECYCLE",
-            "(3) Loop de playback; batimento cardiaco=${batimentoCardiaco}s " +
+            "(3) Loop de playback; batimento cardiaco=${batimentoCardiacoRuntime}s " +
                 "(sonolência até ${pollAdaptive.maxHeartbeatSeconds}s; idle base ${pollAdaptive.idleHeartbeatSeconds}s); " +
-                "GET /dispatch sob needsDispatch (safety ≤${maxSecondsWithoutServerCheck}s)"
+                "GET /dispatch sob needsDispatch (safety ≤${maxSecondsWithoutServerCheckRuntime}s)"
         )
         playLoop(initialPlan, sessionToken, initialSource)
     }
@@ -486,6 +504,15 @@ class PlayerController(
      */
     private suspend fun downloadToCache(item: DispatchMediaItem) = withContext(Dispatchers.IO) {
         try {
+            val now = System.currentTimeMillis()
+            val failUntil = downloadFailUntilMs[item.mediaId] ?: 0L
+            if (now < failUntil) {
+                PlayerAdLogger.w(
+                    "CACHE",
+                    "Download em backoff mediaId=${item.mediaId} ainda ${((failUntil - now) / 1000L)}s",
+                )
+                return@withContext
+            }
             val url = java.net.URL(item.url)
             val conn = url.openConnection() as java.net.HttpURLConnection
             conn.instanceFollowRedirects = true
@@ -494,14 +521,18 @@ class PlayerController(
             conn.connect()
             val code = conn.responseCode
             if (code !in 200..299) {
+                markDownloadFailure(item.mediaId, code)
                 throw IllegalStateException("HTTP $code ao baixar mediaId=${item.mediaId}")
             }
-            val contentType = (conn.contentType ?: "").lowercase()
-            if (
-                contentType.contains("svg") ||
-                contentType.contains("text/html") ||
-                contentType.contains("application/json")
-            ) {
+            // content-type é hint: só rejeita tipos claramente não-binários
+            val contentType = (conn.contentType ?: "").lowercase().substringBefore(';').trim()
+            val suspiciousType =
+                contentType == "image/svg+xml" ||
+                    contentType == "text/html" ||
+                    contentType == "application/json" ||
+                    contentType == "text/json"
+            if (suspiciousType) {
+                markDownloadFailure(item.mediaId, code)
                 throw IllegalStateException(
                     "Resposta inválida ($contentType) — ficheiro ausente no servidor? mediaId=${item.mediaId}"
                 )
@@ -542,11 +573,13 @@ class PlayerController(
                 val head = outFile.inputStream().use { it.readBytes().decodeToString() }
                 if (head.contains("<svg") || head.contains("<!DOCTYPE") || head.contains("<html")) {
                     outFile.delete()
+                    markDownloadFailure(item.mediaId, code)
                     throw IllegalStateException(
                         "Download parece placeholder/HTML (ficheiro em falta no servidor) mediaId=${item.mediaId}"
                     )
                 }
             }
+            downloadFailUntilMs.remove(item.mediaId)
 
             var finalFile = outFile
             var finalSize = outFile.length()
@@ -577,8 +610,20 @@ class PlayerController(
                 contentVersion = item.contentVersion,
             )
         } catch (e: Exception) {
+            if (!downloadFailUntilMs.containsKey(item.mediaId)) {
+                markDownloadFailure(item.mediaId, 0)
+            }
             PlayerAdLogger.logDownloadFailed(item.mediaId, item.url, e)
         }
+    }
+
+    private fun markDownloadFailure(mediaId: Long, httpCode: Int) {
+        val backoffMs = when {
+            httpCode == 404 || httpCode == 410 -> 5 * 60_000L
+            httpCode in 500..599 -> 60_000L
+            else -> 30_000L
+        }
+        downloadFailUntilMs[mediaId] = System.currentTimeMillis() + backoffMs
     }
 
     /** Volume do ExoPlayer: 0 se áudio desabilitado na config (totem sempre mudo para vídeo). */
@@ -601,7 +646,7 @@ class PlayerController(
         val adaptive = pollAdaptiveRuntime
         val heartbeatPoll = AdaptivePollScheduler(
             name = "heartbeat",
-            activeBaseIntervalMs = batimentoCardiaco.coerceAtLeast(15) * 1000L,
+            activeBaseIntervalMs = batimentoCardiacoRuntime.coerceAtLeast(15) * 1000L,
             maxIntervalMs = adaptive.maxHeartbeatSeconds.coerceAtLeast(60) * 1000L,
             idleBaseIntervalMs = adaptive.idleHeartbeatSeconds.coerceAtLeast(30) * 1000L,
             unchangedBeforeSleep = adaptive.unchangedStreakBeforeSleep,
@@ -610,13 +655,15 @@ class PlayerController(
         )
         val dispatchPoll = AdaptivePollScheduler(
             name = "dispatch",
-            activeBaseIntervalMs = maxSecondsWithoutServerCheck.coerceAtLeast(30) * 1000L,
+            activeBaseIntervalMs = maxSecondsWithoutServerCheckRuntime.coerceAtLeast(30) * 1000L,
             maxIntervalMs = adaptive.maxDispatchSeconds.coerceAtLeast(120) * 1000L,
             idleBaseIntervalMs = adaptive.idleDispatchSeconds.coerceAtLeast(60) * 1000L,
             unchangedBeforeSleep = adaptive.unchangedStreakBeforeSleep,
             sleepGrowthFactor = adaptive.sleepGrowthFactor,
             sleepEnabled = adaptive.enabled,
         )
+        heartbeatPollRef = heartbeatPoll
+        dispatchPollRef = dispatchPoll
         val nowBoot = System.currentTimeMillis()
         heartbeatPoll.markAttempted(nowBoot)
         dispatchPoll.markAttempted(nowBoot)
@@ -767,21 +814,36 @@ class PlayerController(
                 val shouldFetchPlan = heartbeat.refreshDispatch ||
                     (heartbeat.supportsPlanVersion && heartbeat.needsDispatch)
                 if (shouldFetchPlan) {
+                    val logSource = when {
+                        heartbeat.refreshDispatch -> "heartbeat_media_refresh"
+                        else -> "heartbeat_plan_version"
+                    }
                     val refreshed = refreshPlanAfterRemoteCommand(
                         currentToken,
                         currentIndex,
-                        when {
-                            heartbeat.refreshDispatch -> "heartbeat_media_refresh"
-                            else -> "heartbeat_plan_version"
-                        }
+                        currentSignature,
+                        logSource,
                     )
                     currentToken = refreshed.first
-                    onBusyPlan(refreshed.second, refreshed.third, planContentSignature(refreshed.second))
-                    dispatchPoll.onBusySuccess()
+                    val newPlan = refreshed.second
+                    val newIndex = refreshed.third
+                    val newSig = planContentSignature(newPlan)
+                    val planChanged = newSig != currentSignature || heartbeat.refreshDispatch
+                    if (planChanged) {
+                        onBusyPlan(newPlan, newIndex, newSig)
+                        dispatchPoll.onBusySuccess()
+                    } else {
+                        onQuietPlan(newPlan, newSig)
+                        dispatchPoll.onQuietSuccess()
+                    }
                     dispatchPoll.markAttempted(System.currentTimeMillis())
                     fetchedViaHeartbeat = true
-                }
-                if (heartbeat.busy || shouldFetchPlan) {
+                    if (heartbeat.busy || planChanged) {
+                        heartbeatPoll.onBusySuccess()
+                    } else {
+                        heartbeatPoll.onQuietSuccess()
+                    }
+                } else if (heartbeat.busy) {
                     heartbeatPoll.onBusySuccess()
                 } else {
                     heartbeatPoll.onQuietSuccess()
@@ -811,7 +873,7 @@ class PlayerController(
             !supportsPlanVersion ||
                 knownPlanVersion.isNullOrBlank() ||
                 nowAfterHb - lastDispatchFetchAtMs >=
-                maxSecondsWithoutServerCheck.coerceAtLeast(180) * 1000L
+                maxSecondsWithoutServerCheckRuntime.coerceAtLeast(180) * 1000L
             )
 
         if (safetyDue) {
@@ -944,14 +1006,22 @@ class PlayerController(
     private suspend fun refreshPlanAfterRemoteCommand(
         currentToken: String,
         currentIndex: Int,
+        currentSignature: String,
         logSource: String
     ): Triple<String, DispatchPlan, Int> {
         val refreshed = fetchDispatchPlan(currentToken, logSource)
-        val index = 0
+        val newSignature = planContentSignature(refreshed.plan)
+        val unchanged = newSignature == currentSignature
+        val index = if (unchanged) {
+            currentIndex.coerceIn(0, (refreshed.plan.mediaItems.size - 1).coerceAtLeast(0))
+        } else {
+            0
+        }
         updatePlanSource(PlanSource.ONLINE, "Fonte do plano alterada")
         PlayerAdLogger.i(
             "DISPATCH",
-            "Plano atualizado após comando remoto ($logSource) — ${refreshed.plan.mediaItems.size} itens"
+            "Plano após $logSource — ${refreshed.plan.mediaItems.size} itens; " +
+                "changed=${!unchanged} index=$index"
         )
         return Triple(refreshed.token, refreshed.plan, index)
     }
@@ -1365,14 +1435,46 @@ class PlayerController(
         }
         val saved = br.com.smartchannel.playerad.config.PlayerConfigStore.save(context, withIdentity)
         cacheManager.applyLimitsFromConfig(withIdentity)
+
+        val hardRestart =
+            withIdentity.displayRotation != current.displayRotation ||
+                withIdentity.kioskMode != current.kioskMode ||
+                withIdentity.storageMode != current.storageMode ||
+                withIdentity.storagePathOverride != current.storagePathOverride ||
+                (allowIdentity && (
+                    withIdentity.serverUrl != current.serverUrl ||
+                        withIdentity.uin != current.uin ||
+                        withIdentity.deviceId != current.deviceId
+                    ))
+
+        // Soft-apply: campos que o loop lê em runtime (sem matar o processo)
+        acceptImagesInPlaylist = withIdentity.acceptImagesInPlaylist
+        allowPlaybackAudio = withIdentity.allowPlaybackAudio
+        mediaTransitionEnabledRuntime = withIdentity.mediaTransitionEnabled
+        batimentoCardiacoRuntime = withIdentity.batimentoCardiaco
+        maxSecondsWithoutServerCheckRuntime = withIdentity.maxSecondsWithoutServerCheck
+        if (data.has("pollAdaptive")) {
+            pollAdaptiveRuntime = withIdentity.pollAdaptive
+        }
+        applyPlaybackVolumePolicy()
+        heartbeatPollRef?.setActiveBaseIntervalMs(
+            batimentoCardiacoRuntime.coerceAtLeast(15) * 1000L,
+        )
+        dispatchPollRef?.setActiveBaseIntervalMs(
+            maxSecondsWithoutServerCheckRuntime.coerceAtLeast(30) * 1000L,
+        )
+
         PlayerAdLogger.i(
             "REMOTE_CMD",
             "Config remota aplicada displayRotation=${withIdentity.displayRotation} " +
                 "storage=${withIdentity.storageMode} maxCacheMb=${withIdentity.maxCacheSizeMb} " +
-                "internal=${saved.internalOk} sd=${saved.externalOk}",
+                "transition=${withIdentity.mediaTransitionEnabled} " +
+                "internal=${saved.internalOk} sd=${saved.externalOk} hardRestart=$hardRestart",
         )
-        // Reiniciar app para DisplayPresentationController / PlayerController lerem a nova config
-        restartRequested = true
+        if (hardRestart) {
+            // Orientação / storage / kiosk / identidade exigem novo PlayerController
+            restartRequested = true
+        }
         return JSONObject().apply {
             put("applied", true)
             put("displayRotation", withIdentity.displayRotation)
@@ -1386,7 +1488,9 @@ class PlayerController(
                     .storageModeToJsonValue(withIdentity.storageMode),
             )
             put("maxCacheSizeMb", withIdentity.maxCacheSizeMb)
-            put("restartScheduled", true)
+            put("mediaTransitionEnabled", withIdentity.mediaTransitionEnabled)
+            put("restartScheduled", hardRestart)
+            put("softApplied", !hardRestart)
         }
     }
 

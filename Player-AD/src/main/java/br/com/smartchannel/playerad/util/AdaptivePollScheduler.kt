@@ -11,9 +11,9 @@ package br.com.smartchannel.playerad.util
  */
 class AdaptivePollScheduler(
     private val name: String,
-    private val activeBaseIntervalMs: Long,
+    private var activeBaseIntervalMs: Long,
     private val maxIntervalMs: Long,
-    private val idleBaseIntervalMs: Long = activeBaseIntervalMs,
+    private var idleBaseIntervalMs: Long = activeBaseIntervalMs,
     private val unchangedBeforeSleep: Int = 2,
     private val sleepGrowthFactor: Double = 2.0,
     private val sleepEnabled: Boolean = true,
@@ -31,6 +31,27 @@ class AdaptivePollScheduler(
     fun unchangedStreak(): Int = unchangedStreak
 
     fun isIdleMode(): Boolean = idleMode
+
+    /** Actualiza a base activa em runtime (ex.: soft-apply de batimentoCardiaco). */
+    fun setActiveBaseIntervalMs(ms: Long) {
+        val next = ms.coerceAtLeast(1_000L)
+        if (next == activeBaseIntervalMs) return
+        activeBaseIntervalMs = next
+        if (!idleMode) {
+            currentIntervalMs = currentIntervalMs.coerceAtLeast(next).coerceAtMost(
+                maxIntervalMs.coerceAtLeast(next),
+            )
+            // Se estava na base antiga, desce à nova base
+            if (failureStreak == 0 && unchangedStreak == 0) {
+                currentIntervalMs = next
+            }
+        }
+        PlayerAdLogger.i("POLL", "$name base activa → ${activeBaseIntervalMs}ms")
+    }
+
+    fun setIdleBaseIntervalMs(ms: Long) {
+        idleBaseIntervalMs = ms.coerceAtLeast(1_000L)
+    }
 
     fun markAttempted(nowMs: Long = System.currentTimeMillis()) {
         lastAttemptAtMs = nowMs
