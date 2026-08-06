@@ -37,6 +37,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Player em kiosk fullscreen — só entra após configuração inicial concluída.
@@ -70,7 +71,9 @@ class MainActivity : AppCompatActivity() {
             launchSetupFlow("setup_required", onboarding = false)
             return@registerForActivityResult
         }
-        startPlayer()
+        // Reaplica montagem no contentHost da Main (o debug só rodava o configHost)
+        // e reinicia o loop com o displayRotation gravado.
+        restartPlayerAfterConfigChange("debug_closed")
     }
 
     private fun needsSetupFlow(): Boolean {
@@ -124,6 +127,27 @@ class MainActivity : AppCompatActivity() {
         debugLauncher.launch(intent)
     }
 
+    private fun restartPlayerAfterConfigChange(reason: String) {
+        val cfg = PlayerConfigLoader(this).load()
+        kioskConfig = cfg
+        PlayerAdLogger.i(
+            "ORIENT",
+            "Reinício pós-config ($reason) mount=${cfg.displayRotation} " +
+                "(${br.com.smartchannel.playerad.config.PlayerConfigLoader.displayRotationLabel(cfg.displayRotation)})",
+        )
+        cacheManager.reconcileForDisplayRotation(cfg.displayRotation)
+        if (!devUiOpen) {
+            KioskController.applyPlayback(this, cfg)
+        }
+        playbackJob?.cancel()
+        playbackJob = null
+        playerController = null
+        try {
+            exoPlayer.stop()
+        } catch (_: Exception) { }
+        startPlayer()
+    }
+
     private fun startPlayer() {
         if (playbackJob != null) return
 
@@ -134,6 +158,13 @@ class MainActivity : AppCompatActivity() {
                     ensureStorageRootMigrated()
                     cacheManager.reloadStorageRootsIfNeeded()
                     cacheManager.applyLimitsFromConfig(config)
+                    // Garante montagem alinhada mesmo se o loop reiniciar via watchdog
+                    withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        if (!devUiOpen) {
+                            kioskConfig = config
+                            KioskController.applyPlayback(this@MainActivity, config)
+                        }
+                    }
                     val appVersion = br.com.smartchannel.playerad.BuildConfig.VERSION_NAME
                     val apiClient = DispatcherApiClient(config.serverUrl, config.uin, config.deviceId, appVersion)
                     val otaCoordinator = br.com.smartchannel.playerad.ota.OtaUpdateCoordinator(
@@ -161,7 +192,7 @@ class MainActivity : AppCompatActivity() {
                         findViewById(R.id.displayIdleOverlay),
                         findViewById(R.id.mediaTransitionOverlay),
                     )
-                    PlayerAdLogger.i("WATCHDOG", "Loop do player iniciado")
+                    PlayerAdLogger.i("WATCHDOG", "Loop do player iniciado mount=${config.displayRotation}")
                     playerController?.start()
                     PlayerAdLogger.w("WATCHDOG", "Loop do player terminou; reiniciando em ${WATCHDOG_RESTART_DELAY_MS}ms")
                 } catch (e: CancellationException) {

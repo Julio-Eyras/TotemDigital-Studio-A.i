@@ -529,8 +529,8 @@ class DebugConfigActivity : AppCompatActivity() {
         } else {
             br.com.smartchannel.playerad.config.KioskMode.IMMERSIVE
         }
-        val orientationMode = readSelectedScreenOrientation()
-        val displayRotation = PlayerConfigLoader.displayRotationFromMode(orientationMode)
+        val orientationMode = PlayerConfigLoader.displayRotationToMode(selectedDisplayRotation)
+        val displayRotation = selectedDisplayRotation.coerceIn(0, 3)
         return PlayerConfig(
             serverUrl = serverUrl,
             uin = uin,

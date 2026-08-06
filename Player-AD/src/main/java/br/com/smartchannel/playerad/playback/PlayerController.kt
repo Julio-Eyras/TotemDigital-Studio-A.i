@@ -468,8 +468,12 @@ class PlayerController(
                 downloadToCache(item)
             } else if (
                 PortraitVideoCacheProcessor.isVideoFile(item.mediaType, item.url) &&
-                meta?.cacheOrientationReady != true &&
-                file != null
+                file != null &&
+                (
+                    meta?.cacheOrientationReady != true ||
+                        meta.cacheDisplayRotation == null ||
+                        meta.cacheDisplayRotation != displayRotation
+                    )
             ) {
                 normalizeCachedVideo(item, file)
             }
@@ -494,6 +498,7 @@ class PlayerController(
                 sizeBytes = result.sizeBytes,
                 cacheOrientationReady = true,
                 cacheRotated = result.rotated,
+                cacheDisplayRotation = displayRotation,
             )
         }
     }
@@ -607,6 +612,7 @@ class PlayerController(
                 mimeType = item.mediaType,
                 cacheOrientationReady = orientationReady,
                 cacheRotated = rotated,
+                cacheDisplayRotation = displayRotation,
                 contentVersion = item.contentVersion,
             )
         } catch (e: Exception) {
@@ -1960,8 +1966,11 @@ class PlayerController(
         val orientationGate = CompletableDeferred<Unit>()
         videoOrientationReady = orientationGate
         exoPlayer.setMediaItem(mediaItem, /* resetPosition= */ true)
+        val cacheMeta = cacheManager.getMetadata(item.mediaId)
         val cacheAlreadyRotated =
-            hasValidCache && (cacheManager.getMetadata(item.mediaId)?.cacheRotated == true)
+            hasValidCache &&
+                cacheMeta?.cacheRotated == true &&
+                cacheMeta.cacheDisplayRotation == displayRotation
         attachVideoOrientationListener(
             item.deliveryRotation,
             item.deliveryBakeVersion,

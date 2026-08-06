@@ -124,6 +124,8 @@ class MediaCacheManager private constructor(
         /** Avaliação de orientação no cache concluída (com ou sem rotação). */
         val cacheOrientationReady: Boolean = false,
         val cacheRotated: Boolean = false,
+        /** Montagem (0–3) para a qual o ficheiro/matrix de cache foi preparado. */
+        val cacheDisplayRotation: Int? = null,
         val contentVersion: String? = null,
     )
 
@@ -169,6 +171,7 @@ class MediaCacheManager private constructor(
         mimeType: String?,
         cacheOrientationReady: Boolean = false,
         cacheRotated: Boolean = false,
+        cacheDisplayRotation: Int? = null,
         contentVersion: String? = null,
     ) {
         val now = System.currentTimeMillis()
@@ -189,6 +192,11 @@ class MediaCacheManager private constructor(
         obj.put("sum_play", sumPlay)
         obj.put("cacheOrientationReady", cacheOrientationReady)
         obj.put("cacheRotated", cacheRotated)
+        val mount = cacheDisplayRotation?.coerceIn(0, 3)
+            ?: existing?.optInt("cacheDisplayRotation", -1)?.takeIf { it in 0..3 }
+        if (mount != null) {
+            obj.put("cacheDisplayRotation", mount)
+        }
         if (!contentVersion.isNullOrBlank()) {
             obj.put("contentVersion", contentVersion)
         } else {
@@ -208,6 +216,7 @@ class MediaCacheManager private constructor(
         sizeBytes: Long?,
         cacheOrientationReady: Boolean,
         cacheRotated: Boolean,
+        cacheDisplayRotation: Int? = null,
     ) {
         val key = mediaId.toString()
         val existing = metadata.optJSONObject(key) ?: return
@@ -215,9 +224,59 @@ class MediaCacheManager private constructor(
         sizeBytes?.let { existing.put("size", it) }
         existing.put("cacheOrientationReady", cacheOrientationReady)
         existing.put("cacheRotated", cacheRotated)
+        cacheDisplayRotation?.coerceIn(0, 3)?.let { existing.put("cacheDisplayRotation", it) }
         existing.put("lastAccessed", System.currentTimeMillis())
         metadata.put(key, existing)
         saveMetadataToDisk()
+    }
+
+    /**
+     * Após mudança de montagem no menu/config:
+     * - ficheiros fisicamente rodados para outro mount → remove (re-download)
+     * - restantes → marca orientação como pendente (matrix em runtime)
+     * @return quantas entradas foram afectadas
+     */
+    @Synchronized
+    fun reconcileForDisplayRotation(displayRotation: Int): Int {
+        val mount = ((displayRotation % 4) + 4) % 4
+        var touched = 0
+        val keys = metadata.keys().asSequence().toList()
+        for (key in keys) {
+            val obj = metadata.optJSONObject(key) ?: continue
+            if (!obj.optBoolean("valid", false)) continue
+            val cachedMount = if (obj.has("cacheDisplayRotation")) {
+                obj.optInt("cacheDisplayRotation", mount)
+            } else {
+                // Legado sem campo: se já foi rodado no disco, forçar re-download
+                if (obj.optBoolean("cacheRotated", false)) -1 else mount
+            }
+            if (cachedMount == mount) continue
+            touched++
+            val id = key.toLongOrNull()
+            if (obj.optBoolean("cacheRotated", false) || cachedMount < 0) {
+                if (id != null) {
+                    markAsRemoved(id)
+                } else {
+                    obj.put("valid", false)
+                    obj.put("cacheOrientationReady", false)
+                    obj.put("cacheRotated", false)
+                    obj.remove("cacheDisplayRotation")
+                }
+            } else {
+                obj.put("cacheOrientationReady", false)
+                obj.put("cacheRotated", false)
+                obj.put("cacheDisplayRotation", mount)
+                metadata.put(key, obj)
+            }
+        }
+        if (touched > 0) {
+            saveMetadataToDisk()
+            PlayerAdLogger.i(
+                "CACHE",
+                "Montagem=$mount: $touched entrada(s) de cache reconciliadas (orientação)",
+            )
+        }
+        return touched
     }
 
     /**
@@ -302,6 +361,11 @@ class MediaCacheManager private constructor(
                 sumPlay = sumPlayMap,
                 cacheOrientationReady = obj.optBoolean("cacheOrientationReady", false),
                 cacheRotated = obj.optBoolean("cacheRotated", false),
+                cacheDisplayRotation = if (obj.has("cacheDisplayRotation")) {
+                    obj.optInt("cacheDisplayRotation", 0).coerceIn(0, 3)
+                } else {
+                    null
+                },
                 contentVersion = obj.optString("contentVersion", "").takeIf { it.isNotBlank() },
             )
         } catch (e: JSONException) {
