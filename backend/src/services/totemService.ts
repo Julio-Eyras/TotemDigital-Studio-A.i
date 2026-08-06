@@ -1932,7 +1932,7 @@ export class TotemService {
 
       // Verificar se tem dados associados (PostgreSQL placeholders)
       if (isDirectTotemMode()) {
-        const mediaCount = await getTotemDirectMediaService().countActiveMediasForTotem(totemId);
+        const mediaCount = await getTotemDirectMediaService().countLinkedMediasForTotem(totemId);
         if (mediaCount > 0) {
           throw new Error(
             'Não é possível remover totem com mídias publicadas. Remova todas as mídias deste totem primeiro.'

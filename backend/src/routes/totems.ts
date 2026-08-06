@@ -117,24 +117,45 @@ router.get('/',
       if (isDirectTotemMode() && totems.length > 0) {
         const db = getDatabase();
         const ids = totems.map((t: any) => Number(t.totem_id ?? t.id)).filter((id: number) => id > 0);
+        // media_count = vão ao player (tpi + media activos);
+        // media_count_total = todas as ligações na playlist do totem (incl. desabilitadas).
         const counts = await db.findMany(
           `
-          SELECT tp.totem_id, COUNT(tpi.item_id)::int AS media_count
+          SELECT
+            tp.totem_id,
+            COUNT(tpi.item_id)::int AS media_count_total,
+            COUNT(tpi.item_id) FILTER (
+              WHERE COALESCE(tpi.is_active, true) = true
+                AND COALESCE(m.is_active, true) = true
+            )::int AS media_count
           FROM totem_playlists tp
           JOIN totem_playlist_items tpi ON tpi.totem_playlist_id = tp.totem_playlist_id
+          JOIN medias m ON m.media_id = tpi.media_id
           WHERE tp.totem_id = ANY($1::int[])
             AND COALESCE(tp.is_active, true) = true
             AND tp.status = 'active'
-            AND COALESCE(tpi.is_active, true) = true
           GROUP BY tp.totem_id
         `,
           [ids]
         );
-        const byTotem = new Map(counts.map((r: any) => [Number(r.totem_id), Number(r.media_count)]));
-        totems = totems.map((t: any) => ({
-          ...t,
-          media_count: byTotem.get(Number(t.totem_id ?? t.id)) ?? 0,
-        }));
+        const byTotem = new Map(
+          counts.map((r: any) => [
+            Number(r.totem_id),
+            {
+              media_count: Number(r.media_count) || 0,
+              media_count_total: Number(r.media_count_total) || 0,
+            },
+          ])
+        );
+        totems = totems.map((t: any) => {
+          const id = Number(t.totem_id ?? t.id);
+          const c = byTotem.get(id) || { media_count: 0, media_count_total: 0 };
+          return {
+            ...t,
+            media_count: c.media_count,
+            media_count_total: c.media_count_total,
+          };
+        });
       }
       // Converter formato: { totems: [] } para { data: [] } para compatibilidade com frontend
       return res.json({

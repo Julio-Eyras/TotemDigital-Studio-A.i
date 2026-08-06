@@ -45,6 +45,7 @@ import { buildMediaThumbnailApiPath } from '../../utils/mediaPreviewUrl';
 import { buildMediaMetaSummary } from '../../utils/mediaDisplayMeta';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { formatTotemScheduleCardLines } from '../../utils/totemDisplaySchedule';
+import { formatTotemMediaCountLabel } from '../../utils/totemMediaCountLabel';
 import { getDisabledContainerSx } from '../../utils/disabledVisualIdentity';
 
 function isTotemRowActive(row: unknown): boolean {
@@ -276,7 +277,11 @@ const PublishTotem: React.FC = () => {
     }
   };
 
-  const getTotemMediaCount = (totem: Player) => Number((totem as any).media_count ?? 0);
+  const getTotemMediaCounts = (totem: Player) => {
+    const active = Number((totem as any).media_count ?? 0);
+    const total = Number((totem as any).media_count_total ?? active);
+    return { active, total };
+  };
 
   const handleToggleTotemActive = async (totem: Player, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -302,7 +307,7 @@ const PublishTotem: React.FC = () => {
       setError('Totem inválido para exclusão');
       return;
     }
-    if (getTotemMediaCount(deleteTarget!) > 0) {
+    if (getTotemMediaCounts(deleteTarget!).total > 0) {
       setError('Remova todas as mídias deste totem antes de excluí-lo');
       return;
     }
@@ -366,8 +371,8 @@ const PublishTotem: React.FC = () => {
             const totemId = getTotemIdFromRow(t);
             const title = t.name || t.identifier || (totemId ? `Totem ${totemId}` : 'Totem');
             const op = getOperationalStatus(t);
-            const mediaCount = getTotemMediaCount(t);
-            const canDelete = mediaCount === 0;
+            const { active: mediaActive, total: mediaTotal } = getTotemMediaCounts(t);
+            const canDelete = mediaTotal === 0;
             const totemActive = isTotemRowActive(t);
             const activationCode = String((t as any).uin || '').trim();
             const scheduleLines = formatTotemScheduleCardLines(t as Record<string, unknown>);
@@ -402,7 +407,7 @@ const PublishTotem: React.FC = () => {
                             />
                           )}
                           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                            {mediaCount} {mediaCount === 1 ? 'mídia' : 'mídias'}
+                            {formatTotemMediaCountLabel(mediaActive, mediaTotal)}
                           </Typography>
                           {totemId && (
                             <Button

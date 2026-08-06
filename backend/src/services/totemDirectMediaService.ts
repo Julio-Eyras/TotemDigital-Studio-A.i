@@ -299,20 +299,44 @@ export class TotemDirectMediaService {
     return this.listTotemMedias(totemId);
   }
 
-  async countActiveMediasForTotem(totemId: number): Promise<number> {
+  /** Mídias ligadas ao totem (qualquer estado) — usado para bloquear exclusão. */
+  async countLinkedMediasForTotem(totemId: number): Promise<number> {
     const row = await this.db.findFirst(
       `
       SELECT COUNT(tpi.item_id)::int AS count
       FROM totem_playlist_items tpi
       JOIN totem_playlists tp ON tp.totem_playlist_id = tpi.totem_playlist_id
       WHERE tp.totem_id = $1
-        AND COALESCE(tpi.is_active, true) = true
         AND COALESCE(tp.is_active, true) = true
         AND tp.status = 'active'
     `,
       [totemId]
     );
     return Number(row?.count || 0);
+  }
+
+  /** Mídias que vão ao player: activas no totem e na biblioteca. */
+  async countPlayableMediasForTotem(totemId: number): Promise<number> {
+    const row = await this.db.findFirst(
+      `
+      SELECT COUNT(tpi.item_id)::int AS count
+      FROM totem_playlist_items tpi
+      JOIN totem_playlists tp ON tp.totem_playlist_id = tpi.totem_playlist_id
+      JOIN medias m ON m.media_id = tpi.media_id
+      WHERE tp.totem_id = $1
+        AND COALESCE(tpi.is_active, true) = true
+        AND COALESCE(m.is_active, true) = true
+        AND COALESCE(tp.is_active, true) = true
+        AND tp.status = 'active'
+    `,
+      [totemId]
+    );
+    return Number(row?.count || 0);
+  }
+
+  /** @deprecated Preferir countPlayableMediasForTotem / countLinkedMediasForTotem */
+  async countActiveMediasForTotem(totemId: number): Promise<number> {
+    return this.countPlayableMediasForTotem(totemId);
   }
 
   async invalidateDirectPlaylistsForTotem(totemId: number): Promise<void> {

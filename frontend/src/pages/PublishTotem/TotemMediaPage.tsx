@@ -40,6 +40,7 @@ import { useMediaThumbnailUrls } from '../../hooks/useMediaThumbnailUrls';
 import { buildMediaThumbnailApiPath } from '../../utils/mediaPreviewUrl';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { buildMediaMetaSummary, buildMediaSizeDurationDateLine } from '../../utils/mediaDisplayMeta';
+import { formatTotemMediaCountLabel } from '../../utils/totemMediaCountLabel';
 import { MediaViewDialog } from '../../components/Media/MediaViewDialog';
 import { MediaPortraitThumb } from '../../components/Media/MediaPortraitThumb';
 
@@ -378,17 +379,19 @@ const TotemMediaPage: React.FC = () => {
   };
 
   const title = totem?.name || totem?.identifier || `Totem ${totemId}`;
-  const hasActiveMedia = items.some((i) => i.is_active !== false);
-  const canDeleteTotem = !hasActiveMedia;
+  const playableCount = items.filter(
+    (i) => i.is_active !== false && i.media_is_active !== false
+  ).length;
+  const linkedCount = items.length;
+  const canDeleteTotem = linkedCount === 0;
 
   const breadcrumbs = useMemo(() => {
     if (defaultBreadcrumbs.length === 0) return defaultBreadcrumbs;
-    const count = items.length;
-    const label = `${count} ${count === 1 ? 'mídia' : 'mídias'}`;
+    const label = formatTotemMediaCountLabel(playableCount, linkedCount);
     const next = [...defaultBreadcrumbs];
     next[next.length - 1] = { ...next[next.length - 1], label };
     return next;
-  }, [defaultBreadcrumbs, items.length]);
+  }, [defaultBreadcrumbs, playableCount, linkedCount]);
 
   const handleDeleteTotem = async () => {
     if (!canDeleteTotem) {

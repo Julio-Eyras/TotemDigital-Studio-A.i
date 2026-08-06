@@ -632,6 +632,10 @@ export interface Player {
   forced_online?: boolean;
   // Compatibilidade camelCase
   forcedOnlineUntil?: string;
+  /** Mídias que vão ao player (activas no totem e na biblioteca). */
+  media_count?: number;
+  /** Todas as ligações na playlist do totem (incl. desabilitadas). */
+  media_count_total?: number;
 }
 
 // Alias para compatibilidade
