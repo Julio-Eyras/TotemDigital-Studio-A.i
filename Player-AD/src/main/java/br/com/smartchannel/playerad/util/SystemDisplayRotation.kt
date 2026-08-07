@@ -57,25 +57,40 @@ object SystemDisplayRotation {
     )
 
     /**
-     * Viewport (width/height) coincide com a montagem pedida?
-     * Em Allwinner, `user_rotation` pode estar correcto nas settings e o app
-     * continuar a receber métricas landscape — aí a mídia portrait sai deitada.
+     * O framebuffer do SO já está na orientação da montagem — sem fallback visual?
+     *
+     * Em Allwinner (TV_BOX_3) `user_rotation` grava mas as métricas ficam sempre
+     * landscape (ex.: 1280×720). Aí:
+     * - montagem 1 (paisagem nativa) → OK sem fallback
+     * - montagens 0/2/3 → aspecto “bate” por acaso (3 também é landscape) mas o
+     *   conteúdo sai deitado/invertido no painel físico — precisa [ViewDisplayRotation].
      */
     fun isViewportMatchingMount(context: Context, displayRotation: Int): Boolean {
+        val mount = ((displayRotation % 4) + 4) % 4
         val dm = context.resources.displayMetrics
         val portraitViewport = dm.heightPixels > dm.widthPixels
         val portraitMount = MediaViewportRotation.isPortraitMount(displayRotation)
-        return portraitViewport == portraitMount
+        if (portraitViewport != portraitMount) return false
+
+        val display = resolveDisplay(context)
+        val expectedSurface = displayRotationToSurfaceRotation(mount)
+        if (display != null && display.rotation == expectedSurface) {
+            // Surface confirma a montagem (dispositivo que aplica rotação de verdade).
+            return true
+        }
+
+        // Surface não confirma (Allwinner típico): só a montagem nativa do eixo
+        // (0 retrato com viewport portrait real, 1 paisagem com viewport landscape)
+        // conta como efectiva. 2 e 3 são inversões — sempre precisam de compensação.
+        return when (mount) {
+            0 -> portraitViewport
+            1 -> !portraitViewport
+            else -> false
+        }
     }
 
     fun isDisplayRotationEffective(context: Context, displayRotation: Int): Boolean {
-        // Settings sozinhas NÃO bastam — validar viewport real.
-        if (isViewportMatchingMount(context, displayRotation)) {
-            return true
-        }
-        val display = resolveDisplay(context) ?: return false
-        val expected = displayRotationToSurfaceRotation(displayRotation)
-        return display.rotation == expected && isViewportMatchingMount(context, displayRotation)
+        return isViewportMatchingMount(context, displayRotation)
     }
 
     /** TV boxes costumam aplicar user_rotation mas [Display.getRotation] continua em 0. */

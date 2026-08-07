@@ -109,7 +109,36 @@ class PlayerController(
             mediaTransitionEnabledRuntime,
         )
 
+    @Volatile
+    private var released = false
+
+    /**
+     * Liberta listeners do ExoPlayer partilhado. Obrigatório antes de criar outro
+     * [PlayerController] — senão matrices de mounts antigos continuam a aplicar-se.
+     */
+    fun release() {
+        if (released) return
+        released = true
+        restartRequested = false
+        try {
+            detachVideoOrientationListener()
+        } catch (_: Exception) { }
+        videoOrientationReady?.cancel()
+        videoOrientationReady = null
+        activeVideoMediaId = -1L
+        activeVideoContentVersion = null
+        activeImageMediaId = -1L
+        heartbeatPollRef = null
+        dispatchPollRef = null
+        try {
+            MediaViewportRotation.resetPlayerView(playerView)
+            MediaViewportRotation.resetView(imageView)
+        } catch (_: Exception) { }
+        PlayerAdLogger.i("LIFECYCLE", "PlayerController liberado (mount=$displayRotation)")
+    }
+
     private suspend fun mediaTransitionCover() {
+        if (released) return
         MediaLayerTransition.cover(mediaTransitionOverlay, enabled = mediaTransitionOn())
     }
 
@@ -123,6 +152,10 @@ class PlayerController(
     }
 
     private var restartRequested = false
+    /** true = exitProcess; false = sair do playLoop para o watchdog criar novo controller. */
+    private var forceProcessKillOnRestart = false
+    @Volatile
+    private var remountLoopRequested = false
     private var videoOrientationListener: Player.Listener? = null
     /** Completa quando a matrix FIT do TextureView foi aplicada (antes do reveal). */
     private var videoOrientationReady: CompletableDeferred<Unit>? = null
@@ -484,23 +517,25 @@ class PlayerController(
         item: DispatchMediaItem,
         file: File,
     ) = withContext(Dispatchers.IO) {
-        val result = PortraitVideoCacheProcessor.normalizeIfNeeded(
-            context,
-            file,
-            displayRotation,
-            item.mediaType,
-            item.url,
+        // Se o SO já reflecte a montagem, não assar rotação no ficheiro (evita dupla rotação).
+        // Se o SO NÃO reflecte, o ViewDisplayRotation gira o contentHost — também não assar
+        // (bake + fallback = mídia de lado / invertida, como nas fotos da TV_BOX_3).
+        val systemMountOk = br.com.smartchannel.playerad.util.SystemDisplayRotation
+            .isViewportMatchingMount(context, displayRotation)
+        cacheManager.updateCacheOrientationState(
+            mediaId = item.mediaId,
+            fileName = file.name,
+            sizeBytes = file.length(),
+            cacheOrientationReady = true,
+            cacheRotated = false,
+            cacheDisplayRotation = displayRotation,
         )
-        if (result.orientationReady) {
-            cacheManager.updateCacheOrientationState(
-                mediaId = item.mediaId,
-                fileName = result.file.name,
-                sizeBytes = result.sizeBytes,
-                cacheOrientationReady = true,
-                cacheRotated = result.rotated,
-                cacheDisplayRotation = displayRotation,
-            )
-        }
+        PlayerAdLogger.i(
+            "CACHE",
+            "Skip bake ${file.name}: montagem em runtime " +
+                "(systemMount=$systemMountOk visualFallback=${!systemMountOk}) mount=$displayRotation",
+        )
+        return@withContext
     }
 
     /**
@@ -590,19 +625,15 @@ class PlayerController(
             var finalSize = outFile.length()
             var orientationReady = true
             var rotated = false
-            if (PortraitVideoCacheProcessor.isVideoFile(item.mediaType, item.url)) {
-                val result = PortraitVideoCacheProcessor.normalizeIfNeeded(
-                    context,
-                    outFile,
-                    displayRotation,
-                    item.mediaType,
-                    item.url,
-                )
-                finalFile = result.file
-                finalSize = result.sizeBytes
-                orientationReady = result.orientationReady
-                rotated = result.rotated
-            }
+            // Montagem fica a cargo do SO ou do ViewDisplayRotation — nunca bake no ficheiro.
+            val systemMountOk = br.com.smartchannel.playerad.util.SystemDisplayRotation
+                .isViewportMatchingMount(context, displayRotation)
+            PlayerAdLogger.i(
+                "CACHE",
+                "Download sem bake: montagem em runtime " +
+                    "(systemMount=$systemMountOk visualFallback=${!systemMountOk}) " +
+                    "mount=$displayRotation mediaId=${item.mediaId}",
+            )
 
             cacheManager.onDownloadCompleted(
                 mediaId = item.mediaId,
@@ -753,6 +784,10 @@ class PlayerController(
                         if (index >= currentPlan.mediaItems.size) index = 0
                     },
                 )
+                if (remountLoopRequested) {
+                    PlayerAdLogger.w("WATCHDOG", "Saindo do playLoop (idle) para remount")
+                    break
+                }
                 continue
             }
             exitDisplayIdle()
@@ -789,6 +824,10 @@ class PlayerController(
                     if (index >= currentPlan.mediaItems.size) index = 0
                 },
             )
+            if (remountLoopRequested) {
+                PlayerAdLogger.w("WATCHDOG", "Saindo do playLoop para remount do controller")
+                break
+            }
         }
     }
 
@@ -1280,9 +1319,19 @@ class PlayerController(
             }
         }
         if (restartRequested) {
-            PlayerAdLogger.w("REMOTE_CMD", "Restart de app solicitado por comando remoto")
+            val killProcess = forceProcessKillOnRestart
+            forceProcessKillOnRestart = false
             restartRequested = false
-            scheduleAppRestart()
+            if (killProcess) {
+                PlayerAdLogger.w("REMOTE_CMD", "Restart de app solicitado por comando remoto")
+                scheduleAppRestart()
+            } else {
+                PlayerAdLogger.w(
+                    "REMOTE_CMD",
+                    "Remount do PlayerController (sem matar processo) — sai do loop",
+                )
+                remountLoopRequested = true
+            }
         }
         return RemoteCommandOutcome(
             token = apiClient.cachedToken() ?: token.ifBlank { initialToken },
@@ -1478,8 +1527,10 @@ class PlayerController(
                 "internal=${saved.internalOk} sd=${saved.externalOk} hardRestart=$hardRestart",
         )
         if (hardRestart) {
-            // Orientação / storage / kiosk / identidade exigem novo PlayerController
+            // Orientação / storage / kiosk / identidade: novo PlayerController via watchdog,
+            // sem exitProcess (evita “reinstalação” a cada apply_player_config).
             restartRequested = true
+            forceProcessKillOnRestart = false
         }
         return JSONObject().apply {
             put("applied", true)
@@ -1645,6 +1696,7 @@ class PlayerController(
 
     private fun executeRestartApp(): JSONObject {
         restartRequested = true
+        forceProcessKillOnRestart = true
         return JSONObject().apply {
             put("scheduled", true)
             put("action", "restart_app")
@@ -1780,6 +1832,15 @@ class PlayerController(
         var playFile = file
 
         if (isVideo && !isFileUrl && !hasValidCache) {
+            val failUntil = downloadFailUntilMs[item.mediaId] ?: 0L
+            if (System.currentTimeMillis() < failUntil) {
+                PlayerAdLogger.w(
+                    "PLAYBACK",
+                    "Skip vídeo mediaId=${item.mediaId}: sem cache e download em backoff",
+                )
+                delay(1_500L)
+                return t
+            }
             downloadToCache(item)
             val metaAfter = cacheManager.getMetadata(item.mediaId)
             val cached = metaAfter?.fileName?.let { File(propagandasDir, it) }
@@ -1790,6 +1851,13 @@ class PlayerController(
                 hasValidCache = true
                 playFile = cached
                 PlayerAdLogger.i("CACHE", "Vídeo mediaId=${item.mediaId} obtido em cache antes da reprodução")
+            } else {
+                PlayerAdLogger.w(
+                    "PLAYBACK",
+                    "Skip vídeo mediaId=${item.mediaId}: download falhou / sem ficheiro local",
+                )
+                delay(1_500L)
+                return t
             }
         }
 
@@ -1967,10 +2035,18 @@ class PlayerController(
         videoOrientationReady = orientationGate
         exoPlayer.setMediaItem(mediaItem, /* resetPosition= */ true)
         val cacheMeta = cacheManager.getMetadata(item.mediaId)
-        val cacheAlreadyRotated =
-            hasValidCache &&
-                cacheMeta?.cacheRotated == true &&
-                cacheMeta.cacheDisplayRotation == displayRotation
+        val systemMountOk = br.com.smartchannel.playerad.util.SystemDisplayRotation
+            .isViewportMatchingMount(context, displayRotation)
+        // Bake no ficheiro + ViewDisplayRotation/systemMount = dupla rotação. Invalidar.
+        if (hasValidCache && cacheMeta?.cacheRotated == true) {
+            PlayerAdLogger.w(
+                "CACHE",
+                "Cache bake incompatível com montagem em runtime " +
+                    "(mediaId=${item.mediaId} systemMount=$systemMountOk) — a invalidar",
+            )
+            cacheManager.markAsRemoved(item.mediaId)
+        }
+        val cacheAlreadyRotated = false
         attachVideoOrientationListener(
             item.deliveryRotation,
             item.deliveryBakeVersion,
@@ -1993,16 +2069,18 @@ class PlayerController(
         activeVideoContentVersion = item.contentVersion
 
         try {
-            t = eventsClient.sendEvent(
-                token = t,
-                eventType = "video_playback_start",
-                mediaId = item.mediaId,
-                playlistId = plan.playlistId,
-                campaignId = plan.campaignId,
-                durationSeconds = null,
-                completed = null,
-                metadata = emptyMap()
-            )
+            t = withTimeoutOrNull(5_000L) {
+                eventsClient.sendEvent(
+                    token = t,
+                    eventType = "video_playback_start",
+                    mediaId = item.mediaId,
+                    playlistId = plan.playlistId,
+                    campaignId = plan.campaignId,
+                    durationSeconds = null,
+                    completed = null,
+                    metadata = emptyMap()
+                )
+            } ?: t
         } catch (_: Exception) { }
 
         val playbackTimeoutMs = videoWatchdogTimeoutMs(item)
@@ -2103,16 +2181,18 @@ class PlayerController(
         }
 
         try {
-            t = eventsClient.sendEvent(
-                token = t,
-                eventType = "video_playback_start",
-                mediaId = item.mediaId,
-                playlistId = plan.playlistId,
-                campaignId = plan.campaignId,
-                durationSeconds = null,
-                completed = null,
-                metadata = emptyMap()
-            )
+            t = withTimeoutOrNull(5_000L) {
+                eventsClient.sendEvent(
+                    token = t,
+                    eventType = "video_playback_start",
+                    mediaId = item.mediaId,
+                    playlistId = plan.playlistId,
+                    campaignId = plan.campaignId,
+                    durationSeconds = null,
+                    completed = null,
+                    metadata = emptyMap()
+                )
+            } ?: t
         } catch (_: Exception) { }
 
         val playbackTimeoutMs = videoWatchdogTimeoutMs(item)
@@ -2318,6 +2398,7 @@ class PlayerController(
         detachVideoOrientationListener()
         val listener = object : Player.Listener {
             override fun onVideoSizeChanged(videoSize: VideoSize) {
+                if (released) return
                 val (rawW, rawH) = MediaViewportRotation.rawVideoSize(videoSize)
                 // ExoPlayer dispara 0x0 no attach/teardown — aplicar matrix aí causa flicker.
                 if (rawW <= 0 || rawH <= 0) return
@@ -2392,13 +2473,15 @@ class PlayerController(
         deliveryRotation: Int? = null,
         deliveryBakeVersion: Int? = null,
     ) {
-        if (!AUTO_MEDIA_ORIENTATION) return
+        if (released || !AUTO_MEDIA_ORIENTATION) return
         try {
             val (rawW, rawH) = MediaViewportRotation.rawVideoSize(videoSize)
             if (rawW <= 0 || rawH <= 0) return
             val viewMountApplied = isViewDisplayRotationActive()
-            val rot = if (viewMountApplied) {
-                // contentHost já rodou o viewport; não aplicar segunda rotação na TextureView
+            // SO já orientou o framebuffer à montagem → sem segunda rotação na TextureView.
+            val systemMountOk = br.com.smartchannel.playerad.util.SystemDisplayRotation
+                .isViewportMatchingMount(context, displayRotation)
+            val rot = if (viewMountApplied || systemMountOk) {
                 0f
             } else {
                 MediaViewportRotation.correctionRotationForVideo(
@@ -2409,11 +2492,12 @@ class PlayerController(
                     deliveryBakeVersion,
                 )
             }
+            if (released) return
             applyFullscreenVideoScale()
             PlayerAdLogger.i(
                 "DISPLAY",
                 "Correção orientação vídeo deliveryRotation=$deliveryRotation " +
-                    "bake=$deliveryBakeVersion viewMount=$viewMountApplied " +
+                    "bake=$deliveryBakeVersion viewMount=$viewMountApplied systemMount=$systemMountOk " +
                     "eff=${MediaViewportRotation.effectiveVideoSize(videoSize).let { "${it.first}x${it.second}" }} " +
                     "raw=${rawW}x${rawH} → ${rot.toInt()}° mount=$displayRotation FIT",
             )
@@ -2480,7 +2564,9 @@ class PlayerController(
 
         // 2) Montagem do totem (só se viewport ainda não foi rodado pelo fallback)
         val viewMountApplied = isViewDisplayRotationActive()
-        val mountRot = if (!AUTO_MEDIA_ORIENTATION || viewMountApplied) {
+        val systemMountOk = br.com.smartchannel.playerad.util.SystemDisplayRotation
+            .isViewportMatchingMount(context, displayRotation)
+        val mountRot = if (!AUTO_MEDIA_ORIENTATION || viewMountApplied || systemMountOk) {
             0f
         } else {
             MediaViewportRotation.playbackCorrectionDegrees(
@@ -2866,7 +2952,14 @@ class PlayerController(
             }
         }
 
-        if (exoPlayer.playbackState == Player.STATE_ENDED) {
+        // Erro/estado já ocorreram (ex.: 404 durante sendEvent) — não bloquear o loop.
+        if (exoPlayer.playerError != null || exoPlayer.playbackState == Player.STATE_ENDED) {
+            if (exoPlayer.playerError != null) {
+                PlayerAdLogger.w(
+                    "PLAYBACK",
+                    "Erro ExoPlayer já presente: ${exoPlayer.playerError?.message}",
+                )
+            }
             finish()
             return@suspendCancellableCoroutine
         }
@@ -2886,10 +2979,13 @@ class PlayerController(
             }
         }
         exoPlayer.addListener(listener)
-
-        cont.invokeOnCancellation {
+        // Revalidar após registar (race com thread do ExoPlayer).
+        if (exoPlayer.playerError != null || exoPlayer.playbackState == Player.STATE_ENDED) {
             exoPlayer.removeListener(listener)
+            finish()
+            return@suspendCancellableCoroutine
         }
+        cont.invokeOnCancellation { exoPlayer.removeListener(listener) }
     }
 
     companion object {
@@ -2899,8 +2995,8 @@ class PlayerController(
         private val VIDEO_VIEWPORT_SCALE = MediaViewportRotation.VideoScaleMode.FIT
         private const val VIDEO_WATCHDOG_MIN_MS = 30_000L
         private const val VIDEO_WATCHDOG_GRACE_MS = 15_000L
-        /** Quando duração desconhecida — fallback curto (não 15 min). */
-        private const val VIDEO_WATCHDOG_FALLBACK_MS = 5 * 60 * 1000L
+        /** Quando duração desconhecida — não segurar o ecrã preto vários minutos. */
+        private const val VIDEO_WATCHDOG_FALLBACK_MS = 45_000L
         private const val VIDEO_WATCHDOG_MAX_MS = 15 * 60 * 1000L
         private const val HTML_PLAYBACK_GRACE_MS = 5_000L
     }

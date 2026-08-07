@@ -15,6 +15,7 @@ import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
 import br.com.smartchannel.playerad.util.MediaViewportRotation
 import br.com.smartchannel.playerad.util.PlayerAdLogger
+import br.com.smartchannel.playerad.util.SystemDisplayRotation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -58,24 +59,22 @@ object PortraitVideoCacheProcessor {
             return Result(file, file.length(), rotated = false, orientationReady = false)
         }
 
+        // ViewDisplayRotation / systemMount tratam a montagem em runtime.
+        // Assar no ficheiro com fallback visual activo = dupla rotação (TV_BOX_3).
+        if (!SystemDisplayRotation.isViewportMatchingMount(context, displayRotation)) {
+            PlayerAdLogger.i(
+                "CACHE",
+                "Skip normalização cache ${file.name}: visualFallback activo " +
+                    "mount=$displayRotation ${width}x${height}",
+            )
+            return Result(file, file.length(), rotated = false, orientationReady = true)
+        }
+
         val degrees = MediaViewportRotation.mountCorrectionDegrees(displayRotation, width, height)
         if (degrees == 0f) {
             PlayerAdLogger.i(
                 "CACHE",
                 "Cache OK sem rotação ${file.name} ${width}x${height} mount=$displayRotation",
-            )
-            return Result(file, file.length(), rotated = false, orientationReady = true)
-        }
-
-        // Se o SO ainda reporta landscape mas a montagem é portrait, o ViewDisplayRotation
-        // trata do ecrã — NÃO gravar rotação extra no ficheiro de cache (evita dupla rotação).
-        val portraitMount = MediaViewportRotation.isPortraitMount(displayRotation)
-        val viewportPortrait = MediaViewportRotation.isViewportPortrait(context)
-        if (portraitMount && !viewportPortrait) {
-            PlayerAdLogger.i(
-                "CACHE",
-                "Skip normalização cache ${file.name}: viewport landscape + mount portrait " +
-                    "(fallback visual no ecrã) ${width}x${height}",
             )
             return Result(file, file.length(), rotated = false, orientationReady = true)
         }

@@ -604,6 +604,27 @@ class DebugConfigActivity : AppCompatActivity() {
         val mode = PlayerConfigLoader.displayRotationToMode(to)
         val preview = base.copy(displayRotation = to, screenOrientation = mode)
         applyConfigOrientationPreview(preview.displayRotation)
+        // Grava já no toque CW/CCW — senão o preview não chega ao player se "Aplicar" falhar/bloquear.
+        persistOrientationNow(preview)
+    }
+
+    private fun persistOrientationNow(cfg: br.com.smartchannel.playerad.config.PlayerConfig) {
+        try {
+            val saveResult = PlayerConfigStore.save(this, cfg)
+            br.com.smartchannel.playerad.util.SystemDisplayRotation.apply(this, cfg.displayRotation)
+            if (!saveResult.externalOk && saveResult.internalOk) {
+                appendStatus("(orientação gravada só em filesDir — SD sem permissão)")
+            } else {
+                appendStatus("Orientação gravada")
+            }
+            PlayerAdLogger.i(
+                "ORIENT",
+                "Persistido mount=${cfg.displayRotation} internal=${saveResult.internalOk} sd=${saveResult.externalOk}",
+            )
+        } catch (e: Exception) {
+            appendStatus("Falha ao gravar orientação: ${e.message}")
+            PlayerAdLogger.e("ORIENT", "Falha ao persistir orientação", e)
+        }
     }
 
     private fun applyConfigOrientationPreview(displayRotation: Int) {
@@ -685,10 +706,10 @@ class DebugConfigActivity : AppCompatActivity() {
     }
 
     private fun updateApplyButtonState() {
+        // Permitir gravar/sair sempre que a config for válida (heartbeat é aviso, não bloqueio).
         val configValid = readConfigOrNull() != null
-        val canApply = if (onboarding) configValid else (configValid && heartbeatOk)
-        btnApplyAndStart.isEnabled = canApply
-        btnApplyAndStart.alpha = if (canApply) 1f else 0.5f
+        btnApplyAndStart.isEnabled = configValid
+        btnApplyAndStart.alpha = if (configValid) 1f else 0.5f
     }
 
     private fun setHeartbeatAndDispatchState(heartbeatOk: Boolean, dispatchOk: Boolean) {

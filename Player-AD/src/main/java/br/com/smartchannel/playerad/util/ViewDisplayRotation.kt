@@ -54,19 +54,15 @@ object ViewDisplayRotation {
             val sig2 = "$normalized|$w2|$h2"
             if (lastRootIdentity == System.identityHashCode(target) && lastSignature == sig2) return@post
 
+            // TV portrait física + framebuffer landscape (Allwinner): 270° em mount 0
+            // deixa o conteúdo em pé; 90° ficava de cabeça para baixo no painel Panasonic.
             when (normalized) {
-                0 -> applyQuarterTurn(target, 90f, w2, h2)
+                0 -> applyQuarterTurn(target, 270f, w2, h2)
                 2 -> applyHalfTurn(target, w2, h2)
-                else -> applyQuarterTurn(target, 270f, w2, h2)
+                else -> applyQuarterTurn(target, 90f, w2, h2)
             }
             lastRootIdentity = System.identityHashCode(target)
             lastSignature = sig2
-            PlayerAdLogger.i(
-                "KIOSK",
-                "Fallback visual: ${normalized * 90}° screen=${w2}x${h2} " +
-                    "host=${target.width}x${target.height} " +
-                    "tx=${target.translationX.toInt()} ty=${target.translationY.toInt()}",
-            )
         }
     }
 
@@ -85,6 +81,12 @@ object ViewDisplayRotation {
             target.rotation = degrees
             target.translationX = (screenW - vw) / 2f
             target.translationY = (screenH - vh) / 2f
+            PlayerAdLogger.i(
+                "KIOSK",
+                "Fallback visual aplicado: viewRot=${degrees.toInt()}° " +
+                    "screen=${screenW}x${screenH} host=${vw}x${vh} " +
+                    "tx=${target.translationX.toInt()} ty=${target.translationY.toInt()}",
+            )
         }
     }
 
@@ -99,6 +101,11 @@ object ViewDisplayRotation {
             target.rotation = 180f
             target.translationX = 0f
             target.translationY = 0f
+            PlayerAdLogger.i(
+                "KIOSK",
+                "Fallback visual aplicado: viewRot=180° " +
+                    "screen=${screenW}x${screenH} host=${vw}x${vh}",
+            )
         }
     }
 

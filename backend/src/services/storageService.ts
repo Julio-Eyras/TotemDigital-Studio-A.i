@@ -24,12 +24,32 @@ export class StorageService {
   private uploadsPath: string = '';
 
   constructor() {
-    // SEMPRE usar /opt/smart-signage para garantir consistência
-    // Mesmo que INSTALL_DIR seja diferente, arquivos devem ser salvos em /opt/smart-signage
+    // Produção clássica; multi-instância (dev/teste) usa ASSETS_BASE_PATH / UPLOAD_PATH / media.storage.path
     const DEFAULT_BASE_PATH = '/opt/smart-signage/public/assets';
-    
-    // Inicializar paths
     this.initializePaths(DEFAULT_BASE_PATH);
+  }
+
+  /**
+   * Aceita storage de produção e de instâncias isoladas (totemdigital-dev / totemdigital-test).
+   * Antes forçava /opt/smart-signage e o nginx da instância dev lia outro path → 404 no player.
+   */
+  private isAllowedStorageBase(basePath: string): boolean {
+    const normalized = path.resolve(basePath).replace(/\\/g, '/');
+    return (
+      normalized.startsWith('/opt/smart-signage/') ||
+      normalized === '/opt/smart-signage' ||
+      normalized.startsWith('/opt/totemdigital-dev/') ||
+      normalized === '/opt/totemdigital-dev' ||
+      normalized.startsWith('/opt/totemdigital-test/') ||
+      normalized === '/opt/totemdigital-test' ||
+      // Dev local / CI
+      normalized.includes('/public/assets')
+    );
+  }
+
+  private resolveUploadsToBase(uploadsOrBase: string): string {
+    const resolved = path.resolve(uploadsOrBase).replace(/\\/g, '/');
+    return resolved.replace(/\/uploads\/?$/, '');
   }
 
   /**
@@ -37,42 +57,52 @@ export class StorageService {
    */
   private initializePaths(DEFAULT_BASE_PATH: string): void {
     try {
+      // 1) Env da instância (instalador multi-agência) tem prioridade
+      const envAssets = process.env.ASSETS_BASE_PATH?.trim();
+      const envUpload = process.env.UPLOAD_PATH?.trim();
+      if (envAssets && this.isAllowedStorageBase(envAssets)) {
+        this.basePath = path.resolve(envAssets).replace(/\\/g, '/');
+        this.uploadsPath = path.join(this.basePath, 'uploads');
+        logInfoSync(`[StorageService] Usando ASSETS_BASE_PATH: ${this.uploadsPath}`);
+        logInfoSync(`[StorageService] Caminho final configurado: basePath=${this.basePath}, uploadsPath=${this.uploadsPath}`);
+        return;
+      }
+      if (envUpload && this.isAllowedStorageBase(envUpload)) {
+        this.basePath = this.resolveUploadsToBase(envUpload);
+        this.uploadsPath = path.join(this.basePath, 'uploads');
+        logInfoSync(`[StorageService] Usando UPLOAD_PATH: ${this.uploadsPath}`);
+        logInfoSync(`[StorageService] Caminho final configurado: basePath=${this.basePath}, uploadsPath=${this.uploadsPath}`);
+        return;
+      }
+
       const { getStoragePath } = require('../config/mediaConfig');
       const storagePath = getStoragePath();
       logDebugSync(`[StorageService] getStoragePath() retornou: ${storagePath}`);
-      
-      // getStoragePath retorna o caminho completo até uploads, então precisamos extrair o basePath
-      // Ex: /opt/smart-signage/public/assets/uploads -> /opt/smart-signage/public/assets
-      const extractedBasePath = storagePath.replace(/\/uploads\/?$/, '');
-      
-      // Validar se o caminho extraído é válido e aponta para /opt/smart-signage
-      if (extractedBasePath && extractedBasePath.startsWith('/opt/smart-signage')) {
+
+      // getStoragePath → .../uploads ; extrair base (.../public/assets)
+      const extractedBasePath = this.resolveUploadsToBase(String(storagePath || ''));
+
+      if (extractedBasePath && this.isAllowedStorageBase(extractedBasePath)) {
         this.basePath = extractedBasePath;
         this.uploadsPath = path.join(this.basePath, 'uploads');
         logInfoSync(`[StorageService] Usando caminho do mediaConfig: ${this.uploadsPath}`);
       } else {
-        // Se não for /opt/smart-signage, forçar para o padrão
-        logWarnSync(`[StorageService] Caminho do mediaConfig não é /opt/smart-signage: ${extractedBasePath}`);
-        logWarnSync(`   Forçando uso de: ${DEFAULT_BASE_PATH}`);
+        logWarnSync(`[StorageService] Caminho do mediaConfig inválido: ${extractedBasePath}`);
+        logWarnSync(`   Usando padrão: ${DEFAULT_BASE_PATH}`);
         this.basePath = DEFAULT_BASE_PATH;
         this.uploadsPath = path.join(this.basePath, 'uploads');
       }
     } catch (error: any) {
-      // Fallback se mediaConfig não estiver disponível
       logWarnSync(`[StorageService] Erro ao obter getStoragePath(): ${error.message}`);
-      logWarnSync(`   Usando caminho padrão: ${DEFAULT_BASE_PATH}`);
-      this.basePath = process.env.UPLOAD_PATH || DEFAULT_BASE_PATH;
-      
-      // Garantir que sempre use /opt/smart-signage mesmo se UPLOAD_PATH estiver errado
-      if (!this.basePath.startsWith('/opt/smart-signage')) {
-        logWarnSync(`[StorageService] UPLOAD_PATH não aponta para /opt/smart-signage: ${this.basePath}`);
-        logWarnSync(`   Forçando uso de: ${DEFAULT_BASE_PATH}`);
+      const fallback = process.env.ASSETS_BASE_PATH || process.env.UPLOAD_PATH || DEFAULT_BASE_PATH;
+      this.basePath = this.resolveUploadsToBase(fallback);
+      if (!this.isAllowedStorageBase(this.basePath)) {
+        logWarnSync(`[StorageService] Fallback fora de /opt permitido: ${this.basePath} → ${DEFAULT_BASE_PATH}`);
         this.basePath = DEFAULT_BASE_PATH;
       }
-      
       this.uploadsPath = path.join(this.basePath, 'uploads');
     }
-    
+
     logInfoSync(`[StorageService] Caminho final configurado: basePath=${this.basePath}, uploadsPath=${this.uploadsPath}`);
   }
 

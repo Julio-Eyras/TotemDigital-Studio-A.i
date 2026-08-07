@@ -116,7 +116,12 @@ class MainActivity : AppCompatActivity() {
         playbackJob?.cancel()
         playbackJob = null
         try {
+            playerController?.release()
+        } catch (_: Exception) { }
+        playerController = null
+        try {
             exoPlayer.stop()
+            exoPlayer.clearMediaItems()
         } catch (_: Exception) { }
 
         KioskController.releaseLockTask(this)
@@ -141,9 +146,13 @@ class MainActivity : AppCompatActivity() {
         }
         playbackJob?.cancel()
         playbackJob = null
+        try {
+            playerController?.release()
+        } catch (_: Exception) { }
         playerController = null
         try {
             exoPlayer.stop()
+            exoPlayer.clearMediaItems()
         } catch (_: Exception) { }
         startPlayer()
     }
@@ -234,9 +243,13 @@ class MainActivity : AppCompatActivity() {
             PlayerAdLogger.w("STORAGE", "A reiniciar player após $action")
             playbackJob?.cancel()
             playbackJob = null
+            try {
+                playerController?.release()
+            } catch (_: Exception) { }
             playerController = null
             try {
                 exoPlayer.stop()
+                exoPlayer.clearMediaItems()
             } catch (_: Exception) { }
             ensureStorageRootMigrated()
             val cfg = PlayerConfigLoader(this@MainActivity).load()
@@ -328,7 +341,9 @@ class MainActivity : AppCompatActivity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         if (devUiOpen) return
-        kioskConfig?.let { KioskController.applyPlayback(this, it) }
+        // Não reaplicar DisplayPresentation/ViewDisplayRotation aqui — métricas oscilam
+        // (648/672/720) e o re-layout parece reinício constante do app.
+        kioskConfig?.let { KioskController.ensureForegroundChrome(this, it) }
     }
 
     override fun onPause() {
@@ -418,7 +433,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val DEV_TAPS_REQUIRED = 5
-        private const val WATCHDOG_RESTART_DELAY_MS = 30_000L
+        private const val WATCHDOG_RESTART_DELAY_MS = 2_000L
         private const val STORAGE_CHANGE_DEBOUNCE_MS = 1_500L
     }
 }

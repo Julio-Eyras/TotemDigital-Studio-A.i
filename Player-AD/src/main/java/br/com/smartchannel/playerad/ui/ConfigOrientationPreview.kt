@@ -45,11 +45,12 @@ object ConfigOrientationPreview {
 
     /** Buffer landscape (ex.: 1280×672 em TV box com user_rotation portrait). */
     private fun applyLandscapeBuffer(target: View, normalized: Int, slotW: Int, slotH: Int) {
+        // Mesmos graus que [ViewDisplayRotation] (painel portrait físico).
         when (normalized) {
-            0 -> applyQuarterTurn(target, 90f, slotW, slotH)
+            0 -> applyQuarterTurn(target, 270f, slotW, slotH)
             1 -> Unit // já em reset
             2 -> applyHalfTurn(target, slotW, slotH)
-            else -> applyQuarterTurn(target, 270f, slotW, slotH)
+            else -> applyQuarterTurn(target, 90f, slotW, slotH)
         }
     }
 
