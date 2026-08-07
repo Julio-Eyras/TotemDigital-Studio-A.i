@@ -2084,8 +2084,9 @@ class PlayerController(
         } catch (_: Exception) { }
 
         val playbackTimeoutMs = videoWatchdogTimeoutMs(item)
+        val restartOnEnd = shouldRestartVideoOnEnd(plan, item)
         val playedMs = withTimeoutOrNull(playbackTimeoutMs) {
-            waitForPlaybackEnd()
+            waitForPlaybackEnd(restartOnEnd = restartOnEnd)
         } ?: run {
             val currentPosition = exoPlayer.currentPosition
             PlayerAdLogger.w(
@@ -2132,6 +2133,16 @@ class PlayerController(
     }
 
     /**
+     * Playlist de 1 vídeo (ou só o mesmo mediaId): no ENDED fazer seek(0) já,
+     * antes do heartbeat — senão o shutter preto fica visível no intervalo.
+     */
+    private fun shouldRestartVideoOnEnd(plan: DispatchPlan, item: DispatchMediaItem): Boolean {
+        if (item.mediaId <= 0L || plan.mediaItems.isEmpty()) return false
+        if (!isVideoOrAudioPlaybackType(item.mediaType, item.url)) return false
+        return plan.mediaItems.all { it.mediaId == item.mediaId }
+    }
+
+    /**
      * Mesmo mediaId já carregado: seek(0) + play sem véu/teardown (elimina flick no loop de 1 item).
      */
     private suspend fun playVideoSeamlessReplay(
@@ -2140,10 +2151,56 @@ class PlayerController(
         token: String,
     ): String {
         var t = token
-        PlayerAdLogger.i(
-            "PLAYBACK",
-            "Vídeo contínuo mediaId=${item.mediaId} — seek(0) sem transição"
-        )
+        applyPlaybackVolumePolicy()
+
+        // Se waitForPlaybackEnd já fez seek(0) no ENDED, o vídeo já está a tocar —
+        // novo seek aqui (mesmo a meio do clip) provoca flick.
+        val alreadyPlaying =
+            exoPlayer.playWhenReady &&
+                exoPlayer.playerError == null &&
+                exoPlayer.playbackState != Player.STATE_ENDED &&
+                exoPlayer.playbackState != Player.STATE_IDLE
+
+        if (alreadyPlaying) {
+            PlayerAdLogger.i(
+                "PLAYBACK",
+                "Vídeo contínuo mediaId=${item.mediaId} — já em reprodução pós-ENDED (sem seek)",
+            )
+        } else {
+            PlayerAdLogger.i(
+                "PLAYBACK",
+                "Vídeo contínuo mediaId=${item.mediaId} — seek(0) sem transição",
+            )
+            try {
+                exoPlayer.seekTo(0L)
+                exoPlayer.playWhenReady = true
+                if (exoPlayer.playbackState == Player.STATE_IDLE) {
+                    exoPlayer.prepare()
+                    exoPlayer.playWhenReady = true
+                }
+                withTimeoutOrNull(3_000L) {
+                    while (exoPlayer.playbackState == Player.STATE_ENDED) {
+                        delay(16L)
+                    }
+                }
+                awaitPlayerReady(3_000L)
+            } catch (e: Exception) {
+                PlayerAdLogger.e(
+                    "PLAYBACK",
+                    "Falha no replay contínuo; força troca completa no próximo ciclo",
+                    e,
+                )
+                activeVideoMediaId = -1L
+                activeVideoContentVersion = null
+                try {
+                    exoPlayer.seekTo(0L)
+                    exoPlayer.prepare()
+                    exoPlayer.playWhenReady = true
+                    awaitPlayerReady(3_000L)
+                } catch (_: Exception) { }
+            }
+        }
+
         PlayerAdLogger.logPlaybackStart(
             "vídeo",
             item.mediaId,
@@ -2151,34 +2208,6 @@ class PlayerController(
             plan.playlistId
         )
         setNowPlaying("video", item, plan.playlistName)
-        applyPlaybackVolumePolicy()
-
-        try {
-            exoPlayer.seekTo(0L)
-            exoPlayer.playWhenReady = true
-            if (exoPlayer.playbackState == Player.STATE_IDLE) {
-                exoPlayer.prepare()
-                exoPlayer.playWhenReady = true
-            }
-            // seek a partir de ENDED é assíncrono — não chamar waitForPlaybackEnd
-            // enquanto ainda STATE_ENDED (sairia de imediato sem tocar de novo).
-            withTimeoutOrNull(3_000L) {
-                while (exoPlayer.playbackState == Player.STATE_ENDED) {
-                    delay(16L)
-                }
-            }
-            awaitPlayerReady(3_000L)
-        } catch (e: Exception) {
-            PlayerAdLogger.e("PLAYBACK", "Falha no replay contínuo; força troca completa no próximo ciclo", e)
-            activeVideoMediaId = -1L
-            activeVideoContentVersion = null
-            try {
-                exoPlayer.seekTo(0L)
-                exoPlayer.prepare()
-                exoPlayer.playWhenReady = true
-                awaitPlayerReady(3_000L)
-            } catch (_: Exception) { }
-        }
 
         try {
             t = withTimeoutOrNull(5_000L) {
@@ -2196,8 +2225,9 @@ class PlayerController(
         } catch (_: Exception) { }
 
         val playbackTimeoutMs = videoWatchdogTimeoutMs(item)
+        val restartOnEnd = shouldRestartVideoOnEnd(plan, item)
         val playedMs = withTimeoutOrNull(playbackTimeoutMs) {
-            waitForPlaybackEnd()
+            waitForPlaybackEnd(restartOnEnd = restartOnEnd)
         } ?: run {
             val currentPosition = exoPlayer.currentPosition
             PlayerAdLogger.w(
@@ -2945,22 +2975,48 @@ class PlayerController(
         }
     }
 
-    private suspend fun waitForPlaybackEnd(): Long = suspendCancellableCoroutine { cont ->
-        fun finish() {
+    private suspend fun waitForPlaybackEnd(restartOnEnd: Boolean = false): Long =
+        suspendCancellableCoroutine { cont ->
+        fun finish(playedMs: Long) {
             if (cont.isActive) {
-                cont.resume(exoPlayer.currentPosition.coerceAtLeast(0L))
+                cont.resume(playedMs.coerceAtLeast(0L))
+            }
+        }
+
+        fun playedPositionMs(): Long {
+            val duration = exoPlayer.duration
+            if (duration > 0L) return duration
+            return exoPlayer.currentPosition.coerceAtLeast(0L)
+        }
+
+        fun restartSeamlessIfNeeded() {
+            if (!restartOnEnd) return
+            try {
+                // Seek imediato no ENDED — o heartbeat/dispatch corre depois, sem ecrã preto.
+                exoPlayer.seekTo(0L)
+                exoPlayer.playWhenReady = true
+                PlayerAdLogger.i(
+                    "PLAYBACK",
+                    "Loop seamless: seek(0) no ENDED (evita flick preto entre ciclos)",
+                )
+            } catch (e: Exception) {
+                PlayerAdLogger.w("PLAYBACK", "seek(0) no ENDED falhou: ${e.message}")
             }
         }
 
         // Erro/estado já ocorreram (ex.: 404 durante sendEvent) — não bloquear o loop.
-        if (exoPlayer.playerError != null || exoPlayer.playbackState == Player.STATE_ENDED) {
-            if (exoPlayer.playerError != null) {
-                PlayerAdLogger.w(
-                    "PLAYBACK",
-                    "Erro ExoPlayer já presente: ${exoPlayer.playerError?.message}",
-                )
-            }
-            finish()
+        if (exoPlayer.playerError != null) {
+            PlayerAdLogger.w(
+                "PLAYBACK",
+                "Erro ExoPlayer já presente: ${exoPlayer.playerError?.message}",
+            )
+            finish(playedPositionMs())
+            return@suspendCancellableCoroutine
+        }
+        if (exoPlayer.playbackState == Player.STATE_ENDED) {
+            val played = playedPositionMs()
+            restartSeamlessIfNeeded()
+            finish(played)
             return@suspendCancellableCoroutine
         }
 
@@ -2968,21 +3024,30 @@ class PlayerController(
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_ENDED) {
                     exoPlayer.removeListener(this)
-                    finish()
+                    val played = playedPositionMs()
+                    restartSeamlessIfNeeded()
+                    finish(played)
                 }
             }
 
             override fun onPlayerError(error: PlaybackException) {
                 exoPlayer.removeListener(this)
                 PlayerAdLogger.w("PLAYBACK", "Erro ExoPlayer: ${error.message}")
-                finish()
+                finish(playedPositionMs())
             }
         }
         exoPlayer.addListener(listener)
         // Revalidar após registar (race com thread do ExoPlayer).
-        if (exoPlayer.playerError != null || exoPlayer.playbackState == Player.STATE_ENDED) {
+        if (exoPlayer.playerError != null) {
             exoPlayer.removeListener(listener)
-            finish()
+            finish(playedPositionMs())
+            return@suspendCancellableCoroutine
+        }
+        if (exoPlayer.playbackState == Player.STATE_ENDED) {
+            exoPlayer.removeListener(listener)
+            val played = playedPositionMs()
+            restartSeamlessIfNeeded()
+            finish(played)
             return@suspendCancellableCoroutine
         }
         cont.invokeOnCancellation { exoPlayer.removeListener(listener) }
