@@ -36,12 +36,19 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.channels.Channel
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -130,6 +137,8 @@ class PlayerController(
         activeImageMediaId = -1L
         heartbeatPollRef = null
         dispatchPollRef = null
+        telemetryQueue.close()
+        telemetryScope.cancel()
         try {
             MediaViewportRotation.resetPlayerView(playerView)
             MediaViewportRotation.resetView(imageView)
@@ -224,6 +233,80 @@ class PlayerController(
         get() = AppDirs.propagandas(context)
 
     private lateinit var eventsClient: PlayerEventsClient
+    private val telemetryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val telemetryQueue = Channel<PlaybackTelemetryEvent>(capacity = 128)
+    @Volatile
+    private var telemetryWorkerStarted = false
+
+    private data class PlaybackTelemetryEvent(
+        val eventType: String,
+        val mediaId: Long?,
+        val playlistId: Long?,
+        val campaignId: Long?,
+        val durationSeconds: Long?,
+        val completed: Boolean?,
+        val metadata: Map<String, Any?> = emptyMap(),
+    )
+
+    /**
+     * Telemetria nunca pode bloquear troca/reprodução. Um único worker preserva a ordem
+     * start→end sem colocar HTTP (até 8 s/retry) no caminho crítico do ExoPlayer.
+     */
+    private fun startTelemetryWorker() {
+        if (telemetryWorkerStarted) return
+        telemetryWorkerStarted = true
+        telemetryScope.launch {
+            var token = apiClient.cachedToken().orEmpty()
+            for (event in telemetryQueue) {
+                if (released) break
+                try {
+                    token = eventsClient.sendEvent(
+                        token = apiClient.cachedToken()?.takeIf { it.isNotBlank() } ?: token,
+                        eventType = event.eventType,
+                        mediaId = event.mediaId,
+                        playlistId = event.playlistId,
+                        campaignId = event.campaignId,
+                        durationSeconds = event.durationSeconds,
+                        completed = event.completed,
+                        metadata = event.metadata,
+                    )
+                } catch (e: Exception) {
+                    PlayerAdLogger.w(
+                        "EVENT",
+                        "Telemetria ${event.eventType} falhou mediaId=${event.mediaId}: ${e.message}",
+                    )
+                }
+            }
+        }
+    }
+
+    private fun enqueuePlaybackEvent(
+        eventType: String,
+        mediaId: Long?,
+        playlistId: Long?,
+        campaignId: Long?,
+        durationSeconds: Long? = null,
+        completed: Boolean? = null,
+        metadata: Map<String, Any?> = emptyMap(),
+    ) {
+        val result = telemetryQueue.trySend(
+            PlaybackTelemetryEvent(
+                eventType = eventType,
+                mediaId = mediaId,
+                playlistId = playlistId,
+                campaignId = campaignId,
+                durationSeconds = durationSeconds,
+                completed = completed,
+                metadata = metadata,
+            ),
+        )
+        if (result.isFailure) {
+            PlayerAdLogger.w(
+                "EVENT",
+                "Fila de telemetria cheia/fechada; descartado $eventType mediaId=$mediaId",
+            )
+        }
+    }
 
     /**
      * Obtém token, faz dispatch e começa o loop de playback.
@@ -237,6 +320,7 @@ class PlayerController(
             deviceId = apiClient.deviceId,
             dispatcher = apiClient
         )
+        startTelemetryWorker()
 
         PlayerAdLogger.i("LIFECYCLE", "(1) Heartbeat inicial — token/sessão (GET /token se necessário + POST /heartbeat)")
         var sessionToken = apiClient.cachedToken() ?: ""
@@ -707,10 +791,77 @@ class PlayerController(
         var emptyPlanBackoffMs = 5_000L
         var index = 0
         var planSignature = planContentSignature(plan)
+        var serverPollJob: Deferred<ServerPollCycleResult>? = null
         applyPlaybackVolumePolicy()
         while (true) {
             heartbeatPoll.setIdleMode(displayIdle)
             dispatchPoll.setIdleMode(displayIdle)
+
+            // Aplicar resultado pronto sem esperar rede entre duas mídias.
+            val completedPoll = serverPollJob
+            if (completedPoll?.isCompleted == true) {
+                try {
+                    val result = completedPoll.await()
+                    currentToken = result.token
+                    when {
+                        result.busyPlan != null -> {
+                            currentPlan = result.busyPlan
+                            index = result.busyIndex.coerceIn(
+                                0,
+                                (currentPlan.mediaItems.size - 1).coerceAtLeast(0),
+                            )
+                            planSignature = result.signature ?: planContentSignature(currentPlan)
+                            currentPlanSource = PlanSource.ONLINE
+                        }
+                        result.quietPlan != null -> {
+                            currentPlan = result.quietPlan
+                            planSignature = result.signature ?: planContentSignature(currentPlan)
+                            currentPlanSource = PlanSource.ONLINE
+                            if (index >= currentPlan.mediaItems.size) index = 0
+                        }
+                    }
+                } catch (e: Exception) {
+                    PlayerAdLogger.w("POLL", "Poll assíncrono terminou com erro: ${e.message}")
+                }
+                serverPollJob = null
+            }
+
+            // Heartbeat/dispatch corre durante a mídia atual. O resultado só é aplicado
+            // no início de uma iteração futura; nunca bloqueia a troca visual.
+            if (serverPollJob == null && !released) {
+                val pollToken = currentToken
+                val pollIndex = index
+                val pollSignature = planSignature
+                serverPollJob = telemetryScope.async {
+                    var busyPlan: DispatchPlan? = null
+                    var busyIndex = pollIndex
+                    var quietPlan: DispatchPlan? = null
+                    var resultSignature: String? = null
+                    val updatedToken = runDueServerPolls(
+                        pollToken,
+                        heartbeatPoll,
+                        dispatchPoll,
+                        currentIndex = pollIndex,
+                        currentSignature = pollSignature,
+                        onBusyPlan = { newPlan, newIndex, newSig ->
+                            busyPlan = newPlan
+                            busyIndex = newIndex
+                            resultSignature = newSig
+                        },
+                        onQuietPlan = { newPlan, newSig ->
+                            quietPlan = newPlan
+                            resultSignature = newSig
+                        },
+                    )
+                    ServerPollCycleResult(
+                        token = updatedToken,
+                        busyPlan = busyPlan,
+                        busyIndex = busyIndex,
+                        quietPlan = quietPlan,
+                        signature = resultSignature,
+                    )
+                }
+            }
 
             if (currentPlan.mediaItems.isEmpty()) {
                 val persistedPlan = loadDispatchPlanFromDisk()?.let { applyVinhetaMixToDispatchPlan(parseDispatchPlan(it)) }
@@ -764,26 +915,6 @@ class PlayerController(
                 enterDisplayIdle()
                 maybeDisplayKeepAlive()
                 delay(1_000L)
-                // Poll mesmo em idle (fora do horário), sem bloquear troca de mídia.
-                currentToken = runDueServerPolls(
-                    currentToken,
-                    heartbeatPoll,
-                    dispatchPoll,
-                    currentIndex = index,
-                    currentSignature = planSignature,
-                    onBusyPlan = { newPlan, newIndex, newSig ->
-                        currentPlan = newPlan
-                        index = newIndex
-                        planSignature = newSig
-                        currentPlanSource = PlanSource.ONLINE
-                    },
-                    onQuietPlan = { newPlan, newSig ->
-                        currentPlan = newPlan
-                        planSignature = newSig
-                        currentPlanSource = PlanSource.ONLINE
-                        if (index >= currentPlan.mediaItems.size) index = 0
-                    },
-                )
                 if (remountLoopRequested) {
                     PlayerAdLogger.w("WATCHDOG", "Saindo do playLoop (idle) para remount")
                     break
@@ -804,26 +935,6 @@ class PlayerController(
                 )
             }
 
-            // 2) Heartbeat/dispatch DEPOIS da mídia — evita ecrã vazio durante a rede.
-            currentToken = runDueServerPolls(
-                currentToken,
-                heartbeatPoll,
-                dispatchPoll,
-                currentIndex = index,
-                currentSignature = planSignature,
-                onBusyPlan = { newPlan, newIndex, newSig ->
-                    currentPlan = newPlan
-                    index = newIndex
-                    planSignature = newSig
-                    currentPlanSource = PlanSource.ONLINE
-                },
-                onQuietPlan = { newPlan, newSig ->
-                    currentPlan = newPlan
-                    planSignature = newSig
-                    currentPlanSource = PlanSource.ONLINE
-                    if (index >= currentPlan.mediaItems.size) index = 0
-                },
-            )
             if (remountLoopRequested) {
                 PlayerAdLogger.w("WATCHDOG", "Saindo do playLoop para remount do controller")
                 break
@@ -1046,6 +1157,14 @@ class PlayerController(
         val token: String,
         val plan: DispatchPlan,
         val planVersion: String? = null,
+    )
+
+    private data class ServerPollCycleResult(
+        val token: String,
+        val busyPlan: DispatchPlan? = null,
+        val busyIndex: Int = 0,
+        val quietPlan: DispatchPlan? = null,
+        val signature: String? = null,
     )
 
     private suspend fun refreshPlanAfterRemoteCommand(
@@ -1975,18 +2094,12 @@ class PlayerController(
                 activeImageMediaId = -1L
             }
 
-            try {
-                t = eventsClient.sendEvent(
-                    token = t,
-                    eventType = "image_display",
-                    mediaId = item.mediaId,
-                    playlistId = plan.playlistId,
-                    campaignId = plan.campaignId,
-                    durationSeconds = null,
-                    completed = null,
-                    metadata = emptyMap()
-                )
-            } catch (_: Exception) { }
+            enqueuePlaybackEvent(
+                eventType = "image_display",
+                mediaId = item.mediaId,
+                playlistId = plan.playlistId,
+                campaignId = plan.campaignId,
+            )
 
             delay(durationMs)
             // Não esconder aqui — o próximo playItem faz a troca com conteúdo novo já pronto.
@@ -2068,20 +2181,12 @@ class PlayerController(
         activeVideoMediaId = item.mediaId
         activeVideoContentVersion = item.contentVersion
 
-        try {
-            t = withTimeoutOrNull(5_000L) {
-                eventsClient.sendEvent(
-                    token = t,
-                    eventType = "video_playback_start",
-                    mediaId = item.mediaId,
-                    playlistId = plan.playlistId,
-                    campaignId = plan.campaignId,
-                    durationSeconds = null,
-                    completed = null,
-                    metadata = emptyMap()
-                )
-            } ?: t
-        } catch (_: Exception) { }
+        enqueuePlaybackEvent(
+            eventType = "video_playback_start",
+            mediaId = item.mediaId,
+            playlistId = plan.playlistId,
+            campaignId = plan.campaignId,
+        )
 
         val playbackTimeoutMs = videoWatchdogTimeoutMs(item)
         val restartOnEnd = shouldRestartVideoOnEnd(plan, item)
@@ -2105,18 +2210,14 @@ class PlayerController(
         )
 
         // Não stop() aqui — próximo item (ou imagem) assume com último frame ainda no TextureView.
-        try {
-            t = eventsClient.sendEvent(
-                token = t,
-                eventType = "video_playback_end",
-                mediaId = item.mediaId,
-                playlistId = plan.playlistId,
-                campaignId = plan.campaignId,
-                durationSeconds = (playedMs / 1000L).coerceAtLeast(0L),
-                completed = true,
-                metadata = emptyMap()
-            )
-        } catch (_: Exception) { }
+        enqueuePlaybackEvent(
+            eventType = "video_playback_end",
+            mediaId = item.mediaId,
+            playlistId = plan.playlistId,
+            campaignId = plan.campaignId,
+            durationSeconds = (playedMs / 1000L).coerceAtLeast(0L),
+            completed = true,
+        )
         return t
     }
 
@@ -2209,20 +2310,12 @@ class PlayerController(
         )
         setNowPlaying("video", item, plan.playlistName)
 
-        try {
-            t = withTimeoutOrNull(5_000L) {
-                eventsClient.sendEvent(
-                    token = t,
-                    eventType = "video_playback_start",
-                    mediaId = item.mediaId,
-                    playlistId = plan.playlistId,
-                    campaignId = plan.campaignId,
-                    durationSeconds = null,
-                    completed = null,
-                    metadata = emptyMap()
-                )
-            } ?: t
-        } catch (_: Exception) { }
+        enqueuePlaybackEvent(
+            eventType = "video_playback_start",
+            mediaId = item.mediaId,
+            playlistId = plan.playlistId,
+            campaignId = plan.campaignId,
+        )
 
         val playbackTimeoutMs = videoWatchdogTimeoutMs(item)
         val restartOnEnd = shouldRestartVideoOnEnd(plan, item)
@@ -2245,18 +2338,14 @@ class PlayerController(
             (playedMs / 1000L).coerceAtLeast(0L)
         )
 
-        try {
-            t = eventsClient.sendEvent(
-                token = t,
-                eventType = "video_playback_end",
-                mediaId = item.mediaId,
-                playlistId = plan.playlistId,
-                campaignId = plan.campaignId,
-                durationSeconds = (playedMs / 1000L).coerceAtLeast(0L),
-                completed = true,
-                metadata = emptyMap()
-            )
-        } catch (_: Exception) { }
+        enqueuePlaybackEvent(
+            eventType = "video_playback_end",
+            mediaId = item.mediaId,
+            playlistId = plan.playlistId,
+            campaignId = plan.campaignId,
+            durationSeconds = (playedMs / 1000L).coerceAtLeast(0L),
+            completed = true,
+        )
         return t
     }
 
@@ -2299,18 +2388,12 @@ class PlayerController(
         )
         setNowPlaying("html", item, plan.playlistName)
 
-        try {
-            t = eventsClient.sendEvent(
-                token = t,
-                eventType = "html_display",
-                mediaId = item.mediaId,
-                playlistId = plan.playlistId,
-                campaignId = plan.campaignId,
-                durationSeconds = null,
-                completed = null,
-                metadata = emptyMap()
-            )
-        } catch (_: Exception) { }
+        enqueuePlaybackEvent(
+            eventType = "html_display",
+            mediaId = item.mediaId,
+            playlistId = plan.playlistId,
+            campaignId = plan.campaignId,
+        )
 
         val resolvedHttpUrl = apiClient.resolveUrl(item.url)
         val cachedFile = when {
