@@ -40,7 +40,7 @@ class AppConfigLoader(private val context: Context) {
     fun defaults(): AppConfig = AppConfig(
         serverUrl = "http://192.168.1.110",
         uin = "tot001",
-        deviceId = "android-ad-tot001",
+        deviceId = "ANDROID-AD-TOT001",
         mode = "hybrid",
         syncIntervalSeconds = 30,
         acceptImagesInPlaylist = true,
@@ -69,7 +69,7 @@ class AppConfigLoader(private val context: Context) {
         return try {
             val serverUrl = json.optString("serverUrl", "").trim()
             val uin = json.optString("uin", "").trim()
-            val deviceId = json.optString("deviceId", "").trim()
+            val deviceId = normalizeDeviceId(json.optString("deviceId", ""))
             if (serverUrl.isBlank() || uin.isBlank() || deviceId.isBlank()) return null
             val mode = json.optString("mode", "hybrid").ifBlank { "hybrid" }
             val sync = json.optInt("syncIntervalSeconds", 30).coerceAtLeast(5)
@@ -105,5 +105,10 @@ class AppConfigLoader(private val context: Context) {
             if (value.isNotBlank()) out += value
         }
         return out
+    }
+
+    companion object {
+        fun normalizeDeviceId(raw: String?): String =
+            raw.orEmpty().trim().uppercase()
     }
 }

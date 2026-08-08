@@ -2,7 +2,7 @@ class DispatcherApi {
   constructor(serverUrl, uin, deviceId) {
     this.serverUrl = String(serverUrl || "").replace(/\/$/, "");
     this.uin = uin;
-    this.deviceId = deviceId;
+    this.deviceId = String(deviceId || "").trim().toUpperCase();
     this.token = null;
   }
   qs(o) { return new URLSearchParams(o).toString(); }

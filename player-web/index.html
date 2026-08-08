@@ -497,7 +497,11 @@
             function getOrCreateDeviceId() {
                 try {
                     const saved = localStorage.getItem('smartsignage_device_id');
-                    if (saved) return saved;
+                    if (saved) {
+                        const normalized = String(saved).trim().toUpperCase();
+                        localStorage.setItem('smartsignage_device_id', normalized);
+                        return normalized;
+                    }
                 } catch (e) {}
 
                 const seed = [
@@ -513,7 +517,7 @@
                     hash = ((hash << 5) - hash) + seed.charCodeAt(i);
                     hash = hash & hash;
                 }
-                const deviceId = 'browser-player-' + Math.abs(hash).toString(16);
+                const deviceId = ('browser-player-' + Math.abs(hash).toString(16)).toUpperCase();
                 try {
                     localStorage.setItem('smartsignage_device_id', deviceId);
                 } catch (e) {}
@@ -618,7 +622,9 @@
                         if (window.APIClient) {
                             debugApiClient = new window.APIClient(API_BASE, debugUin, '');
                             debugApiClient.token = debugToken;
-                            debugApiClient.deviceId = debugApiClient.deviceId || 'debug-web-player';
+                            debugApiClient.deviceId = String(
+                                debugApiClient.deviceId || 'debug-web-player'
+                            ).trim().toUpperCase();
                             log('info', 'APIClient de debug inicializado', {
                                 baseURL: API_BASE,
                                 uin: debugUin,

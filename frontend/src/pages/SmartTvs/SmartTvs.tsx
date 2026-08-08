@@ -555,7 +555,7 @@ const SmartTvs: React.FC = () => {
               name="device_id"
               label="ID do Dispositivo"
               value={newSmartTv.device_id}
-              onChange={(e) => setNewSmartTv({ ...newSmartTv, device_id: e.target.value })}
+              onChange={(e) => setNewSmartTv({ ...newSmartTv, device_id: e.target.value.toUpperCase() })}
               fullWidth
             />
             <TextField
@@ -706,7 +706,7 @@ const SmartTvs: React.FC = () => {
                 name="device_id"
                 label="ID do Dispositivo"
                 value={selectedSmartTv.device_id || ''}
-                onChange={(e) => setSelectedSmartTv({ ...selectedSmartTv, device_id: e.target.value })}
+                onChange={(e) => setSelectedSmartTv({ ...selectedSmartTv, device_id: e.target.value.toUpperCase() })}
                 fullWidth
               />
               <TextField

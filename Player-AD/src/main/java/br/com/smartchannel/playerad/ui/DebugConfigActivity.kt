@@ -504,7 +504,7 @@ class DebugConfigActivity : AppCompatActivity() {
     private fun readConfigOrNull(): PlayerConfig? {
         val serverUrl = editServerUrl.text?.toString()?.trim().orEmpty()
         val uin = PlayerConfigLoader.normalizeActivationCode(editUin.text?.toString())
-        val deviceId = editDeviceId.text?.toString()?.trim().orEmpty()
+        val deviceId = PlayerConfigLoader.normalizeDeviceId(editDeviceId.text?.toString())
         if (serverUrl.isBlank() || uin.isBlank() || deviceId.isBlank()) return null
         val loaded = PlayerConfigLoader(this).load()
         val modeRaw = spinnerStorage.selectedItem as? String

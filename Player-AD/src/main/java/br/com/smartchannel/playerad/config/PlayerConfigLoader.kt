@@ -36,7 +36,7 @@ class PlayerConfigLoader(private val context: Context) {
         return PlayerConfig(
             serverUrl = "https://totemdigital.app.br",
             uin = "T1000",
-            deviceId = "T1000-Exterminator",
+            deviceId = "T1000-EXTERMINATOR",
             acceptImagesInPlaylist = true,
             allowPlaybackAudio = false,
             mediaTransitionEnabled = 1,
@@ -59,7 +59,7 @@ class PlayerConfigLoader(private val context: Context) {
             val json = JSONObject(text)
             val serverUrl = json.optString("serverUrl", "").trim()
             val uin = normalizeActivationCode(json.optString("uin", ""))
-            val deviceId = json.optString("deviceId", "").trim()
+            val deviceId = normalizeDeviceId(json.optString("deviceId", ""))
             if (serverUrl.isBlank() || uin.isBlank() || deviceId.isBlank()) {
                 null
             } else {
@@ -273,6 +273,10 @@ class PlayerConfigLoader(private val context: Context) {
                 normalized
             }
         }
+
+        /** Device ID canônico: sem espaço externo e sempre em maiúsculas. */
+        fun normalizeDeviceId(raw: String?): String =
+            raw.orEmpty().trim().uppercase()
     }
 }
 

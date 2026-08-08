@@ -16,6 +16,7 @@ import { assertCompactOwnerPublisher } from '../utils/compactOwnerPublisher';
 import { isStudioRuntime } from '../config/installationRuntime';
 import { isDirectTotemMode } from '../config/directTotemMode';
 import { normalizeTotemUin } from '../utils/normalizeTotemUin';
+import { normalizeDeviceId } from '../utils/normalizeDeviceId';
 import { resolveCompactOwnerPublisherId } from '../utils/compactOwnerPublisher';
 import { userMayCreateTotem } from '../utils/totemCreateRoles';
 import { getTotemDirectMediaService } from './totemDirectMediaService';
@@ -678,6 +679,8 @@ export class TotemService {
    */
   async getTotemByDeviceId(deviceId: string): Promise<TotemResponse | null> {
     try {
+      const normalizedDeviceId = normalizeDeviceId(deviceId);
+      if (!normalizedDeviceId) return null;
       const totem = await this.db.findFirst(`
         SELECT 
           t.totem_id as id,
@@ -704,8 +707,8 @@ export class TotemService {
         FROM totems t
         LEFT JOIN locals l ON t.local_id = l.local_id
         LEFT JOIN publishers p ON l.publisher_id = p.publisher_id
-        WHERE t.device_id = $1
-      `, [deviceId]);
+        WHERE UPPER(TRIM(COALESCE(t.device_id, ''))) = $1
+      `, [normalizedDeviceId]);
 
       if (!totem) {
         return null;
@@ -751,6 +754,7 @@ export class TotemService {
       firmwareVersion, 
       isActive = true
     } = data;
+    const normalizedDeviceId = deviceId ? normalizeDeviceId(deviceId) : '';
 
     const totemIdentifier = identifier || name;
 
@@ -809,10 +813,11 @@ export class TotemService {
     }
 
     // Verificar se device ID já existe (se fornecido)
-    if (deviceId) {
+    if (normalizedDeviceId) {
       const existingDevice = await this.db.findFirst(`
-        SELECT totem_id FROM totems WHERE device_id = $1
-      `, [deviceId]);
+        SELECT totem_id FROM totems
+        WHERE UPPER(TRIM(COALESCE(device_id, ''))) = $1
+      `, [normalizedDeviceId]);
 
       if (existingDevice) {
         throw new Error('Device ID já existe');
@@ -884,7 +889,7 @@ export class TotemService {
         name || identifier,
         totemIdentifier,
         activationCode,
-        deviceId || null,
+        normalizedDeviceId || null,
         localId,
         contract_id || null,
         description || null,
@@ -1025,10 +1030,15 @@ export class TotemService {
         data.uin = normalizedUin || undefined;
       }
 
+      if (data.deviceId !== undefined) {
+        data.deviceId = normalizeDeviceId(data.deviceId);
+      }
+
       // Verificar se device ID já existe (se estiver sendo alterado)
-      if (data.deviceId && data.deviceId !== existingTotem.deviceId) {
+      if (data.deviceId && data.deviceId !== normalizeDeviceId(existingTotem.deviceId)) {
         const deviceIdExists = await this.db.findFirst(`
-          SELECT totem_id FROM totems WHERE device_id = $1 AND totem_id != $2
+          SELECT totem_id FROM totems
+          WHERE UPPER(TRIM(COALESCE(device_id, ''))) = $1 AND totem_id != $2
         `, [data.deviceId, totemId]);
 
         if (deviceIdExists) {
@@ -1058,7 +1068,7 @@ export class TotemService {
 
       if (data.deviceId !== undefined) {
         updates.push(`device_id = $${paramIndex++}`);
-        params.push(data.deviceId);
+        params.push(data.deviceId || null);
       }
 
       if (data.localId !== undefined) {
@@ -1086,6 +1096,9 @@ export class TotemService {
           throw new Error('playerSettings deve ser um objeto');
         }
         const patch = data.playerSettings as Record<string, unknown>;
+        if (patch.deviceId !== undefined) {
+          patch.deviceId = normalizeDeviceId(patch.deviceId);
+        }
         if (patch.displaySchedule !== undefined) {
           const err = validateDisplayScheduleInput(patch.displaySchedule);
           if (err) throw new Error(err);
@@ -1200,7 +1213,9 @@ export class TotemService {
             commandData.allowIdentityChange = true;
             if (patch.serverUrl !== undefined) commandData.serverUrl = patch.serverUrl;
             if (patch.uin !== undefined) commandData.uin = patch.uin;
-            if (patch.deviceId !== undefined) commandData.deviceId = patch.deviceId;
+            if (patch.deviceId !== undefined) {
+              commandData.deviceId = normalizeDeviceId(patch.deviceId);
+            }
           }
 
           if (Object.keys(commandData).length > 0) {

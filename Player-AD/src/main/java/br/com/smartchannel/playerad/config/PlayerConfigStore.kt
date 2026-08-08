@@ -26,7 +26,7 @@ object PlayerConfigStore {
     fun toJson(cfg: PlayerConfig): String = JSONObject().apply {
         put("serverUrl", cfg.serverUrl)
         put("uin", cfg.uin)
-        put("deviceId", cfg.deviceId)
+        put("deviceId", PlayerConfigLoader.normalizeDeviceId(cfg.deviceId))
         put("acceptImagesInPlaylist", cfg.acceptImagesInPlaylist)
         put("allowPlaybackAudio", cfg.allowPlaybackAudio)
         put(

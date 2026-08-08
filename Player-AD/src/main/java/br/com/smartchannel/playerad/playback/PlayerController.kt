@@ -1602,7 +1602,9 @@ class PlayerController(
             next.copy(
                 serverUrl = data.optString("serverUrl", next.serverUrl).ifBlank { next.serverUrl },
                 uin = data.optString("uin", next.uin).ifBlank { next.uin },
-                deviceId = data.optString("deviceId", next.deviceId).ifBlank { next.deviceId },
+                deviceId = br.com.smartchannel.playerad.config.PlayerConfigLoader.normalizeDeviceId(
+                    data.optString("deviceId", next.deviceId).ifBlank { next.deviceId },
+                ),
             )
         } else {
             next

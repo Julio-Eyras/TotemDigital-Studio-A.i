@@ -5,6 +5,8 @@
  * Versão com suporte a download de mídias para cache.
  */
 
+const normalizeDeviceId = (value) => String(value || '').trim().toUpperCase();
+
 class APIClient {
     constructor(baseURL, totemUIN, totemSecret) {
         this.baseURL = baseURL.replace(/\/$/, '');
@@ -73,9 +75,10 @@ class APIClient {
      * Obtém token de dispositivo (HMAC do backend)
      */
     async getDeviceToken(uin, deviceId, platform, appVersion) {
+        const normalizedDeviceId = normalizeDeviceId(deviceId || this.deviceId);
         const q = new URLSearchParams({
             uin: uin || this.totemUIN,
-            deviceId: deviceId || this.deviceId || '',
+            deviceId: normalizedDeviceId,
             platform: platform || 'browser',
             appVersion: appVersion || '2.2.0'
         });
@@ -85,8 +88,8 @@ class APIClient {
         if (response.token) {
             this.token = response.token;
         }
-        if (deviceId) {
-            this.deviceId = deviceId;
+        if (normalizedDeviceId) {
+            this.deviceId = normalizedDeviceId;
         }
 
         return response;
@@ -117,7 +120,8 @@ class APIClient {
             uin: uin || this.totemUIN,
             token: token || this.token
         });
-        if (deviceId || this.deviceId) params.append('deviceId', deviceId || this.deviceId);
+        const normalizedDeviceId = normalizeDeviceId(deviceId || this.deviceId);
+        if (normalizedDeviceId) params.append('deviceId', normalizedDeviceId);
         if (timestamp) params.append('timestamp', timestamp);
         if (timezone) params.append('timezone', timezone);
 
@@ -145,8 +149,9 @@ class APIClient {
             uin,
             token
         };
-        if (data.deviceId || this.deviceId) {
-            queryParams.deviceId = data.deviceId || this.deviceId;
+        const normalizedDeviceId = normalizeDeviceId(data.deviceId || this.deviceId);
+        if (normalizedDeviceId) {
+            queryParams.deviceId = normalizedDeviceId;
         }
 
         const body = {
@@ -186,7 +191,7 @@ class APIClient {
 
         const queryParams = { uin };
         if (token) queryParams.token = token;
-        const deviceId = payload.deviceId || this.deviceId;
+        const deviceId = normalizeDeviceId(payload.deviceId || this.deviceId);
         if (deviceId) queryParams.deviceId = deviceId;
 
         const metadata = { ...(payload.metadata || {}) };

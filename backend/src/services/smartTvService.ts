@@ -7,6 +7,7 @@ import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import { logError } from '../utils/loggerHelper';
 import { assertCompactOwnerPublisher } from '../utils/compactOwnerPublisher';
+import { normalizeDeviceId } from '../utils/normalizeDeviceId';
 
 export interface SmartTv {
   smart_tv_id: number;
@@ -273,6 +274,7 @@ export class SmartTvService {
   ): Promise<SmartTv> {
     try {
       const { totem_id, contract_id, identifier, device_id, name, brand, model, platform, firmware_version, resolution_width, resolution_height, orientation, capabilities, settings } = data;
+      const normalizedDeviceId = device_id ? normalizeDeviceId(device_id) : '';
 
       // Validar se totem existe e obter publisher_id
       const totem = await this.db.findFirst(`
@@ -343,10 +345,11 @@ export class SmartTvService {
       }
 
       // Verificar se device_id já existe (se fornecido)
-      if (device_id) {
+      if (normalizedDeviceId) {
         const existingDevice = await this.db.findFirst(`
-          SELECT smart_tv_id FROM smart_tvs WHERE device_id = $1
-        `, [device_id]);
+          SELECT smart_tv_id FROM smart_tvs
+          WHERE UPPER(TRIM(COALESCE(device_id, ''))) = $1
+        `, [normalizedDeviceId]);
 
         if (existingDevice) {
           throw new Error('Smart TV com este device_id já existe');
@@ -367,7 +370,7 @@ export class SmartTvService {
         totem_id,
         contract_id || null,
         identifier,
-        device_id || null,
+        normalizedDeviceId || null,
         name || null,
         brand || null,
         model || null,
@@ -442,10 +445,15 @@ export class SmartTvService {
         }
       }
 
+      if (data.device_id !== undefined) {
+        data.device_id = normalizeDeviceId(data.device_id);
+      }
+
       // Verificar se device_id já existe (se mudou)
-      if (data.device_id && data.device_id !== existingSmartTv.device_id) {
+      if (data.device_id && data.device_id !== normalizeDeviceId(existingSmartTv.device_id)) {
         const tvWithSameDevice = await this.db.findFirst(`
-          SELECT smart_tv_id FROM smart_tvs WHERE device_id = $1 AND smart_tv_id != $2
+          SELECT smart_tv_id FROM smart_tvs
+          WHERE UPPER(TRIM(COALESCE(device_id, ''))) = $1 AND smart_tv_id != $2
         `, [data.device_id, id]);
 
         if (tvWithSameDevice) {

@@ -19,9 +19,12 @@ import java.util.TimeZone
 class DispatcherApiClient(
     val baseUrl: String,
     val uin: String,
-    val deviceId: String,
+    deviceId: String,
     val appVersion: String = "1.0.0"
  ) {
+    val deviceId: String =
+        br.com.smartchannel.playerad.config.PlayerConfigLoader.normalizeDeviceId(deviceId)
+
     data class PendingCommand(
         val id: String,
         val type: String,

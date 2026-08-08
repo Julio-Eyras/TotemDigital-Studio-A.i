@@ -129,7 +129,7 @@ Preencha pelo menos:
 |-------|---------------|---------|
 | **URL do servidor** (`serverUrl`) | Endereço do backend, sem barra no fim | `https://totemdigital.app.br` |
 | **UIN / ativação** (`uin`) | Código copiado do painel web | `T1000` ou código gerado |
-| **ID do dispositivo** (`deviceId`) | Nome amigável do totem | `T1000 - Exterminator` |
+| **ID do dispositivo** (`deviceId`) | Identificador canônico em maiúsculas | `T1000-EXTERMINATOR` |
 
 Depois:
 
@@ -182,7 +182,7 @@ Exemplo mínimo:
 {
   "serverUrl": "https://totemdigital.app.br",
   "uin": "T1000",
-  "deviceId": "T1000 - Exterminator",
+  "deviceId": "T1000-EXTERMINATOR",
   "kioskMode": "strong",
   "displayRotation": 0,
   "screenOrientation": "portrait",

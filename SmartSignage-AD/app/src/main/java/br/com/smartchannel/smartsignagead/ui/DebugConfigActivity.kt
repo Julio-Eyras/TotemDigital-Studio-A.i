@@ -77,7 +77,7 @@ class DebugConfigActivity : AppCompatActivity() {
     private fun readConfigFromFieldsOrLoader(): AppConfig {
         val serverUrl = editServerUrl.text?.toString()?.trim().orEmpty()
         val uin = editUin.text?.toString()?.trim().orEmpty()
-        val deviceId = editDeviceId.text?.toString()?.trim().orEmpty()
+        val deviceId = AppConfigLoader.normalizeDeviceId(editDeviceId.text?.toString())
         val base = AppConfigLoader(this).load()
         if (serverUrl.isBlank() || uin.isBlank() || deviceId.isBlank()) return base
         val ratio = editRatio.text?.toString()?.trim()?.toIntOrNull()?.coerceAtLeast(1) ?: base.fallbackPropagandasPerVinheta
@@ -96,7 +96,7 @@ class DebugConfigActivity : AppCompatActivity() {
     private fun readConfigOrNull(): AppConfig? {
         val serverUrl = editServerUrl.text?.toString()?.trim().orEmpty()
         val uin = editUin.text?.toString()?.trim().orEmpty()
-        val deviceId = editDeviceId.text?.toString()?.trim().orEmpty()
+        val deviceId = AppConfigLoader.normalizeDeviceId(editDeviceId.text?.toString())
         val ratio = editRatio.text?.toString()?.trim()?.toIntOrNull()?.coerceAtLeast(1) ?: 3
         val cacheLimit = editInternalCacheLimitPercent.text?.toString()?.trim()?.toIntOrNull()?.coerceIn(5, 95) ?: 30
         if (serverUrl.isBlank() || uin.isBlank() || deviceId.isBlank()) return null
@@ -115,7 +115,7 @@ class DebugConfigActivity : AppCompatActivity() {
         val json = JSONObject().apply {
             put("serverUrl", config.serverUrl)
             put("uin", config.uin)
-            put("deviceId", config.deviceId)
+            put("deviceId", AppConfigLoader.normalizeDeviceId(config.deviceId))
             put("mode", config.mode)
             put("syncIntervalSeconds", config.syncIntervalSeconds)
             put("acceptImagesInPlaylist", config.acceptImagesInPlaylist)

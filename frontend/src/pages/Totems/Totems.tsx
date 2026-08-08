@@ -1158,7 +1158,7 @@ const Totems: React.FC = () => {
             label="Device ID" 
             margin="normal" 
             value={newTotem.deviceId || ''} 
-            onChange={(e) => setNewTotem({ ...newTotem, deviceId: e.target.value })} 
+            onChange={(e) => setNewTotem({ ...newTotem, deviceId: e.target.value.toUpperCase() })}
           />
           <TextField 
             fullWidth 
@@ -1259,7 +1259,7 @@ const Totems: React.FC = () => {
             label="Device ID"
             margin="normal"
             value={editTotem.deviceId || ''}
-            onChange={(e) => setEditTotem({ ...editTotem, deviceId: e.target.value })}
+            onChange={(e) => setEditTotem({ ...editTotem, deviceId: e.target.value.toUpperCase() })}
           />
           <TextField
             fullWidth

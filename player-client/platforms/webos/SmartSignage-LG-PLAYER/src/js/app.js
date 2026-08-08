@@ -112,14 +112,14 @@ async function init() {
     if (typeof webOS !== 'undefined' && webOS.deviceInfo) {
       try {
         const deviceInfo = webOS.deviceInfo();
-        CONFIG.DEVICE_ID = deviceInfo.deviceId || `webos-${Date.now()}`;
+        CONFIG.DEVICE_ID = String(deviceInfo.deviceId || `webos-${Date.now()}`).trim().toUpperCase();
         logger.info('Device ID obtained', { deviceId: CONFIG.DEVICE_ID });
       } catch (error) {
         logger.warn('Failed to get device ID, using fallback', error);
-        CONFIG.DEVICE_ID = `webos-${Date.now()}`;
+        CONFIG.DEVICE_ID = `WEBOS-${Date.now()}`;
       }
     } else {
-      CONFIG.DEVICE_ID = `webos-${Date.now()}`;
+      CONFIG.DEVICE_ID = `WEBOS-${Date.now()}`;
     }
 
     apiClient.deviceId = CONFIG.DEVICE_ID;

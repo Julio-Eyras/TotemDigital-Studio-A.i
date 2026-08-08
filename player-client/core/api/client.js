@@ -3,6 +3,8 @@
  * Cliente HTTP compartilhado para comunicação com o backend
  */
 
+const normalizeDeviceId = (value) => String(value || '').trim().toUpperCase();
+
 class APIClient {
   constructor(baseURL, totemUIN, totemSecret) {
     this.baseURL = baseURL;
@@ -195,9 +197,10 @@ class APIClient {
    * @param {string} appVersion - Versão do app
    */
   async getDeviceToken(uin, deviceId, platform, appVersion) {
+    const normalizedDeviceId = normalizeDeviceId(deviceId);
     const params = new URLSearchParams({
       uin,
-      deviceId: deviceId || '',
+      deviceId: normalizedDeviceId,
       platform: platform || 'unknown',
       appVersion: appVersion || '2.1.0'
     });
@@ -207,8 +210,8 @@ class APIClient {
     if (response.token) {
       this.token = response.token;
     }
-    if (deviceId) {
-      this.deviceId = deviceId;
+    if (normalizedDeviceId) {
+      this.deviceId = normalizedDeviceId;
     }
 
     return response;
@@ -244,7 +247,8 @@ class APIClient {
       token
     });
 
-    if (deviceId) params.append('deviceId', deviceId);
+    const normalizedDeviceId = normalizeDeviceId(deviceId || this.deviceId);
+    if (normalizedDeviceId) params.append('deviceId', normalizedDeviceId);
     if (timestamp) params.append('timestamp', timestamp);
     if (timezone) params.append('timezone', timezone);
 
@@ -283,7 +287,7 @@ class APIClient {
     }
 
     const params = new URLSearchParams({ uin, token });
-    const deviceId = data.deviceId || this.deviceId;
+    const deviceId = normalizeDeviceId(data.deviceId || this.deviceId);
     if (deviceId) params.append('deviceId', deviceId);
 
     const body = {
@@ -320,7 +324,7 @@ class APIClient {
 
     const params = new URLSearchParams({ uin });
     if (token) params.append('token', token);
-    const deviceId = payload.deviceId || this.deviceId;
+    const deviceId = normalizeDeviceId(payload.deviceId || this.deviceId);
     if (deviceId) params.append('deviceId', deviceId);
 
     const metadata = { ...(payload.metadata || {}) };

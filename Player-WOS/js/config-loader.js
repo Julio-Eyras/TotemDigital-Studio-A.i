@@ -3,7 +3,7 @@ class ConfigLoader {
     return {
       serverUrl: "http://192.168.1.110",
       uin: "tot001",
-      deviceId: "webos-tv-tot001",
+      deviceId: "WEBOS-TV-TOT001",
       acceptImagesInPlaylist: true,
       fallbackPropagandasPerVinheta: 3,
       imageDurationSeconds: 20,
@@ -17,7 +17,9 @@ class ConfigLoader {
     const local = localStorage.getItem("player-config.json");
     if (local) {
       try {
-        return { ...ConfigLoader.defaults(), ...JSON.parse(local) };
+        const config = { ...ConfigLoader.defaults(), ...JSON.parse(local) };
+        config.deviceId = String(config.deviceId || "").trim().toUpperCase();
+        return config;
       } catch (_) {}
     }
 
@@ -25,7 +27,9 @@ class ConfigLoader {
       const response = await fetch("config/player-config.json", { cache: "no-store" });
       if (response.ok) {
         const json = await response.json();
-        return { ...ConfigLoader.defaults(), ...json };
+        const config = { ...ConfigLoader.defaults(), ...json };
+        config.deviceId = String(config.deviceId || "").trim().toUpperCase();
+        return config;
       }
     } catch (_) {}
 

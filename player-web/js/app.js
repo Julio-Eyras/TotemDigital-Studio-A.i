@@ -17,7 +17,7 @@ class SmartSignagePlayer {
             apiBaseURL: config.apiBaseURL || (typeof window !== 'undefined' && window.API_BASE_URL) || 'http://localhost:3000',
             totemUIN,
             totemSecret: config.totemSecret || (typeof window !== 'undefined' && window.TOTEM_SECRET) || '',
-            deviceId: config.deviceId || this.generateDeviceId(),
+            deviceId: String(config.deviceId || this.generateDeviceId()).trim().toUpperCase(),
             platform: 'browser-cache',
             appVersion: '2.2.0',
             heartbeatInterval: config.heartbeatInterval || 30000,
@@ -170,6 +170,10 @@ class SmartSignagePlayer {
         let deviceId = null;
         try {
             deviceId = localStorage.getItem('smartsignage_device_id');
+            if (deviceId) {
+                deviceId = String(deviceId).trim().toUpperCase();
+                localStorage.setItem('smartsignage_device_id', deviceId);
+            }
         } catch (e) {}
         if (!deviceId) {
             const canvas = document.createElement('canvas');
@@ -191,7 +195,7 @@ class SmartSignagePlayer {
                 hash = ((hash << 5) - hash) + c;
                 hash = hash & hash;
             }
-            deviceId = 'browser-cache-' + Math.abs(hash).toString(16);
+            deviceId = ('browser-cache-' + Math.abs(hash).toString(16)).toUpperCase();
             try {
                 localStorage.setItem('smartsignage_device_id', deviceId);
             } catch (e) {}

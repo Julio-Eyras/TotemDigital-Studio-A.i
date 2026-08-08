@@ -1,7 +1,7 @@
 {
   "serverUrl": "https://totemdigital.app.br",
   "uin": "T1000",
-  "deviceId": "T1000-Exterminator",
+  "deviceId": "T1000-EXTERMINATOR",
   "storage": "external_primary",
   "maxCacheSizeMb": 1000,
   "kioskMode": "strong",

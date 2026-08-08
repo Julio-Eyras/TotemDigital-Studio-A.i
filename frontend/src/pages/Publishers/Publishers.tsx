@@ -1748,7 +1748,7 @@ const Publishers: React.FC = () => {
                       fullWidth
                       label="Device ID"
                       value={totemForm.deviceId || ''}
-                      onChange={(e) => setTotemForm({ ...totemForm, deviceId: e.target.value })}
+                      onChange={(e) => setTotemForm({ ...totemForm, deviceId: e.target.value.toUpperCase() })}
                       size="small"
                     />
                   </Grid>
@@ -1909,7 +1909,7 @@ const Publishers: React.FC = () => {
                       fullWidth
                       label="Device ID"
                       value={smartTvForm.device_id || ''}
-                      onChange={(e) => setSmartTvForm({ ...smartTvForm, device_id: e.target.value })}
+                      onChange={(e) => setSmartTvForm({ ...smartTvForm, device_id: e.target.value.toUpperCase() })}
                       size="small"
                     />
                   </Grid>
@@ -2640,7 +2640,7 @@ const Publishers: React.FC = () => {
                       fullWidth
                       label="Device ID"
                       value={editTotemForm.deviceId || ''}
-                      onChange={(e) => setEditTotemForm({ ...editTotemForm, deviceId: e.target.value })}
+                      onChange={(e) => setEditTotemForm({ ...editTotemForm, deviceId: e.target.value.toUpperCase() })}
                       size="small"
                     />
                   </Grid>
@@ -2803,7 +2803,7 @@ const Publishers: React.FC = () => {
                       fullWidth
                       label="Device ID"
                       value={editSmartTvForm.device_id || ''}
-                      onChange={(e) => setEditSmartTvForm({ ...editSmartTvForm, device_id: e.target.value })}
+                      onChange={(e) => setEditSmartTvForm({ ...editSmartTvForm, device_id: e.target.value.toUpperCase() })}
                       size="small"
                     />
                   </Grid>

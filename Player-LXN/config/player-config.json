@@ -1,7 +1,7 @@
 {
   "serverUrl": "http://192.168.1.110",
   "uin": "tot001",
-  "deviceId": "linux-player-tot001",
+  "deviceId": "LINUX-PLAYER-TOT001",
   "acceptImagesInPlaylist": true,
   "fallbackPropagandasPerVinheta": 3,
   "imageDurationSeconds": 20,

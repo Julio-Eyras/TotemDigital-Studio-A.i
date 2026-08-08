@@ -24,7 +24,7 @@ class SmartSignagePlayer extends EventEmitter {
             apiBaseURL: config.apiBaseURL || process.env.API_BASE_URL || 'http://localhost:3000',
             totemUIN: config.totemUIN || process.env.TOTEM_UIN || '',
             totemSecret: config.totemSecret || process.env.TOTEM_SECRET || '',
-            deviceId: config.deviceId || this.generateDeviceId(),
+            deviceId: String(config.deviceId || this.generateDeviceId()).trim().toUpperCase(),
             platform: process.platform === 'win32' ? 'windows' : 'linux',
             appVersion: '2.1.0',
             heartbeatInterval: config.heartbeatInterval || 30000,

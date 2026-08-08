@@ -3,7 +3,7 @@ class ConfigLoader {
     return {
       serverUrl: "http://192.168.1.110",
       uin: "tot001",
-      deviceId: "linux-player-tot001",
+      deviceId: "LINUX-PLAYER-TOT001",
       acceptImagesInPlaylist: true,
       fallbackPropagandasPerVinheta: 3,
       imageDurationSeconds: 20,
@@ -15,7 +15,11 @@ class ConfigLoader {
   static async load() {
     try {
       const res = await fetch("config/player-config.json", { cache: "no-store" });
-      if (res.ok) return { ...ConfigLoader.defaults(), ...(await res.json()) };
+      if (res.ok) {
+        const config = { ...ConfigLoader.defaults(), ...(await res.json()) };
+        config.deviceId = String(config.deviceId || "").trim().toUpperCase();
+        return config;
+      }
     } catch (_) {}
     return ConfigLoader.defaults();
   }

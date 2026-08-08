@@ -72,7 +72,7 @@
 | Item | Valor |
 |---|---|
 | `serverUrl` default embutido | `https://totemdigital.app.br` |
-| `uin` / `deviceId` kit | `T1000` / `T1000-Exterminator` |
+| `uin` / `deviceId` kit | `T1000` / `T1000-EXTERMINATOR` |
 | `storage` default | `auto` |
 | Cache max | 1000 MB (hardcoded) |
 

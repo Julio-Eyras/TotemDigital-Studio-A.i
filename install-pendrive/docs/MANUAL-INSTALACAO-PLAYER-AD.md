@@ -105,7 +105,7 @@ Exemplo:
 {
   "serverUrl": "https://totemdigital.app.br",
   "uin": "tot001",
-  "deviceId": "android-tv-tot001",
+  "deviceId": "ANDROID-TV-TOT001",
   "fallbackPropagandasPerVinheta": 3
 }
 ```

@@ -170,7 +170,7 @@ ON CONFLICT DO NOTHING;
 -- 1 TOTEM: identifier=tot001, UIN=tot001 (ex.: local academia)
 -- =============================================
 --INSERT INTO totems (totem_id, identifier, uin, device_id, local_id, name, description, status, last_heartbeat, heartbeat_interval, network_info, capabilities, is_active) VALUES
---(1, 'tot001', 'tot001', 'tot001', 1, 'Totem Digital 001', 'Totem principal - Academia Encruzilhada', 'online', NOW() - INTERVAL '2 minutes', 60, '{"ip": "192.168.1.10"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true);
+--(1, 'tot001', 'tot001', 'TOT001', 1, 'Totem Digital 001', 'Totem principal - Academia Encruzilhada', 'online', NOW() - INTERVAL '2 minutes', 60, '{"ip": "192.168.1.10"}'::jsonb, '{"video_support": true, "audio_support": true}'::jsonb, true);
 
 -- =============================================
 -- CONTRATO DO SUBSCRIBER (plano Plano Totem Digital)

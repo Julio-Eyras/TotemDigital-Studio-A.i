@@ -212,6 +212,36 @@ main() {
         
         echo ""
     done
+
+    # Pós-condição de identidade: nenhum Device ID persistido pode permanecer fora do formato canônico.
+    if [ "$fail_count" -eq 0 ]; then
+        noncanonical_device_ids=$(PGPASSWORD="${PGPASSWORD}" psql \
+            -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -tAc "
+                SELECT
+                    (SELECT COUNT(*) FROM totems
+                     WHERE device_id IS NOT NULL
+                       AND (device_id = '' OR device_id <> UPPER(TRIM(device_id)))) +
+                    (SELECT COUNT(*) FROM smart_tvs
+                     WHERE device_id IS NOT NULL
+                       AND (device_id = '' OR device_id <> UPPER(TRIM(device_id)))) +
+                    (SELECT COUNT(*) FROM device_tokens
+                     WHERE device_id IS NOT NULL
+                       AND (device_id = '' OR device_id <> UPPER(TRIM(device_id)))) +
+                    (SELECT COUNT(*) FROM totems
+                     WHERE jsonb_typeof(player_settings) = 'object'
+                       AND player_settings ? 'deviceId'
+                       AND (
+                           NULLIF(TRIM(player_settings->>'deviceId'), '') IS NULL
+                           OR player_settings->>'deviceId' <> UPPER(TRIM(player_settings->>'deviceId'))
+                       ));
+            " 2>/dev/null | tr -d '[:space:]')
+        if [ "${noncanonical_device_ids:-1}" != "0" ]; then
+            print_color "$RED" "❌ Validação falhou: ${noncanonical_device_ids:-desconhecido} Device IDs não canônicos"
+            fail_count=$((fail_count + 1))
+        else
+            print_color "$GREEN" "✅ Device IDs normalizados em maiúsculas"
+        fi
+    fi
     
     end_time=$(date +%s)
     duration=$((end_time - start_time))

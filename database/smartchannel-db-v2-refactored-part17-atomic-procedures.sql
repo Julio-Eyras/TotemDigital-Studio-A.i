@@ -99,7 +99,7 @@ BEGIN
     VALUES (
       v_t->>'identifier',
       v_t->>'uin',
-      v_t->>'deviceId',
+      NULLIF(UPPER(TRIM(v_t->>'deviceId')), ''),
       v_local_id,
       v_t->>'name',
       v_t->>'description',
@@ -136,7 +136,7 @@ BEGIN
     VALUES (
       v_totem_id,
       COALESCE(v_s->>'identifier', ''),
-      v_s->>'device_id',
+      NULLIF(UPPER(TRIM(v_s->>'device_id')), ''),
       v_s->>'name',
       v_s->>'brand',
       v_s->>'model',

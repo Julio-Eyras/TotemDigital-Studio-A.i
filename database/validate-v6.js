@@ -164,6 +164,38 @@ async function validateAndExecute() {
     }
     console.log('');
 
+    // Validar identidade canônica de dispositivos
+    console.log('🔍 Validando Device IDs canônicos...\n');
+    try {
+      const result = await pool.query(`
+        SELECT
+          (SELECT COUNT(*) FROM totems
+           WHERE device_id IS NOT NULL
+             AND (device_id = '' OR device_id <> UPPER(TRIM(device_id)))) +
+          (SELECT COUNT(*) FROM smart_tvs
+           WHERE device_id IS NOT NULL
+             AND (device_id = '' OR device_id <> UPPER(TRIM(device_id)))) +
+          (SELECT COUNT(*) FROM device_tokens
+           WHERE device_id IS NOT NULL
+             AND (device_id = '' OR device_id <> UPPER(TRIM(device_id)))) +
+          (SELECT COUNT(*) FROM totems
+           WHERE jsonb_typeof(player_settings) = 'object'
+             AND player_settings ? 'deviceId'
+             AND (
+               NULLIF(TRIM(player_settings->>'deviceId'), '') IS NULL
+               OR player_settings->>'deviceId' <> UPPER(TRIM(player_settings->>'deviceId'))
+             )) AS count
+      `);
+      const count = parseInt(result.rows[0].count);
+      if (count !== 0) {
+        throw new Error(`${count} Device ID(s) fora do formato maiúsculo`);
+      }
+      console.log('  ✅ Device IDs: todos normalizados em maiúsculas\n');
+    } catch (error) {
+      console.log(`  ❌ Device IDs: ${error.message}\n`);
+      throw error;
+    }
+
     // Validar dados de teste de alertas
     console.log('🔍 Validando dados para testes de alertas...\n');
     

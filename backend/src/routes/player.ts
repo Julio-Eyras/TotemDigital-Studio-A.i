@@ -19,6 +19,7 @@ import { config } from '../config/env';
 import { getTotemSecretKey } from '../config/totemSecurity';
 import { decryptOpenSslSaltedBase64 } from '../utils/totemEncryption';
 import { normalizeTotemUin } from '../utils/normalizeTotemUin';
+import { normalizeDeviceId } from '../utils/normalizeDeviceId';
 
 const execAsync = promisify(exec);
 
@@ -37,8 +38,8 @@ function listMediaFiles(dir: string): string[] {
 const router = express.Router();
 const dispatcherRouter = getDispatcherRouter();
 
-/** Alinha UIN em query/body ao formato canónico (igual Player-AD / player-web). */
-function normalizePlayerRequestUin(req: express.Request): void {
+/** Alinha UIN e Device ID ao formato canónico (igual Player-AD / player-web). */
+function normalizePlayerRequestIdentity(req: express.Request): void {
   const q = req.query.uin;
   const qStr = Array.isArray(q) ? q[0] : q;
   if (typeof qStr === 'string' && qStr.trim()) {
@@ -49,12 +50,31 @@ function normalizePlayerRequestUin(req: express.Request): void {
     if (typeof raw === 'string' && raw.trim()) {
       (req.body as { uin: string }).uin = normalizeTotemUin(raw);
     }
+    const body = req.body as {
+      deviceId?: unknown;
+      device_id?: unknown;
+      hardware?: { deviceId?: unknown };
+    };
+    if (typeof body.deviceId === 'string') {
+      body.deviceId = normalizeDeviceId(body.deviceId);
+    }
+    if (typeof body.device_id === 'string') {
+      body.device_id = normalizeDeviceId(body.device_id);
+    }
+    if (body.hardware && typeof body.hardware.deviceId === 'string') {
+      body.hardware.deviceId = normalizeDeviceId(body.hardware.deviceId);
+    }
+  }
+  const queryDeviceId = req.query.deviceId;
+  const queryDeviceIdString = Array.isArray(queryDeviceId) ? queryDeviceId[0] : queryDeviceId;
+  if (typeof queryDeviceIdString === 'string') {
+    (req.query as Record<string, unknown>).deviceId = normalizeDeviceId(queryDeviceIdString);
   }
 }
 
 router.use((req, _res, next) => {
   try {
-    normalizePlayerRequestUin(req);
+    normalizePlayerRequestIdentity(req);
   } catch {
     /* não bloquear o pipeline */
   }
@@ -117,7 +137,7 @@ async function handleApprovalRequest(
           FROM totems
           WHERE (network_info->'hardware'->>'mac' = ?
              OR network_info->'hardware'->>'hardwareHash' = ?
-             OR (? <> '' AND device_id = ?))
+             OR (? <> '' AND UPPER(TRIM(COALESCE(device_id, ''))) = ?))
             AND totem_id != ?
           LIMIT 1
         `, [hardware?.macAddress || '', hardwareHash, hardware?.deviceId || '', hardware?.deviceId || '', currentTotemId]);
@@ -1162,7 +1182,7 @@ router.post('/register',
             FROM totems
             WHERE (network_info->'hardware'->>'mac' = ?
                OR network_info->'hardware'->>'hardwareHash' = ?
-               OR (? <> '' AND device_id = ?))
+               OR (? <> '' AND UPPER(TRIM(COALESCE(device_id, ''))) = ?))
               AND totem_id != ?
             LIMIT 1
           `, [hardware?.macAddress || '', hardwareHash, hardware?.deviceId || '', hardware?.deviceId || '', currentTotemId]);

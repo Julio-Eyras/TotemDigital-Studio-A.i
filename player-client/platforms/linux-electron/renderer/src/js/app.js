@@ -90,7 +90,9 @@ async function init() {
 
     // DeviceId para Linux
     const os = require('os');
-    deviceId = CONFIG.deviceId || `linux-${os.hostname()}-${require('crypto').randomBytes(4).toString('hex')}`;
+    deviceId = String(
+      CONFIG.deviceId || `linux-${os.hostname()}-${require('crypto').randomBytes(4).toString('hex')}`
+    ).trim().toUpperCase();
     apiClient.deviceId = deviceId;
 
     // Dispatcher: token + heartbeat inicial (alinhado ao core / player-web)

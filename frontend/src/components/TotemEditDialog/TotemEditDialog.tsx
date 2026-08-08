@@ -346,7 +346,7 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
           ...(playerAd.allowIdentityChange
             ? {
                 serverUrl: playerAd.serverUrl.trim(),
-                deviceId: playerAd.deviceId.trim(),
+                deviceId: playerAd.deviceId.trim().toUpperCase(),
                 uin,
               }
             : {}),
@@ -355,7 +355,7 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
       if (name) payload.name = name;
       if (uin) payload.uin = uin;
       if (form.localId) payload.localId = form.localId;
-      if (playerAd.deviceId.trim()) payload.deviceId = playerAd.deviceId.trim();
+      if (playerAd.deviceId.trim()) payload.deviceId = playerAd.deviceId.trim().toUpperCase();
 
       await totemApi.update(totemId, payload);
       onSaved();
@@ -461,7 +461,7 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
             label="ID do dispositivo (deviceId)"
             margin="dense"
             value={playerAd.deviceId}
-            onChange={(e) => setPlayerAd((prev) => ({ ...prev, deviceId: e.target.value }))}
+            onChange={(e) => setPlayerAd((prev) => ({ ...prev, deviceId: e.target.value.toUpperCase() }))}
           />
           <FormControlLabel
             control={

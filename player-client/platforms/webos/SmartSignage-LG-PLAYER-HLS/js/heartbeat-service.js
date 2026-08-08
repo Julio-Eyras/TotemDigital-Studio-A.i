@@ -9,7 +9,7 @@ class HeartbeatService {
     this.apiUrl = apiUrl;
     this.tvId = tvId;
     this.interval = interval;
-    this.deviceId = deviceId;
+    this.deviceId = String(deviceId || '').trim().toUpperCase() || null;
     this.heartbeatInterval = null;
     this.startTime = Date.now();
     this.token = null;
@@ -29,7 +29,7 @@ class HeartbeatService {
   }
 
   setDeviceId(deviceId) {
-    this.deviceId = deviceId;
+    this.deviceId = String(deviceId || '').trim().toUpperCase() || null;
   }
 
   setCallbacks(getPlayerStatus, getCurrentStream) {

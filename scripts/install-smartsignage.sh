@@ -805,9 +805,9 @@ BEGIN
         INSERT INTO totems (
             identifier, uin, device_id, local_id, name, description, status, last_heartbeat, heartbeat_interval, network_info, capabilities, is_active
         ) VALUES (
-            format('Tv-%s', lpad(i::TEXT, 3, '0')),
-            format('Tv-%s', lpad(i::TEXT, 3, '0')),
-            format('Tv-%s', lpad(i::TEXT, 3, '0')),
+            format('TV-%s', lpad(i::TEXT, 3, '0')),
+            format('TV-%s', lpad(i::TEXT, 3, '0')),
+            format('TV-%s', lpad(i::TEXT, 3, '0')),
             v_local_ids[((i - 1) % ${DEMO_LOCALS_COUNT}) + 1],
             v_totem_name,
             'Totem demo dinâmico ativo',

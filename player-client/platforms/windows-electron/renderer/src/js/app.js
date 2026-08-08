@@ -66,7 +66,9 @@ async function init() {
     );
 
     const os = require('os');
-    deviceId = CONFIG.deviceId || `win-${os.hostname()}-${require('crypto').randomBytes(4).toString('hex')}`;
+    deviceId = String(
+      CONFIG.deviceId || `win-${os.hostname()}-${require('crypto').randomBytes(4).toString('hex')}`
+    ).trim().toUpperCase();
     apiClient.deviceId = deviceId;
 
     // Inicializar logger

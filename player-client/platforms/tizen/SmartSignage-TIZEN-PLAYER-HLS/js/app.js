@@ -239,18 +239,18 @@ class SmartSignageApp {
         // Tentar obter ID único do Tizen
         const deviceId = tizen.systeminfo.getCapability('http://tizen.org/system/tizenid');
         if (deviceId) {
-          this.deviceId = `tizen-${deviceId}`;
+          this.deviceId = `TIZEN-${deviceId}`.trim().toUpperCase();
           return this.deviceId;
         }
       }
       
       // Fallback: gerar ID baseado em hardware
       const hardwareInfo = await this.deviceInfo.collectHardwareInfo();
-      this.deviceId = `tizen-${hardwareInfo.serial || Date.now()}`;
+      this.deviceId = `TIZEN-${hardwareInfo.serial || Date.now()}`.trim().toUpperCase();
       return this.deviceId;
     } catch (error) {
       console.warn('[App] Erro ao obter deviceId:', error);
-      this.deviceId = `tizen-${Date.now()}`;
+      this.deviceId = `TIZEN-${Date.now()}`;
       return this.deviceId;
     }
   }

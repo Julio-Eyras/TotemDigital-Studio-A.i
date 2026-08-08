@@ -12,6 +12,7 @@ import { getDeviceTokenService } from './deviceTokenService';
 import { getEventLogService, EventType } from './eventLogService';
 import { logError, logDebug } from '../utils/loggerHelper';
 import { validateTotemToken, generateTotemToken } from '../routes/player';
+import { normalizeDeviceId } from '../utils/normalizeDeviceId';
 
 export interface DispatcherRequest {
   endpoint: string;
@@ -54,7 +55,7 @@ class DispatcherRouter {
         body: req.body,
         ipAddress: req.ip || req.socket.remoteAddress || undefined,
         userAgent: req.get('user-agent') || undefined,
-        deviceId: req.query.deviceId as string || req.body?.deviceId,
+        deviceId: normalizeDeviceId(req.query.deviceId as string || req.body?.deviceId) || undefined,
         platform: req.query.platform as string || req.body?.platform,
         appVersion: req.query.appVersion as string || req.body?.appVersion,
       };
@@ -774,9 +775,9 @@ class DispatcherRouter {
         const meta = request.body?.metadata;
         const deviceIdFromMeta =
           meta && typeof meta === 'object' && meta !== null && typeof (meta as any).deviceId === 'string'
-            ? String((meta as any).deviceId).trim() || null
+            ? normalizeDeviceId((meta as any).deviceId) || null
             : null;
-        const effectiveDeviceId = (request.deviceId as string | undefined)?.trim() || deviceIdFromMeta;
+        const effectiveDeviceId = normalizeDeviceId(request.deviceId) || deviceIdFromMeta;
         const validDeviceToken = await deviceTokenService.validateToken(request.uin, token, {
           deviceId: effectiveDeviceId || null,
           ipAddress: request.ipAddress || undefined,

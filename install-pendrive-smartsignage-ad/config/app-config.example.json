@@ -2,7 +2,7 @@
   "projectName": "SmartSignage-AD",
   "serverUrl": "http://192.168.1.110",
   "uin": "tot001",
-  "deviceId": "android-ad-tot001",
+  "deviceId": "ANDROID-AD-TOT001",
   "mode": "hybrid",
   "syncIntervalSeconds": 30,
   "acceptImagesInPlaylist": true,

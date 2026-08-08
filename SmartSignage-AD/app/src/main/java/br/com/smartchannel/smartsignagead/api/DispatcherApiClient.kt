@@ -12,8 +12,11 @@ import java.util.TimeZone
 class DispatcherApiClient(
     val baseUrl: String,
     val uin: String,
-    val deviceId: String
+    deviceId: String
 ) {
+    val deviceId: String =
+        br.com.smartchannel.smartsignagead.config.AppConfigLoader.normalizeDeviceId(deviceId)
+
     private var currentToken: String? = null
 
     fun cachedToken(): String? = currentToken

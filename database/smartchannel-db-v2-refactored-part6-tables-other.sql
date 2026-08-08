@@ -673,7 +673,9 @@ CREATE TABLE IF NOT EXISTS device_tokens (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     CONSTRAINT chk_device_token_status 
-        CHECK (status IN ('active', 'revoked', 'expired'))
+        CHECK (status IN ('active', 'revoked', 'expired')),
+    CONSTRAINT chk_device_tokens_device_id_canonical
+        CHECK (device_id IS NULL OR (device_id <> '' AND device_id = UPPER(TRIM(device_id))))
 );
 
 COMMENT ON TABLE device_tokens IS 'Tokens de autenticação e telemetria para dispositivos (totens, Smart TVs, players)';
@@ -688,6 +690,16 @@ COMMENT ON COLUMN device_tokens.refresh_token IS 'Token de renovação (longo pr
 COMMENT ON COLUMN device_tokens.status IS 'Status do token: active, revoked ou expired';
 COMMENT ON COLUMN device_tokens.last_heartbeat IS 'Último heartbeat/contato do dispositivo usando este token';
 COMMENT ON COLUMN device_tokens.expires_at IS 'Data/hora de expiração deste token de dispositivo';
+
+-- Compatibilidade: tokens antigos também passam a usar Device ID canônico.
+UPDATE device_tokens
+SET device_id = NULLIF(UPPER(TRIM(device_id)), '')
+WHERE device_id IS DISTINCT FROM NULLIF(UPPER(TRIM(device_id)), '');
+
+ALTER TABLE device_tokens DROP CONSTRAINT IF EXISTS chk_device_tokens_device_id_canonical;
+ALTER TABLE device_tokens
+    ADD CONSTRAINT chk_device_tokens_device_id_canonical
+    CHECK (device_id IS NULL OR (device_id <> '' AND device_id = UPPER(TRIM(device_id))));
 
 CREATE TABLE IF NOT EXISTS user_two_factor (
     id SERIAL PRIMARY KEY,

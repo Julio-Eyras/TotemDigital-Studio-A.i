@@ -16,7 +16,7 @@ class DispatcherIntegration {
       baseURL: config.baseURL || 'http://localhost:3000',
       uin: config.uin,
       totemSecret: config.totemSecret,
-      deviceId: config.deviceId || this.generateDeviceId(),
+      deviceId: String(config.deviceId || this.generateDeviceId()).trim().toUpperCase(),
       platform: config.platform || 'linux',
       appVersion: config.appVersion || '2.1.0',
       cacheDir: config.cacheDir || './cache',
@@ -384,7 +384,7 @@ async function main() {
     baseURL: 'http://localhost:3000',
     uin: 'TOTEM-001',
     totemSecret: 'secret-key',
-    deviceId: 'device-123',
+    deviceId: 'DEVICE-123',
     platform: 'linux',
     appVersion: '2.1.0',
     cacheDir: './cache'

@@ -1,5 +1,6 @@
 import { getDatabase } from '../config/database';
 import { normalizeTotemUin } from '../utils/normalizeTotemUin';
+import { normalizeDeviceId } from '../utils/normalizeDeviceId';
 import { logError } from '../utils/loggerHelper';
 import crypto from 'crypto';
 
@@ -44,6 +45,7 @@ export class DeviceTokenService {
       ttlMs = 3600000, // 1 hora padrão
     } = params;
     const normalizedUin = uin ? normalizeTotemUin(uin) : null;
+    const normalizedDeviceId = deviceId ? normalizeDeviceId(deviceId) : null;
 
     const now = new Date();
     const expiresAt = new Date(now.getTime() + ttlMs);
@@ -51,7 +53,7 @@ export class DeviceTokenService {
 
     try {
       // Estratégia simples: invalidar tokens antigos para o mesmo UIN/device_id
-      if (normalizedUin || deviceId) {
+      if (normalizedUin || normalizedDeviceId) {
         const conditions: string[] = [];
         const values: any[] = [];
 
@@ -59,9 +61,9 @@ export class DeviceTokenService {
           conditions.push(`UPPER(TRIM(COALESCE(uin, ''))) = UPPER($${values.length + 1})`);
           values.push(normalizedUin);
         }
-        if (deviceId) {
-          conditions.push('device_id = $' + (values.length + 1));
-          values.push(deviceId);
+        if (normalizedDeviceId) {
+          conditions.push(`UPPER(TRIM(COALESCE(device_id, ''))) = $${values.length + 1}`);
+          values.push(normalizedDeviceId);
         }
 
         if (conditions.length > 0) {
@@ -103,7 +105,7 @@ export class DeviceTokenService {
           CURRENT_TIMESTAMP
         )
       `,
-        [totemId, smartTvId, normalizedUin, deviceId, platform, appVersion, token, ipAddress, userAgent, expiresAt],
+        [totemId, smartTvId, normalizedUin, normalizedDeviceId, platform, appVersion, token, ipAddress, userAgent, expiresAt],
       );
 
       return { token, expiresAt };
@@ -112,7 +114,7 @@ export class DeviceTokenService {
         totemId,
         smartTvId,
         uin,
-        deviceId,
+        deviceId: normalizedDeviceId,
         platform,
       });
       throw new Error('Erro ao registrar token de dispositivo');
@@ -130,6 +132,7 @@ export class DeviceTokenService {
   ): Promise<boolean> {
     const normalizedUin = uin ? normalizeTotemUin(uin) : '';
     const { deviceId = null, ipAddress = null, userAgent = null } = opts || {};
+    const normalizedDeviceId = deviceId ? normalizeDeviceId(deviceId) : '';
 
     try {
       const conditions: string[] = ['token = $1', 'status = \'active\''];
@@ -139,9 +142,9 @@ export class DeviceTokenService {
         conditions.push(`UPPER(TRIM(COALESCE(uin, ''))) = UPPER($${values.length + 1})`);
         values.push(normalizedUin);
       }
-      if (deviceId) {
-        conditions.push('device_id = $' + (values.length + 1));
-        values.push(deviceId);
+      if (normalizedDeviceId) {
+        conditions.push(`UPPER(TRIM(COALESCE(device_id, ''))) = $${values.length + 1}`);
+        values.push(normalizedDeviceId);
       }
 
       const row = await this.db.findFirst(
@@ -187,7 +190,7 @@ export class DeviceTokenService {
 
       return true;
     } catch (error: any) {
-      await logError('Erro ao validar device_token', error, { uin, deviceId });
+      await logError('Erro ao validar device_token', error, { uin, deviceId: normalizedDeviceId });
       return false;
     }
   }

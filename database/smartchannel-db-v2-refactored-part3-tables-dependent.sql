@@ -76,6 +76,8 @@ CREATE TABLE IF NOT EXISTS totems (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
+    CONSTRAINT chk_totems_device_id_canonical
+        CHECK (device_id IS NULL OR (device_id <> '' AND device_id = UPPER(TRIM(device_id)))),
     CONSTRAINT chk_totem_status
         CHECK (status IN ('pending_activation', 'pending_approval', 'offline', 'online', 'error', 'maintenance', 'syncing'))
 );
@@ -134,7 +136,9 @@ CREATE TABLE IF NOT EXISTS smart_tvs (
     CONSTRAINT chk_smart_tv_orientation 
         CHECK (orientation IN ('landscape', 'portrait')),
     CONSTRAINT chk_smart_tv_status 
-        CHECK (status IN ('offline', 'online', 'playing', 'error', 'sleeping'))
+        CHECK (status IN ('offline', 'online', 'playing', 'error', 'sleeping')),
+    CONSTRAINT chk_smart_tvs_device_id_canonical
+        CHECK (device_id IS NULL OR (device_id <> '' AND device_id = UPPER(TRIM(device_id))))
 );
 
 COMMENT ON TABLE smart_tvs IS 'Smart TVs controladas pelos totens';
@@ -158,6 +162,67 @@ BEGIN
     ) THEN
         ALTER TABLE smart_tvs RENAME COLUMN tv_id TO smart_tv_id;
     END IF;
+END $$;
+
+-- Compatibilidade: normalizar Device IDs existentes antes de impor o formato canônico.
+-- Interrompe com diagnóstico em vez de fundir dispositivos distintos que diferem só por caixa.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM totems
+        WHERE NULLIF(TRIM(device_id), '') IS NOT NULL
+        GROUP BY UPPER(TRIM(device_id))
+        HAVING COUNT(*) > 1
+    ) THEN
+        RAISE EXCEPTION 'Device IDs duplicados em totems após normalização para maiúsculas';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM smart_tvs
+        WHERE NULLIF(TRIM(device_id), '') IS NOT NULL
+        GROUP BY UPPER(TRIM(device_id))
+        HAVING COUNT(*) > 1
+    ) THEN
+        RAISE EXCEPTION 'Device IDs duplicados em smart_tvs após normalização para maiúsculas';
+    END IF;
+
+    UPDATE totems
+    SET device_id = NULLIF(UPPER(TRIM(device_id)), '')
+    WHERE device_id IS DISTINCT FROM NULLIF(UPPER(TRIM(device_id)), '');
+
+    UPDATE smart_tvs
+    SET device_id = NULLIF(UPPER(TRIM(device_id)), '')
+    WHERE device_id IS DISTINCT FROM NULLIF(UPPER(TRIM(device_id)), '');
+
+    UPDATE totems
+    SET player_settings = CASE
+        WHEN NULLIF(TRIM(player_settings->>'deviceId'), '') IS NULL
+            THEN player_settings - 'deviceId'
+        ELSE jsonb_set(
+            player_settings,
+            '{deviceId}',
+            to_jsonb(UPPER(TRIM(player_settings->>'deviceId'))),
+            true
+        )
+    END
+    WHERE jsonb_typeof(player_settings) = 'object'
+      AND player_settings ? 'deviceId'
+      AND (
+          player_settings->>'deviceId' = ''
+          OR player_settings->>'deviceId' <> UPPER(TRIM(player_settings->>'deviceId'))
+      );
+
+    ALTER TABLE totems DROP CONSTRAINT IF EXISTS chk_totems_device_id_canonical;
+    ALTER TABLE totems
+        ADD CONSTRAINT chk_totems_device_id_canonical
+        CHECK (device_id IS NULL OR (device_id <> '' AND device_id = UPPER(TRIM(device_id))));
+
+    ALTER TABLE smart_tvs DROP CONSTRAINT IF EXISTS chk_smart_tvs_device_id_canonical;
+    ALTER TABLE smart_tvs
+        ADD CONSTRAINT chk_smart_tvs_device_id_canonical
+        CHECK (device_id IS NULL OR (device_id <> '' AND device_id = UPPER(TRIM(device_id))));
 END $$;
 
 -- =============================================

@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { normalizeCampaignRecord } from '../../utils/campaignNormalize';
 import { normalizeMediaItem } from '../../utils/mediaId';
+import { normalizeDeviceId } from '../../utils/deviceId';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
@@ -1982,12 +1983,18 @@ export const totemApi = {
   },
 
   create: async (data: CreatePlayerRequest): Promise<Player> => {
-    const response = await api.post('/totems', data);
+    const payload = data.deviceId === undefined
+      ? data
+      : { ...data, deviceId: normalizeDeviceId(data.deviceId) };
+    const response = await api.post('/totems', payload);
     return response.data;
   },
 
   update: async (id: number, data: UpdatePlayerRequest): Promise<Player> => {
-    const response = await api.put(`/totems/${id}`, data);
+    const payload = data.deviceId === undefined
+      ? data
+      : { ...data, deviceId: normalizeDeviceId(data.deviceId) };
+    const response = await api.put(`/totems/${id}`, payload);
     return response.data;
   },
 
@@ -4494,12 +4501,18 @@ export const smartTvApi = {
   },
 
   create: async (data: CreateSmartTvRequest): Promise<SmartTv> => {
-    const response = await api.post('/smart-tvs', data);
+    const payload = data.device_id === undefined
+      ? data
+      : { ...data, device_id: normalizeDeviceId(data.device_id) };
+    const response = await api.post('/smart-tvs', payload);
     return response.data.data || response.data;
   },
 
   update: async (id: number, data: UpdateSmartTvRequest): Promise<SmartTv> => {
-    const response = await api.put(`/smart-tvs/${id}`, data);
+    const payload = data.device_id === undefined
+      ? data
+      : { ...data, device_id: normalizeDeviceId(data.device_id) };
+    const response = await api.put(`/smart-tvs/${id}`, payload);
     return response.data.data || response.data;
   },
 
