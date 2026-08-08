@@ -39,6 +39,7 @@ Nunca Direct Totem e multi-agência ao mesmo tempo. Ver [03](./03-MODULOS-E-FORM
 
 | Tema | Caminho |
 |------|---------|
+| Procedimentos completos por modalidade | [../instalacao/README.md](../instalacao/README.md) |
 | Handoff multi-agência (continuidade IA/equipa) | [../HANDOFF-MULTI-AGENCIA-CONTINUIDADE.md](../HANDOFF-MULTI-AGENCIA-CONTINUIDADE.md) |
 | Instalador (detalhe CLI) | [../INSTALA-TOTEMDIGITAL-SERVER.md](../INSTALA-TOTEMDIGITAL-SERVER.md) |
 | Multi-instância prod/dev/teste | [../MULTI-INSTANCIA-PROD-DEV-TESTE.md](../MULTI-INSTANCIA-PROD-DEV-TESTE.md) |

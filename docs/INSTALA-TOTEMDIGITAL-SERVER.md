@@ -98,6 +98,7 @@ Player-AD (APK) **não** é instalado por este script — use ADB/pendrive.
 
 ## Relação com outros docs
 
+- **[Procedimentos por modalidade](./instalacao/README.md)** — sequências completas para produção, DEV/TESTE, manutenção, backup/restore e Player-AD
 - **[Manuais (índice)](./manuais/README.md)** — visão geral, instalação, 1ª vez, módulos, admin, técnico E.R./API
 - [ORGANIZACAO-BRANCHES.md](./ORGANIZACAO-BRANCHES.md) — repo/branch
 - [INSTALL-PRODUCAO-COMPACT-DIRECT-TOTEM-HTTPS-443.md](./INSTALL-PRODUCAO-COMPACT-DIRECT-TOTEM-HTTPS-443.md) — detalhe técnico do perfil produção
