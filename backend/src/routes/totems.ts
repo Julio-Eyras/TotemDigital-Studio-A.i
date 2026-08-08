@@ -19,6 +19,7 @@ import { getDatabase } from '../config/database';
 import { isStudioRuntime } from '../config/installationRuntime';
 import { getTotemSecretKey } from '../config/totemSecurity';
 import { getTotemCreateRoles } from '../utils/totemCreateRoles';
+import { getPlaybackTelemetryService } from '../services/playbackTelemetryService';
 
 const router = Router();
 
@@ -395,6 +396,90 @@ router.delete('/:id/medias/:mediaId',
     } catch (error: any) {
       await logError('Erro ao remover mídia do totem', error, { totemId: req.params.id });
       return res.status(400).json({ success: false, error: error.message || 'Erro ao remover mídia' });
+    }
+  }
+);
+
+const observationValidators = [
+  param('id').isInt({ min: 1 }),
+  body('ttlSeconds').optional().isInt({ min: 60, max: 120 }),
+  body('intervalSeconds').optional().isInt({ min: 1, max: 30 }),
+  validateRequest,
+];
+
+/**
+ * @route GET /api/totems/:id/playback-state
+ * @desc Obtém a linha quente de playback atual do totem
+ */
+router.get(
+  '/:id/playback-state',
+  param('id').isInt({ min: 1 }),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const totemId = Number(req.params.id);
+      const scoped = await requireScopedTotem(totemId, req);
+      if (!scoped.ok) return res.status(scoped.status).json(scoped.body);
+      const playbackState = await getPlaybackTelemetryService().getCurrentState(totemId);
+      return res.json({ totemId, playbackState });
+    } catch (error: any) {
+      await logError('Erro ao consultar estado de playback', error);
+      return res.status(500).json({ error: 'Erro ao consultar estado de playback' });
+    }
+  }
+);
+
+async function upsertTelemetryObservation(req: AuthenticatedRequest, res: Response) {
+  try {
+    const totemId = Number(req.params.id);
+    const scoped = await requireScopedTotem(totemId, req);
+    if (!scoped.ok) return res.status(scoped.status).json(scoped.body);
+    const telemetryObservation = await getPlaybackTelemetryService().startOrRenewObservation(
+      totemId,
+      req.user!.id,
+      Number(req.body.ttlSeconds || 90),
+      Number(req.body.intervalSeconds || 5)
+    );
+    return res.json({ totemId, telemetryObservation });
+  } catch (error: any) {
+    await logError('Erro ao iniciar/renovar observação de telemetria', error);
+    return res.status(500).json({ error: 'Erro ao atualizar observação de telemetria' });
+  }
+}
+
+/**
+ * @route POST /api/totems/:id/telemetry-observation/start
+ * @desc Inicia lease de observação por 60–120 segundos
+ */
+router.post('/:id/telemetry-observation/start', ...observationValidators, upsertTelemetryObservation);
+
+/**
+ * @route PUT /api/totems/:id/telemetry-observation/renew
+ * @desc Renova lease de observação por 60–120 segundos
+ */
+router.put('/:id/telemetry-observation/renew', ...observationValidators, upsertTelemetryObservation);
+
+/**
+ * @route DELETE /api/totems/:id/telemetry-observation/stop
+ * @desc Encerra explicitamente o lease de observação
+ */
+router.delete(
+  '/:id/telemetry-observation/stop',
+  param('id').isInt({ min: 1 }),
+  validateRequest,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const totemId = Number(req.params.id);
+      const scoped = await requireScopedTotem(totemId, req);
+      if (!scoped.ok) return res.status(scoped.status).json(scoped.body);
+      await getPlaybackTelemetryService().stopObservation(totemId);
+      return res.json({
+        totemId,
+        telemetryObservation: { active: false, expiresAt: null, intervalSeconds: 30 },
+      });
+    } catch (error: any) {
+      await logError('Erro ao parar observação de telemetria', error);
+      return res.status(500).json({ error: 'Erro ao parar observação de telemetria' });
     }
   }
 );

@@ -2,7 +2,10 @@ package br.com.smartchannel.playerad.playback
 
 import android.graphics.Color
 import android.webkit.WebSettings
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
+import android.webkit.WebViewClient
 import java.io.File
 
 /**
@@ -26,8 +29,23 @@ object HtmlWebViewPlayback {
         webView: WebView,
         serverBaseUrl: String,
         httpUrl: String,
-        cachedHtmlFile: File?
+        cachedHtmlFile: File?,
+        onMainFrameError: (String) -> Unit = {},
     ) {
+        webView.webViewClient = object : WebViewClient() {
+            override fun onReceivedError(
+                view: WebView?,
+                request: WebResourceRequest?,
+                error: WebResourceError?,
+            ) {
+                if (request?.isForMainFrame != false) {
+                    onMainFrameError(
+                        "webview_${error?.errorCode ?: "unknown"}:" +
+                            (error?.description?.toString() ?: "load_error"),
+                    )
+                }
+            }
+        }
         webView.onResume()
         webView.visibility = android.view.View.VISIBLE
         val base = serverBaseUrl.trimEnd('/') + "/"

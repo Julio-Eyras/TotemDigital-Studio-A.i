@@ -34,6 +34,7 @@ export interface QueryLog {
 
 export interface DispatcherMessage {
   id: string;
+  traceId?: string;
   timestamp: Date;
   direction: 'incoming' | 'outgoing';
   totemId?: number;
@@ -48,6 +49,8 @@ export interface DispatcherMessage {
   ipAddress?: string;
   userAgent?: string;
   statusCode?: number;
+  eventType?: string;
+  mediaName?: string;
 }
 
 export interface DebugLog {
@@ -150,6 +153,9 @@ class DispatcherDebugService {
       ipAddress?: string;
       userAgent?: string;
       statusCode?: number;
+      traceId?: string;
+      eventType?: string;
+      mediaName?: string;
     }
   ): void {
     const message: DispatcherMessage = {
@@ -220,7 +226,22 @@ class DispatcherDebugService {
   /**
    * Obter logs de mensagens
    */
-  getMessageLogs(limit: number = 100, since?: Date, totemId?: number, uin?: string): DispatcherMessage[] {
+  getMessageLogs(
+    limit: number = 100,
+    since?: Date,
+    totemId?: number,
+    uin?: string,
+    filters: {
+      traceId?: string;
+      direction?: 'incoming' | 'outgoing';
+      endpoint?: string;
+      method?: string;
+      eventType?: string;
+      mediaName?: string;
+      statusCode?: number;
+      hasError?: boolean;
+    } = {}
+  ): DispatcherMessage[] {
     let logs = this.messageLogs;
     if (since) {
       logs = logs.filter(log => log.timestamp >= since);
@@ -230,6 +251,23 @@ class DispatcherDebugService {
     }
     if (uin) {
       logs = logs.filter(log => log.uin === uin);
+    }
+    if (filters.traceId) logs = logs.filter(log => log.traceId === filters.traceId);
+    if (filters.direction) logs = logs.filter(log => log.direction === filters.direction);
+    if (filters.endpoint) logs = logs.filter(log => log.endpoint === filters.endpoint);
+    if (filters.method) {
+      logs = logs.filter(log => log.method?.toUpperCase() === filters.method!.toUpperCase());
+    }
+    if (filters.eventType) logs = logs.filter(log => log.eventType === filters.eventType);
+    if (filters.mediaName) {
+      const needle = filters.mediaName.toLocaleLowerCase();
+      logs = logs.filter(log => log.mediaName?.toLocaleLowerCase().includes(needle));
+    }
+    if (filters.statusCode !== undefined) {
+      logs = logs.filter(log => log.statusCode === filters.statusCode);
+    }
+    if (filters.hasError !== undefined) {
+      logs = logs.filter(log => Boolean(log.error) === filters.hasError);
     }
     return logs.slice(0, limit);
   }

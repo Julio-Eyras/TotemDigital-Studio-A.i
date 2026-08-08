@@ -20,6 +20,7 @@ import { getTotemSecretKey } from '../config/totemSecurity';
 import { decryptOpenSslSaltedBase64 } from '../utils/totemEncryption';
 import { normalizeTotemUin } from '../utils/normalizeTotemUin';
 import { normalizeDeviceId } from '../utils/normalizeDeviceId';
+import { getPlaybackTelemetryService } from '../services/playbackTelemetryService';
 
 const execAsync = promisify(exec);
 
@@ -1443,6 +1444,7 @@ router.post('/event',
     'video_playback_end',
     'video_playback_error',
     'image_display',
+    'html_display',
     'audio_playback',
     'ad_display_start',
     'ad_display_end',
@@ -1470,6 +1472,126 @@ router.post('/event',
     
     // Delegar para DispatcherRouter (ponto central de roteamento)
     return await dispatcherRouter.route(req, res, '/api/player/event');
+  }
+);
+
+/**
+ * @route POST /api/player/events/batch
+ * @desc Ingestão idempotente e transacional de até 50 eventos de playback
+ * @access Totem autenticado (HMAC ou device token)
+ */
+router.post('/events/batch',
+  query('uin').isString().isLength({ min: 1, max: 100 }),
+  query('token').isString().notEmpty(),
+  body('events').isArray({ min: 1, max: 50 }),
+  async (req: Request, res: Response) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        error: 'Dados inválidos',
+        details: errors.array(),
+        accepted: [],
+        duplicates: [],
+        rejected: [],
+        highestSequence: null,
+        serverTime: new Date().toISOString(),
+      });
+    }
+
+    const uin = String(req.query.uin);
+    const token = String(req.query.token);
+    const traceId = req.get('x-trace-id') || crypto.randomUUID();
+    const startTime = Date.now();
+    const events = req.body.events as unknown[];
+    const firstEvent: any = events[0] || {};
+    dispatcherDebugService.logMessage('incoming', {
+      traceId,
+      uin,
+      endpoint: '/api/player/events/batch',
+      method: 'POST',
+      eventType: firstEvent.eventType,
+      mediaName: firstEvent.media?.name,
+      request: { eventCount: events.length },
+      ipAddress: req.ip,
+    });
+
+    try {
+      const validHmac = validateTotemToken(uin, token);
+      const deviceTokenService = (await import('../services/deviceTokenService')).getDeviceTokenService();
+      const validDevice = await deviceTokenService.validateToken(uin, token, {
+        deviceId: normalizeDeviceId(
+          String(req.query.deviceId || firstEvent.context?.deviceId || '')
+        ) || null,
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent') || undefined,
+      });
+      if (!validHmac && !validDevice) {
+        dispatcherDebugService.logMessage('outgoing', {
+          traceId,
+          uin,
+          endpoint: '/api/player/events/batch',
+          method: 'POST',
+          eventType: firstEvent.eventType,
+          mediaName: firstEvent.media?.name,
+          statusCode: 401,
+          duration: Date.now() - startTime,
+          error: 'Token inválido ou expirado',
+        });
+        return res.status(401).json({ error: 'Token inválido ou expirado' });
+      }
+
+      const totem = await new TotemService().getTotemByUin(uin);
+      if (!totem || !totem.active) {
+        const statusCode = totem ? 403 : 404;
+        dispatcherDebugService.logMessage('outgoing', {
+          traceId,
+          totemId: totem?.id,
+          uin,
+          endpoint: '/api/player/events/batch',
+          method: 'POST',
+          eventType: firstEvent.eventType,
+          mediaName: firstEvent.media?.name,
+          statusCode,
+          duration: Date.now() - startTime,
+          error: totem ? 'Totem inativo' : 'Totem não encontrado',
+        });
+        return res.status(statusCode).json({ error: totem ? 'Totem inativo' : 'Totem não encontrado' });
+      }
+
+      const result = await getPlaybackTelemetryService().ingestBatch(totem.id, events);
+      dispatcherDebugService.logMessage('outgoing', {
+        traceId,
+        totemId: totem.id,
+        uin,
+        endpoint: '/api/player/events/batch',
+        method: 'POST',
+        eventType: firstEvent.eventType,
+        mediaName: firstEvent.media?.name,
+        statusCode: 200,
+        duration: Date.now() - startTime,
+        response: {
+          accepted: result.accepted.length,
+          duplicates: result.duplicates.length,
+          rejected: result.rejected.length,
+          highestSequence: result.highestSequence,
+        },
+      });
+      return res.json(result);
+    } catch (error: any) {
+      dispatcherDebugService.logMessage('outgoing', {
+        traceId,
+        uin,
+        endpoint: '/api/player/events/batch',
+        method: 'POST',
+        eventType: firstEvent.eventType,
+        mediaName: firstEvent.media?.name,
+        statusCode: 500,
+        duration: Date.now() - startTime,
+        error: error?.message || 'Erro interno',
+      });
+      await logError('Erro ao ingerir lote de playback', error, { traceId, uin });
+      return res.status(500).json({ error: 'Erro ao ingerir eventos', traceId });
+    }
   }
 );
 

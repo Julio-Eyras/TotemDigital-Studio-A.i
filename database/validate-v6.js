@@ -34,7 +34,8 @@ async function validateAndExecute() {
     console.log('🔍 Validando schema...');
     const tables = [
       'subscribers', 'publishers', 'users', 'totems', 'smart_tvs',
-      'campaigns', 'campaign_medias', 'medias', 'playlists', 'tags', 'fx_telemetry'
+      'campaigns', 'campaign_medias', 'medias', 'playlists', 'tags', 'fx_telemetry',
+      'playback_events', 'totem_playback_state', 'telemetry_observation_leases'
     ];
     
     let schemaExists = true;
@@ -543,7 +544,7 @@ async function validateAndExecute() {
       console.log('\n  ✅ Studio Vx4/Vx5 (templates, cardápio, estúdio visual): schema OK\n');
     }
 
-    console.log('🔍 Validando schema parts 14–17 (reconcile, contracts, plans, procedures)...\n');
+    console.log('🔍 Validando schema parts 14–18 (reconcile, contracts, plans, procedures e playback)...\n');
     let schemaPartsOk = true;
 
     const reconcileTable = 'reconcile_plan_publisher_jobs';
@@ -582,10 +583,68 @@ async function validateAndExecute() {
       }
     }
 
-    if (!schemaPartsOk) {
-      console.log('\n⚠️  Parts 14–17 incompletas — reaplique apply-schema-v2.sh.\n');
+    const playbackConstraints = [
+      'uq_playback_events_uid',
+      'uq_playback_events_boot_sequence',
+      'chk_playback_events_type',
+      'chk_playback_events_metrics_object',
+      'fk_playback_events_totem',
+      'fk_totem_playback_state_totem',
+      'fk_telemetry_observation_lease_totem',
+    ];
+    for (const constraint of playbackConstraints) {
+      const result = await pool.query(
+        `SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = $1) AS exists`,
+        [constraint]
+      );
+      if (result.rows[0].exists) {
+        console.log(`  ✅ Constraint ${constraint} (part18)`);
+      } else {
+        console.log(`  ❌ Constraint ${constraint} ausente — execute apply-schema-v2.sh (part18)`);
+        schemaPartsOk = false;
+      }
+    }
+
+    const playbackMetricsColumn = await pool.query(
+      `SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'playback_events'
+          AND column_name = 'metrics'
+          AND data_type = 'jsonb'
+      ) AS exists`
+    );
+    if (playbackMetricsColumn.rows[0].exists) {
+      console.log('  ✅ Coluna playback_events.metrics JSONB (part18)');
     } else {
-      console.log('\n  ✅ Parts 14–17: schema OK\n');
+      console.log('  ❌ Coluna playback_events.metrics ausente — execute apply-schema-v2.sh (part18)');
+      schemaPartsOk = false;
+    }
+
+    const playbackIndexes = [
+      'idx_playback_events_totem_occurred',
+      'idx_playback_events_session',
+      'idx_totem_playback_state_updated',
+      'idx_telemetry_observation_expires',
+    ];
+    for (const index of playbackIndexes) {
+      const result = await pool.query(
+        `SELECT to_regclass($1) IS NOT NULL AS exists`,
+        [`public.${index}`]
+      );
+      if (result.rows[0].exists) {
+        console.log(`  ✅ Índice ${index} (part18)`);
+      } else {
+        console.log(`  ❌ Índice ${index} ausente — execute apply-schema-v2.sh (part18)`);
+        schemaPartsOk = false;
+      }
+    }
+
+    if (!schemaPartsOk) {
+      console.log('\n⚠️  Parts 14–18 incompletas — reaplique apply-schema-v2.sh.\n');
+    } else {
+      console.log('\n  ✅ Parts 14–18: schema OK\n');
     }
 
     console.log('✅ Validação concluída com sucesso!');

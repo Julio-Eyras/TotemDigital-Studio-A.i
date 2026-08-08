@@ -52,6 +52,7 @@ import {
   Error as ErrorIcon,
 } from '@mui/icons-material';
 import { dispatcherDebugApi, DispatcherMessage, getWebSocketUrl } from '../../services/api';
+import DispatcherMonitorV2 from './DispatcherMonitorV2';
 
 /** Resposta do dispatch pode vir como `{ plan }` ou `{ data: { plan } }` conforme versão/log. */
 function extractDispatchEmptyExplanation(response: unknown): {
@@ -688,4 +689,5 @@ const DispatcherMonitor: React.FC = () => {
   );
 };
 
-export default DispatcherMonitor;
+export { DispatcherMonitor as LegacyDispatcherMonitor };
+export default DispatcherMonitorV2;

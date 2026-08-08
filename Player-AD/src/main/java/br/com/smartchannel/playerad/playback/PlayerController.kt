@@ -48,7 +48,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.coroutines.channels.Channel
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -58,6 +57,7 @@ import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 import kotlin.system.exitProcess
 import kotlin.coroutines.resume
 
@@ -137,8 +137,8 @@ class PlayerController(
         activeImageMediaId = -1L
         heartbeatPollRef = null
         dispatchPollRef = null
-        telemetryQueue.close()
-        telemetryScope.cancel()
+        backgroundScope.cancel()
+        if (::eventsClient.isInitialized) eventsClient.close()
         try {
             MediaViewportRotation.resetPlayerView(playerView)
             MediaViewportRotation.resetView(imageView)
@@ -233,80 +233,104 @@ class PlayerController(
         get() = AppDirs.propagandas(context)
 
     private lateinit var eventsClient: PlayerEventsClient
-    private val telemetryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val telemetryQueue = Channel<PlaybackTelemetryEvent>(capacity = 128)
-    @Volatile
-    private var telemetryWorkerStarted = false
+    private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    private data class PlaybackTelemetryEvent(
-        val eventType: String,
-        val mediaId: Long?,
-        val playlistId: Long?,
-        val campaignId: Long?,
-        val durationSeconds: Long?,
-        val completed: Boolean?,
-        val metadata: Map<String, Any?> = emptyMap(),
+    private data class TelemetrySession(
+        val id: String,
+        val startedAt: String,
+        val startedAtMs: Long,
+        val expectedEndAt: String?,
+        val durationMs: Long?,
+        val source: String,
     )
 
-    /**
-     * Telemetria nunca pode bloquear troca/reprodução. Um único worker preserva a ordem
-     * start→end sem colocar HTTP (até 8 s/retry) no caminho crítico do ExoPlayer.
-     */
-    private fun startTelemetryWorker() {
-        if (telemetryWorkerStarted) return
-        telemetryWorkerStarted = true
-        telemetryScope.launch {
-            var token = apiClient.cachedToken().orEmpty()
-            for (event in telemetryQueue) {
-                if (released) break
-                try {
-                    token = eventsClient.sendEvent(
-                        token = apiClient.cachedToken()?.takeIf { it.isNotBlank() } ?: token,
-                        eventType = event.eventType,
-                        mediaId = event.mediaId,
-                        playlistId = event.playlistId,
-                        campaignId = event.campaignId,
-                        durationSeconds = event.durationSeconds,
-                        completed = event.completed,
-                        metadata = event.metadata,
-                    )
-                } catch (e: Exception) {
-                    PlayerAdLogger.w(
-                        "EVENT",
-                        "Telemetria ${event.eventType} falhou mediaId=${event.mediaId}: ${e.message}",
-                    )
-                }
-            }
-        }
+    private fun beginTelemetry(
+        plan: DispatchPlan,
+        item: DispatchMediaItem,
+        type: String,
+        durationMs: Long?,
+        source: String,
+    ): TelemetrySession {
+        val startedMs = System.currentTimeMillis()
+        val session = TelemetrySession(
+            id = UUID.randomUUID().toString(),
+            startedAt = PlayerEventsClient.isoNow(startedMs),
+            startedAtMs = startedMs,
+            expectedEndAt = durationMs?.let { PlayerEventsClient.isoNow(startedMs + it) },
+            durationMs = durationMs,
+            source = source,
+        )
+        eventsClient.enqueue(
+            telemetryEvent("media.play.started", plan, item, type, session),
+        )
+        return session
     }
 
-    private fun enqueuePlaybackEvent(
-        eventType: String,
-        mediaId: Long?,
-        playlistId: Long?,
-        campaignId: Long?,
-        durationSeconds: Long? = null,
-        completed: Boolean? = null,
-        metadata: Map<String, Any?> = emptyMap(),
+    private fun finishTelemetry(
+        plan: DispatchPlan,
+        item: DispatchMediaItem,
+        type: String,
+        session: TelemetrySession,
+        playedMs: Long,
+        completed: Boolean,
+        reason: String,
+        positionMs: Long = playedMs,
     ) {
-        val result = telemetryQueue.trySend(
-            PlaybackTelemetryEvent(
-                eventType = eventType,
-                mediaId = mediaId,
-                playlistId = playlistId,
-                campaignId = campaignId,
-                durationSeconds = durationSeconds,
-                completed = completed,
-                metadata = metadata,
+        eventsClient.enqueue(
+            telemetryEvent(
+                "media.play.ended", plan, item, type, session,
+                playedMs = playedMs, completed = completed, reason = reason, positionMs = positionMs,
             ),
         )
-        if (result.isFailure) {
-            PlayerAdLogger.w(
-                "EVENT",
-                "Fila de telemetria cheia/fechada; descartado $eventType mediaId=$mediaId",
-            )
-        }
     }
+
+    private fun errorTelemetry(
+        plan: DispatchPlan,
+        item: DispatchMediaItem,
+        type: String,
+        session: TelemetrySession,
+        reason: String,
+        positionMs: Long = 0L,
+    ) {
+        eventsClient.enqueue(
+            telemetryEvent(
+                "media.play.error", plan, item, type, session,
+                playedMs = (System.currentTimeMillis() - session.startedAtMs).coerceAtLeast(0L),
+                completed = false, reason = reason, positionMs = positionMs,
+            ),
+        )
+    }
+
+    private fun telemetryEvent(
+        eventType: String,
+        plan: DispatchPlan,
+        item: DispatchMediaItem,
+        type: String,
+        session: TelemetrySession,
+        playedMs: Long? = null,
+        completed: Boolean? = null,
+        reason: String? = null,
+        positionMs: Long? = null,
+    ) = PlayerEventsClient.Event(
+        eventType = eventType,
+        playbackSessionId = session.id,
+        mediaId = item.mediaId,
+        mediaName = item.label,
+        mediaType = item.mediaType ?: type,
+        durationMs = session.durationMs,
+        startedAt = session.startedAt,
+        expectedEndAt = session.expectedEndAt,
+        endedAt = if (eventType == "media.play.started") null else PlayerEventsClient.isoNow(),
+        playedDurationMs = playedMs,
+        completed = completed,
+        reason = reason,
+        positionMs = positionMs,
+        source = session.source,
+        playlistId = plan.playlistId.takeIf { it > 0 },
+        campaignId = plan.campaignId,
+        planVersion = knownPlanVersion,
+        order = item.order,
+    )
 
     /**
      * Obtém token, faz dispatch e começa o loop de playback.
@@ -315,12 +339,13 @@ class PlayerController(
         HtmlWebViewPlayback.configure(htmlWebView)
         displaySchedule = DisplayScheduleStore.load(context)
         eventsClient = PlayerEventsClient(
+            context = context,
             baseUrl = apiClient.baseUrl.trimEnd('/'),
             uin = apiClient.uin,
             deviceId = apiClient.deviceId,
-            dispatcher = apiClient
+            dispatcher = apiClient,
+            playerVersion = apiClient.appVersion,
         )
-        startTelemetryWorker()
 
         PlayerAdLogger.i("LIFECYCLE", "(1) Heartbeat inicial — token/sessão (GET /token se necessário + POST /heartbeat)")
         var sessionToken = apiClient.cachedToken() ?: ""
@@ -381,6 +406,10 @@ class PlayerController(
             if (url.isBlank()) continue
             val duration = parsePositiveLong(obj, "duration", "display_seconds", "displaySeconds")
                 .takeIf { it > 0L }
+                ?: obj.optJSONObject("metadata")?.let { metadata ->
+                    parsePositiveLong(metadata, "durationSeconds", "duration_seconds")
+                        .takeIf { it > 0L }
+                }
             val mediaType = firstNonBlankString(obj, "mediaType", "media_type", "mimeType", "mime_type")
                 .takeIf { it.isNotBlank() }
             val order = parsePositiveLong(obj, "order").takeIf { it > 0L }?.toInt() ?: (i + 1)
@@ -832,7 +861,7 @@ class PlayerController(
                 val pollToken = currentToken
                 val pollIndex = index
                 val pollSignature = planSignature
-                serverPollJob = telemetryScope.async {
+                serverPollJob = backgroundScope.async {
                     var busyPlan: DispatchPlan? = null
                     var busyIndex = pollIndex
                     var quietPlan: DispatchPlan? = null
@@ -1201,6 +1230,16 @@ class PlayerController(
         val hb = apiClient.heartbeatWithCommands(buildHealthMetrics())
         var token = hb.token
         PlayerAdLogger.i("HEARTBEAT", "OK — sessão/token renovados; comandos=${hb.pendingCommands.size}")
+        eventsClient.updateObservation(hb.telemetryObservation) {
+            buildHealthMetrics().apply {
+                nowPlayingSnapshot?.let { put("nowPlaying", JSONObject(it.toString())) }
+                put("displayIdle", displayIdle)
+                put("planVersion", knownPlanVersion ?: JSONObject.NULL)
+                put("exoPositionMs", runCatching { exoPlayer.currentPosition }.getOrDefault(0L))
+                put("exoBufferedPositionMs", runCatching { exoPlayer.bufferedPosition }.getOrDefault(0L))
+                put("exoPlaybackState", runCatching { exoPlayer.playbackState }.getOrDefault(Player.STATE_IDLE))
+            }
+        }
         hb.displaySchedule?.let { applyDisplayScheduleFromServer(it) }
         hb.pollAdaptive?.let { applyPollAdaptiveFromServer(it) }
         otaUpdateCoordinator?.handleFromHeartbeat(hb.otaUpdate)
@@ -2020,7 +2059,12 @@ class PlayerController(
                     plan.playlistId
                 )
                 setNowPlaying("image", item, plan.playlistName)
+                val telemetry = beginTelemetry(plan, item, "image", durationMs, "memory")
                 delay(durationMs)
+                finishTelemetry(
+                    plan, item, "image", telemetry, durationMs,
+                    completed = true, reason = "duration_elapsed",
+                )
                 PlayerAdLogger.logPlaybackEnd("imagem", item.mediaId, durationSeconds)
                 return t
             }
@@ -2059,6 +2103,13 @@ class PlayerController(
                 plan.playlistId
             )
             setNowPlaying("image", item, plan.playlistName)
+            val telemetry = beginTelemetry(
+                plan,
+                item,
+                "image",
+                durationMs,
+                if (imageUri.scheme == "file") "cache" else "network",
+            )
 
             if (bitmap != null) {
                 val imagePath = if (imageUri.scheme == "file") imageUri.path else null
@@ -2094,16 +2145,16 @@ class PlayerController(
                 activeImageMediaId = item.mediaId
             } else {
                 activeImageMediaId = -1L
+                errorTelemetry(plan, item, "image", telemetry, "image_decode_failed")
             }
 
-            enqueuePlaybackEvent(
-                eventType = "image_display",
-                mediaId = item.mediaId,
-                playlistId = plan.playlistId,
-                campaignId = plan.campaignId,
-            )
-
             delay(durationMs)
+            if (bitmap != null) {
+                finishTelemetry(
+                    plan, item, "image", telemetry, durationMs,
+                    completed = true, reason = "duration_elapsed",
+                )
+            }
             // Não esconder aqui — o próximo playItem faz a troca com conteúdo novo já pronto.
             PlayerAdLogger.logPlaybackEnd("imagem", item.mediaId, durationSeconds)
             return t
@@ -2183,18 +2234,24 @@ class PlayerController(
         activeVideoMediaId = item.mediaId
         activeVideoContentVersion = item.contentVersion
 
-        enqueuePlaybackEvent(
-            eventType = "video_playback_start",
-            mediaId = item.mediaId,
-            playlistId = plan.playlistId,
-            campaignId = plan.campaignId,
+        val actualDurationMs = exoPlayer.duration
+            .takeIf { it != C.TIME_UNSET && it > 0L }
+            ?: item.duration?.times(1000L)
+        val telemetry = beginTelemetry(
+            plan,
+            item,
+            "video",
+            actualDurationMs,
+            if (isFileUrl || (hasValidCache && playFile != null)) "cache" else "network",
         )
 
         val playbackTimeoutMs = videoWatchdogTimeoutMs(item)
         val restartOnEnd = shouldRestartVideoOnEnd(plan, item)
-        val playedMs = withTimeoutOrNull(playbackTimeoutMs) {
+        val completedPosition = withTimeoutOrNull(playbackTimeoutMs) {
             waitForPlaybackEnd(restartOnEnd = restartOnEnd)
-        } ?: run {
+        }
+        val timedOut = completedPosition == null
+        val playedMs = completedPosition ?: run {
             val currentPosition = exoPlayer.currentPosition
             PlayerAdLogger.w(
                 "WATCHDOG",
@@ -2212,14 +2269,21 @@ class PlayerController(
         )
 
         // Não stop() aqui — próximo item (ou imagem) assume com último frame ainda no TextureView.
-        enqueuePlaybackEvent(
-            eventType = "video_playback_end",
-            mediaId = item.mediaId,
-            playlistId = plan.playlistId,
-            campaignId = plan.campaignId,
-            durationSeconds = (playedMs / 1000L).coerceAtLeast(0L),
-            completed = true,
-        )
+        val playbackError = exoPlayer.playerError
+        if (playbackError != null) {
+            errorTelemetry(
+                plan, item, "video", telemetry,
+                playbackError.errorCodeName.ifBlank { playbackError.message ?: "exo_player_error" },
+                playedMs,
+            )
+        } else {
+            finishTelemetry(
+                plan, item, "video", telemetry, playedMs,
+                completed = !timedOut,
+                reason = if (timedOut) "watchdog_timeout" else "ended",
+                positionMs = playedMs,
+            )
+        }
         return t
     }
 
@@ -2312,18 +2376,22 @@ class PlayerController(
         )
         setNowPlaying("video", item, plan.playlistName)
 
-        enqueuePlaybackEvent(
-            eventType = "video_playback_start",
-            mediaId = item.mediaId,
-            playlistId = plan.playlistId,
-            campaignId = plan.campaignId,
+        val telemetry = beginTelemetry(
+            plan,
+            item,
+            "video",
+            exoPlayer.duration.takeIf { it != C.TIME_UNSET && it > 0L }
+                ?: item.duration?.times(1000L),
+            "memory",
         )
 
         val playbackTimeoutMs = videoWatchdogTimeoutMs(item)
         val restartOnEnd = shouldRestartVideoOnEnd(plan, item)
-        val playedMs = withTimeoutOrNull(playbackTimeoutMs) {
+        val completedPosition = withTimeoutOrNull(playbackTimeoutMs) {
             waitForPlaybackEnd(restartOnEnd = restartOnEnd)
-        } ?: run {
+        }
+        val timedOut = completedPosition == null
+        val playedMs = completedPosition ?: run {
             val currentPosition = exoPlayer.currentPosition
             PlayerAdLogger.w(
                 "WATCHDOG",
@@ -2340,14 +2408,21 @@ class PlayerController(
             (playedMs / 1000L).coerceAtLeast(0L)
         )
 
-        enqueuePlaybackEvent(
-            eventType = "video_playback_end",
-            mediaId = item.mediaId,
-            playlistId = plan.playlistId,
-            campaignId = plan.campaignId,
-            durationSeconds = (playedMs / 1000L).coerceAtLeast(0L),
-            completed = true,
-        )
+        val playbackError = exoPlayer.playerError
+        if (playbackError != null) {
+            errorTelemetry(
+                plan, item, "video", telemetry,
+                playbackError.errorCodeName.ifBlank { playbackError.message ?: "exo_player_error" },
+                playedMs,
+            )
+        } else {
+            finishTelemetry(
+                plan, item, "video", telemetry, playedMs,
+                completed = !timedOut,
+                reason = if (timedOut) "watchdog_timeout" else "ended",
+                positionMs = playedMs,
+            )
+        }
         return t
     }
 
@@ -2390,13 +2465,6 @@ class PlayerController(
         )
         setNowPlaying("html", item, plan.playlistName)
 
-        enqueuePlaybackEvent(
-            eventType = "html_display",
-            mediaId = item.mediaId,
-            playlistId = plan.playlistId,
-            campaignId = plan.campaignId,
-        )
-
         val resolvedHttpUrl = apiClient.resolveUrl(item.url)
         val cachedFile = when {
             isFileUrl -> {
@@ -2409,12 +2477,21 @@ class PlayerController(
             }
             else -> null
         }
+        val telemetry = beginTelemetry(
+            plan,
+            item,
+            "html",
+            durationMs,
+            if (cachedFile != null) "cache" else "network",
+        )
+        var htmlErrorReason: String? = null
 
         HtmlWebViewPlayback.load(
             webView = htmlWebView,
             serverBaseUrl = apiClient.baseUrl,
             httpUrl = resolvedHttpUrl,
-            cachedHtmlFile = cachedFile
+            cachedHtmlFile = cachedFile,
+            onMainFrameError = { htmlErrorReason = it },
         )
 
         // Timer fora da Main: animações JS na WebView não devem atrasar o avanço da playlist.
@@ -2434,6 +2511,15 @@ class PlayerController(
         HtmlWebViewPlayback.stop(htmlWebView)
         hideImageLayer()
         concealPlayerSurface()
+        val htmlError = htmlErrorReason
+        if (htmlError != null) {
+            errorTelemetry(plan, item, "html", telemetry, htmlError)
+        } else {
+            finishTelemetry(
+                plan, item, "html", telemetry, durationMs,
+                completed = true, reason = "duration_elapsed",
+            )
+        }
         PlayerAdLogger.logPlaybackEnd("html", item.mediaId, durationSeconds)
         PlayerAdLogger.i(
             "PLAYBACK",

@@ -43,7 +43,19 @@ class DispatcherApiClient(
         val needsDispatch: Boolean = true,
         /** false = backend antigo sem contrato planVersion (usar poll periódico). */
         val supportsPlanVersion: Boolean = false,
+        /** Janela opcional para amostragem detalhada; ausente mantém somente transições. */
+        val telemetryObservation: TelemetryObservation? = null,
     )
+
+    data class TelemetryObservation(
+        val active: Boolean,
+        val expiresAt: String?,
+        val expiresAtEpochMs: Long?,
+        val intervalSeconds: Int,
+    ) {
+        fun isExpired(nowMs: Long = System.currentTimeMillis()): Boolean =
+            expiresAtEpochMs?.let { nowMs >= it } ?: false
+    }
 
     private data class HttpTextResponse(
         val code: Int,
@@ -243,6 +255,23 @@ class DispatcherApiClient(
             else -> false // backend legado: não forçar dispatch a cada heartbeat
         }
 
+        val observationJson = payload.optJSONObject("telemetryObservation")
+            ?: payload.optJSONObject("telemetry_observation")
+        val telemetryObservation = observationJson?.let { observation ->
+            val expiresAt = observation.optString("expiresAt", "")
+                .ifBlank { observation.optString("expires_at", "") }
+                .ifBlank { null }
+            TelemetryObservation(
+                active = observation.optBoolean("active", false),
+                expiresAt = expiresAt,
+                expiresAtEpochMs = expiresAt?.let(::parseIsoUtcMillis),
+                intervalSeconds = observation.optInt(
+                    "intervalSeconds",
+                    observation.optInt("interval_seconds", 30),
+                ).coerceIn(2, 3600),
+            )
+        }
+
         HeartbeatResult(
             newToken,
             pendingCommands,
@@ -252,6 +281,7 @@ class DispatcherApiClient(
             planVersion,
             needsDispatch,
             supportsPlanVersion,
+            telemetryObservation,
         )
     }
 
@@ -410,6 +440,23 @@ class DispatcherApiClient(
         val trimmedBase = baseUrl.trimEnd('/')
         val trimmedRel = if (relativeOrAbsolute.startsWith("/")) relativeOrAbsolute else "/$relativeOrAbsolute"
         return trimmedBase + trimmedRel
+    }
+
+    private fun parseIsoUtcMillis(value: String): Long? {
+        val patterns = arrayOf(
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+            "yyyy-MM-dd'T'HH:mm:ss'Z'",
+        )
+        for (pattern in patterns) {
+            val parsed = runCatching {
+                java.text.SimpleDateFormat(pattern, java.util.Locale.US).apply {
+                    timeZone = java.util.TimeZone.getTimeZone("UTC")
+                    isLenient = false
+                }.parse(value)?.time
+            }.getOrNull()
+            if (parsed != null) return parsed
+        }
+        return null
     }
 }
 

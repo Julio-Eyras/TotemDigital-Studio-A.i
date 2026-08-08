@@ -2,6 +2,7 @@ import axios from 'axios';
 import { normalizeCampaignRecord } from '../../utils/campaignNormalize';
 import { normalizeMediaItem } from '../../utils/mediaId';
 import { normalizeDeviceId } from '../../utils/deviceId';
+import type { SmartSignageNetwork } from '@shared/holograph-adapter';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
@@ -637,6 +638,36 @@ export interface Player {
   media_count?: number;
   /** Todas as ligações na playlist do totem (incl. desabilitadas). */
   media_count_total?: number;
+  /** Estado de reprodução recebido no heartbeat/listagem (fallback sem WebSocket). */
+  nowPlaying?: PlayerNowPlaying;
+  now_playing?: PlayerNowPlaying;
+  runtime?: PlayerNowPlaying;
+}
+
+export interface PlayerNowPlaying {
+  mediaName?: string;
+  media_name?: string;
+  mediaType?: string;
+  media_type?: string;
+  durationMs?: number;
+  duration_ms?: number;
+  startedAt?: string;
+  started_at?: string;
+  expectedEndAt?: string;
+  expected_end_at?: string;
+  status?: string;
+  stale?: boolean;
+}
+
+export interface TelemetryObservationLease {
+  totemId?: number;
+  expiresAt?: string;
+  expires_at?: string;
+  ttlSeconds?: number;
+  ttl_seconds?: number;
+  awaitingHeartbeat?: boolean;
+  awaiting_heartbeat?: boolean;
+  active?: boolean;
 }
 
 // Alias para compatibilidade
@@ -2090,6 +2121,26 @@ export const totemApi = {
       responseType: 'blob'
     });
     return response.data;
+  },
+
+  startTelemetryObservation: async (
+    id: number,
+    ttlSeconds = 120,
+  ): Promise<TelemetryObservationLease> => {
+    const response = await api.post(`/totems/${id}/telemetry-observation/start`, { ttlSeconds });
+    return response.data?.telemetryObservation ?? response.data?.data ?? response.data;
+  },
+
+  renewTelemetryObservation: async (
+    id: number,
+    ttlSeconds = 120,
+  ): Promise<TelemetryObservationLease> => {
+    const response = await api.put(`/totems/${id}/telemetry-observation/renew`, { ttlSeconds });
+    return response.data?.telemetryObservation ?? response.data?.data ?? response.data;
+  },
+
+  stopTelemetryObservation: async (id: number): Promise<void> => {
+    await api.delete(`/totems/${id}/telemetry-observation/stop`);
   },
 };
 
@@ -5274,6 +5325,23 @@ export interface DispatcherMessage {
   error?: string;
   ipAddress?: string;
   userAgent?: string;
+  traceId?: string;
+  eventType?: string;
+  mediaName?: string;
+  httpStatus?: number;
+  statusCode?: number;
+}
+
+export interface DispatcherMessageFilters {
+  limit?: number;
+  since?: string;
+  totemId?: number;
+  endpoint?: string;
+  eventType?: string;
+  uin?: string;
+  statusCode?: number;
+  direction?: 'incoming' | 'outgoing';
+  hasError?: boolean;
 }
 
 export interface DebugLog {
@@ -5297,8 +5365,6 @@ export interface DebugStats {
 // =============================================
 // NETWORK TOPOLOGY API
 // =============================================
-
-import type { SmartSignageNetwork } from '@shared/holograph-adapter';
 
 export interface NetworkTopologyPublisher {
   id: number;
@@ -5378,15 +5444,15 @@ export const dispatcherDebugApi = {
   },
 
   getMessageLogs: async (
-    limit: number = 100,
+    filtersOrLimit: DispatcherMessageFilters | number = 100,
     since?: string,
     totemId?: number,
     uin?: string
   ): Promise<DispatcherMessage[]> => {
-    const params: any = { limit };
-    if (since) params.since = since;
-    if (totemId) params.totemId = totemId;
-    if (uin) params.uin = uin;
+    // Assinatura numérica mantida para consumidores antigos.
+    const params: DispatcherMessageFilters = typeof filtersOrLimit === 'number'
+      ? { limit: filtersOrLimit, since, totemId, uin }
+      : { ...filtersOrLimit };
     const response = await api.get('/dispatcher-debug/messages', { params });
     return response.data?.data || [];
   },

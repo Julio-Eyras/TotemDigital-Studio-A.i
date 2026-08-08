@@ -10,6 +10,8 @@ import { getTotemLogService, TotemLogEntry } from './totemLogService';
 // import { authMiddleware } from '../middleware/auth.middleware'; // Não usado diretamente
 import jwt from 'jsonwebtoken';
 import { config } from '../config/env';
+import { getDatabase } from '../config/database';
+import { getTotemService } from './totemService';
 
 export interface WebSocketMessage {
   type: string;
@@ -26,6 +28,7 @@ export class WebSocketService {
   private wss: WebSocketServer | null = null;
   private clients: Map<string, WebSocket> = new Map();
   private logStreams: Map<number, Set<string>> = new Map(); // totemId -> Set<clientId>
+  private playbackStreams: Map<number, Set<string>> = new Map(); // totemId -> Set<clientId>
   private userClients: Map<number, Set<string>> = new Map(); // userId -> Set<clientId>
   private clientUsers: Map<string, number> = new Map(); // clientId -> userId
 
@@ -89,20 +92,21 @@ export class WebSocketService {
     this.clients.set(clientId, ws);
     
     // Registrar mapeamento de usuário
-    if (user?.id) {
-      if (!this.userClients.has(user.id)) {
-        this.userClients.set(user.id, new Set());
+    const userId = Number(user?.id || user?.userId);
+    if (userId) {
+      if (!this.userClients.has(userId)) {
+        this.userClients.set(userId, new Set());
       }
-      this.userClients.get(user.id)!.add(clientId);
-      this.clientUsers.set(clientId, user.id);
+      this.userClients.get(userId)!.add(clientId);
+      this.clientUsers.set(clientId, userId);
     }
 
-    logInfo('WebSocket client connected', { clientId, userId: user?.id });
+    logInfo('WebSocket client connected', { clientId, userId });
 
     // Enviar mensagem de conexão
     this.sendToClient(clientId, {
       type: 'connected',
-      data: { clientId, userId: user?.id }
+      data: { clientId, userId }
     });
 
     // Manipular mensagens
@@ -142,6 +146,14 @@ export class WebSocketService {
 
         case 'unsubscribe_logs':
           this.unsubscribeFromLogs(clientId, message.data.totemId);
+          break;
+
+        case 'subscribe_playback_state':
+          await this.subscribeToPlaybackState(clientId, message.data?.totemId, user);
+          break;
+
+        case 'unsubscribe_playback_state':
+          this.unsubscribeFromPlaybackState(clientId, message.data?.totemId);
           break;
 
         case 'ping':
@@ -208,6 +220,71 @@ export class WebSocketService {
     logDebug('Client unsubscribed from totem logs', { clientId, totemId });
   }
 
+  private async canAccessTotem(user: any, totemId: number): Promise<boolean> {
+    if (!Number.isInteger(Number(totemId)) || Number(totemId) < 1) return false;
+    const userId = Number(user?.id || user?.userId);
+    if (!userId) return false;
+    const currentUser = await getDatabase().findFirst(
+      `SELECT role, publisher_id, subscriber_id FROM users WHERE id = $1 AND is_active = true`,
+      [userId]
+    );
+    if (!currentUser) return false;
+    if (['admin', 'admin_sql', 'owner_system', 'operador_tecnico'].includes(currentUser.role)) {
+      return true;
+    }
+    if (currentUser.publisher_id) {
+      const owned = await getDatabase().findFirst(
+        `SELECT 1
+         FROM totems t
+         JOIN locals l ON l.local_id = t.local_id
+         WHERE t.totem_id = $1 AND l.publisher_id = $2`,
+        [totemId, currentUser.publisher_id]
+      );
+      if (owned) return true;
+    }
+    if (currentUser.subscriber_id) {
+      return getTotemService().isTotemAccessibleToSubscriber(
+        Number(totemId),
+        Number(currentUser.subscriber_id)
+      );
+    }
+    return false;
+  }
+
+  private async subscribeToPlaybackState(clientId: string, rawTotemId: unknown, user: any) {
+    const totemId = Number(rawTotemId);
+    if (!(await this.canAccessTotem(user, totemId))) {
+      this.sendToClient(clientId, {
+        type: 'error',
+        error: 'Unauthorized: totem outside tenant scope',
+      });
+      return;
+    }
+    if (!this.playbackStreams.has(totemId)) {
+      this.playbackStreams.set(totemId, new Set());
+    }
+    this.playbackStreams.get(totemId)!.add(clientId);
+    const { getPlaybackTelemetryService } = await import('./playbackTelemetryService');
+    const state = await getPlaybackTelemetryService().getCurrentState(totemId);
+    this.sendToClient(clientId, {
+      type: 'totem_playback_state',
+      data: state || null,
+    });
+    logInfo('Client subscribed to playback state', {
+      clientId,
+      totemId,
+      userId: Number(user?.id || user?.userId),
+    });
+  }
+
+  private unsubscribeFromPlaybackState(clientId: string, rawTotemId: unknown) {
+    const totemId = Number(rawTotemId);
+    const stream = this.playbackStreams.get(totemId);
+    if (!stream) return;
+    stream.delete(clientId);
+    if (stream.size === 0) this.playbackStreams.delete(totemId);
+  }
+
   /**
    * Manipula desconexão
    */
@@ -218,6 +295,10 @@ export class WebSocketService {
       if (clients.size === 0) {
         this.logStreams.delete(totemId);
       }
+    }
+    for (const [totemId, clients] of this.playbackStreams.entries()) {
+      clients.delete(clientId);
+      if (clients.size === 0) this.playbackStreams.delete(totemId);
     }
 
     // Remover mapeamento de usuário
@@ -253,6 +334,28 @@ export class WebSocketService {
 
     for (const clientId of clients) {
       this.sendToClient(clientId, message);
+    }
+  }
+
+  broadcastPlaybackState(totemId: number, state: unknown): void {
+    const clients = this.playbackStreams.get(totemId);
+    if (!clients) return;
+    for (const clientId of clients) {
+      this.sendToClient(clientId, {
+        type: 'totem_playback_state',
+        data: state,
+      });
+    }
+  }
+
+  broadcastObservationSample(totemId: number, sample: unknown): void {
+    const clients = this.playbackStreams.get(totemId);
+    if (!clients) return;
+    for (const clientId of clients) {
+      this.sendToClient(clientId, {
+        type: 'totem_observation_sample',
+        data: sample,
+      });
     }
   }
 
@@ -330,6 +433,7 @@ export class WebSocketService {
     }
     this.clients.clear();
     this.logStreams.clear();
+    this.playbackStreams.clear();
     this.userClients.clear();
     this.clientUsers.clear();
     logInfo('WebSocket server closed');

@@ -95,6 +95,14 @@ router.get('/messages',
   query('since').optional().isISO8601().withMessage('since deve ser uma data ISO8601 válida'),
   query('totemId').optional().isInt().withMessage('totemId deve ser um número'),
   query('uin').optional().isString().withMessage('uin deve ser uma string'),
+  query('traceId').optional().isString(),
+  query('direction').optional().isIn(['incoming', 'outgoing']),
+  query('endpoint').optional().isString(),
+  query('method').optional().isString(),
+  query('eventType').optional().isString(),
+  query('mediaName').optional().isString(),
+  query('statusCode').optional().isInt({ min: 100, max: 599 }),
+  query('hasError').optional().isBoolean(),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -102,8 +110,19 @@ router.get('/messages',
       const since = req.query.since ? new Date(req.query.since as string) : undefined;
       const totemId = req.query.totemId ? parseInt(req.query.totemId as string) : undefined;
       const uin = req.query.uin as string | undefined;
+      const filters = {
+        traceId: req.query.traceId as string | undefined,
+        direction: req.query.direction as 'incoming' | 'outgoing' | undefined,
+        endpoint: req.query.endpoint as string | undefined,
+        method: req.query.method as string | undefined,
+        eventType: req.query.eventType as string | undefined,
+        mediaName: req.query.mediaName as string | undefined,
+        statusCode: req.query.statusCode ? Number(req.query.statusCode) : undefined,
+        hasError:
+          req.query.hasError === undefined ? undefined : String(req.query.hasError) === 'true',
+      };
 
-      const logs = dispatcherDebugService.getMessageLogs(limit, since, totemId, uin);
+      const logs = dispatcherDebugService.getMessageLogs(limit, since, totemId, uin, filters);
 
       return res.json({
         success: true,

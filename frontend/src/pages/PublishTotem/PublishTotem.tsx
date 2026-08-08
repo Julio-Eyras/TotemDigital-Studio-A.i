@@ -36,6 +36,7 @@ import { mediaApi, MediaItem, totemApi, totemDirectMediaApi, Player, CreatePlaye
 import MediaUploadDialog from '../../components/MediaUploadDialog/MediaUploadDialog';
 import TotemEditDialog from '../../components/TotemEditDialog/TotemEditDialog';
 import TotemRemoteControl from '../../components/TotemRemoteControl/TotemRemoteControl';
+import TotemPlaybackStatus from '../../components/TotemPlaybackStatus/TotemPlaybackStatus';
 import { MediaPortraitThumb } from '../../components/Media/MediaPortraitThumb';
 import { PageHeader } from '../../components/DataDisplay';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
@@ -47,6 +48,7 @@ import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { formatTotemScheduleCardLines } from '../../utils/totemDisplaySchedule';
 import { formatTotemMediaCountLabel } from '../../utils/totemMediaCountLabel';
 import { getDisabledContainerSx } from '../../utils/disabledVisualIdentity';
+import { useTotemPlaybackTelemetry } from '../../hooks/useTotemPlaybackTelemetry';
 
 function isTotemRowActive(row: unknown): boolean {
   const r = row as Record<string, unknown> | null | undefined;
@@ -94,6 +96,7 @@ const PublishTotem: React.FC = () => {
   const [library, setLibrary] = useState<MediaItem[]>([]);
   const [totemMediaIds, setTotemMediaIds] = useState<Set<number>>(new Set());
   const [mediaActionLoading, setMediaActionLoading] = useState(false);
+  const playbackTelemetry = useTotemPlaybackTelemetry();
 
   const libraryAvailable = useMemo(() => {
     return library.filter(
@@ -379,6 +382,8 @@ const PublishTotem: React.FC = () => {
             return (
               <Grid item xs={12} sm={6} md={4} key={String(totemId ?? idx)}>
                 <Card
+                  onMouseEnter={() => totemId && playbackTelemetry.hoverStart(totemId)}
+                  onMouseLeave={() => totemId && playbackTelemetry.hoverEnd(totemId)}
                   sx={{
                     height: '100%',
                     ...getDisabledContainerSx(theme, totemActive ? 'default' : 'disabled-global'),
@@ -437,6 +442,14 @@ const PublishTotem: React.FC = () => {
                             {scheduleLines.scheduleLine}
                             {scheduleLines.daysLine ? ` · ${scheduleLines.daysLine}` : ''}
                           </Typography>
+                          {totemId && (
+                            <TotemPlaybackStatus
+                              totemId={totemId}
+                              state={playbackTelemetry.states[totemId]}
+                              observationSample={playbackTelemetry.observationSamples[totemId]}
+                              fallback={(t as any).nowPlaying ?? (t as any).now_playing ?? (t as any).runtime}
+                            />
+                          )}
                           {activationCode && (
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1 }}>
                               <Typography variant="caption" color="text.secondary">

@@ -13,6 +13,7 @@ import { getEventLogService, EventType } from './eventLogService';
 import { logError, logDebug } from '../utils/loggerHelper';
 import { validateTotemToken, generateTotemToken } from '../routes/player';
 import { normalizeDeviceId } from '../utils/normalizeDeviceId';
+import { getPlaybackTelemetryService } from './playbackTelemetryService';
 
 export interface DispatcherRequest {
   endpoint: string;
@@ -44,6 +45,7 @@ class DispatcherRouter {
   async route(req: Request, res: Response, endpoint: string): Promise<void> {
     const startTime = Date.now();
     const requestId = `REQ-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    const traceId = req.get('x-trace-id') || requestId;
     
     try {
       // Extrair informações da requisição
@@ -62,6 +64,7 @@ class DispatcherRouter {
 
       // Log incoming (amarelo) - requisição recebida
       dispatcherDebugService.logMessage('incoming', {
+        traceId,
         totemId: undefined, // Será preenchido depois
         uin: dispatcherRequest.uin,
         endpoint: dispatcherRequest.endpoint,
@@ -73,6 +76,11 @@ class DispatcherRouter {
           ...(dispatcherRequest.query || {}),
         },
         ipAddress: dispatcherRequest.ipAddress,
+        eventType: dispatcherRequest.body?.eventType,
+        mediaName:
+          dispatcherRequest.body?.media?.name ||
+          dispatcherRequest.body?.metadata?.mediaName ||
+          dispatcherRequest.body?.metadata?.name,
       });
 
       // Roteia para handler específico
@@ -110,6 +118,7 @@ class DispatcherRouter {
 
       // Log outgoing (verde se sucesso, vermelho se erro)
       dispatcherDebugService.logMessage('outgoing', {
+        traceId,
         totemId: dispatcherRequest.totemId,
         uin: dispatcherRequest.uin,
         endpoint: dispatcherRequest.endpoint,
@@ -119,6 +128,12 @@ class DispatcherRouter {
         duration: handlerResponse.duration,
         fromCache: handlerResponse.fromCache,
         ipAddress: dispatcherRequest.ipAddress,
+        statusCode: handlerResponse.statusCode,
+        eventType: dispatcherRequest.body?.eventType,
+        mediaName:
+          dispatcherRequest.body?.media?.name ||
+          dispatcherRequest.body?.metadata?.mediaName ||
+          dispatcherRequest.body?.metadata?.name,
       });
 
       // Enviar resposta HTTP
@@ -133,6 +148,7 @@ class DispatcherRouter {
       
       // Log erro
       dispatcherDebugService.logMessage('outgoing', {
+        traceId,
         totemId: undefined,
         uin: req.query.uin as string || req.body?.uin,
         endpoint,
@@ -141,6 +157,9 @@ class DispatcherRouter {
         error: error.message || 'Erro interno do servidor',
         duration,
         ipAddress: req.ip || req.socket.remoteAddress || undefined,
+        statusCode: 500,
+        eventType: req.body?.eventType,
+        mediaName: req.body?.media?.name || req.body?.metadata?.mediaName || req.body?.metadata?.name,
       });
 
       await logError(`[DispatcherRouter] Erro ao processar requisição ${endpoint}`, error, {
@@ -664,6 +683,7 @@ class DispatcherRouter {
 
       const { resolveOtaUpdateForHeartbeat } = await import('./otaHeartbeatHelper');
       const otaUpdate = await resolveOtaUpdateForHeartbeat(totemId, request.body as Record<string, unknown>);
+      const telemetryObservation = await getPlaybackTelemetryService().getObservation(totemId);
 
       let displaySchedule: unknown = null;
       let pollAdaptive: unknown = null;
@@ -737,6 +757,7 @@ class DispatcherRouter {
           pollAdaptive,
           planVersion,
           needsDispatch,
+          telemetryObservation,
         },
         statusCode: 200,
         duration: Date.now() - startTime,

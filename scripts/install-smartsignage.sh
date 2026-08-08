@@ -1272,8 +1272,11 @@ NG_SRV"
     export PGPASSWORD="$DB_PASSWORD"
     PSQL_BASE_ARGS="-h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME"
 
-    # Executar cada part*.sql em ordem alfanumérica
-    for f in database/smartchannel-db-v2-refactored-part*.sql; do
+    # Executar cada part*.sql em ordem numérica (part2 antes de part18).
+    mapfile -t schema_part_files < <(
+        printf '%s\n' database/smartchannel-db-v2-refactored-part*.sql | sort -V
+    )
+    for f in "${schema_part_files[@]}"; do
         if [[ -f "$f" ]]; then
             log "Executando DDL idempotente: $f"
             sudo -u postgres psql -q -v ON_ERROR_STOP=1 -f "$f" 2>/tmp/install-ddl.err || {
@@ -12229,6 +12232,9 @@ setup_first_boot() {
         "analytics_gestures" # AnalyticsGesture - Depende de analytics_sessions
         # "analytics_qr_scans" # REMOVIDO no schema v2 refatorado
         "event_logs"          # EventLog - Depende de totems, campaigns, playlists, medias (v2.1)
+        "playback_events"     # Eventos idempotentes de playback (part18)
+        "totem_playback_state" # Estado quente atual por totem (part18)
+        "telemetry_observation_leases" # Leases de observação do painel (part18)
         "ai_models"        # AIModel - Sem dependências
         "execution_logs"   # ExecutionLog - Depende de totems, subscribers, campaigns, medias
         "subscriber_billing" # SubscriberBilling - Depende de subscribers (NOVO v2.0)

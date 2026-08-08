@@ -1,121 +1,408 @@
 package br.com.smartchannel.playerad.api
 
+import android.content.Context
+import br.com.smartchannel.playerad.util.PlayerAdLogger
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import org.json.JSONArray
 import org.json.JSONObject
-import java.io.OutputStreamWriter
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
+import kotlin.math.min
+import kotlin.random.Random
 
 /**
- * Cliente para enviar eventos de playback do Player-AD,
- * reutilizando o contrato do player-web:
- *
- * POST /api/player/event?uin=...&token=...
- *
- * Em 401, tenta [DispatcherApiClient.heartbeat] e, se ainda falhar, [DispatcherApiClient.getToken],
- * repetindo o POST uma vez após cada renovação.
- * Devolve o token a usar nos envios seguintes.
+ * Telemetria v2: o chamador somente publica no [inbox]. Persistência e rede rodam em IO.
+ * O JSONL é reescrito atomicamente após cada ACK e limitado para não consumir o disco.
  */
 class PlayerEventsClient(
+    context: Context,
     private val baseUrl: String,
     private val uin: String,
     private val deviceId: String,
-    private val dispatcher: DispatcherApiClient
+    private val dispatcher: DispatcherApiClient,
+    private val playerName: String = "Player-AD",
+    private val playerVersion: String,
 ) {
+    data class Event(
+        val eventType: String,
+        val playbackSessionId: String = UUID.randomUUID().toString(),
+        val mediaId: Long? = null,
+        val mediaName: String? = null,
+        val mediaType: String? = null,
+        val durationMs: Long? = null,
+        val startedAt: String? = null,
+        val expectedEndAt: String? = null,
+        val endedAt: String? = null,
+        val playedDurationMs: Long? = null,
+        val completed: Boolean? = null,
+        val reason: String? = null,
+        val positionMs: Long? = null,
+        val source: String? = null,
+        val playlistId: Long? = null,
+        val campaignId: Long? = null,
+        val planVersion: String? = null,
+        val order: Int? = null,
+        val metrics: JSONObject? = null,
+    )
 
-    private fun encode(v: String): String = URLEncoder.encode(v, "UTF-8")
-
-    private fun metadataJson(metadata: Map<String, Any?>): JSONObject {
-        val o = JSONObject()
-        for ((k, v) in metadata) {
-            if (v == null) continue
-            when (v) {
-                is String -> o.put(k, v)
-                is Int -> o.put(k, v)
-                is Long -> o.put(k, v)
-                is Boolean -> o.put(k, v)
-                is Double -> o.put(k, v)
-                is Float -> o.put(k, v.toDouble())
-                else -> o.put(k, v.toString())
-            }
+    data class Ack(
+        val highestSequence: Long?,
+        val acknowledgedIds: Set<String>,
+        val rejectedIds: Set<String>,
+    ) {
+        fun shouldRemove(event: JSONObject, acknowledgedBootId: String? = null): Boolean {
+            val id = event.optString("eventId")
+            val sequence = event.optLong("sequence", -1)
+            return id in acknowledgedIds || id in rejectedIds ||
+                (
+                    highestSequence != null &&
+                        (acknowledgedBootId == null || event.optString("bootId") == acknowledgedBootId) &&
+                        sequence in 0..highestSequence
+                    )
         }
-        if (deviceId.isNotBlank() && !o.has("deviceId")) {
-            o.put("deviceId", deviceId)
-        }
-        if (!o.has("player")) {
-            o.put("player", "Player-AD")
-        }
-        return o
     }
 
-    suspend fun sendEvent(
-        token: String,
-        eventType: String,
-        mediaId: Long?,
-        playlistId: Long?,
-        campaignId: Long?,
-        durationSeconds: Long?,
-        completed: Boolean?,
-        metadata: Map<String, Any?>
-    ): String = withContext(Dispatchers.IO) {
+    private data class HttpResponse(val code: Int, val body: String)
+
+    private val appContext = context.applicationContext
+    private val queueFile = File(appContext.filesDir, "telemetry/events-v2.jsonl")
+    private val prefs = appContext.getSharedPreferences("player_telemetry_v2", Context.MODE_PRIVATE)
+    private val bootId = UUID.randomUUID().toString()
+    private val sequence = AtomicLong(0)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val inbox = Channel<JSONObject>(Channel.UNLIMITED)
+    private val pending = mutableListOf<JSONObject>()
+    private var legacyOnlyUntilMs = prefs.getLong(KEY_LEGACY_ONLY_UNTIL_MS, 0L)
+    private var retryAttempt = 0
+    private var observationJob: Job? = null
+    @Volatile private var closed = false
+
+    init {
+        scope.launch {
+            loadQueue()
+            launch { persistInbox() }
+            flushLoop()
+        }
+    }
+
+    fun enqueue(event: Event) {
+        if (closed) return
+        val now = isoNow()
+        val json = JSONObject().apply {
+            put("eventId", UUID.randomUUID().toString())
+            put("bootId", bootId)
+            put("sequence", sequence.incrementAndGet())
+            put("playbackSessionId", event.playbackSessionId)
+            put("eventType", event.eventType)
+            put("occurredAt", now)
+            if (event.mediaId != null || event.mediaName != null || event.mediaType != null) {
+                put("media", JSONObject().apply {
+                    event.mediaId?.let { put("id", it) }
+                    put("name", event.mediaName?.takeIf { it.isNotBlank() } ?: "Mídia ${event.mediaId ?: "desconhecida"}")
+                    put("type", event.mediaType?.takeIf { it.isNotBlank() } ?: "unknown")
+                    event.durationMs?.let { put("durationMs", it) }
+                })
+            }
+            put("playback", JSONObject().apply {
+                event.startedAt?.let { put("startedAt", it) }
+                event.expectedEndAt?.let { put("expectedEndAt", it) }
+                event.endedAt?.let { put("endedAt", it) }
+                event.playedDurationMs?.let { put("playedDurationMs", it) }
+                event.completed?.let { put("completed", it) }
+                event.reason?.let { put("reason", it) }
+                event.positionMs?.let { put("positionMs", it) }
+                event.source?.let { put("source", it) }
+            })
+            put("context", JSONObject().apply {
+                event.playlistId?.let { put("playlistId", it) }
+                event.campaignId?.let { put("campaignId", it) }
+                event.planVersion?.let { put("planVersion", it) }
+                event.order?.let { put("order", it) }
+            })
+            put("player", JSONObject().apply {
+                put("name", playerName)
+                put("version", playerVersion)
+                put("platform", "android")
+            })
+            event.metrics?.let { put("metrics", it) }
+        }
+        inbox.trySend(json)
+    }
+
+    fun updateObservation(
+        observation: DispatcherApiClient.TelemetryObservation?,
+        metricsProvider: () -> JSONObject,
+    ) {
+        observationJob?.cancel()
+        observationJob = null
+        if (observation?.active != true || observation.isExpired()) return
+        observationJob = scope.launch {
+            val intervalMs = observation.intervalSeconds.coerceIn(2, 3600) * 1000L
+            while (isActive && !observation.isExpired()) {
+                delay(intervalMs)
+                if (!isActive || observation.isExpired()) break
+                enqueue(
+                    Event(
+                        eventType = "player.observation.sample",
+                        playbackSessionId = bootId,
+                        source = "heartbeat_observation",
+                        metrics = runCatching(metricsProvider).getOrElse { JSONObject() },
+                    ),
+                )
+            }
+        }
+    }
+
+    fun close() {
+        closed = true
+        observationJob?.cancel()
+        inbox.close()
+        scope.launch {
+            delay(250L)
+            scope.cancel()
+        }
+    }
+
+    private suspend fun persistInbox() {
+        for (event in inbox) {
+            pending += event
+            trimQueue()
+            rewriteQueue()
+        }
+    }
+
+    private suspend fun flushLoop() {
+        while (scope.isActive) {
+            delay(FLUSH_INTERVAL_MS)
+            if (pending.isEmpty()) continue
+            val firstBoot = pending.first().optString("bootId")
+            val batch = pending.asSequence()
+                .takeWhile { it.optString("bootId") == firstBoot }
+                .take(MAX_BATCH)
+                .toList()
+            if (legacyOnlyUntilMs > 0L && System.currentTimeMillis() >= legacyOnlyUntilMs) {
+                legacyOnlyUntilMs = 0L
+                prefs.edit().remove(KEY_LEGACY_ONLY_UNTIL_MS).apply()
+            }
+            if (legacyOnlyUntilMs > System.currentTimeMillis()) {
+                flushLegacy(batch)
+                continue
+            }
+            val response = try {
+                sendBatch(firstBoot, batch)
+            } catch (e: Exception) {
+                PlayerAdLogger.w("EVENT", "Batch v2 indisponível: ${e.message}")
+                null
+            }
+            if (response == null) {
+                retryDelay()
+                continue
+            }
+            if (response.code == 401) {
+                runCatching { dispatcher.getToken() }
+                retryDelay()
+                continue
+            }
+            if (response.code == 404 || response.code == 405 || response.code == 415 || response.code == 422) {
+                legacyOnlyUntilMs = System.currentTimeMillis() + LEGACY_REPROBE_INTERVAL_MS
+                prefs.edit().putLong(KEY_LEGACY_ONLY_UNTIL_MS, legacyOnlyUntilMs).apply()
+                flushLegacy(batch)
+                continue
+            }
+            if (response.code !in 200..299) {
+                retryDelay()
+                continue
+            }
+            val ack = parseAck(response.body)
+            val before = pending.size
+            pending.removeAll { ack.shouldRemove(it, firstBoot) }
+            if (pending.size == before && batch.isNotEmpty()) {
+                // Backend v2 que responde somente contadores: sucesso implica ACK deste batch.
+                pending.removeAll(batch.toSet())
+            }
+            retryAttempt = 0
+            rewriteQueue()
+        }
+    }
+
+    private suspend fun retryDelay() {
+        retryAttempt = min(retryAttempt + 1, 8)
+        val base = min(2_000L * (1L shl (retryAttempt - 1)), MAX_RETRY_MS)
+        delay(base + Random.nextLong(0, (base / 3).coerceAtLeast(1)))
+    }
+
+    private fun sendBatch(batchBootId: String, batch: List<JSONObject>): HttpResponse {
         val body = JSONObject().apply {
-            put("eventType", eventType)
-            if (mediaId != null && mediaId > 0) put("mediaId", mediaId)
-            if (playlistId != null && playlistId > 0) put("playlistId", playlistId)
-            if (campaignId != null && campaignId > 0) put("campaignId", campaignId)
-            if (durationSeconds != null) put("duration", durationSeconds.toInt())
-            if (completed != null) put("completed", completed)
-            put("metadata", metadataJson(metadata))
+            put("schemaVersion", 2)
+            put("bootId", batchBootId)
+            put("events", JSONArray(batch))
         }.toString()
+        return post(
+            "$baseUrl/api/player/events/batch?uin=${encode(uin)}&token=${encode(token())}" +
+                "&deviceId=${encode(deviceId)}",
+            body,
+        )
+    }
 
-        fun postOnce(tkn: String): Int {
-            val deviceQs = if (deviceId.isNotBlank()) "&deviceId=${encode(deviceId)}" else ""
-            val url = URL(
-                "$baseUrl/api/player/event?uin=${encode(uin)}&token=${encode(tkn)}$deviceQs"
+    private fun flushLegacy(batch: List<JSONObject>) {
+        for (event in batch) {
+            val media = event.optJSONObject("media") ?: JSONObject()
+            val playback = event.optJSONObject("playback") ?: JSONObject()
+            val context = event.optJSONObject("context") ?: JSONObject()
+            val mediaType = media.optString("type").lowercase()
+            val legacyType = when (event.optString("eventType")) {
+                "media.play.started" -> when {
+                    mediaType.contains("video") || mediaType.contains("audio") -> "video_playback_start"
+                    mediaType.contains("html") || mediaType in setOf("web", "widget", "iframe") -> "html_display"
+                    else -> "image_display"
+                }
+                "media.play.ended" -> if (
+                    mediaType.contains("video") || mediaType.contains("audio")
+                ) "video_playback_end" else null
+                else -> null
+            }
+            if (legacyType == null) {
+                pending.remove(event)
+                continue
+            }
+            val body = JSONObject().apply {
+                put("eventType", legacyType)
+                if (media.has("id")) put("mediaId", media.optLong("id"))
+                if (context.has("playlistId")) put("playlistId", context.optLong("playlistId"))
+                if (context.has("campaignId")) put("campaignId", context.optLong("campaignId"))
+                if (playback.has("playedDurationMs")) {
+                    put("duration", playback.optLong("playedDurationMs") / 1000L)
+                }
+                if (playback.has("completed")) put("completed", playback.optBoolean("completed"))
+                put("metadata", JSONObject().apply {
+                    put("eventId", event.optString("eventId"))
+                    put("playbackSessionId", event.optString("playbackSessionId"))
+                    put("sequence", event.optLong("sequence"))
+                    put("deviceId", deviceId)
+                })
+            }.toString()
+            val response = runCatching {
+                post(
+                    "$baseUrl/api/player/event?uin=${encode(uin)}&token=${encode(token())}" +
+                        "&deviceId=${encode(deviceId)}",
+                    body,
+                )
+            }.getOrNull()
+            if (response?.code in 200..299) pending.remove(event) else break
+        }
+        rewriteQueue()
+    }
+
+    private fun token(): String = dispatcher.cachedToken().orEmpty()
+
+    private fun post(url: String, body: String): HttpResponse {
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            doOutput = true
+            connectTimeout = 8_000
+            readTimeout = 8_000
+            setRequestProperty("Content-Type", "application/json")
+        }
+        return try {
+            conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            val code = conn.responseCode
+            val text = runCatching {
+                (if (code in 200..299) conn.inputStream else conn.errorStream)
+                    ?.use { it.readBytes().toString(Charsets.UTF_8) }
+            }.getOrNull().orEmpty()
+            HttpResponse(code, text)
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    private fun loadQueue() {
+        if (!queueFile.exists()) return
+        queueFile.forEachLine { line ->
+            if (pending.size >= MAX_QUEUE_EVENTS) return@forEachLine
+            runCatching { JSONObject(line) }.getOrNull()?.let { pending += it }
+        }
+    }
+
+    private fun trimQueue() {
+        while (pending.size > MAX_QUEUE_EVENTS ||
+            pending.sumOf { it.toString().length + 1 } > MAX_QUEUE_BYTES
+        ) {
+            pending.removeAt(0)
+        }
+    }
+
+    private fun rewriteQueue() {
+        queueFile.parentFile?.mkdirs()
+        val temp = File(queueFile.parentFile, "${queueFile.name}.tmp")
+        temp.bufferedWriter().use { out ->
+            pending.forEach {
+                out.write(it.toString())
+                out.newLine()
+            }
+        }
+        if (!temp.renameTo(queueFile)) {
+            temp.copyTo(queueFile, overwrite = true)
+            temp.delete()
+        }
+    }
+
+    companion object {
+        const val MAX_BATCH = 50
+        const val MAX_QUEUE_EVENTS = 5_000
+        const val MAX_QUEUE_BYTES = 5 * 1024 * 1024
+        private const val FLUSH_INTERVAL_MS = 3_000L
+        private const val MAX_RETRY_MS = 5 * 60_000L
+        private const val KEY_LEGACY_ONLY_UNTIL_MS = "legacy_only_until_ms"
+        private const val LEGACY_REPROBE_INTERVAL_MS = 6L * 60L * 60L * 1000L
+
+        fun parseAck(body: String): Ack {
+            val root = runCatching { JSONObject(body) }.getOrElse { JSONObject() }
+            val payload = root.optJSONObject("data") ?: root
+            fun ids(key: String): Set<String> {
+                val value = payload.opt(key)
+                val array = value as? JSONArray ?: return emptySet()
+                return buildSet {
+                    for (i in 0 until array.length()) {
+                        val item = array.opt(i)
+                        when (item) {
+                            is JSONObject -> item.optString("eventId").takeIf(String::isNotBlank)?.let(::add)
+                            null -> Unit
+                            else -> item.toString().takeIf(String::isNotBlank)?.let(::add)
+                        }
+                    }
+                }
+            }
+            val highest = payload.optLong("highestSequence", -1L).takeIf { it >= 0L }
+            return Ack(
+                highestSequence = highest,
+                acknowledgedIds = ids("accepted") + ids("duplicates"),
+                rejectedIds = ids("rejected"),
             )
-            val conn = (url.openConnection() as HttpURLConnection).apply {
-                requestMethod = "POST"
-                doOutput = true
-                connectTimeout = 8000
-                readTimeout = 8000
-                setRequestProperty("Content-Type", "application/json")
-            }
-            return try {
-                OutputStreamWriter(conn.outputStream, Charsets.UTF_8).use { writer ->
-                    writer.write(body)
-                }
-                val code = conn.responseCode
-                (if (code in 200..299) conn.inputStream else conn.errorStream)?.use {
-                    it.readBytes()
-                }
-                code
-            } catch (_: Exception) {
-                -1
-            } finally {
-                conn.disconnect()
-            }
         }
 
-        var tkn = token
-        var code = postOnce(tkn)
-        if (code == 401) {
-            try {
-                tkn = dispatcher.heartbeat()
-                code = postOnce(tkn)
-            } catch (_: Exception) {
-                // mantém tkn
-            }
+        fun isoNow(epochMs: Long = System.currentTimeMillis()): String {
+            val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
+            format.timeZone = TimeZone.getTimeZone("UTC")
+            return format.format(Date(epochMs))
         }
-        if (code == 401) {
-            try {
-                tkn = dispatcher.getToken()
-                postOnce(tkn)
-            } catch (_: Exception) {
-                // Telemetria não derruba o player
-            }
-        }
-        tkn
+
+        private fun encode(value: String): String = URLEncoder.encode(value, "UTF-8")
     }
 }

@@ -154,6 +154,7 @@ main() {
         "smartchannel-db-v2-refactored-part15-contracts.sql|Parte 15: Contracts indexes, triggers e audit"
         "smartchannel-db-v2-refactored-part16-plans.sql|Parte 16: Plans (compatibilidade seeds)"
         "smartchannel-db-v2-refactored-part17-atomic-procedures.sql|Parte 17: Procedures atómicas (publisher/subscriber)"
+        "smartchannel-db-v2-refactored-part18-playback-telemetry.sql|Parte 18: Telemetria de playback"
         "seeds-playlist-mix.sql|Seeds: Dados Iniciais Playlist Mix"
     )
     
