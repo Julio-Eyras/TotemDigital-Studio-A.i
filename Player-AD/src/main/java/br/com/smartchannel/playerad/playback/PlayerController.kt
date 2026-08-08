@@ -317,7 +317,9 @@ class PlayerController(
         mediaId = item.mediaId,
         mediaName = item.label,
         mediaType = item.mediaType ?: type,
-        durationMs = session.durationMs,
+        durationMs = session.durationMs
+            ?: item.duration?.times(1000L)
+            ?: if (eventType == "media.play.started") 0L else null,
         startedAt = session.startedAt,
         expectedEndAt = session.expectedEndAt,
         endedAt = if (eventType == "media.play.started") null else PlayerEventsClient.isoNow(),
@@ -330,6 +332,11 @@ class PlayerController(
         campaignId = plan.campaignId,
         planVersion = knownPlanVersion,
         order = item.order,
+        nextMedia = if (eventType == "media.play.started") {
+            resolveNextMedia(plan.mediaItems, item)
+        } else {
+            null
+        },
     )
 
     /**
@@ -1226,8 +1233,8 @@ class PlayerController(
 
     /** Heartbeat: comandos remotos, OTA, token e presença — sem GET dispatch. */
     private suspend fun performHeartbeat(previousToken: String): HeartbeatOutcome {
-        PlayerAdLogger.i("LIFECYCLE", "Heartbeat — token/sessão/comandos (POST /api/player/heartbeat)")
-        val hb = apiClient.heartbeatWithCommands(buildHealthMetrics())
+        PlayerAdLogger.i("LIFECYCLE", "Heartbeat — token/sessão/comandos (sync com fallback)")
+        val hb = apiClient.heartbeatWithCommands(buildHealthMetrics(), knownPlanVersion)
         var token = hb.token
         PlayerAdLogger.i("HEARTBEAT", "OK — sessão/token renovados; comandos=${hb.pendingCommands.size}")
         eventsClient.updateObservation(hb.telemetryObservation) {
@@ -3225,6 +3232,27 @@ class PlayerController(
     }
 
     companion object {
+        fun resolveNextMedia(
+            mediaItems: List<DispatchMediaItem>,
+            current: DispatchMediaItem,
+        ): PlayerEventsClient.MediaDescriptor? {
+            if (mediaItems.isEmpty()) return null
+            val ordered = mediaItems.sortedBy { it.order }
+            val currentIndex = ordered.indexOfFirst { it === current }.takeIf { it >= 0 }
+                ?: ordered.indexOfFirst {
+                    it.mediaId == current.mediaId && it.order == current.order
+                }.takeIf { it >= 0 }
+                ?: return null
+            val next = ordered[(currentIndex + 1) % ordered.size]
+            return PlayerEventsClient.MediaDescriptor(
+                id = next.mediaId,
+                name = next.label?.takeIf { it.isNotBlank() } ?: "Mídia ${next.mediaId}",
+                type = next.mediaType?.takeIf { it.isNotBlank() } ?: "unknown",
+                durationMs = next.duration?.times(1000L) ?: 0L,
+                order = next.order,
+            )
+        }
+
         /** SUSPENSO v1.55 — orientação/resolução vêm do servidor. */
         private const val AUTO_MEDIA_ORIENTATION = MediaViewportRotation.ENABLED
         /** Largura cheia em landscape 16:9; letterbox Y se sobrar altura — sem stretch. */

@@ -243,6 +243,23 @@ main() {
             print_color "$GREEN" "✅ Device IDs normalizados em maiúsculas"
         fi
     fi
+
+    # Pós-condição da telemetria: rollup e função manual de retenção da part18.
+    if [ "$fail_count" -eq 0 ]; then
+        playback_retention_ready=$(PGPASSWORD="${PGPASSWORD}" psql \
+            -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -tAc "
+                SELECT (
+                    to_regclass('public.playback_event_rollups_daily') IS NOT NULL
+                    AND to_regprocedure('public.consolidate_playback_events(integer)') IS NOT NULL
+                );
+            " 2>/dev/null | tr -d '[:space:]')
+        if [ "$playback_retention_ready" != "t" ]; then
+            print_color "$RED" "❌ Validação falhou: retenção/rollup de playback da part18 ausente"
+            fail_count=$((fail_count + 1))
+        else
+            print_color "$GREEN" "✅ Retenção e rollup manual de playback disponíveis"
+        fi
+    fi
     
     end_time=$(date +%s)
     duration=$((end_time - start_time))

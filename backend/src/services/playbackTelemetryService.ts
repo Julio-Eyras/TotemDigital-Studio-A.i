@@ -73,6 +73,17 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+export function mergePlaybackContextPreservingNextMedia(
+  previous: Record<string, unknown>,
+  incoming: Record<string, unknown>
+): Record<string, unknown> {
+  if (Object.prototype.hasOwnProperty.call(incoming, 'nextMedia')) return { ...incoming };
+  if (Object.prototype.hasOwnProperty.call(previous, 'nextMedia')) {
+    return { ...incoming, nextMedia: previous.nextMedia };
+  }
+  return { ...incoming };
+}
+
 export function validatePlaybackBatchEvent(
   value: unknown,
   index: number
@@ -270,7 +281,15 @@ export class PlaybackTelemetryService {
               media_type = EXCLUDED.media_type,
               media_duration_ms = EXCLUDED.media_duration_ms,
               playback = EXCLUDED.playback,
-              context = EXCLUDED.context,
+              context = CASE
+                WHEN EXCLUDED.context ? 'nextMedia' THEN EXCLUDED.context
+                WHEN totem_playback_state.context ? 'nextMedia'
+                  THEN EXCLUDED.context || jsonb_build_object(
+                    'nextMedia',
+                    totem_playback_state.context->'nextMedia'
+                  )
+                ELSE EXCLUDED.context
+              END,
               updated_at = CURRENT_TIMESTAMP
             WHERE (
               totem_playback_state.boot_id = EXCLUDED.boot_id

@@ -38,6 +38,40 @@ class PlayerEventsClientTest {
     }
 
     @Test
+    fun `ack da rota sync e interpretado dentro de eventAck`() {
+        val ack = PlayerEventsClient.parseAck(
+            """
+            {
+              "schemaVersion": 1,
+              "syncId": "sync-1",
+              "eventAck": {
+                "accepted": [{"eventId":"sync-ok"}],
+                "duplicates": ["sync-duplicate"],
+                "rejected": [{"eventId":"sync-rejected"}],
+                "highestSequence": 4
+              }
+            }
+            """.trimIndent(),
+        )
+
+        assertTrue(ack.shouldRemove(event("sync-ok", 20)))
+        assertTrue(ack.shouldRemove(event("sync-duplicate", 21)))
+        assertTrue(ack.shouldRemove(event("sync-rejected", 22)))
+        assertTrue(ack.shouldRemove(event("sync-sequence", 4)))
+        assertFalse(ack.shouldRemove(event("sync-pending", 5)))
+    }
+
+    @Test
+    fun `ack da rota sync aninhado em data e interpretado`() {
+        val ack = PlayerEventsClient.parseAck(
+            """{"data":{"eventAck":{"accepted":["nested-sync-ok"]}}}""",
+        )
+
+        assertTrue(ack.shouldRemove(event("nested-sync-ok", 10)))
+        assertFalse(ack.shouldRemove(event("pending", 10)))
+    }
+
+    @Test
     fun `highestSequence nao confirma outro boot`() {
         val ack = PlayerEventsClient.parseAck("""{"highestSequence":50}""")
         val oldBoot = event("old", 30).put("bootId", "boot-old")

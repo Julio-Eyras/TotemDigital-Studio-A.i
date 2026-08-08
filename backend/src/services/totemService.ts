@@ -157,6 +157,19 @@ export interface HeartbeatData {
   };
 }
 
+export function shouldPersistHeartbeatSample(
+  previousStatus: string | undefined,
+  status: string | undefined,
+  lastSampleAt: Date | string | null,
+  now: Date = new Date(),
+  sampleIntervalMs: number = 60 * 60 * 1000
+): boolean {
+  if (status && status !== previousStatus) return true;
+  if (!lastSampleAt) return true;
+  const last = new Date(lastSampleAt).getTime();
+  return !Number.isFinite(last) || now.getTime() - last >= sampleIntervalMs;
+}
+
 export class TotemService {
   private get db() {
     return getDatabase();
@@ -1723,14 +1736,32 @@ export class TotemService {
         source: options.source
       };
 
-      await eventLogService.logEvent({
-        eventType: EventType.TOTEM_HEARTBEAT,
-        entityType: 'totem',
-        entityId: options.totem.id,
-        totemId: options.totem.id,
-        campaignId: undefined,
-        metadata
-      });
+      const latestSample = await this.db.findFirst(
+        `SELECT MAX(timestamp) AS last_sample_at
+         FROM event_logs
+         WHERE totem_id = $1 AND event_type = $2`,
+        [options.totem.id, EventType.TOTEM_HEARTBEAT]
+      );
+      if (
+        shouldPersistHeartbeatSample(
+          options.previousStatus,
+          options.status,
+          latestSample?.last_sample_at || null
+        )
+      ) {
+        await eventLogService.logEvent({
+          eventType: EventType.TOTEM_HEARTBEAT,
+          entityType: 'totem',
+          entityId: options.totem.id,
+          totemId: options.totem.id,
+          campaignId: undefined,
+          metadata: {
+            ...metadata,
+            sampled: options.status === options.previousStatus,
+            sampleIntervalMinutes: 60
+          }
+        });
+      }
 
       if (options.status && options.status !== options.previousStatus) {
         let statusEvent: EventType | null = null;

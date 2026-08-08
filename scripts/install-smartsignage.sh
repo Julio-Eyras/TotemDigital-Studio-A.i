@@ -12235,6 +12235,7 @@ setup_first_boot() {
         "playback_events"     # Eventos idempotentes de playback (part18)
         "totem_playback_state" # Estado quente atual por totem (part18)
         "telemetry_observation_leases" # Leases de observação do painel (part18)
+        "playback_event_rollups_daily" # Agregado diário para retenção manual (part18)
         "ai_models"        # AIModel - Sem dependências
         "execution_logs"   # ExecutionLog - Depende de totems, subscribers, campaigns, medias
         "subscriber_billing" # SubscriberBilling - Depende de subscribers (NOVO v2.0)

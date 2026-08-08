@@ -448,6 +448,7 @@ const PublishTotem: React.FC = () => {
                               state={playbackTelemetry.states[totemId]}
                               observationSample={playbackTelemetry.observationSamples[totemId]}
                               fallback={(t as any).nowPlaying ?? (t as any).now_playing ?? (t as any).runtime}
+                              offline={op.label === 'Offline'}
                             />
                           )}
                           {activationCode && (

@@ -58,7 +58,16 @@ class PlayerEventsClient(
         val campaignId: Long? = null,
         val planVersion: String? = null,
         val order: Int? = null,
+        val nextMedia: MediaDescriptor? = null,
         val metrics: JSONObject? = null,
+    )
+
+    data class MediaDescriptor(
+        val id: Long,
+        val name: String,
+        val type: String,
+        val durationMs: Long,
+        val order: Int,
     )
 
     data class Ack(
@@ -87,8 +96,12 @@ class PlayerEventsClient(
     private val sequence = AtomicLong(0)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val inbox = Channel<JSONObject>(Channel.UNLIMITED)
+    private val queueLock = Any()
     private val pending = mutableListOf<JSONObject>()
-    private var legacyOnlyUntilMs = prefs.getLong(KEY_LEGACY_ONLY_UNTIL_MS, 0L)
+    private var syncEventsUnsupportedUntilMs =
+        prefs.getLong(KEY_SYNC_EVENTS_UNSUPPORTED_UNTIL_MS, 0L)
+    private var batchEventsUnsupportedUntilMs =
+        prefs.getLong(KEY_BATCH_EVENTS_UNSUPPORTED_UNTIL_MS, 0L)
     private var retryAttempt = 0
     private var observationJob: Job? = null
     @Volatile private var closed = false
@@ -116,7 +129,11 @@ class PlayerEventsClient(
                     event.mediaId?.let { put("id", it) }
                     put("name", event.mediaName?.takeIf { it.isNotBlank() } ?: "Mídia ${event.mediaId ?: "desconhecida"}")
                     put("type", event.mediaType?.takeIf { it.isNotBlank() } ?: "unknown")
-                    event.durationMs?.let { put("durationMs", it) }
+                    if (event.eventType == "media.play.started") {
+                        put("durationMs", event.durationMs ?: 0L)
+                    } else {
+                        event.durationMs?.let { put("durationMs", it) }
+                    }
                 })
             }
             put("playback", JSONObject().apply {
@@ -134,6 +151,15 @@ class PlayerEventsClient(
                 event.campaignId?.let { put("campaignId", it) }
                 event.planVersion?.let { put("planVersion", it) }
                 event.order?.let { put("order", it) }
+                event.nextMedia?.let { next ->
+                    put("nextMedia", JSONObject().apply {
+                        put("id", next.id)
+                        put("name", next.name)
+                        put("type", next.type)
+                        put("durationMs", next.durationMs)
+                        put("order", next.order)
+                    })
+                }
             })
             put("player", JSONObject().apply {
                 put("name", playerName)
@@ -181,63 +207,42 @@ class PlayerEventsClient(
 
     private suspend fun persistInbox() {
         for (event in inbox) {
-            pending += event
-            trimQueue()
-            rewriteQueue()
+            synchronized(queueLock) {
+                pending += event
+                trimQueueLocked()
+                rewriteQueueLocked()
+            }
         }
     }
 
     private suspend fun flushLoop() {
         while (scope.isActive) {
             delay(FLUSH_INTERVAL_MS)
-            if (pending.isEmpty()) continue
-            val firstBoot = pending.first().optString("bootId")
-            val batch = pending.asSequence()
-                .takeWhile { it.optString("bootId") == firstBoot }
-                .take(MAX_BATCH)
-                .toList()
-            if (legacyOnlyUntilMs > 0L && System.currentTimeMillis() >= legacyOnlyUntilMs) {
-                legacyOnlyUntilMs = 0L
-                prefs.edit().remove(KEY_LEGACY_ONLY_UNTIL_MS).apply()
-            }
-            if (legacyOnlyUntilMs > System.currentTimeMillis()) {
-                flushLegacy(batch)
-                continue
-            }
-            val response = try {
-                sendBatch(firstBoot, batch)
-            } catch (e: Exception) {
-                PlayerAdLogger.w("EVENT", "Batch v2 indisponível: ${e.message}")
-                null
-            }
-            if (response == null) {
-                retryDelay()
-                continue
-            }
-            if (response.code == 401) {
-                runCatching { dispatcher.getToken() }
-                retryDelay()
-                continue
-            }
-            if (response.code == 404 || response.code == 405 || response.code == 415 || response.code == 422) {
-                legacyOnlyUntilMs = System.currentTimeMillis() + LEGACY_REPROBE_INTERVAL_MS
-                prefs.edit().putLong(KEY_LEGACY_ONLY_UNTIL_MS, legacyOnlyUntilMs).apply()
-                flushLegacy(batch)
-                continue
-            }
-            if (response.code !in 200..299) {
-                retryDelay()
-                continue
-            }
+            val batchSnapshot = synchronized(queueLock) {
+                if (pending.isEmpty()) {
+                    null
+                } else {
+                    val firstBoot = pending.first().optString("bootId")
+                    firstBoot to pending.asSequence()
+                        .takeWhile { it.optString("bootId") == firstBoot }
+                        .take(MAX_BATCH)
+                        .toList()
+                }
+            } ?: continue
+            val (firstBoot, batch) = batchSnapshot
+            clearExpiredCapabilityCooldowns()
+            val response = sendWithCapabilityFallback(firstBoot, batch) ?: continue
             val ack = parseAck(response.body)
-            val before = pending.size
-            pending.removeAll { ack.shouldRemove(it, firstBoot) }
-            if (pending.size == before && batch.isNotEmpty()) {
-                // Backend v2 que responde somente contadores: sucesso implica ACK deste batch.
-                pending.removeAll(batch.toSet())
+            synchronized(queueLock) {
+                val before = pending.size
+                pending.removeAll { ack.shouldRemove(it, firstBoot) }
+                if (pending.size == before && batch.isNotEmpty()) {
+                    // Backend v2 que responde somente contadores: sucesso implica ACK deste batch.
+                    pending.removeAll(batch.toSet())
+                }
+                rewriteQueueLocked()
             }
             retryAttempt = 0
-            rewriteQueue()
         }
     }
 
@@ -245,6 +250,81 @@ class PlayerEventsClient(
         retryAttempt = min(retryAttempt + 1, 8)
         val base = min(2_000L * (1L shl (retryAttempt - 1)), MAX_RETRY_MS)
         delay(base + Random.nextLong(0, (base / 3).coerceAtLeast(1)))
+    }
+
+    private suspend fun sendWithCapabilityFallback(
+        batchBootId: String,
+        batch: List<JSONObject>,
+    ): HttpResponse? {
+        val now = System.currentTimeMillis()
+        if (syncEventsUnsupportedUntilMs <= now) {
+            val response = runCatching { sendSync(batch) }.getOrElse {
+                PlayerAdLogger.w("EVENT", "Sync de eventos indisponível: ${it.message}")
+                retryDelay()
+                return null
+            }
+            when {
+                response.code == 401 -> {
+                    runCatching { dispatcher.getToken() }
+                    retryDelay()
+                    return null
+                }
+                response.code == 404 || response.code == 405 -> {
+                    markCapabilityUnsupported(
+                        KEY_SYNC_EVENTS_UNSUPPORTED_UNTIL_MS,
+                        System.currentTimeMillis() + CAPABILITY_REPROBE_INTERVAL_MS,
+                    )
+                }
+                response.code !in 200..299 -> {
+                    retryDelay()
+                    return null
+                }
+                else -> return response
+            }
+        }
+
+        if (batchEventsUnsupportedUntilMs <= now) {
+            val response = runCatching { sendBatch(batchBootId, batch) }.getOrElse {
+                PlayerAdLogger.w("EVENT", "Batch v2 indisponível: ${it.message}")
+                retryDelay()
+                return null
+            }
+            when {
+                response.code == 401 -> {
+                    runCatching { dispatcher.getToken() }
+                    retryDelay()
+                    return null
+                }
+                response.code == 404 || response.code == 405 ||
+                    response.code == 415 || response.code == 422 -> {
+                    markCapabilityUnsupported(
+                        KEY_BATCH_EVENTS_UNSUPPORTED_UNTIL_MS,
+                        System.currentTimeMillis() + CAPABILITY_REPROBE_INTERVAL_MS,
+                    )
+                }
+                response.code !in 200..299 -> {
+                    retryDelay()
+                    return null
+                }
+                else -> return response
+            }
+        }
+
+        flushLegacy(batch)
+        return null
+    }
+
+    private fun sendSync(batch: List<JSONObject>): HttpResponse {
+        val body = JSONObject().apply {
+            put("schemaVersion", 1)
+            put("syncId", stableSyncId(batch))
+            put("events", JSONArray(batch))
+        }.toString()
+        return post(
+            "$baseUrl/api/player/sync?uin=${encode(uin)}&token=${encode(token())}" +
+                "&deviceId=${encode(deviceId)}",
+            body,
+        )
     }
 
     private fun sendBatch(batchBootId: String, batch: List<JSONObject>): HttpResponse {
@@ -261,6 +341,7 @@ class PlayerEventsClient(
     }
 
     private fun flushLegacy(batch: List<JSONObject>) {
+        val processed = mutableSetOf<JSONObject>()
         for (event in batch) {
             val media = event.optJSONObject("media") ?: JSONObject()
             val playback = event.optJSONObject("playback") ?: JSONObject()
@@ -278,7 +359,7 @@ class PlayerEventsClient(
                 else -> null
             }
             if (legacyType == null) {
-                pending.remove(event)
+                processed += event
                 continue
             }
             val body = JSONObject().apply {
@@ -304,12 +385,44 @@ class PlayerEventsClient(
                     body,
                 )
             }.getOrNull()
-            if (response?.code in 200..299) pending.remove(event) else break
+            if (response?.code in 200..299) processed += event else break
         }
-        rewriteQueue()
+        synchronized(queueLock) {
+            pending.removeAll(processed)
+            rewriteQueueLocked()
+        }
     }
 
     private fun token(): String = dispatcher.cachedToken().orEmpty()
+
+    private fun stableSyncId(batch: List<JSONObject>): String {
+        val identity = batch.joinToString("|") {
+            "${it.optString("bootId")}:${it.optString("eventId")}:${it.optLong("sequence")}"
+        }
+        return UUID.nameUUIDFromBytes(identity.toByteArray(Charsets.UTF_8)).toString()
+    }
+
+    private fun markCapabilityUnsupported(key: String, untilMs: Long) {
+        when (key) {
+            KEY_SYNC_EVENTS_UNSUPPORTED_UNTIL_MS -> syncEventsUnsupportedUntilMs = untilMs
+            KEY_BATCH_EVENTS_UNSUPPORTED_UNTIL_MS -> batchEventsUnsupportedUntilMs = untilMs
+        }
+        prefs.edit().putLong(key, untilMs).apply()
+    }
+
+    private fun clearExpiredCapabilityCooldowns() {
+        val now = System.currentTimeMillis()
+        val edit = prefs.edit()
+        if (syncEventsUnsupportedUntilMs in 1..now) {
+            syncEventsUnsupportedUntilMs = 0L
+            edit.remove(KEY_SYNC_EVENTS_UNSUPPORTED_UNTIL_MS)
+        }
+        if (batchEventsUnsupportedUntilMs in 1..now) {
+            batchEventsUnsupportedUntilMs = 0L
+            edit.remove(KEY_BATCH_EVENTS_UNSUPPORTED_UNTIL_MS)
+        }
+        edit.apply()
+    }
 
     private fun post(url: String, body: String): HttpResponse {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
@@ -334,13 +447,16 @@ class PlayerEventsClient(
 
     private fun loadQueue() {
         if (!queueFile.exists()) return
-        queueFile.forEachLine { line ->
-            if (pending.size >= MAX_QUEUE_EVENTS) return@forEachLine
-            runCatching { JSONObject(line) }.getOrNull()?.let { pending += it }
+        synchronized(queueLock) {
+            queueFile.forEachLine { line ->
+                if (pending.size >= MAX_QUEUE_EVENTS) return@forEachLine
+                runCatching { JSONObject(line) }.getOrNull()?.let { pending += it }
+            }
         }
     }
 
-    private fun trimQueue() {
+    /** Chamado somente dentro de [queueLock]. */
+    private fun trimQueueLocked() {
         while (pending.size > MAX_QUEUE_EVENTS ||
             pending.sumOf { it.toString().length + 1 } > MAX_QUEUE_BYTES
         ) {
@@ -348,7 +464,8 @@ class PlayerEventsClient(
         }
     }
 
-    private fun rewriteQueue() {
+    /** Chamado somente dentro de [queueLock] para serializar snapshot e escrita atômica. */
+    private fun rewriteQueueLocked() {
         queueFile.parentFile?.mkdirs()
         val temp = File(queueFile.parentFile, "${queueFile.name}.tmp")
         temp.bufferedWriter().use { out ->
@@ -369,12 +486,18 @@ class PlayerEventsClient(
         const val MAX_QUEUE_BYTES = 5 * 1024 * 1024
         private const val FLUSH_INTERVAL_MS = 3_000L
         private const val MAX_RETRY_MS = 5 * 60_000L
-        private const val KEY_LEGACY_ONLY_UNTIL_MS = "legacy_only_until_ms"
-        private const val LEGACY_REPROBE_INTERVAL_MS = 6L * 60L * 60L * 1000L
+        private const val KEY_SYNC_EVENTS_UNSUPPORTED_UNTIL_MS =
+            "sync_events_unsupported_until_ms"
+        private const val KEY_BATCH_EVENTS_UNSUPPORTED_UNTIL_MS =
+            "batch_events_unsupported_until_ms"
+        private const val CAPABILITY_REPROBE_INTERVAL_MS = 6L * 60L * 60L * 1000L
 
         fun parseAck(body: String): Ack {
             val root = runCatching { JSONObject(body) }.getOrElse { JSONObject() }
-            val payload = root.optJSONObject("data") ?: root
+            val container = root.optJSONObject("data") ?: root
+            val payload = container.optJSONObject("eventAck")
+                ?: container.optJSONObject("event_ack")
+                ?: container
             fun ids(key: String): Set<String> {
                 val value = payload.opt(key)
                 val array = value as? JSONArray ?: return emptySet()

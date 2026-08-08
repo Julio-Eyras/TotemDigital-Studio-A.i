@@ -8,7 +8,7 @@ import { getEventLogService, EventType } from '../services/eventLogService';
 import { getRemoteCommandService } from '../services/remoteCommandService';
 import { validateRequest } from '../middleware/validation.middleware';
 import { logError, logDebug, sanitizeForLogging, logWarn, logInfo } from '../utils/loggerHelper';
-import { getDispatcherRouter } from '../services/dispatcherRouter';
+import { DispatcherRequest, getDispatcherRouter } from '../services/dispatcherRouter';
 import crypto from 'crypto';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -21,6 +21,10 @@ import { decryptOpenSslSaltedBase64 } from '../utils/totemEncryption';
 import { normalizeTotemUin } from '../utils/normalizeTotemUin';
 import { normalizeDeviceId } from '../utils/normalizeDeviceId';
 import { getPlaybackTelemetryService } from '../services/playbackTelemetryService';
+import {
+  processSyncCommandResults,
+  validatePlayerSyncEnvelope,
+} from '../services/playerSyncService';
 
 const execAsync = promisify(exec);
 
@@ -1591,6 +1595,177 @@ router.post('/events/batch',
       });
       await logError('Erro ao ingerir lote de playback', error, { traceId, uin });
       return res.status(500).json({ error: 'Erro ao ingerir eventos', traceId });
+    }
+  }
+);
+
+/**
+ * @route POST /api/player/sync
+ * @desc Sincroniza telemetria, heartbeat opcional e resultados de comandos numa autenticação
+ * @access Totem autenticado (HMAC ou device token)
+ */
+router.post('/sync',
+  query('uin').isString().isLength({ min: 1, max: 100 }),
+  query('token').isString().notEmpty(),
+  query('deviceId').optional().isString().isLength({ min: 1, max: 255 }),
+  async (req: Request, res: Response) => {
+    const queryErrors = validationResult(req);
+    const envelopeValidation = validatePlayerSyncEnvelope(req.body);
+    if (!queryErrors.isEmpty() || !envelopeValidation.value) {
+      return res.status(400).json({
+        error: 'Dados inválidos',
+        details: [
+          ...queryErrors.array(),
+          ...envelopeValidation.errors.map((message) => ({ path: 'body', msg: message })),
+        ],
+        serverTime: new Date().toISOString(),
+      });
+    }
+
+    const envelope = envelopeValidation.value;
+    const uin = String(req.query.uin);
+    const token = String(req.query.token);
+    const deviceId = normalizeDeviceId(String(req.query.deviceId || '')) || undefined;
+    const traceId = req.get('x-trace-id') || envelope.syncId;
+    const startTime = Date.now();
+    dispatcherDebugService.logMessage('incoming', {
+      traceId,
+      uin,
+      endpoint: '/api/player/sync',
+      method: 'POST',
+      request: {
+        syncId: envelope.syncId,
+        schemaVersion: envelope.schemaVersion,
+        hasHeartbeat: Boolean(envelope.heartbeat),
+        eventCount: envelope.events?.length || 0,
+        commandResultCount: envelope.commandResults?.length || 0,
+      },
+      ipAddress: req.ip,
+    });
+
+    try {
+      const validHmac = validateTotemToken(uin, token);
+      let validDevice = false;
+      if (!validHmac) {
+        const deviceTokenService = (await import('../services/deviceTokenService')).getDeviceTokenService();
+        validDevice = await deviceTokenService.validateToken(uin, token, {
+          deviceId: deviceId || null,
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent') || undefined,
+        });
+      }
+      if (!validHmac && !validDevice) {
+        dispatcherDebugService.logMessage('outgoing', {
+          traceId,
+          uin,
+          endpoint: '/api/player/sync',
+          method: 'POST',
+          statusCode: 401,
+          duration: Date.now() - startTime,
+          error: 'Token inválido ou expirado',
+        });
+        return res.status(401).json({ error: 'Token inválido ou expirado', serverTime: new Date().toISOString() });
+      }
+
+      const totem = await new TotemService().getTotemByUin(uin);
+      if (!totem || !totem.active) {
+        const statusCode = totem ? 403 : 404;
+        dispatcherDebugService.logMessage('outgoing', {
+          traceId,
+          totemId: totem?.id,
+          uin,
+          endpoint: '/api/player/sync',
+          method: 'POST',
+          statusCode,
+          duration: Date.now() - startTime,
+          error: totem ? 'Totem inativo' : 'Totem não encontrado',
+        });
+        return res.status(statusCode).json({
+          error: totem ? 'Totem inativo' : 'Totem não encontrado',
+          serverTime: new Date().toISOString(),
+        });
+      }
+
+      const response: Record<string, unknown> = { serverTime: new Date().toISOString() };
+      if (envelope.events !== undefined) {
+        response.eventAck = await getPlaybackTelemetryService().ingestBatch(
+          totem.id,
+          envelope.events
+        );
+      }
+      if (envelope.commandResults !== undefined) {
+        response.commandAck = await processSyncCommandResults(totem.id, envelope.commandResults);
+      }
+      if (envelope.heartbeat) {
+        const heartbeatRequest: DispatcherRequest = {
+          endpoint: '/api/player/heartbeat',
+          method: 'POST',
+          uin,
+          totemId: totem.id,
+          query: req.query,
+          body: {
+            ...envelope.heartbeat,
+            ...(envelope.knownPlanVersion !== undefined
+              ? { knownPlanVersion: envelope.knownPlanVersion }
+              : {}),
+          },
+          ipAddress: req.ip || req.socket.remoteAddress || undefined,
+          userAgent: req.get('user-agent') || undefined,
+          deviceId,
+        };
+        const heartbeat = await dispatcherRouter.processHeartbeat(heartbeatRequest, totem);
+        if (!heartbeat.success) {
+          dispatcherDebugService.logMessage('outgoing', {
+            traceId,
+            totemId: totem.id,
+            uin,
+            endpoint: '/api/player/sync',
+            method: 'POST',
+            statusCode: heartbeat.statusCode,
+            duration: Date.now() - startTime,
+            error: heartbeat.error,
+          });
+          return res.status(heartbeat.statusCode).json({
+            error: heartbeat.error,
+            ...response,
+          });
+        }
+        response.heartbeat = heartbeat.data;
+      }
+
+      response.serverTime = new Date().toISOString();
+      dispatcherDebugService.logMessage('outgoing', {
+        traceId,
+        totemId: totem.id,
+        uin,
+        endpoint: '/api/player/sync',
+        method: 'POST',
+        statusCode: 200,
+        duration: Date.now() - startTime,
+        response: {
+          syncId: envelope.syncId,
+          eventAck: response.eventAck,
+          commandAck: response.commandAck,
+          hasHeartbeat: Boolean(response.heartbeat),
+        },
+      });
+      return res.json(response);
+    } catch (error: any) {
+      dispatcherDebugService.logMessage('outgoing', {
+        traceId,
+        uin,
+        endpoint: '/api/player/sync',
+        method: 'POST',
+        statusCode: 500,
+        duration: Date.now() - startTime,
+        error: error?.message || 'Erro interno',
+      });
+      await logError('Erro ao sincronizar player', error, { traceId, syncId: envelope.syncId, uin });
+      return res.status(500).json({
+        error: 'Erro ao sincronizar player',
+        traceId,
+        serverTime: new Date().toISOString(),
+      });
     }
   }
 );

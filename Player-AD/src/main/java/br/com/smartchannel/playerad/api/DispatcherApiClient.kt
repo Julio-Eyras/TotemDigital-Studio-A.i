@@ -8,6 +8,7 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.TimeZone
+import java.util.UUID
 
 /**
  * Cliente mínimo para integrar com o Dispatcher / API de player:
@@ -64,6 +65,8 @@ class DispatcherApiClient(
     )
 
     private var currentToken: String? = null
+    @Volatile
+    private var syncHeartbeatUnsupportedUntilMs: Long = 0L
 
     /** Último token conhecido (atualizado por heartbeat, getToken ou retry em dispatch). */
     fun cachedToken(): String? = currentToken
@@ -165,6 +168,16 @@ class DispatcherApiClient(
         token
     }
 
+    private fun heartbeatPayload(metrics: JSONObject? = null): JSONObject = JSONObject().apply {
+        put("uin", uin)
+        put("deviceId", deviceId)
+        put("status", "online")
+        put("platform", "android")
+        put("version", appVersion)
+        put("appVersion", appVersion)
+        if (metrics != null) put("metrics", metrics)
+    }
+
     private fun performHeartbeatRequest(token: String, metrics: JSONObject? = null): HttpTextResponse {
         val url = URL(
             "$baseUrl/api/player/heartbeat?uin=${encode(uin)}&token=${encode(token)}&deviceId=${encode(deviceId)}"
@@ -174,15 +187,7 @@ class DispatcherApiClient(
             setRequestProperty("Content-Type", "application/json")
         }
 
-        val body = JSONObject().apply {
-            put("uin", uin)
-            put("deviceId", deviceId)
-            put("status", "online")
-            put("platform", "android")
-            put("version", appVersion)
-            put("appVersion", appVersion)
-            if (metrics != null) put("metrics", metrics)
-        }.toString()
+        val body = heartbeatPayload(metrics).toString()
 
         return try {
             conn.outputStream.use { it.write(body.toByteArray()) }
@@ -192,14 +197,57 @@ class DispatcherApiClient(
         }
     }
 
-    suspend fun heartbeatWithCommands(metrics: JSONObject? = null): HeartbeatResult = withContext(Dispatchers.IO) {
+    private fun performSyncHeartbeatRequest(
+        token: String,
+        metrics: JSONObject?,
+        knownPlanVersion: String?,
+    ): HttpTextResponse {
+        val url = URL(
+            "$baseUrl/api/player/sync?uin=${encode(uin)}&token=${encode(token)}&deviceId=${encode(deviceId)}"
+        )
+        val conn = openConnection(url, "POST").apply {
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json")
+        }
+        val body = JSONObject().apply {
+            put("schemaVersion", 1)
+            put("syncId", UUID.randomUUID().toString())
+            put("heartbeat", heartbeatPayload(metrics))
+            put("knownPlanVersion", knownPlanVersion?.takeIf { it.isNotBlank() } ?: JSONObject.NULL)
+        }.toString()
+        return try {
+            conn.outputStream.use { it.write(body.toByteArray()) }
+            readHttpText(conn)
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    private fun performPreferredHeartbeatRequest(
+        token: String,
+        metrics: JSONObject?,
+        knownPlanVersion: String?,
+    ): HttpTextResponse {
+        if (System.currentTimeMillis() >= syncHeartbeatUnsupportedUntilMs) {
+            val syncResponse = performSyncHeartbeatRequest(token, metrics, knownPlanVersion)
+            if (syncResponse.code != 404 && syncResponse.code != 405) return syncResponse
+            syncHeartbeatUnsupportedUntilMs =
+                System.currentTimeMillis() + SYNC_HEARTBEAT_REPROBE_INTERVAL_MS
+        }
+        return performHeartbeatRequest(token, metrics)
+    }
+
+    suspend fun heartbeatWithCommands(
+        metrics: JSONObject? = null,
+        knownPlanVersion: String? = null,
+    ): HeartbeatResult = withContext(Dispatchers.IO) {
         var tkn = currentToken ?: getToken()
-        var response = performHeartbeatRequest(tkn, metrics)
+        var response = performPreferredHeartbeatRequest(tkn, metrics, knownPlanVersion)
         if (response.code == 401) {
             currentToken = null
             tkn = getToken()
             currentToken = tkn
-            response = performHeartbeatRequest(tkn, metrics)
+            response = performPreferredHeartbeatRequest(tkn, metrics, knownPlanVersion)
         }
 
         if (response.code !in 200..299) {
@@ -208,7 +256,8 @@ class DispatcherApiClient(
 
         val json = JSONObject(response.body)
         val data = json.optJSONObject("data")
-        val payload = data ?: json
+        val container = data ?: json
+        val payload = container.optJSONObject("heartbeat") ?: container
         val newToken = payload.optString("token", tkn)
         currentToken = newToken
         val commandsArray =
@@ -457,6 +506,10 @@ class DispatcherApiClient(
             if (parsed != null) return parsed
         }
         return null
+    }
+
+    private companion object {
+        const val SYNC_HEARTBEAT_REPROBE_INTERVAL_MS = 6L * 60L * 60L * 1000L
     }
 }
 

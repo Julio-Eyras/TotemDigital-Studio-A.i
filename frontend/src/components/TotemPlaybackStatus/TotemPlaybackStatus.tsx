@@ -3,7 +3,9 @@ import { Box, Button, Chip, LinearProgress, Typography } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { TelemetryObservationLease, totemApi } from '../../services/api';
 import {
-  formatPlaybackLine,
+  formatNextMediaLine,
+  formatPlaybackMedia,
+  formatPlaybackTiming,
   normalizePlaybackState,
   playbackElapsedMs,
   TotemPlaybackState,
@@ -16,13 +18,14 @@ interface Props {
   state?: TotemPlaybackState;
   fallback?: unknown;
   observationSample?: TotemObservationSample;
+  offline?: boolean;
 }
 
 function leaseExpiry(lease: TelemetryObservationLease): string | undefined {
   return lease.expiresAt ?? lease.expires_at;
 }
 
-const TotemPlaybackStatus: React.FC<Props> = ({ totemId, state, fallback, observationSample }) => {
+const TotemPlaybackStatus: React.FC<Props> = ({ totemId, state, fallback, observationSample, offline = false }) => {
   const [now, setNow] = useState(Date.now());
   const [lease, setLease] = useState<TelemetryObservationLease | null>(null);
   const [busy, setBusy] = useState(false);
@@ -88,47 +91,80 @@ const TotemPlaybackStatus: React.FC<Props> = ({ totemId, state, fallback, observ
     >
       {playback ? (
         <>
-          <Typography variant="body2" title={formatPlaybackLine(playback, now)} noWrap>
-            {formatPlaybackLine(playback, now)}
+          <Typography variant="body2" fontWeight={700} title={formatPlaybackMedia(playback.mediaId, playback.mediaName)} noWrap>
+            {formatPlaybackMedia(playback.mediaId, playback.mediaName)}
+          </Typography>
+          <Typography variant="caption" color="text.secondary" display="block">
+            {formatPlaybackTiming(playback, now)}
           </Typography>
           {playback.durationMs > 0 && <LinearProgress variant="determinate" value={percent} sx={{ mt: 0.5 }} />}
+          {playback.nextMedia && (
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              display="block"
+              title={formatNextMediaLine(playback.nextMedia)}
+              noWrap
+              sx={{ mt: 0.5 }}
+            >
+              {formatNextMediaLine(playback.nextMedia)}
+            </Typography>
+          )}
           <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5, alignItems: 'center', flexWrap: 'wrap' }}>
             {playback.mediaType && <Chip size="small" variant="outlined" label={playback.mediaType} />}
+            {offline && <Chip size="small" color="default" label="Offline" />}
             <Chip
               size="small"
               color={playback.stale ? 'warning' : playback.status === 'error' ? 'error' : 'success'}
-              label={playback.stale ? `${playback.status} · desatualizado` : playback.status}
+              label={playback.stale ? `${playback.status} · estado desatualizado` : playback.status}
             />
           </Box>
+          {(offline || playback.stale) && (
+            <Typography variant="caption" color="warning.main" display="block" sx={{ mt: 0.5 }}>
+              {offline
+                ? `Totem offline · exibindo o último estado${playback.stale ? ' desatualizado' : ' recebido'}`
+                : 'Estado de reprodução desatualizado'}
+            </Typography>
+          )}
         </>
       ) : (
-        <Typography variant="body2" color="text.secondary">Sem estado de reprodução recente</Typography>
+        <Typography variant="body2" color={offline ? 'warning.main' : 'text.secondary'}>
+          {offline ? 'Totem offline · sem estado de reprodução recente' : 'Sem estado de reprodução recente'}
+        </Typography>
       )}
-      <Box sx={{ display: 'flex', gap: 0.75, mt: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-        <Button
-          size="small"
-          variant={lease ? 'outlined' : 'text'}
-          startIcon={<Visibility />}
-          disabled={busy}
-          onClick={() => void observe()}
-        >
-          {lease ? 'Renovar observação' : 'Observar ao vivo'}
-        </Button>
-        {lease && (
+      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.75 }}>
+        Estado normal por eventos/WebSocket, independente do diagnóstico.
+      </Typography>
+      <Box sx={{ mt: 1, pt: 0.75, borderTop: 1, borderColor: 'divider' }}>
+        <Box sx={{ display: 'flex', gap: 0.75, alignItems: 'center', flexWrap: 'wrap' }}>
           <Button
             size="small"
-            color="inherit"
-            startIcon={<VisibilityOff />}
+            variant={lease ? 'outlined' : 'text'}
+            startIcon={<Visibility />}
             disabled={busy}
-            onClick={() => void stop()}
+            onClick={() => void observe()}
           >
-            Parar
+            {lease ? 'Renovar diagnóstico' : 'Diagnóstico ao vivo'}
           </Button>
-        )}
+          {lease && (
+            <Button
+              size="small"
+              color="inherit"
+              startIcon={<VisibilityOff />}
+              disabled={busy}
+              onClick={() => void stop()}
+            >
+              Parar
+            </Button>
+          )}
+        </Box>
+        <Typography variant="caption" color="text.secondary" display="block">
+          Opcional; não interfere no estado de reprodução acima.
+        </Typography>
       </Box>
       {lease && (
         <Typography variant="caption" color={awaiting ? 'warning.main' : 'success.main'} display="block">
-          {awaiting ? 'Lease ativo · aguardando heartbeat' : 'Lease ativo'}
+          {awaiting ? 'Diagnóstico ativo · aguardando amostra' : 'Diagnóstico ativo'}
           {expiry ? ` até ${new Date(expiry).toLocaleTimeString('pt-BR', { hour12: false })}` : ' por 120s'}
           {!awaiting && observationSample?.occurredAt
             ? ` · amostra ${new Date(observationSample.occurredAt).toLocaleTimeString('pt-BR', { hour12: false })}`

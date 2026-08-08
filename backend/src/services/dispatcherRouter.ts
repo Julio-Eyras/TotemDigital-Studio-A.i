@@ -100,7 +100,7 @@ class DispatcherRouter {
           break;
         
         case '/api/player/heartbeat':
-          handlerResponse = await this.handleHeartbeat(dispatcherRequest);
+          handlerResponse = await this.processHeartbeat(dispatcherRequest);
           break;
         
         case '/api/player/event':
@@ -499,7 +499,10 @@ class DispatcherRouter {
   /**
    * Handler para /api/player/heartbeat
    */
-  private async handleHeartbeat(request: DispatcherRequest): Promise<DispatcherResponse> {
+  async processHeartbeat(
+    request: DispatcherRequest,
+    authenticatedTotem?: Awaited<ReturnType<TotemService['getTotemByUin']>>
+  ): Promise<DispatcherResponse> {
     const startTime = Date.now();
     
     try {
@@ -512,41 +515,43 @@ class DispatcherRouter {
         };
       }
 
-      // Validar token
-      const token = request.query?.token as string;
-      if (!token) {
-        return {
-          success: false,
-          error: 'Token não fornecido',
-          statusCode: 401,
-          duration: Date.now() - startTime,
-        };
-      }
-
-      const validHmac = validateTotemToken(request.uin, token);
       const deviceTokenService = getDeviceTokenService();
-      const validDeviceToken = await deviceTokenService.validateToken(
-        request.uin,
-        token,
-        {
-          deviceId: request.deviceId || null,
-          ipAddress: request.ipAddress || undefined,
-          userAgent: request.userAgent || undefined,
+      if (!authenticatedTotem) {
+        // A rota sync fornece um totem já autenticado para não validar o envelope duas vezes.
+        const token = request.query?.token as string;
+        if (!token) {
+          return {
+            success: false,
+            error: 'Token não fornecido',
+            statusCode: 401,
+            duration: Date.now() - startTime,
+          };
         }
-      );
 
-      if (!validHmac && !validDeviceToken) {
-        return {
-          success: false,
-          error: 'Token inválido ou expirado',
-          statusCode: 401,
-          duration: Date.now() - startTime,
-        };
+        const validHmac = validateTotemToken(request.uin, token);
+        const validDeviceToken = await deviceTokenService.validateToken(
+          request.uin,
+          token,
+          {
+            deviceId: request.deviceId || null,
+            ipAddress: request.ipAddress || undefined,
+            userAgent: request.userAgent || undefined,
+          }
+        );
+
+        if (!validHmac && !validDeviceToken) {
+          return {
+            success: false,
+            error: 'Token inválido ou expirado',
+            statusCode: 401,
+            duration: Date.now() - startTime,
+          };
+        }
       }
 
       // Buscar totem
       const totemService = new TotemService();
-      const totem = await totemService.getTotemByUin(request.uin);
+      const totem = authenticatedTotem || (await totemService.getTotemByUin(request.uin));
       if (!totem) {
         return {
           success: false,

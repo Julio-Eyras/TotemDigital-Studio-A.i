@@ -1,6 +1,7 @@
 import {
   formatPlaybackClock,
   formatPlaybackLine,
+  formatNextMediaLine,
   normalizePlaybackState,
   playbackElapsedMs,
 } from './playbackTelemetry';
@@ -50,7 +51,7 @@ describe('playbackTelemetry', () => {
         totemId: 7,
         status: 'playing',
         media: {
-          id: '42',
+          id: 42,
           name: 'Institucional',
           type: 'video',
           durationMs: 45000,
@@ -59,16 +60,65 @@ describe('playbackTelemetry', () => {
           startedAt: '2026-08-08T12:00:00.000Z',
           expectedEndAt: '2026-08-08T12:00:45.000Z',
         },
+        context: {
+          nextMedia: {
+            id: 43,
+            name: 'Oferta do dia',
+            type: 'image',
+            durationMs: 10000,
+            order: 2,
+          },
+        },
       },
     });
 
     expect(state).toMatchObject({
       totemId: 7,
+      mediaId: 42,
       mediaName: 'Institucional',
       mediaType: 'video',
       durationMs: 45000,
       status: 'playing',
       expectedEndAt: '2026-08-08T12:00:45.000Z',
+      nextMedia: {
+        id: 43,
+        name: 'Oferta do dia',
+        type: 'image',
+        durationMs: 10000,
+        order: 2,
+      },
+    });
+    expect(formatNextMediaLine(state!.nextMedia!)).toBe('Próxima: ID 43 · Oferta do dia · 00:10');
+  });
+
+  it('normaliza IDs e próxima mídia no contrato legado snake_case', () => {
+    const state = normalizePlaybackState({
+      now_playing: {
+        media_id: 'legacy-9',
+        media_name: 'Legado atual',
+        duration_seconds: 20,
+        started_at: '2026-08-08T12:00:00Z',
+        next_media: {
+          media_id: 'legacy-10',
+          media_name: 'Legado seguinte',
+          media_type: 'html',
+          duration_seconds: 15,
+          order: 4,
+        },
+      },
+    });
+
+    expect(state).toMatchObject({
+      mediaId: 'legacy-9',
+      mediaName: 'Legado atual',
+      durationMs: 20000,
+      nextMedia: {
+        id: 'legacy-10',
+        name: 'Legado seguinte',
+        type: 'html',
+        durationMs: 15000,
+        order: 4,
+      },
     });
   });
 
@@ -82,7 +132,7 @@ describe('playbackTelemetry', () => {
     expect(playbackElapsedMs(state, Date.parse('2026-08-08T12:01:00Z'))).toBe(30000);
     expect(formatPlaybackClock(12000)).toBe('00:12');
     expect(formatPlaybackLine(state, Date.parse('2026-08-08T12:00:12Z'))).toContain(
-      '▶ Vídeo · 00:12/00:30 · iniciado',
+      '▶ ID — · Vídeo · 00:12 / 00:30 · iniciado',
     );
   });
 
@@ -97,6 +147,6 @@ describe('playbackTelemetry', () => {
       },
     })!;
 
-    expect(formatPlaybackLine(state)).toContain('✓ Vídeo concluído · reproduzido 00:29 · concluído');
+    expect(formatPlaybackLine(state)).toContain('✓ ID — · Vídeo concluído · reproduzido 00:29 · concluído');
   });
 });

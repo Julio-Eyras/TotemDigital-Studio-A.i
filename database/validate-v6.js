@@ -35,7 +35,8 @@ async function validateAndExecute() {
     const tables = [
       'subscribers', 'publishers', 'users', 'totems', 'smart_tvs',
       'campaigns', 'campaign_medias', 'medias', 'playlists', 'tags', 'fx_telemetry',
-      'playback_events', 'totem_playback_state', 'telemetry_observation_leases'
+      'playback_events', 'totem_playback_state', 'telemetry_observation_leases',
+      'playback_event_rollups_daily'
     ];
     
     let schemaExists = true;
@@ -627,6 +628,7 @@ async function validateAndExecute() {
       'idx_playback_events_session',
       'idx_totem_playback_state_updated',
       'idx_telemetry_observation_expires',
+      'idx_playback_event_rollups_totem_date',
     ];
     for (const index of playbackIndexes) {
       const result = await pool.query(
@@ -639,6 +641,21 @@ async function validateAndExecute() {
         console.log(`  ❌ Índice ${index} ausente — execute apply-schema-v2.sh (part18)`);
         schemaPartsOk = false;
       }
+    }
+
+    const retentionFunction = await pool.query(`
+      SELECT EXISTS (
+        SELECT 1
+        FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'public' AND p.proname = 'consolidate_playback_events'
+      ) AS exists
+    `);
+    if (retentionFunction.rows[0].exists) {
+      console.log('  ✅ Função consolidate_playback_events() (part18, execução manual)');
+    } else {
+      console.log('  ❌ Função consolidate_playback_events() ausente — execute apply-schema-v2.sh (part18)');
+      schemaPartsOk = false;
     }
 
     if (!schemaPartsOk) {

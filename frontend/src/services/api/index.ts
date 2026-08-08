@@ -645,6 +645,8 @@ export interface Player {
 }
 
 export interface PlayerNowPlaying {
+  mediaId?: number | string;
+  media_id?: number | string;
   mediaName?: string;
   media_name?: string;
   mediaType?: string;
@@ -657,6 +659,23 @@ export interface PlayerNowPlaying {
   expected_end_at?: string;
   status?: string;
   stale?: boolean;
+  context?: {
+    nextMedia?: PlayerNextMedia;
+    next_media?: PlayerNextMedia;
+  };
+  nextMedia?: PlayerNextMedia;
+  next_media?: PlayerNextMedia;
+}
+
+export interface PlayerNextMedia {
+  id: number | string;
+  name: string;
+  type?: string;
+  durationMs?: number;
+  duration_ms?: number;
+  durationSeconds?: number;
+  duration_seconds?: number;
+  order?: number;
 }
 
 export interface TelemetryObservationLease {
