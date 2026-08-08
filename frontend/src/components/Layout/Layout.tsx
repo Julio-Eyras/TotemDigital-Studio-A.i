@@ -321,7 +321,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.35 }}>
           Sistema de Sinalização Digital
         </Typography>
-        <AppVersionLines />
+        <AppVersionLines showInstallationMode />
       </Box>
 
       {/* Navigation Menu - Hierárquico */}

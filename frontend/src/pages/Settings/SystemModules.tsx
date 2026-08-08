@@ -36,6 +36,10 @@ import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { useAppSelector } from '../../store';
 import type { InstallationModuleFlags } from '../../types/installationCapabilities';
+import {
+  getInstallationModeOptionLabel,
+  type InstallationMode,
+} from '../../utils/installationMode';
 
 type CatalogItem = {
   id: keyof InstallationModuleFlags;
@@ -79,7 +83,7 @@ const PRESET_OFF_LABELS = [
 
 const PURGE_CONFIRM_PHRASE = 'APAGAR DADOS COMERCIAIS DESTA INSTALAÇÃO';
 
-type MultiAgencyMode = 'off' | 'lite' | 'full';
+type MultiAgencyMode = InstallationMode;
 
 type ChecklistItem = {
   id: string;
@@ -519,9 +523,15 @@ const SystemModules: React.FC = () => {
                   onChange={(e) => requestModeChange(e.target.value as MultiAgencyMode)}
                   sx={{ minWidth: 160 }}
                 >
-                  <MenuItem value="off">Direct Totem (off)</MenuItem>
-                  <MenuItem value="lite">Multi-agência lite</MenuItem>
-                  <MenuItem value="full">Multi-agência Pro</MenuItem>
+                  <MenuItem value="off">
+                    {getInstallationModeOptionLabel('off', multiAgencyMode)}
+                  </MenuItem>
+                  <MenuItem value="lite">
+                    {getInstallationModeOptionLabel('lite', multiAgencyMode)}
+                  </MenuItem>
+                  <MenuItem value="full">
+                    {getInstallationModeOptionLabel('full', multiAgencyMode)}
+                  </MenuItem>
                 </TextField>
               </Box>
               <Alert severity="info" sx={{ mt: 2 }} icon={<Extension />}>
