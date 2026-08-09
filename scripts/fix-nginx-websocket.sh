@@ -55,9 +55,36 @@ echo ""
 
 if sudo grep -q 'location /ws' "$NGINX_CONFIG" 2>/dev/null && sudo grep -A2 'location /ws' "$NGINX_CONFIG" | grep -q 'proxy_pass'; then
   echo -e "${GREEN}✅ O config já inclui 'location /ws' com proxy_pass.${NC}"
+  if ! sudo grep -A3 'location /ws' "$NGINX_CONFIG" | grep -q 'access_log off;'; then
+    BACKUP_FILE="${NGINX_CONFIG}.backup.ws.$(date +%Y%m%d-%H%M%S)"
+    sudo cp "$NGINX_CONFIG" "$BACKUP_FILE"
+    sudo python3 - "$NGINX_CONFIG" <<'PYEOF'
+import re
+import sys
+
+path = sys.argv[1]
+with open(path, "r") as handle:
+    content = handle.read()
+content, count = re.subn(
+    r"(location\s+/ws\s*\{\s*\n)(?!\s*access_log\s+off;)",
+    r"\1        access_log off;\n",
+    content,
+)
+if count:
+    with open(path, "w") as handle:
+        handle.write(content)
+PYEOF
+    echo -e "${GREEN}✅ Log de acesso desativado em /ws para não persistir o JWT da query string.${NC}"
+  fi
   echo "   Recarregando Nginx..."
   if sudo nginx -t 2>/dev/null; then
     sudo systemctl reload nginx 2>/dev/null && echo -e "${GREEN}✅ Nginx recarregado.${NC}" || echo -e "${YELLOW}⚠️  Recarregue manualmente: sudo systemctl reload nginx${NC}"
+  else
+    if [[ -n "${BACKUP_FILE:-}" ]]; then
+      sudo cp "$BACKUP_FILE" "$NGINX_CONFIG"
+      echo -e "${RED}❌ Config inválido; backup restaurado: $BACKUP_FILE${NC}"
+    fi
+    exit 1
   fi
   echo -e "${YELLOW}Se ainda aparecer 'Unexpected response code: 200', o pedido pode estar a ser servido por outro server (ex.: acesso por IP usa default_server).${NC}"
   echo "   Adicione o bloco location /ws nesse config também, ou rode: NGINX_CONFIG=/etc/nginx/sites-available/default $0"
@@ -87,6 +114,7 @@ if "location /ws" in content and "proxy_pass" in content:
 
 # Bloco Nginx com $ literais (variáveis do Nginx)
 block_ws = """    location /ws {
+        access_log off;
         proxy_pass http://localhost:%s;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;

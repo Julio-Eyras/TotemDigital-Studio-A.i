@@ -1018,7 +1018,7 @@ Implementado e versionado:
 - integração do commit `b64259d9`;
 - Player-AD `2.06/106`;
 - backend `2.1.11`;
-- frontend `2.1.15`;
+- frontend `2.1.16`;
 - `POST /api/player/sync` com fallback compatível;
 - ACK unificado e idempotência preservada;
 - `nextMedia` cíclica no evento de início e no estado do card;
@@ -1045,7 +1045,7 @@ Pendente de comprovação operacional prolongada:
 - aplicação e funcionamento do schema v2 em produção;
 - atualização normal do card por eventos, WebSocket e fallback REST após rebuild/restart dos serviços;
 - ausência do crash em observação de longa duração;
-- publicação/deploy do backend `2.1.11` e frontend `2.1.15`;
+- publicação/deploy do backend `2.1.11` e frontend `2.1.16`;
 - nova confirmação online após expirar o rate limit temporário de 900 segundos;
 - retenção real em escala.
 
@@ -1069,3 +1069,37 @@ O card de Publicar em Totem passou a usar uma estratégia híbrida:
 O backend também passou a rejeitar consulta de playback, criação/renovação de
 lease e assinatura WebSocket para totens desabilitados. Encerrar um lease
 continua permitido para garantir limpeza operacional.
+
+## 20. Correção da URL WebSocket em produção
+
+Com `REACT_APP_API_URL=https://totemdigital.app.br/api`, o frontend preservava
+incorretamente o caminho `/api` ao montar a URL WebSocket e tentava conectar em
+`wss://totemdigital.app.br/api/ws`. O endpoint real do backend e do proxy Nginx
+é `/ws`.
+
+O frontend `2.1.16` passou a extrair somente `host:porta` da URL absoluta da API
+e a derivar corretamente `ws:` ou `wss:` do protocolo configurado. A correção
+vale para o card de reprodução, Monitor Dispatcher e visualizador de logs,
+todos consumidores da função compartilhada.
+
+## 21. Decisão transitória de segurança do JWT no WebSocket
+
+Foi avaliada a substituição imediata do JWT na query string por cookie
+`HttpOnly` ou ticket WebSocket descartável. A decisão foi adiar essa migração
+porque ela alcança login, refresh, logout, sessões, CSRF, proxy e reconexão,
+criando risco desproporcional na reta final.
+
+Medidas aplicadas agora:
+
+- manutenção do handshake existente para preservar compatibilidade;
+- `wss://` obrigatório em produção;
+- URL corrigida para `/ws`;
+- `access_log off` em todos os blocos `/ws` gerados pelo instalador;
+- atualização de `scripts/fix-nginx-websocket.sh` para aplicar a proteção
+  também em servidores já instalados;
+- orientação explícita para redigir tokens em capturas e diagnósticos.
+
+Requisitos de evolução foram registrados em
+`docs/websocket-nginx-unexpected-response-200.md`: comparar cookie seguro e
+ticket descartável, definir revogação, CSRF, múltiplos ambientes, migração,
+testes, métricas e rollback antes de qualquer implementação.

@@ -7281,6 +7281,7 @@ server {
     
     # WebSocket (logs em tempo real, monitor) – proxy para o backend com upgrade (OBRIGATÓRIO para /ws)
     location /ws {
+        access_log off;
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -7886,6 +7887,7 @@ ${ssl_extra}
     }
 
     location /ws {
+        access_log off;
         proxy_pass http://127.0.0.1:${BACKEND_PORT};
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -8008,6 +8010,7 @@ server {
     }
 
     location /ws {
+        access_log off;
         proxy_pass http://127.0.0.1:${BACKEND_PORT};
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -8247,6 +8250,7 @@ server {
         proxy_read_timeout 300s;
     }
     location /ws {
+        access_log off;
         proxy_pass http://127.0.0.1:${BACKEND_PORT};
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -8301,6 +8305,7 @@ server {
     
     # WebSocket (logs em tempo real, monitor) – proxy para o backend com upgrade (OBRIGATÓRIO para /ws)
     location /ws {
+        access_log off;
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -8625,6 +8630,7 @@ server {
     
     # WebSocket (logs em tempo real, monitor) – proxy para o backend com upgrade (OBRIGATÓRIO para /ws)
     location /ws {
+        access_log off;
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -8796,6 +8802,7 @@ server {
     }
 
     location /ws {
+        access_log off;
         proxy_pass http://127.0.0.1:${BACKEND_PORT};
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -8929,6 +8936,7 @@ server {
     
     # WebSocket (logs em tempo real, monitor) – proxy para o backend com upgrade (OBRIGATÓRIO para /ws)
     location /ws {
+        access_log off;
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;

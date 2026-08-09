@@ -1,6 +1,6 @@
 {
   "name": "smart-signage-frontend",
-  "version": "2.1.15",
+  "version": "2.1.16",
   "description": "Smart Signage Frontend - Interface administrativa",
   "private": true,
   "dependencies": {

@@ -155,6 +155,8 @@ O modo `atualizar` preserva a BD e executa build, deploy, correções de `.env`/
 sudo systemctl status smart-signage --no-pager
 sudo journalctl -u smart-signage -n 100 --no-pager
 sudo nginx -t
+sudo bash scripts/fix-nginx-websocket.sh
+sudo nginx -T 2>/dev/null | grep -A12 -B2 "location /ws"
 curl -fsS https://totemdigital.app.br/api/health
 curl -sI https://totemdigital.app.br/login
 
@@ -173,6 +175,11 @@ API:         https://totemdigital.app.br/api
 Player-AD:   serverUrl=https://totemdigital.app.br
 Auxiliar:    http://IP_DO_VPS:8080/login
 ```
+
+No DevTools, a conexão em **Network → WS** deve usar
+`wss://totemdigital.app.br/ws` e receber `101 Switching Protocols`. Não deve
+existir `/api/ws`. O bloco Nginx `/ws` deve conter `access_log off;` para não
+persistir o JWT da query string em logs de acesso.
 
 ## 7. Reparação sem rebuild
 

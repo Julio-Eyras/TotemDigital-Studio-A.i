@@ -39,7 +39,7 @@ function shouldSkipUnauthorizedRedirect(url: string): boolean {
 export function getWebSocketHost(): string {
   const apiUrl = process.env.REACT_APP_API_URL;
   if (apiUrl && (apiUrl.startsWith('http://') || apiUrl.startsWith('https://'))) {
-    return apiUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    return new URL(apiUrl).host;
   }
   return typeof window !== 'undefined' ? window.location.host : '';
 }
@@ -48,7 +48,13 @@ export function getWebSocketHost(): string {
  * Monta a URL completa do WebSocket para /ws (com token em query).
  */
 export function getWebSocketUrl(token: string): string {
-  const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const apiUrl = process.env.REACT_APP_API_URL;
+  const apiProtocol =
+    apiUrl && (apiUrl.startsWith('http://') || apiUrl.startsWith('https://'))
+      ? new URL(apiUrl).protocol
+      : undefined;
+  const pageProtocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
+  const protocol = (apiProtocol ?? pageProtocol) === 'https:' ? 'wss:' : 'ws:';
   const host = getWebSocketHost();
   return `${protocol}//${host}/ws?token=${encodeURIComponent(token)}`;
 }
