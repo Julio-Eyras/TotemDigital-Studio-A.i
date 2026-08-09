@@ -382,7 +382,7 @@ const PublishTotem: React.FC = () => {
             return (
               <Grid item xs={12} sm={6} md={4} key={String(totemId ?? idx)}>
                 <Card
-                  onMouseEnter={() => totemId && playbackTelemetry.hoverStart(totemId)}
+                  onMouseEnter={() => totemId && totemActive && playbackTelemetry.hoverStart(totemId)}
                   onMouseLeave={() => totemId && playbackTelemetry.hoverEnd(totemId)}
                   sx={{
                     height: '100%',
@@ -449,6 +449,8 @@ const PublishTotem: React.FC = () => {
                               observationSample={playbackTelemetry.observationSamples[totemId]}
                               fallback={(t as any).nowPlaying ?? (t as any).now_playing ?? (t as any).runtime}
                               offline={op.label === 'Offline'}
+                              enabled={totemActive}
+                              connectionStatus={playbackTelemetry.connectionStatus}
                             />
                           )}
                           {activationCode && (

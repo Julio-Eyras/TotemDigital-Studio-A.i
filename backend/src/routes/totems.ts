@@ -39,7 +39,7 @@ async function requireScopedTotem(
   totemId: number,
   req: AuthenticatedRequest
 ): Promise<
-  | { ok: true }
+  | { ok: true; totem: any }
   | { ok: false; status: number; body: Record<string, unknown> }
 > {
   const isAdmin = isAdminRole(req.user?.role);
@@ -49,7 +49,7 @@ async function requireScopedTotem(
     if (!totem) {
       return { ok: false, status: 404, body: { success: false, error: 'Totem não encontrado' } };
     }
-    return { ok: true };
+    return { ok: true, totem };
   } catch (error: any) {
     const message = error?.message || 'Acesso negado';
     if (message.includes('Acesso negado') || message.includes('Modo compacto')) {
@@ -57,6 +57,25 @@ async function requireScopedTotem(
     }
     throw error;
   }
+}
+
+async function requireActiveScopedTotem(
+  totemId: number,
+  req: AuthenticatedRequest
+): Promise<
+  | { ok: true; totem: any }
+  | { ok: false; status: number; body: Record<string, unknown> }
+> {
+  const scoped = await requireScopedTotem(totemId, req);
+  if (!scoped.ok) return scoped;
+  if (!isTotemRowActive(scoped.totem)) {
+    return {
+      ok: false,
+      status: 409,
+      body: { success: false, active: false, error: 'Totem desabilitado' },
+    };
+  }
+  return scoped;
 }
 
 const getTotemApproveRoles = () =>
@@ -418,7 +437,7 @@ router.get(
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const totemId = Number(req.params.id);
-      const scoped = await requireScopedTotem(totemId, req);
+      const scoped = await requireActiveScopedTotem(totemId, req);
       if (!scoped.ok) return res.status(scoped.status).json(scoped.body);
       const playbackState = await getPlaybackTelemetryService().getCurrentState(totemId);
       return res.json({ totemId, playbackState });
@@ -432,7 +451,7 @@ router.get(
 async function upsertTelemetryObservation(req: AuthenticatedRequest, res: Response) {
   try {
     const totemId = Number(req.params.id);
-    const scoped = await requireScopedTotem(totemId, req);
+    const scoped = await requireActiveScopedTotem(totemId, req);
     if (!scoped.ok) return res.status(scoped.status).json(scoped.body);
     const telemetryObservation = await getPlaybackTelemetryService().startOrRenewObservation(
       totemId,

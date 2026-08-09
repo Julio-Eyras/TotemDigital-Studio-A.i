@@ -229,6 +229,13 @@ export class WebSocketService {
       [userId]
     );
     if (!currentUser) return false;
+    const activeTotem = await getDatabase().findFirst(
+      `SELECT 1
+       FROM totems
+       WHERE totem_id = $1 AND COALESCE(is_active, true) = true`,
+      [totemId]
+    );
+    if (!activeTotem) return false;
     if (['admin', 'admin_sql', 'owner_system', 'operador_tecnico'].includes(currentUser.role)) {
       return true;
     }

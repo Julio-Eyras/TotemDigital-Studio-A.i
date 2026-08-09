@@ -2142,6 +2142,11 @@ export const totemApi = {
     return response.data;
   },
 
+  getPlaybackState: async (id: number): Promise<unknown> => {
+    const response = await api.get(`/totems/${id}/playback-state`);
+    return response.data?.playbackState ?? response.data?.data ?? response.data;
+  },
+
   startTelemetryObservation: async (
     id: number,
     ttlSeconds = 120,

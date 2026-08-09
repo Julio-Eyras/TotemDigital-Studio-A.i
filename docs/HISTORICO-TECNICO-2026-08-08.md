@@ -1017,8 +1017,8 @@ Implementado e versionado:
 - telemetria v2 do commit `bbfbac3a`;
 - integração do commit `b64259d9`;
 - Player-AD `2.06/106`;
-- backend `2.1.10`;
-- frontend `2.1.14`;
+- backend `2.1.11`;
+- frontend `2.1.15`;
 - `POST /api/player/sync` com fallback compatível;
 - ACK unificado e idempotência preservada;
 - `nextMedia` cíclica no evento de início e no estado do card;
@@ -1043,9 +1043,9 @@ Publicação e implantação:
 Pendente de comprovação operacional prolongada:
 
 - aplicação e funcionamento do schema v2 em produção;
-- atualização normal do card por eventos após rebuild/restart dos serviços;
+- atualização normal do card por eventos, WebSocket e fallback REST após rebuild/restart dos serviços;
 - ausência do crash em observação de longa duração;
-- publicação/deploy do backend `2.1.10`;
+- publicação/deploy do backend `2.1.11` e frontend `2.1.15`;
 - nova confirmação online após expirar o rate limit temporário de 900 segundos;
 - retenção real em escala.
 
@@ -1053,3 +1053,19 @@ Ainda sujeito a implementação e gates:
 
 - rollup e retenção automatizados;
 - canal persistente Player ↔ Backend.
+
+## 19. Correção do estado de reprodução no card
+
+O card de Publicar em Totem passou a usar uma estratégia híbrida:
+
+- ao manter o cursor sobre um totem habilitado, consulta imediatamente
+  `GET /api/totems/:id/playback-state`;
+- mantém a assinatura WebSocket como fonte principal das atualizações seguintes;
+- quando o WebSocket está desconectado, consulta o estado por REST a cada 10 segundos;
+- informa visualmente se está em tempo real, conectando ou usando o fallback REST;
+- não assina, consulta nem inicia lease de observação para totem desabilitado;
+- apresenta `Totem desabilitado` no lugar de dados antigos de reprodução.
+
+O backend também passou a rejeitar consulta de playback, criação/renovação de
+lease e assinatura WebSocket para totens desabilitados. Encerrar um lease
+continua permitido para garantir limpeza operacional.

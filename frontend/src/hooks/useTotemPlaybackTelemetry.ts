@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getWebSocketUrl } from '../services/api';
+import { getWebSocketUrl, totemApi } from '../services/api';
 import { normalizePlaybackState, TotemPlaybackState } from '../utils/playbackTelemetry';
 
 const HOVER_DEBOUNCE_MS = 250;
 const UNSUBSCRIBE_GRACE_MS = 900;
+const REST_FALLBACK_INTERVAL_MS = 10_000;
+
+export type PlaybackConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 
 export interface TotemObservationSample {
   totemId: number;
@@ -14,6 +17,7 @@ export interface TotemObservationSample {
 export function useTotemPlaybackTelemetry() {
   const [states, setStates] = useState<Record<number, TotemPlaybackState>>({});
   const [observationSamples, setObservationSamples] = useState<Record<number, TotemObservationSample>>({});
+  const [connectionStatus, setConnectionStatus] = useState<PlaybackConnectionStatus>('connecting');
   const socketRef = useRef<WebSocket | null>(null);
   const subscribedRef = useRef(new Set<number>());
   const desiredRef = useRef(new Set<number>());
@@ -27,9 +31,24 @@ export function useTotemPlaybackTelemetry() {
     else subscribedRef.current.delete(totemId);
   }, []);
 
+  const fetchState = useCallback(async (totemId: number) => {
+    try {
+      const payload = await totemApi.getPlaybackState(totemId);
+      const normalized = normalizePlaybackState(payload, totemId);
+      if (normalized) {
+        setStates((previous) => ({ ...previous, [totemId]: normalized }));
+      }
+    } catch {
+      // WebSocket continua sendo a fonte principal; REST é apenas seed/fallback temporário.
+    }
+  }, []);
+
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (!token) return undefined;
+    if (!token) {
+      setConnectionStatus('disconnected');
+      return undefined;
+    }
     let disposed = false;
     let reconnectTimer: number | undefined;
     let reconnectAttempt = 0;
@@ -38,10 +57,12 @@ export function useTotemPlaybackTelemetry() {
 
     const connect = () => {
       if (disposed) return;
+      setConnectionStatus('connecting');
       const socket = new WebSocket(getWebSocketUrl(token));
       socketRef.current = socket;
       socket.onopen = () => {
         reconnectAttempt = 0;
+        setConnectionStatus('connected');
         desired.forEach((totemId) => send('subscribe_playback_state', totemId));
       };
       socket.onmessage = (event) => {
@@ -66,10 +87,12 @@ export function useTotemPlaybackTelemetry() {
         }
       };
       socket.onclose = () => {
+        setConnectionStatus('disconnected');
         subscribedRef.current.clear();
         if (disposed) return;
         reconnectTimer = window.setTimeout(connect, Math.min(2000 * 2 ** reconnectAttempt++, 30000));
       };
+      socket.onerror = () => setConnectionStatus('disconnected');
     };
     connect();
 
@@ -83,16 +106,27 @@ export function useTotemPlaybackTelemetry() {
     };
   }, [send]);
 
+  useEffect(() => {
+    if (connectionStatus === 'connected') return undefined;
+    const refreshDesired = () => {
+      desiredRef.current.forEach((totemId) => void fetchState(totemId));
+    };
+    refreshDesired();
+    const timer = window.setInterval(refreshDesired, REST_FALLBACK_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [connectionStatus, fetchState]);
+
   const hoverStart = useCallback((totemId: number) => {
     const previous = timersRef.current.get(totemId);
     if (previous) window.clearTimeout(previous);
+    void fetchState(totemId);
     const timer = window.setTimeout(() => {
       desiredRef.current.add(totemId);
       send('subscribe_playback_state', totemId);
       timersRef.current.delete(totemId);
     }, HOVER_DEBOUNCE_MS);
     timersRef.current.set(totemId, timer);
-  }, [send]);
+  }, [fetchState, send]);
 
   const hoverEnd = useCallback((totemId: number) => {
     const previous = timersRef.current.get(totemId);
@@ -110,5 +144,12 @@ export function useTotemPlaybackTelemetry() {
     if (normalized) setStates((previous) => ({ ...previous, [totemId]: previous[totemId] ?? normalized }));
   }, []);
 
-  return { states, observationSamples, hoverStart, hoverEnd, seedState };
+  return {
+    states,
+    observationSamples,
+    connectionStatus,
+    hoverStart,
+    hoverEnd,
+    seedState,
+  };
 }

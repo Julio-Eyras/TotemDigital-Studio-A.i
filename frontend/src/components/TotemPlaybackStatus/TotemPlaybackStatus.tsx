@@ -11,7 +11,10 @@ import {
   TotemPlaybackState,
 } from '../../utils/playbackTelemetry';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
-import type { TotemObservationSample } from '../../hooks/useTotemPlaybackTelemetry';
+import type {
+  PlaybackConnectionStatus,
+  TotemObservationSample,
+} from '../../hooks/useTotemPlaybackTelemetry';
 
 interface Props {
   totemId: number;
@@ -19,13 +22,23 @@ interface Props {
   fallback?: unknown;
   observationSample?: TotemObservationSample;
   offline?: boolean;
+  enabled?: boolean;
+  connectionStatus?: PlaybackConnectionStatus;
 }
 
 function leaseExpiry(lease: TelemetryObservationLease): string | undefined {
   return lease.expiresAt ?? lease.expires_at;
 }
 
-const TotemPlaybackStatus: React.FC<Props> = ({ totemId, state, fallback, observationSample, offline = false }) => {
+const TotemPlaybackStatus: React.FC<Props> = ({
+  totemId,
+  state,
+  fallback,
+  observationSample,
+  offline = false,
+  enabled = true,
+  connectionStatus = 'connecting',
+}) => {
   const [now, setNow] = useState(Date.now());
   const [lease, setLease] = useState<TelemetryObservationLease | null>(null);
   const [busy, setBusy] = useState(false);
@@ -37,10 +50,10 @@ const TotemPlaybackStatus: React.FC<Props> = ({ totemId, state, fallback, observ
   );
 
   useEffect(() => {
-    if (!playback || playback.status !== 'playing' || playback.stale) return undefined;
+    if (!enabled || !playback || playback.status !== 'playing' || playback.stale) return undefined;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
-  }, [playback]);
+  }, [enabled, playback]);
 
   const observe = async () => {
     try {
@@ -83,6 +96,19 @@ const TotemPlaybackStatus: React.FC<Props> = ({ totemId, state, fallback, observ
     ? Math.min(100, (playbackElapsedMs(playback, now) / playback.durationMs) * 100)
     : 0;
 
+  if (!enabled) {
+    return (
+      <Box sx={{ mt: 1.25 }} onClick={(event) => event.stopPropagation()}>
+        <Typography variant="body2" color="warning.main" fontWeight={700}>
+          Totem desabilitado
+        </Typography>
+        <Typography variant="caption" color="text.secondary">
+          Telemetria em tempo real e diagnóstico desativados.
+        </Typography>
+      </Box>
+    );
+  }
+
   return (
     <Box
       sx={{ mt: 1.25 }}
@@ -117,6 +143,18 @@ const TotemPlaybackStatus: React.FC<Props> = ({ totemId, state, fallback, observ
               size="small"
               color={playback.stale ? 'warning' : playback.status === 'error' ? 'error' : 'success'}
               label={playback.stale ? `${playback.status} · estado desatualizado` : playback.status}
+            />
+            <Chip
+              size="small"
+              variant="outlined"
+              color={connectionStatus === 'connected' ? 'success' : 'warning'}
+              label={
+                connectionStatus === 'connected'
+                  ? 'Tempo real conectado'
+                  : connectionStatus === 'connecting'
+                    ? 'Conectando tempo real'
+                    : 'Fallback REST'
+              }
             />
           </Box>
           {(offline || playback.stale) && (
