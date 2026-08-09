@@ -324,6 +324,9 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_publisher_time ON audit_logs(publisher
 CREATE INDEX IF NOT EXISTS idx_remote_commands_totem_status ON remote_commands(totem_id, status);
 CREATE INDEX IF NOT EXISTS idx_remote_commands_pending ON remote_commands(status, created_at) 
     WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_remote_commands_delivery_lease
+    ON remote_commands(totem_id, status, sent_at)
+    WHERE status IN ('pending', 'sent');
 CREATE INDEX IF NOT EXISTS idx_remote_commands_user ON remote_commands(user_id, created_at DESC);
 
 -- =============================================
@@ -331,6 +334,9 @@ CREATE INDEX IF NOT EXISTS idx_remote_commands_user ON remote_commands(user_id, 
 -- =============================================
 
 CREATE INDEX IF NOT EXISTS idx_ota_updates_platform_status ON ota_updates(platform, status);
+CREATE INDEX IF NOT EXISTS idx_player_release_channels_designated
+    ON player_release_channels(designated_update_id)
+    WHERE designated_update_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_totem_update_status_ota ON totem_update_status(ota_update_id) WHERE ota_update_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_totem_update_status_totem ON totem_update_status(totem_id);
 CREATE INDEX IF NOT EXISTS idx_totem_update_status_state ON totem_update_status(update_status);

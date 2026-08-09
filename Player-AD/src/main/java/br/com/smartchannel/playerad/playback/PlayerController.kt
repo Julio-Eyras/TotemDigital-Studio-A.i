@@ -48,6 +48,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -234,6 +236,8 @@ class PlayerController(
 
     private lateinit var eventsClient: PlayerEventsClient
     private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val remoteCommandMutex = Mutex()
+    private val processedRemoteCommandIds = linkedSetOf<String>()
 
     private data class TelemetrySession(
         val id: String,
@@ -352,6 +356,10 @@ class PlayerController(
             deviceId = apiClient.deviceId,
             dispatcher = apiClient,
             playerVersion = apiClient.appVersion,
+            onPendingCommands = { commands ->
+                val token = apiClient.cachedToken() ?: apiClient.getToken()
+                processPendingCommands(commands, token)
+            },
         )
 
         PlayerAdLogger.i("LIFECYCLE", "(1) Heartbeat inicial — token/sessão (GET /token se necessário + POST /heartbeat)")
@@ -1289,13 +1297,16 @@ class PlayerController(
         var token = hb.token
         PlayerAdLogger.i("HEARTBEAT", "OK — sessão/token renovados; comandos=${hb.pendingCommands.size}")
         eventsClient.updateObservation(hb.telemetryObservation) {
-            buildHealthMetrics().apply {
-                nowPlayingSnapshot?.let { put("nowPlaying", JSONObject(it.toString())) }
-                put("displayIdle", displayIdle)
-                put("planVersion", knownPlanVersion ?: JSONObject.NULL)
-                put("exoPositionMs", runCatching { exoPlayer.currentPosition }.getOrDefault(0L))
-                put("exoBufferedPositionMs", runCatching { exoPlayer.bufferedPosition }.getOrDefault(0L))
-                put("exoPlaybackState", runCatching { exoPlayer.playbackState }.getOrDefault(Player.STATE_IDLE))
+            val metrics = buildHealthMetrics()
+            withContext(Dispatchers.Main.immediate) {
+                metrics.apply {
+                    nowPlayingSnapshot?.let { put("nowPlaying", JSONObject(it.toString())) }
+                    put("displayIdle", displayIdle)
+                    put("planVersion", knownPlanVersion ?: JSONObject.NULL)
+                    put("exoPositionMs", exoPlayer.currentPosition)
+                    put("exoBufferedPositionMs", exoPlayer.bufferedPosition)
+                    put("exoPlaybackState", exoPlayer.playbackState)
+                }
             }
         }
         hb.displaySchedule?.let { applyDisplayScheduleFromServer(it) }
@@ -1507,13 +1518,35 @@ class PlayerController(
     private suspend fun processPendingCommands(
         commands: List<DispatcherApiClient.PendingCommand>,
         initialToken: String
-    ): RemoteCommandOutcome {
+    ): RemoteCommandOutcome = remoteCommandMutex.withLock {
         var token = initialToken
         var refreshDispatch = false
         for (cmd in commands) {
             val type = cmd.type.trim().lowercase(Locale.US)
+            if (cmd.id in processedRemoteCommandIds) {
+                try {
+                    token = apiClient.reportCommandResult(
+                        token = token,
+                        requestId = cmd.id,
+                        status = "completed",
+                        result = JSONObject().apply {
+                            put("duplicate", true)
+                            put("alreadyProcessed", true)
+                        },
+                    )
+                } catch (reportError: Exception) {
+                    PlayerAdLogger.w(
+                        "REMOTE_CMD",
+                        "Falha ao confirmar comando duplicado id=${cmd.id}: ${reportError.message}",
+                    )
+                }
+                continue
+            }
+            var executed = false
             try {
                 val result = executeRemoteCommand(type, cmd.data)
+                executed = true
+                rememberProcessedCommand(cmd.id)
                 token = apiClient.reportCommandResult(
                     token = token,
                     requestId = cmd.id,
@@ -1527,13 +1560,29 @@ class PlayerController(
                 }
                 PlayerAdLogger.i("REMOTE_CMD", "Comando executado com sucesso: type=$type id=${cmd.id}")
             } catch (e: Exception) {
-                token = apiClient.reportCommandResult(
-                    token = token,
-                    requestId = cmd.id,
-                    status = "failed",
-                    error = e.message ?: "Falha ao executar comando"
-                )
-                PlayerAdLogger.e("REMOTE_CMD", "Comando falhou: type=$type id=${cmd.id}", e)
+                if (executed) {
+                    PlayerAdLogger.e(
+                        "REMOTE_CMD",
+                        "Comando executado, mas ACK falhou: type=$type id=${cmd.id}",
+                        e,
+                    )
+                } else {
+                    try {
+                        token = apiClient.reportCommandResult(
+                            token = token,
+                            requestId = cmd.id,
+                            status = "failed",
+                            error = e.message ?: "Falha ao executar comando"
+                        )
+                    } catch (reportError: Exception) {
+                        PlayerAdLogger.e(
+                            "REMOTE_CMD",
+                            "Comando e ACK de falha não concluídos: type=$type id=${cmd.id}",
+                            reportError,
+                        )
+                    }
+                    PlayerAdLogger.e("REMOTE_CMD", "Comando falhou: type=$type id=${cmd.id}", e)
+                }
             }
         }
         if (restartRequested) {
@@ -1542,7 +1591,9 @@ class PlayerController(
             restartRequested = false
             if (killProcess) {
                 PlayerAdLogger.w("REMOTE_CMD", "Restart de app solicitado por comando remoto")
-                scheduleAppRestart()
+                withContext(Dispatchers.Main.immediate) {
+                    scheduleAppRestart()
+                }
             } else {
                 PlayerAdLogger.w(
                     "REMOTE_CMD",
@@ -1551,10 +1602,18 @@ class PlayerController(
                 remountLoopRequested = true
             }
         }
-        return RemoteCommandOutcome(
+        RemoteCommandOutcome(
             token = apiClient.cachedToken() ?: token.ifBlank { initialToken },
             refreshDispatch = refreshDispatch
         )
+    }
+
+    private fun rememberProcessedCommand(commandId: String) {
+        processedRemoteCommandIds += commandId
+        while (processedRemoteCommandIds.size > MAX_PROCESSED_REMOTE_COMMAND_IDS) {
+            val oldest = processedRemoteCommandIds.firstOrNull() ?: break
+            processedRemoteCommandIds.remove(oldest)
+        }
     }
 
     private suspend fun executeRemoteCommand(type: String, data: JSONObject?): JSONObject {
@@ -1588,7 +1647,7 @@ class PlayerController(
         }
     }
 
-    private fun executeApplyPlayerConfig(data: JSONObject?): JSONObject {
+    private suspend fun executeApplyPlayerConfig(data: JSONObject?): JSONObject {
         if (data == null) throw IllegalArgumentException("config sem payload")
         if (data.has("displaySchedule")) {
             applyDisplayScheduleFromServer(data.optJSONObject("displaySchedule"))
@@ -1731,7 +1790,9 @@ class PlayerController(
         if (data.has("pollAdaptive")) {
             pollAdaptiveRuntime = withIdentity.pollAdaptive
         }
-        applyPlaybackVolumePolicy()
+        withContext(Dispatchers.Main.immediate) {
+            applyPlaybackVolumePolicy()
+        }
         heartbeatPollRef?.setActiveBaseIntervalMs(
             batimentoCardiacoRuntime.coerceAtLeast(15) * 1000L,
         )
@@ -3287,6 +3348,7 @@ class PlayerController(
     companion object {
         internal const val PLAN_STATE_ACTIVE = "ACTIVE"
         internal const val PLAN_STATE_EMPTY = "EMPTY"
+        private const val MAX_PROCESSED_REMOTE_COMMAND_IDS = 200
 
         internal fun resolvePlanState(response: JSONObject, mediaItemCount: Int): String {
             val payload = response.optJSONObject("data") ?: response

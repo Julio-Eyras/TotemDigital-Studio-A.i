@@ -204,7 +204,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
       await totemApi.sendCommand(totemId, type, data);
       showSuccess(
         successMessage || 'Comando enviado',
-        'O totem executará no próximo heartbeat (TV Smart / Player-AD)'
+        'Entrega imediata pelo sync ativo; heartbeat usado como fallback'
       );
       if (tabValue === 0) {
         setTimeout(loadCommands, 2000);
@@ -328,7 +328,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
     try {
       setRebooting(true);
       await totemApi.sendCommand(totemId, 'reboot', {});
-      showSuccess('Reboot enfileirado', 'O Player-AD tentará reiniciar o sistema no próximo heartbeat');
+      showSuccess('Reboot enfileirado', 'Entrega imediata pelo sync ativo; heartbeat usado como fallback');
       setTimeout(loadCommands, 1500);
     } catch (error: any) {
       showError(pickApiErrorMessage(error, 'Erro ao enfileirar reboot'));
@@ -485,7 +485,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
 
         <Alert severity="info" sx={{ mb: 2 }}>
           Comandos de sincronização exigem <strong>Player-AD</strong> atualizado na TV Smart.
-          A execução ocorre no próximo heartbeat do player.
+          A entrega usa o sync de eventos quando ativo e o heartbeat como fallback.
         </Alert>
 
         {nowPlayingLabel && (
@@ -524,7 +524,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
                 try {
                   setOrientationSaving(true);
                   await totemApi.sendCommand(totemId, 'config', { displayRotation });
-                  showSuccess('Orientação enfileirada', 'O Player-AD aplica no próximo heartbeat e reinicia');
+                  showSuccess('Orientação enfileirada', 'Entrega imediata pelo sync ativo; heartbeat como fallback');
                   setTimeout(loadCommands, 1500);
                 } catch (error: any) {
                   showError(pickApiErrorMessage(error, 'Erro ao enviar orientação'));
@@ -550,7 +550,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
               onClick={async () => {
                 try {
                   await totemApi.sendCommand(totemId, 'display_force_on', {});
-                  showSuccess('Forçar tela ligada', 'Aplicado no próximo heartbeat');
+                  showSuccess('Forçar tela ligada', 'Entrega imediata pelo sync ativo; heartbeat como fallback');
                   setTimeout(loadCommands, 1500);
                 } catch (error: any) {
                   showError(pickApiErrorMessage(error, 'Erro ao enviar comando'));
@@ -569,7 +569,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
               onClick={async () => {
                 try {
                   await totemApi.sendCommand(totemId, 'display_force_off', {});
-                  showSuccess('Forçar tela preta', 'Aplicado no próximo heartbeat');
+                  showSuccess('Forçar tela preta', 'Entrega imediata pelo sync ativo; heartbeat como fallback');
                   setTimeout(loadCommands, 1500);
                 } catch (error: any) {
                   showError(pickApiErrorMessage(error, 'Erro ao enviar comando'));
@@ -587,7 +587,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
               onClick={async () => {
                 try {
                   await totemApi.sendCommand(totemId, 'display_force_clear', {});
-                  showSuccess('Seguir horário', 'Override removido no próximo heartbeat');
+                  showSuccess('Seguir horário', 'Entrega imediata pelo sync ativo; heartbeat como fallback');
                   setTimeout(loadCommands, 1500);
                 } catch (error: any) {
                   showError(pickApiErrorMessage(error, 'Erro ao enviar comando'));

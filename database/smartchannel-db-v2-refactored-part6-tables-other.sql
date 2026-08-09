@@ -458,7 +458,13 @@ COMMENT ON TABLE remote_screenshots IS 'Capturas de ecrã enviadas pelo Player-A
 CREATE TABLE IF NOT EXISTS ota_updates (
     id SERIAL PRIMARY KEY,
     version TEXT NOT NULL,
+    version_code INTEGER,
     platform TEXT NOT NULL, -- webos, tizen, android, linux, windows, all
+    package_name TEXT,
+    signing_cert_sha256 TEXT,
+    source_commit TEXT,
+    build_id TEXT,
+    original_filename TEXT,
     file_path TEXT NOT NULL,
     file_size BIGINT NOT NULL,
     checksum TEXT NOT NULL,
@@ -484,6 +490,48 @@ CREATE TABLE IF NOT EXISTS ota_updates (
     CONSTRAINT chk_ota_rollout 
         CHECK (rollout_percentage >= 0 AND rollout_percentage <= 100)
 );
+
+ALTER TABLE ota_updates ADD COLUMN IF NOT EXISTS version_code INTEGER;
+ALTER TABLE ota_updates ADD COLUMN IF NOT EXISTS package_name TEXT;
+ALTER TABLE ota_updates ADD COLUMN IF NOT EXISTS signing_cert_sha256 TEXT;
+ALTER TABLE ota_updates ADD COLUMN IF NOT EXISTS source_commit TEXT;
+ALTER TABLE ota_updates ADD COLUMN IF NOT EXISTS build_id TEXT;
+ALTER TABLE ota_updates ADD COLUMN IF NOT EXISTS original_filename TEXT;
+
+CREATE TABLE IF NOT EXISTS player_release_channels (
+    id SERIAL PRIMARY KEY,
+    platform TEXT NOT NULL,
+    channel TEXT NOT NULL DEFAULT 'production',
+    designated_update_id INTEGER,
+    designated_by INTEGER,
+    designated_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_player_release_channel UNIQUE (platform, channel),
+    CONSTRAINT chk_player_release_channel_platform
+        CHECK (platform IN ('webos', 'tizen', 'android', 'linux', 'windows')),
+    CONSTRAINT chk_player_release_channel_name
+        CHECK (channel IN ('production', 'testing'))
+);
+
+INSERT INTO player_release_channels (
+    platform,
+    channel,
+    designated_update_id,
+    designated_at
+)
+SELECT
+    'android',
+    'production',
+    id,
+    COALESCE(released_at, created_at, CURRENT_TIMESTAMP)
+FROM ota_updates
+WHERE platform IN ('android', 'all')
+  AND status = 'active'
+  AND COALESCE(is_active, true) = true
+ORDER BY id DESC
+LIMIT 1
+ON CONFLICT (platform, channel) DO NOTHING;
 
 -- Estado agregado por totem (alinhado a otaUpdateService.updateTotemStatus)
 CREATE TABLE IF NOT EXISTS totem_update_status (

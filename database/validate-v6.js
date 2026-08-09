@@ -36,7 +36,7 @@ async function validateAndExecute() {
       'subscribers', 'publishers', 'users', 'totems', 'smart_tvs',
       'campaigns', 'campaign_medias', 'medias', 'playlists', 'tags', 'fx_telemetry',
       'playback_events', 'totem_playback_state', 'telemetry_observation_leases',
-      'playback_event_rollups_daily'
+      'playback_event_rollups_daily', 'player_release_channels'
     ];
     
     let schemaExists = true;

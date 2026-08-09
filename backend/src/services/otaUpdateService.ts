@@ -12,7 +12,13 @@ import { compareSemver, isNewerVersion } from '../utils/semverCompare';
 export interface OTAUpdate {
   id: number;
   version: string;
+  versionCode?: number;
   platform: 'webos' | 'tizen' | 'android' | 'linux' | 'windows' | 'all';
+  packageName?: string;
+  signingCertSha256?: string;
+  sourceCommit?: string;
+  buildId?: string;
+  originalFilename?: string;
   filePath: string;
   fileSize: number;
   checksum: string;
@@ -29,7 +35,13 @@ export interface OTAUpdate {
 
 export interface OTAUpdateRequest {
   version: string;
+  versionCode?: number;
   platform: 'webos' | 'tizen' | 'android' | 'linux' | 'windows' | 'all';
+  packageName?: string;
+  signingCertSha256?: string;
+  sourceCommit?: string;
+  buildId?: string;
+  originalFilename?: string;
   filePath: string;
   description?: string;
   changelog?: string;
@@ -54,6 +66,16 @@ export class OTAUpdateService {
     return getDatabase();
   }
 
+  private calculateChecksum(filePath: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const hash = crypto.createHash('sha256');
+      const stream = fs.createReadStream(filePath);
+      stream.on('error', reject);
+      stream.on('data', (chunk) => hash.update(chunk));
+      stream.on('end', () => resolve(hash.digest('hex')));
+    });
+  }
+
   /**
    * Cria uma nova atualização OTA
    */
@@ -71,8 +93,7 @@ export class OTAUpdateService {
       }
 
       // Calcular checksum do arquivo
-      const fileBuffer = fs.readFileSync(request.filePath);
-      const checksum = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+      const checksum = await this.calculateChecksum(request.filePath);
       const fileSize = fs.statSync(request.filePath).size;
 
       // Verificar se versão já existe para esta plataforma
@@ -89,15 +110,25 @@ export class OTAUpdateService {
       // Inserir atualização
       const result = await this.db.executeRaw(`
         INSERT INTO ota_updates (
-          version, platform, file_path, file_size, checksum,
+          version, version_code, platform, package_name, signing_cert_sha256,
+          source_commit, build_id, original_filename, file_path, file_size, checksum,
           description, changelog, is_mandatory, min_version, max_version,
           rollout_percentage, status, created_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'draft', $12)
+        VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+          $12, $13, $14, $15, $16, $17, 'draft', $18
+        )
         RETURNING *
       `, [
         request.version,
+        request.versionCode || null,
         request.platform,
+        request.packageName || null,
+        request.signingCertSha256 || null,
+        request.sourceCommit || null,
+        request.buildId || null,
+        request.originalFilename || null,
         request.filePath,
         fileSize,
         checksum,
@@ -106,7 +137,7 @@ export class OTAUpdateService {
         request.isMandatory || false,
         request.minVersion || null,
         request.maxVersion || null,
-        request.rolloutPercentage || 100,
+        request.rolloutPercentage ?? 100,
         userId
       ]);
 
@@ -130,7 +161,7 @@ export class OTAUpdateService {
   /**
    * Ativa uma atualização OTA
    */
-  async activateUpdate(updateId: number, _userId: number): Promise<void> {
+  async activateUpdate(updateId: number, userId: number): Promise<void> {
     try {
       const update = await this.db.findFirst(`
         SELECT * FROM ota_updates WHERE id = $1
@@ -140,15 +171,32 @@ export class OTAUpdateService {
         throw new Error('Atualização não encontrada');
       }
 
-      if (update.status === 'active') {
-        return; // Já está ativa
-      }
-
       await this.db.executeRaw(`
-        UPDATE ota_updates
-        SET status = 'active', released_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-        WHERE id = $1
-      `, [updateId]);
+        WITH activated AS (
+          UPDATE ota_updates
+          SET status = 'active',
+              released_at = COALESCE(released_at, CURRENT_TIMESTAMP),
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1
+          RETURNING id, platform
+        )
+        INSERT INTO player_release_channels (
+          platform, channel, designated_update_id, designated_by, designated_at
+        )
+        SELECT
+          CASE WHEN platform = 'all' THEN 'android' ELSE platform END,
+          'production',
+          id,
+          $2,
+          CURRENT_TIMESTAMP
+        FROM activated
+        WHERE platform IN ('android', 'all')
+        ON CONFLICT (platform, channel) DO UPDATE SET
+          designated_update_id = EXCLUDED.designated_update_id,
+          designated_by = EXCLUDED.designated_by,
+          designated_at = EXCLUDED.designated_at,
+          updated_at = CURRENT_TIMESTAMP
+      `, [updateId, userId]);
 
       await logInfo('Atualização OTA ativada', { updateId, version: update.version });
     } catch (error: any) {
@@ -206,15 +254,28 @@ export class OTAUpdateService {
         return null;
       }
 
-      const candidates = await this.db.findMany(`
-        SELECT *
-        FROM ota_updates
-        WHERE platform IN ($1, 'all')
-          AND status = 'active'
-          AND (min_version IS NULL OR $2 >= min_version)
-          AND (max_version IS NULL OR $2 <= max_version)
-        ORDER BY id DESC
-      `, [platform, currentVersion]);
+      const candidates = platform === 'android'
+        ? await this.db.findMany(`
+            SELECT ou.*
+            FROM player_release_channels prc
+            JOIN ota_updates ou ON ou.id = prc.designated_update_id
+            WHERE prc.platform = 'android'
+              AND prc.channel = 'production'
+              AND ou.platform IN ('android', 'all')
+              AND ou.status = 'active'
+              AND (ou.min_version IS NULL OR $1 >= ou.min_version)
+              AND (ou.max_version IS NULL OR $1 <= ou.max_version)
+            LIMIT 1
+          `, [currentVersion])
+        : await this.db.findMany(`
+            SELECT *
+            FROM ota_updates
+            WHERE platform IN ($1, 'all')
+              AND status = 'active'
+              AND (min_version IS NULL OR $2 >= min_version)
+              AND (max_version IS NULL OR $2 <= max_version)
+            ORDER BY id DESC
+          `, [platform, currentVersion]);
 
       const update = candidates
         .filter((row: any) => isNewerVersion(String(row.version), currentVersion))
@@ -381,7 +442,13 @@ export class OTAUpdateService {
     return {
       id: row.id,
       version: row.version,
+      versionCode: row.version_code ?? undefined,
       platform: row.platform,
+      packageName: row.package_name ?? undefined,
+      signingCertSha256: row.signing_cert_sha256 ?? undefined,
+      sourceCommit: row.source_commit ?? undefined,
+      buildId: row.build_id ?? undefined,
+      originalFilename: row.original_filename ?? undefined,
       filePath: row.file_path,
       fileSize: row.file_size,
       checksum: row.checksum,

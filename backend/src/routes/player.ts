@@ -1696,6 +1696,17 @@ router.post('/sync',
       if (envelope.commandResults !== undefined) {
         response.commandAck = await processSyncCommandResults(totem.id, envelope.commandResults);
       }
+      // Sync somente de eventos também funciona como canal oportunístico de
+      // comandos. Heartbeat continua sendo o fallback e já inclui sua própria fila.
+      if (!envelope.heartbeat) {
+        const claimed = await getRemoteCommandService().claimPendingCommands(totem.id, 10);
+        response.pendingCommands = claimed.map((command) => ({
+          id: command.id,
+          type: command.commandType,
+          data: command.commandData,
+          createdAt: command.createdAt,
+        }));
+      }
       if (envelope.heartbeat) {
         const heartbeatRequest: DispatcherRequest = {
           endpoint: '/api/player/heartbeat',
@@ -1746,6 +1757,9 @@ router.post('/sync',
           syncId: envelope.syncId,
           eventAck: response.eventAck,
           commandAck: response.commandAck,
+          commandCount: Array.isArray(response.pendingCommands)
+            ? response.pendingCommands.length
+            : 0,
           hasHeartbeat: Boolean(response.heartbeat),
         },
       });

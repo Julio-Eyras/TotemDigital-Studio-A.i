@@ -10,8 +10,8 @@ Projeto: Player-AD/
 APK release: Player-AD/build/outputs/apk/release/Player-AD-release.apk
 Cópia pendrive: install-pendrive/apk/Player-AD-release.apk
 Config externa: /sdcard/smartsignage/player-config.json
-Versão operacional: 2.07
-Build operacional: 107
+Versão operacional: 2.10
+Build operacional: 110
 ```
 
 ## 2. Pré-requisitos no Windows
@@ -141,13 +141,22 @@ adb logcat -d -s Player-AD:I *:S
 Esperado para a TV Box de referência:
 
 ```text
-versionName=2.07
-versionCode=107
+versionName=2.10
+versionCode=110
 accelerometer_rotation=0
 Player-AD inicia em MainActivity
 heartbeat e dispatch respondem
 playlist é baixada para cache e reproduzida
 ```
+
+## 10. Designação e download no painel
+
+Em **Configurações → APK**, o painel apresenta a versão Android oficialmente
+designada para produção, SHA-256, build, commit, certificado e documentação.
+
+O upload continua no módulo OTA. Ao ativar um pacote Android, ele passa a ser a
+versão designada de produção. A aba APK e o heartbeat consultam o mesmo
+registro; não use o nome do arquivo ou a maior versão como fonte de verdade.
 
 ## 10. Atualização segura do APK
 

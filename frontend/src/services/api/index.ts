@@ -2328,7 +2328,13 @@ export const totemPlaylistApi = {
 export interface OTAUpdate {
   id: number;
   version: string;
+  versionCode?: number;
   platform: 'webos' | 'tizen' | 'android' | 'linux' | 'windows' | 'all';
+  packageName?: string;
+  signingCertSha256?: string;
+  sourceCommit?: string;
+  buildId?: string;
+  originalFilename?: string;
   filePath: string;
   fileSize: number;
   checksum: string;
@@ -2385,6 +2391,65 @@ export const otaApi = {
   download: async (id: number): Promise<Blob> => {
     const response = await api.get(`/ota-updates/${id}/download`, {
       responseType: 'blob'
+    });
+    return response.data;
+  },
+};
+
+export interface PlayerApkRelease {
+  id: number;
+  version: string;
+  versionCode?: number;
+  platform: string;
+  packageName?: string;
+  signingCertSha256?: string;
+  sourceCommit?: string;
+  buildId?: string;
+  originalFilename?: string;
+  fileSize: number;
+  checksum: string;
+  description?: string;
+  changelog?: string;
+  status: string;
+  channel: 'production' | 'testing';
+  releasedAt?: string;
+  designatedAt?: string;
+  downloadUrl: string;
+}
+
+export interface PlayerApkDocument {
+  slug: string;
+  title: string;
+  summary: string;
+  url: string;
+}
+
+export const playerApkApi = {
+  getDesignated: async (
+    channel: 'production' | 'testing' = 'production',
+  ): Promise<PlayerApkRelease | null> => {
+    const response = await api.get('/player-apk/designated', { params: { channel } });
+    return response.data?.data ?? null;
+  },
+
+  getDocuments: async (): Promise<PlayerApkDocument[]> => {
+    const response = await api.get('/player-apk/documents');
+    return response.data?.data ?? [];
+  },
+
+  downloadDesignated: async (
+    channel: 'production' | 'testing' = 'production',
+  ): Promise<Blob> => {
+    const response = await api.get('/player-apk/download', {
+      params: { channel },
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  getDocument: async (slug: string): Promise<Blob> => {
+    const response = await api.get(`/player-apk/documents/${encodeURIComponent(slug)}`, {
+      responseType: 'blob',
     });
     return response.data;
   },

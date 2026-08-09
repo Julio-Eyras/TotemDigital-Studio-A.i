@@ -1,6 +1,7 @@
 package br.com.smartchannel.playerad.api
 
 import org.json.JSONObject
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -79,6 +80,28 @@ class PlayerEventsClientTest {
 
         assertTrue(ack.shouldRemove(oldBoot, "boot-old"))
         assertFalse(ack.shouldRemove(newBoot, "boot-old"))
+    }
+
+    @Test
+    fun `sync de eventos entrega comandos pendentes`() {
+        val commands = PlayerEventsClient.parsePendingCommands(
+            """
+            {
+              "eventAck": {"accepted":[]},
+              "pendingCommands": [
+                {"id": 41, "type": "display_force_off", "data": {"source":"remote"}},
+                {"request_id": "42", "command_type": "sync_now", "command_data": {}}
+              ]
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals(2, commands.size)
+        assertEquals("41", commands[0].id)
+        assertEquals("display_force_off", commands[0].type)
+        assertEquals("remote", commands[0].data?.optString("source"))
+        assertEquals("42", commands[1].id)
+        assertEquals("sync_now", commands[1].type)
     }
 
     @Test

@@ -3366,6 +3366,7 @@ setup_project() {
                 # Nota: player-web agora é copiado apenas quando selecionado no menu de players
                 [[ -d "$SOURCE_DIR/scripts" ]] && rsync -av --delete "$SOURCE_DIR/scripts/" "$INSTALL_DIR/scripts/"
                 [[ -d "$SOURCE_DIR/database" ]] && rsync -av --delete "$SOURCE_DIR/database/" "$INSTALL_DIR/database/"
+                [[ -d "$SOURCE_DIR/docs" ]] && rsync -av --delete "$SOURCE_DIR/docs/" "$INSTALL_DIR/docs/"
                 [[ -d "$SOURCE_DIR/docker" ]] && rsync -av --delete "$SOURCE_DIR/docker/" "$INSTALL_DIR/docker/"
                 [[ -d "$SOURCE_DIR/nginx" ]] && rsync -av --delete "$SOURCE_DIR/nginx/" "$INSTALL_DIR/nginx/"
                 [[ -d "$SOURCE_DIR/totemdigital.site" ]] && rsync -av --delete "$SOURCE_DIR/totemdigital.site/" "$INSTALL_DIR/totemdigital.site/"
@@ -12235,6 +12236,9 @@ setup_first_boot() {
         "qr_codes"          # QRCode - Depende de campaigns (usada em JOINs)
         "short_links"       # ShortLink - Depende de campaigns, totems
         "remote_commands"   # RemoteCommand - Depende de totems, users
+        "ota_updates"       # Pacotes de atualização dos players
+        "player_release_channels" # Versão oficialmente designada por plataforma/canal
+        "totem_update_status" # Estado de atualização por totem
         "analytics_sessions" # AnalyticsSession - Depende de totems (usada em JOINs)
         "analytics_emotions" # AnalyticsEmotion - Depende de analytics_sessions
         "analytics_gestures" # AnalyticsGesture - Depende de analytics_sessions

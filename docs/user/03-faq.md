@@ -82,7 +82,7 @@ Possíveis causas:
 Verifique a conexão de rede e o status do player no totem.
 
 ### Como reiniciar um totem remotamente?
-Acesse **Totens** → Selecione o totem → **Comandos** → **Reboot**. O comando será enviado no próximo heartbeat (até 30 segundos).
+Acesse **Totens** → Selecione o totem → **Comandos** → **Reboot**. O comando usa o sync de eventos quando houver tráfego ativo; o heartbeat permanece como fallback.
 
 ## Dispatcher e Exibição
 

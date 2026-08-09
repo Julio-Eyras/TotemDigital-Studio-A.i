@@ -1,0 +1,112 @@
+import express from 'express';
+import request from 'supertest';
+
+const mockFindFirst = jest.fn();
+const mockExecuteRaw = jest.fn();
+
+jest.mock('../../../config/database', () => ({
+  getDatabase: () => ({
+    findFirst: mockFindFirst,
+    executeRaw: mockExecuteRaw,
+  }),
+}));
+
+jest.mock('../../../middleware/validation.middleware', () => ({
+  validateRequest: (_req: any, _res: any, next: any) => next(),
+}));
+
+jest.mock('../../../utils/loggerHelper', () => ({
+  logError: jest.fn(async () => undefined),
+  logInfo: jest.fn(async () => undefined),
+}));
+
+jest.mock('../../../middleware/auth.middleware', () => {
+  const actual = jest.requireActual('../../../middleware/auth.middleware');
+  const authMiddleware = (req: any, res: any, next: any) => {
+    const token = String(req.headers.authorization || '').replace('Bearer ', '');
+    const users: Record<string, { id: number; role: string }> = {
+      admin: { id: 1, role: 'admin' },
+      operator: { id: 2, role: 'operator' },
+      subscriber: { id: 3, role: 'subscriber_user' },
+    };
+    if (!users[token]) return res.status(401).json({ error: 'Unauthorized' });
+    req.user = users[token];
+    return next();
+  };
+  return { ...actual, authMiddleware };
+});
+
+async function buildApp() {
+  const router = (await import('../../../routes/player-apk')).default;
+  const app = express();
+  app.use(express.json());
+  app.use('/api/player-apk', router);
+  return app;
+}
+
+describe('central APK', () => {
+  beforeEach(() => {
+    mockFindFirst.mockReset();
+    mockExecuteRaw.mockReset();
+  });
+
+  it('exige autenticação', async () => {
+    const response = await request(await buildApp()).get('/api/player-apk/documents');
+    expect(response.status).toBe(401);
+  });
+
+  it('permite documentação, mas restringe release para subscriber', async () => {
+    const app = await buildApp();
+    const documents = await request(app)
+      .get('/api/player-apk/documents')
+      .set('Authorization', 'Bearer subscriber');
+    const release = await request(app)
+      .get('/api/player-apk/designated')
+      .set('Authorization', 'Bearer subscriber');
+
+    expect(documents.status).toBe(200);
+    expect(documents.body.data).toHaveLength(6);
+    expect(release.status).toBe(403);
+  });
+
+  it('retorna a versão designada para operador', async () => {
+    mockFindFirst.mockResolvedValue({
+      id: 7,
+      version: '2.08',
+      version_code: 108,
+      platform: 'android',
+      file_size: 123,
+      checksum: 'abc',
+      channel: 'production',
+    });
+
+    const response = await request(await buildApp())
+      .get('/api/player-apk/designated')
+      .set('Authorization', 'Bearer operator');
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toMatchObject({
+      id: 7,
+      version: '2.08',
+      versionCode: 108,
+      channel: 'production',
+    });
+  });
+
+  it('permite designação somente para administrador', async () => {
+    mockExecuteRaw.mockResolvedValue({ rows: [{ designated_update_id: 7 }] });
+    const app = await buildApp();
+    const denied = await request(app)
+      .post('/api/player-apk/designate')
+      .set('Authorization', 'Bearer operator')
+      .send({ updateId: 7 });
+    const allowed = await request(app)
+      .post('/api/player-apk/designate')
+      .set('Authorization', 'Bearer admin')
+      .send({ updateId: 7 });
+
+    expect(denied.status).toBe(403);
+    expect(allowed.status).toBe(200);
+    expect(mockExecuteRaw).toHaveBeenCalledTimes(1);
+  });
+});

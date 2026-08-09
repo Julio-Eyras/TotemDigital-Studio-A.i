@@ -66,7 +66,7 @@ Implementação inicial do sistema de controle remoto de totens, incluindo coman
 
 1. **Admin/Manager** envia comando via API (`POST /api/totems/:id/restart`)
 2. **Backend** cria comando com status `pending` na tabela `remote_commands`
-3. **Player** busca comandos pendentes no próximo heartbeat (`GET /api/player/heartbeat`)
+3. **Player** recebe comandos pelo sync de eventos (`POST /api/player/sync`) e usa o heartbeat como fallback
 4. **Player** executa comando localmente
 5. **Player** reporta resultado via `POST /api/player/command-result`
 6. **Backend** atualiza status do comando e registra evento

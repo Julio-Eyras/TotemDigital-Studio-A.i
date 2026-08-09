@@ -38,6 +38,7 @@ class PlayerEventsClient(
     private val dispatcher: DispatcherApiClient,
     private val playerName: String = "Player-AD",
     private val playerVersion: String,
+    private val onPendingCommands: suspend (List<DispatcherApiClient.PendingCommand>) -> Unit = {},
 ) {
     data class Event(
         val eventType: String,
@@ -172,7 +173,7 @@ class PlayerEventsClient(
 
     fun updateObservation(
         observation: DispatcherApiClient.TelemetryObservation?,
-        metricsProvider: () -> JSONObject,
+        metricsProvider: suspend () -> JSONObject,
     ) {
         observationJob?.cancel()
         observationJob = null
@@ -187,7 +188,11 @@ class PlayerEventsClient(
                         eventType = "player.observation.sample",
                         playbackSessionId = bootId,
                         source = "heartbeat_observation",
-                        metrics = runCatching(metricsProvider).getOrElse { JSONObject() },
+                        metrics = try {
+                            metricsProvider()
+                        } catch (_: Exception) {
+                            JSONObject()
+                        },
                     ),
                 )
             }
@@ -231,6 +236,7 @@ class PlayerEventsClient(
             val (firstBoot, batch) = batchSnapshot
             clearExpiredCapabilityCooldowns()
             val response = sendWithCapabilityFallback(firstBoot, batch) ?: continue
+            dispatchPendingCommands(response.body)
             val ack = parseAck(response.body)
             synchronized(QUEUE_FILE_LOCK) {
                 val before = pending.size
@@ -249,6 +255,24 @@ class PlayerEventsClient(
         retryAttempt = min(retryAttempt + 1, 8)
         val base = min(2_000L * (1L shl (retryAttempt - 1)), MAX_RETRY_MS)
         delay(base + Random.nextLong(0, (base / 3).coerceAtLeast(1)))
+    }
+
+    private suspend fun dispatchPendingCommands(responseBody: String) {
+        val commands = parsePendingCommands(responseBody)
+        if (commands.isEmpty()) return
+        try {
+            onPendingCommands(commands)
+            PlayerAdLogger.i(
+                "REMOTE_CMD",
+                "${commands.size} comando(s) recebido(s) pelo sync de eventos",
+            )
+        } catch (error: Exception) {
+            PlayerAdLogger.e(
+                "REMOTE_CMD",
+                "Falha ao processar comandos do sync de eventos",
+                error,
+            )
+        }
     }
 
     private suspend fun sendWithCapabilityFallback(
@@ -538,6 +562,35 @@ class PlayerEventsClient(
                 acknowledgedIds = ids("accepted") + ids("duplicates"),
                 rejectedIds = ids("rejected"),
             )
+        }
+
+        fun parsePendingCommands(body: String): List<DispatcherApiClient.PendingCommand> {
+            val root = runCatching { JSONObject(body) }.getOrNull() ?: return emptyList()
+            val container = root.optJSONObject("data") ?: root
+            val array = container.optJSONArray("pendingCommands")
+                ?: container.optJSONArray("pending_commands")
+                ?: return emptyList()
+            return buildList {
+                for (index in 0 until array.length()) {
+                    val item = array.optJSONObject(index) ?: continue
+                    val id = item.opt("id")?.toString()
+                        ?: item.opt("request_id")?.toString()
+                        ?: continue
+                    val type = item.optString(
+                        "type",
+                        item.optString("command_type", ""),
+                    ).trim()
+                    if (type.isBlank()) continue
+                    add(
+                        DispatcherApiClient.PendingCommand(
+                            id = id,
+                            type = type,
+                            data = item.optJSONObject("data")
+                                ?: item.optJSONObject("command_data"),
+                        ),
+                    )
+                }
+            }
         }
 
         fun isoNow(epochMs: Long = System.currentTimeMillis()): String {

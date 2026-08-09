@@ -106,6 +106,10 @@ DROP TRIGGER IF EXISTS trigger_ota_updates_updated_at ON ota_updates;
 CREATE TRIGGER trigger_ota_updates_updated_at BEFORE UPDATE ON ota_updates
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS trigger_player_release_channels_updated_at ON player_release_channels;
+CREATE TRIGGER trigger_player_release_channels_updated_at BEFORE UPDATE ON player_release_channels
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 DROP TRIGGER IF EXISTS trigger_totem_update_status_updated_at ON totem_update_status;
 CREATE TRIGGER trigger_totem_update_status_updated_at BEFORE UPDATE ON totem_update_status
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

@@ -71,12 +71,16 @@ describe('OTAUpdateService', () => {
       await expect(svc.activateUpdate(99, 1)).rejects.toThrow('Atualização não encontrada');
     });
 
-    it('não duplica update quando já está active', async () => {
+    it('reafirma designação mesmo quando já está active', async () => {
       findFirst.mockResolvedValueOnce({ ...sampleRow, status: 'active' });
+      executeRaw.mockResolvedValueOnce({ rows: [] });
 
       await svc.activateUpdate(1, 1);
 
-      expect(executeRaw).not.toHaveBeenCalled();
+      expect(executeRaw).toHaveBeenCalledWith(
+        expect.stringContaining('player_release_channels'),
+        [1, 1],
+      );
     });
 
     it('executa UPDATE quando status não é active', async () => {
@@ -87,8 +91,23 @@ describe('OTAUpdateService', () => {
 
       expect(executeRaw).toHaveBeenCalledWith(
         expect.stringContaining("SET status = 'active'"),
-        [1]
+        [1, 1]
       );
+    });
+  });
+
+  describe('getAvailableUpdate', () => {
+    it('usa somente a versão Android designada para produção', async () => {
+      findFirst.mockResolvedValueOnce({ platform: 'android', identifier: 'T1' });
+      findMany.mockResolvedValueOnce([{ ...sampleRow, status: 'active', version: '2.1.0' }]);
+
+      const update = await svc.getAvailableUpdate(1, '2.0.0', 'android');
+
+      expect(findMany).toHaveBeenCalledWith(
+        expect.stringContaining("prc.channel = 'production'"),
+        ['2.0.0'],
+      );
+      expect(update?.version).toBe('2.1.0');
     });
   });
 

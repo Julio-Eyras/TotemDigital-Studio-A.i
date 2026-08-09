@@ -1437,6 +1437,36 @@ END $$;
 -- FKs das tabelas de OTA
 -- =============================================
 
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_player_release_channel_update'
+        AND t.relname = 'player_release_channels'
+    ) THEN
+        ALTER TABLE player_release_channels
+            ADD CONSTRAINT fk_player_release_channel_update
+            FOREIGN KEY (designated_update_id) REFERENCES ota_updates(id)
+            ON DELETE SET NULL;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE c.conname = 'fk_player_release_channel_user'
+        AND t.relname = 'player_release_channels'
+    ) THEN
+        ALTER TABLE player_release_channels
+            ADD CONSTRAINT fk_player_release_channel_user
+            FOREIGN KEY (designated_by) REFERENCES users(id)
+            ON DELETE SET NULL;
+    END IF;
+END $$;
+
 DO $$ 
 BEGIN
     IF NOT EXISTS (

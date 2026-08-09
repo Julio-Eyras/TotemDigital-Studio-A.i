@@ -15,6 +15,7 @@ import menuCatalogRoutes from '../routes/menu-catalog';
 import publishBoardRoutes from '../routes/publish-board';
 import publishBoardPublicRoutes from '../routes/publish-board-public';
 import settingsRoutes from '../routes/settings';
+import playerApkRoutes from '../routes/player-apk';
 import installationModulesRoutes from '../routes/installationModules';
 import dashboardRoutes from '../routes/dashboard';
 import healthRoutes from '../routes/health';
@@ -105,6 +106,7 @@ export function registerCompactRoutes(app: Express): void {
     publishBoardRoutes
   );
   app.use('/api/settings', settingsRoutes);
+  app.use('/api/player-apk', playerApkRoutes);
   app.use('/api/installation', installationModulesRoutes);
   // ui-context é público (definido antes do auth no router); auth só nas demais rotas do dashboard
   app.use('/api/dashboard', dashboardRoutes);

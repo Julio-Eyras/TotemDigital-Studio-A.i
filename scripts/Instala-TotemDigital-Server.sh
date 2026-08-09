@@ -325,8 +325,8 @@ post_rebuild_frontend_https() {
   [[ -d "$fe" ]] || return 0
   [[ -f "$fe/package.json" ]] || return 0
   if [[ ! -d "$fe/node_modules" ]]; then
-    warn "frontend/node_modules ausente — skip rebuild (corra modo produção/atualizar completo)."
-    return 0
+    log "frontend/node_modules ausente — instalando dependências determinísticas..."
+    (cd "$fe" && npm ci)
   fi
   log "Rebuild frontend com REACT_APP_API_URL=${api} ..."
   if [[ "$DRY_RUN" == "true" ]]; then
@@ -347,12 +347,35 @@ post_rebuild_frontend_https() {
   fi
 }
 
+post_apply_schema() {
+  local env_file="/opt/smart-signage/.env"
+  [[ -f "$env_file" ]] || env_file="$ROOT/.env"
+  if [[ ! -f "$env_file" ]]; then
+    warn "Arquivo .env não encontrado — schema não reaplicado automaticamente."
+    return 0
+  fi
+  local db_name db_user db_host db_port db_password
+  db_name="$(grep '^DB_NAME=' "$env_file" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\"' | tr -d "'" | xargs || true)"
+  db_user="$(grep '^DB_USER=' "$env_file" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\"' | tr -d "'" | xargs || true)"
+  db_host="$(grep '^DB_HOST=' "$env_file" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\"' | tr -d "'" | xargs || true)"
+  db_port="$(grep '^DB_PORT=' "$env_file" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\"' | tr -d "'" | xargs || true)"
+  db_password="$(grep '^DB_PASSWORD=' "$env_file" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\r' | sed -e 's/^["'\'']//' -e 's/["'\'']$//' || true)"
+  log "A aplicar schema definitivo de forma idempotente..."
+  DB_NAME="${db_name:-smartsignage}" \
+  DB_USER="${db_user:-smartsignage}" \
+  DB_HOST="${db_host:-localhost}" \
+  DB_PORT="${db_port:-5432}" \
+  PGPASSWORD="${db_password:-smartsignage123}" \
+  SKIP_CONFIRM=true \
+    bash "$ROOT/database/apply-schema-v2.sh"
+}
+
 post_rebuild_backend() {
   local be="$ROOT/backend"
   [[ -d "$be" ]] || return 0
   if [[ ! -d "$be/node_modules" ]]; then
-    warn "backend/node_modules ausente — skip compile."
-    return 0
+    log "backend/node_modules ausente — instalando dependências determinísticas..."
+    (cd "$be" && npm ci)
   fi
   log "A compilar backend..."
   if [[ "$DRY_RUN" == "true" ]]; then
@@ -371,6 +394,7 @@ post_rebuild_backend() {
   if [[ -d /opt/smart-signage/backend ]]; then
     sudo rsync -a "$be/dist/" /opt/smart-signage/backend/dist/ 2>/dev/null || true
     sudo rsync -a "$be/package.json" /opt/smart-signage/backend/ 2>/dev/null || true
+    [[ -d "$ROOT/docs" ]] && sudo rsync -a --delete "$ROOT/docs/" /opt/smart-signage/docs/ 2>/dev/null || true
   fi
   if systemctl is-active --quiet smart-signage 2>/dev/null; then
     sudo systemctl restart smart-signage || true
@@ -467,6 +491,7 @@ modo_atualizar() {
   fi
   post_fix_env_quoting
   post_fix_financial_https
+  post_apply_schema
   post_rebuild_backend
   post_rebuild_frontend_https
   post_https_unified

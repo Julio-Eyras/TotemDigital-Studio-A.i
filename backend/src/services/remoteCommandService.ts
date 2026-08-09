@@ -160,8 +160,8 @@ export class RemoteCommandService {
   }
 
   /**
-   * Obtém comandos pendentes para um totem e marca-os como sent/executing
-   * para evitar reentrega no próximo heartbeat.
+   * Reserva comandos pendentes por uma janela de entrega. Comandos enviados
+   * sem confirmação voltam a ser elegíveis após 60s, até três reentregas.
    */
   async claimPendingCommands(totemId: number, limit: number = 10): Promise<RemoteCommand[]> {
     try {
@@ -169,13 +169,21 @@ export class RemoteCommandService {
         `
         UPDATE remote_commands
         SET status = 'sent',
-            sent_at = COALESCE(sent_at, CURRENT_TIMESTAMP),
-            executed_at = COALESCE(executed_at, CURRENT_TIMESTAMP),
+            retry_count = CASE WHEN status = 'sent' THEN retry_count + 1 ELSE retry_count END,
+            sent_at = CURRENT_TIMESTAMP,
             updated_at = CURRENT_TIMESTAMP
         WHERE command_id IN (
           SELECT command_id
           FROM remote_commands
-          WHERE totem_id = $1 AND status = 'pending'
+          WHERE totem_id = $1
+            AND (
+              status = 'pending'
+              OR (
+                status = 'sent'
+                AND sent_at < CURRENT_TIMESTAMP - INTERVAL '60 seconds'
+                AND retry_count < 3
+              )
+            )
           ORDER BY created_at ASC
           LIMIT $2
           FOR UPDATE SKIP LOCKED
@@ -202,14 +210,22 @@ export class RemoteCommandService {
   }
 
   /**
-   * Obtém comandos pendentes para um totem
+   * Obtém comandos entregáveis para um totem.
    */
   async getPendingCommands(totemId: number): Promise<RemoteCommand[]> {
     try {
       const commands = await this.db.findMany(`
         SELECT *
         FROM remote_commands
-        WHERE totem_id = $1 AND status = 'pending'
+        WHERE totem_id = $1
+          AND (
+            status = 'pending'
+            OR (
+              status = 'sent'
+              AND sent_at < CURRENT_TIMESTAMP - INTERVAL '60 seconds'
+              AND retry_count < 3
+            )
+          )
         ORDER BY created_at ASC
       `, [totemId]);
 
@@ -227,7 +243,10 @@ export class RemoteCommandService {
     try {
       await this.db.executeRaw(`
         UPDATE remote_commands
-        SET status = 'executing', sent_at = CURRENT_TIMESTAMP, executed_at = CURRENT_TIMESTAMP
+        SET status = 'sent',
+            retry_count = CASE WHEN status = 'sent' THEN retry_count + 1 ELSE retry_count END,
+            sent_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
         WHERE command_id = $1
       `, [commandId]);
 

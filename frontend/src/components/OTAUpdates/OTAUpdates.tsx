@@ -72,7 +72,12 @@ const OTAUpdates: React.FC = () => {
 
   const [formData, setFormData] = useState({
     version: '',
+    versionCode: '',
     platform: 'android' as 'webos' | 'tizen' | 'android' | 'linux' | 'windows' | 'all',
+    packageName: 'br.com.smartchannel.playerad',
+    sourceCommit: '',
+    buildId: '',
+    signingCertSha256: '',
     description: '',
     changelog: '',
     isMandatory: false,
@@ -151,7 +156,12 @@ const OTAUpdates: React.FC = () => {
       const data = new FormData();
       data.append('file', formData.file);
       data.append('version', formData.version);
+      if (formData.versionCode) data.append('versionCode', formData.versionCode);
       data.append('platform', formData.platform);
+      if (formData.packageName) data.append('packageName', formData.packageName);
+      if (formData.sourceCommit) data.append('sourceCommit', formData.sourceCommit);
+      if (formData.buildId) data.append('buildId', formData.buildId);
+      if (formData.signingCertSha256) data.append('signingCertSha256', formData.signingCertSha256);
       if (formData.description) data.append('description', formData.description);
       if (formData.changelog) data.append('changelog', formData.changelog);
       data.append('isMandatory', formData.isMandatory.toString());
@@ -224,7 +234,12 @@ const OTAUpdates: React.FC = () => {
   const resetForm = () => {
     setFormData({
       version: '',
+      versionCode: '',
       platform: 'android',
+      packageName: 'br.com.smartchannel.playerad',
+      sourceCommit: '',
+      buildId: '',
+      signingCertSha256: '',
       description: '',
       changelog: '',
       isMandatory: false,
@@ -535,6 +550,16 @@ const OTAUpdates: React.FC = () => {
               fullWidth
             />
 
+            <TextField
+              label="Build / versionCode"
+              type="number"
+              value={formData.versionCode}
+              onChange={(e) => setFormData({ ...formData, versionCode: e.target.value })}
+              inputProps={{ min: 1 }}
+              placeholder="ex: 108"
+              fullWidth
+            />
+
             <FormControl fullWidth required>
               <InputLabel>Plataforma</InputLabel>
               <Select
@@ -547,6 +572,38 @@ const OTAUpdates: React.FC = () => {
                 <MenuItem value="windows">Windows</MenuItem>
               </Select>
             </FormControl>
+
+            <TextField
+              label="Package Android"
+              value={formData.packageName}
+              onChange={(e) => setFormData({ ...formData, packageName: e.target.value })}
+              disabled={formData.platform !== 'android'}
+              fullWidth
+            />
+
+            <TextField
+              label="Commit de origem"
+              value={formData.sourceCommit}
+              onChange={(e) => setFormData({ ...formData, sourceCommit: e.target.value })}
+              placeholder="ex: 827e1303"
+              fullWidth
+            />
+
+            <TextField
+              label="Build ID"
+              value={formData.buildId}
+              onChange={(e) => setFormData({ ...formData, buildId: e.target.value })}
+              placeholder="Identificador do pipeline ou build local"
+              fullWidth
+            />
+
+            <TextField
+              label="SHA-256 do certificado de assinatura"
+              value={formData.signingCertSha256}
+              onChange={(e) => setFormData({ ...formData, signingCertSha256: e.target.value })}
+              helperText="Confirme que o certificado é compatível com os aparelhos já instalados."
+              fullWidth
+            />
 
             <TextField
               label="Arquivo de Atualização"

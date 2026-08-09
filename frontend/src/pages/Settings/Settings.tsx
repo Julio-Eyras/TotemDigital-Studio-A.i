@@ -42,6 +42,7 @@ import {
   Payment,
   Business,
   People,
+  Android,
 } from '@mui/icons-material';
 import { settingsApi, SystemSetting, logsApi, LogRotationConfig, LogFileInfo, DiskSpaceInfo, RotationStatus, authApi } from '../../services/api';
 import TwoFactor from './TwoFactor';
@@ -52,6 +53,7 @@ import { useAppSelector } from '../../store';
 import { canAccess } from '../../utils/rolePermissions';
 import { isDirectTotemMode } from '../../config/directTotemMode';
 import { getPublishersPageTitle } from '../../config/productTerminology';
+import PlayerApkSettings from '../../components/PlayerApkSettings/PlayerApkSettings';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -204,6 +206,7 @@ function TabPanel(props: TabPanelProps) {
 
 const ALL_SETTINGS_SECTIONS = [
   { id: 'general', label: 'Geral', icon: SettingsIcon },
+  { id: 'apk', label: 'APK', icon: Android },
   { id: 'financial', label: 'Financeiro', icon: Payment },
   { id: 'logs', label: 'Logs', icon: Storage },
   { id: 'media', label: 'Mídias', icon: VideoLibrary },
@@ -261,6 +264,11 @@ const Settings: React.FC = () => {
     !!user?.role &&
     (user.role === 'owner_system' || user.role === 'admin' || user.role === 'admin_sql') &&
     canAccess(user.role, '/users', user.flags ?? undefined);
+  const canManageOta =
+    !!user?.role && canAccess(user.role, '/ota-updates', user.flags ?? undefined);
+  const canDownloadApk =
+    !!user?.role &&
+    ['owner_system', 'admin_sql', 'admin', 'operator', 'operador_tecnico'].includes(user.role);
   const [tabValue, setTabValue] = useState(0);
   const [settings, setSettings] = useState<SystemSetting[]>([]);
   const [logSettings, setLogSettings] = useState<SystemSetting[]>([]);
@@ -662,6 +670,10 @@ const Settings: React.FC = () => {
             </Grid>
           ))}
         </Grid>
+      </TabPanel>
+
+      <TabPanel value={tabValue} index={sectionIndex.apk ?? -1}>
+        <PlayerApkSettings canManageOta={canManageOta} canDownloadApk={canDownloadApk} />
       </TabPanel>
 
       {sectionIndex.financial != null && (

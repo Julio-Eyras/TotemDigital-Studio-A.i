@@ -1183,6 +1183,66 @@ Validação automatizada:
 - 10 testes frontend aprovados;
 - testes unitários e `assembleDebug` do Player-AD concluídos.
 
-A validação física de heartbeat, comando remoto em off e retomada no horário
-configurado deve ser repetida com a TV Box conectada por ADB; ela não estava
-disponível durante esta etapa.
+A versão `2.08/108` foi instalada por ADB e permaneceu estável com heartbeat e
+reprodução. A agenda recebida estava desativada; comando em off e retomada no
+horário ainda exigem homologação física com a agenda ativa.
+
+## 25. Central oficial de APK e documentação
+
+Foi criada a aba **Configurações → APK**, imediatamente após Geral, com:
+
+- versão Android oficialmente designada para produção;
+- build, package, commit, tamanho, SHA-256 e certificado;
+- download autenticado e auditado;
+- acesso aos seis documentos operacionais do Player-AD;
+- link administrativo para o gerenciamento OTA quando o módulo e a função
+  permitirem.
+
+A fonte de verdade passou a ser `player_release_channels`: existe um único
+ponteiro por plataforma/canal. Ativar um pacote OTA Android também o designa
+para produção, e o heartbeat consulta esse mesmo pacote. A instalação adota
+automaticamente o pacote Android ativo mais recente apenas quando ainda não
+existe designação.
+
+Versões desta entrega:
+
+- frontend `2.1.19`;
+- backend `2.1.13`;
+- Player-AD `2.09/109`.
+
+## 26. Comandos remotos e thread principal Android
+
+O comando remoto de configuração falhava após ser recebido pelo heartbeat com
+`Player is accessed on the wrong thread`: a rede executava corretamente em
+background, mas o soft-apply alterava o volume do ExoPlayer na mesma thread.
+
+A correção mantém heartbeat, arquivos e respostas HTTP fora da interface e
+move apenas acessos ao ExoPlayer/Android para `Dispatchers.Main.immediate`.
+Também foram protegidos o restart remoto e a coleta detalhada de métricas do
+ExoPlayer. Assim, o comando só é reportado como concluído após aplicar a parte
+visual na thread correta.
+
+## 27. Entrega híbrida de comandos remotos
+
+Comandos remotos deixaram de depender exclusivamente do próximo heartbeat. A
+resposta de `POST /api/player/sync`, usada pelo lote de eventos, agora também
+transporta `pendingCommands`. O Player-AD executa esses comandos imediatamente
+no mesmo executor protegido por mutex; o heartbeat permanece como fallback
+quando não há tráfego de eventos.
+
+A entrega no backend usa lease de 60 segundos. Um comando marcado como `sent`
+sem confirmação pode ser entregue novamente até três vezes. O Player-AD mantém
+uma janela de IDs já executados para responder a reentregas sem repetir o efeito
+no mesmo processo. Falha ao enviar o ACK não transforma uma execução bem-sucedida
+em falha.
+
+O painel passou a informar: **“Entrega imediata pelo sync ativo; heartbeat usado
+como fallback”**. A evolução futura para WebSocket/MQTT autenticado por
+dispositivo continua recomendada para comandos que exijam latência independente
+de qualquer tráfego HTTP do player.
+
+Versões desta entrega:
+
+- frontend `2.1.20`;
+- backend `2.1.14`;
+- Player-AD `2.10/110`.
