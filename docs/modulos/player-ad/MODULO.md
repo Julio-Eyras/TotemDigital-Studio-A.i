@@ -4,10 +4,11 @@
 |-------|-------|
 | **Slug** | `player-ad` |
 | **Modos** | all |
-| **Atores** | técnico de campo, admin; processo no TV Box |
-| **UI** | `App Android; docs/instalação; sem menu próprio` |
-| **API** | `/api/player/*` |
+| **Atores** | dispositivo (UIN/token); ops via UI totens |
+| **UI** | App Android; DebugConfig (5 toques); sem rota web própria |
+| **API** | `/api/player/*` (heartbeat, sync, dispatch, command-result, ota) |
 | **Status** | active |
+| **Profundidade** | L2 |
 | **Última revisão** | 2026-08-09 |
 
 ---
@@ -15,24 +16,28 @@
 ## 1. Visão e escopo
 
 ### Propósito
-Cliente Android TV Box: reproduz fila, heartbeat/sync, OTA, comandos remotos e telemetria.
+Cliente Android de reprodução: plano de conteúdo, heartbeat/sync, comandos remotos, telemetria e OTA.
 
 ### Dentro do escopo
-- Playback
-- Cache
-- Agenda de tela
-- Sync/comandos
-- OTA client
+- Reprodução ExoPlayer / plano ACTIVE|EMPTY
+- Poll adaptativo HB/dispatch
+- Processamento de `pendingCommands`
+- Eventos de playback + observation samples
+- OTA download/install report
 
 ### Fora do escopo
-- UI administrativa web
+- UI de inventário web
+- Política de reentrega no servidor (`remote-control`)
+- Designação APK (`player-apk-settings` / `ota-updates`)
 
 ### Vocabulário
 | Termo | Significado |
 |-------|-------------|
-| DispatchPlan | plano de mídias |
-| EMPTY_PLAN | plano vazio intencional |
-| displayIdle | tela off por agenda |
+| planVersion | versão do plano; se conhecida ⇒ needsDispatch=false |
+| EMPTY_PLAN | plano válido sem itens (não é falha) |
+| NON_RETRYABLE | tipos destrutivos com recibo pré-efeito |
+| displayIdle | agenda off / ecrã idle |
+| device_id | TRIM+UPPER |
 
 ---
 
@@ -40,57 +45,92 @@ Cliente Android TV Box: reproduz fila, heartbeat/sync, OTA, comandos remotos e t
 
 | ID | Tipo | Requisito |
 |----|------|-----------|
-| REQ-PAD-001 | Ubiquitous | Player deve autenticar com UIN e deviceId canónico. |
-| REQ-PAD-002 | State-driven | Em displayIdle o Player não reproduz mídias mas mantém presença/comandos. |
-| REQ-PAD-003 | Unwanted | Comandos destrutivos não devem ser reexecutados automaticamente após reboot sem recibo. |
-| REQ-PAD-004 | Event-driven | Troca vídeo→vídeo deve preservar último frame durante prepare quando possível. |
+| REQ-PAD-001 | Ubiquitous | O Player deve reportar presença via heartbeat (e sync quando aplicável). |
+| REQ-PAD-002 | Event-driven | Quando recebe pendingCommands, deve processar com ACK via command-result (2xx). |
+| REQ-PAD-003 | Unwanted | Comandos destrutivos já processados não devem reexecutar. |
+| REQ-PAD-004 | State-driven | Enquanto EMPTY_PLAN, não deve reiniciar agressivamente. |
+| REQ-PAD-005 | Event-driven | Quando lease de observação activo, deve enviar `player.observation.sample`. |
+| REQ-PAD-006 | Optional | Onde OTA disponível no HB, deve poder descarregar/reportar status. |
 
 ---
 
 ## 3. Regras de negócio
 
-### RN-PAD-001 — EMPTY_PLAN passivo
+### RN-PAD-001 — EMPTY_PLAN válido
 
 ```text
-RN-PAD-001 — EMPTY_PLAN passivo
-Quando: servidor devolve plano vazio válido
-Se: sempre
-Então: não reiniciar agressivamente; aguardar nova versão
-Excepto: —
-Motivo: Poupar I/O
+RN-PAD-001 — EMPTY_PLAN válido
+Quando: dispatch devolve plano sem itens
+Se: planState EMPTY
+Então: estado estável; wake no heartbeat; sem reboot loop
+Excepto: UNAVAILABLE (erro de plano)
+Motivo: Totem sem mídia é operação normal
 ```
 
-### RN-PAD-002 — Recibo antes de reboot
+### RN-PAD-002 — Recibo antes do efeito
 
 ```text
-RN-PAD-002 — Recibo antes de reboot
-Quando: comando reboot/restart/config destrutiva
-Se: antes do efeito
-Então: persistir ID em disco
+RN-PAD-002 — Recibo antes do efeito
+Quando: reboot/restart/config/purge/invalidate/screenshot
+Se: comando novo
+Então: persistir recibo (SharedPreferences commit) ANTES do efeito
 Excepto: —
-Motivo: At-most-once
+Motivo: At-most-once após reboot
 ```
 
-### RN-PAD-003 — Thread UI
+### RN-PAD-003 — Duplicata = ACK sem reexecutar
 
 ```text
-RN-PAD-003 — Thread UI
-Quando: mexer ExoPlayer
+RN-PAD-003 — Duplicata = ACK sem reexecutar
+Quando: comando já em recibos
 Se: sempre
-Então: Dispatchers.Main
+Então: ACK completed + duplicate/alreadyProcessed
 Excepto: —
-Motivo: Crash wrong thread
+Motivo: Idempotência cliente
 ```
 
-### RN-PAD-004 — Agenda off
+### RN-PAD-004 — Display idle
 
 ```text
-RN-PAD-004 — Agenda off
-Quando: entra idle
+RN-PAD-004 — Display idle
+Quando: agenda off
+Se: entrar idle
+Então: displayIdle; index=0 ao entrar
+Excepto: force display commands
+Motivo: Política de ecrã
+```
+
+### RN-PAD-005 — Dispatch sob condição
+
+```text
+RN-PAD-005 — Dispatch sob condição
+Quando: ciclo de poll
+Se: needsDispatch ou refresh comando; safety poll raro
+Então: GET /api/player/dispatch
+Excepto: knownPlanVersion == planVersion → skip
+Motivo: Reduzir carga e jank
+```
+
+### RN-PAD-006 — HB fora do caminho crítico
+
+```text
+RN-PAD-006 — HB fora do caminho crítico
+Quando: transição entre mídias
 Se: sempre
-Então: index=0 para retomar na primeira mídia
+Então: não bloquear render por HB/dispatch
 Excepto: —
-Motivo: Previsibilidade
+Motivo: UX de playback
+```
+
+### RN-PAD-007 — Device ID canónico
+
+```text
+RN-PAD-007 — Device ID canónico
+Quando: registo/sync
+Se: sempre
+Então: trim+uppercase
+Excepto: —
+Motivo: Match com totems.device_id
 ```
 
 ---
@@ -99,25 +139,30 @@ Motivo: Previsibilidade
 
 ```mermaid
 flowchart TD
-  Start --> Heartbeat
-  Heartbeat --> Commands
-  Heartbeat --> NeedsDispatch{needsDispatch?}
-  NeedsDispatch -->|sim| Dispatch
-  Dispatch --> PlayLoop
-  PlayLoop --> SyncEventos
-  SyncEventos --> Commands
+  A[Boot Player] --> B[Register/token]
+  B --> C[Heartbeat]
+  C --> D{needsDispatch?}
+  D -->|Sim| E[GET dispatch]
+  D -->|Não| F[Reproduzir plano local]
+  E --> F
+  C --> G{pendingCommands?}
+  G -->|Sim| H[Process + ACK]
+  H --> I{Destrutivo?}
+  I -->|Sim| J[Recibo → efeito]
+  I -->|Não| K[Executar / ACK]
 ```
 
 ---
 
 ## 5. Estados
 
-| Estado | Significado | Transições típicas |
-|--------|-------------|--------------------|
-| ACTIVE | reproduzindo | → EMPTY/IDLE/OFF |
-| EMPTY_PLAN | sem mídias | → ACTIVE |
-| displayIdle | tela off | → playing |
-| ERROR | falha média/rede | → retry |
+| Estado | Significado |
+|--------|-------------|
+| ACTIVE | plano com itens |
+| EMPTY_PLAN | plano válido vazio |
+| displayIdle | fora de agenda |
+| ONLINE / PERSISTED / FALLBACK_LOCAL | fonte de plano |
+| ERROR | falha download/playback |
 
 ---
 
@@ -126,29 +171,49 @@ flowchart TD
 ### AC-PAD-001 (P0)
 
 ```text
-DADO agenda off
-QUANDO passar horário
-ENTÃO para reprodução e mantém heartbeat
+DADO totem sem mídias (EMPTY_PLAN)
+QUANDO Player recebe plano vazio
+ENTÃO permanece estável sem reboot loop
 ```
 
 ### AC-PAD-002 (P0)
 
 ```text
-DADO mesmo reboot command reentregue
-QUANDO após reboot com recibo
-ENTÃO não reinicia de novo
+DADO comando reboot
+QUANDO processar
+ENTÃO recibo gravado antes do reboot e reentrega não reexecuta
+```
+
+### AC-PAD-003 (P0)
+
+```text
+DADO comando já processado reaparece
+QUANDO processPendingCommands
+ENTÃO ACK duplicate sem segundo efeito
+```
+
+### AC-PAD-004 (P1)
+
+```text
+DADO lease observação activo no HB
+QUANDO intervalo decorre
+ENTÃO envia observation.sample
 ```
 
 ---
 
 ## 7. Dependências e referências
 
-### Módulos relacionados
-- [`telemetry-heartbeat`](../telemetry-heartbeat/MODULO.md)
-- [`remote-control`](../remote-control/MODULO.md)
-- [`ota-updates`](../ota-updates/MODULO.md)
-- [`dispatcher`](../dispatcher/MODULO.md)
+### Módulos
+- [`dispatcher`](../dispatcher/MODULO.md), [`remote-control`](../remote-control/MODULO.md)
+- [`telemetry-heartbeat`](../telemetry-heartbeat/MODULO.md), [`ota-updates`](../ota-updates/MODULO.md)
+- [`totems`](../totems/MODULO.md)
 
-### Referências
-- `docs/instalacao/04-PLAYER-AD.md`
-- `docs/HISTORICO-TECNICO-2026-08-08.md`
+### Código de referência
+- `Player-AD/.../playback/PlayerController.kt`
+- `Player-AD/.../api/DispatcherApiClient.kt`, `PlayerEventsClient.kt`
+- `Player-AD/.../ota/OtaUpdateCoordinator.kt`
+- `backend/src/routes/player.ts`
+
+### ADR
+- `docs/adr/0003-entrega-hibrida-comandos.md`

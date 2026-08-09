@@ -3,11 +3,12 @@
 | Campo | Valor |
 |-------|-------|
 | **Slug** | `product-modes` |
-| **Modos** | all |
+| **Modos** | all (define os outros) |
 | **Atores** | owner_system, admin_sql |
-| **UI** | `/settings/system-modules` |
-| **API** | `PUT /api/installation/multi-agency` |
+| **UI** | `/settings/system-modules` (switch multi-agência) |
+| **API** | `PUT /api/installation/multi-agency`, `GET /api/installation/modules` |
 | **Status** | active |
+| **Profundidade** | L2 |
 | **Última revisão** | 2026-08-09 |
 
 ---
@@ -15,24 +16,27 @@
 ## 1. Visão e escopo
 
 ### Propósito
-Define o perfil da instalação: Direct Totem (off), Multi Lite (lite) ou Multi Pro (full), aplicando o preset de módulos.
+Master switch do perfil da instalação: **Direct (off)** · **Lite** · **Pro (full)** — sem tabela dedicada; estado em `system_settings`.
 
 ### Dentro do escopo
-- Alternar mode off|lite|full
-- Aplicar presets de installation.modules
-- Impedir Direct + multi-agência simultâneos
+- Alternar `mode: off | lite | full`
+- Aplicar presets de módulos (`buildCoreOperationPreset`, lite, full)
+- Profile `single_publisher` vs `multi_agency`
+- Heal de inconsistências lite
 
 ### Fora do escopo
-- Apagar dados comerciais (isso é commercial-purge)
-- Permissões por utilizador (flag_smart_*)
+- Toggle fino por módulo (UI partilhada mas regras em `system-modules`)
+- Purge comercial (acção separada)
+- Feature flags por user (`users-access`)
 
 ### Vocabulário
 | Termo | Significado |
 |-------|-------------|
-| mode | off | lite | full |
-| Direct Totem | mode=off, UI mínima, uma org |
-| Multi Lite | várias orgs + anunciantes sem ERP |
-| Multi Pro | agência completa com planos/billing/OTA |
+| mode `off` | Direct / core operation |
+| mode `lite` | multi-agência sem billing/plans/OTA/analytics |
+| mode `full` | Pro completo |
+| profile | `single_publisher` \| `multi_agency` |
+| locked module | sempre on (ex.: dispatcher_admin) |
 
 ---
 
@@ -40,10 +44,12 @@ Define o perfil da instalação: Direct Totem (off), Multi Lite (lite) ou Multi 
 
 | ID | Tipo | Requisito |
 |----|------|-----------|
-| REQ-MOD-001 | Ubiquitous | A instalação deve estar sempre num único mode válido: off, lite ou full. |
-| REQ-MOD-002 | Event-driven | Quando o owner altera o mode, o sistema deve aplicar o preset de módulos correspondente. |
-| REQ-MOD-003 | Unwanted | O sistema não deve permitir Direct Totem e multi-agência activos ao mesmo tempo. |
-| REQ-MOD-004 | Unwanted | A mudança para mode=off não deve apagar dados comerciais automaticamente. |
+| REQ-MOD-001 | Ubiquitous | A instalação deve expor um único mode efectivo off/lite/full. |
+| REQ-MOD-002 | Event-driven | Quando mode=lite\|full, `direct_totem_mode` deve desligar. |
+| REQ-MOD-003 | Event-driven | Quando mode=off, aplicar preset core e profile single_publisher. |
+| REQ-MOD-004 | Unwanted | Desligar multi-agência não deve apagar dados comerciais. |
+| REQ-MOD-005 | State-driven | Enquanto modules locked, devem permanecer enabled. |
+| REQ-MOD-006 | Optional | Após mudança, workers podem hot-reload ou pedir restart. |
 
 ---
 
@@ -53,33 +59,66 @@ Define o perfil da instalação: Direct Totem (off), Multi Lite (lite) ou Multi 
 
 ```text
 RN-MOD-001 — Mutua exclusão Direct/Multi
-Quando: Owner muda o mode
-Se: escolhe off
-Então: multi_agency e UI comercial ficam off; direct_totem_mode on
+Quando: applyMultiAgencyMode lite|full
+Se: sempre
+Então: direct_totem_mode = false
 Excepto: —
-Motivo: Produto mono vs rede
+Motivo: Menus e gates incompatíveis
 ```
 
-### RN-MOD-002 — OFF sem purge
+### RN-MOD-002 — OFF não apaga dados
 
 ```text
-RN-MOD-002 — OFF sem purge
-Quando: Owner escolhe Direct (off)
-Se: existem dados Lite/Pro
-Então: dados permanecem; purge é acção separada
-Excepto: —
-Motivo: Segurança operacional
+RN-MOD-002 — OFF não apaga dados
+Quando: setMultiAgencyMode(off)
+Se: existem subscribers/campanhas
+Então: dados permanecem; módulos comerciais ficam disabled
+Excepto: purge explícito
+Motivo: Reversibilidade operacional
 ```
 
-### RN-MOD-003 — Só owner/admin_sql
+### RN-MOD-003 — Presets
 
 ```text
-RN-MOD-003 — Só owner/admin_sql
-Quando: Utilizador abre Complementos
-Se: role ≠ owner_system/admin_sql
-Então: menu/API de mode é negado
+RN-MOD-003 — Presets
+Quando: mudança de mode
+Se: off → core; lite → subset; full → Pro
+Então: escrever installation.modules conforme policy
+Excepto: locked forçados on
+Motivo: Consistência de catálogo
+```
+
+### RN-MOD-004 — Só owner/admin_sql
+
+```text
+RN-MOD-004 — Só owner/admin_sql
+Quando: PUT multi-agency
+Se: outro role
+Então: 403
 Excepto: —
-Motivo: Governança
+Motivo: Mudança de produto
+```
+
+### RN-MOD-005 — Heal lite stale
+
+```text
+RN-MOD-005 — Heal lite stale
+Quando: GET modules / apply
+Se: lite com flags inconsistentes (subscribers/campaigns/devices)
+Então: reconciliar preset lite
+Excepto: —
+Motivo: Evitar instalação a meio-gás
+```
+
+### RN-MOD-006 — Locked enforcement
+
+```text
+RN-MOD-006 — Locked enforcement
+Quando: persistir modules
+Se: módulo locked
+Então: enabled=true sempre
+Excepto: —
+Motivo: Núcleo operacional
 ```
 
 ---
@@ -88,24 +127,31 @@ Motivo: Governança
 
 ```mermaid
 flowchart TD
-  A[Owner abre Complementos] --> B{Escolhe mode}
-  B -->|off| C[Preset Direct]
-  B -->|lite| D[Preset Lite]
-  B -->|full| E[Preset Pro]
-  C --> F[Hot-reload workers/menu]
+  A[Owner em System Modules] --> B{Escolher mode}
+  B -->|off| C[single_publisher + Direct preset]
+  B -->|lite| D[multi_agency + lite preset]
+  B -->|full| E[multi_agency + Pro preset]
+  C --> F[Persist system_settings]
   D --> F
   E --> F
+  F --> G[Hot-reload / restart hint]
 ```
+
+### Fluxos de erro
+| ID | Gatilho | Resultado |
+|----|---------|-----------|
+| FX-MOD-E01 | Role insuficiente | 403 |
+| FX-MOD-E02 | Dependências de módulo violadas | validação / heal |
 
 ---
 
 ## 5. Estados
 
-| Estado | Significado | Transições típicas |
-|--------|-------------|--------------------|
-| off | Direct Totem | → lite|full |
-| lite | Multi Lite | → off|full |
-| full | Multi Pro | → off|lite |
+| Mode | Profile | Direct | Comercial típico |
+|------|---------|--------|------------------|
+| off | single_publisher | on | off |
+| lite | multi_agency | off | parcial |
+| full | multi_agency | off | completo |
 
 ---
 
@@ -114,26 +160,43 @@ flowchart TD
 ### AC-MOD-001 (P0)
 
 ```text
-DADO instalação em lite
-QUANDO owner muda para off
-ENTÃO UI Direct activa e APIs de plans/billing respondem MODULE_DISABLED
+DADO mode=off
+QUANDO abrir app como admin
+ENTÃO home Direct (/publish-totem) e menu comercial ausente
 ```
 
 ### AC-MOD-002 (P0)
 
 ```text
-DADO dados comerciais existentes
-QUANDO owner muda para off
-ENTÃO nenhuma tabela comercial é apagada
+DADO mode=full
+QUANDO PUT multi-agency off
+ENTÃO dados comerciais intactos e direct_totem_mode activo
+```
+
+### AC-MOD-003 (P0)
+
+```text
+DADO mode=lite
+QUANDO tentar aceder API billing
+ENTÃO MODULE_DISABLED
 ```
 
 ---
 
 ## 7. Dependências e referências
 
-### Módulos relacionados
+### Módulos
 - [`system-modules`](../system-modules/MODULO.md)
+- [`direct-totem-mode`](../direct-totem-mode/MODULO.md)
+- [`commercial-purge`](../commercial-purge/MODULO.md)
+- todos os módulos gated
 
-### Referências
-- `docs/manuais/03-MODULOS-E-FORMAS-DE-TRABALHO.md`
+### Código de referência
 - `backend/src/policy/installationModules.ts`
+- `backend/src/services/installationModulesService.ts`
+- `backend/src/routes/installationModules.ts`
+- `frontend/src/pages/Settings/SystemModules.tsx`
+
+### Lacunas conhecidas
+- Backend `config/directTotemMode.ts` ainda lê **env** `DIRECT_TOTEM_MODE`; frontend usa **capabilities** — possível dessincronia.
+- Boolean legado `enabled` mapeia só full/off (sem lite).

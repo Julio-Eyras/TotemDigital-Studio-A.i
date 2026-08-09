@@ -111,6 +111,7 @@ Prioridades: **P0** (bloqueia release), **P1**, **P2**.
 
 ## 9. Definition of Done documental (módulo)
 
+### Nível L1 — estrutural (mínimo)
 - [ ] Propósito e escopo claros  
 - [ ] ≥1 REQ e ≥1 RN relevantes  
 - [ ] Fluxo principal em Mermaid  
@@ -118,3 +119,22 @@ Prioridades: **P0** (bloqueia release), **P1**, **P2**.
 - [ ] ≥1 cenário de aceite P0  
 - [ ] Dependências apontando para outros slugs  
 - [ ] Referência a manual/ADR/código quando existir  
+
+### Nível L2 — profundidade (código como evidência)
+- [ ] Tudo de L1  
+- [ ] ≥5 REQ cobrindo happy path, bloqueios e unwanted  
+- [ ] ≥5 RN com Motivo alinhado ao comportamento real (backend/Player/UI)  
+- [ ] Vocabulário alinhado a campos de schema / API  
+- [ ] Estados com valores canónicos do código (CHECK / enums)  
+- [ ] ≥3 AC P0 testáveis  
+- [ ] Secção **Código de referência** com paths concretos  
+- [ ] Lacunas conhecidas (doc↔código) listadas se existirem  
+- [ ] Campo **Profundidade: L2** e data de revisão no cabeçalho  
+
+### Nível L3 — operacional (opcional)
+- [ ] Casos de erro / FX-E0x  
+- [ ] State machine Mermaid quando o módulo tem lifecycle crítico  
+- [ ] Matriz de roles × acções  
+- [ ] Ligação a testes automatizados (`__tests__`, scripts validate)  
+
+**Regra de manutenção:** docs L2/L3 **não** devem ser regenerados às cegas por `generate-modulos-docs.py`. Actualizar o ficheiro (ou o gerador + ficheiro) no mesmo PR da mudança de comportamento.

@@ -1289,13 +1289,24 @@ def render(m: dict) -> str:
 
 
 def main():
+    import sys
+    force = "--force" in sys.argv
     ROOT.mkdir(parents=True, exist_ok=True)
+    written = 0
+    skipped = 0
     for m in MODULES:
         d = ROOT / m["slug"]
         d.mkdir(parents=True, exist_ok=True)
-        (d / "MODULO.md").write_text(render(m), encoding="utf-8")
-    # stdout ASCII-safe on Windows consoles
-    print("generated %d modules at %s" % (len(MODULES), ROOT))
+        target = d / "MODULO.md"
+        if target.exists() and not force:
+            existing = target.read_text(encoding="utf-8")
+            if "**Profundidade** | L2" in existing or "**Profundidade** | L3" in existing:
+                skipped += 1
+                print("skip L2/L3 %s" % m["slug"])
+                continue
+        target.write_text(render(m), encoding="utf-8")
+        written += 1
+    print("generated %d modules (skipped %d L2/L3) at %s" % (written, skipped, ROOT))
     for m in MODULES:
         print("- %s" % m["slug"])
 

@@ -8,6 +8,7 @@
 | **UI** | `/publish-totem, /publish-totem/:id` |
 | **API** | `/api/totems, /api/simple-publish, totem direct media` |
 | **Status** | active |
+| **Profundidade** | L2 |
 | **Última revisão** | 2026-08-09 |
 
 ---
@@ -182,6 +183,8 @@ ENTÃO painel mostra ExoPlayer/saúde/dispositivo
 - [`remote-control`](../remote-control/MODULO.md)
 - [`player-ad`](../player-ad/MODULO.md)
 
-### Referências
+### Código de referência
 - `docs/manuais/07-MANUAL-PUBLICAR-EM-TOTEM.md`
 - `frontend/src/pages/PublishTotem/PublishTotem.tsx`
+- `frontend/src/components/TotemPlaybackStatus/TotemPlaybackStatus.tsx`
+- `frontend/src/hooks/useTotemPlaybackTelemetry.ts`

@@ -9,6 +9,15 @@
 
 Esta é a **fonte da verdade de negócio** por módulo. Manuais de ecrã e histórico técnico são satélites.
 
+**Profundidade:** L1 = estrutural · L2 = código como evidência · L3 = operacional (ver [00-METODOLOGIA.md](./00-METODOLOGIA.md) §9).
+
+| Lote | Slugs | Meta |
+|------|-------|------|
+| A — Núcleo Direct | product-modes, system-modules, direct-totem-mode, media-library, organization, totems, users-access | L2 |
+| B — Player / ops | player-ad, remote-control, telemetry-heartbeat, player-apk-settings, ota-updates, dispatcher (+ publish-totem) | L2 |
+| C — Conteúdo / comercial core | locals, subscribers, SPA, campaigns, playlists, quick-publish, publish-board, vinhetas, playlist-mix | L2 |
+| D — Restantes | billing, plans, contracts, tags, qr-codes, menu-catalog, publish-templates, smart-playlist, devices-smart-tvs, network-topology, multi-agency, commercial-reports, subscriber-portal, commercial-purge, auth-security, dashboard, settings, admin-tools, backups-notifications, analytics-ai, smart-display-fx | L2 |
+
 ---
 
 ## Como usar
@@ -27,77 +36,77 @@ IDs estáveis: `REQ-<MOD>-NNN`, `RN-<MOD>-NNN`, `AC-<MOD>-NNN`.
 
 ## A. Núcleo e modos
 
-| Slug | Módulo | Modos |
-|------|--------|-------|
-| [product-modes](./product-modes/MODULO.md) | Modos de produto | all |
-| [system-modules](./system-modules/MODULO.md) | Complementos do sistema | all |
-| [direct-totem-mode](./direct-totem-mode/MODULO.md) | Direct Totem (UI mínima) | Direct |
+| Slug | Módulo | Modos | Prof. |
+|------|--------|-------|:-----:|
+| [product-modes](./product-modes/MODULO.md) | Modos de produto | all | L2 |
+| [system-modules](./system-modules/MODULO.md) | Complementos do sistema | all | L2 |
+| [direct-totem-mode](./direct-totem-mode/MODULO.md) | Direct Totem (UI mínima) | Direct | L2 |
 
 ## B. Publicação e conteúdo
 
-| Slug | Módulo | Modos |
-|------|--------|-------|
-| [publish-totem](./publish-totem/MODULO.md) | Publicar em Totem | Direct (+ API) |
-| [media-library](./media-library/MODULO.md) | Biblioteca de mídias | all |
-| [vinhetas](./vinhetas/MODULO.md) | Biblioteca de vinhetas | Lite, Pro |
-| [quick-publish](./quick-publish/MODULO.md) | Publicar em tela | Lite, Pro |
-| [publish-board](./publish-board/MODULO.md) | Criar conteúdo | Lite, Pro |
-| [menu-catalog](./menu-catalog/MODULO.md) | Cardápio por cliente | Lite, Pro |
-| [publish-templates](./publish-templates/MODULO.md) | Templates de publicação | Lite, Pro |
-| [campaigns](./campaigns/MODULO.md) | Campanhas | Lite, Pro |
-| [playlists](./playlists/MODULO.md) | Playlists | Pro |
-| [playlist-mix](./playlist-mix/MODULO.md) | Playlist Mix | all (ops) |
-| [smart-playlist](./smart-playlist/MODULO.md) | Smart Playlist | Pro |
+| Slug | Módulo | Modos | Prof. |
+|------|--------|-------|:-----:|
+| [publish-totem](./publish-totem/MODULO.md) | Publicar em Totem | Direct (+ API) | L2 |
+| [media-library](./media-library/MODULO.md) | Biblioteca de mídias | all | L2 |
+| [vinhetas](./vinhetas/MODULO.md) | Biblioteca de vinhetas | Lite, Pro | L2 |
+| [quick-publish](./quick-publish/MODULO.md) | Publicar em tela | Lite, Pro | L2 |
+| [publish-board](./publish-board/MODULO.md) | Criar conteúdo | Lite, Pro | L2 |
+| [menu-catalog](./menu-catalog/MODULO.md) | Cardápio por cliente | Lite, Pro | L2 |
+| [publish-templates](./publish-templates/MODULO.md) | Templates de publicação | Lite, Pro | L2 |
+| [campaigns](./campaigns/MODULO.md) | Campanhas | Lite, Pro | L2 |
+| [playlists](./playlists/MODULO.md) | Playlists | Pro | L2 |
+| [playlist-mix](./playlist-mix/MODULO.md) | Playlist Mix | all (ops) | L2 |
+| [smart-playlist](./smart-playlist/MODULO.md) | Smart Playlist | Pro | L2 |
 
 ## C. Organização e inventário
 
-| Slug | Módulo | Modos |
-|------|--------|-------|
-| [organization](./organization/MODULO.md) | Organização (publishers) | all |
-| [locals](./locals/MODULO.md) | Unidades / locais | all |
-| [totems](./totems/MODULO.md) | Totens / ecrãs | all |
-| [devices-smart-tvs](./devices-smart-tvs/MODULO.md) | Smart TVs e players | Lite, Pro |
-| [network-topology](./network-topology/MODULO.md) | Rede visual / topologia | Lite, Pro |
+| Slug | Módulo | Modos | Prof. |
+|------|--------|-------|:-----:|
+| [organization](./organization/MODULO.md) | Organização (publishers) | all | L2 |
+| [locals](./locals/MODULO.md) | Unidades / locais | all | L2 |
+| [totems](./totems/MODULO.md) | Totens / ecrãs | all | L2 |
+| [devices-smart-tvs](./devices-smart-tvs/MODULO.md) | Smart TVs e players | Lite, Pro | L2 |
+| [network-topology](./network-topology/MODULO.md) | Rede visual / topologia | Lite, Pro | L2 |
 
 ## D. Multi-agência comercial
 
-| Slug | Módulo | Modos |
-|------|--------|-------|
-| [multi-agency](./multi-agency/MODULO.md) | Multi-agência | Lite, Pro |
-| [subscribers](./subscribers/MODULO.md) | Anunciantes | Lite, Pro |
-| [subscriber-publisher-access](./subscriber-publisher-access/MODULO.md) | Anunciante ↔ Organização (SPA) | Lite, Pro |
-| [plans](./plans/MODULO.md) | Planos e acessos | Pro |
-| [contracts](./contracts/MODULO.md) | Contratos | Pro |
-| [billing](./billing/MODULO.md) | Faturamento e cobrança | Pro |
-| [commercial-reports](./commercial-reports/MODULO.md) | Relatórios comerciais | Pro |
-| [subscriber-portal](./subscriber-portal/MODULO.md) | Portal do anunciante | Lite/Pro opc. |
-| [commercial-purge](./commercial-purge/MODULO.md) | Purge comercial | Lite, Pro admin |
+| Slug | Módulo | Modos | Prof. |
+|------|--------|-------|:-----:|
+| [multi-agency](./multi-agency/MODULO.md) | Multi-agência | Lite, Pro | L2 |
+| [subscribers](./subscribers/MODULO.md) | Anunciantes | Lite, Pro | L2 |
+| [subscriber-publisher-access](./subscriber-publisher-access/MODULO.md) | Anunciante ↔ Organização (SPA) | Lite, Pro | L2 |
+| [plans](./plans/MODULO.md) | Planos e acessos | Pro | L2 |
+| [contracts](./contracts/MODULO.md) | Contratos | Pro | L2 |
+| [billing](./billing/MODULO.md) | Faturamento e cobrança | Pro | L2 |
+| [commercial-reports](./commercial-reports/MODULO.md) | Relatórios comerciais | Pro | L2 |
+| [subscriber-portal](./subscriber-portal/MODULO.md) | Portal do anunciante | Lite/Pro opc. | L2 |
+| [commercial-purge](./commercial-purge/MODULO.md) | Purge comercial | Lite, Pro admin | L2 |
 
 ## E. Utilizadores, autenticação e admin
 
-| Slug | Módulo | Modos |
-|------|--------|-------|
-| [users-access](./users-access/MODULO.md) | Usuários e acessos | all |
-| [auth-security](./auth-security/MODULO.md) | Autenticação e segurança | all |
-| [dashboard](./dashboard/MODULO.md) | Dashboard | Lite, Pro |
-| [settings](./settings/MODULO.md) | Configurações | all |
-| [tags](./tags/MODULO.md) | Tags | all |
-| [qr-codes](./qr-codes/MODULO.md) | QR-Codes | Lite, Pro |
-| [admin-tools](./admin-tools/MODULO.md) | Admin Tools | all |
-| [backups-notifications](./backups-notifications/MODULO.md) | Backups e notificações | all |
+| Slug | Módulo | Modos | Prof. |
+|------|--------|-------|:-----:|
+| [users-access](./users-access/MODULO.md) | Usuários e acessos | all | L2 |
+| [auth-security](./auth-security/MODULO.md) | Autenticação e segurança | all | L2 |
+| [dashboard](./dashboard/MODULO.md) | Dashboard | Lite, Pro | L2 |
+| [settings](./settings/MODULO.md) | Configurações | all | L2 |
+| [tags](./tags/MODULO.md) | Tags | all | L2 |
+| [qr-codes](./qr-codes/MODULO.md) | QR-Codes | Lite, Pro | L2 |
+| [admin-tools](./admin-tools/MODULO.md) | Admin Tools | all | L2 |
+| [backups-notifications](./backups-notifications/MODULO.md) | Backups e notificações | all | L2 |
 
 ## F. Operação de dispositivos e Player
 
-| Slug | Módulo | Modos |
-|------|--------|-------|
-| [player-ad](./player-ad/MODULO.md) | Player-AD | all |
-| [player-apk-settings](./player-apk-settings/MODULO.md) | Central APK | all |
-| [remote-control](./remote-control/MODULO.md) | Controlo remoto | all |
-| [telemetry-heartbeat](./telemetry-heartbeat/MODULO.md) | Telemetria e heartbeat | all |
-| [ota-updates](./ota-updates/MODULO.md) | Atualizações OTA | Pro |
-| [dispatcher](./dispatcher/MODULO.md) | Dispatcher | all (locked) |
-| [analytics-ai](./analytics-ai/MODULO.md) | Analytics / IA | Pro |
-| [smart-display-fx](./smart-display-fx/MODULO.md) | SmartDisplayFX | Lite/Pro opc. |
+| Slug | Módulo | Modos | Prof. |
+|------|--------|-------|:-----:|
+| [player-ad](./player-ad/MODULO.md) | Player-AD | all | L2 |
+| [player-apk-settings](./player-apk-settings/MODULO.md) | Central APK | all | L2 |
+| [remote-control](./remote-control/MODULO.md) | Controlo remoto | all | L2 |
+| [telemetry-heartbeat](./telemetry-heartbeat/MODULO.md) | Telemetria e heartbeat | all | L2 |
+| [ota-updates](./ota-updates/MODULO.md) | Atualizações OTA | Pro | L2 |
+| [dispatcher](./dispatcher/MODULO.md) | Dispatcher | all (locked) | L2 |
+| [analytics-ai](./analytics-ai/MODULO.md) | Analytics / IA | Pro | L2 |
+| [smart-display-fx](./smart-display-fx/MODULO.md) | SmartDisplayFX | Lite/Pro opc. | L2 |
 
 ---
 
@@ -117,5 +126,23 @@ IDs estáveis: `REQ-<MOD>-NNN`, `RN-<MOD>-NNN`, `AC-<MOD>-NNN`.
 
 1. Nova regra de negócio ⇒ actualizar o `MODULO.md` no **mesmo PR** do código.  
 2. Não duplicar RNs nos manuais de UI — referenciar `RN-xxx`.  
-3. Regeneração assistida: `python scripts/generate-modulos-docs.py` (sobrescreve conteúdo gerado; edições manuais finas devem ir ao script ou ao ficheiro com cuidado).  
+3. Regeneração assistida: `python scripts/generate-modulos-docs.py` — **não sobrescreve** ficheiros com `Profundidade: L2/L3`. Usar `--force` só em emergência.  
 4. Decisões técnicas estruturais ⇒ novo ADR em `docs/adr/`.
+
+## Candidatos a revisão L3 / evidência frágil
+
+Documentados em L2, mas com gaps código↔produto a validar antes de L3:
+
+| Slug | Motivo |
+|------|--------|
+| [backups-notifications](./backups-notifications/MODULO.md) | UI de backup fraca; DDL `notifications` ausente no schema v2 |
+| [tags](./tags/MODULO.md) | Desalinhamento schema↔serviço; não são labels de mídia |
+| [smart-playlist](./smart-playlist/MODULO.md) | `client_id` legado; geração IA parcial |
+| [analytics-ai](./analytics-ai/MODULO.md) | mismatch FE `/ai/generate` vs BE; `ai_requests` sem DDL |
+| [qr-codes](./qr-codes/MODULO.md) | `qr_code_scans` inexistente (scans stub) |
+| [subscriber-portal](./subscriber-portal/MODULO.md) | settings/DNS fortes; FE só subset |
+| [commercial-purge](./commercial-purge/MODULO.md) | só painel em Complementos |
+| [network-topology](./network-topology/MODULO.md) | read-model sem tabela dedicada |
+| [plans](./plans/MODULO.md) | sem página `/plans`; CRUD noutros ecrãs |
+| [publish-board](./publish-board/MODULO.md) | `PublishBoardStudio` órfão; redirect para quick-publish |
+| [campaigns](./campaigns/MODULO.md) | menu `/campaigns/stats` sem Route React |

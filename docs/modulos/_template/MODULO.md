@@ -8,6 +8,7 @@
 | **UI** | paths |
 | **API** | prefixes |
 | **Status** | draft \| active |
+| **Profundidade** | L1 \| L2 \| L3 |
 | **Última revisão** | AAAA-MM-DD |
 
 ---

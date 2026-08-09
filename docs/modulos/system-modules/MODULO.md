@@ -6,8 +6,9 @@
 | **Modos** | all |
 | **Atores** | owner_system, admin_sql |
 | **UI** | `/settings/system-modules` |
-| **API** | `/api/installation/*` |
+| **API** | `/api/installation/modules`, portal, commercial-purge* |
 | **Status** | active |
+| **Profundidade** | L2 |
 | **Última revisão** | 2026-08-09 |
 
 ---
@@ -15,23 +16,27 @@
 ## 1. Visão e escopo
 
 ### Propósito
-Painel de módulos de instalação (catálogo, opções avançadas, portal, purge). Distinto das flags por utilizador.
+Catálogo e enforcement dos **módulos de instalação** (`installation.modules`): enable/disable, dependências, locked, portal e checklist.
 
 ### Dentro do escopo
-- Ligar/desligar módulos não locked
-- Ver catálogo e presets
-- Acesso a portal e purge
+- GET/PUT modules
+- Validação de `requires`
+- Locked modules
+- Portal (slug, DNS Cloudflare, SSL, sync)
+- Preview/execução purge (superfície partilhada com `commercial-purge`)
 
 ### Fora do escopo
-- CRUD de utilizadores
-- flag_smart_*
+- Master switch off/lite/full (detalhe normativo em `product-modes`)
+- `flag_smart_*` por utilizador
+- Implementação de cada feature module
 
 ### Vocabulário
 | Termo | Significado |
 |-------|-------------|
-| installation.modules | JSON de módulos activos |
-| locked | módulo que não pode ser desligado (ex. dispatcher_admin) |
-| flag_smart_* | permissões por utilizador |
+| installation module | entrada do catálogo `INSTALLATION_MODULE_CATALOG` |
+| locked | não desligável |
+| `MODULE_DISABLED` | código 403 do middleware |
+| requires | dependências entre módulos |
 
 ---
 
@@ -39,34 +44,81 @@ Painel de módulos de instalação (catálogo, opções avançadas, portal, purg
 
 | ID | Tipo | Requisito |
 |----|------|-----------|
-| REQ-SYS-001 | Ubiquitous | O catálogo de módulos deve distinguir núcleo, comercial e ops. |
-| REQ-SYS-002 | Unwanted | Módulos locked não devem ser desligados pela UI. |
-| REQ-SYS-003 | Event-driven | Quando um módulo muda, rotas protegidas por requireModule devem reflectir o novo estado. |
+| REQ-SYS-001 | Ubiquitous | API de features deve respeitar `requireModule` quando o prefixo estiver gated. |
+| REQ-SYS-002 | Unwanted | Módulos locked não podem ser desligados. |
+| REQ-SYS-003 | Event-driven | Quando se activa um módulo, as dependências `requires` devem estar satisfeitas. |
+| REQ-SYS-004 | Ubiquitous | Instalação modules ≠ user flags. |
+| REQ-SYS-005 | Event-driven | Quando módulo disabled, menu e API devem omitir/bloquear. |
+| REQ-SYS-006 | Optional | Portal pode sincronizar DNS/SSL sob roles owner/admin_sql. |
 
 ---
 
 ## 3. Regras de negócio
 
-### RN-SYS-001 — Separação instalação vs flags
+### RN-SYS-001 — Locked always on
 
 ```text
-RN-SYS-001 — Separação instalação vs flags
-Quando: Admin gere menus
-Se: sempre
-Então: Complementos controlam produto; flags controlam menu fino do utilizador
+RN-SYS-001 — Locked always on
+Quando: persistir modules
+Se: módulo locked (core_publish, organization, dispatcher_admin, …)
+Então: enforceLockedModules força enabled
 Excepto: —
-Motivo: Evitar ambiguidade
+Motivo: Núcleo não negociável
 ```
 
-### RN-SYS-002 — Dispatcher locked
+### RN-SYS-002 — Dependências
 
 ```text
-RN-SYS-002 — Dispatcher locked
-Quando: Qualquer mode
-Se: sempre
-Então: dispatcher_admin permanece on
+RN-SYS-002 — Dependências
+Quando: PUT modules
+Se: requires não satisfeitos
+Então: validação falha
 Excepto: —
-Motivo: Operação e suporte
+Motivo: Evitar feature órfã
+```
+
+### RN-SYS-003 — MODULE_DISABLED
+
+```text
+RN-SYS-003 — MODULE_DISABLED
+Quando: request a rota gated
+Se: módulo off
+Então: 403 code=MODULE_DISABLED
+Excepto: rotas núcleo (media/totems/publishers/users)
+Motivo: Enforcement servidor
+```
+
+### RN-SYS-004 — Ortogonal a flags
+
+```text
+RN-SYS-004 — Ortogonal a flags
+Quando: documentar/autorizar
+Se: flag_smart_*
+Então: não substitui installation module
+Excepto: menus que exigem ambos
+Motivo: Dois eixos
+```
+
+### RN-SYS-005 — Roles
+
+```text
+RN-SYS-005 — Roles
+Quando: mutações /api/installation/*
+Se: ∉ owner_system|admin_sql
+Então: 403
+Excepto: —
+Motivo: Mudança de superfície de produto
+```
+
+### RN-SYS-006 — Purge separado
+
+```text
+RN-SYS-006 — Purge separado
+Quando: commercial-purge
+Se: dryRun default / frase de confirmação
+Então: não confundir com disable de módulos
+Excepto: —
+Motivo: Operação destrutiva explícita
 ```
 
 ---
@@ -74,22 +126,26 @@ Motivo: Operação e suporte
 ## 4. Fluxos
 
 ```mermaid
-flowchart LR
-  A[Complementos] --> B[Catálogo]
+flowchart TD
+  A[GET /installation/modules] --> B[UI checklist]
   B --> C[Toggle módulo]
-  C --> D[Persistir settings]
-  D --> E[Gates UI/API]
+  C --> D{requires OK?}
+  D -->|Não| X[Erro validação]
+  D -->|Sim| E{locked?}
+  E -->|Sim off| X2[Bloqueado]
+  E -->|OK| F[PUT modules]
+  F --> G[Menu + API reagem]
 ```
 
 ---
 
 ## 5. Estados
 
-| Estado | Significado | Transições típicas |
-|--------|-------------|--------------------|
-| enabled | módulo on | → disabled |
-| disabled | módulo off / 403 MODULE_DISABLED | → enabled |
-| locked | sempre on | — |
+| Estado módulo | Significado |
+|---------------|-------------|
+| enabled | feature disponível |
+| disabled | menu omitido + API 403 |
+| locked+enabled | permanente |
 
 ---
 
@@ -98,26 +154,44 @@ flowchart LR
 ### AC-SYS-001 (P0)
 
 ```text
-DADO mode lite
-QUANDO chamar GET /api/plans
+DADO campaigns disabled
+QUANDO GET /api/campaigns
 ENTÃO 403 MODULE_DISABLED
 ```
 
 ### AC-SYS-002 (P0)
 
 ```text
-DADO mode off
-QUANDO owner vê Complementos
-ENTÃO pode alternar para lite/full
+DADO tentar desligar dispatcher_admin
+QUANDO PUT modules
+ENTÃO permanece enabled
+```
+
+### AC-SYS-003 (P0)
+
+```text
+DADO activar módulo com requires em falta
+QUANDO PUT
+ENTÃO rejeitado
 ```
 
 ---
 
 ## 7. Dependências e referências
 
-### Módulos relacionados
+### Módulos
 - [`product-modes`](../product-modes/MODULO.md)
+- [`commercial-purge`](../commercial-purge/MODULO.md)
+- [`subscriber-portal`](../subscriber-portal/MODULO.md)
 
-### Referências
-- `docs/manuais/03-MODULOS-E-FORMAS-DE-TRABALHO.md`
-- `docs/manuais/04-MANUAL-ADMINISTRATIVO.md`
+### Código de referência
+- `backend/src/policy/installationModules.ts`
+- `backend/src/middleware/moduleAuth.middleware.ts`
+- `backend/src/routes/installationModules.ts`
+- `frontend/src/utils/installationModuleAccess.ts`
+- `frontend/src/pages/Settings/SystemModules.tsx`
+- `installation_purge_runs` / schedules (schema part2)
+
+### Lacunas conhecidas
+- Precedência toggle individual vs master switch / heal lite precisa disciplina operacional.
+- Comentário confuso em PATH_MODULE_RULES sobre system-modules↔organization.

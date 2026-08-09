@@ -4,10 +4,11 @@
 |-------|-------|
 | **Slug** | `player-apk-settings` |
 | **Modos** | all |
-| **Atores** | owner/admin/técnico (download); admin OTA |
-| **UI** | `/settings aba APK` |
+| **Atores** | designate: owner/admin_sql/admin; download: + operator/operador_tecnico; docs: + publisher/subscriber |
+| **UI** | `/settings` → aba APK (`PlayerApkSettings`) |
 | **API** | `/api/player-apk` |
 | **Status** | active |
+| **Profundidade** | L2 |
 | **Última revisão** | 2026-08-09 |
 
 ---
@@ -15,22 +16,23 @@
 ## 1. Visão e escopo
 
 ### Propósito
-Fonte oficial da versão Android designada, download autenticado e documentação do Player-AD.
+Designar o APK oficial por canal (`production`|`testing`), download autenticado e documentos do Player.
 
 ### Dentro do escopo
-- Versão designada
-- Download
-- Documentos
-- Link OTA
+- GET designated / POST designate
+- Download do APK designado
+- Documentos markdown (`docs/player-apk`)
 
 ### Fora do escopo
-- Compilar APK no servidor
+- Ciclo de vida completo OTA admin (`ota-updates`)
+- Instalação no dispositivo (Player / ADB)
 
 ### Vocabulário
 | Termo | Significado |
 |-------|-------------|
-| player_release_channels | ponteiro da versão oficial |
-| designated | versão de produção/testing |
+| channel | `production` \| `testing` |
+| designation | linha em `player_release_channels` |
+| platform | tipicamente `android` |
 
 ---
 
@@ -38,33 +40,69 @@ Fonte oficial da versão Android designada, download autenticado e documentaçã
 
 | ID | Tipo | Requisito |
 |----|------|-----------|
-| REQ-APK-001 | Ubiquitous | Deve existir no máximo uma designação por plataforma/canal. |
-| REQ-APK-002 | Ubiquitous | Download exige autenticação e role autorizada. |
+| REQ-APK-001 | Ubiquitous | Deve existir no máximo uma designação por (platform, channel). |
+| REQ-APK-002 | Event-driven | Quando se designa um build, o canal deve apontar para esse `ota_updates` id. |
+| REQ-APK-003 | Unwanted | Subscriber não deve descarregar o APK. |
+| REQ-APK-004 | Ubiquitous | Download e docs exigem JWT + role adequada. |
+| REQ-APK-005 | Optional | Canal omitido deve defaultar a `production`. |
 
 ---
 
 ## 3. Regras de negócio
 
-### RN-APK-001 — Activar OTA designa
+### RN-APK-001 — Unicidade canal
 
 ```text
-RN-APK-001 — Activar OTA designa
-Quando: activar update Android
-Se: sempre
-Então: actualiza player_release_channels production
+RN-APK-001 — Unicidade canal
+Quando: designate
+Se: (platform, channel) já existe
+Então: UPSERT substitui designação
 Excepto: —
-Motivo: Fonte única
+Motivo: Uma “oficial” por canal
 ```
 
-### RN-APK-002 — Docs autenticados
+### RN-APK-002 — Download roles
 
 ```text
-RN-APK-002 — Docs autenticados
-Quando: abrir manual via API
-Se: sem JWT
-Então: 401
+RN-APK-002 — Download roles
+Quando: GET /download
+Se: role ∉ DOWNLOAD_ROLES
+Então: 403
 Excepto: —
-Motivo: Não expor docs públicos sem controlo
+Motivo: Binário sensível
+```
+
+### RN-APK-003 — Docs com JWT
+
+```text
+RN-APK-003 — Docs com JWT
+Quando: GET /documents
+Se: autenticado VIEW_ROLES
+Então: servir markdown
+Excepto: anónimo → 401
+Motivo: Docs operacionais internos
+```
+
+### RN-APK-004 — Default production
+
+```text
+RN-APK-004 — Default production
+Quando: channel omitido
+Se: sempre
+Então: production
+Excepto: —
+Motivo: Segurança operacional
+```
+
+### RN-APK-005 — OTA activate espelha
+
+```text
+RN-APK-005 — OTA activate espelha
+Quando: activate OTA Android
+Se: sucesso
+Então: UPSERT player_release_channels production
+Excepto: —
+Motivo: Uma fonte de verdade de build
 ```
 
 ---
@@ -73,17 +111,22 @@ Motivo: Não expor docs públicos sem controlo
 
 ```mermaid
 flowchart TD
-  OTAUpload --> Activate --> Designate --> SettingsAPK --> Download
+  A[Settings APK] --> B[Escolher build/canal]
+  B --> C[POST /designate]
+  C --> D[player_release_channels]
+  D --> E[GET /download]
+  F[OTA activate] --> D
 ```
 
 ---
 
 ## 5. Estados
 
-| Estado | Significado | Transições típicas |
-|--------|-------------|--------------------|
-| no_designation | aviso na UI | → designated |
-| designated | download disponível | → replaced |
+| Estado | Significado |
+|--------|-------------|
+| no_designation | canal sem APK |
+| designated | aponta para ota_updates |
+| replaced | novo designate |
 
 ---
 
@@ -92,27 +135,36 @@ flowchart TD
 ### AC-APK-001 (P0)
 
 ```text
-DADO sem designação
-QUANDO abrir aba APK
-ENTÃO aviso para activar OTA
+DADO admin
+QUANDO designate production
+ENTÃO GET designated?channel=production devolve esse build
 ```
 
 ### AC-APK-002 (P0)
 
 ```text
-DADO subscriber
-QUANDO GET designated
-ENTÃO negado se fora das roles
+DADO subscriber autenticado
+QUANDO GET /download
+ENTÃO 403
+```
+
+### AC-APK-003 (P0)
+
+```text
+DADO operator
+QUANDO GET /download com designation
+ENTÃO recebe APK
 ```
 
 ---
 
 ## 7. Dependências e referências
 
-### Módulos relacionados
-- [`ota-updates`](../ota-updates/MODULO.md)
-- [`settings`](../settings/MODULO.md)
+### Módulos
+- [`ota-updates`](../ota-updates/MODULO.md), [`player-ad`](../player-ad/MODULO.md), [`settings`](../settings/MODULO.md)
 
-### Referências
+### Código de referência
+- `backend/src/routes/player-apk.ts`
+- `frontend/src/components/PlayerApkSettings/PlayerApkSettings.tsx`
+- schema `player_release_channels`
 - `docs/player-apk/`
-- `docs/instalacao/04-PLAYER-AD.md`
