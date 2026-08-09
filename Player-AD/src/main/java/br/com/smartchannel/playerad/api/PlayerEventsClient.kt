@@ -269,12 +269,20 @@ class PlayerEventsClient(
                     return null
                 }
                 response.code == 404 || response.code == 405 -> {
+                    PlayerAdLogger.w(
+                        "EVENT",
+                        "Sync de eventos não suportado (HTTP ${response.code}); usando fallback temporário",
+                    )
                     markCapabilityUnsupported(
                         KEY_SYNC_EVENTS_UNSUPPORTED_UNTIL_MS,
                         System.currentTimeMillis() + CAPABILITY_REPROBE_INTERVAL_MS,
                     )
                 }
                 response.code !in 200..299 -> {
+                    PlayerAdLogger.w(
+                        "EVENT",
+                        "Sync de eventos falhou HTTP ${response.code}: ${response.body.take(300)}",
+                    )
                     retryDelay()
                     return null
                 }
@@ -296,12 +304,20 @@ class PlayerEventsClient(
                 }
                 response.code == 404 || response.code == 405 ||
                     response.code == 415 || response.code == 422 -> {
+                    PlayerAdLogger.w(
+                        "EVENT",
+                        "Batch v2 não suportado (HTTP ${response.code}); usando fallback temporário",
+                    )
                     markCapabilityUnsupported(
                         KEY_BATCH_EVENTS_UNSUPPORTED_UNTIL_MS,
                         System.currentTimeMillis() + CAPABILITY_REPROBE_INTERVAL_MS,
                     )
                 }
                 response.code !in 200..299 -> {
+                    PlayerAdLogger.w(
+                        "EVENT",
+                        "Batch v2 falhou HTTP ${response.code}: ${response.body.take(300)}",
+                    )
                     retryDelay()
                     return null
                 }
@@ -491,10 +507,10 @@ class PlayerEventsClient(
         private const val FLUSH_INTERVAL_MS = 3_000L
         private const val MAX_RETRY_MS = 5 * 60_000L
         private const val KEY_SYNC_EVENTS_UNSUPPORTED_UNTIL_MS =
-            "sync_events_unsupported_until_ms"
+            "sync_events_unsupported_until_ms_v2"
         private const val KEY_BATCH_EVENTS_UNSUPPORTED_UNTIL_MS =
-            "batch_events_unsupported_until_ms"
-        private const val CAPABILITY_REPROBE_INTERVAL_MS = 6L * 60L * 60L * 1000L
+            "batch_events_unsupported_until_ms_v2"
+        private const val CAPABILITY_REPROBE_INTERVAL_MS = 15L * 60L * 1000L
 
         fun parseAck(body: String): Ack {
             val root = runCatching { JSONObject(body) }.getOrElse { JSONObject() }

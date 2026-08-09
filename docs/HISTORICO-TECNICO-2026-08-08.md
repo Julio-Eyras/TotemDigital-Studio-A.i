@@ -1016,9 +1016,9 @@ Implementado e versionado:
 
 - telemetria v2 do commit `bbfbac3a`;
 - integração do commit `b64259d9`;
-- Player-AD `2.06/106`;
+- Player-AD `2.07/107`;
 - backend `2.1.11`;
-- frontend `2.1.16`;
+- frontend `2.1.17`;
 - `POST /api/player/sync` com fallback compatível;
 - ACK unificado e idempotência preservada;
 - `nextMedia` cíclica no evento de início e no estado do card;
@@ -1045,7 +1045,7 @@ Pendente de comprovação operacional prolongada:
 - aplicação e funcionamento do schema v2 em produção;
 - atualização normal do card por eventos, WebSocket e fallback REST após rebuild/restart dos serviços;
 - ausência do crash em observação de longa duração;
-- publicação/deploy do backend `2.1.11` e frontend `2.1.16`;
+- publicação/deploy do backend `2.1.11`, frontend `2.1.17` e Player-AD `2.07/107`;
 - nova confirmação online após expirar o rate limit temporário de 900 segundos;
 - retenção real em escala.
 
@@ -1103,3 +1103,30 @@ Requisitos de evolução foram registrados em
 `docs/websocket-nginx-unexpected-response-200.md`: comparar cookie seguro e
 ticket descartável, definir revogação, CSRF, múltiplos ambientes, migração,
 testes, métricas e rollback antes de qualquer implementação.
+
+## 22. Estado conectado sem atualização do card
+
+Após a correção de `/api/ws` para `/ws`, o card passou a indicar conexão
+WebSocket, mas podia permanecer em uma mídia antiga. A análise encontrou duas
+lacunas de recuperação:
+
+- com o WebSocket conectado, o frontend interrompia completamente a
+  reconciliação REST, portanto uma assinatura recusada ou broadcast perdido
+  mantinha o último estado indefinidamente;
+- o Player-AD persistia por seis horas a conclusão de que `/api/player/sync` e
+  `/api/player/events/batch` não eram suportados. Isso podia ocorrer quando o
+  APK era instalado antes do backend novo. Durante esse período usava o evento
+  legado, que não contém todos os campos exigidos pelo card.
+
+Correções:
+
+- frontend `2.1.17`: mantém WebSocket como via imediata e reconcilia por REST a
+  cada 15 segundos somente para os cards sob observação;
+- Player-AD `2.07/107`: invalida o cooldown antigo, reduz a revalidação de
+  capacidade para 15 minutos e registra código/resposta de falhas HTTP dos
+  endpoints modernos;
+- desconectado, o frontend mantém o fallback REST de 10 segundos.
+
+Essa estratégia preserva baixo tráfego: não existe polling dos cards sem
+cursor/observação, e uma atualização WebSocket continua aparecendo
+imediatamente.

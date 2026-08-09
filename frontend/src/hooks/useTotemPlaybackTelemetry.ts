@@ -5,6 +5,7 @@ import { normalizePlaybackState, TotemPlaybackState } from '../utils/playbackTel
 const HOVER_DEBOUNCE_MS = 250;
 const UNSUBSCRIBE_GRACE_MS = 900;
 const REST_FALLBACK_INTERVAL_MS = 10_000;
+const REST_RECONCILIATION_INTERVAL_MS = 15_000;
 
 export type PlaybackConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 
@@ -107,12 +108,15 @@ export function useTotemPlaybackTelemetry() {
   }, [send]);
 
   useEffect(() => {
-    if (connectionStatus === 'connected') return undefined;
     const refreshDesired = () => {
       desiredRef.current.forEach((totemId) => void fetchState(totemId));
     };
     refreshDesired();
-    const timer = window.setInterval(refreshDesired, REST_FALLBACK_INTERVAL_MS);
+    const intervalMs =
+      connectionStatus === 'connected'
+        ? REST_RECONCILIATION_INTERVAL_MS
+        : REST_FALLBACK_INTERVAL_MS;
+    const timer = window.setInterval(refreshDesired, intervalMs);
     return () => window.clearInterval(timer);
   }, [connectionStatus, fetchState]);
 
