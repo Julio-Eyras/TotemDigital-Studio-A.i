@@ -1273,3 +1273,18 @@ Versões desta correção:
 - backend `2.1.15`;
 - Player-AD `2.11/111`;
 - frontend permanece `2.1.20`.
+
+## 29. Painel expansível de diagnóstico ao vivo
+
+A observação temporária deixou de mostrar apenas o horário da última amostra.
+Enquanto o lease estiver ativo, o card oferece **Exibir métricas** e apresenta:
+
+- reprodução e ExoPlayer: estado, posição, buffer, mídia, plano e tela;
+- saúde: heap, armazenamento livre, cache utilizado e mídias válidas;
+- dispositivo/configuração: plataforma, Device ID, rotação, kiosk, heartbeat e
+  relógio reportado pelo TV Box.
+
+O painel abre automaticamente ao iniciar/renovar o diagnóstico, pode ser
+recolhido sem interromper a coleta e desaparece ao encerrar o lease.
+
+Versão frontend: `2.1.21`.
