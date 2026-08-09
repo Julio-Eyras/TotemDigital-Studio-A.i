@@ -2,10 +2,14 @@
 
 **Data:** 2026-08-03  
 **Repo:** https://github.com/Julio-Eyras/TotemDigital-Studio.git  
-**Branch de referência:** `TotemDigital-MultiAgencia`  
+**Branch de referência:** `main`  
 **Público:** instalação, operação, administração e desenvolvimento
 
 Esta pasta é o **ponto de entrada** da documentação de produto e operação. Os documentos abaixo descrevem o sistema **como está** (Direct Totem · Multi Lite · Multi Pro), instalação, módulos, fluxos e o modelo técnico (E.R. + API).
+
+**Baseline operacional:** Frontend `2.1.17` · Backend `2.1.11` · Player-AD
+`2.07` (build `107`) · commit funcional validado `4bc88462`. A linha foi
+promovida de `TotemDigital-MultiAgencia` para `main`.
 
 ---
 

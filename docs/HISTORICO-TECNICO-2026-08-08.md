@@ -1034,19 +1034,21 @@ Implementado e versionado:
 
 Publicação e implantação:
 
-- commit `b64259d9` enviado para `origin/TotemDigital-MultiAgencia`;
+- commit operacional `4bc88462` enviado para `origin/TotemDigital-MultiAgencia`;
 - APK `2.05/105` instalado no rollout inicial;
 - APK hotfix `2.06/106` compilado, instalado e iniciado na TV Box por ADB;
-- checkout do VPS atualizado por fast-forward de `bbfbac3a` para `b64259d9`;
-- `manage.sh` e `validacao-sistema-*.txt` permaneceram locais e não rastreados.
+- APK operacional `2.07/107` compilado, instalado e iniciado na TV Box por ADB;
+- frontend `2.1.17` e backend `2.1.11` implantados em produção;
+- `manage.sh` e `scripts/instalar.sh` incorporados ao repositório no commit
+  `a7c33b91`;
+- linha operacional aprovada para promoção de
+  `TotemDigital-MultiAgencia` para `main` no repositório principal.
 
 Pendente de comprovação operacional prolongada:
 
 - aplicação e funcionamento do schema v2 em produção;
-- atualização normal do card por eventos, WebSocket e fallback REST após rebuild/restart dos serviços;
+- observação prolongada de escala e retenção;
 - ausência do crash em observação de longa duração;
-- publicação/deploy do backend `2.1.11`, frontend `2.1.17` e Player-AD `2.07/107`;
-- nova confirmação online após expirar o rate limit temporário de 900 segundos;
 - retenção real em escala.
 
 Ainda sujeito a implementação e gates:
@@ -1130,3 +1132,27 @@ Correções:
 Essa estratégia preserva baixo tráfego: não existe polling dos cards sem
 cursor/observação, e uma atualização WebSocket continua aparecendo
 imediatamente.
+
+## 23. Baseline operacional aprovado
+
+Em 9 de agosto de 2026, a combinação abaixo foi validada como operacional:
+
+- frontend `2.1.17`;
+- backend `2.1.11`;
+- Player-AD `2.07`, build `107`;
+- código funcional no commit `4bc88462`;
+- origem da promoção: `origin/TotemDigital-MultiAgencia`;
+- destino canônico: `origin/main`.
+
+Evidências observadas:
+
+- WebSocket conectado em `/ws`;
+- card avançando mídia atual, duração, progresso e próxima mídia;
+- reconciliação REST ativa apenas durante observação do card;
+- agenda desligando a tela no horário configurado;
+- ao entrar no período off, a reprodução encerra e deixa de avançar mídias;
+- APK `2.07/107` instalado e iniciado na TV Box de referência.
+
+Melhoria pós-baseline, sem bloquear a promoção: manter heartbeat reduzido no
+modo off e apresentar no card o estado explícito “Tela desligada por agenda”,
+com relógio extrapolado a partir do último heartbeat.

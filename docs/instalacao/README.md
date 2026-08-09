@@ -3,8 +3,22 @@
 Documentação de referência para instalar, atualizar, reparar, apagar e recuperar o TotemDigital nas modalidades suportadas pelo repositório.
 
 **Script oficial do servidor:** `scripts/Instala-TotemDigital-Server.sh`  
-**Branch usada nos exemplos:** `TotemDigital-MultiAgencia`  
+**Branch operacional principal:** `main`  
 **Executar como:** utilizador normal com acesso a `sudo` (não iniciar com `sudo bash`)
+
+## Baseline operacional
+
+```text
+Frontend:  2.1.17
+Backend:   2.1.11
+Player-AD: 2.07 (build 107)
+Commit funcional validado: 4bc88462
+Origem da promoção: TotemDigital-MultiAgencia
+Destino: main
+```
+
+Instalações novas e atualizações devem usar `main`. A branch
+`TotemDigital-MultiAgencia` permanece como origem histórica da promoção.
 
 ## Escolha o procedimento
 

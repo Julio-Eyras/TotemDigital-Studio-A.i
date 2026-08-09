@@ -1,6 +1,6 @@
 # Organização de branches e repositórios
 
-**Atualizado:** 2026-07-30  
+**Atualizado:** 2026-08-09  
 **Âmbito:** produto TotemDigital / SmartSignage (modo compact + direct-totem)
 
 Este documento define **onde** o código vive, **qual branch** é a de trabalho actual e como organizar branches novas sem misturar remotes legados.
@@ -32,7 +32,10 @@ Há **dois** remotes configurados no clone local. O de leitura/gravação do dia
 
 - **Ler e gravar** (commit + push + deploy): sempre `origin` + branch de trabalho actual.
 - O remote `totemdigital` serve para **consulta**, cherry-pick pontual ou comparação histórica — **não** é o destino padrão de push desta fase.
-- `origin/HEAD` aponta para `SmartSignage-direc-totem` (default do remoto Studio).
+- `origin/main` é a linha operacional canônica a partir da promoção do
+  baseline `4bc88462`.
+- `TotemDigital-MultiAgencia` permanece como branch de origem e histórico da
+  promoção.
 
 ```bash
 # Confirmar
@@ -47,23 +50,28 @@ git status -sb
 
 | Item | Valor |
 |------|--------|
-| Branch activa | **`SmartSignage-direc-totem`** |
-| Tracking | `origin/SmartSignage-direc-totem` |
-| Produto | Painel + API compact, install HTTPS 443, Player-AD, direct-totem |
+| Branch operacional | **`main`** |
+| Tracking | `origin/main` |
+| Origem da promoção | `origin/TotemDigital-MultiAgencia` |
+| Baseline funcional | `4bc88462` |
+| Versões | Frontend `2.1.17` · Backend `2.1.11` · Player-AD `2.07/107` |
+| Produto | Direct Totem · Multi Lite · Multi Pro · Player-AD |
 
-Todo o desenvolvimento recente (install produção, HTTPS, Player-AD anti-flick, mix dispatch, UI Editar totem) está nesta branch neste repositório.
+Novas correções de produção devem partir de `main`. A branch
+`TotemDigital-MultiAgencia` preserva a linha que originou esta promoção.
 
 ### Comandos habituais
 
 ```bash
 cd C:\TotemDigital-Studio
-git checkout SmartSignage-direc-totem
-git pull origin SmartSignage-direc-totem
+git checkout main
+git pull --ff-only origin main
 # …alterações, commit…
-git push origin SmartSignage-direc-totem
+git push origin main
 ```
 
-No servidor de produção/staging, o deploy deve fazer `git pull` **desta** branch no clone que aponta para **TotemDigital-Studio** (`origin`), não para o repo legado por engano.
+No servidor de produção/staging, o deploy deve fazer `git pull` de `origin/main`
+no clone que aponta para **TotemDigital-Studio**, não para o repositório legado.
 
 ---
 
@@ -73,18 +81,20 @@ Nomes observados nos remotes — usar como referência, não como lista obrigat�
 
 | Prefixo / nome | Onde costuma viver | Ideia |
 |----------------|--------------------|--------|
-| `SmartSignage-direc-totem` | **Studio (`origin`)** | Linha actual compact + totem directo |
+| `main` | **Studio (`origin`)** | Linha operacional canônica |
+| `TotemDigital-MultiAgencia` | **Studio (`origin`)** | Origem histórica da promoção de 2026-08-09 |
+| `SmartSignage-direc-totem` | **Studio (`origin`)** | Linha anterior compact + totem direto |
 | `Instala-TotemDigital-Server.sh` | `scripts/` no Studio | Instalador oficial servidor (menu PT) |
 | `Smart-Signage-Studio-V3x` / `Vx4` / `Vx5` | Legado (`totemdigital`) | Gerações Studio anteriores |
 | `Totem-Digital-V3x` | Legado | Linha Totem Digital clássica |
-| `main` | Legado (`totemdigital`) | Default histórico do repo antigo |
+| `main` | Legado (`totemdigital`) | Branch homônima no repo antigo; não confundir com `origin/main` |
 | `feature/…`, `ajuste_…`, `novo_…` | Legado / ad-hoc | Trabalho pontual; preferir nomes abaixo |
 
 ---
 
 ## 5. Convenção para branches novas
 
-Criar a partir da branch de trabalho actual (`SmartSignage-direc-totem`), nunca “no ar” a partir de um remote errado.
+Criar a partir da branch operacional `main`, nunca a partir de um remote errado.
 
 | Tipo | Padrão | Exemplo |
 |------|--------|---------|
@@ -97,9 +107,9 @@ Criar a partir da branch de trabalho actual (`SmartSignage-direc-totem`), nunca 
 ### Boas práticas
 
 1. Uma intenção por branch (evitar misturar install + UI + schema no mesmo PR sem necessidade).
-2. Merge (ou fast-forward) de volta para `SmartSignage-direc-totem` após revisão.
+2. Merge (ou fast-forward) de volta para `main` após revisão.
 3. Push só para `origin` salvo pedido explícito para espelhar no legado.
-4. Não force-push em `SmartSignage-direc-totem` / `main` sem acordo explícito.
+4. Não force-push em `main` ou nas branches históricas de release.
 5. Commits: mensagens curtas no estilo já usado (`fix(…):`, `feat(…):`, `docs:`).
 
 ---
@@ -110,7 +120,7 @@ Criar a partir da branch de trabalho actual (`SmartSignage-direc-totem`), nunca 
 C:\TotemDigital-Studio
         │
         ▼
-  branch SmartSignage-direc-totem
+         branch main
         │
         ├─► commit local
         │
@@ -122,12 +132,12 @@ C:\TotemDigital-Studio
 Para uma tarefa isolada:
 
 ```bash
-git checkout SmartSignage-direc-totem
-git pull origin SmartSignage-direc-totem
+git checkout main
+git pull --ff-only origin main
 git checkout -b fix/meu-tema
 # …trabalho…
 git push -u origin fix/meu-tema
-# PR → SmartSignage-direc-totem (quando usar PR)
+# PR → main (quando usar PR)
 ```
 
 ---
@@ -138,8 +148,8 @@ Antes de commit/push ou de orientar outra IA/pessoa:
 
 - [ ] Pasta = `C:\TotemDigital-Studio` (ou clone equivalente do **TotemDigital-Studio**)
 - [ ] `git remote get-url origin` → `…/TotemDigital-Studio.git`
-- [ ] Branch = `SmartSignage-direc-totem` (ou feature criada a partir dela)
-- [ ] `git status -sb` mostra tracking `origin/SmartSignage-direc-totem` (ou a feature no `origin`)
+- [ ] Branch = `main` (ou feature criada a partir dela)
+- [ ] `git status -sb` mostra tracking `origin/main` (ou a feature no `origin`)
 - [ ] Não fazer push por default para o remote `totemdigital`
 
 ---
@@ -156,4 +166,6 @@ Antes de commit/push ou de orientar outra IA/pessoa:
 
 ## 9. Resumo numa frase
 
-**Trabalhamos em `C:\TotemDigital-Studio`, branch `SmartSignage-direc-totem`, lendo e gravando em `origin` → `Julio-Eyras/TotemDigital-Studio`; o remote `totemdigital` (repo antigo) é só referência histórica.**
+**Trabalhamos em `C:\TotemDigital-Studio`, branch operacional `main`, lendo e
+gravando em `origin` → `Julio-Eyras/TotemDigital-Studio`; o remote
+`totemdigital` (repo antigo) é somente referência histórica.**

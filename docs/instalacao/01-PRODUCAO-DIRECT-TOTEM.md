@@ -5,7 +5,7 @@ Sequência de comandos para produção com perfil compacto, Direct Totem, Nginx 
 ## Valores esperados
 
 ```text
-Branch: TotemDigital-MultiAgencia
+Branch: main
 Clone: ~/TotemDigital-Studio
 Deploy: /opt/smart-signage
 BD: smartsignage
@@ -42,7 +42,7 @@ sudo -v
 
 ```bash
 cd ~
-git clone --branch TotemDigital-MultiAgencia \
+git clone --branch main \
   https://github.com/Julio-Eyras/TotemDigital-Studio.git \
   TotemDigital-Studio
 cd ~/TotemDigital-Studio
@@ -54,8 +54,8 @@ git status -sb
 ```bash
 cd ~/TotemDigital-Studio
 git fetch origin
-git checkout TotemDigital-MultiAgencia
-git pull --ff-only origin TotemDigital-MultiAgencia
+git checkout main
+git pull --ff-only origin main
 git status -sb
 git log -1 --oneline
 ```
@@ -64,7 +64,7 @@ git log -1 --oneline
 
 ```bash
 cd ~/TotemDigital-Studio
-export TDI_GIT_BRANCH=TotemDigital-MultiAgencia
+export TDI_GIT_BRANCH=main
 
 bash scripts/Instala-TotemDigital-Server.sh \
   --modo producao \
@@ -83,7 +83,7 @@ bash scripts/Instala-TotemDigital-Server.sh \
 
 ```bash
 cd ~/TotemDigital-Studio
-export TDI_GIT_BRANCH=TotemDigital-MultiAgencia
+export TDI_GIT_BRANCH=main
 
 bash scripts/Instala-TotemDigital-Server.sh \
   --modo producao \
@@ -131,10 +131,10 @@ Guarde o diretório informado pelo script.
 ```bash
 cd ~/TotemDigital-Studio
 git fetch origin
-git checkout TotemDigital-MultiAgencia
-git pull --ff-only origin TotemDigital-MultiAgencia
+git checkout main
+git pull --ff-only origin main
 
-export TDI_GIT_BRANCH=TotemDigital-MultiAgencia
+export TDI_GIT_BRANCH=main
 
 bash scripts/Instala-TotemDigital-Server.sh \
   --modo atualizar \
@@ -164,6 +164,16 @@ git -C ~/TotemDigital-Studio branch --show-current
 git -C ~/TotemDigital-Studio log -1 --oneline
 
 sudo ls -la /opt/smart-signage/public/assets/uploads
+```
+
+Baseline esperado:
+
+```text
+Branch:    main
+Frontend:  2.1.17
+Backend:   2.1.11
+Player-AD: 2.07 / 107
+Commit funcional de origem: 4bc88462
 ```
 
 URLs:

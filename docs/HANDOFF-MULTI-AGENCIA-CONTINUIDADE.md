@@ -265,11 +265,11 @@ Com Portal `off`, o multi-agência funciona no host único `dev.totemdigital.app
 |------------|------|
 | Alta | Completar checklist L2 no VPS (`PLANO-TESTES` V01–V10): Pro/lite/off, seed, portal se aplicável, JWT mismatch |
 | Alta | Para **billing/contratos/OTA/dispatcher**: modo **Pro**. Lite já inclui anunciantes + publicar. |
-| Alta | Garantir que `~/TotemDigital-Studio-dev` e multiagencia estão em `TotemDigital-MultiAgencia` com pull pós-`bcecb077` |
+| Alta | Alinhar produção, DEV e TESTE com `origin/main` após a promoção operacional |
 | Média | Estender harness L0 a asserts de `mode lite` + rotas purge (hoje cobre sobretudo docs/presets) |
 | Média | L1 (Docker/WSL + Postgres) se quiserem CI sem VPS |
 | Baixa | UX Portal (defaults `dev.…` pré-preenchidos); 2FA no purge |
-| Produto | Critérios para promover MultiAgência → branch de release / merge política com Direct Totem |
+| Produto | Definir ciclo de releases e hotfixes a partir de `main` |
 
 **Não fazer sem alinhamento:** misturar menus Pro+Direct; ligar purge ao OFF; migrations ad-hoc fora do schema definitivo; alterar produção pelo instalador `dev`.
 
@@ -320,7 +320,7 @@ Com Portal `off`, o multi-agência funciona no host único `dev.totemdigital.app
 ## 10. Prompt sugerido para a próxima IA
 
 ```text
-Continua o trabalho na branch TotemDigital-MultiAgencia do repo TotemDigital-Studio.
+Continua o trabalho na branch main do repo TotemDigital-Studio.
 Lê primeiro docs/HANDOFF-MULTI-AGENCIA-CONTINUIDADE.md e docs/manuais/README.md.
 Respeita decisões A/B/C e D1–D6; schema definitivo; não misturar installation.modules com flag_smart_*.
 Lite: anunciantes + SPA (sem plans/contracts); Pro: ERP completo.
@@ -340,4 +340,20 @@ Objectivo imediato: [descrever tarefa]. Respostas em português.
 - [ ] Portal off OK; wildcard opcional documentado  
 - [ ] Branch remota actualizada; este handoff reflecte HEAD  
 
-*Última actualização de conteúdo alinhada aos commits até `bcecb077` (fix wipe password) e `60564d27` (purge + lite).*
+## 12. Snapshot operacional promovido
+
+```text
+Data:      2026-08-09
+Frontend:  2.1.17
+Backend:   2.1.11
+Player-AD: 2.07 (build 107)
+Commit funcional validado: 4bc88462
+Origem:    origin/TotemDigital-MultiAgencia
+Destino:   origin/main
+```
+
+Este snapshot foi validado em produção com WebSocket `/ws`, estado de
+reprodução em tempo real, fallback REST, agenda de tela e Player-AD instalado
+por ADB. `main` passa a ser a origem para novas branches e deploys.
+
+*Última atualização alinhada ao baseline operacional de 2026-08-09.*
