@@ -28,7 +28,7 @@ describe('RemoteCommandService delivery lease', () => {
     mockExecuteRaw.mockReset();
   });
 
-  it('reserva pending e permite reentrega de sent expirado', async () => {
+  it('reserva pending e limita reentrega a comandos idempotentes', async () => {
     mockExecuteRaw.mockResolvedValueOnce({
       rows: [{
         command_id: 7,
@@ -47,6 +47,9 @@ describe('RemoteCommandService delivery lease', () => {
       [2, 10],
     );
     expect(mockExecuteRaw.mock.calls[0][0]).toContain('retry_count < 3');
+    expect(mockExecuteRaw.mock.calls[0][0]).toContain("'refresh_dispatch'");
+    expect(mockExecuteRaw.mock.calls[0][0]).not.toContain("'reboot'");
+    expect(mockExecuteRaw.mock.calls[0][0]).not.toContain("'restart_app'");
     expect(commands).toHaveLength(1);
     expect(commands[0]).toMatchObject({ id: 7, commandType: 'sync_now' });
   });

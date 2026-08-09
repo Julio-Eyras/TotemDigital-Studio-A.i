@@ -10,8 +10,8 @@ Projeto: Player-AD/
 APK release: Player-AD/build/outputs/apk/release/Player-AD-release.apk
 Cópia pendrive: install-pendrive/apk/Player-AD-release.apk
 Config externa: /sdcard/smartsignage/player-config.json
-Versão operacional: 2.10
-Build operacional: 110
+Versão operacional: 2.11
+Build operacional: 111
 ```
 
 ## 2. Pré-requisitos no Windows
@@ -141,8 +141,8 @@ adb logcat -d -s Player-AD:I *:S
 Esperado para a TV Box de referência:
 
 ```text
-versionName=2.10
-versionCode=110
+versionName=2.11
+versionCode=111
 accelerometer_rotation=0
 Player-AD inicia em MainActivity
 heartbeat e dispatch respondem

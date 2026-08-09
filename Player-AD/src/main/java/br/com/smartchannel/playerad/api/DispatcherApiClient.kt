@@ -476,7 +476,13 @@ class DispatcherApiClient(
         }
         if (code == 401) {
             tkn = getToken()
-            postOnce(tkn)
+            code = postOnce(tkn)
+        }
+        if (code !in 200..299) {
+            throw ApiHttpException(
+                code = code,
+                message = "ACK de comando falhou (HTTP $code)",
+            )
         }
         tkn
     }

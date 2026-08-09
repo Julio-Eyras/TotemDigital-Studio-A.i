@@ -1246,3 +1246,30 @@ Versões desta entrega:
 - frontend `2.1.20`;
 - backend `2.1.14`;
 - Player-AD `2.10/110`.
+
+## 28. Proteção contra reboot repetido e transição vídeo-vídeo
+
+Após instalar o Player-AD `2.10`, o TV Box apresentou reinicializações completas:
+o ADB desaparecia, o Android reiniciava e o Player voltava como aplicação HOME.
+A revisão identificou que a reentrega por lease não distinguia comandos
+idempotentes de comandos destrutivos.
+
+A correção aplica três barreiras:
+
+- o backend só reentrega automaticamente comandos idempotentes de sincronização
+  e estado de tela; `restart`, `reboot`, configuração, purge e invalidações são
+  entregues no máximo uma vez;
+- o Player persiste em disco o ID de comandos destrutivos **antes** do efeito,
+  impedindo nova execução após reboot, restart do processo ou remount;
+- o ACK de comando agora exige resposta HTTP 2xx; falhas deixam de ser tratadas
+  silenciosamente como sucesso.
+
+Na troca entre vídeos distintos, o `PlayerView` passou a conservar o último
+frame durante `setMediaItem/prepare`. O véu preto continua disponível para
+trocas entre tipos diferentes, mas não cobre mais a preparação vídeo→vídeo.
+
+Versões desta correção:
+
+- backend `2.1.15`;
+- Player-AD `2.11/111`;
+- frontend permanece `2.1.20`.

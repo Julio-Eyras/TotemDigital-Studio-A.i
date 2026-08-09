@@ -160,8 +160,10 @@ export class RemoteCommandService {
   }
 
   /**
-   * Reserva comandos pendentes por uma janela de entrega. Comandos enviados
-   * sem confirmação voltam a ser elegíveis após 60s, até três reentregas.
+   * Reserva comandos pendentes por uma janela de entrega. Somente operações
+   * comprovadamente idempotentes voltam a ser elegíveis sem confirmação.
+   * Restart, reboot, config, purge e invalidações nunca são reexecutados
+   * automaticamente: perder um ACK é menos grave que repetir seu efeito.
    */
   async claimPendingCommands(totemId: number, limit: number = 10): Promise<RemoteCommand[]> {
     try {
@@ -182,6 +184,11 @@ export class RemoteCommandService {
                 status = 'sent'
                 AND sent_at < CURRENT_TIMESTAMP - INTERVAL '60 seconds'
                 AND retry_count < 3
+                AND command_type IN (
+                  'refresh_dispatch', 'sync_now', 'content_version_check',
+                  'display_force_on', 'display_force_off', 'display_force_clear',
+                  'ping'
+                )
               )
             )
           ORDER BY created_at ASC
@@ -224,6 +231,11 @@ export class RemoteCommandService {
               status = 'sent'
               AND sent_at < CURRENT_TIMESTAMP - INTERVAL '60 seconds'
               AND retry_count < 3
+              AND command_type IN (
+                'refresh_dispatch', 'sync_now', 'content_version_check',
+                'display_force_on', 'display_force_off', 'display_force_clear',
+                'ping'
+              )
             )
           )
         ORDER BY created_at ASC

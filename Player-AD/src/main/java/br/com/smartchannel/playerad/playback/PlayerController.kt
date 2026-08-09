@@ -58,6 +58,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.LinkedHashSet
 import java.util.Locale
 import java.util.UUID
 import kotlin.system.exitProcess
@@ -237,7 +238,17 @@ class PlayerController(
     private lateinit var eventsClient: PlayerEventsClient
     private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val remoteCommandMutex = Mutex()
-    private val processedRemoteCommandIds = linkedSetOf<String>()
+    private val remoteCommandReceiptPrefs = context.applicationContext.getSharedPreferences(
+        REMOTE_COMMAND_RECEIPTS_PREFS,
+        Context.MODE_PRIVATE,
+    )
+    private val processedRemoteCommandIds = linkedSetOf<String>().apply {
+        addAll(
+            remoteCommandReceiptPrefs
+                .getStringSet(KEY_PROCESSED_REMOTE_COMMAND_IDS, emptySet())
+                .orEmpty(),
+        )
+    }
 
     private data class TelemetrySession(
         val id: String,
@@ -348,6 +359,9 @@ class PlayerController(
      */
     suspend fun start() {
         HtmlWebViewPlayback.configure(htmlWebView)
+        // Mantém o último frame durante setMediaItem/prepare do vídeo seguinte.
+        // Evita que o shutter preto transforme o tempo de decoder em um "flick".
+        playerView.setKeepContentOnPlayerReset(true)
         displaySchedule = DisplayScheduleStore.load(context)
         eventsClient = PlayerEventsClient(
             context = context,
@@ -1543,10 +1557,18 @@ class PlayerController(
                 continue
             }
             var executed = false
+            val receiptBeforeExecution = type in NON_RETRYABLE_REMOTE_COMMAND_TYPES
             try {
+                // Reboot/restart pode encerrar o processo antes de devolver o resultado.
+                // Grave o recibo em disco antes do efeito para garantir at-most-once.
+                if (receiptBeforeExecution) {
+                    rememberProcessedCommand(cmd.id)
+                }
                 val result = executeRemoteCommand(type, cmd.data)
                 executed = true
-                rememberProcessedCommand(cmd.id)
+                if (!receiptBeforeExecution) {
+                    rememberProcessedCommand(cmd.id)
+                }
                 token = apiClient.reportCommandResult(
                     token = token,
                     requestId = cmd.id,
@@ -1614,6 +1636,13 @@ class PlayerController(
             val oldest = processedRemoteCommandIds.firstOrNull() ?: break
             processedRemoteCommandIds.remove(oldest)
         }
+        // commit síncrono: reboot/reset_board pode finalizar o processo imediatamente.
+        remoteCommandReceiptPrefs.edit()
+            .putStringSet(
+                KEY_PROCESSED_REMOTE_COMMAND_IDS,
+                LinkedHashSet(processedRemoteCommandIds),
+            )
+            .commit()
     }
 
     private suspend fun executeRemoteCommand(type: String, data: JSONObject?): JSONObject {
@@ -2307,14 +2336,29 @@ class PlayerController(
             else -> MediaItem.fromUri(Uri.parse(item.url))
         }
 
-        // 1) Véu no root  2) esconde imagem  3) prepara com TextureView oculto
+        val preservePreviousVideoFrame =
+            activeVideoMediaId > 0L &&
+                playerView.visibility == View.VISIBLE &&
+                exoPlayer.mediaItemCount > 0
+
+        // Na sequência vídeo→vídeo, o PlayerView conserva o último frame até o
+        // primeiro frame novo. Para outras trocas, o véu continua evitando residual.
         // 4) 1º frame + matrix FIT  5) frames GPU  6) revela — sem reapply pós-reveal.
-        mediaTransitionCover()
+        if (!preservePreviousVideoFrame) {
+            mediaTransitionCover()
+        }
         imageView.visibility = View.GONE
         imageView.setImageDrawable(null)
-        concealPlayerSurface()
-        playerView.setBackgroundColor(Color.BLACK)
-        playerView.setShutterBackgroundColor(Color.BLACK)
+        if (!preservePreviousVideoFrame) {
+            concealPlayerSurface()
+            playerView.setBackgroundColor(Color.BLACK)
+            playerView.setShutterBackgroundColor(Color.BLACK)
+        } else {
+            PlayerAdLogger.i(
+                "PLAYBACK",
+                "Preparando mediaId=${item.mediaId} sobre o último frame do vídeo anterior",
+            )
+        }
         // Mantém VISIBLE (surface viva) mas alpha 0 no TextureView — evita residual.
         playerView.visibility = View.VISIBLE
         detachVideoOrientationListener()
@@ -2351,7 +2395,9 @@ class PlayerController(
         showPlayerSurface()
         playerView.bringToFront()
         mediaTransitionOverlay?.bringToFront()
-        mediaTransitionReveal()
+        if (!preservePreviousVideoFrame) {
+            mediaTransitionReveal()
+        }
         activeVideoMediaId = item.mediaId
         activeVideoContentVersion = item.contentVersion
 
@@ -3349,6 +3395,22 @@ class PlayerController(
         internal const val PLAN_STATE_ACTIVE = "ACTIVE"
         internal const val PLAN_STATE_EMPTY = "EMPTY"
         private const val MAX_PROCESSED_REMOTE_COMMAND_IDS = 200
+        private const val REMOTE_COMMAND_RECEIPTS_PREFS = "remote_command_receipts"
+        private const val KEY_PROCESSED_REMOTE_COMMAND_IDS = "processed_ids"
+        private val NON_RETRYABLE_REMOTE_COMMAND_TYPES = setOf(
+            "restart",
+            "restart_app",
+            "reboot",
+            "reset_board",
+            "config",
+            "apply_player_config",
+            "purge_cache",
+            "invalidate_media",
+            "invalidate_playlist",
+            "invalidate_campaign",
+            "screenshot",
+            "capture_screen",
+        )
 
         internal fun resolvePlanState(response: JSONObject, mediaItemCount: Int): String {
             val payload = response.optJSONObject("data") ?: response
