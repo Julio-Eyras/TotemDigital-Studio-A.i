@@ -96,7 +96,6 @@ class PlayerEventsClient(
     private val sequence = AtomicLong(0)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val inbox = Channel<JSONObject>(Channel.UNLIMITED)
-    private val queueLock = Any()
     private val pending = mutableListOf<JSONObject>()
     private var syncEventsUnsupportedUntilMs =
         prefs.getLong(KEY_SYNC_EVENTS_UNSUPPORTED_UNTIL_MS, 0L)
@@ -207,7 +206,7 @@ class PlayerEventsClient(
 
     private suspend fun persistInbox() {
         for (event in inbox) {
-            synchronized(queueLock) {
+            synchronized(QUEUE_FILE_LOCK) {
                 pending += event
                 trimQueueLocked()
                 rewriteQueueLocked()
@@ -218,7 +217,7 @@ class PlayerEventsClient(
     private suspend fun flushLoop() {
         while (scope.isActive) {
             delay(FLUSH_INTERVAL_MS)
-            val batchSnapshot = synchronized(queueLock) {
+            val batchSnapshot = synchronized(QUEUE_FILE_LOCK) {
                 if (pending.isEmpty()) {
                     null
                 } else {
@@ -233,7 +232,7 @@ class PlayerEventsClient(
             clearExpiredCapabilityCooldowns()
             val response = sendWithCapabilityFallback(firstBoot, batch) ?: continue
             val ack = parseAck(response.body)
-            synchronized(queueLock) {
+            synchronized(QUEUE_FILE_LOCK) {
                 val before = pending.size
                 pending.removeAll { ack.shouldRemove(it, firstBoot) }
                 if (pending.size == before && batch.isNotEmpty()) {
@@ -387,7 +386,7 @@ class PlayerEventsClient(
             }.getOrNull()
             if (response?.code in 200..299) processed += event else break
         }
-        synchronized(queueLock) {
+        synchronized(QUEUE_FILE_LOCK) {
             pending.removeAll(processed)
             rewriteQueueLocked()
         }
@@ -447,7 +446,7 @@ class PlayerEventsClient(
 
     private fun loadQueue() {
         if (!queueFile.exists()) return
-        synchronized(queueLock) {
+        synchronized(QUEUE_FILE_LOCK) {
             queueFile.forEachLine { line ->
                 if (pending.size >= MAX_QUEUE_EVENTS) return@forEachLine
                 runCatching { JSONObject(line) }.getOrNull()?.let { pending += it }
@@ -455,7 +454,7 @@ class PlayerEventsClient(
         }
     }
 
-    /** Chamado somente dentro de [queueLock]. */
+    /** Chamado somente dentro de [QUEUE_FILE_LOCK]. */
     private fun trimQueueLocked() {
         while (pending.size > MAX_QUEUE_EVENTS ||
             pending.sumOf { it.toString().length + 1 } > MAX_QUEUE_BYTES
@@ -464,23 +463,28 @@ class PlayerEventsClient(
         }
     }
 
-    /** Chamado somente dentro de [queueLock] para serializar snapshot e escrita atômica. */
+    /** Chamado somente dentro de [QUEUE_FILE_LOCK] para serializar snapshot e escrita atômica. */
     private fun rewriteQueueLocked() {
         queueFile.parentFile?.mkdirs()
-        val temp = File(queueFile.parentFile, "${queueFile.name}.tmp")
-        temp.bufferedWriter().use { out ->
-            pending.forEach {
-                out.write(it.toString())
-                out.newLine()
+        val temp = File(queueFile.parentFile, "${queueFile.name}.${UUID.randomUUID()}.tmp")
+        try {
+            temp.bufferedWriter().use { out ->
+                pending.forEach {
+                    out.write(it.toString())
+                    out.newLine()
+                }
             }
-        }
-        if (!temp.renameTo(queueFile)) {
-            temp.copyTo(queueFile, overwrite = true)
-            temp.delete()
+            if (!temp.renameTo(queueFile)) {
+                temp.copyTo(queueFile, overwrite = true)
+            }
+        } finally {
+            if (temp.exists()) temp.delete()
         }
     }
 
     companion object {
+        /** Compartilhado por todas as instâncias do cliente no processo. */
+        private val QUEUE_FILE_LOCK = Any()
         const val MAX_BATCH = 50
         const val MAX_QUEUE_EVENTS = 5_000
         const val MAX_QUEUE_BYTES = 5 * 1024 * 1024

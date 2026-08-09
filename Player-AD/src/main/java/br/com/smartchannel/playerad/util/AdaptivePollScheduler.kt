@@ -62,6 +62,11 @@ class AdaptivePollScheduler(
         return nowMs - lastAttemptAtMs >= currentIntervalMs
     }
 
+    fun millisUntilDue(nowMs: Long = System.currentTimeMillis()): Long {
+        if (lastAttemptAtMs <= 0L) return 0L
+        return (currentIntervalMs - (nowMs - lastAttemptAtMs)).coerceAtLeast(0L)
+    }
+
     /** Fora do horário de tela: base maior; ao voltar, acorda. */
     fun setIdleMode(idle: Boolean) {
         if (idleMode == idle) return

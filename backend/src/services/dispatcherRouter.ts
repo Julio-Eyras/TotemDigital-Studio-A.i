@@ -13,6 +13,7 @@ import { getEventLogService, EventType } from './eventLogService';
 import { logError, logDebug } from '../utils/loggerHelper';
 import { validateTotemToken, generateTotemToken } from '../routes/player';
 import { normalizeDeviceId } from '../utils/normalizeDeviceId';
+import { resolveDispatchPlanState } from '../utils/dispatchPlanState';
 import { getPlaybackTelemetryService } from './playbackTelemetryService';
 
 export interface DispatcherRequest {
@@ -473,11 +474,13 @@ class DispatcherRouter {
       const planVersion =
         dispatchResponse.planVersion ||
         (plan ? (await getDispatcherTotemService().rememberPlanVersion(totemId, plan as any)) : null);
+      const planState = resolveDispatchPlanState(plan);
       return {
         success: true,
         data: {
           success: true,
           plan,
+          planState,
           planVersion,
           fromCache: dispatchResponse.fromCache,
           executionTimeMs: dispatchResponse.executionTimeMs,

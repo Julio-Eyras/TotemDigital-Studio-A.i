@@ -15,6 +15,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import br.com.smartchannel.playerad.PlayerAdApplication
 import br.com.smartchannel.playerad.R
+import br.com.smartchannel.playerad.api.ApiHttpException
 import br.com.smartchannel.playerad.api.DispatcherApiClient
 import br.com.smartchannel.playerad.cache.MediaCacheManager
 import br.com.smartchannel.playerad.config.PlayerConfigLoader
@@ -162,6 +163,7 @@ class MainActivity : AppCompatActivity() {
 
         playbackJob = lifecycleScope.launch {
             while (isActive && !devUiOpen) {
+                var restartDelayMs = WATCHDOG_RESTART_DELAY_MS
                 try {
                     val config = PlayerConfigLoader(this@MainActivity).load()
                     ensureStorageRootMigrated()
@@ -207,14 +209,22 @@ class MainActivity : AppCompatActivity() {
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
+                    if (e is ApiHttpException && e.code == 429) {
+                        restartDelayMs = (e.retryAfterSeconds ?: 60L)
+                            .coerceIn(1L, 15L * 60L) * 1000L
+                    }
                     Log.e("Player-AD", "Falha no loop playback/Dispatcher; watchdog tentará reiniciar", e)
-                    PlayerAdLogger.e("WATCHDOG", "Falha no loop playback/Dispatcher; reinício programado", e)
+                    PlayerAdLogger.e(
+                        "WATCHDOG",
+                        "Falha no loop playback/Dispatcher; reinício em ${restartDelayMs}ms",
+                        e,
+                    )
                 } finally {
                     try {
                         exoPlayer.stop()
                     } catch (_: Exception) { }
                 }
-                delay(WATCHDOG_RESTART_DELAY_MS)
+                delay(restartDelayMs)
             }
         }
     }

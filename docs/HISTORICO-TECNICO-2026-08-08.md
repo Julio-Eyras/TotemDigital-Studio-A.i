@@ -15,17 +15,20 @@ Os principais resultados foram:
 
 - eliminação do flicker preto no loop de uma única mídia;
 - retirada de heartbeat, dispatch e telemetria HTTP do caminho crítico entre mídias;
-- Player-AD evoluído de `2.01/101` para `2.04/104`;
+- Player-AD evoluído de `2.01/101` para `2.06/106`;
 - Device ID normalizado com `trim + uppercase` em clientes, API, persistência e comparações;
 - documentação operacional de instalação Direct Totem;
 - identificação e apresentação do modo ativo no frontend;
 - diagnóstico do tráfego do Monitor Dispatcher;
 - telemetria v2 em lote, idempotente e com estado atual por totem;
-- frontend em tempo real via WebSocket, sem transformar hover em comando para o player;
+- frontend em tempo real via WebSocket, com mídia atual, progresso, próxima mídia e estados stale/offline;
+- rota unificada `POST /api/player/sync`, com fallback por capacidade para batch v2 e evento legado;
+- fila persistente de telemetria protegida contra acesso concorrente;
 - decisão de manter HTTP como transporte confiável e condicionar WebSocket/MQTT para dispositivos a gates de escala e operação;
-- crash posterior ainda sem causa confirmada, pois a TV Box não voltou ao ADB após o restart.
+- causa do crash periódico confirmada na fila de telemetria, corrigida em `2.05/105` e reforçada entre múltiplas instâncias em `2.06/106`;
+- commit integrado `b64259d9`, publicado na branch e instalado por ADB na TV Box.
 
-Ao final, a próxima evolução proposta era uma rota compatível `POST /api/player/sync`, inclusão da próxima mídia no estado em tempo real e políticas explícitas de retenção e escala. Essa fase era plano de ação, não parte do commit `bbfbac3a`.
+O commit `bbfbac3a` estabeleceu a telemetria v2. O commit posterior `b64259d9` concluiu o sync unificado, a próxima mídia, as melhorias do card e o hotfix de concorrência. Particionamento/rollup, retenção automatizada e um canal persistente Player ↔ Backend continuam condicionados aos gates de escala e operação.
 
 ## 2. Contexto e objetivos
 
@@ -218,6 +221,26 @@ Backend:   2.1.9
 Frontend:  2.1.13
 ```
 
+### 4.3 Após sync unificado e próxima mídia
+
+Versões entregues no commit `b64259d9`:
+
+```text
+Player-AD: 2.05 (build 105)
+Backend:   2.1.9
+Frontend:  2.1.14
+```
+
+### 4.4 Hotfix do contrato sync
+
+Versões locais após corrigir `knownPlanVersion: null`:
+
+```text
+Player-AD: 2.06 (build 106)
+Backend:   2.1.10
+Frontend:  2.1.14 (sem alteração)
+```
+
 Observação: a versão exibida pelo frontend pode ser substituída por `REACT_APP_VERSION` no build. Portanto, o número visual isolado não prova que os assets estáticos correspondem ao commit esperado.
 
 ## 5. Produção Direct Totem
@@ -317,10 +340,17 @@ git stash push -u -m "backup local antes da atualização"
 Para descartar apenas arquivos conhecidos:
 
 ```bash
-git restore frontend/package.json frontend/package-lock.json
+git restore \
+  database/smartchannel-db-v2-refactored-part18-playback-telemetry.sql \
+  frontend/package-lock.json \
+  frontend/package.json
+
+git pull --ff-only origin TotemDigital-MultiAgencia
 ```
 
 Não executar `git stash pop` automaticamente após atualizar, pois isso pode restaurar versões antigas de arquivos de versão/lock.
+
+No rollout do commit `b64259d9`, esse procedimento liberou o fast-forward de `bbfbac3a` para `b64259d9`. O checkout terminou no commit esperado, permanecendo apenas `manage.sh` e o relatório `validacao-sistema-*.txt` como arquivos locais não rastreados. Esses artefatos não impediram o pull e não devem ser adicionados ao Git automaticamente.
 
 #### Arquivos gerados pelo instalador
 
@@ -528,6 +558,65 @@ Interpretação:
 - lease dependia do heartbeat apenas para diagnóstico detalhado;
 - ausência de estado sugeria backend/schema v2 não aplicado, endpoint batch em fallback ou erro de ingestão.
 
+### 9.5 Evolução integrada — commit `b64259d9`
+
+- `POST /api/player/sync` combina, conforme o payload, heartbeat, eventos e resultados de comandos;
+- processamento evita executar trabalho pesado de heartbeat quando o envelope contém somente eventos;
+- Player-AD usa fallback por capacidade com cooldown e reprobe;
+- `media.play.started` inclui `context.nextMedia` de forma cíclica;
+- frontend normaliza contratos novo e legado;
+- card exibe mídia atual, ID, duração, progresso, horários e próxima mídia;
+- estados stale/offline ficam explícitos;
+- diagnóstico por lease permanece separado do fluxo normal de playback.
+
+### 9.6 Hotfix de compatibilidade e resiliência
+
+O primeiro teste em produção do botão “Testar conectividade” retornou HTTP 400, embora `/api/health` estivesse saudável.
+
+Causa:
+
+- Player-AD enviava `knownPlanVersion: null` quando ainda não conhecia o plano;
+- backend aceitava somente string ou campo ausente;
+- o fallback do sync não se aplicava a HTTP 400.
+
+Correção:
+
+- Player-AD omite `knownPlanVersion` quando vazio;
+- backend `2.1.10` aceita `null` de APKs anteriores e o remove do envelope normalizado;
+- teste unitário cobre explicitamente esse contrato.
+
+O contrato de dispatch também passou a declarar semanticamente:
+
+```json
+{
+  "planState": "ACTIVE|EMPTY",
+  "planVersion": "...",
+  "plan": {
+    "mediaItems": []
+  }
+}
+```
+
+- `ACTIVE` exige ao menos uma mídia;
+- `EMPTY` exige lista vazia e representa decisão autoritativa do servidor;
+- falha HTTP/rede representa estado indisponível e não é convertida em `EMPTY`;
+- resposta 2xx sem `planState` continua compatível somente se possuir uma lista de mídias legada válida;
+- resposta malformada, sem estado e sem lista, é rejeitada antes de substituir o último plano persistido.
+
+Durante a validação ADB, também foram corrigidos:
+
+- lock da fila elevado para compartilhamento entre todas as instâncias do cliente no processo;
+- arquivo temporário da fila passou a ter nome único;
+- plano vazio online passa ao estado explícito `EMPTY_PLAN`;
+- em `EMPTY_PLAN`, não há releitura recorrente do plano persistido nem busca de fallback local;
+- dispatch de segurança fica suspenso e somente `needsDispatch` recebido no heartbeat autoriza nova busca;
+- o estado termina apenas quando o novo dispatch indicado pelo heartbeat contém mídia;
+- HTTP 429 agora respeita `retryAfterSeconds`, limitado a 15 minutos.
+
+O log confirmou heartbeat via sync como `OK`. Após o excesso de tentativas anterior, o servidor respondeu temporariamente 429/900 segundos; o Player-AD `2.06/106` fez somente uma tentativa e programou o próximo ciclo para 900000 ms, sem novo crash.
+
+A versão final com validação semântica de `planState` foi compilada e testada. A reinstalação desse último APK ficou pendente porque a TV Box deixou de aparecer em `adb devices`; uma compilação anterior de `2.06/106` permanece instalada.
+
 ## 10. WebSocket, MQTT e decisão arquitetural
 
 ### 10.1 Estado atual
@@ -580,28 +669,38 @@ Direção:
 - MQTT QoS 1 para milhares de totens, múltiplas regiões e reentrega;
 - mesmo contrato lógico entre HTTP, WebSocket e MQTT.
 
-## 11. Crash sem diagnóstico conclusivo
+## 11. Crash periódico do Player-AD
 
-Após instalar `2.04/104`, houve relato de crash e restart manual.
+Após instalar `2.04/104`, houve relato de crash periódico. A investigação posterior encontrou:
 
-Tentativas de coleta:
+```text
+java.util.ConcurrentModificationException
+br.com.smartchannel.playerad.api.PlayerEventsClient.rewriteQueue()
+```
 
-- `adb logcat -b crash`;
-- busca por `FATAL EXCEPTION`, `AndroidRuntime`, OOM e ANR;
-- logs próprios do Player-AD;
-- espera de reconexão por 75 segundos.
+Causa:
 
-Resultado:
+- `persistInbox()` adicionava eventos à lista `pending` e reescrevia o JSONL;
+- `flushLoop()` e `flushLegacy()` removiam eventos e reescreviam o mesmo arquivo;
+- essas corrotinas operavam simultaneamente sobre a mesma `MutableList`;
+- `rewriteQueue()` podia iterar enquanto outra coroutine alterava a coleção.
 
-- TV Box não reapareceu em `adb devices`;
-- os coletores ficaram sem dispositivo;
-- não há stack trace, DropBox ou evidência suficiente para atribuir causa.
+Hotfix incorporado ao Player-AD `2.05/105`:
 
-Estado correto:
+- `queueLock` serializa leitura, mutação e snapshot da fila;
+- operações de rede continuam fora do lock;
+- fallback legado acumula os itens processados e os remove atomicamente ao final;
+- gravação do arquivo temporário e troca do JSONL ocorrem dentro da mesma seção crítica.
 
-> Crash aberto e sem causa confirmada. Não associar automaticamente à fila de telemetria, WebSocket ou outro componente sem logs.
+Validação:
 
-Próxima coleta deve incluir:
+- `testDebugUnitTest`: aprovado;
+- `assembleRelease`: aprovado;
+- APK instalado com sucesso por ADB na TV Box;
+- aplicativo iniciado;
+- nenhum `AndroidRuntime`/`PlayerAd:E` observado na verificação inicial de 45 segundos.
+
+Se o crash reaparecer, coletar:
 
 ```powershell
 adb devices -l
@@ -611,11 +710,11 @@ adb shell dumpsys dropbox --print
 adb shell dumpsys activity exit-info br.com.smartchannel.playerad
 ```
 
-## 12. Plano de ação atual
+## 12. Plano de ação e execução
 
 ### Fase 0 — validar produção
 
-- confirmar backend `2.1.9`, frontend `2.1.13` e Player-AD `2.04/104`;
+- confirmar backend `2.1.10`, frontend `2.1.14` e Player-AD `2.06/106`;
 - confirmar `POST /api/player/events/batch` com status 200;
 - confirmar tabelas v2;
 - verificar atualização de `totem_playback_state`;
@@ -624,7 +723,7 @@ adb shell dumpsys activity exit-info br.com.smartchannel.playerad
 
 Gate: não iniciar nova mudança de protocolo enquanto o estado v2 não estiver comprovado ponta a ponta.
 
-### Fase 1 — card orientado a eventos
+### Fase 1 — card orientado a eventos (implementada)
 
 Exibição desejada:
 
@@ -634,7 +733,7 @@ ID 10 · Institucional
 Próxima: ID 11 · Campanha Agosto · 00:15
 ```
 
-Alterações planejadas:
+Alterações entregues em `b64259d9`:
 
 - incluir `mediaId`, nome e duração em todo start;
 - incluir `context.nextMedia` sem nova requisição;
@@ -653,11 +752,11 @@ Alterações planejadas:
 - idempotência e retry;
 - nenhuma posição por segundo.
 
-Parte dessa base já existe em `bbfbac3a`; a fase deve medir e ajustar, não reimplementar.
+Essa base foi criada em `bbfbac3a` e integrada ao sync/fallback em `b64259d9`. O próximo passo é medir volume, duplicidade e latência em produção.
 
-### Fase 3 — rota unificada
+### Fase 3 — rota unificada (implementada)
 
-Proposta:
+Endpoint entregue:
 
 ```text
 POST /api/player/sync
@@ -698,6 +797,8 @@ Regras:
 - preservar `/heartbeat`, `/events/batch` e `/event` como fallback;
 - manter dispatch completo separado, salvo quando realmente mudou;
 - usar cooldown/reprobe de capacidade no player.
+
+O Player-AD tenta `/api/player/sync` primeiro. Em caso de capacidade indisponível, recua para `/api/player/events/batch` e depois para `/api/player/event`, mantendo cooldowns independentes e revalidação posterior. O ACK aceita o envelope unificado e o formato batch anterior.
 
 ### Fase 4 — cadências
 
@@ -741,6 +842,7 @@ f3ba91c0  fix(player-ad): elimina bloqueios de rede entre midias
 b369d769  feat(ui): exibe modo ativo da instalacao
 a259ec44  chore(player-ad): atualiza APK release 2.03
 bbfbac3a  feat(telemetry): escala playback e monitoramento em tempo real
+b64259d9  feat(telemetry): unifica sincronizacao e estado de reproducao
 ```
 
 ## 14. Testes e validações executados
@@ -755,18 +857,25 @@ bbfbac3a  feat(telemetry): escala playback e monitoramento em tempo real
 - logs de replay seamless;
 - medição de transições;
 - reprodução durante falha DNS;
-- testes do cliente de eventos/ACK da telemetria.
+- testes do cliente de eventos/ACK da telemetria;
+- testes do ACK unificado e da próxima mídia cíclica;
+- build `2.05/105` da integração e hotfix final `2.06/106`;
+- reinstalação ADB bem-sucedida na TV Box.
 
 ### Backend
 
 - teste unitário de `playbackTelemetryService`;
 - validação dos tipos de eventos e amostras de observação;
+- testes do serviço de sync;
+- cinco testes do contrato integrado de telemetria aprovados;
+- sete testes do serviço/contrato sync aprovados após o hotfix de `null`;
 - build TypeScript;
 - testes de normalização de Device ID/UIN.
 
 ### Frontend
 
 - testes dos utilitários de playback;
+- seis testes de estado quente, progresso, IDs e próxima mídia aprovados;
 - testes de agrupamento/filtros do Dispatcher;
 - testes do modo ativo da instalação;
 - build de produção.
@@ -906,25 +1015,41 @@ Restaurar `.env`, Nginx ou certificados somente se esses componentes também tiv
 Implementado e versionado:
 
 - telemetria v2 do commit `bbfbac3a`;
-- Player-AD `2.04/104`;
-- backend `2.1.9`;
-- frontend `2.1.13`;
+- integração do commit `b64259d9`;
+- Player-AD `2.06/106`;
+- backend `2.1.10`;
+- frontend `2.1.14`;
+- `POST /api/player/sync` com fallback compatível;
+- ACK unificado e idempotência preservada;
+- `nextMedia` cíclica no evento de início e no estado do card;
+- card com ID, nome, duração, progresso, horários e estados stale/offline;
+- correção da `ConcurrentModificationException` na fila persistente;
+- correção de `knownPlanVersion: null` no contrato sync;
+- fila protegida entre instâncias e arquivos temporários únicos;
+- backoff de plano vazio e respeito ao `Retry-After` em HTTP 429;
 - modo ativo no painel;
 - Device ID canônico;
 - documentação de instalação;
 - correções de flicker, bloqueio de rede, 404, restart e rotação.
 
-Pendente de comprovação:
+Publicação e implantação:
 
-- causa do crash após restart;
+- commit `b64259d9` enviado para `origin/TotemDigital-MultiAgencia`;
+- APK `2.05/105` instalado no rollout inicial;
+- APK hotfix `2.06/106` compilado, instalado e iniciado na TV Box por ADB;
+- checkout do VPS atualizado por fast-forward de `bbfbac3a` para `b64259d9`;
+- `manage.sh` e `validacao-sistema-*.txt` permaneceram locais e não rastreados.
+
+Pendente de comprovação operacional prolongada:
+
 - aplicação e funcionamento do schema v2 em produção;
-- atualização normal do card por eventos;
+- atualização normal do card por eventos após rebuild/restart dos serviços;
+- ausência do crash em observação de longa duração;
+- publicação/deploy do backend `2.1.10`;
+- nova confirmação online após expirar o rate limit temporário de 900 segundos;
 - retenção real em escala.
 
-Planejado, ainda sujeito a implementação e gates:
+Ainda sujeito a implementação e gates:
 
-- `POST /api/player/sync`;
-- `nextMedia` no estado;
-- versões seguintes do Player/backend/frontend;
 - rollup e retenção automatizados;
 - canal persistente Player ↔ Backend.

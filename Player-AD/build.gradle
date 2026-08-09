@@ -26,8 +26,8 @@ android {
         minSdk 24
         targetSdk 34
 
-        versionCode 105
-        versionName '2.05'
+        versionCode 106
+        versionName '2.06'
 
         // Android TV: não habilitar multidex por enquanto.
         multiDexEnabled false

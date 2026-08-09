@@ -213,7 +213,9 @@ class DispatcherApiClient(
             put("schemaVersion", 1)
             put("syncId", UUID.randomUUID().toString())
             put("heartbeat", heartbeatPayload(metrics))
-            put("knownPlanVersion", knownPlanVersion?.takeIf { it.isNotBlank() } ?: JSONObject.NULL)
+            knownPlanVersion?.takeIf { it.isNotBlank() }?.let {
+                put("knownPlanVersion", it)
+            }
         }.toString()
         return try {
             conn.outputStream.use { it.write(body.toByteArray()) }

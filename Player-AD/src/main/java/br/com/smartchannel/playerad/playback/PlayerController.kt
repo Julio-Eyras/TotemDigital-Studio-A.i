@@ -194,7 +194,7 @@ class PlayerController(
     /** Backoff de download por mediaId (ms epoch até quando não re-tentar). */
     private val downloadFailUntilMs = mutableMapOf<Long, Long>()
 
-    private enum class PlanSource { ONLINE, PERSISTED, FALLBACK_LOCAL }
+    private enum class PlanSource { ONLINE, PERSISTED, FALLBACK_LOCAL, EMPTY_PLAN }
 
     private val DEFAULT_IMAGE_DURATION_SECONDS = 10L
     /** Cardápio HTML ao vivo: poll default 30s — exposição mínima 60s. */
@@ -359,25 +359,42 @@ class PlayerController(
         val initialPlanWithSource = try {
             val online = fetchOnlinePlan(sessionToken, "arranque")
             sessionToken = online.token
-            online.plan to PlanSource.ONLINE
+            online.plan to if (online.planState == PLAN_STATE_EMPTY) {
+                PlanSource.EMPTY_PLAN
+            } else {
+                PlanSource.ONLINE
+            }
         } catch (e: Exception) {
             PlayerAdLogger.e("DISPATCH", "Falha no arranque online (heartbeat/dispatch); tentando fallback local", e)
-            val persistedPlan = loadDispatchPlanFromDisk()?.let { applyVinhetaMixToDispatchPlan(parseDispatchPlan(it)) }
-            if (persistedPlan != null && persistedPlan.mediaItems.isNotEmpty()) {
+            val persisted = loadDispatchPlanFromDisk()?.let { json ->
+                runCatching {
+                    val parsed = applyVinhetaMixToDispatchPlan(parseDispatchPlan(json))
+                    parsed to resolvePlanState(json, parsed.mediaItems.size)
+                }.getOrNull()
+            }
+            val persistedPlan = persisted?.first
+            val persistedState = persisted?.second
+            if (persistedPlan != null && persistedState == PLAN_STATE_ACTIVE) {
                 PlayerAdLogger.logFallbackActivated(
                     "arranque offline — usando ultimo DispatchPlan persistido (${persistedPlan.mediaItems.size} itens)"
                 )
                 persistedPlan to PlanSource.PERSISTED
+            } else if (persistedPlan != null && persistedState == PLAN_STATE_EMPTY) {
+                PlayerAdLogger.i(
+                    "PLAYBACK",
+                    "Arranque offline preserva último estado autoritativo EMPTY_PLAN",
+                )
+                persistedPlan to PlanSource.EMPTY_PLAN
             } else {
-            val fallback = buildFallbackPlan()
-            if (fallback == null || fallback.mediaItems.isEmpty()) {
-                PlayerAdLogger.e("PLAYBACK", "Sem rede, sem DispatchPlan persistido util e sem fallback local", e)
-                throw e
-            }
-            PlayerAdLogger.logFallbackActivated(
-                "arranque offline — ${fallback.mediaItems.size} itens locais (propagandas)"
-            )
-            fallback to PlanSource.FALLBACK_LOCAL
+                val fallback = buildFallbackPlan()
+                if (fallback == null || fallback.mediaItems.isEmpty()) {
+                    PlayerAdLogger.e("PLAYBACK", "Sem rede, sem DispatchPlan persistido util e sem fallback local", e)
+                    throw e
+                }
+                PlayerAdLogger.logFallbackActivated(
+                    "arranque offline — ${fallback.mediaItems.size} itens locais (propagandas)"
+                )
+                fallback to PlanSource.FALLBACK_LOCAL
             }
         }
         val (initialPlan, initialSource) = initialPlanWithSource
@@ -827,6 +844,7 @@ class PlayerController(
         var emptyPlanBackoffMs = 5_000L
         var index = 0
         var planSignature = planContentSignature(plan)
+        var emptyPlanState = initialSource == PlanSource.EMPTY_PLAN
         var serverPollJob: Deferred<ServerPollCycleResult>? = null
         applyPlaybackVolumePolicy()
         while (true) {
@@ -847,12 +865,24 @@ class PlayerController(
                                 (currentPlan.mediaItems.size - 1).coerceAtLeast(0),
                             )
                             planSignature = result.signature ?: planContentSignature(currentPlan)
-                            currentPlanSource = PlanSource.ONLINE
+                            emptyPlanState = currentPlan.mediaItems.isEmpty()
+                            currentPlanSource = if (emptyPlanState) {
+                                PlanSource.EMPTY_PLAN
+                            } else {
+                                PlanSource.ONLINE
+                            }
+                            updatePlanSource(currentPlanSource, "Fonte do plano alterada")
                         }
                         result.quietPlan != null -> {
                             currentPlan = result.quietPlan
                             planSignature = result.signature ?: planContentSignature(currentPlan)
-                            currentPlanSource = PlanSource.ONLINE
+                            emptyPlanState = currentPlan.mediaItems.isEmpty()
+                            currentPlanSource = if (emptyPlanState) {
+                                PlanSource.EMPTY_PLAN
+                            } else {
+                                PlanSource.ONLINE
+                            }
+                            updatePlanSource(currentPlanSource, "Fonte do plano alterada")
                             if (index >= currentPlan.mediaItems.size) index = 0
                         }
                     }
@@ -868,6 +898,7 @@ class PlayerController(
                 val pollToken = currentToken
                 val pollIndex = index
                 val pollSignature = planSignature
+                val allowSafetyDispatch = !emptyPlanState
                 serverPollJob = backgroundScope.async {
                     var busyPlan: DispatchPlan? = null
                     var busyIndex = pollIndex
@@ -879,6 +910,7 @@ class PlayerController(
                         dispatchPoll,
                         currentIndex = pollIndex,
                         currentSignature = pollSignature,
+                        allowSafetyDispatch = allowSafetyDispatch,
                         onBusyPlan = { newPlan, newIndex, newSig ->
                             busyPlan = newPlan
                             busyIndex = newIndex
@@ -899,6 +931,13 @@ class PlayerController(
                 }
             }
 
+            if (emptyPlanState) {
+                val waitMs = heartbeatPoll.millisUntilDue()
+                    .coerceIn(1_000L, EMPTY_PLAN_MAX_WAKE_INTERVAL_MS)
+                delay(waitMs)
+                continue
+            }
+
             if (currentPlan.mediaItems.isEmpty()) {
                 val persistedPlan = loadDispatchPlanFromDisk()?.let { applyVinhetaMixToDispatchPlan(parseDispatchPlan(it)) }
                 if (persistedPlan != null && persistedPlan.mediaItems.isNotEmpty()) {
@@ -915,12 +954,13 @@ class PlayerController(
                 // Plano vazio: tentar usar fallback sintético (propagandas + vinhetas locais)
                 val fallback = buildFallbackPlan()
                 if (fallback == null || fallback.mediaItems.isEmpty()) {
-                    PlayerAdLogger.e(
+                    PlayerAdLogger.w(
                         "PLAYBACK",
-                        "Loop terminado: DispatchPlan sem itens e fallback local indisponível",
-                        null
+                        "DispatchPlan sem itens e fallback local indisponível; aguardando ${emptyPlanBackoffMs}ms"
                     )
-                    break
+                    delay(emptyPlanBackoffMs)
+                    emptyPlanBackoffMs = (emptyPlanBackoffMs * 2L).coerceAtMost(60_000L)
+                    continue
                 } else {
                     PlayerAdLogger.logFallbackActivated(
                         "plano remoto vazio — ${fallback.mediaItems.size} itens locais (propagandas/vinhetas)"
@@ -988,6 +1028,7 @@ class PlayerController(
         dispatchPoll: AdaptivePollScheduler,
         currentIndex: Int,
         currentSignature: String,
+        allowSafetyDispatch: Boolean,
         onBusyPlan: (DispatchPlan, Int, String) -> Unit,
         onQuietPlan: (DispatchPlan, String) -> Unit,
     ): String {
@@ -1061,7 +1102,8 @@ class PlayerController(
 
         // Backend novo: safety raro. Backend legado: poll periódico como antes.
         val nowAfterHb = System.currentTimeMillis()
-        val safetyDue = !fetchedViaHeartbeat && dispatchPoll.due(nowAfterHb) && (
+        val safetyDue = allowSafetyDispatch &&
+            !fetchedViaHeartbeat && dispatchPoll.due(nowAfterHb) && (
             !supportsPlanVersion ||
                 knownPlanVersion.isNullOrBlank() ||
                 nowAfterHb - lastDispatchFetchAtMs >=
@@ -1193,6 +1235,7 @@ class PlayerController(
         val token: String,
         val plan: DispatchPlan,
         val planVersion: String? = null,
+        val planState: String,
     )
 
     private data class ServerPollCycleResult(
@@ -1296,7 +1339,6 @@ class PlayerController(
         PlayerAdLogger.i("LIFECYCLE", "DispatchPlan + pré-cache (GET /api/player/dispatch)")
         val token = apiClient.cachedToken()?.takeIf { it.isNotBlank() } ?: previousToken
         val dispatchJson = apiClient.getDispatchPlan(token)
-        val savedJsonPath = saveDispatchPlanToDisk(dispatchJson)
         val effectiveToken = apiClient.cachedToken() ?: token.ifBlank { previousToken }
         val payload = dispatchJson.optJSONObject("data") ?: dispatchJson
         val planVersion = payload.optString("planVersion", "")
@@ -1304,7 +1346,9 @@ class PlayerController(
             .trim()
             .ifBlank { null }
         val parsed = parseDispatchPlan(dispatchJson)
-        preloadPlan(parsed)
+        val planState = resolvePlanState(dispatchJson, parsed.mediaItems.size)
+        val savedJsonPath = saveDispatchPlanToDisk(dispatchJson)
+        if (planState == PLAN_STATE_ACTIVE) preloadPlan(parsed)
         val plan = applyVinhetaMixToDispatchPlan(parsed)
         if (!planVersion.isNullOrBlank()) {
             knownPlanVersion = planVersion
@@ -1326,6 +1370,7 @@ class PlayerController(
             token = effectiveToken,
             plan = plan,
             planVersion = planVersion,
+            planState = planState,
         )
     }
 
@@ -3232,6 +3277,40 @@ class PlayerController(
     }
 
     companion object {
+        internal const val PLAN_STATE_ACTIVE = "ACTIVE"
+        internal const val PLAN_STATE_EMPTY = "EMPTY"
+
+        internal fun resolvePlanState(response: JSONObject, mediaItemCount: Int): String {
+            val payload = response.optJSONObject("data") ?: response
+            val plan = payload.optJSONObject("plan") ?: response.optJSONObject("plan")
+            val explicit = payload.optString("planState", "")
+                .ifBlank { payload.optString("plan_state", "") }
+                .trim()
+                .uppercase(Locale.ROOT)
+
+            return when (explicit) {
+                PLAN_STATE_ACTIVE -> {
+                    require(mediaItemCount > 0) {
+                        "DispatchPlan ACTIVE deve conter ao menos uma mídia"
+                    }
+                    PLAN_STATE_ACTIVE
+                }
+                PLAN_STATE_EMPTY -> {
+                    require(mediaItemCount == 0) {
+                        "DispatchPlan EMPTY não pode conter mídias"
+                    }
+                    PLAN_STATE_EMPTY
+                }
+                "" -> {
+                    require(plan != null && (plan.has("mediaItems") || plan.has("media_items"))) {
+                        "Resposta de dispatch sem planState e sem lista de mídias"
+                    }
+                    if (mediaItemCount > 0) PLAN_STATE_ACTIVE else PLAN_STATE_EMPTY
+                }
+                else -> throw IllegalArgumentException("planState desconhecido: $explicit")
+            }
+        }
+
         fun resolveNextMedia(
             mediaItems: List<DispatchMediaItem>,
             current: DispatchMediaItem,
@@ -3263,6 +3342,7 @@ class PlayerController(
         private const val VIDEO_WATCHDOG_FALLBACK_MS = 45_000L
         private const val VIDEO_WATCHDOG_MAX_MS = 15 * 60 * 1000L
         private const val HTML_PLAYBACK_GRACE_MS = 5_000L
+        private const val EMPTY_PLAN_MAX_WAKE_INTERVAL_MS = 60_000L
     }
 }
 

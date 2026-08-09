@@ -43,7 +43,11 @@ export function validatePlayerSyncEnvelope(value: unknown): SyncValidationResult
   ) {
     errors.push('commandResults deve ser um array com até 50 itens');
   }
-  if (value.knownPlanVersion !== undefined && typeof value.knownPlanVersion !== 'string') {
+  if (
+    value.knownPlanVersion !== undefined &&
+    value.knownPlanVersion !== null &&
+    typeof value.knownPlanVersion !== 'string'
+  ) {
     errors.push('knownPlanVersion deve ser uma string');
   }
   if (
@@ -63,7 +67,7 @@ export function validatePlayerSyncEnvelope(value: unknown): SyncValidationResult
       ...(value.heartbeat !== undefined ? { heartbeat: value.heartbeat as Record<string, unknown> } : {}),
       ...(value.events !== undefined ? { events: value.events as unknown[] } : {}),
       ...(value.commandResults !== undefined ? { commandResults: value.commandResults as unknown[] } : {}),
-      ...(value.knownPlanVersion !== undefined
+      ...(typeof value.knownPlanVersion === 'string'
         ? { knownPlanVersion: value.knownPlanVersion as string }
         : {}),
     },

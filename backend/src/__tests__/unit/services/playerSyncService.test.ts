@@ -26,6 +26,22 @@ describe('contrato POST /api/player/sync', () => {
     });
   });
 
+  it('aceita knownPlanVersion nulo de players compatíveis e omite no valor normalizado', () => {
+    const result = validatePlayerSyncEnvelope({
+      schemaVersion: 1,
+      syncId: 'sync-without-plan',
+      heartbeat: { status: 'online' },
+      knownPlanVersion: null,
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(result.value).toEqual({
+      schemaVersion: '1',
+      syncId: 'sync-without-plan',
+      heartbeat: { status: 'online' },
+    });
+  });
+
   it('rejeita lote acima de 50 e heartbeat inválido', () => {
     const result = validatePlayerSyncEnvelope({
       schemaVersion: 1,
