@@ -78,6 +78,7 @@ const PublishTotem: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [clockNow, setClockNow] = useState(Date.now());
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState('');
@@ -238,6 +239,11 @@ const PublishTotem: React.FC = () => {
     return () => window.clearInterval(id);
   }, [loadTotems]);
 
+  useEffect(() => {
+    const id = window.setInterval(() => setClockNow(Date.now()), 1_000);
+    return () => window.clearInterval(id);
+  }, []);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return totems;
@@ -378,7 +384,10 @@ const PublishTotem: React.FC = () => {
             const canDelete = mediaTotal === 0;
             const totemActive = isTotemRowActive(t);
             const activationCode = String((t as any).uin || '').trim();
-            const scheduleLines = formatTotemScheduleCardLines(t as Record<string, unknown>);
+            const scheduleLines = formatTotemScheduleCardLines(
+              t as Record<string, unknown>,
+              clockNow,
+            );
             return (
               <Grid item xs={12} sm={6} md={4} key={String(totemId ?? idx)}>
                 <Card
@@ -433,6 +442,16 @@ const PublishTotem: React.FC = () => {
                           >
                             {scheduleLines.deviceClockLine}
                           </Typography>
+                          {scheduleLines.deviceClockWarningLine && (
+                            <Typography
+                              variant="caption"
+                              color="warning.main"
+                              display="block"
+                              sx={{ lineHeight: 1.4, fontWeight: 700 }}
+                            >
+                              {scheduleLines.deviceClockWarningLine}
+                            </Typography>
+                          )}
                           <Typography
                             variant="caption"
                             color="text.secondary"

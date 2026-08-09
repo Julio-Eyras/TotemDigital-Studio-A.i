@@ -149,4 +149,38 @@ describe('playbackTelemetry', () => {
 
     expect(formatPlaybackLine(state)).toContain('✓ ID — · Vídeo concluído · reproduzido 00:29 · concluído');
   });
+
+  it('prioriza o estado de tela desligada recebido no heartbeat', () => {
+    const state = normalizePlaybackState({
+      totemId: 9,
+      playbackState: {
+        status: 'ended',
+        media: { id: 3, name: 'Mídia anterior', durationMs: 10000 },
+      },
+      displayIdle: true,
+    });
+
+    expect(state).toMatchObject({
+      totemId: 9,
+      mediaName: 'Tela desligada por agenda',
+      status: 'display_off',
+      durationMs: 0,
+      stale: false,
+    });
+    expect(formatPlaybackLine(state!)).toContain('Aguardando o próximo horário de funcionamento');
+  });
+
+  it('remove o estado off quando a tela acorda antes da primeira mídia', () => {
+    const state = normalizePlaybackState({
+      totemId: 9,
+      playbackState: null,
+      displayIdle: false,
+    });
+
+    expect(state).toMatchObject({
+      mediaName: 'Tela ligada · aguardando mídia',
+      status: 'idle',
+      stale: false,
+    });
+  });
 });

@@ -988,7 +988,15 @@ class PlayerController(
 
             // Horário de tela: fora do horário → preto total, processo vivo.
             if (!displaySchedule.isDisplayActiveNow()) {
+                val enteringIdle = !displayIdle
                 enterDisplayIdle()
+                if (enteringIdle) {
+                    index = 0
+                    PlayerAdLogger.i(
+                        "DISPLAY",
+                        "Agenda entrou em modo off; fila preparada para retomar na primeira mídia",
+                    )
+                }
                 maybeDisplayKeepAlive()
                 delay(1_000L)
                 if (remountLoopRequested) {

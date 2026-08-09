@@ -95,6 +95,8 @@ const TotemPlaybackStatus: React.FC<Props> = ({
   const percent = playback?.durationMs
     ? Math.min(100, (playbackElapsedMs(playback, now) / playback.durationMs) * 100)
     : 0;
+  const displayOff = playback?.status === 'display_off';
+  const systemState = displayOff || playback?.status === 'idle';
 
   if (!enabled) {
     return (
@@ -117,14 +119,19 @@ const TotemPlaybackStatus: React.FC<Props> = ({
     >
       {playback ? (
         <>
-          <Typography variant="body2" fontWeight={700} title={formatPlaybackMedia(playback.mediaId, playback.mediaName)} noWrap>
-            {formatPlaybackMedia(playback.mediaId, playback.mediaName)}
+          <Typography
+            variant="body2"
+            fontWeight={700}
+            title={systemState ? playback.mediaName : formatPlaybackMedia(playback.mediaId, playback.mediaName)}
+            noWrap
+          >
+            {systemState ? playback.mediaName : formatPlaybackMedia(playback.mediaId, playback.mediaName)}
           </Typography>
           <Typography variant="caption" color="text.secondary" display="block">
             {formatPlaybackTiming(playback, now)}
           </Typography>
           {playback.durationMs > 0 && <LinearProgress variant="determinate" value={percent} sx={{ mt: 0.5 }} />}
-          {playback.nextMedia && (
+            {!systemState && playback.nextMedia && (
             <Typography
               variant="caption"
               color="text.secondary"
@@ -141,8 +148,20 @@ const TotemPlaybackStatus: React.FC<Props> = ({
             {offline && <Chip size="small" color="default" label="Offline" />}
             <Chip
               size="small"
-              color={playback.stale ? 'warning' : playback.status === 'error' ? 'error' : 'success'}
-              label={playback.stale ? `${playback.status} · estado desatualizado` : playback.status}
+              color={
+                playback.stale || displayOff
+                  ? 'warning'
+                  : playback.status === 'error'
+                    ? 'error'
+                    : 'success'
+              }
+              label={
+                playback.stale
+                  ? `${playback.status} · estado desatualizado`
+                  : displayOff
+                    ? 'Tela off'
+                    : playback.status
+              }
             />
             <Chip
               size="small"

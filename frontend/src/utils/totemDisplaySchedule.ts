@@ -15,6 +15,8 @@ export type DeviceClockInfo = {
   timezoneId: string;
   epochMs: number;
   reportedAtMs: number;
+  serverReceivedAtMs: number;
+  clockDriftMs: number;
 };
 
 export const DISPLAY_SCHEDULE_DAY_OPTIONS: Array<{ value: number; label: string }> = [
@@ -88,6 +90,8 @@ export function readDeviceClockFromTotem(
     timezoneId: timezoneId || '—',
     epochMs,
     reportedAtMs: Number(raw.reportedAtMs || epochMs || 0),
+    serverReceivedAtMs: Number(raw.serverReceivedAtMs || raw.server_received_at_ms || 0),
+    clockDriftMs: Number(raw.clockDriftMs || raw.clock_drift_ms || 0),
   };
 }
 
@@ -100,28 +104,74 @@ export function formatScheduleDaysLabel(daysOfWeek: number[]): string {
 
 /** Data/hora do Player-AD (heartbeat), ou placeholder. */
 export function formatDeviceClockDisplay(
-  totem: Record<string, unknown> | null | undefined
+  totem: Record<string, unknown> | null | undefined,
+  nowMs = Date.now(),
 ): string {
   const clock = readDeviceClockFromTotem(totem);
-  return clock?.localFormatted || '— aguardando heartbeat —';
+  return clock ? formatEstimatedDeviceClock(clock, nowMs) : '— aguardando heartbeat —';
+}
+
+function formatDuration(milliseconds: number): string {
+  const seconds = Math.max(0, Math.round(Math.abs(milliseconds) / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return remainder ? `${minutes}min ${remainder}s` : `${minutes}min`;
+}
+
+function formatEstimatedDeviceClock(clock: DeviceClockInfo, nowMs: number): string {
+  if (!clock.epochMs || !clock.serverReceivedAtMs) return clock.localFormatted;
+  const estimatedEpochMs = clock.epochMs + Math.max(0, nowMs - clock.serverReceivedAtMs);
+  try {
+    const formatted = new Intl.DateTimeFormat('pt-BR', {
+      timeZone: clock.timezoneId === '—' ? undefined : clock.timezoneId,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).format(new Date(estimatedEpochMs));
+    return `${formatted}${clock.timezoneId !== '—' ? ` (${clock.timezoneId})` : ''}`;
+  } catch {
+    return clock.localFormatted;
+  }
 }
 
 /** Texto curto para cards / listagens. */
-export function formatTotemScheduleCardLines(totem: Record<string, unknown> | null | undefined): {
+export function formatTotemScheduleCardLines(
+  totem: Record<string, unknown> | null | undefined,
+  nowMs = Date.now(),
+): {
   deviceClockLine: string;
+  deviceClockWarningLine: string;
   scheduleLine: string;
   daysLine: string;
 } {
   const clock = readDeviceClockFromTotem(totem);
   const schedule = readScheduleFromTotem(totem);
+  const reportAgeMs =
+    clock?.serverReceivedAtMs && nowMs >= clock.serverReceivedAtMs
+      ? nowMs - clock.serverReceivedAtMs
+      : null;
 
   const deviceClockLine = clock
-    ? `Horário da tela: ${clock.localFormatted}`
+    ? `Horário da tela: ${formatEstimatedDeviceClock(clock, nowMs)}${
+      reportAgeMs !== null ? ` · reportado há ${formatDuration(reportAgeMs)}` : ''
+    }`
     : 'Horário da tela: — aguardando heartbeat —';
+  const deviceClockWarningLine =
+    clock && Math.abs(clock.clockDriftMs) >= 120_000
+      ? `⚠ TV Box ${clock.clockDriftMs > 0 ? 'adiantado' : 'atrasado'} ${formatDuration(
+        clock.clockDriftMs,
+      )} em relação ao servidor`
+      : '';
 
   if (!schedule.enabled) {
     return {
       deviceClockLine,
+      deviceClockWarningLine,
       scheduleLine: 'Ligar/desligar: desativado (sempre ligada)',
       daysLine: '',
     };
@@ -129,6 +179,7 @@ export function formatTotemScheduleCardLines(totem: Record<string, unknown> | nu
 
   return {
     deviceClockLine,
+    deviceClockWarningLine,
     scheduleLine: `Liga ${schedule.onTime} · Desliga ${schedule.offTime}`,
     daysLine: `Dias: ${formatScheduleDaysLabel(schedule.daysOfWeek)}`,
   };

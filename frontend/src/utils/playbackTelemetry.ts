@@ -55,7 +55,10 @@ function iso(value: unknown): string | undefined {
 /** Normaliza tanto o contrato novo quanto campos snake_case de players legados. */
 export function normalizePlaybackState(payload: unknown, fallbackTotemId?: number): TotemPlaybackState | null {
   const outer = record(payload);
-  const data = record(outer.data);
+  const wrappedPlaybackState = record(outer.playbackState ?? outer.playback_state);
+  const data = Object.keys(wrappedPlaybackState).length
+    ? wrappedPlaybackState
+    : record(outer.data);
   const runtime = record(data.runtime ?? outer.runtime);
   const media = record(data.media ?? outer.media);
   const playback = record(data.playback ?? outer.playback);
@@ -64,6 +67,32 @@ export function normalizePlaybackState(payload: unknown, fallbackTotemId?: numbe
     data.nowPlaying ?? data.now_playing ?? outer.nowPlaying ?? outer.now_playing,
   );
   const source = Object.keys(nowPlaying).length ? nowPlaying : (Object.keys(data).length ? data : outer);
+  const explicitDisplayIdle =
+    outer.displayIdle ??
+    outer.display_idle ??
+    data.displayIdle ??
+    data.display_idle;
+  const displayIdle =
+    outer.displayIdle === true ||
+    outer.display_idle === true ||
+    data.displayIdle === true ||
+    data.display_idle === true;
+  if (displayIdle) {
+    return {
+      totemId: positiveNumber(
+        outer.totemId,
+        outer.totem_id,
+        data.totemId,
+        data.totem_id,
+        fallbackTotemId,
+      ),
+      mediaName: 'Tela desligada por agenda',
+      durationMs: 0,
+      status: 'display_off',
+      stale: false,
+      receivedAt: Date.now(),
+    };
+  }
   const nextMediaSource = record(
     context.nextMedia ??
       context.next_media ??
@@ -77,6 +106,22 @@ export function normalizePlaybackState(payload: unknown, fallbackTotemId?: numbe
   const mediaName = String(
     source.mediaName ?? source.media_name ?? source.name ?? media.name ?? '',
   ).trim();
+  if (!mediaName && explicitDisplayIdle === false) {
+    return {
+      totemId: positiveNumber(
+        outer.totemId,
+        outer.totem_id,
+        data.totemId,
+        data.totem_id,
+        fallbackTotemId,
+      ),
+      mediaName: 'Tela ligada · aguardando mídia',
+      durationMs: 0,
+      status: 'idle',
+      stale: false,
+      receivedAt: Date.now(),
+    };
+  }
   if (!mediaName) return null;
 
   const startedAt = iso(
@@ -201,6 +246,12 @@ export function formatNextMediaLine(nextMedia: TotemPlaybackNextMedia): string {
 }
 
 export function formatPlaybackTiming(state: TotemPlaybackState, nowMs = Date.now()): string {
+  if (state.status === 'display_off') {
+    return 'Aguardando o próximo horário de funcionamento';
+  }
+  if (state.status === 'idle') {
+    return 'Aguardando o início da reprodução';
+  }
   const started = state.startedAt
     ? new Date(state.startedAt).toLocaleTimeString('pt-BR', { hour12: false })
     : '--:--:--';

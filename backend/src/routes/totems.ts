@@ -78,6 +78,20 @@ async function requireActiveScopedTotem(
   return scoped;
 }
 
+function playbackDisplayState(totem: any): {
+  displayIdle: boolean;
+  deviceClock: unknown;
+} {
+  const settings = totem?.playerSettings ?? totem?.player_settings ?? {};
+  const playerSettings =
+    settings && typeof settings === 'object' && !Array.isArray(settings) ? settings : {};
+  return {
+    displayIdle: playerSettings.displayIdle === true,
+    deviceClock:
+      playerSettings.reportedDeviceClock ?? playerSettings.deviceClock ?? null,
+  };
+}
+
 const getTotemApproveRoles = () =>
   isStudioRuntime()
     ? ['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial', 'publisher_user']
@@ -440,7 +454,11 @@ router.get(
       const scoped = await requireActiveScopedTotem(totemId, req);
       if (!scoped.ok) return res.status(scoped.status).json(scoped.body);
       const playbackState = await getPlaybackTelemetryService().getCurrentState(totemId);
-      return res.json({ totemId, playbackState });
+      return res.json({
+        totemId,
+        playbackState,
+        ...playbackDisplayState(scoped.totem),
+      });
     } catch (error: any) {
       await logError('Erro ao consultar estado de playback', error);
       return res.status(500).json({ error: 'Erro ao consultar estado de playback' });

@@ -15,6 +15,7 @@ import { validateTotemToken, generateTotemToken } from '../routes/player';
 import { normalizeDeviceId } from '../utils/normalizeDeviceId';
 import { resolveDispatchPlanState } from '../utils/dispatchPlanState';
 import { getPlaybackTelemetryService } from './playbackTelemetryService';
+import { getWebSocketService } from './websocketService';
 
 export interface DispatcherRequest {
   endpoint: string;
@@ -603,7 +604,17 @@ class DispatcherRouter {
           m.deviceClock ?? m.device_clock ?? rawPs.reportedDeviceClock ?? null;
 
         const telemetry: Record<string, unknown> = {};
-        if (deviceClock != null) telemetry.reportedDeviceClock = deviceClock;
+        if (deviceClock != null && typeof deviceClock === 'object' && !Array.isArray(deviceClock)) {
+          const serverReceivedAtMs = Date.now();
+          const epochMs = Number((deviceClock as Record<string, unknown>).epochMs || 0);
+          telemetry.reportedDeviceClock = {
+            ...(deviceClock as Record<string, unknown>),
+            serverReceivedAtMs,
+            ...(Number.isFinite(epochMs) && epochMs > 0
+              ? { clockDriftMs: epochMs - serverReceivedAtMs }
+              : {}),
+          };
+        }
         if (rawPs.displayIdle !== undefined) telemetry.displayIdle = rawPs.displayIdle;
         else if (m.displayIdle !== undefined) telemetry.displayIdle = m.displayIdle;
         if (rawPs.appVersion != null) telemetry.appVersion = rawPs.appVersion;
@@ -636,6 +647,15 @@ class DispatcherRouter {
               hasTelemetry ? JSON.stringify(telemetry) : null,
             ]
           );
+        }
+        const displayIdle = telemetry.displayIdle;
+        if (displayIdle !== undefined) {
+          const currentState = await getPlaybackTelemetryService().getCurrentState(totemId);
+          getWebSocketService().broadcastPlaybackState(totemId, {
+            ...(currentState || { totemId }),
+            displayIdle: displayIdle === true,
+            deviceClock: telemetry.reportedDeviceClock ?? null,
+          });
         }
       } catch (e: any) {
         await logDebug('Falha ao gravar now_playing/player_settings (colunas podem faltar até apply schema)', {

@@ -1153,6 +1153,36 @@ Evidências observadas:
 - ao entrar no período off, a reprodução encerra e deixa de avançar mídias;
 - APK `2.07/107` instalado e iniciado na TV Box de referência.
 
-Melhoria pós-baseline, sem bloquear a promoção: manter heartbeat reduzido no
-modo off e apresentar no card o estado explícito “Tela desligada por agenda”,
-com relógio extrapolado a partir do último heartbeat.
+## 24. Agenda off: presença, relógio e retomada
+
+A revisão do fluxo confirmou que o Player-AD já inicia o poll assíncrono antes
+do ramo de tela desligada. Portanto, no modo off:
+
+- o heartbeat continua no perfil adaptativo `idle`;
+- comandos remotos continuam sendo recebidos e processados pelo heartbeat;
+- nenhum dispatch de segurança ou reprodução adicional é iniciado;
+- ao entrar em off, o índice fica preparado em zero para a retomada automática
+  pela primeira mídia no próximo horário ativo.
+
+Foram corrigidas as lacunas de apresentação e diagnóstico:
+
+- versão candidata: frontend `2.1.18`, backend `2.1.12` e Player-AD
+  `2.08/108`;
+- o backend carimba o relógio do TV Box com o instante de recebimento e calcula
+  a diferença em relação ao relógio do servidor;
+- o heartbeat publica imediatamente `displayIdle` por WebSocket;
+- o endpoint REST de estado inclui `displayIdle` e o relógio reportado;
+- o card mostra `Tela desligada por agenda`, sem manter a última mídia concluída;
+- o relógio avança localmente a cada segundo, informa a idade do último
+  heartbeat e alerta quando a diferença absoluta ultrapassa dois minutos.
+
+Validação automatizada:
+
+- build backend concluído;
+- build frontend concluído;
+- 10 testes frontend aprovados;
+- testes unitários e `assembleDebug` do Player-AD concluídos.
+
+A validação física de heartbeat, comando remoto em off e retomada no horário
+configurado deve ser repetida com a TV Box conectada por ADB; ela não estava
+disponível durante esta etapa.
