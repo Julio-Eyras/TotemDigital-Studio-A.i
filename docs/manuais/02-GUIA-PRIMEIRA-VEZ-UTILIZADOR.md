@@ -119,5 +119,6 @@ No Pro, o motor de entrega usa sobretudo **contrato + plano**; SPA também é ac
 
 ## 9. Próximos documentos
 
+- Campos e funcionalidades de **Publicar em Totem**: [07-MANUAL-PUBLICAR-EM-TOTEM.md](./07-MANUAL-PUBLICAR-EM-TOTEM.md)  
 - Formas de trabalho: [03-MODULOS-E-FORMAS-DE-TRABALHO.md](./03-MODULOS-E-FORMAS-DE-TRABALHO.md)  
 - Admin (modo, purge, portal): [04-MANUAL-ADMINISTRATIVO.md](./04-MANUAL-ADMINISTRATIVO.md)

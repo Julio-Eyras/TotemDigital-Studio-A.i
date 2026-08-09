@@ -5,11 +5,11 @@
 **Branch de referência:** `main`  
 **Público:** instalação, operação, administração e desenvolvimento
 
-Esta pasta é o **ponto de entrada** da documentação de produto e operação. Os documentos abaixo descrevem o sistema **como está** (Direct Totem · Multi Lite · Multi Pro), instalação, módulos, fluxos e o modelo técnico (E.R. + API).
+Esta pasta é o **ponto de entrada operacional e de utilização**.  
+A **fonte da verdade de regras/requisitos por módulo** está em [`../modulos/00-INDICE.md`](../modulos/00-INDICE.md) (metodologia EARS + RN + fluxos + aceite). Decisões técnicas: [`../adr/README.md`](../adr/README.md).
 
-**Baseline operacional:** Frontend `2.1.17` · Backend `2.1.11` · Player-AD
-`2.07` (build `107`) · commit funcional validado `4bc88462`. A linha foi
-promovida de `TotemDigital-MultiAgencia` para `main`.
+**Baseline operacional:** Frontend `2.1.21` · Backend `2.1.15` · Player-AD
+`2.11` (build `111`) · branch `main`.
 
 ---
 
@@ -24,6 +24,15 @@ promovida de `TotemDigital-MultiAgencia` para `main`.
 | 04 | [Manual administrativo](./04-MANUAL-ADMINISTRATIVO.md) | `owner_system` / admin |
 | 05 | [Manual técnico — modelo E.R., API e serviços](./05-MANUAL-TECNICO-MODELO-ER-API.md) | Desenvolvimento |
 | 06 | [Apresentação comercial (software + SaaS)](./06-APRESENTACAO-COMERCIAL-SAAS.md) | Vendas / parceiros / C-level |
+| 07 | [Manual do utilizador — Publicar em Totem](./07-MANUAL-PUBLICAR-EM-TOTEM.md) | Operador / dono |
+
+### Catálogo canónico de módulos (negócio)
+
+| Recurso | Caminho |
+|---------|---------|
+| Índice de módulos | [../modulos/00-INDICE.md](../modulos/00-INDICE.md) |
+| Metodologia | [../modulos/00-METODOLOGIA.md](../modulos/00-METODOLOGIA.md) |
+| ADRs | [../adr/README.md](../adr/README.md) |
 
 ---
 

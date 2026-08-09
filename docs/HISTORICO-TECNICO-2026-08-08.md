@@ -1288,3 +1288,16 @@ O painel abre automaticamente ao iniciar/renovar o diagnóstico, pode ser
 recolhido sem interromper a coleta e desaparece ao encerrar o lease.
 
 Versão frontend: `2.1.21`.
+
+## 30. Catálogo canónico de módulos (negócio)
+
+Foi adoptada a documentação híbrida recomendada:
+
+- `docs/modulos/` — **44 módulos** com Visão, EARS (`REQ`), regras (`RN`),
+  fluxos Mermaid, estados e aceite (`AC`);
+- `docs/modulos/00-METODOLOGIA.md` — processo e padrões;
+- `docs/adr/` — decisões técnicas (device ID, comandos híbridos, lease de
+  telemetria, APK designado, própria metodologia);
+- manuais de UI permanecem em `docs/manuais/` e passam a apontar para `RN-*`.
+
+Gerador bulk: `scripts/generate-modulos-docs.py`.

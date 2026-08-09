@@ -2,6 +2,9 @@
 
 Este documento explica **o que cada módulo faz**, como o **master switch** os combina, e as **formas de trabalho** recomendadas.
 
+Para **requisitos, regras de negócio, fluxos e aceite por módulo**, usar o catálogo canónico:  
+[../modulos/00-INDICE.md](../modulos/00-INDICE.md) · metodologia [../modulos/00-METODOLOGIA.md](../modulos/00-METODOLOGIA.md).
+
 ---
 
 ## 1. Dois conceitos que não se misturam
