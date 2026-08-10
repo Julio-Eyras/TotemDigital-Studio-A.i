@@ -1,7 +1,7 @@
 import express from 'express';
 import request from 'supertest';
 
-const mockGetSubscriberIdForMedia = jest.fn();
+const mockGetMediaScopeIds = jest.fn();
 const mockGetMediaById = jest.fn();
 
 jest.mock('../../../middleware/operatorProtection.middleware', () => ({
@@ -10,6 +10,10 @@ jest.mock('../../../middleware/operatorProtection.middleware', () => ({
 
 jest.mock('../../../middleware/subscriberIsolation.middleware', () => ({
   subscriberIsolationMiddleware: (_req: any, _res: any, next: any) => next(),
+}));
+
+jest.mock('../../../config/directTotemMode', () => ({
+  isDirectTotemMode: () => false,
 }));
 
 jest.mock('../../../middleware/auth.middleware', () => {
@@ -35,7 +39,7 @@ jest.mock('../../../middleware/auth.middleware', () => {
 
 jest.mock('../../../services/mediaService', () => ({
   getMediaService: () => ({
-    getSubscriberIdForMedia: (...a: unknown[]) => mockGetSubscriberIdForMedia(...a),
+    getMediaScopeIds: (...a: unknown[]) => mockGetMediaScopeIds(...a),
     getMediaById: (...a: unknown[]) => mockGetMediaById(...a),
   }),
 }));
@@ -80,6 +84,7 @@ jest.mock('fs', () => ({
 
 describe('GET /api/media/:id — escopo', () => {
   const makeApp = async () => {
+    jest.resetModules();
     const router = (await import('../../../routes/media')).default;
     const app = express();
     app.use(express.json());
@@ -88,9 +93,9 @@ describe('GET /api/media/:id — escopo', () => {
   };
 
   beforeEach(() => {
-    mockGetSubscriberIdForMedia.mockReset();
+    mockGetMediaScopeIds.mockReset();
     mockGetMediaById.mockReset();
-    mockGetSubscriberIdForMedia.mockResolvedValue(10);
+    mockGetMediaScopeIds.mockResolvedValue({ subscriberId: 10, publisherId: null });
     mockGetMediaById.mockResolvedValue({ id: 1, subscriberId: 10, name: 'f' });
   });
 
@@ -98,7 +103,7 @@ describe('GET /api/media/:id — escopo', () => {
     const app = await makeApp();
     const res = await request(app).get('/api/media/1').set('Authorization', 'Bearer sub10');
     expect(res.status).toBe(200);
-    expect(mockGetMediaById).toHaveBeenCalledWith(1, undefined, true);
+    expect(mockGetMediaById).toHaveBeenCalledWith(1, 10, false);
   });
 
   it('bloqueia subscriber_user de outro assinante', async () => {
@@ -112,13 +117,29 @@ describe('GET /api/media/:id — escopo', () => {
     const app = await makeApp();
     const res = await request(app).get('/api/media/1').set('Authorization', 'Bearer admin');
     expect(res.status).toBe(200);
-    expect(mockGetMediaById).toHaveBeenCalled();
+    expect(mockGetMediaById).toHaveBeenCalledWith(1, 10, true);
   });
 
   it('404 quando mídia não existe', async () => {
-    mockGetSubscriberIdForMedia.mockResolvedValue(null);
+    mockGetMediaScopeIds.mockResolvedValue(null);
     const app = await makeApp();
     const res = await request(app).get('/api/media/999').set('Authorization', 'Bearer admin');
     expect(res.status).toBe(404);
+  });
+
+  it('Direct: permite mídia só com publisher_id', async () => {
+    jest.resetModules();
+    jest.doMock('../../../config/directTotemMode', () => ({
+      isDirectTotemMode: () => true,
+    }));
+    mockGetMediaScopeIds.mockResolvedValue({ subscriberId: null, publisherId: 1 });
+    mockGetMediaById.mockResolvedValue({ id: 2, publisherId: 1, name: 'direct' });
+    const router = (await import('../../../routes/media')).default;
+    const app = express();
+    app.use(express.json());
+    app.use('/api/media', router);
+    const res = await request(app).get('/api/media/2').set('Authorization', 'Bearer admin');
+    expect(res.status).toBe(200);
+    expect(mockGetMediaById).toHaveBeenCalledWith(2, undefined, true);
   });
 });
