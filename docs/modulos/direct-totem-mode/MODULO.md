@@ -119,6 +119,19 @@ Excepto: alinhar ambos à installation.modules
 Motivo: Dívida técnica documentada
 ```
 
+### RN-DIR-007 — Org única na listagem
+
+```text
+RN-DIR-007 — Org única na listagem
+Quando: GET /api/publishers (e UI /publishers)
+Se: Direct Totem activo
+Então: listar só is_system_owner; ocultar orgs residuais de multi-agência;
+       devolver residual_organizations com a contagem das ocultas activas;
+       POST criar org → 403; GET/PUT/DELETE de não-owner → 404
+Excepto: portal tenant (slug) continua a restringir ao próprio publisher
+Motivo: Instalação única — dados residuais de Lite/Pro não entram na superfície Direct
+```
+
 ---
 
 ## 4. Fluxos
@@ -170,6 +183,15 @@ QUANDO login em Direct
 ENTÃO menu vazio ou sem entradas Direct (conforme RN-DIR-003)
 ```
 
+### AC-DIR-004 (P0)
+
+```text
+DADO Direct Totem Mode e ≥1 org residual (ex. Agência Demo 2)
+QUANDO abrir /publishers
+ENTÃO só a organização is_system_owner aparece na lista
+E residual_organizations > 0 (aviso informativo na UI)
+```
+
 ---
 
 ## 7. Dependências e referências
@@ -182,7 +204,9 @@ ENTÃO menu vazio ou sem entradas Direct (conforme RN-DIR-003)
 ### Código de referência
 - `frontend/src/utils/menuHierarchy.tsx` (`getDirectTotemMenu`)
 - `frontend/src/config/directTotemMode.ts`
+- `frontend/src/pages/Publishers/Publishers.tsx` (lista owner + aviso residual)
 - `backend/src/config/directTotemMode.ts`
+- `backend/src/routes/publishers.ts` (`system_owner_only` em Direct)
 - `backend/src/policy/installationModules.ts` (`buildCoreOperationPreset`)
 
 ### Lacunas conhecidas

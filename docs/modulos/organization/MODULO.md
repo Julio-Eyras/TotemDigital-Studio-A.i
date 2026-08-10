@@ -159,7 +159,8 @@ flowchart TD
 ```text
 DADO instalação Direct
 QUANDO abrir /publishers
-ENTÃO vê a organização (system owner) editável conforme role
+ENTÃO vê só a organização system owner (editável conforme role);
+     orgs residuais de multi-agência não aparecem na lista
 ```
 
 ### AC-ORG-002 (P0)

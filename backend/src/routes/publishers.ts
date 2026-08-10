@@ -21,6 +21,7 @@ import {
   idParamValidatorDefault,
   // contractIdValidators removido - não utilizado
 } from '../validators/common.validators';
+import { isDirectTotemMode } from '../config/directTotemMode';
 
 const router = Router();
 
@@ -42,6 +43,30 @@ function rejectIfPortalTenantMismatch(
     return true;
   }
   return false;
+}
+
+/**
+ * Em Direct Totem só a organização is_system_owner é visível/editável.
+ * Retorna true se a resposta já foi enviada (acesso negado).
+ */
+async function rejectIfHiddenInDirectTotemMode(
+  res: Response,
+  publisherId: number
+): Promise<boolean> {
+  if (!isDirectTotemMode()) {
+    return false;
+  }
+  const isOwner = await getPublisherService().isSystemOwnerPublisher(publisherId);
+  if (isOwner) {
+    return false;
+  }
+  res.status(404).json({
+    ...errorResponse('Publisher não encontrado'),
+    code: 'DIRECT_TOTEM_ORG_HIDDEN',
+    message:
+      'Em Direct Totem só a organização owner do sistema está disponível. Organizações residuais de multi-agência ficam ocultas.',
+  });
+  return true;
 }
 
 // Lazy initialization - PublisherService (CRUD)
@@ -120,6 +145,11 @@ router.get('/',
           limit: 1,
         });
       }
+
+      const directMode = isDirectTotemMode();
+      const residualOrganizations = directMode
+        ? await getPublisherService().countActiveNonOwnerPublishers()
+        : 0;
       
       const result = await getPublisherService().getAllPublishers({
         page: parseInt(page as string),
@@ -130,13 +160,18 @@ router.get('/',
         // - true => filtrar apenas ativos
         // - false => NÃO filtrar por ativo (incluir inativos também)
         active_only: typeof active_only === 'string' ? active_only === 'true' : undefined,
+        system_owner_only: directMode,
         sortBy: sortBy as string,
         sortOrder: sortOrder as 'asc' | 'desc',
         createdFrom: createdFrom as string,
         createdTo: createdTo as string,
       });
       
-      return res.json({ success: true, ...result });
+      return res.json({
+        success: true,
+        ...result,
+        ...(directMode ? { residual_organizations: residualOrganizations } : {}),
+      });
     } catch (error: any) {
       await logError('Erro ao listar publishers', error);
       return res.status(500).json(errorResponse('Erro interno do servidor'));
@@ -155,6 +190,15 @@ router.post('/',
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
   async (req: AuthenticatedRequest, res: Response) => {
     try {
+      if (isDirectTotemMode()) {
+        return res.status(403).json({
+          ...errorResponse(
+            'Criação de organização indisponível em Direct Totem',
+            'Em Direct Totem só existe a organização owner do sistema. Active multi-agência (Lite/Pro) para criar outras organizações.'
+          ),
+          code: 'DIRECT_TOTEM_SINGLE_ORG',
+        });
+      }
       const pubBody = req.body && req.body.publisher ? req.body.publisher : req.body;
       const { name, contact_name, email, phone, whatsapp, category_segment, description, portal_slug, contract_id } = pubBody;
 
@@ -336,7 +380,11 @@ router.get('/:id/locals',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { id } = req.params;
-      const locals = await getPublisherService().getLocalsByPublisher(parseInt(id));
+      const pid = parseInt(id, 10);
+      if (await rejectIfHiddenInDirectTotemMode(res, pid)) {
+        return;
+      }
+      const locals = await getPublisherService().getLocalsByPublisher(pid);
       return res.json({ success: true, data: locals });
     } catch (error: any) {
       await logError('Erro ao listar locals do publisher', error);
@@ -355,7 +403,11 @@ router.get('/:id/totems',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { id } = req.params;
-      const totems = await getPublisherService().getTotemsByPublisher(parseInt(id));
+      const pid = parseInt(id, 10);
+      if (await rejectIfHiddenInDirectTotemMode(res, pid)) {
+        return;
+      }
+      const totems = await getPublisherService().getTotemsByPublisher(pid);
       return res.json({ success: true, data: totems });
     } catch (error: any) {
       await logError('Erro ao listar totems do publisher', error);
@@ -374,7 +426,11 @@ router.get('/:id/smart-tvs',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { id } = req.params;
-      const smartTvs = await getPublisherService().getSmartTvsByPublisher(parseInt(id));
+      const pid = parseInt(id, 10);
+      if (await rejectIfHiddenInDirectTotemMode(res, pid)) {
+        return;
+      }
+      const smartTvs = await getPublisherService().getSmartTvsByPublisher(pid);
       return res.json({ success: true, data: smartTvs });
     } catch (error: any) {
       await logError('Erro ao listar smart TVs do publisher', error);
@@ -393,7 +449,11 @@ router.get('/:id/stats',
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { id } = req.params;
-      const stats = await getPublisherService().getPublisherStats(parseInt(id));
+      const pid = parseInt(id, 10);
+      if (await rejectIfHiddenInDirectTotemMode(res, pid)) {
+        return;
+      }
+      const stats = await getPublisherService().getPublisherStats(pid);
       return res.json({ success: true, data: stats });
     } catch (error: any) {
       await logError('Erro ao obter estatísticas do publisher', error);
@@ -416,6 +476,9 @@ router.get('/:id',
       const { id } = req.params;
       const pid = parseInt(id, 10);
       if (rejectIfPortalTenantMismatch(req, res, { publisherId: pid })) {
+        return;
+      }
+      if (await rejectIfHiddenInDirectTotemMode(res, pid)) {
         return;
       }
       
@@ -445,6 +508,9 @@ router.put('/:id',
       const { id } = req.params;
       const pid = parseInt(id, 10);
       if (rejectIfPortalTenantMismatch(req, res, { publisherId: pid })) {
+        return;
+      }
+      if (await rejectIfHiddenInDirectTotemMode(res, pid)) {
         return;
       }
       const { name, contact_name, email, phone, whatsapp, category_segment, description, portal_slug, active, is_active } = req.body;
@@ -483,6 +549,9 @@ router.delete('/:id',
       const { id } = req.params;
       const pid = parseInt(id, 10);
       if (rejectIfPortalTenantMismatch(req, res, { publisherId: pid })) {
+        return;
+      }
+      if (await rejectIfHiddenInDirectTotemMode(res, pid)) {
         return;
       }
       

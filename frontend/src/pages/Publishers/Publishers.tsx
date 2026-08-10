@@ -105,6 +105,7 @@ import {
   getPublishersPageTitle,
   isSingleOrganizationProfile,
 } from '../../config/productTerminology';
+import { isDirectTotemMode } from '../../config/directTotemMode';
 import {
   PUBLISHER_CONTRACT_TYPE_OPTIONS,
   REVENUE_SHARE_PERCENT_LABEL,
@@ -141,7 +142,9 @@ const Publishers: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeOnlyFilter, setActiveOnlyFilter] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [residualOrganizations, setResidualOrganizations] = useState(0);
   const [createTab, setCreateTab] = useState(0); // NOVO: Aba do dialog de criação
+  const directTotem = isDirectTotemMode();
   const [editTab, setEditTab] = useState(0); // NOVO: Aba do dialog de edição
   // Quando uma aba é selecionada — focar automaticamente o primeiro campo relevante
   useEffect(() => {
@@ -338,6 +341,11 @@ const Publishers: React.FC = () => {
         active_only: activeOnlyFilter,
       });
       setPublishers(response.data || []);
+      setResidualOrganizations(
+        typeof response.residual_organizations === 'number'
+          ? response.residual_organizations
+          : 0
+      );
     } catch (error) {
       setError(pickApiErrorMessage(error, 'Erro ao carregar lista de publishers'));
     } finally {
@@ -1418,6 +1426,17 @@ const Publishers: React.FC = () => {
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
           {error}
+        </Alert>
+      )}
+
+      {directTotem && residualOrganizations > 0 && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          Existem {residualOrganizations}{' '}
+          {residualOrganizations === 1
+            ? 'organização residual'
+            : 'organizações residuais'}{' '}
+          de multi-agência na base. Em Direct Totem só a organização owner do sistema é
+          listada e editável aqui.
         </Alert>
       )}
 

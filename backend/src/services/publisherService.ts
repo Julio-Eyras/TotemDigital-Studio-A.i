@@ -74,6 +74,8 @@ export class PublisherService {
     search?: string;
     // client_type removido: sempre listar apenas publishers "puros"
     active_only?: boolean;
+    /** Direct / single-org: só a organização owner do sistema */
+    system_owner_only?: boolean;
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
     createdFrom?: string;
@@ -89,6 +91,7 @@ export class PublisherService {
         // - false => não filtrar (incluir inativos também)
         // - undefined => default true (manter comportamento anterior)
         active_only = true,
+        system_owner_only = false,
         sortBy = 'created_at',
         sortOrder = 'desc',
         createdFrom,
@@ -108,6 +111,10 @@ export class PublisherService {
         whereClause += ` AND COALESCE(p.is_active, true) = $${paramIndex}`;
         queryParams.push(true);
         paramIndex++;
+      }
+
+      if (system_owner_only) {
+        whereClause += ` AND COALESCE(p.is_system_owner, false) = true`;
       }
 
       // Busca em múltiplos campos
@@ -200,6 +207,47 @@ export class PublisherService {
     } catch (error: any) {
       await logError('Erro ao listar publishers', error, { params });
       throw new Error('Erro interno do servidor');
+    }
+  }
+
+  /**
+   * Conta organizações activas que não são system owner (resíduos de multi-agência).
+   */
+  async countActiveNonOwnerPublishers(): Promise<number> {
+    try {
+      const row = await this.db.findFirst(`
+        SELECT COUNT(*)::int AS total
+        FROM publishers p
+        WHERE p.is_publisher = true
+          AND p.is_subscriber = false
+          AND p.client_type = 'publisher'
+          AND COALESCE(p.is_active, true) = true
+          AND COALESCE(p.is_system_owner, false) = false
+      `);
+      return Number(row?.total ?? 0);
+    } catch (error: any) {
+      await logError('Erro ao contar publishers não-owner', error);
+      return 0;
+    }
+  }
+
+  /** True se o publisher existir e for is_system_owner. */
+  async isSystemOwnerPublisher(id: number): Promise<boolean> {
+    try {
+      const row = await this.db.findFirst(
+        `
+        SELECT publisher_id
+        FROM publishers
+        WHERE publisher_id = $1
+          AND COALESCE(is_system_owner, false) = true
+        LIMIT 1
+      `,
+        [id]
+      );
+      return !!row;
+    } catch (error: any) {
+      await logError('Erro ao verificar system owner publisher', error, { id });
+      return false;
     }
   }
 

@@ -3861,6 +3861,8 @@ export interface PublisherListResponse {
   total: number;
   page?: number;
   limit?: number;
+  /** Presente em Direct Totem: orgs activas não-owner ocultas na lista */
+  residual_organizations?: number;
 }
 
 export interface PublisherStats {
