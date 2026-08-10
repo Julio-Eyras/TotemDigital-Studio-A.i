@@ -186,5 +186,5 @@ ENTÃO menu vazio ou sem entradas Direct (conforme RN-DIR-003)
 - `backend/src/policy/installationModules.ts` (`buildCoreOperationPreset`)
 
 ### Lacunas conhecidas
-- Env backend vs capabilities frontend.
+- ~~Env backend vs capabilities frontend~~ — **resolvido** em Lacunas-MA (`setDirectTotemModeFromCapabilities`).
 - Docs antigas mencionam operator no Direct; menu código restringe a 3 roles.

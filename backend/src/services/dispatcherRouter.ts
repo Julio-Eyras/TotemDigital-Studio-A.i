@@ -664,15 +664,18 @@ class DispatcherRouter {
         });
       }
 
-      // Marcar comandos como executados (schema: remote_commands usa command_id como PK)
+      // ACK legado embutido no HB → status canónico `completed` (CHECK remoto; não usar `executed`)
       if (executedCommands && Array.isArray(executedCommands) && executedCommands.length > 0) {
-        const db = (await import('../config/database')).getDatabase();
+        const { getRemoteCommandService } = await import('./remoteCommandService');
+        const remoteAck = getRemoteCommandService();
         for (const cmdId of executedCommands) {
-          await db.executeRaw(`
-            UPDATE remote_commands 
-            SET status = 'executed', executed_at = CURRENT_TIMESTAMP
-            WHERE command_id = ? AND totem_id = ?
-          `, [cmdId, totemId]);
+          const id = Number(cmdId);
+          if (!Number.isFinite(id) || id <= 0) continue;
+          try {
+            await remoteAck.markCommandAsCompleted(id, { source: 'heartbeat_executedCommands' });
+          } catch {
+            /* comando inexistente / já terminal — ignorar */
+          }
         }
       }
 

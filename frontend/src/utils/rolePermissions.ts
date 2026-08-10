@@ -136,22 +136,16 @@ export const menuPermissions: MenuItemPermission[] = [
   // Anunciante → organização — admin_sql, admin
   { path: '/subscriber-publisher-access', roles: ['owner_system', 'admin_sql', 'admin'] },
   
-  // Rotas de subitens (herdam permissões do path pai)
+  // Rotas de subitens (herdam permissões do path pai) — só paths com UI real
   { path: '/users/new', roles: ['owner_system', 'admin_sql', 'admin'] },
-  { path: '/users/roles', roles: ['owner_system', 'admin_sql'] },
-  { path: '/users/flags', roles: ['owner_system', 'admin_sql'] },
-  { path: '/publishers/new', roles: ['owner_system', 'admin_sql', 'admin'] },
-  { path: '/totems/status', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_0' },
-  { path: '/totems/config', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_0' },
   { path: '/smart-tvs/by-totem', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico', 'publisher_user'], requiredFlag: 'flag_smart_0' },
   { path: '/smart-tvs/config', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_0' },
   { path: '/players/status', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_0' },
   { path: '/ota-updates/history', roles: ['owner_system', 'admin_sql', 'admin'], requiredFlag: 'flag_smart_1' },
   { path: '/subscriber-publisher-access/new', roles: ['admin_sql', 'admin'] },
   { path: '/plan-publisher-access/config', roles: ['admin_sql', 'admin'] },
-  { path: '/publishers/details', roles: ['owner_system', 'admin_sql', 'admin', 'operador_comercial'] },
   { path: '/subscribers/details', roles: ['owner_system', 'admin_sql', 'admin', 'operador_comercial'] },
-  { path: '/campaigns/stats', roles: ['admin_sql', 'admin', 'gerente_marketing', 'visualizador', 'operador_comercial'] },
+  { path: '/plans', roles: ['admin_sql', 'admin'] },
 ];
 
 /**

@@ -63,7 +63,6 @@ const PlaylistMixGroup = React.lazy(() => import('./pages/PlaylistMix/PlaylistMi
 const AIContextDashboard = React.lazy(() => import('./pages/AIContext/AIContextDashboard'));
 const PlaylistMixAnalytics = React.lazy(() => import('./pages/PlaylistMix/PlaylistMixAnalytics'));
 const OTAUpdates = React.lazy(() => import('./components/OTAUpdates/OTAUpdates'));
-const TagsManager = React.lazy(() => import('./components/TagsManager/TagsManager'));
 const SmartDisplayFx = React.lazy(() => import('./pages/SmartDisplayFx/SmartDisplayFx'));
 const SubscriberDashboard = React.lazy(() => import('./pages/SubscriberDashboard/SubscriberDashboard'));
 const PlanPublisherAccess = React.lazy(() => import('./pages/PlanPublisherAccess/PlanPublisherAccess'));
@@ -632,6 +631,7 @@ const AppContent: React.FC = () => {
               </ProtectedRoute>
             }
           />
+          <Route path="/plans" element={<Navigate to="/plan-publisher-access" replace />} />
           <Route
             path="/subscriber-publisher-access"
             element={
@@ -796,14 +796,7 @@ const AppContent: React.FC = () => {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/tags"
-            element={
-              <ProtectedRoute>
-                <TagsManager />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/tags" element={<Navigate to={getAppHomePath()} replace />} />
           <Route
             path="/smartdisplayfx"
             element={

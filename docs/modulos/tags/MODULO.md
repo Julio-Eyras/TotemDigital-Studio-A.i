@@ -178,5 +178,6 @@ ENTÃO não entrega
 - schema part6 `tags`
 
 ### Lacunas conhecidas
-- **Desalinhamento schema↔serviço:** service/UI usam tipos lowercase (`qr_code`) e campos (`description`/`content_id`) que o DDL v2 não espelha 1:1 (`tag_type` CHECK maiúsculo, `tag_id SERIAL`).
+- **Adiado (FEATURE_DEFERRED):** API `/api/tags` responde 501; menu e rota FE ocultos/redirect até alinhar schema↔serviço e reactivar em versão futura.
+- **Desalinhamento schema↔serviço:** service/UI usam tipos lowercase (`qr_code`) e campos (`description`/`content_id`) que o DDL v2 não espelha 1:1.
 - Doc L1 antigo falava em “etiquetas de mídia” — incorrecto face ao código.

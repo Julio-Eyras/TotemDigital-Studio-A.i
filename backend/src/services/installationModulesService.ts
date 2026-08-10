@@ -17,6 +17,7 @@ import {
 import {
   resolveInstallationProfile,
   resetInstallationProfileCache,
+  resolveInstallationCapabilities,
 } from './installationProfileService';
 import { resolveInstallationSimpleTotemMode } from './totemSimpleModeService';
 import { logError } from '../utils/loggerHelper';
@@ -164,6 +165,7 @@ async function persistModulesFlags(
   );
 
   resetInstallationProfileCache();
+  await resolveInstallationCapabilities(db as any);
   return flags;
 }
 
@@ -202,6 +204,7 @@ export async function saveInstallationModules(
       'Perfil de instalação: single_publisher (Studio/mono) ou multi_agency (Pro)'
     );
     resetInstallationProfileCache();
+    await resolveInstallationCapabilities(db as any);
   }
 
   const workersTouch = workersAffectingModulesChanged(previous, modules);
@@ -559,6 +562,7 @@ export async function setMultiAgencyMode(
     'Perfil de instalação: single_publisher (Studio/mono) ou multi_agency (Pro/lite)'
   );
   resetInstallationProfileCache();
+  await resolveInstallationCapabilities(db as any);
 
   let bootstrap: { created: boolean; publisherId?: number; detail: string } | undefined;
   let secondAgency:

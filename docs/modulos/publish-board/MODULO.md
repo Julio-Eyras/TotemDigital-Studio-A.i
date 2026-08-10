@@ -220,6 +220,6 @@ ENTÃO responde menu público (política de exposição do serviço)
 
 ### Lacunas conhecidas
 - Não há `requireModule('publish_board')` — partilha `quick_publish`.
-- `/publish-board` é só redirect; `PublishBoardStudio.tsx` órfão.
+- `/publish-board` é redirect; `PublishBoardStudio.tsx` **@deprecated** (adiado) — canónico = quick-publish create.
 - Registo duplicado possível em `registerCompactRoutes` + `registerExtendedApiRoutes`.
 - Jobs vídeo IA em `audit_logs`, sem tabela dedicada de jobs.

@@ -229,5 +229,5 @@ ENTÃO pode reentregar
 
 ### Lacunas conhecidas
 - “Lease” de reentrega na doc antiga = condição SQL em `sent`, não tabela.
-- Status legado `executed` em path HB.
+- ~~Status legado `executed` em path HB~~ — **resolvido** (ACK → `completed`).
 - Sync pode embutir command results além de `/command-result`.

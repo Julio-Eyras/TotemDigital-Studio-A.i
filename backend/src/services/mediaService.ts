@@ -574,6 +574,33 @@ export class MediaService {
     }
   }
 
+  /** Escopo da mídia (subscriber e/ou publisher) — Direct pode ter só publisher_id. */
+  async getMediaScopeIds(
+    mediaId: number
+  ): Promise<{ subscriberId: number | null; publisherId: number | null } | null> {
+    try {
+      const row = await this.db.findFirst(
+        `SELECT subscriber_id, publisher_id FROM medias WHERE media_id = $1`,
+        [mediaId]
+      );
+      if (row == null) return null;
+      const sidRaw = (row as any).subscriber_id;
+      const pidRaw = (row as any).publisher_id;
+      const subscriberId =
+        sidRaw != null && Number.isFinite(Number(sidRaw)) && Number(sidRaw) > 0
+          ? Number(sidRaw)
+          : null;
+      const publisherId =
+        pidRaw != null && Number.isFinite(Number(pidRaw)) && Number(pidRaw) > 0
+          ? Number(pidRaw)
+          : null;
+      return { subscriberId, publisherId };
+    } catch (error: any) {
+      await logError('Erro ao resolver escopo da mídia', error, { mediaId });
+      return null;
+    }
+  }
+
   /**
    * Busca mídia por ID
    * @param mediaId ID da mídia

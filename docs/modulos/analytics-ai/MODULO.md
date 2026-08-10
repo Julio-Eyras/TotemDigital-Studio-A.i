@@ -182,5 +182,5 @@ ENTÃO campanha/dispatch inalterados
 - schema part6 analytics_*; part2 ai_models; part11 ai_context_data
 
 ### Lacunas conhecidas
-- FE `aiApi.generate` → `POST /ai/generate` pode não existir (backend: `/process`, `/chat`).
-- Serviço referencia `ai_requests` **sem DDL** no schema v2.
+- ~~FE `aiApi.generate` → `POST /ai/generate`~~ — **resolvido** (FE `/ai/process` + alias BE `/generate`).
+- Histórico/stats `ai_requests` — **adiado** (`FEATURE_DEFERRED` em `/ai/requests` e `/ai/stats`); generate/process activos.

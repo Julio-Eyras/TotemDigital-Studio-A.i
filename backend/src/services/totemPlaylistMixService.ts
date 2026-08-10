@@ -589,7 +589,7 @@ export class TotemPlaylistMixService {
             WHERE pi.playlist_id = $1
               AND COALESCE(pi.is_active, true) = true
               AND m.is_active = true
-              AND m.status IN ('approved', 'published')
+              AND m.status IN ('approved')
             ORDER BY pi.order_index ASC
           `, [playlist.playlist_id]);
 
@@ -635,7 +635,7 @@ export class TotemPlaylistMixService {
           WHERE cm.campaign_id = $1
             AND COALESCE(cm.is_active, true) = true
             AND m.is_active = true
-            AND m.status IN ('approved', 'published')
+            AND m.status IN ('approved')
           ORDER BY cm.order_index ASC, m.media_id ASC
         `, [campaign.campaign_id]);
 

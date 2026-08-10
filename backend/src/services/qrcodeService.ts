@@ -802,6 +802,11 @@ export class QRCodeService {
     total: number;
     page: number;
     limit: number;
+    deferred?: boolean;
+    code?: string;
+    feature?: string;
+    reason?: string;
+    deferredUntil?: string;
   }> {
     try {
       // Buscar QR code para obter informações básicas
@@ -823,7 +828,12 @@ export class QRCodeService {
         scans,
         total: scanTotal,
         page,
-        limit
+        limit,
+        deferred: true,
+        code: 'FEATURE_DEFERRED',
+        feature: 'qr_code_scans',
+        reason: 'Histórico detalhado adiado até tabela qr_code_scans no schema v2',
+        deferredUntil: 'v6.x+',
       };
 
     } catch (error: any) {

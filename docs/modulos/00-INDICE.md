@@ -131,18 +131,25 @@ IDs estáveis: `REQ-<MOD>-NNN`, `RN-<MOD>-NNN`, `AC-<MOD>-NNN`.
 
 ## Candidatos a revisão L3 / evidência frágil
 
-Documentados em L2, mas com gaps código↔produto a validar antes de L3:
+Estado na branch `TotemDigital-Lacunas-MA` (2026-08-09):
 
-| Slug | Motivo |
-|------|--------|
-| [backups-notifications](./backups-notifications/MODULO.md) | UI de backup fraca; DDL `notifications` ausente no schema v2 |
-| [tags](./tags/MODULO.md) | Desalinhamento schema↔serviço; não são labels de mídia |
-| [smart-playlist](./smart-playlist/MODULO.md) | `client_id` legado; geração IA parcial |
-| [analytics-ai](./analytics-ai/MODULO.md) | mismatch FE `/ai/generate` vs BE; `ai_requests` sem DDL |
-| [qr-codes](./qr-codes/MODULO.md) | `qr_code_scans` inexistente (scans stub) |
-| [subscriber-portal](./subscriber-portal/MODULO.md) | settings/DNS fortes; FE só subset |
-| [commercial-purge](./commercial-purge/MODULO.md) | só painel em Complementos |
-| [network-topology](./network-topology/MODULO.md) | read-model sem tabela dedicada |
-| [plans](./plans/MODULO.md) | sem página `/plans`; CRUD noutros ecrãs |
-| [publish-board](./publish-board/MODULO.md) | `PublishBoardStudio` órfão; redirect para quick-publish |
-| [campaigns](./campaigns/MODULO.md) | menu `/campaigns/stats` sem Route React |
+| Slug / tema | Estado | Acção |
+|-------------|--------|--------|
+| Direct env vs capabilities | **Corrigido** | BE sincroniza via `setDirectTotemModeFromCapabilities` |
+| remote `executed` | **Corrigido** | HB usa `completed` / `markCommandAsCompleted` |
+| media GET só publisher_id | **Corrigido** | `getMediaScopeIds` + Direct |
+| vinhetas / dispatch `published` | **Corrigido** | filtros só `approved` |
+| menus órfãos | **Corrigido** | removidos paths sem Route |
+| `/plans` | **Corrigido** | redirect → `/plan-publisher-access` |
+| AI `/generate` | **Corrigido** | alias BE + FE usa `/ai/process` |
+| PublishBoardStudio | **Adiado** | `@deprecated`; canónico = quick-publish create |
+| tags | **Adiado** | API 501 `FEATURE_DEFERRED`; menu oculto |
+| notifications | **Adiado** | API 501 até DDL |
+| facial-recognition | **Adiado** | API 501 |
+| qr_code_scans | **Adiado** | histórico vazio + flag deferred; CRUD QR activo |
+| ai_request_history | **Adiado** | GET `/ai/requests` → 501 |
+| network-topology | OK read-model | sem mudança |
+| commercial-purge | OK em Complementos | sem mudança |
+| subscriber-portal / plans UI | parcial | planos via PlanPublisherAccess |
+
+Política: `backend/src/policy/deferredFeatures.ts` · middleware `FEATURE_DEFERRED` · FE `frontend/src/config/deferredFeatures.ts`.

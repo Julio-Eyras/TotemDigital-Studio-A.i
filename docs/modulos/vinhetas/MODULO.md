@@ -211,5 +211,5 @@ ENTÃO não aparece como vinheta
 ### Lacunas conhecidas
 - **UI-only wrapper** — sem rota `/api/vinhetas`.
 - Sem entrada em `installationModuleAccess` para complemento dedicado.
-- CHECK/status de `medias` vs string `published` no fetch global — possível divergência.
+- ~~CHECK/status `published`~~ — **resolvido** (filtros só `approved`).
 - Pastas `vinhetas/` no Player não alimentam o plano no servidor.

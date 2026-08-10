@@ -233,4 +233,4 @@ ENTÃO 403 requireModule
 - Reorder de playlists usa `priority`; schema de `campaign_playlists` sem `order_index` / possível mismatch `updated_at`.
 - Stats `mediaCount` pode ignorar `campaign_medias` directas.
 - Rotas de mutação de totems na campanha sem `authorizeRole`.
-- Menu UI `/campaigns/stats` sem `<Route>` dedicado no `App.tsx` (só API).
+- ~~Menu UI `/campaigns/stats` sem `<Route>`~~ — **resolvido** (item removido do menu).

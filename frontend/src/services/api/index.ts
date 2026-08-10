@@ -1926,7 +1926,8 @@ export interface AIGenerateRequest {
 
 export const aiApi = {
   generate: async (data: AIGenerateRequest) => {
-    const response = await api.post('/ai/generate', data);
+    // Backend canónico: POST /ai/process (alias /ai/generate também existe)
+    const response = await api.post('/ai/process', data);
     return response.data.data;
   },
 

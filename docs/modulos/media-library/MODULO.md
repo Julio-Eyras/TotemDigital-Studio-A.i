@@ -224,6 +224,6 @@ ENTÃO não aparece
 - `database/smartchannel-db-v2-refactored-part3-tables-dependent.sql` (`medias`)
 
 ### Lacunas conhecidas
-- `GET /:id` pode 404 em mídias só-`publisher_id` (Direct).
+- ~~`GET /:id` pode 404 em mídias só-`publisher_id` (Direct)~~ — **resolvido** (`getMediaScopeIds`).
 - Validadores Joi legados vs express-validator nas rotas activas.
 - Doc antiga “sem duplicar no totem” pertence a `publish-totem`, não à biblioteca.

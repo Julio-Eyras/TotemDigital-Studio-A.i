@@ -43,6 +43,7 @@ import { authMiddleware } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { rateLimitHeavyOperations } from '../middleware/rateLimitUser.middleware';
 import { requireModule } from '../middleware/moduleAuth.middleware';
+import { requireFeatureNotDeferred } from '../middleware/deferredFeature.middleware';
 
 export function registerExtendedApiRoutes(app: Express): void {
   app.use(
@@ -84,8 +85,18 @@ export function registerExtendedApiRoutes(app: Express): void {
     requireModule('quick_publish') as any,
     publishBoardRoutes
   );
-  app.use('/api/tags', blockClientDataAccess as any, tagsRoutes);
-  app.use('/api/facial-recognition', blockClientDataAccess as any, facialRecognitionRoutes);
+  app.use(
+    '/api/tags',
+    requireFeatureNotDeferred('tags_crud') as any,
+    blockClientDataAccess as any,
+    tagsRoutes
+  );
+  app.use(
+    '/api/facial-recognition',
+    requireFeatureNotDeferred('facial_recognition') as any,
+    blockClientDataAccess as any,
+    facialRecognitionRoutes
+  );
   app.use('/api/network', networkRoutes);
   app.use('/api/smartdisplayfx', requireModule('smart_display_fx') as any, smartDisplayFxRoutes);
   app.use('/api/smartdisplayfx/effects', requireModule('smart_display_fx') as any, smartDisplayFxEffectsRoutes);
@@ -103,5 +114,9 @@ export function registerExtendedApiRoutes(app: Express): void {
   app.use('/api/qrcodes', authMiddleware as any, blockClientDataAccess as any, qrcodesRoutes);
   // Alias usado pelo frontend (GET /api/qr-codes)
   app.use('/api/qr-codes', authMiddleware as any, blockClientDataAccess as any, qrcodesRoutes);
-  app.use('/api/notifications', notificationsRoutes);
+  app.use(
+    '/api/notifications',
+    requireFeatureNotDeferred('notifications') as any,
+    notificationsRoutes
+  );
 }

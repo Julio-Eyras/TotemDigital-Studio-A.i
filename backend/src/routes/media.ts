@@ -229,14 +229,20 @@ router.get('/:id',
     try {
       const mediaId = parseInt(req.params.id);
 
-      const sid = await getMediaService().getSubscriberIdForMedia(mediaId);
-      if (sid == null) {
+      const scope = await getMediaService().getMediaScopeIds(mediaId);
+      if (scope == null) {
         return res.status(404).json({ error: 'Arquivo de mídia não encontrado' });
       }
 
-      if (!isAdminRole(req.user?.role)) {
+      const directMode = isDirectTotemMode();
+      const isAdmin = isAdminRole(req.user?.role);
+
+      if (!isAdmin && !directMode) {
+        if (scope.subscriberId == null) {
+          return res.status(404).json({ error: 'Arquivo de mídia não encontrado' });
+        }
         try {
-          await assertTenantClientParamAccess(req, sid);
+          await assertTenantClientParamAccess(req, scope.subscriberId);
         } catch (e: any) {
           if (e?.statusCode === 403) {
             return res.status(403).json({ error: e.message || 'Acesso negado' });
@@ -245,7 +251,12 @@ router.get('/:id',
         }
       }
 
-      const media = await getMediaService().getMediaById(mediaId, undefined, true);
+      // Direct: getMediaById valida publisher_id da org; admin ignora ownership de subscriber
+      const media = await getMediaService().getMediaById(
+        mediaId,
+        scope.subscriberId ?? undefined,
+        isAdmin || directMode
+      );
       if (!media) {
         return res.status(404).json({ error: 'Arquivo de mídia não encontrado' });
       }

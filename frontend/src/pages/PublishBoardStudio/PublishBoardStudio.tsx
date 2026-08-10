@@ -1,3 +1,7 @@
+/**
+ * @deprecated Não montado no App.tsx — fluxo canónico: `/publish-board` → `/quick-publish?mode=create`.
+ * Preservado inactivo até decisão de produto (reativar studio ou remover ficheiro).
+ */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import {

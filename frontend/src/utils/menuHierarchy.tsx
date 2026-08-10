@@ -295,7 +295,6 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
         ...getOrganizationFlatAdminItems(),
         getBillingMenuBlock(true),
         { text: 'Manutenção Usuário', icon: <People />, path: '/users' },
-        { text: 'Tags', icon: <Assignment />, path: '/tags' },
         { text: 'QR-Codes', icon: <QrCode />, path: '/qr-codes' },
         { text: 'OTA Updates', icon: <CloudUpload />, path: '/ota-updates' },
         { text: 'SmartDisplayFX', icon: <AutoAwesome />, path: '/smartdisplayfx' },
@@ -560,7 +559,6 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
       path: '/settings',
       children: [
         { text: 'Usuários', icon: <People />, path: '/users' },
-        { text: 'Tags', icon: <Assignment />, path: '/tags' },
         { text: 'QR Codes', icon: <QrCode />, path: '/qr-codes' },
         { text: 'OTA Updates', icon: <CloudUpload />, path: '/ota-updates' },
         {
@@ -614,8 +612,6 @@ function getOperadorTecnicoMenu(): HierarchicalMenuItem[] {
       requiredFlag: 'flag_smart_0',
       children: [
         { text: 'Listar Totens', icon: <Tv />, path: '/totems' },
-        { text: 'Status Técnico', icon: <Tv />, path: '/totems/status' },
-        { text: 'Configurações', icon: <Settings />, path: '/totems/config' },
       ],
     },
     {
@@ -751,7 +747,6 @@ function getOperadorComercialMenu(): HierarchicalMenuItem[] {
       path: '/campaigns',
       children: [
         { text: 'Listar Campanhas', icon: <Campaign />, path: '/campaigns' },
-        { text: 'Estatísticas', icon: <Assessment />, path: '/campaigns/stats' },
       ],
     },
     { text: 'Relatórios Comerciais', icon: <Assessment />, path: '/reports' },

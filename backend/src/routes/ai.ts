@@ -85,50 +85,42 @@ router.post('/process', async (req: any, res) => {
   }
 });
 
+/** Alias FE: POST /api/ai/generate → processRequest (mesmo contrato de /process) */
+router.post('/generate', async (req: any, res) => {
+  try {
+    const { prompt, context, maxTokens, temperature, model, systemPrompt } = req.body;
+    if (!prompt) {
+      return res.status(400).json({ success: false, message: 'Prompt é obrigatório' });
+    }
+    const response = await getAIService().processRequest(
+      { prompt, context, maxTokens, temperature, model, systemPrompt },
+      req.user.id
+    );
+    return res.json({ success: true, data: response });
+  } catch (error: any) {
+    await logError('Erro ao processar requisição de IA (generate)', error);
+    return res.status(400).json({
+      success: false,
+      message: error.message || 'Erro ao processar requisição de IA',
+      error: error.message,
+    });
+  }
+});
+
 /**
  * @route GET /api/ai/requests
  * @desc Lista requisições de IA
  * @access Private (Admin, Manager)
+ * @note Persistência ai_requests adiada (FEATURE_DEFERRED) até DDL no schema v2
  */
-router.get('/requests', authorizeRole(['admin', 'gerente_marketing']) as any, async (req, res) => {
-  try {
-    const {
-      page = 1,
-      limit = 20,
-      userId,
-      provider,
-      model,
-      startDate,
-      endDate
-    } = req.query;
-
-    const filters = {
-      userId: userId ? parseInt(userId as string) : undefined,
-      provider: provider as string,
-      model: model as string,
-      startDate: startDate as string,
-      endDate: endDate as string
-    };
-
-    const result = await getAIService().getAIRequests(
-      parseInt(page as string),
-      parseInt(limit as string),
-      filters
-    );
-
-    return res.json({
-      success: true,
-      data: result
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao listar requisições de IA', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Erro interno do servidor',
-      error: error.message
-    });
-  }
+router.get('/requests', authorizeRole(['admin', 'gerente_marketing']) as any, async (_req, res) => {
+  return res.status(501).json({
+    error: 'Feature adiada',
+    code: 'FEATURE_DEFERRED',
+    feature: 'ai_request_history',
+    reason: 'Tabela ai_requests ausente no schema v2 definitivo.',
+    deferredUntil: 'v6.x+',
+  });
 });
 
 /**
@@ -137,22 +129,13 @@ router.get('/requests', authorizeRole(['admin', 'gerente_marketing']) as any, as
  * @access Private (Admin, Manager)
  */
 router.get('/stats', authorizeRole(['admin', 'gerente_marketing']) as any, async (_req, res) => {
-  try {
-    const stats = await getAIService().getAIUsageStats();
-
-    return res.json({
-      success: true,
-      data: stats
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar estatísticas de IA', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Erro interno do servidor',
-      error: error.message
-    });
-  }
+  return res.status(501).json({
+    error: 'Feature adiada',
+    code: 'FEATURE_DEFERRED',
+    feature: 'ai_request_history',
+    reason: 'Estatísticas dependem de ai_requests (DDL ausente no schema v2).',
+    deferredUntil: 'v6.x+',
+  });
 });
 
 /**

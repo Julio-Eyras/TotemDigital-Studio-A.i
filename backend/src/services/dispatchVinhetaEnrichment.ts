@@ -46,7 +46,7 @@ export async function fetchGlobalVinhetasForSubscriber(
     FROM medias m
     WHERE m.subscriber_id = $1
       AND COALESCE(m.is_active, true) = true
-      AND m.status IN ('approved', 'published')
+      AND m.status IN ('approved')
       AND COALESCE(m.tags, '{}') @> ARRAY[$2, $3]::text[]
     ORDER BY m.media_id ASC
   `,

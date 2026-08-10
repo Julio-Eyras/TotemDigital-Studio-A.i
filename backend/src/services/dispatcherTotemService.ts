@@ -1394,7 +1394,7 @@ export class DispatcherTotemService {
               AND COALESCE(pi.is_active, true) = true
             INNER JOIN medias m ON m.media_id = pi.media_id
               AND COALESCE(m.is_active, true)
-              AND m.status IN ('approved', 'published')
+              AND m.status IN ('approved')
             WHERE cp.campaign_id = c.campaign_id
               AND COALESCE(cp.is_active, true)
               AND COALESCE(p.is_active, true)
@@ -1406,7 +1406,7 @@ export class DispatcherTotemService {
             WHERE cm.campaign_id = c.campaign_id
               AND COALESCE(cm.is_active, true) = true
               AND COALESCE(m.is_active, true)
-              AND m.status IN ('approved', 'published')
+              AND m.status IN ('approved')
           )
         )
     `,
@@ -2145,7 +2145,7 @@ export class DispatcherTotemService {
         AND cp.is_active = true
         AND COALESCE(pi.is_active, true) = true
         AND m.is_active = true
-        AND m.status IN ('approved', 'published')
+        AND m.status IN ('approved')
       ORDER BY cp.priority DESC, cp.created_at ASC, pi.order_index ASC, m.media_id ASC
     `,
       [campaignId]
@@ -2173,7 +2173,7 @@ export class DispatcherTotemService {
           WHERE cm.campaign_id = $1
             AND COALESCE(cm.is_active, true) = true
             AND m.is_active = true
-            AND m.status IN ('approved', 'published')
+            AND m.status IN ('approved')
           ORDER BY cm.order_index ASC, m.media_id ASC
         `,
       [campaignId]
@@ -2273,7 +2273,7 @@ export class DispatcherTotemService {
       WHERE pi.playlist_id = $1
         AND COALESCE(pi.is_active, true) = true
         AND m.is_active = true
-        AND m.status IN ('approved', 'published')
+        AND m.status IN ('approved')
       ORDER BY pi.order_index ASC, m.media_id ASC
     `,
             [playlistId]
@@ -2349,7 +2349,7 @@ export class DispatcherTotemService {
       `, [mixItem.media_id]);
       
       const mediaIsPlayable =
-        !!media && media.is_active === true && ['approved', 'published'].includes(String(media.status));
+        !!media && media.is_active === true && ['approved'].includes(String(media.status));
 
       if (media && mediaIsPlayable) {
         mediaItems.push(

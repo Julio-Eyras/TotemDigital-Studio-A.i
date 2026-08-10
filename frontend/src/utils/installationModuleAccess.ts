@@ -4,6 +4,7 @@
  */
 import type { InstallationModuleId } from '../types/installationCapabilities';
 import { getInstallationCapabilities } from '../config/installationCapabilities';
+import { isPathDeferred } from '../config/deferredFeatures';
 
 const PATH_MODULE_RULES: Array<{ prefix: string; module: InstallationModuleId }> = [
   { prefix: '/settings/system-modules', module: 'organization' }, // sempre “on” via núcleo; gate por role
@@ -25,6 +26,8 @@ const PATH_MODULE_RULES: Array<{ prefix: string; module: InstallationModuleId }>
   { prefix: '/plans', module: 'plans' },
   { prefix: '/reports', module: 'commercial_reports' },
   { prefix: '/analytics', module: 'analytics' },
+  { prefix: '/ai', module: 'analytics' },
+  { prefix: '/ai-context', module: 'analytics' },
   { prefix: '/smart-tvs', module: 'devices' },
   { prefix: '/players', module: 'devices' },
   { prefix: '/ota-updates', module: 'ota' },
@@ -45,7 +48,6 @@ const CORE_PREFIXES = [
   '/users',
   '/settings',
   '/dashboard',
-  '/tags',
   '/qr-codes',
 ];
 
@@ -75,6 +77,7 @@ export function resolveModuleForPath(path: string): InstallationModuleId | null 
 }
 
 export function isPathAllowedByInstallationModules(path: string): boolean {
+  if (isPathDeferred(path)) return false;
   const moduleId = resolveModuleForPath(path);
   if (!moduleId) return true;
   const caps = getInstallationCapabilities();

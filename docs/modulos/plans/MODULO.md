@@ -180,5 +180,5 @@ ENTÃO não lista publishers fora do plano
 - schema part2 `plans`; part5 `subscriptions`
 
 ### Lacunas conhecidas
-- Sem rota de página `/plans` — CRUD na UI PlanPublisherAccess/Billing.
+- ~~Sem rota `/plans`~~ — **resolvido** (redirect → `/plan-publisher-access`).
 - FE pode chamar `/plans/default` além das rotas documentadas no backend.

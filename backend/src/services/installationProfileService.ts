@@ -4,6 +4,7 @@ import {
   InstallationCapabilities,
   InstallationProfile,
 } from '../policy/installationPolicy';
+import { setDirectTotemModeFromCapabilities } from '../config/directTotemMode';
 import { resolveInstallationSimpleTotemMode } from './totemSimpleModeService';
 
 let cachedProfile: InstallationProfile | undefined;
@@ -86,10 +87,17 @@ export async function resolveInstallationCapabilities(db?: {
   const simpleTotemMode = await resolveInstallationSimpleTotemMode(db);
   const moduleOverrides = await loadModuleOverrides(db);
   cachedCapabilities = buildInstallationCapabilities(profile, simpleTotemMode, moduleOverrides);
+  setDirectTotemModeFromCapabilities(cachedCapabilities.directTotemMode);
+  return cachedCapabilities;
+}
+
+/** Snapshot síncrono (após resolve); undefined se cache frio. */
+export function peekInstallationCapabilities(): InstallationCapabilities | undefined {
   return cachedCapabilities;
 }
 
 export function resetInstallationProfileCache(): void {
   cachedProfile = undefined;
   cachedCapabilities = undefined;
+  setDirectTotemModeFromCapabilities(undefined);
 }

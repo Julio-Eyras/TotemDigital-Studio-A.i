@@ -6,6 +6,7 @@ import {
 import {
   resetInstallationProfileCache,
   resolveInstallationProfile,
+  resolveInstallationCapabilities,
 } from '../services/installationProfileService';
 import { resetCompactOwnerPublisherCache } from '../utils/compactOwnerPublisher';
 
@@ -26,6 +27,7 @@ export async function warmInstallationRuntime(db?: {
 }): Promise<InstallationProfile> {
   resetInstallationProfileCache();
   runtimeProfile = await resolveInstallationProfile(db);
+  await resolveInstallationCapabilities(db);
   resetCompactOwnerPublisherCache();
 
   // Heal + persist lite antigo (subscribers:false) no arranque, se BD permitir escrita

@@ -639,7 +639,7 @@ export class PlaylistService {
         FROM medias 
         WHERE media_id = $1
           AND COALESCE(is_active, true) = true
-          AND status IN ('approved', 'published', 'active', 'draft', 'pending_approval')
+          AND status IN ('approved', 'active', 'draft', 'pending_approval')
       `, [mediaId]);
 
       if (!media) {
