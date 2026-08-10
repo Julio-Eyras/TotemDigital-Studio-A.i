@@ -1964,6 +1964,9 @@ export interface SmartPlaylistRequest {
     operator: string;
     value: any;
   }>;
+  /** Preferido */
+  subscriberId?: number;
+  /** @deprecated alias de subscriberId — ainda aceite no BE */
   clientId?: number;
 }
 

@@ -151,5 +151,10 @@ Estado na branch `TotemDigital-Lacunas-MA` (2026-08-09):
 | network-topology | OK read-model | sem mudança |
 | commercial-purge | OK em Complementos | sem mudança |
 | subscriber-portal / plans UI | parcial | planos via PlanPublisherAccess |
+| menus órfãos (2ª onda) | **Corrigido** | smart-tvs/players/plan/new/expired/`/admin` |
+| dual mount publish-board | **Corrigido** | só compact routes |
+| smart-playlist clientId | **Corrigido** | dual-read subscriberId |
+| backups API sem UI | **Adiado** | `system_backups` FEATURE_DEFERRED |
+| Joi validation/* | **Adiado** | `@deprecated` até remoção |
 
 Política: `backend/src/policy/deferredFeatures.ts` · middleware `FEATURE_DEFERRED` · FE `frontend/src/config/deferredFeatures.ts`.

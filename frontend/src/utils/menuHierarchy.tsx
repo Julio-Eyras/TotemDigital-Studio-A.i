@@ -20,7 +20,6 @@ import {
   Settings,
   AdminPanelSettings,
   Extension,
-  Warning,
   Link,
   QueueMusic,
   SmartToy,
@@ -545,7 +544,6 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
       path: '/plan-publisher-access',
       children: [
         { text: 'Planos', icon: <Link />, path: '/plan-publisher-access' },
-        { text: 'Planos Expirados', icon: <Warning />, path: '/plan-publisher-access/expired' },
         { text: t.subscriberToOrgAccess, icon: <Link />, path: '/subscriber-publisher-access' },
       ],
     },
@@ -621,8 +619,6 @@ function getOperadorTecnicoMenu(): HierarchicalMenuItem[] {
       requiredFlag: 'flag_smart_0',
       children: [
         { text: 'Listar Smart TVs', icon: <Tv />, path: '/smart-tvs' },
-        { text: 'Status por Totem', icon: <Tv />, path: '/smart-tvs/by-totem' },
-        { text: 'Configurações', icon: <Settings />, path: '/smart-tvs/config' },
       ],
     },
     {
@@ -632,7 +628,6 @@ function getOperadorTecnicoMenu(): HierarchicalMenuItem[] {
       requiredFlag: 'flag_smart_0',
       children: [
         { text: 'Listar Players', icon: <Computer />, path: '/players' },
-        { text: 'Status', icon: <Computer />, path: '/players/status' },
       ],
     },
     {
@@ -677,7 +672,7 @@ function getOperadorFaturamentoMenu(): HierarchicalMenuItem[] {
     {
       text: 'Financeiro',
       icon: <AdminPanelSettings />,
-      path: '/admin',
+      path: '/billing',
       requiredFlag: 'flag_smart_3',
       children: [
         // Mantemos as 2 manutenções separadas, como acordado
@@ -688,9 +683,7 @@ function getOperadorFaturamentoMenu(): HierarchicalMenuItem[] {
           icon: <Link />,
           path: '/plan-publisher-access',
           children: [
-            { text: 'Criar Plano', icon: <Link />, path: '/plan-publisher-access/new' },
             { text: getProductTerminology().maintainPlansAndOrganizations, icon: <Link />, path: '/plan-publisher-access' },
-            { text: 'Planos Expirados', icon: <Warning />, path: '/plan-publisher-access/expired' },
             { text: 'Planos Anunciantes', icon: <Link />, path: '/plan-publisher-access?type=subscriber' },
             { text: getProductTerminology().plansForOrganization, icon: <Link />, path: '/plan-publisher-access?type=publisher' },
           ],
@@ -711,7 +704,7 @@ function getOperadorComercialMenu(): HierarchicalMenuItem[] {
     {
       text: 'Comercial',
       icon: <AdminPanelSettings />,
-      path: '/admin',
+      path: '/subscribers',
       children: [
         {
           ...getOrganizationTopLevelMenu(false),
@@ -731,9 +724,7 @@ function getOperadorComercialMenu(): HierarchicalMenuItem[] {
           icon: <Link />,
           path: '/plan-publisher-access',
           children: [
-            { text: 'Criar Plano', icon: <Link />, path: '/plan-publisher-access/new' },
             { text: getProductTerminology().maintainPlansAndOrganizations, icon: <Link />, path: '/plan-publisher-access' },
-            { text: 'Planos Expirados', icon: <Warning />, path: '/plan-publisher-access/expired' },
             { text: 'Planos Anunciantes', icon: <Link />, path: '/plan-publisher-access?type=subscriber' },
             { text: getProductTerminology().plansForOrganization, icon: <Link />, path: '/plan-publisher-access?type=publisher' },
           ],

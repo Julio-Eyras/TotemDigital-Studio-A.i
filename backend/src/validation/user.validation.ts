@@ -1,3 +1,7 @@
+/**
+ * @deprecated Dead code — rotas activas usam express-validator em `backend/src/validators/*`.
+ * Não importar; referência histórica até remoção em v6.x+.
+ */
 import Joi from 'joi';
 
 export const createUserSchema = Joi.object({

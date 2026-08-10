@@ -17,10 +17,6 @@ import exportExecutionsRoutes from '../routes/export-executions';
 import advancedSchedulesRoutes from '../routes/advanced-schedules';
 import emailRoutes from '../routes/email';
 import otaUpdatesRoutes from '../routes/ota-updates';
-import publishTemplatesRoutes from '../routes/publish-templates';
-import menuCatalogRoutes from '../routes/menu-catalog';
-import publishBoardRoutes from '../routes/publish-board';
-import publishBoardPublicRoutes from '../routes/publish-board-public';
 import tagsRoutes from '../routes/tags';
 import facialRecognitionRoutes from '../routes/facial-recognition';
 import networkRoutes from '../routes/network';
@@ -73,18 +69,7 @@ export function registerExtendedApiRoutes(app: Express): void {
   app.use('/api/advanced-schedules', requireModule('dispatcher_admin') as any, advancedSchedulesRoutes);
   app.use('/api/email', emailRoutes);
   app.use('/api/ota-updates', requireModule('ota') as any, otaUpdatesRoutes);
-  app.use('/api/publish-templates', requireModule('quick_publish') as any, publishTemplatesRoutes);
-  app.use(
-    '/api/subscribers/:subscriberId/menu-catalog',
-    requireModule('quick_publish') as any,
-    menuCatalogRoutes
-  );
-  app.use('/api/publish-board', publishBoardPublicRoutes);
-  app.use(
-    '/api/subscribers/:subscriberId/publish-board',
-    requireModule('quick_publish') as any,
-    publishBoardRoutes
-  );
+  // publish-templates / menu-catalog / publish-board: já registados em registerCompactRoutes (não duplicar)
   app.use(
     '/api/tags',
     requireFeatureNotDeferred('tags_crud') as any,
@@ -110,7 +95,12 @@ export function registerExtendedApiRoutes(app: Express): void {
   app.use('/api/permissions', permissionsRoutes);
   app.use('/api/webhooks', webhooksRoutes);
   app.use('/api/dashboard-layouts', dashboardLayoutsRoutes);
-  app.use('/api/backups', rateLimitHeavyOperations, backupsRoutes);
+  app.use(
+    '/api/backups',
+    requireFeatureNotDeferred('system_backups') as any,
+    rateLimitHeavyOperations,
+    backupsRoutes
+  );
   app.use('/api/qrcodes', authMiddleware as any, blockClientDataAccess as any, qrcodesRoutes);
   // Alias usado pelo frontend (GET /api/qr-codes)
   app.use('/api/qr-codes', authMiddleware as any, blockClientDataAccess as any, qrcodesRoutes);

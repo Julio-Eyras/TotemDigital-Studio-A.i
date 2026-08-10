@@ -207,5 +207,5 @@ ENTÃO API dispatcher continua MODULE_DISABLED
 - schema part2 `users`, `user_flags`; part5 roles/permissions
 
 ### Lacunas conhecidas
-- Sub-rotas menu `/users/roles|flags` sem Route React.
-- Dualidade `users.role` (coluna) vs `user_roles` — clarificar fonte canónica em runtime por endpoint.
+- ~~Sub-rotas menu `/users/roles|flags`~~ — **removidas** (Lacunas-MA).
+- **Fonte canónica de role:** JWT/auth usa coluna `users.role` (`authService`); permissões N:M finas usam `user_roles`/`permissions`. Não confundir os dois eixos.

@@ -7,7 +7,8 @@ export type DeferredFeatureId =
   | 'notifications'
   | 'qr_code_scans'
   | 'facial_recognition'
-  | 'ai_request_history';
+  | 'ai_request_history'
+  | 'system_backups';
 
 export interface DeferredFeature {
   id: DeferredFeatureId;
@@ -46,6 +47,12 @@ export const DEFERRED_FEATURES: Record<DeferredFeatureId, DeferredFeature> = {
     id: 'ai_request_history',
     title: 'Histórico persistente de pedidos IA',
     reason: 'ai_requests sem DDL no schema v2; generate/process continua disponível.',
+    deferredUntil: 'v6.x+',
+  },
+  system_backups: {
+    id: 'system_backups',
+    title: 'Backups via API',
+    reason: 'Tabela backups existe, mas não há UI de produto; API crua adiada até painel ops.',
     deferredUntil: 'v6.x+',
   },
 };

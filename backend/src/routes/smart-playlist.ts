@@ -177,9 +177,17 @@ router.post('/', async (req: any, res) => {
       }
     });
 
+    // Dual-read legado: FE ainda envia clientId (= subscriber_id)
+    if (!playlistData.subscriberId && playlistData.clientId != null) {
+      playlistData.subscriberId = Number(playlistData.clientId);
+      await logDebug('[Smart Playlist] clientId legado mapeado para subscriberId', {
+        subscriberId: playlistData.subscriberId,
+      });
+    }
+
     // Se subscriberId não foi fornecido, usar o do usuário autenticado ou buscar primeiro subscriber
     if (!playlistData.subscriberId) {
-      if (req.user.role === 'client' && req.user.subscriberId) {
+      if ((req.user.role === 'client' || req.user.role === 'subscriber_user') && req.user.subscriberId) {
         playlistData.subscriberId = req.user.subscriberId;
         await logDebug('[Smart Playlist] Usando subscriberId do usuário', { subscriberId: playlistData.subscriberId });
       } else if (req.user.role === 'admin' || req.user.role === 'admin_sql' || req.user.role === 'gerente_marketing') {
@@ -194,21 +202,21 @@ router.post('/', async (req: any, res) => {
             await logError('[Smart Playlist] Nenhum cliente ativo encontrado');
             return res.status(400).json({
               success: false,
-              message: 'Nenhum cliente encontrado. É necessário criar um cliente antes de criar smart playlists.'
+              message: 'Nenhum anunciante encontrado. É necessário criar um anunciante antes de criar smart playlists.'
             });
           }
         } catch (error: any) {
           await logError('[Smart Playlist] Erro ao buscar primeiro cliente', error);
           return res.status(400).json({
             success: false,
-            message: 'clientId é obrigatório para criar smart playlist'
+            message: 'subscriberId (ou clientId legado) é obrigatório para criar smart playlist'
           });
         }
       } else {
-        await logError('[Smart Playlist] Role inválido ou sem clientId', undefined, { role: req.user.role });
+        await logError('[Smart Playlist] Role inválido ou sem subscriberId', undefined, { role: req.user.role });
         return res.status(400).json({
           success: false,
-          message: 'clientId é obrigatório'
+          message: 'subscriberId (ou clientId legado) é obrigatório'
         });
       }
     }

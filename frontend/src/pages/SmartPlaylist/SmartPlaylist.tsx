@@ -44,8 +44,11 @@ const SmartPlaylist: React.FC = () => {
         rules: request.rules || []
       };
       
-      // Só incluir clientId se estiver definido
-      if (request.clientId) {
+      // Preferir subscriberId; aceitar clientId legado (= subscriber)
+      if (request.subscriberId != null) {
+        dataToSend.subscriberId = request.subscriberId;
+      } else if (request.clientId != null) {
+        dataToSend.subscriberId = request.clientId;
         dataToSend.clientId = request.clientId;
       }
       

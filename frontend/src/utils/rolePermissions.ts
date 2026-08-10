@@ -138,13 +138,7 @@ export const menuPermissions: MenuItemPermission[] = [
   
   // Rotas de subitens (herdam permissões do path pai) — só paths com UI real
   { path: '/users/new', roles: ['owner_system', 'admin_sql', 'admin'] },
-  { path: '/smart-tvs/by-totem', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico', 'publisher_user'], requiredFlag: 'flag_smart_0' },
-  { path: '/smart-tvs/config', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_0' },
-  { path: '/players/status', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_0' },
   { path: '/ota-updates/history', roles: ['owner_system', 'admin_sql', 'admin'], requiredFlag: 'flag_smart_1' },
-  { path: '/subscriber-publisher-access/new', roles: ['admin_sql', 'admin'] },
-  { path: '/plan-publisher-access/config', roles: ['admin_sql', 'admin'] },
-  { path: '/subscribers/details', roles: ['owner_system', 'admin_sql', 'admin', 'operador_comercial'] },
   { path: '/plans', roles: ['admin_sql', 'admin'] },
 ];
 

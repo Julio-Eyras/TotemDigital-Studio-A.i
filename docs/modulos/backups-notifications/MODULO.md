@@ -186,6 +186,5 @@ ENTÃO status de sucesso
 - schema part6 `backups`; part2 `webhooks` / `webhook_configs`
 
 ### Lacunas conhecidas
-- **UI de backup praticamente inexistente.**
-- Serviço de notifications referencia tabela `notifications` **sem CREATE TABLE definitivo** no schema v2.
-- FE de notificações usa sobretudo toast/localStorage.
+- **Backups API:** `FEATURE_DEFERRED` (`system_backups`) até painel ops; tabela `backups` existe no schema.
+- **Notifications:** `FEATURE_DEFERRED` — sem DDL `notifications` no schema v2; FE usa toast/localStorage.

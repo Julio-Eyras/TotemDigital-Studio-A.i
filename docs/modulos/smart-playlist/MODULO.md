@@ -193,6 +193,6 @@ ENTÃO status deixa de ser active
 - schema part6 `smart_playlists`
 
 ### Lacunas conhecidas
-- Coluna `client_id` em vez de `subscriber_id`.
+- Coluna DB ainda `client_id` (= subscriber); API/FE aceitam **dual-read** `subscriberId || clientId` (Lacunas-MA).
 - Qualidade da “IA” de geração pode ser parcial / heurística.
 - Doc antiga pode referir engine Python descontinuado.
