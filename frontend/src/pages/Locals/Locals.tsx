@@ -257,7 +257,8 @@ const Locals: React.FC = () => {
 
   const handleCreateLocal = async () => {
     try {
-      if (!isStudioMode() && !newLocal.publisher_id) {
+      const studio = isStudioMode();
+      if (!studio && !newLocal.publisher_id) {
         setError(`Selecione uma ${getProductTerminology().organization.toLowerCase()}`);
         return;
       }
@@ -265,7 +266,8 @@ const Locals: React.FC = () => {
         setError('Nome é obrigatório');
         return;
       }
-      const payload: CreateLocalRequest = isStudioMode()
+      // Em Studio/Direct o BE resolve o owner; em Lite/Pro o publisher_id é obrigatório.
+      const payload: CreateLocalRequest = studio
         ? {
             ...newLocal,
             name: String(newLocal.name).trim(),
@@ -689,7 +691,8 @@ const Locals: React.FC = () => {
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
             {canManageLocals && isStudioMode() && (
               <Alert severity="info">
-                No modo compacto, o local será vinculado à {getProductTerminology().organization.toLowerCase()} da instalação.
+                Nesta instalação única, o local será vinculado à{' '}
+                {getProductTerminology().organization.toLowerCase()} owner do sistema.
               </Alert>
             )}
             {isAdmin && !isStudioMode() && (
@@ -707,6 +710,11 @@ const Locals: React.FC = () => {
                   ))}
                 </Select>
               </FormControl>
+            )}
+            {!isAdmin && !isStudioMode() && !newLocal.publisher_id && (
+              <Alert severity="warning">
+                Não foi possível determinar a organização. Contacte um administrador.
+              </Alert>
             )}
             <TextField
               label="Nome *"
