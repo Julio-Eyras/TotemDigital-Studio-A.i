@@ -12,15 +12,14 @@ import { getEventLogService, EventType } from './eventLogService';
 import { getCacheService } from './cacheService';
 import { getTotemPlaylistMixService } from './totemPlaylistMixService';
 import type { PoolClient } from 'pg';
-import { assertCompactOwnerPublisher } from '../utils/compactOwnerPublisher';
+import {
+  assertCompactOwnerPublisher,
+  resolveInventoryPublisherScope,
+} from '../utils/compactOwnerPublisher';
 import { isStudioRuntime } from '../config/installationRuntime';
 import { isDirectTotemMode } from '../config/directTotemMode';
 import { normalizeTotemUin } from '../utils/normalizeTotemUin';
 import { normalizeDeviceId } from '../utils/normalizeDeviceId';
-import {
-  resolveCompactOwnerPublisherId,
-  resolveInventoryPublisherScope,
-} from '../utils/compactOwnerPublisher';
 import { userMayCreateTotem } from '../utils/totemCreateRoles';
 import { getTotemDirectMediaService } from './totemDirectMediaService';
 import {
