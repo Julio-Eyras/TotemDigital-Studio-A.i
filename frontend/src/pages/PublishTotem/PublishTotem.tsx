@@ -492,6 +492,7 @@ const PublishTotem: React.FC = () => {
                               offline={op.label === 'Offline'}
                               enabled={totemActive}
                               connectionStatus={playbackTelemetry.connectionStatus}
+                              inventoryMediaCount={mediaActive}
                             />
                           )}
                           {activationCode && (

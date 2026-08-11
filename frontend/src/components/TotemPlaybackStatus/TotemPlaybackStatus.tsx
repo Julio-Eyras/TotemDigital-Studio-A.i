@@ -24,6 +24,8 @@ interface Props {
   offline?: boolean;
   enabled?: boolean;
   connectionStatus?: PlaybackConnectionStatus;
+  /** Contagem activa no inventário do totem (playlist). 0 = não mostrar play residual. */
+  inventoryMediaCount?: number;
 }
 
 function leaseExpiry(lease: TelemetryObservationLease): string | undefined {
@@ -88,6 +90,7 @@ const TotemPlaybackStatus: React.FC<Props> = ({
   offline = false,
   enabled = true,
   connectionStatus = 'connecting',
+  inventoryMediaCount,
 }) => {
   const [now, setNow] = useState(Date.now());
   const [lease, setLease] = useState<TelemetryObservationLease | null>(null);
@@ -95,10 +98,15 @@ const TotemPlaybackStatus: React.FC<Props> = ({
   const [leaseError, setLeaseError] = useState<string | null>(null);
   const [leaseStartedAt, setLeaseStartedAt] = useState<number | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const playback = useMemo(
-    () => state ?? normalizePlaybackState(fallback, totemId) ?? undefined,
-    [fallback, state, totemId],
-  );
+  const inventoryEmpty = inventoryMediaCount === 0;
+  const playback = useMemo(() => {
+    if (inventoryEmpty) return undefined;
+    return state ?? normalizePlaybackState(fallback, totemId) ?? undefined;
+  }, [fallback, inventoryEmpty, state, totemId]);
+  const residualPlayback = useMemo(() => {
+    if (!inventoryEmpty) return undefined;
+    return state ?? normalizePlaybackState(fallback, totemId) ?? undefined;
+  }, [fallback, inventoryEmpty, state, totemId]);
 
   useEffect(() => {
     if (!enabled || !playback || playback.status !== 'playing' || playback.stale) return undefined;
@@ -175,7 +183,38 @@ const TotemPlaybackStatus: React.FC<Props> = ({
       onClick={(event) => event.stopPropagation()}
       onMouseDown={(event) => event.stopPropagation()}
     >
-      {playback ? (
+      {inventoryEmpty ? (
+        <>
+          <Typography variant="body2" color="text.secondary" fontWeight={700}>
+            Sem mídias atreladas ao totem
+          </Typography>
+          <Typography variant="caption" color="text.secondary" display="block">
+            A área de reprodução segue o inventário do servidor (0 mídias).
+          </Typography>
+          {residualPlayback &&
+            residualPlayback.status !== 'idle' &&
+            residualPlayback.status !== 'display_off' && (
+              <Typography variant="caption" color="warning.main" display="block" sx={{ mt: 0.5 }}>
+                Player ainda reporta estado residual (ignorado enquanto o inventário estiver vazio).
+              </Typography>
+            )}
+          <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5, alignItems: 'center', flexWrap: 'wrap' }}>
+            {offline && <Chip size="small" color="default" label="Offline" />}
+            <Chip
+              size="small"
+              variant="outlined"
+              color={connectionStatus === 'connected' ? 'success' : 'warning'}
+              label={
+                connectionStatus === 'connected'
+                  ? 'Tempo real conectado'
+                  : connectionStatus === 'connecting'
+                    ? 'Conectando tempo real'
+                    : 'Fallback REST'
+              }
+            />
+          </Box>
+        </>
+      ) : playback ? (
         <>
           <Typography
             variant="body2"

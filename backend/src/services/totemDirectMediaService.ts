@@ -497,7 +497,26 @@ export class TotemDirectMediaService {
     await this.notifyTotemContentChange(totemId, mediaId);
     const usage = await this.countActiveTotemUsage(mediaId);
     const items = await this.listTotemMedias(totemId);
+    if (items.length === 0) {
+      await this.clearTotemNowPlaying(totemId);
+    }
     return { items, mediaUsageCount: usage };
+  }
+
+  /** Limpa telemetria residual quando o inventário do totem fica vazio. */
+  private async clearTotemNowPlaying(totemId: number): Promise<void> {
+    try {
+      await this.db.executeRaw(
+        `
+        UPDATE totems
+        SET now_playing = NULL, updated_at = CURRENT_TIMESTAMP
+        WHERE totem_id = $1
+      `,
+        [totemId]
+      );
+    } catch (error) {
+      await logError('[DirectTotem] Falha ao limpar now_playing com inventário vazio', error, { totemId });
+    }
   }
 
   async reorderTotemMedias(totemId: number, mediaIds: number[]): Promise<TotemDirectMediaItem[]> {

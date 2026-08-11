@@ -52,8 +52,32 @@ function iso(value: unknown): string | undefined {
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
+/** Após o fim esperado, marcar stale (evita card “playing” com progresso cheio há minutos). */
+const PLAYBACK_STALE_GRACE_MS = 15_000;
+
+function isPlaybackPastExpectedEnd(
+  startedAt: string | undefined,
+  expectedEndAt: string | undefined,
+  durationMs: number,
+  nowMs: number
+): boolean {
+  if (expectedEndAt) {
+    const end = Date.parse(expectedEndAt);
+    if (Number.isFinite(end) && nowMs > end + PLAYBACK_STALE_GRACE_MS) return true;
+  }
+  if (startedAt && durationMs > 0) {
+    const start = Date.parse(startedAt);
+    if (Number.isFinite(start) && nowMs > start + durationMs + PLAYBACK_STALE_GRACE_MS) return true;
+  }
+  return false;
+}
+
 /** Normaliza tanto o contrato novo quanto campos snake_case de players legados. */
-export function normalizePlaybackState(payload: unknown, fallbackTotemId?: number): TotemPlaybackState | null {
+export function normalizePlaybackState(
+  payload: unknown,
+  fallbackTotemId?: number,
+  nowMs: number = Date.now()
+): TotemPlaybackState | null {
   const outer = record(payload);
   const wrappedPlaybackState = record(outer.playbackState ?? outer.playback_state);
   const data = Object.keys(wrappedPlaybackState).length
@@ -207,8 +231,10 @@ export function normalizePlaybackState(payload: unknown, fallbackTotemId?: numbe
     endedAt,
     playedDurationMs,
     status: String(source.status ?? playback.status ?? runtime.status ?? data.status ?? outer.status ?? 'playing'),
-    stale: Boolean(source.stale ?? playback.stale ?? runtime.stale ?? data.stale ?? outer.stale ?? false),
-    receivedAt: Date.now(),
+    stale:
+      Boolean(source.stale ?? playback.stale ?? runtime.stale ?? data.stale ?? outer.stale ?? false) ||
+      isPlaybackPastExpectedEnd(startedAt, expectedEndAt, durationMs, nowMs),
+    receivedAt: nowMs,
     nextMedia: nextMediaId !== undefined && nextMediaName
       ? {
           id: nextMediaId,

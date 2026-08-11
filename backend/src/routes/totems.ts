@@ -184,11 +184,20 @@ router.get('/',
         totems = totems.map((t: any) => {
           const id = Number(t.totem_id ?? t.id);
           const c = byTotem.get(id) || { media_count: 0, media_count_total: 0 };
-          return {
+          const base = {
             ...t,
             media_count: c.media_count,
             media_count_total: c.media_count_total,
           };
+          // Inventário vazio: não expor now_playing residual no card.
+          if (c.media_count === 0) {
+            return {
+              ...base,
+              nowPlaying: null,
+              now_playing: null,
+            };
+          }
+          return base;
         });
       }
       // Converter formato: { totems: [] } para { data: [] } para compatibilidade com frontend
