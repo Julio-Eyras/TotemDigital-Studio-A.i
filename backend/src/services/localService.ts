@@ -6,8 +6,11 @@
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import { logError } from '../utils/loggerHelper';
-import { isStudioRuntime } from '../config/installationRuntime';
-import { resolveCompactOwnerPublisherId } from '../utils/compactOwnerPublisher';
+import {
+  isOwnerInventoryMode,
+  resolveCompactOwnerPublisherId,
+  resolveInventoryPublisherScope,
+} from '../utils/compactOwnerPublisher';
 
 export interface Local {
   local_id: number;
@@ -78,18 +81,7 @@ export class LocalService {
     requestPublisherId?: number,
     isAdmin: boolean = false
   ): Promise<number | undefined> {
-    if (isAdmin) return undefined;
-    if (isStudioRuntime()) {
-      const ownerPublisherId = await resolveCompactOwnerPublisherId(this.db);
-      if (!ownerPublisherId) {
-        throw new Error('Modo compacto: publisher do owner não encontrado para aplicar escopo.');
-      }
-      return ownerPublisherId;
-    }
-    if (!requestPublisherId) {
-      throw new Error('Acesso negado: escopo de publisher ausente para o usuário autenticado.');
-    }
-    return requestPublisherId;
+    return resolveInventoryPublisherScope(this.db, requestPublisherId, isAdmin);
   }
 
   private getAuditService(): AuditService {
@@ -281,10 +273,10 @@ export class LocalService {
       let targetPublisherId = publisher_id;
 
       const scopedPublisherId = await this.resolveScopedPublisherId(requestPublisherId, isAdmin);
-      if (isStudioRuntime()) {
+      if (isOwnerInventoryMode()) {
         const ownerPublisherId = await resolveCompactOwnerPublisherId(this.db);
         if (!ownerPublisherId) {
-          throw new Error('Modo compacto: publisher do owner não encontrado.');
+          throw new Error('Direct/Studio: publisher do owner não encontrado.');
         }
         targetPublisherId = ownerPublisherId;
       } else if (!targetPublisherId) {
@@ -538,7 +530,7 @@ export class LocalService {
         throw new Error('Local não encontrado');
       }
 
-      if (isStudioRuntime()) {
+      if (isOwnerInventoryMode()) {
         const activeLocalsCount = await this.db.findFirst(`
           SELECT COUNT(*) as count
           FROM locals
@@ -547,7 +539,7 @@ export class LocalService {
 
         if (parseInt(activeLocalsCount?.count || '0') <= 1) {
           throw new Error(
-            'Modo compacto: não é permitido deletar o último local ativo do publisher owner.'
+            'Direct/Studio: não é permitido deletar o último local ativo do publisher owner.'
           );
         }
       }

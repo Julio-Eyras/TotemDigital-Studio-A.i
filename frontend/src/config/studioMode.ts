@@ -9,6 +9,10 @@ import { getInstallationCapabilities } from './installationCapabilities';
  */
 export function isStudioMode(): boolean {
   const caps = getInstallationCapabilities();
+  // Direct Totem = instalação única (mesmo se o build for Studio compacto).
+  if (caps.directTotemMode) {
+    return true;
+  }
   if (caps.multiAgency || caps.profile === 'multi_agency') {
     return false;
   }

@@ -17,7 +17,10 @@ import { isStudioRuntime } from '../config/installationRuntime';
 import { isDirectTotemMode } from '../config/directTotemMode';
 import { normalizeTotemUin } from '../utils/normalizeTotemUin';
 import { normalizeDeviceId } from '../utils/normalizeDeviceId';
-import { resolveCompactOwnerPublisherId } from '../utils/compactOwnerPublisher';
+import {
+  resolveCompactOwnerPublisherId,
+  resolveInventoryPublisherScope,
+} from '../utils/compactOwnerPublisher';
 import { userMayCreateTotem } from '../utils/totemCreateRoles';
 import { getTotemDirectMediaService } from './totemDirectMediaService';
 import {
@@ -247,19 +250,7 @@ export class TotemService {
     requestPublisherId?: number,
     isAdmin: boolean = false
   ): Promise<number | undefined> {
-    // Direct / Studio: sempre escopo ao system owner (também para admin/owner_system).
-    if (isDirectTotemMode() || isStudioRuntime()) {
-      const ownerPublisherId = await resolveCompactOwnerPublisherId(this.db);
-      if (!ownerPublisherId) {
-        throw new Error('Direct/Studio: publisher do owner não encontrado para aplicar escopo.');
-      }
-      return ownerPublisherId;
-    }
-    if (isAdmin) return undefined;
-    if (!requestPublisherId) {
-      throw new Error('Acesso negado: escopo de publisher ausente para o usuário autenticado.');
-    }
-    return requestPublisherId;
+    return resolveInventoryPublisherScope(this.db, requestPublisherId, isAdmin);
   }
 
   /**

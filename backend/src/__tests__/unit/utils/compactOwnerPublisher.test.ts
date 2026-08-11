@@ -15,6 +15,7 @@ import { isDirectTotemMode } from '../../../config/directTotemMode';
 import {
   resetCompactOwnerPublisherCache,
   resolveCompactOwnerPublisherId,
+  resolveInventoryPublisherScope,
 } from '../../../utils/compactOwnerPublisher';
 
 describe('resolveCompactOwnerPublisherId', () => {
@@ -38,5 +39,27 @@ describe('resolveCompactOwnerPublisherId', () => {
     findFirst.mockResolvedValueOnce({ publisher_id: 7 });
     await expect(resolveCompactOwnerPublisherId(db)).resolves.toBe(7);
     expect(String(findFirst.mock.calls[0][0])).toMatch(/is_system_owner/i);
+  });
+});
+
+describe('resolveInventoryPublisherScope', () => {
+  const findFirst = jest.fn();
+  const db = { findFirst };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    resetCompactOwnerPublisherCache();
+    (isStudioRuntime as jest.Mock).mockReturnValue(false);
+    (isDirectTotemMode as jest.Mock).mockReturnValue(false);
+  });
+
+  it('em Direct força owner mesmo para admin', async () => {
+    (isDirectTotemMode as jest.Mock).mockReturnValue(true);
+    findFirst.mockResolvedValueOnce({ publisher_id: 7 });
+    await expect(resolveInventoryPublisherScope(db, 99, true)).resolves.toBe(7);
+  });
+
+  it('fora de Direct admin não tem escopo (vê todas as orgs)', async () => {
+    await expect(resolveInventoryPublisherScope(db, 99, true)).resolves.toBeUndefined();
   });
 });

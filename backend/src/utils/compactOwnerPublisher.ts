@@ -8,12 +8,12 @@ export function resetCompactOwnerPublisherCache(): void {
 }
 
 /** Direct Totem ou Studio (single_publisher): inventário limitado ao system owner. */
-function shouldScopeToSystemOwner(): boolean {
+export function isOwnerInventoryMode(): boolean {
   return isDirectTotemMode() || isStudioRuntime();
 }
 
 export async function resolveCompactOwnerPublisherId(db: any): Promise<number | undefined> {
-  if (!shouldScopeToSystemOwner()) return undefined;
+  if (!isOwnerInventoryMode()) return undefined;
   if (cachedOwnerPublisherId !== undefined) return cachedOwnerPublisherId ?? undefined;
 
   const systemOwner = await db.findFirst(
@@ -68,8 +68,31 @@ export async function resolveCompactOwnerPublisherId(db: any): Promise<number | 
   return cachedOwnerPublisherId ?? undefined;
 }
 
+/**
+ * Escopo de inventário (locais/totens): em Direct/Studio sempre o owner,
+ * inclusive para admin. Fora disso, admin vê tudo; demais users o publisher do token.
+ */
+export async function resolveInventoryPublisherScope(
+  db: any,
+  requestPublisherId?: number,
+  isAdmin: boolean = false
+): Promise<number | undefined> {
+  if (isOwnerInventoryMode()) {
+    const ownerPublisherId = await resolveCompactOwnerPublisherId(db);
+    if (!ownerPublisherId) {
+      throw new Error('Direct/Studio: publisher do owner não encontrado para aplicar escopo.');
+    }
+    return ownerPublisherId;
+  }
+  if (isAdmin) return undefined;
+  if (!requestPublisherId) {
+    throw new Error('Acesso negado: escopo de publisher ausente para o usuário autenticado.');
+  }
+  return requestPublisherId;
+}
+
 export async function assertCompactOwnerPublisher(db: any, publisherId: number, context: string): Promise<void> {
-  if (!shouldScopeToSystemOwner()) return;
+  if (!isOwnerInventoryMode()) return;
 
   const ownerPublisherId = await resolveCompactOwnerPublisherId(db);
   if (!ownerPublisherId) {

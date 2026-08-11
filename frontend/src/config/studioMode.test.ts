@@ -39,6 +39,17 @@ describe('isStudioMode', () => {
     expect(isMultiAgencyMode()).toBe(false);
   });
 
+  it('trata Direct Totem como instalação única mesmo com perfil multi residual', () => {
+    getInstallationCapabilities.mockReturnValue({
+      profile: 'multi_agency',
+      multiAgency: false,
+      totemDigitalCompact: false,
+      directTotemMode: true,
+    });
+    expect(isStudioMode()).toBe(true);
+    expect(isMultiAgencyMode()).toBe(false);
+  });
+
   it('trata profile single_publisher como studio', () => {
     getInstallationCapabilities.mockReturnValue({
       profile: 'single_publisher',
