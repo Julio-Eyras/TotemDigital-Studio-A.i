@@ -249,8 +249,11 @@ const PublishTotem: React.FC = () => {
     if (!q) return totems;
     return totems.filter((t) => {
       const name = String(t.name || t.identifier || '').toLowerCase();
+      const localLabel = String(
+        (t as any).local_name || (t as any).localName || t.location || ''
+      ).toLowerCase();
       const id = String(getTotemIdFromRow(t) || '');
-      return name.includes(q) || id.includes(q);
+      return name.includes(q) || localLabel.includes(q) || id.includes(q);
     });
   }, [totems, search]);
 
@@ -379,6 +382,9 @@ const PublishTotem: React.FC = () => {
           filtered.map((t, idx) => {
             const totemId = getTotemIdFromRow(t);
             const title = t.name || t.identifier || (totemId ? `Totem ${totemId}` : 'Totem');
+            const localLabel = String(
+              (t as any).local_name || (t as any).localName || t.location || ''
+            ).trim();
             const op = getOperationalStatus(t);
             const { active: mediaActive, total: mediaTotal } = getTotemMediaCounts(t);
             const canDelete = mediaTotal === 0;
@@ -408,8 +414,24 @@ const PublishTotem: React.FC = () => {
                           <Tv fontSize="small" />
                         </Avatar>
                         <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography variant="subtitle1" fontWeight={700} noWrap>
+                          <Typography
+                            variant="subtitle1"
+                            fontWeight={700}
+                            noWrap
+                            title={localLabel ? `${title} · ${localLabel}` : title}
+                          >
                             {title}
+                            {localLabel ? (
+                              <Typography
+                                component="span"
+                                variant="subtitle1"
+                                color="text.secondary"
+                                fontWeight={500}
+                                sx={{ ml: 0.75 }}
+                              >
+                                · {localLabel}
+                              </Typography>
+                            ) : null}
                           </Typography>
                           <Chip size="small" label={op.label} color={op.color} sx={{ mt: 0.5 }} />
                           {!totemActive && (

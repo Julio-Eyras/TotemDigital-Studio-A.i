@@ -132,6 +132,17 @@ Excepto: portal tenant (slug) continua a restringir ao próprio publisher
 Motivo: Instalação única — dados residuais de Lite/Pro não entram na superfície Direct
 ```
 
+### RN-DIR-008 — Totens só do owner
+
+```text
+RN-DIR-008 — Totens só do owner
+Quando: GET /api/totems (Publicar em Totem)
+Se: Direct Totem ou Studio (single_publisher)
+Então: filtrar por publisher is_system_owner — inclusive para admin/owner_system
+Excepto: Lite/Pro listam conforme escopo multi-agência
+Motivo: Inventário Direct não mistura totens de orgs residuais
+```
+
 ---
 
 ## 4. Fluxos

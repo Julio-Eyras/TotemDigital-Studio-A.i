@@ -232,6 +232,14 @@ export class TotemService {
       t.localId = lid;
       t.local_id = lid;
     }
+    const localLabel = [t.localName, t.local_name, t.localname, t.location]
+      .map((v) => (v == null ? '' : String(v).trim()))
+      .find((v) => v.length > 0);
+    if (localLabel) {
+      t.localName = localLabel;
+      t.local_name = localLabel;
+      t.location = localLabel;
+    }
     return t;
   }
 
@@ -239,14 +247,15 @@ export class TotemService {
     requestPublisherId?: number,
     isAdmin: boolean = false
   ): Promise<number | undefined> {
-    if (isAdmin) return undefined;
-    if (isStudioRuntime()) {
+    // Direct / Studio: sempre escopo ao system owner (também para admin/owner_system).
+    if (isDirectTotemMode() || isStudioRuntime()) {
       const ownerPublisherId = await resolveCompactOwnerPublisherId(this.db);
       if (!ownerPublisherId) {
-        throw new Error('Modo compacto: publisher do owner não encontrado para aplicar escopo.');
+        throw new Error('Direct/Studio: publisher do owner não encontrado para aplicar escopo.');
       }
       return ownerPublisherId;
     }
+    if (isAdmin) return undefined;
     if (!requestPublisherId) {
       throw new Error('Acesso negado: escopo de publisher ausente para o usuário autenticado.');
     }

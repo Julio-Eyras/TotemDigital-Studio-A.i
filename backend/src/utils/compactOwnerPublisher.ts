@@ -1,4 +1,5 @@
 import { isStudioRuntime } from '../config/installationRuntime';
+import { isDirectTotemMode } from '../config/directTotemMode';
 
 let cachedOwnerPublisherId: number | null | undefined;
 
@@ -6,8 +7,13 @@ export function resetCompactOwnerPublisherCache(): void {
   cachedOwnerPublisherId = undefined;
 }
 
+/** Direct Totem ou Studio (single_publisher): inventário limitado ao system owner. */
+function shouldScopeToSystemOwner(): boolean {
+  return isDirectTotemMode() || isStudioRuntime();
+}
+
 export async function resolveCompactOwnerPublisherId(db: any): Promise<number | undefined> {
-  if (!isStudioRuntime()) return undefined;
+  if (!shouldScopeToSystemOwner()) return undefined;
   if (cachedOwnerPublisherId !== undefined) return cachedOwnerPublisherId ?? undefined;
 
   const systemOwner = await db.findFirst(
@@ -63,13 +69,15 @@ export async function resolveCompactOwnerPublisherId(db: any): Promise<number | 
 }
 
 export async function assertCompactOwnerPublisher(db: any, publisherId: number, context: string): Promise<void> {
-  if (!isStudioRuntime()) return;
+  if (!shouldScopeToSystemOwner()) return;
 
   const ownerPublisherId = await resolveCompactOwnerPublisherId(db);
   if (!ownerPublisherId) {
-    throw new Error('Modo Studio: publisher do owner não encontrado para validar ownership.');
+    throw new Error('Direct/Studio: publisher do owner não encontrado para validar ownership.');
   }
   if (Number(publisherId) !== Number(ownerPublisherId)) {
-    throw new Error(`Modo Studio: ${context} deve pertencer ao publisher do owner (publisher_id=${ownerPublisherId}).`);
+    throw new Error(
+      `Direct/Studio: ${context} deve pertencer ao publisher do owner (publisher_id=${ownerPublisherId}).`
+    );
   }
 }
