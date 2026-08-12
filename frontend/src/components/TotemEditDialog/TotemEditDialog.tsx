@@ -160,6 +160,11 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
   const [lastHeartbeat, setLastHeartbeat] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [wifiSsid, setWifiSsid] = useState('');
+  const [wifiPassword, setWifiPassword] = useState('');
+  const [wifiOpenNetwork, setWifiOpenNetwork] = useState(false);
+  const [wifiBusy, setWifiBusy] = useState(false);
+  const [wifiMessage, setWifiMessage] = useState<string | null>(null);
   /** Após o 1º load, o poll só atualiza relógio — não apaga edições locais de horário. */
   const formHydratedRef = useRef(false);
 
@@ -842,6 +847,86 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
               sx={{ width: 150 }}
             />
           </Box>
+        </Box>
+
+        <Box sx={{ mt: 3, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+          <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+            Wi‑Fi remoto (Player-AD ≥ 2.12)
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            Envia <code>configure_wifi</code> ao aparelho. Requer ligação actual à Internet; sem rede,
+            configure no próprio totem (3 toques OK → Config → Wi‑Fi).
+          </Typography>
+          <TextField
+            fullWidth
+            label="SSID"
+            margin="dense"
+            value={wifiSsid}
+            onChange={(e) => setWifiSsid(e.target.value)}
+            autoComplete="off"
+          />
+          <TextField
+            fullWidth
+            type="password"
+            label="Senha Wi‑Fi"
+            margin="dense"
+            value={wifiPassword}
+            onChange={(e) => setWifiPassword(e.target.value)}
+            disabled={wifiOpenNetwork}
+            autoComplete="new-password"
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={wifiOpenNetwork}
+                onChange={(e) => setWifiOpenNetwork(e.target.checked)}
+              />
+            }
+            label="Rede aberta (sem senha)"
+          />
+          <Box sx={{ mt: 1 }}>
+            <Button
+              variant="outlined"
+              disabled={
+                wifiBusy ||
+                loading ||
+                !wifiSsid.trim() ||
+                (!wifiOpenNetwork && !wifiPassword) ||
+                !getTotemIdFromRow(totem)
+              }
+              onClick={async () => {
+                const id = getTotemIdFromRow(totem);
+                if (!id) {
+                  setError('Totem sem id');
+                  return;
+                }
+                const ssid = wifiSsid.trim();
+                try {
+                  setWifiBusy(true);
+                  setError(null);
+                  setWifiMessage(null);
+                  await totemApi.sendCommand(id, 'configure_wifi', {
+                    ssid,
+                    password: wifiOpenNetwork ? '' : wifiPassword,
+                    secured: !wifiOpenNetwork,
+                  });
+                  setWifiPassword('');
+                  setWifiMessage('Comando configure_wifi enfileirado — sync/heartbeat entrega ao Player-AD.');
+                } catch (err: unknown) {
+                  setError(pickApiErrorMessage(err, 'Erro ao enviar configure_wifi'));
+                } finally {
+                  setWifiBusy(false);
+                }
+              }}
+            >
+              {wifiBusy ? 'A enviar…' : 'Enviar Wi‑Fi ao totem'}
+            </Button>
+          </Box>
+          {wifiMessage && (
+            <Typography variant="body2" color="success.main" sx={{ mt: 1 }}>
+              {wifiMessage}
+            </Typography>
+          )}
         </Box>
       </DialogContent>
       <DialogActions>

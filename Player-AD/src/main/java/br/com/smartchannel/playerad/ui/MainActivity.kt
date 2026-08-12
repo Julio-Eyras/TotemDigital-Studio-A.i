@@ -442,7 +442,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
-        private const val DEV_TAPS_REQUIRED = 5
+        private const val DEV_TAPS_REQUIRED = 3
         private const val WATCHDOG_RESTART_DELAY_MS = 2_000L
         private const val STORAGE_CHANGE_DEBOUNCE_MS = 1_500L
     }

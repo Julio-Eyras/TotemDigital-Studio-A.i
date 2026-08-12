@@ -1,0 +1,101 @@
+buildscript {
+    ext {
+        kotlin_version = "1.9.24"
+        agp_version = "8.3.2"
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath "com.android.tools.build:gradle:$agp_version"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+
+def playerApk = file("${rootDir}/../Player-AD/build/outputs/apk/release/Player-AD-release.apk")
+def bundledAssets = file("${buildDir}/bundled-assets")
+
+tasks.register('bundlePlayerApk', Copy) {
+    from playerApk
+    into bundledAssets
+    rename { 'player-ad.apk' }
+    doFirst {
+        bundledAssets.mkdirs()
+        if (!playerApk.exists()) {
+            throw new GradleException(
+                "Player-AD-release.apk nao encontrado. Compile primeiro:\n" +
+                    "  cd Player-AD\n  .\\gradlew.bat assembleRelease"
+            )
+        }
+    }
+}
+
+android {
+    namespace 'br.com.smartchannel.instalaplayer'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'br.com.smartchannel.instalaplayer'
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+        multiDexEnabled false
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            debuggable false
+            signingConfig signingConfigs.debug
+        }
+        debug {
+            minifyEnabled false
+            debuggable true
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+    kotlinOptions {
+        jvmTarget = '11'
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    sourceSets {
+        main.assets.srcDirs += bundledAssets
+    }
+}
+
+android.applicationVariants.configureEach { variant ->
+    variant.outputs.configureEach { output ->
+        output.outputFileName = "Instala-Player-TotemDigital.apk"
+    }
+}
+
+afterEvaluate {
+    tasks.named('preBuild').configure { dependsOn('bundlePlayerApk') }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.2'
+    implementation 'androidx.activity:activity-ktx:1.9.0'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+}
+
+repositories {
+    google()
+    mavenCentral()
+}

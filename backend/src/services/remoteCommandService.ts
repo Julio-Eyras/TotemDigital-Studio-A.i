@@ -29,6 +29,7 @@ export type CommandType =
   | 'update'
   | 'config'
   | 'apply_player_config'
+  | 'configure_wifi'
   | 'ota_rollback'
   | 'display_force_on'
   | 'display_force_off'

@@ -18,6 +18,7 @@ import br.com.smartchannel.playerad.util.FullscreenViewport
 import br.com.smartchannel.playerad.util.MediaLayerTransition
 import br.com.smartchannel.playerad.util.MediaViewportRotation
 import br.com.smartchannel.playerad.util.PlayerAdLogger
+import br.com.smartchannel.playerad.util.WifiNetworkHelper
 import android.content.Intent
 import br.com.smartchannel.playerad.config.DisplaySchedule
 import br.com.smartchannel.playerad.config.DisplayScheduleStore
@@ -1657,6 +1658,7 @@ class PlayerController(
             "reset_board", "reboot" -> executeResetBoard()
             "capture_screen", "screenshot" -> executeCaptureScreen()
             "config", "apply_player_config" -> executeApplyPlayerConfig(data)
+            "configure_wifi" -> executeConfigureWifi(data)
             "display_force_on" -> executeDisplayForce("on")
             "display_force_off" -> executeDisplayForce("off")
             "display_force_clear" -> executeDisplayForce(null)
@@ -1673,6 +1675,26 @@ class PlayerController(
         return JSONObject().apply {
             put("forceMode", mode ?: JSONObject.NULL)
             put("displayActive", displaySchedule.isDisplayActiveNow())
+        }
+    }
+
+    private fun executeConfigureWifi(data: JSONObject?): JSONObject {
+        if (data == null) throw IllegalArgumentException("configure_wifi sem payload")
+        val ssid = data.optString("ssid", data.optString("SSID", "")).trim().trim('"')
+        if (ssid.isBlank()) throw IllegalArgumentException("ssid obrigatório")
+        val password = data.optString("password", data.optString("passphrase", ""))
+        val secured = when {
+            data.has("secured") -> data.optBoolean("secured", true)
+            data.has("open") -> !data.optBoolean("open", false)
+            else -> password.isNotBlank()
+        }
+        val msg = WifiNetworkHelper.connect(context, ssid, password, secured)
+        PlayerAdLogger.i("WIFI", "Comando remoto configure_wifi ssid=$ssid")
+        return JSONObject().apply {
+            put("ok", true)
+            put("ssid", ssid)
+            put("message", msg)
+            put("currentSsid", WifiNetworkHelper.currentSsid(context) ?: JSONObject.NULL)
         }
     }
 
@@ -3404,6 +3426,7 @@ class PlayerController(
             "reset_board",
             "config",
             "apply_player_config",
+            "configure_wifi",
             "purge_cache",
             "invalidate_media",
             "invalidate_playlist",

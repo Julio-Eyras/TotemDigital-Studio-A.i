@@ -51,6 +51,7 @@ import {
   ScreenRotation,
   SystemUpdate,
   PlayCircleOutline,
+  Wifi,
 } from '@mui/icons-material';
 import { totemApi, dispatcherTotemApi } from '../../services/api';
 import { useNotification } from '../../hooks/useNotification';
@@ -118,6 +119,10 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
   const [invalidateMediaIds, setInvalidateMediaIds] = useState('');
   const [invalidatePlaylistId, setInvalidatePlaylistId] = useState('');
   const [invalidateCampaignId, setInvalidateCampaignId] = useState('');
+  const [wifiSsid, setWifiSsid] = useState('');
+  const [wifiPassword, setWifiPassword] = useState('');
+  const [wifiOpenNetwork, setWifiOpenNetwork] = useState(false);
+  const [wifiBusy, setWifiBusy] = useState(false);
 
   useEffect(() => {
     if (tabValue === 0) {
@@ -440,6 +445,7 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
       update: 'OTA / update',
       config: 'Configuração',
       apply_player_config: 'Configuração player',
+      configure_wifi: 'Configurar Wi‑Fi',
       ota_rollback: 'OTA rollback',
       display_force_on: 'Forçar tela ligada',
       display_force_off: 'Forçar tela preta',
@@ -534,6 +540,86 @@ const TotemRemoteControl: React.FC<TotemRemoteControlProps> = ({
               }}
             >
               Aplicar
+            </Button>
+          </Grid>
+        </Grid>
+
+        <Typography variant="subtitle2" gutterBottom>
+          Wi‑Fi no totem (Player-AD ≥ 2.12)
+        </Typography>
+        <Alert severity="warning" sx={{ mb: 1 }}>
+          Só funciona se o aparelho já tiver alguma ligação à Internet (Ethernet ou Wi‑Fi antigo).
+          Sem rede, use 3 toques no canto OK da TV → Config → «Abrir Wi‑Fi do sistema» ou scan local.
+        </Alert>
+        <Grid container spacing={1} sx={{ mb: 2 }} alignItems="center">
+          <Grid item xs={12} sm={4}>
+            <TextField
+              fullWidth
+              size="small"
+              label="SSID"
+              value={wifiSsid}
+              onChange={(e) => setWifiSsid(e.target.value)}
+              autoComplete="off"
+            />
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <TextField
+              fullWidth
+              size="small"
+              type="password"
+              label="Senha"
+              value={wifiPassword}
+              onChange={(e) => setWifiPassword(e.target.value)}
+              disabled={wifiOpenNetwork}
+              autoComplete="new-password"
+            />
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={wifiBusy ? <CircularProgress size={14} /> : <Wifi />}
+              disabled={wifiBusy || !wifiSsid.trim() || (!wifiOpenNetwork && !wifiPassword)}
+              onClick={async () => {
+                const ssid = wifiSsid.trim();
+                if (!ssid) {
+                  showError('Informe o SSID da rede');
+                  return;
+                }
+                if (!wifiOpenNetwork && !wifiPassword) {
+                  showError('Informe a senha ou marque rede aberta');
+                  return;
+                }
+                try {
+                  setWifiBusy(true);
+                  await totemApi.sendCommand(totemId, 'configure_wifi', {
+                    ssid,
+                    password: wifiOpenNetwork ? '' : wifiPassword,
+                    secured: !wifiOpenNetwork,
+                  });
+                  showSuccess(
+                    'Wi‑Fi enfileirado',
+                    'O Player-AD tenta ligar no próximo sync/heartbeat'
+                  );
+                  setWifiPassword('');
+                  setTimeout(loadCommands, 1500);
+                } catch (error: any) {
+                  showError(pickApiErrorMessage(error, 'Erro ao enviar configure_wifi'));
+                } finally {
+                  setWifiBusy(false);
+                }
+              }}
+            >
+              Enviar Wi‑Fi
+            </Button>
+          </Grid>
+          <Grid item xs={12}>
+            <Button
+              size="small"
+              variant={wifiOpenNetwork ? 'contained' : 'text'}
+              onClick={() => setWifiOpenNetwork((v) => !v)}
+            >
+              {wifiOpenNetwork ? 'Rede aberta (sem senha)' : 'Marcar como rede aberta'}
             </Button>
           </Grid>
         </Grid>

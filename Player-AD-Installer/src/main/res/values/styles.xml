@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.InstalaPlayer" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowBackground">#FF101018</item>
+        <item name="colorPrimary">#FFFFC107</item>
+        <item name="colorAccent">#FFFFC107</item>
+        <item name="android:textColor">#FFFFFFFF</item>
+    </style>
+</resources>

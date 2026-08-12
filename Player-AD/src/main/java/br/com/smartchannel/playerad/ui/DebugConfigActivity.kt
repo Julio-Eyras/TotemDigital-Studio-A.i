@@ -1,7 +1,9 @@
 package br.com.smartchannel.playerad.ui
 
+import android.Manifest
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
@@ -15,9 +17,11 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.Spinner
 import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import br.com.smartchannel.playerad.BuildConfig
 import br.com.smartchannel.playerad.R
@@ -35,6 +39,8 @@ import br.com.smartchannel.playerad.util.DeviceProvisioningDiagnostics
 import br.com.smartchannel.playerad.util.LocalNetworkAddresses
 import br.com.smartchannel.playerad.util.PlayerAdLogger
 import br.com.smartchannel.playerad.util.PlayerAdPrefs
+import br.com.smartchannel.playerad.util.WifiNetworkHelper
+import br.com.smartchannel.playerad.util.WifiScanEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -97,6 +103,26 @@ class DebugConfigActivity : AppCompatActivity() {
     private lateinit var textIpWifi: TextView
     private lateinit var labelIpOther: TextView
     private lateinit var textIpOther: TextView
+    private lateinit var btnOpenSystemWifi: Button
+    private lateinit var btnOpenSystemSettings: Button
+    private lateinit var btnWifiScan: Button
+    private lateinit var btnWifiConnect: Button
+    private lateinit var spinnerWifiNetworks: Spinner
+    private lateinit var editWifiPassword: EditText
+    private lateinit var textWifiCurrent: TextView
+    private lateinit var textWifiStatus: TextView
+    private var wifiScanEntries: List<WifiScanEntry> = emptyList()
+
+    private val wifiPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+            val granted = result.values.any { it }
+            if (granted) {
+                runWifiScan()
+            } else {
+                textWifiStatus.text =
+                    "Permissão recusada. Use «Abrir Wi‑Fi do sistema» ou conceda localização/Wi‑Fi nas Settings."
+            }
+        }
 
     private lateinit var btnRefreshOperationalLog: Button
     private lateinit var btnClearOperationalLog: Button
@@ -175,6 +201,14 @@ class DebugConfigActivity : AppCompatActivity() {
         textIpWifi = findViewById(R.id.textIpWifi)
         labelIpOther = findViewById(R.id.labelIpOther)
         textIpOther = findViewById(R.id.textIpOther)
+        btnOpenSystemWifi = findViewById(R.id.btnOpenSystemWifi)
+        btnOpenSystemSettings = findViewById(R.id.btnOpenSystemSettings)
+        btnWifiScan = findViewById(R.id.btnWifiScan)
+        btnWifiConnect = findViewById(R.id.btnWifiConnect)
+        spinnerWifiNetworks = findViewById(R.id.spinnerWifiNetworks)
+        editWifiPassword = findViewById(R.id.editWifiPassword)
+        textWifiCurrent = findViewById(R.id.textWifiCurrent)
+        textWifiStatus = findViewById(R.id.textWifiStatus)
 
         btnRefreshOperationalLog = findViewById(R.id.btnRefreshOperationalLog)
         btnClearOperationalLog = findViewById(R.id.btnClearOperationalLog)
@@ -184,6 +218,7 @@ class DebugConfigActivity : AppCompatActivity() {
         configScrollView = findViewById(R.id.configScrollView)
 
         bindLocalIps()
+        bindWifiPanel()
         textPlayerVersion.text = installedVersionLabel()
 
         val reason = intent.getStringExtra(EXTRA_REASON) ?: "manual"
@@ -498,6 +533,116 @@ class DebugConfigActivity : AppCompatActivity() {
         } else {
             labelIpOther.visibility = android.view.View.GONE
             textIpOther.visibility = android.view.View.GONE
+        }
+    }
+
+    private fun bindWifiPanel() {
+        refreshWifiCurrentLabel()
+        btnOpenSystemWifi.setOnClickListener {
+            KioskController.applyDebug(this)
+            val ok = WifiNetworkHelper.openSystemWifiSettings(this)
+            textWifiStatus.text =
+                if (ok) "A abrir Wi‑Fi do sistema…" else "Não foi possível abrir Settings Wi‑Fi neste OEM."
+        }
+        btnOpenSystemSettings.setOnClickListener {
+            KioskController.applyDebug(this)
+            val ok = WifiNetworkHelper.openSystemSettings(this)
+            textWifiStatus.text =
+                if (ok) "A abrir Settings do sistema…" else "Não foi possível abrir Settings neste OEM."
+        }
+        btnWifiScan.setOnClickListener { ensureWifiPermissionThenScan() }
+        btnWifiConnect.setOnClickListener { runWifiConnect() }
+        spinnerWifiNetworks.adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            listOf("(procure redes)"),
+        )
+    }
+
+    private fun refreshWifiCurrentLabel() {
+        val ssid = WifiNetworkHelper.currentSsid(this)
+        textWifiCurrent.text = "SSID actual: ${ssid ?: "—"}"
+    }
+
+    private fun ensureWifiPermissionThenScan() {
+        if (WifiNetworkHelper.hasScanPermission(this)) {
+            runWifiScan()
+            return
+        }
+        textWifiStatus.text = "A pedir permissão para listar Wi‑Fi…"
+        wifiPermissionLauncher.launch(WifiNetworkHelper.requiredRuntimePermissions())
+    }
+
+    private fun runWifiScan() {
+        textWifiStatus.text = "A procurar redes…"
+        lifecycleScope.launch {
+            try {
+                val entries = withContext(Dispatchers.IO) {
+                    WifiNetworkHelper.scanNetworks(this@DebugConfigActivity)
+                }
+                wifiScanEntries = entries
+                val labels = if (entries.isEmpty()) {
+                    listOf("(nenhuma rede encontrada)")
+                } else {
+                    entries.map { e ->
+                        val lock = if (e.secured) "🔒" else "🔓"
+                        "$lock ${e.ssid}  (${e.level} dBm)"
+                    }
+                }
+                spinnerWifiNetworks.adapter = ArrayAdapter(
+                    this@DebugConfigActivity,
+                    android.R.layout.simple_spinner_dropdown_item,
+                    labels,
+                )
+                refreshWifiCurrentLabel()
+                bindLocalIps()
+                textWifiStatus.text =
+                    if (entries.isEmpty()) {
+                        "Nenhuma rede. Tente «Abrir Wi‑Fi do sistema» (OEM)."
+                    } else {
+                        "${entries.size} rede(s). Escolha e toque em Ligar."
+                    }
+            } catch (e: SecurityException) {
+                textWifiStatus.text = e.message ?: "Permissão em falta"
+            } catch (e: Exception) {
+                PlayerAdLogger.w("WIFI", "Scan falhou: ${e.message}")
+                textWifiStatus.text = "Scan falhou: ${e.message ?: "erro"}"
+            }
+        }
+    }
+
+    private fun runWifiConnect() {
+        val idx = spinnerWifiNetworks.selectedItemPosition
+        val entry = wifiScanEntries.getOrNull(idx)
+        if (entry == null) {
+            textWifiStatus.text = "Escolha uma rede na lista (procure primeiro)."
+            return
+        }
+        val password = editWifiPassword.text?.toString().orEmpty()
+        if (entry.secured && password.isBlank()) {
+            textWifiStatus.text = "Esta rede é protegida — introduza a senha."
+            return
+        }
+        textWifiStatus.text = "A ligar a «${entry.ssid}»…"
+        lifecycleScope.launch {
+            try {
+                val msg = withContext(Dispatchers.IO) {
+                    WifiNetworkHelper.connect(
+                        this@DebugConfigActivity,
+                        entry.ssid,
+                        password,
+                        entry.secured,
+                    )
+                }
+                delay(1_500)
+                refreshWifiCurrentLabel()
+                bindLocalIps()
+                textWifiStatus.text = msg
+                PlayerAdLogger.i("WIFI", msg)
+            } catch (e: Exception) {
+                PlayerAdLogger.w("WIFI", "Connect falhou: ${e.message}")
+                textWifiStatus.text = "Falha: ${e.message ?: "erro"}. Use «Abrir Wi‑Fi do sistema»."
+            }
         }
     }
 

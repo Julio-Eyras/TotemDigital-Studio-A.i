@@ -798,6 +798,102 @@
             android:textSize="12sp"
             android:text="Interfaces detectadas neste aparelho (eth/en = cabo, wlan = Wi‑Fi)."/>
 
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnOpenSystemWifi"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="6dp"
+                android:text="Abrir Wi‑Fi do sistema"/>
+
+            <Button
+                android:id="@+id/btnOpenSystemSettings"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="6dp"
+                android:text="Abrir Settings"/>
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:text="Wi‑Fi (configurar neste aparelho)"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#BDBDBD"
+            android:textSize="12sp"
+            android:text="Liste redes, escolha SSID e introduza a senha. Em kiosk forte use estes botões ou 3× OK no player para voltar aqui."/>
+
+        <TextView
+            android:id="@+id/textWifiCurrent"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="#81C784"
+            android:textSize="13sp"
+            android:text="SSID actual: —"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnWifiScan"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="6dp"
+                android:text="Procurar redes"/>
+
+            <Button
+                android:id="@+id/btnWifiConnect"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="6dp"
+                android:text="Ligar"/>
+        </LinearLayout>
+
+        <Spinner
+            android:id="@+id/spinnerWifiNetworks"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"/>
+
+        <EditText
+            android:id="@+id/editWifiPassword"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="Senha Wi‑Fi (deixe vazio se rede aberta)"
+            android:inputType="textPassword"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#777777"/>
+
+        <TextView
+            android:id="@+id/textWifiStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="#BDBDBD"
+            android:textSize="12sp"
+            android:text=""/>
+
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

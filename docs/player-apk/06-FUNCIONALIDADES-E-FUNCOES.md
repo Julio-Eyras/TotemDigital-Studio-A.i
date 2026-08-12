@@ -13,8 +13,10 @@
 - heartbeat adaptativo;
 - plano versionado e estados `ACTIVE`, `EMPTY` e `UNAVAILABLE`;
 - comandos remotos e aplicação de configuração;
+- `configure_wifi` (SSID/senha) quando o totem já tem Internet;
 - agenda de ligar/desligar;
-- modo quiosque e watchdog.
+- modo quiosque e watchdog;
+- escape de campo: 3 toques OK → config com Wi‑Fi local e abertura de Settings do SO.
 
 ## Telemetria
 
@@ -36,5 +38,6 @@
 
 - ADB;
 - kit pendrive;
+- instalador `Instala-Player-TotemDigital.apk` (Player-AD + pergunta dos logos de boot);
 - reinstalação assistida;
 - preservação de configuração em atualização sobreposta.
