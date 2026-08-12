@@ -2,9 +2,10 @@
 
 Instalação e configuração do player Android (TV box / totem digital).
 
-**Versão de referência do app:** 1.67  
+**Versão de referência do app:** 2.12 (build 112)  
 **Público:** operador de campo, técnico de instalação e administrador do painel web  
-**Documentação técnica (boot, kiosk avançado, logs):** [MANUAL-OPERACIONAL-TVBOX.md](./MANUAL-OPERACIONAL-TVBOX.md)
+**Documentação técnica (boot, kiosk avançado, logs):** [MANUAL-OPERACIONAL-TVBOX.md](./MANUAL-OPERACIONAL-TVBOX.md)  
+**Procedimentos ADB / instalador:** [../../docs/instalacao/04-PLAYER-AD.md](../../docs/instalacao/04-PLAYER-AD.md)
 
 ---
 
@@ -48,17 +49,21 @@ Há três formas comuns. Use a que se adequar ao local.
 
 ### 3.1 Com pendrive (sem computador) — recomendado em campo
 
-1. Copie para o pendrive a pasta do kit (conteúdo de `install-pendrive/`), incluindo o APK em `apk/Player-AD-release.apk`
+1. Copie para o pendrive a pasta do kit (conteúdo de `install-pendrive/`), incluindo:
+   - `apk/Player-AD-release.apk` **ou**
+   - `apk/Instala-Player-TotemDigital.apk` (assistente: instala o player e pergunta pelos logos de boot)
 2. Ligue o totem / TV box
 3. Insira o pendrive na porta USB
 4. Abra o **gestor de ficheiros**
-5. Entre em `apk/` e toque em `Player-AD-release.apk`
+5. Entre em `apk/` e toque no APK escolhido
 6. Toque em **Instalar**
 7. Se o Android bloquear apps fora da loja:
    - no aviso, abra **Definições**
    - ative **Permitir desta fonte** / **Instalar apps desconhecidos**
    - volte ao APK e instale de novo
-8. Quando terminar, toque em **Abrir** (ou abra **SmartSignage Player-AD** no menu de apps)
+8. Quando terminar, toque em **Abrir**
+
+Com o **Instala-Player-TotemDigital**: Continuar → **Sim** ou **Não** aos logos → confirmar a instalação do Player-AD. Logos exigem root (SuperSU → Permitir).
 
 ### 3.2 Com PC e cabo USB (ADB) — kit pendrive
 
@@ -117,11 +122,26 @@ Pode configurar **pelo ecrã do aparelho** (mais simples) ou com ficheiro **JSON
 ### 4.1 Abrir a tela de configuração no aparelho
 
 1. Abra o **Player-AD**
-2. Dê **5 toques rápidos** no centro do ecrã (ou no botão OK / centro do comando)
+2. Dê **3 toques rápidos** no canto OK / centro do ecrã (D-pad ou toque)
 3. Aparece um aviso do tipo “Mais N toque(s)…”
-4. Na quarta/quinta vez abre a **tela de configuração**
+4. No terceiro toque abre a **tela de configuração** (kiosk relaxado)
 
-### 4.2 Campos obrigatórios
+### 4.2 Wi‑Fi neste aparelho (Player-AD ≥ 2.12)
+
+Na secção **Wi‑Fi** da configuração:
+
+| Acção | Uso |
+|-------|-----|
+| SSID actual | Mostra a rede ligada (se houver) |
+| Procurar redes | Lista SSIDs; escolha no spinner |
+| Senha + Ligar | Liga à rede (deixe senha vazia se for aberta) |
+| Abrir Wi‑Fi do sistema | Escape quando o OEM não deixa a app gerir Wi‑Fi |
+| Abrir Settings | Settings geral do Android |
+
+**Sem Internet** (só cabo desligado / Wi‑Fi errado): use esta secção ou os botões de Settings.  
+**Com Internet**: o painel web pode enviar `configure_wifi` em **Controle remoto** ou **Editar totem**.
+
+### 4.3 Campos obrigatórios
 
 Preencha pelo menos:
 
@@ -137,7 +157,7 @@ Depois:
 2. Toque em **Aplicar e iniciar** (barra no rodapé)
 3. O player deve ligar ao servidor e começar a sincronizar a playlist
 
-### 4.3 Orientação do ecrã (totem em pé)
+### 4.4 Orientação do ecrã (totem em pé)
 
 Para totem **retrato (portrait)**:
 
@@ -157,16 +177,16 @@ Valores de `displayRotation`:
 
 Em alguns hardware Allwinner o sistema operativo também usa rotação (`user_rotation=1`); o script técnico de instalação trata disso. Se a imagem ficar deitada, contacte o suporte ou use o [manual operacional](./MANUAL-OPERACIONAL-TVBOX.md).
 
-### 4.4 Modo quiosque (kiosk)
+### 4.5 Modo quiosque (kiosk)
 
 | Valor | Comportamento |
 |-------|----------------|
 | `strong` | Ecrã cheio + bloqueio reforçado (totem em produção) |
 | `immersive` | Só ecrã cheio imersivo (melhor para testes / celular) |
 
-Na tela de configuração o kiosk fica temporariamente relaxado para permitir editar.
+Na tela de configuração o kiosk fica temporariamente relaxado para permitir editar e abrir Settings/Wi‑Fi.
 
-### 4.5 Configuração por ficheiro JSON (opcional)
+### 4.6 Configuração por ficheiro JSON (opcional)
 
 Local no aparelho:
 
@@ -242,8 +262,9 @@ Se aparecer erro de assinatura (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`):
 | Pendrive não aparece | Outra porta USB; reinserir; formatar em FAT32/exFAT |
 | Não instala o APK | Permitir apps desconhecidas; confirmar que o ficheiro é `Player-AD-release.apk` |
 | App abre e fecha | Reiniciar o aparelho; reinstalar; pedir log ao suporte |
-| Não liga ao servidor | Confirmar `serverUrl` (IP, porta `:8080`), firewall e Wi‑Fi do totem |
+| Não liga ao servidor | Confirmar `serverUrl`, firewall e Wi‑Fi (secção Wi‑Fi na config ou Settings do SO) |
 | Totem offline no painel | UIN errado; rede; aguardar o intervalo de heartbeat |
+| Não abre Settings / Wi‑Fi no kiosk | **3 toques** → config → «Abrir Wi‑Fi do sistema» (kiosk relaxado) |
 | Imagem/vídeo deitado | Ajustar `displayRotation` / `screenOrientation`; ver manual operacional |
 | “Preencha serverUrl, uin e deviceId” | Completar os três campos e **Aplicar e iniciar** |
 
@@ -262,8 +283,8 @@ Ao pedir ajuda, envie:
 ## 8. Resumo em 1 minuto
 
 1. Crie o totem no painel e **copie o código de ativação**  
-2. Instale `Player-AD-release.apk` (pendrive ou ADB)  
-3. Abra o player → **5 toques** → configuração  
+2. Instale `Player-AD-release.apk` ou `Instala-Player-TotemDigital.apk` (pendrive ou ADB)  
+3. Abra o player → **3 toques** → configuração (Wi‑Fi se necessário)  
 4. Preencha **URL do servidor**, **UIN** e **deviceId** (iguais ao código)  
 5. **Aplicar e iniciar**  
 6. Confirme no painel que o totem está online e a playlist a reproduzir  

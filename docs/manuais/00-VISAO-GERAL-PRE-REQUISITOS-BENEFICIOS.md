@@ -55,7 +55,7 @@
 | Item | Requisito |
 |------|-----------|
 | Repo | `TotemDigital-Studio` |
-| Branch trabalho multi | `TotemDigital-MultiAgencia` |
+| Branch operacional | `main` |
 | Ferramentas | Node 20, npm, PostgreSQL local ou remoto |
 
 ---

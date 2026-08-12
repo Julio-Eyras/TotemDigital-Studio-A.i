@@ -108,7 +108,7 @@ Na **tela de config** (debug) o kiosk fica sempre relaxado.
 
 ## 4. Abrir configuração no totem
 
-- **5 toques rápidos** no botão OK / centro (D-pad ou toque na tela)
+- **3 toques rápidos** no botão OK / centro (D-pad ou toque na tela)
 - Toast: “Mais N toque(s) no OK…”
 
 Salvar config → **Aplicar e iniciar** (barra fixa no rodapé).

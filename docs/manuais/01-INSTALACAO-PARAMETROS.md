@@ -3,7 +3,9 @@
 **Script oficial:** `scripts/Instala-TotemDigital-Server.sh`  
 **Assistente interactivo:** `scripts/run-instala-totemdigital-prompt.sh`  
 **Motor (não editar no dia-a-dia):** `scripts/install-smartsignage.sh`  
-**Doc detalhado legado/complementar:** [../INSTALA-TOTEMDIGITAL-SERVER.md](../INSTALA-TOTEMDIGITAL-SERVER.md)
+**Branch operacional:** `main`  
+**Guia curto (do zero + actualizar sem perder dados):** [../instalacao/05-MINI-LIVRETO-MAIN-PROD-DEV-TESTE.md](../instalacao/05-MINI-LIVRETO-MAIN-PROD-DEV-TESTE.md)  
+**Procedimentos detalhados:** [../instalacao/README.md](../instalacao/README.md)
 
 ---
 
@@ -11,13 +13,15 @@
 
 | Caminho | Função |
 |---------|--------|
-| `~/TotemDigital-Studio` | Clone **produção** — não misturar branch multi experimental |
-| `~/TotemDigital-Studio-multiagencia` | Clone de trabalho da branch MultiAgência (correr instalador) |
+| `~/TotemDigital-Studio` | Clone **produção** — branch **`main`** |
 | `~/TotemDigital-Studio-dev` | Código da instância **dev** |
+| `~/TotemDigital-Studio-test` | Código da instância **teste** |
 | `/opt/smart-signage` | Deploy produção |
 | `/opt/totemdigital-dev` | Deploy **dev** |
+| `/opt/totemdigital-test` | Deploy **teste** |
 | BD `smartsignage` | Produção |
 | BD `smartsignage_dev` | Dev |
+| BD `smartsignage_test` | Teste |
 
 ---
 
@@ -25,7 +29,7 @@
 
 | Modo | Flag | O que faz | BD |
 |------|------|-----------|-----|
-| Produção | `producao` | Stack completa + HTTPS | Pode recriar em fluxo limpo |
+| Produção | `producao` | Stack completa + HTTPS (instalação **nova**) | Pode recriar em fluxo limpo |
 | Actualizar | `atualizar` | Pull opcional, build BE/FE, `.env`, Nginx | **Não apaga** |
 | Reparar | `reparar` | Aspas `.env`, URLs HTTPS, Nginx | Não toca |
 | Docker | `docker` | Via Compose | Conforme compose |
@@ -40,8 +44,6 @@
 | `producao` (default) | `totemdigital.app.br` | 3000 | 8080 | `smart-signage` |
 | `dev` | `dev.totemdigital.app.br` | 3001 | 8081 | `smart-signage-dev` |
 | `teste` | `test.totemdigital.app.br` | 3002 | 8082 | `smart-signage-test` |
-
-Ver [../MULTI-INSTANCIA-PROD-DEV-TESTE.md](../MULTI-INSTANCIA-PROD-DEV-TESTE.md).
 
 ---
 
@@ -66,18 +68,19 @@ Ver [../MULTI-INSTANCIA-PROD-DEV-TESTE.md](../MULTI-INSTANCIA-PROD-DEV-TESTE.md)
 Variável útil:
 
 ```bash
-export TDI_GIT_BRANCH=TotemDigital-MultiAgencia
+export TDI_GIT_BRANCH=main
 ```
 
 ---
 
 ## 5. Exemplos práticos
 
-### 5.1 Produção (não interactivo)
+### 5.1 Produção do zero
 
 ```bash
 cd ~/TotemDigital-Studio
-git pull
+git fetch origin && git checkout main && git pull --ff-only origin main
+export TDI_GIT_BRANCH=main
 bash scripts/Instala-TotemDigital-Server.sh --modo producao --sim \
   --dominio totemdigital.app.br \
   --email admin@totemdigital.app.br \
@@ -85,22 +88,39 @@ bash scripts/Instala-TotemDigital-Server.sh --modo producao --sim \
   --owner-name "Totem Digital"
 ```
 
-### 5.2 Instalar `dev` do zero (branch multi)
+### 5.2 Actualizar produção **sem perder dados**
 
 ```bash
-cd ~/TotemDigital-Studio-multiagencia
-export TDI_GIT_BRANCH=TotemDigital-MultiAgencia
+cd ~/TotemDigital-Studio
+bash scripts/backup-totemdigital-prod.sh --instancia producao --sim
+# Se git pull falhar por ficheiros locais: git stash push -m "pre-update"
+git fetch origin && git checkout main && git pull --ff-only origin main
+export TDI_GIT_BRANCH=main
 bash scripts/Instala-TotemDigital-Server.sh \
-  --modo producao --instancia dev --sim \
+  --modo atualizar --instancia producao --git-pull --sim \
+  --dominio totemdigital.app.br \
   --email admin@totemdigital.app.br \
   --owner-user ismael
 ```
 
-### 5.3 Actualizar `dev` após push
+### 5.3 Instalar `dev` do zero
 
 ```bash
-cd ~/TotemDigital-Studio-multiagencia && git pull --ff-only
-export TDI_GIT_BRANCH=TotemDigital-MultiAgencia
+cd ~/TotemDigital-Studio
+export TDI_GIT_BRANCH=main
+bash scripts/Instala-TotemDigital-Server.sh \
+  --modo producao --instancia dev --sim \
+  --dominio dev.totemdigital.app.br \
+  --email admin@totemdigital.app.br \
+  --owner-user ismael \
+  --owner-name "Totem Digital DEV"
+```
+
+### 5.4 Actualizar `dev` após push
+
+```bash
+cd ~/TotemDigital-Studio
+export TDI_GIT_BRANCH=main
 bash scripts/Instala-TotemDigital-Server.sh \
   --modo atualizar --instancia dev --git-pull --sim \
   --email admin@totemdigital.app.br \
@@ -108,16 +128,11 @@ bash scripts/Instala-TotemDigital-Server.sh \
   --domain dev.totemdigital.app.br
 ```
 
-### 5.4 Assistente (perguntas / defaults-dev)
+### 5.5 Assistente e dry-run
 
 ```bash
 bash scripts/run-instala-totemdigital-prompt.sh
 bash scripts/run-instala-totemdigital-prompt.sh --defaults-dev
-```
-
-### 5.5 Dry-run
-
-```bash
 bash scripts/Instala-TotemDigital-Server.sh --dry-run --modo producao --instancia dev --sim
 ```
 
@@ -129,7 +144,7 @@ bash scripts/Instala-TotemDigital-Server.sh --dry-run --modo producao --instanci
 2. `FINANCIAL_PUBLIC_APP_URL=https://<domínio>`
 3. Nginx HTTPS unificado (`apply-https-unified-443.sh`)
 4. Em **actualizar**: rebuild FE com `REACT_APP_API_URL=https://domínio/api`
-5. Em wipe/dev: alinhar password PG ao `.env` (fix recente no instalador)
+5. Em wipe/dev: alinhar password PG ao `.env`
 
 ---
 
@@ -171,6 +186,7 @@ URL: `https://dev.totemdigital.app.br/login`
 | Schema falha auth PG após wipe | Alinhar `ALTER ROLE` à `DB_PASSWORD` do `.env` |
 | Front antigo | Confirmar rebuild + hard refresh |
 | 403 `MODULE_DISABLED` | Esperado para módulos off no Lite (billing/OTA/…) |
-| Branch errada no clone `*-dev` | `git checkout TotemDigital-MultiAgencia && git pull` |
+| Branch errada / pull bloqueado | `git checkout main && git stash` depois `git pull --ff-only origin main` |
+| Actualizar sem apagar BD | Sempre `--modo atualizar` — ver mini-livreto |
 
-Mais: [../HANDOFF-MULTI-AGENCIA-CONTINUIDADE.md](../HANDOFF-MULTI-AGENCIA-CONTINUIDADE.md) · [../VPS-DEV-DO-ZERO-MULTI-AGENCIA.md](../VPS-DEV-DO-ZERO-MULTI-AGENCIA.md)
+Mais: [../instalacao/05-MINI-LIVRETO-MAIN-PROD-DEV-TESTE.md](../instalacao/05-MINI-LIVRETO-MAIN-PROD-DEV-TESTE.md) · [../instalacao/01-PRODUCAO-DIRECT-TOTEM.md](../instalacao/01-PRODUCAO-DIRECT-TOTEM.md)

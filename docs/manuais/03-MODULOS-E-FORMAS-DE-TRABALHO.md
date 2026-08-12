@@ -143,8 +143,10 @@ Quick-publish, dispatcher e playlist engine aceitam **ambos** os caminhos (UNION
 ### Forma 4 — Laboratório (mesmo VPS)
 
 1. Instância `dev` isolada  
-2. Branch `TotemDigital-MultiAgencia`  
+2. Branch `main`  
 3. Smoke Lite + Pro + OFF sem tocar produção  
+
+Guia de install/update: [../instalacao/05-MINI-LIVRETO-MAIN-PROD-DEV-TESTE.md](../instalacao/05-MINI-LIVRETO-MAIN-PROD-DEV-TESTE.md).
 
 ---
 

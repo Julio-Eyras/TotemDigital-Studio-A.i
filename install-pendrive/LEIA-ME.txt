@@ -28,8 +28,10 @@ MANUAL DO UTILIZADOR (Markdown):
    C) COM ROOT no aparelho — Ver README.md (script install-on-android.sh).
 
 4) Configurar no aparelho:
-   Abrir o Player-AD → 5 toques rápidos no centro do ecrã →
+   Abrir o Player-AD → 3 toques rápidos no centro do ecrã →
    preencher URL do servidor + UIN + deviceId → Aplicar e iniciar.
+   Na config: secção Wi‑Fi (scan/ligar) ou «Abrir Wi‑Fi do sistema».
+   Opcional: apk/Instala-Player-TotemDigital.apk (instala o player e pergunta pelos logos).
 
 Documentação adicional: README.md (nesta pasta).
 
