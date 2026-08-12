@@ -6,7 +6,7 @@ Instala ambientes isolados sem alterar a produção em `/opt/smart-signage`.
 
 | Item | DEV | TESTE |
 |---|---|---|
-| Branch padrão nos exemplos | `TotemDigital-MultiAgencia` | `TotemDigital-MultiAgencia` |
+| Branch padrão nos exemplos | `main` | `main` |
 | Clone | `~/TotemDigital-Studio-dev` | `~/TotemDigital-Studio-test` |
 | Deploy | `/opt/totemdigital-dev` | `/opt/totemdigital-test` |
 | BD | `smartsignage_dev` | `smartsignage_test` |
@@ -16,6 +16,8 @@ Instala ambientes isolados sem alterar a produção em `/opt/smart-signage`.
 | Domínio | `dev.totemdigital.app.br` | `test.totemdigital.app.br` |
 | Uploads | `/opt/totemdigital-dev/public/assets/uploads` | `/opt/totemdigital-test/public/assets/uploads` |
 
+> Guia curto do zero + actualizar sem perder dados: [05-MINI-LIVRETO-MAIN-PROD-DEV-TESTE.md](./05-MINI-LIVRETO-MAIN-PROD-DEV-TESTE.md)
+
 ## 1. Preparar o clone controlador
 
 O instalador pode criar automaticamente os clones DEV/TESTE. Execute-o a partir do clone principal:
@@ -23,9 +25,9 @@ O instalador pode criar automaticamente os clones DEV/TESTE. Execute-o a partir 
 ```bash
 cd ~/TotemDigital-Studio
 git fetch origin
-git checkout TotemDigital-MultiAgencia
-git pull --ff-only origin TotemDigital-MultiAgencia
-export TDI_GIT_BRANCH=TotemDigital-MultiAgencia
+git checkout main
+git pull --ff-only origin main
+export TDI_GIT_BRANCH=main
 ```
 
 ## 2. Instalar DEV do zero
@@ -34,7 +36,7 @@ export TDI_GIT_BRANCH=TotemDigital-MultiAgencia
 
 ```bash
 cd ~/TotemDigital-Studio
-export TDI_GIT_BRANCH=TotemDigital-MultiAgencia
+export TDI_GIT_BRANCH=main
 
 bash scripts/Instala-TotemDigital-Server.sh \
   --modo producao \
@@ -50,7 +52,7 @@ bash scripts/Instala-TotemDigital-Server.sh \
 
 ```bash
 cd ~/TotemDigital-Studio
-export TDI_GIT_BRANCH=TotemDigital-MultiAgencia
+export TDI_GIT_BRANCH=main
 
 bash scripts/Instala-TotemDigital-Server.sh \
   --modo producao \
@@ -67,11 +69,11 @@ bash scripts/Instala-TotemDigital-Server.sh \
 ```bash
 cd ~/TotemDigital-Studio-dev
 git fetch origin
-git checkout TotemDigital-MultiAgencia
-git pull --ff-only origin TotemDigital-MultiAgencia
+git checkout main
+git pull --ff-only origin main
 
 cd ~/TotemDigital-Studio
-export TDI_GIT_BRANCH=TotemDigital-MultiAgencia
+export TDI_GIT_BRANCH=main
 
 bash scripts/Instala-TotemDigital-Server.sh \
   --modo atualizar \
@@ -87,7 +89,7 @@ bash scripts/Instala-TotemDigital-Server.sh \
 
 ```bash
 cd ~/TotemDigital-Studio
-export TDI_GIT_BRANCH=TotemDigital-MultiAgencia
+export TDI_GIT_BRANCH=main
 
 bash scripts/Instala-TotemDigital-Server.sh \
   --modo producao \
@@ -104,11 +106,11 @@ bash scripts/Instala-TotemDigital-Server.sh \
 ```bash
 cd ~/TotemDigital-Studio-test
 git fetch origin
-git checkout TotemDigital-MultiAgencia
-git pull --ff-only origin TotemDigital-MultiAgencia
+git checkout main
+git pull --ff-only origin main
 
 cd ~/TotemDigital-Studio
-export TDI_GIT_BRANCH=TotemDigital-MultiAgencia
+export TDI_GIT_BRANCH=main
 
 bash scripts/Instala-TotemDigital-Server.sh \
   --modo atualizar \

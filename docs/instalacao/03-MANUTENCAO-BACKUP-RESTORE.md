@@ -14,9 +14,9 @@ Atualização:
 ```bash
 cd ~/TotemDigital-Studio
 git fetch origin
-git checkout TotemDigital-MultiAgencia
-git pull --ff-only origin TotemDigital-MultiAgencia
-export TDI_GIT_BRANCH=TotemDigital-MultiAgencia
+git checkout main
+git pull --ff-only origin main
+export TDI_GIT_BRANCH=main
 
 bash scripts/Instala-TotemDigital-Server.sh \
   --modo atualizar \
@@ -28,7 +28,7 @@ bash scripts/Instala-TotemDigital-Server.sh \
   --owner-user ismael
 ```
 
-Para DEV/TESTE, troque `--instancia` e `--dominio`.
+Para DEV/TESTE, troque `--instancia` e `--dominio`. Guia curto: [05-MINI-LIVRETO-MAIN-PROD-DEV-TESTE.md](./05-MINI-LIVRETO-MAIN-PROD-DEV-TESTE.md).
 
 ## 2. Reparação
 
@@ -57,7 +57,7 @@ Docker só suporta a instância de produção neste wrapper:
 
 ```bash
 cd ~/TotemDigital-Studio
-export TDI_GIT_BRANCH=TotemDigital-MultiAgencia
+export TDI_GIT_BRANCH=main
 
 bash scripts/Instala-TotemDigital-Server.sh \
   --modo docker \

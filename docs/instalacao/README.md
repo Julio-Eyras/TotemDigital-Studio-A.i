@@ -9,21 +9,20 @@ Documentação de referência para instalar, atualizar, reparar, apagar e recupe
 ## Baseline operacional
 
 ```text
-Frontend:  2.1.17
-Backend:   2.1.11
-Player-AD: 2.07 (build 107)
-Commit funcional validado: 4bc88462
-Origem da promoção: TotemDigital-MultiAgencia
-Destino: main
+Frontend:  2.1.21
+Backend:   2.1.15
+Player-AD: 2.12 (build 112)
+Commit funcional validado: cf7260bb
+Destino / default no GitHub: main
 ```
 
-Instalações novas e atualizações devem usar `main`. A branch
-`TotemDigital-MultiAgencia` permanece como origem histórica da promoção.
+Instalações novas e atualizações devem usar `main`.
 
 ## Escolha o procedimento
 
 | Necessidade | Documento |
 |---|---|
+| **Mini-livreto** — do zero + actualizar sem perder dados (prod/DEV/TESTE) | [05-MINI-LIVRETO-MAIN-PROD-DEV-TESTE.md](./05-MINI-LIVRETO-MAIN-PROD-DEV-TESTE.md) |
 | Produção Direct Totem, instalação nova ou atualização segura | [01-PRODUCAO-DIRECT-TOTEM.md](./01-PRODUCAO-DIRECT-TOTEM.md) |
 | DEV e TESTE isolados no mesmo VPS | [02-DEV-TESTE-MULTI-INSTANCIA.md](./02-DEV-TESTE-MULTI-INSTANCIA.md) |
 | Reparar, Docker, wipe, backup e restore | [03-MANUTENCAO-BACKUP-RESTORE.md](./03-MANUTENCAO-BACKUP-RESTORE.md) |
