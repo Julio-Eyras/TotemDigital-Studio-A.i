@@ -1,9 +1,20 @@
 # Smart Signage Pro v2.1
 ## Documentação Comercial e Técnica Completa
 
+> **Obsoleto para proposta comercial (ago/2026).**  
+> Este ficheiro (jan/2026) descreve um recorte antigo (inclui menção a *open source* e preços que **não** são lista vigente).  
+> **Usar em vez disto:**
+> - Avaliação comercial v1.1 — [`AVALIACAO-COMERCIAL-PRODUTO-TOTEMDIGITAL-STUDIO-2026-07.md`](./AVALIACAO-COMERCIAL-PRODUTO-TOTEMDIGITAL-STUDIO-2026-07.md)
+> - Pitch SaaS / rede (upsell) — [`manuais/06-APRESENTACAO-COMERCIAL-SAAS.md`](./manuais/06-APRESENTACAO-COMERCIAL-SAAS.md)
+> - Licença: **proprietária** ([LICENSE](../LICENSE) · [NOTICE](../NOTICE)) — Julio Cesar Eyras / Eyras Sistemas e Soluções  
+> - Baseline: `main` · FE 2.1.21 · BE 2.1.15 · Player-AD 2.12 (112)  
+>
+> Manter apenas como arquivo histórico / ideias técnicas. Não anexar a orçamento nem a landing.  
+> **PDF (histórico):** [DOCUMENTACAO-COMERCIAL-TECNICA.pdf](./DOCUMENTACAO-COMERCIAL-TECNICA.pdf)
+
 **Versão:** 2.1.0  
 **Data:** Janeiro 2026  
-**Status:** Produção
+**Status:** Arquivo histórico (não usar em venda)
 
 ---
 

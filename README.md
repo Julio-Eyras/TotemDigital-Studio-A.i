@@ -33,6 +33,8 @@ Um código, três modos de produto (nunca Direct e multi-agência ao mesmo tempo
 | Precisa de… | Abrir |
 |---|---|
 | Usar o painel (primeira vez) | [docs/manuais/02-GUIA-PRIMEIRA-VEZ-UTILIZADOR.md](docs/manuais/02-GUIA-PRIMEIRA-VEZ-UTILIZADOR.md) |
+| Telas do painel (capturas + PDF) | [docs/manuais/telas/README.md](docs/manuais/telas/README.md) |
+| Avaliação comercial (v1.1) | [docs/AVALIACAO-COMERCIAL-PRODUTO-TOTEMDIGITAL-STUDIO-2026-07.md](docs/AVALIACAO-COMERCIAL-PRODUTO-TOTEMDIGITAL-STUDIO-2026-07.md) · [PDF](docs/AVALIACAO-COMERCIAL-PRODUTO-TOTEMDIGITAL-STUDIO-2026-07.pdf) |
 | Índice de manuais | [docs/manuais/README.md](docs/manuais/README.md) |
 | Instalar / actualizar servidor (prod, DEV, TESTE) | [docs/instalacao/05-MINI-LIVRETO-MAIN-PROD-DEV-TESTE.md](docs/instalacao/05-MINI-LIVRETO-MAIN-PROD-DEV-TESTE.md) |
 | Índice de instalação | [docs/instalacao/README.md](docs/instalacao/README.md) |

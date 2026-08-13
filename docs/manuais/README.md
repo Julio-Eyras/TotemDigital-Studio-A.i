@@ -25,8 +25,9 @@ A **fonte da verdade de regras/requisitos por módulo** está em [`../modulos/00
 | 03 | [Módulos e formas de trabalho](./03-MODULOS-E-FORMAS-DE-TRABALHO.md) | Todos |
 | 04 | [Manual administrativo](./04-MANUAL-ADMINISTRATIVO.md) | `owner_system` / admin |
 | 05 | [Manual técnico — modelo E.R., API e serviços](./05-MANUAL-TECNICO-MODELO-ER-API.md) | Desenvolvimento |
-| 06 | [Apresentação comercial (software + SaaS)](./06-APRESENTACAO-COMERCIAL-SAAS.md) | Vendas / parceiros / C-level |
+| 06 | [Apresentação comercial (software + SaaS)](./06-APRESENTACAO-COMERCIAL-SAAS.md) · [PDF](./06-APRESENTACAO-COMERCIAL-SAAS.pdf) | Vendas / parceiros / C-level |
 | 07 | [Manual do utilizador — Publicar em Totem](./07-MANUAL-PUBLICAR-EM-TOTEM.md) | Operador / dono |
+| 08–11 | [Manuais de telas (Direct Totem, com capturas + PDF)](./telas/README.md) | Operador / admin |
 
 ### Catálogo canónico de módulos (negócio)
 
@@ -58,9 +59,10 @@ Nunca Direct Totem e multi-agência ao mesmo tempo. Ver [03](./03-MODULOS-E-FORM
 | Procedimentos completos por modalidade | [../instalacao/README.md](../instalacao/README.md) |
 | Player-AD — manual do utilizador (curto) | [../player-apk/01-MANUAL-USUARIO.md](../player-apk/01-MANUAL-USUARIO.md) |
 | Player-AD — instalação/config (detalhe) | [../../Player-AD/docs/MANUAL-USUARIO-INSTALACAO-CONFIGURACAO.md](../../Player-AD/docs/MANUAL-USUARIO-INSTALACAO-CONFIGURACAO.md) |
+| Telas Direct Totem (capturas + PDF) | [./telas/README.md](./telas/README.md) |
 | Handoff multi-agência (continuidade IA/equipa) | [../HANDOFF-MULTI-AGENCIA-CONTINUIDADE.md](../HANDOFF-MULTI-AGENCIA-CONTINUIDADE.md) |
 | Instalador (detalhe CLI) | [../INSTALA-TOTEMDIGITAL-SERVER.md](../INSTALA-TOTEMDIGITAL-SERVER.md) |
-| Avaliação comercial 2026 | [../AVALIACAO-COMERCIAL-PRODUTO-TOTEMDIGITAL-STUDIO-2026-07.md](../AVALIACAO-COMERCIAL-PRODUTO-TOTEMDIGITAL-STUDIO-2026-07.md) |
+| Avaliação comercial v1.1 (ago/2026) | [../AVALIACAO-COMERCIAL-PRODUTO-TOTEMDIGITAL-STUDIO-2026-07.md](../AVALIACAO-COMERCIAL-PRODUTO-TOTEMDIGITAL-STUDIO-2026-07.md) · [PDF](../AVALIACAO-COMERCIAL-PRODUTO-TOTEMDIGITAL-STUDIO-2026-07.pdf) |
 
 ---
 

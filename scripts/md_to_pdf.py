@@ -26,8 +26,12 @@ REPO = Path(__file__).resolve().parents[1]
 
 def esc(text: str) -> str:
     text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    # markdown links [label](url) → label
+    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
     # bold **text**
     text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
+    # italic *text*
+    text = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<i>\1</i>", text)
     # inline code `x`
     text = re.sub(r"`([^`]+)`", r"<font face='Courier' size='9'>\1</font>", text)
     return text
@@ -77,6 +81,15 @@ def parse_markdown(lines: list[str]) -> list[tuple[str, object]]:
 
         if stripped == "---":
             blocks.append(("hr", ""))
+            i += 1
+            continue
+
+        if stripped.startswith("> "):
+            blocks.append(("p", stripped[2:].strip()))
+            i += 1
+            continue
+        if stripped == ">":
+            blocks.append(("blank", ""))
             i += 1
             continue
 
@@ -190,7 +203,7 @@ def md_to_pdf(md_path: Path, pdf_path: Path, title: str | None = None) -> None:
         topMargin=1.6 * cm,
         bottomMargin=1.6 * cm,
         title=title or md_path.stem,
-        author="Totem Digital",
+        author="Julio Cesar Eyras (J.C.E.) / Eyras Sistemas e Soluções",
     )
 
     story = []

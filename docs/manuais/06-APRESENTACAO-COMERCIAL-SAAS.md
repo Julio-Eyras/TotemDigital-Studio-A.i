@@ -1,10 +1,11 @@
 # TotemDigital Studio — Apresentação Comercial (Software + SaaS)
 
 **Documento:** pitch comercial  
-**Data:** 2026-08-03  
+**Data:** 2026-08-12 (nota P0 Direct; corpo 2026-08-03)  
 **Público:** decisão de compra, parceiros, vendas  
 **Produto:** plataforma de sinalização digital e rede de ecrãs  
-**Base técnica:** manuais em [`docs/manuais/`](./README.md)
+**Base técnica:** manuais em [`docs/manuais/`](./README.md)  
+**PDF:** [06-APRESENTACAO-COMERCIAL-SAAS.pdf](./06-APRESENTACAO-COMERCIAL-SAAS.pdf)
 
 ---
 
@@ -74,6 +75,8 @@ Pro     →  “Eu corro uma agência / marketplace indoor.”
 ```
 
 **Mensagem de venda:** começa simples; o mesmo software cresce consigo — sem migrar de fornecedor.
+
+**P0 / demo SMB (15 min):** vender só **Direct** (Kit Pronto ou Só software). Lite e Pro são **upsell** — não abrir a 1.ª conversa com “rede global / milhares de totens”. Glossário e foco comercial: [`../AVALIACAO-COMERCIAL-PRODUTO-TOTEMDIGITAL-STUDIO-2026-07.md`](../AVALIACAO-COMERCIAL-PRODUTO-TOTEMDIGITAL-STUDIO-2026-07.md) (v1.1).
 
 ---
 
@@ -186,13 +189,13 @@ Planos (limites e cobertura de rede), contratos, faturamento, actualizações OT
 
 ## 11. Próximos passos (CTA)
 
-1. Agendar demo (Direct vs Lite em 20 minutos)  
+1. Agendar demo — **SMB:** Direct 15 min; **rede:** Direct vs Lite em 20 min  
 2. Dimensionar: nº de totens, cidades, anunciantes previstos  
-3. Proposta: licença **ou** SaaS + pacote de go-live  
+3. Proposta: Kit Pronto / Só software **ou** (upsell) Lite/Pro SaaS + go-live  
 4. Pilot em ambiente isolado (`dev`) antes da produção  
 
 Documentação operacional e técnica: [`docs/manuais/README.md`](./README.md)  
-Contexto de produto / roadmap comercial alargado: [`../AVALIACAO-COMERCIAL-PRODUTO-TOTEMDIGITAL-STUDIO-2026-07.md`](../AVALIACAO-COMERCIAL-PRODUTO-TOTEMDIGITAL-STUDIO-2026-07.md)
+Avaliação comercial e de produto (v1.1, ago/2026): [`../AVALIACAO-COMERCIAL-PRODUTO-TOTEMDIGITAL-STUDIO-2026-07.md`](../AVALIACAO-COMERCIAL-PRODUTO-TOTEMDIGITAL-STUDIO-2026-07.md)
 
 ---
 
