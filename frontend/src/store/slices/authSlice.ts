@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { authApi, LoginResponse } from '../../services/api';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
+import { normalizeAppRole } from '../../utils/userRoleUserType';
 
 export interface UserFlags {
   flag_smart_0: boolean;
@@ -54,7 +55,7 @@ function parseStoredUser(): User | null {
     if (!raw) return null;
     const u = JSON.parse(raw) as Partial<User>;
     if (!u || typeof u !== 'object' || typeof u.role !== 'string') return null;
-    return u as User;
+    return { ...u, role: normalizeAppRole(u.role) } as User;
   } catch {
     return null;
   }
@@ -227,17 +228,28 @@ const authSlice = createSlice({
         }
         
         const userRole = (apiUser as any).role as string;
+        const normalizedRole = normalizeAppRole(userRole);
         let mappedRole: 'admin' | 'admin_sql' | 'manager' | 'operator' | 'gerente_marketing' | 'editoracao' | 'visualizador' | 'owner_system' | 'operador_tecnico' | 'operador_faturamento' | 'operador_comercial' | 'publisher_user' | 'subscriber_user' = 'operator';
-        
-        if (userRole === 'admin' || userRole === 'admin_sql' || userRole === 'owner_system') {
-          mappedRole = userRole === 'admin_sql' ? 'admin_sql' : userRole === 'owner_system' ? 'owner_system' : 'admin';
-        } else if (userRole === 'user') {
+
+        if (normalizedRole === 'admin' || normalizedRole === 'admin_sql' || normalizedRole === 'owner_system') {
+          mappedRole = normalizedRole;
+        } else if (normalizedRole === 'user') {
           mappedRole = 'operator';
-        } else if (['gerente_marketing', 'editoracao', 'visualizador', 'operador_tecnico', 'operador_faturamento', 'operador_comercial', 'publisher_user', 'subscriber_user'].includes(userRole)) {
-          mappedRole = userRole as any;
+        } else if (
+          [
+            'gerente_marketing',
+            'editoracao',
+            'visualizador',
+            'operador_tecnico',
+            'operador_faturamento',
+            'operador_comercial',
+            'publisher_user',
+            'subscriber_user',
+          ].includes(normalizedRole)
+        ) {
+          mappedRole = normalizedRole as typeof mappedRole;
         } else {
-          // Fallback: manter role original ou usar 'operator'
-          mappedRole = (userRole as any) || 'operator';
+          mappedRole = (normalizedRole as typeof mappedRole) || 'operator';
         }
         
         // Extrair ID (pode vir como id, user_id, ou userId)

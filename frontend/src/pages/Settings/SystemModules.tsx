@@ -36,6 +36,7 @@ import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { useAppSelector } from '../../store';
 import type { InstallationModuleFlags } from '../../types/installationCapabilities';
+import { isInstallationManagerRole } from '../../utils/userRoleUserType';
 import {
   getInstallationModeOptionLabel,
   type InstallationMode,
@@ -97,7 +98,8 @@ const SystemModules: React.FC = () => {
   const theme = useTheme();
   const breadcrumbs = useBreadcrumbs();
   const { user } = useAppSelector((s) => s.auth);
-  const canManage = user?.role === 'owner_system' || user?.role === 'admin_sql';
+  const authReady = Boolean(user?.role);
+  const canManage = isInstallationManagerRole(user?.role);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -148,6 +150,9 @@ const SystemModules: React.FC = () => {
   };
 
   const load = useCallback(async () => {
+    if (!authReady) {
+      return;
+    }
     if (!canManage) {
       setLoading(false);
       setError('Apenas owner_system ou admin_sql podem gerir o modo multi-agência.');
@@ -194,7 +199,7 @@ const SystemModules: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [canManage]);
+  }, [authReady, canManage]);
 
   useEffect(() => {
     void load();
@@ -470,12 +475,12 @@ const SystemModules: React.FC = () => {
         </Alert>
       )}
 
-      {!canManage ? (
-        <Alert severity="warning">Apenas owner_system ou admin_sql podem gerir este modo.</Alert>
-      ) : loading && !modules ? (
+      {!authReady || (loading && !modules) ? (
         <Box display="flex" justifyContent="center" py={6}>
           <CircularProgress />
         </Box>
+      ) : !canManage ? (
+        <Alert severity="warning">Apenas owner_system ou admin_sql podem gerir este modo.</Alert>
       ) : (
         <>
           <Card

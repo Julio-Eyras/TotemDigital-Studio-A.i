@@ -5,6 +5,7 @@
 
 import { useSelector } from 'react-redux';
 import { RootState } from '../store';
+import { normalizeAppRole } from '../utils/userRoleUserType';
 
 export interface UserFlags {
   flag_smart_0: boolean;
@@ -26,6 +27,7 @@ export type FlagName = keyof UserFlags;
  */
 export function useFlags() {
   const user = useSelector((state: RootState) => state.auth.user);
+  const role = normalizeAppRole(user?.role);
   
   /**
    * Verifica se usuário tem uma flag específica
@@ -35,7 +37,7 @@ export function useFlags() {
     if (!user) return false;
     
     // Owner system tem todas as flags
-    if (user.role === 'owner_system') return true;
+    if (role === 'owner_system') return true;
     
     // Verificar flag do usuário
     return user.flags?.[flag] ?? false;
@@ -60,14 +62,14 @@ export function useFlags() {
     hasFlag,
     hasAnyFlag,
     hasAllFlags,
-    isOwner: user?.role === 'owner_system',
-    isAdminSql: user?.role === 'admin_sql',
-    isAdmin: user?.role === 'admin',
-    isOperadorTecnico: user?.role === 'operador_tecnico',
-    isOperadorFaturamento: user?.role === 'operador_faturamento',
-    isOperadorComercial: user?.role === 'operador_comercial',
-    isPublisher: user?.role === 'publisher_user' || user?.user_type === 'publisher_user' || user?.publisherId !== undefined,
-    isSubscriber: user?.role === 'subscriber_user' || user?.user_type === 'subscriber_user' || user?.subscriberId !== undefined,
+    isOwner: role === 'owner_system',
+    isAdminSql: role === 'admin_sql',
+    isAdmin: role === 'admin',
+    isOperadorTecnico: role === 'operador_tecnico',
+    isOperadorFaturamento: role === 'operador_faturamento',
+    isOperadorComercial: role === 'operador_comercial',
+    isPublisher: role === 'publisher_user' || user?.user_type === 'publisher_user' || user?.publisherId !== undefined,
+    isSubscriber: role === 'subscriber_user' || user?.user_type === 'subscriber_user' || user?.subscriberId !== undefined,
     isPublisherSubscriber: false,
   };
 }

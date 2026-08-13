@@ -82,7 +82,7 @@ Limites de upload (ex. 2GB), MIME permitidos, cota por cliente, idade para limpe
 
 ![Dispatcher em Configurações](imagens/33.png)
 
-Texto de ajuda + cartões para as ferramentas. **Nesta captura** aparece: perfil sem permissão / falta flag técnica — inconsistente com o menu Dispatcher acessível ao mesmo `ismael`. Documentar como **anomalia de gate** (flag `dispatcher` vs `dispatcher_admin`).
+Texto de ajuda + cartões para Gerenciar, Monitor, Debug e Timeline. `owner_system` / `admin_sql` / `admin` vêem o hub sem `flag_smart_2` (mesmo critério do menu lateral).
 
 ---
 

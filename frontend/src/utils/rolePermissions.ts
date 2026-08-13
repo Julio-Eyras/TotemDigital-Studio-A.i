@@ -1,5 +1,10 @@
 import { isStudioMode } from '../config/studioMode';
 import { isPathAllowedByInstallationModules } from './installationModuleAccess';
+import {
+  isDispatcherAdminRole,
+  isInstallationManagerRole,
+  normalizeAppRole,
+} from './userRoleUserType';
 /**
  * Role Permissions Utility
  * Define quais recursos cada role pode acessar
@@ -154,6 +159,7 @@ export function canAccess(
   userFlags?: UserFlags | Record<string, boolean> | null
 ): boolean {
   const pathForPermission = (path || '').split('?')[0] || '/';
+  const role = normalizeAppRole(userRole);
 
   // Módulo de produto (instalação) — aplica a todos, incluindo owner
   if (!isPathAllowedByInstallationModules(pathForPermission)) {
@@ -161,17 +167,17 @@ export function canAccess(
   }
 
   // Owner system sempre tem acesso (exceto se explicitamente negado)
-  if (userRole === 'owner_system') {
+  if (role === 'owner_system') {
     return true;
   }
 
   // Modo compacto: operador de faturamento usa o menu administrativo completo (paridade com dono na navegação)
-  if (isStudioMode() && userRole === 'operador_faturamento') {
+  if (isStudioMode() && role === 'operador_faturamento') {
     return true;
   }
 
   // Modo compacto mono: a organização dona acede ao dispatcher/monitorização sem depender de flag_smart_2
-  if (isStudioMode() && userRole === 'publisher_user') {
+  if (isStudioMode() && role === 'publisher_user') {
     if (
       pathForPermission === '/dispatcher-manager' ||
       pathForPermission === '/dispatcher-monitor' ||
@@ -204,14 +210,14 @@ export function canAccess(
   }
   
   // Verificar role
-  const hasRole = permission.roles.includes(userRole as UserRole);
+  const hasRole = permission.roles.includes(role as UserRole);
   if (!hasRole) {
     return false;
   }
   
   // Verificar flag se necessário
   // Para roles administrativas (owner_system, admin_sql, admin), não bloquear por flag
-  const isAdminRole = userRole === 'owner_system' || userRole === 'admin_sql' || userRole === 'admin';
+  const isAdminRole = role === 'owner_system' || role === 'admin_sql' || role === 'admin';
   if (permission.requiredFlag && userFlags && !isAdminRole) {
     // Converter UserFlags para Record<string, boolean> se necessário
     const flagsRecord = userFlags as Record<string, boolean>;
@@ -233,6 +239,18 @@ export function filterMenuItemsByRole(
   userRole: UserRole | string
 ): Array<{ path: string; [key: string]: any }> {
   return menuItems.filter(item => canAccess(userRole, item.path));
+}
+
+export { isDispatcherAdminRole, isInstallationManagerRole };
+
+/** Hub Configurações → Dispatcher: mesmo critério do menu lateral. */
+export function canAccessDispatcherHub(
+  userRole: UserRole | string | null | undefined,
+  userFlags?: UserFlags | Record<string, boolean> | null
+): boolean {
+  if (!userRole) return false;
+  if (isDispatcherAdminRole(userRole)) return true;
+  return canAccess(userRole, '/dispatcher-monitor', userFlags);
 }
 
 /**

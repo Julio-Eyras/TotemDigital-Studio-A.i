@@ -50,7 +50,8 @@ import ResponsiveSectionNav from '../../components/Navigation/ResponsiveSectionN
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import { Link as RouterLink } from 'react-router-dom';
 import { useAppSelector } from '../../store';
-import { canAccess } from '../../utils/rolePermissions';
+import { canAccess, canAccessDispatcherHub } from '../../utils/rolePermissions';
+import { normalizeAppRole } from '../../utils/userRoleUserType';
 import { isDirectTotemMode } from '../../config/directTotemMode';
 import { getPublishersPageTitle } from '../../config/productTerminology';
 import PlayerApkSettings from '../../components/PlayerApkSettings/PlayerApkSettings';
@@ -258,17 +259,16 @@ const Settings: React.FC = () => {
     });
     return map;
   }, [settingsSections]);
-  const canDispatcherHub =
-    !!user?.role && canAccess(user.role, '/dispatcher-monitor', user.flags ?? undefined);
+  const canDispatcherHub = canAccessDispatcherHub(user?.role, user?.flags ?? undefined);
+  const role = user?.role ? normalizeAppRole(user.role) : '';
   const canManageUsers =
-    !!user?.role &&
-    (user.role === 'owner_system' || user.role === 'admin' || user.role === 'admin_sql') &&
-    canAccess(user.role, '/users', user.flags ?? undefined);
-  const canManageOta =
-    !!user?.role && canAccess(user.role, '/ota-updates', user.flags ?? undefined);
+    !!role &&
+    (role === 'owner_system' || role === 'admin' || role === 'admin_sql') &&
+    canAccess(role, '/users', user?.flags ?? undefined);
+  const canManageOta = !!role && canAccess(role, '/ota-updates', user?.flags ?? undefined);
   const canDownloadApk =
-    !!user?.role &&
-    ['owner_system', 'admin_sql', 'admin', 'operator', 'operador_tecnico'].includes(user.role);
+    !!role &&
+    ['owner_system', 'admin_sql', 'admin', 'operator', 'operador_tecnico'].includes(role);
   const [tabValue, setTabValue] = useState(0);
   const [settings, setSettings] = useState<SystemSetting[]>([]);
   const [logSettings, setLogSettings] = useState<SystemSetting[]>([]);

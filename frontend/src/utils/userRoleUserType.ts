@@ -29,14 +29,41 @@ export const APP_USER_ROLES = [
 
 export type AppUserRole = (typeof APP_USER_ROLES)[number];
 
+const ROLE_ALIASES: Record<string, AppUserRole> = {
+  owner_system: 'owner_system',
+  'owner-system': 'owner_system',
+  'owner system': 'owner_system',
+  ownersystem: 'owner_system',
+  admin_sql: 'admin_sql',
+  'admin-sql': 'admin_sql',
+  'admin sql': 'admin_sql',
+};
+
 export function normalizeAppRole(role: string | null | undefined): AppUserRole {
   const normalized = String(role ?? 'user')
     .trim()
-    .toLowerCase();
-  if ((APP_USER_ROLES as readonly string[]).includes(normalized)) {
-    return normalized as AppUserRole;
+    .toLowerCase()
+    .replace(/[_-]+/g, '_')
+    .replace(/\s+/g, ' ');
+  const compact = normalized.replace(/[\s-]+/g, '_');
+  if ((APP_USER_ROLES as readonly string[]).includes(compact)) {
+    return compact as AppUserRole;
   }
+  const alias = ROLE_ALIASES[normalized] || ROLE_ALIASES[compact];
+  if (alias) return alias;
   return 'user';
+}
+
+/** Complementos / modo da instalação: só owner_system e admin_sql. */
+export function isInstallationManagerRole(role: string | null | undefined): boolean {
+  const r = normalizeAppRole(role);
+  return r === 'owner_system' || r === 'admin_sql';
+}
+
+/** Papéis que operam o dispatcher sem depender de flag_smart_*. */
+export function isDispatcherAdminRole(role: string | null | undefined): boolean {
+  const r = normalizeAppRole(role);
+  return r === 'owner_system' || r === 'admin_sql' || r === 'admin';
 }
 
 const SYSTEM_ROLE_OPTIONS: UserRoleOption[] = [
@@ -69,9 +96,12 @@ export function roleGroupHeaderSx() {
 
 /** Rótulo legível da função no campo fechado do Select. */
 export function getRoleLabel(role: string, organizationLabel = 'organização'): string {
-  for (const group of getUserRoleOptionGroups(organizationLabel)) {
-    const match = group.roles.find((r) => r.value === role);
-    if (match) return match.label;
+  const candidates = Array.from(new Set([role, normalizeAppRole(role)]));
+  for (const candidate of candidates) {
+    for (const group of getUserRoleOptionGroups(organizationLabel)) {
+      const match = group.roles.find((r) => r.value === candidate);
+      if (match) return match.label;
+    }
   }
   return role;
 }

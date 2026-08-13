@@ -109,4 +109,4 @@ Exemplo Direct: `ismael` = `OWNER_SYSTEM` (Sistema); `admin` = `ADMIN`. Âmbito 
 
 Define Direct / Lite / Pro. **Deve** ser gerível por `owner_system` / `admin_sql`.
 
-**Observação desta captura:** o utilizador é `Owner System` mas a UI mostra alerta vermelho/amarelo a bloquear a gestão do modo multi-agência. Tratar como **defeito a corrigir** (gate demasiado estrito ou papel não reconhecido nesta rota). O modo correcto em Direct gere-se aqui ou em Configurações → `installation.modules` / `installation.profile`.
+**Gate:** só `owner_system` / `admin_sql` alteram o modo. O papel é normalizado (maiúsculas/aliases); `Owner System` deve ver e gerir o switch. O modo correcto em Direct gere-se aqui ou em Configurações → `installation.modules` / `installation.profile`.

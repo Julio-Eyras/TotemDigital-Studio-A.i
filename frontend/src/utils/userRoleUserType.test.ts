@@ -2,6 +2,8 @@ import {
   applyRoleToCreateUser,
   getRoleLabel,
   getUserRoleOptionGroups,
+  isDispatcherAdminRole,
+  isInstallationManagerRole,
   normalizeAppRole,
   sanitizeCreateUserPayload,
   sanitizeUpdateUserPayload,
@@ -80,6 +82,9 @@ describe('normalizeAppRole', () => {
   it('normaliza role em maiúsculas', () => {
     expect(normalizeAppRole('USER')).toBe('user');
     expect(normalizeAppRole('ADMIN')).toBe('admin');
+    expect(normalizeAppRole('OWNER_SYSTEM')).toBe('owner_system');
+    expect(normalizeAppRole('Owner System')).toBe('owner_system');
+    expect(normalizeAppRole('admin-sql')).toBe('admin_sql');
   });
 });
 
@@ -117,6 +122,22 @@ describe('getRoleLabel', () => {
   it('resolve rótulo da função selecionada', () => {
     expect(getRoleLabel('operador_faturamento')).toBe('Operador Faturamento');
     expect(getRoleLabel('owner_system')).toBe('Owner System');
+    expect(getRoleLabel('OWNER_SYSTEM')).toBe('Owner System');
+  });
+});
+
+describe('installation / dispatcher admin roles', () => {
+  it('owner_system e admin_sql gerem Complementos', () => {
+    expect(isInstallationManagerRole('OWNER_SYSTEM')).toBe(true);
+    expect(isInstallationManagerRole('admin_sql')).toBe(true);
+    expect(isInstallationManagerRole('admin')).toBe(false);
+    expect(isInstallationManagerRole('operador_tecnico')).toBe(false);
+  });
+
+  it('admin também opera dispatcher sem flag', () => {
+    expect(isDispatcherAdminRole('admin')).toBe(true);
+    expect(isDispatcherAdminRole('owner_system')).toBe(true);
+    expect(isDispatcherAdminRole('operador_tecnico')).toBe(false);
   });
 });
 

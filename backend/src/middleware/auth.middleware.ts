@@ -309,8 +309,14 @@ export const requireRole = (roles: string | string[]) => {
       return;
     }
 
-    const userRole = req.user.role;
-    const allowedRoles = Array.isArray(roles) ? roles : [roles];
+    const norm = (r: string | undefined) => String(r || '').trim().toLowerCase();
+    const userRole = norm(req.user.role);
+    const allowedRoles = (Array.isArray(roles) ? roles : [roles]).map((r) => norm(r));
+
+    if (userRole === 'owner_system') {
+      next();
+      return;
+    }
 
     if (!allowedRoles.includes(userRole)) {
       res.status(403).json({

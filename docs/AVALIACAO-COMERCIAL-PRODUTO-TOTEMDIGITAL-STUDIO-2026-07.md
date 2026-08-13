@@ -159,7 +159,7 @@ Meta operacional 90 dias: **≤ 15 min** no piloto (wizard / checklist Direct ai
 2. Preservar schema/instalador como fonte da verdade (sem “patches” temporários); branch operacional **`main`**.  
 3. Simplificar a **oferta Direct** sem destruir a arquitetura Lite/Pro.  
 4. Integrar gradualmente Visual.Interface / identidade TotemDigital no admin (login + sidebar primeiro).  
-5. Corrigir gates de permissão que quebram a demo Direct (`owner_system` em Complementos e Configurações → Dispatcher).  
+5. Manter gates Direct estáveis: `owner_system` gere Complementos; hub Dispatcher alinhado ao menu.  
 
 ### 4.4 Objetivos comerciais (12–24 meses)
 
@@ -219,7 +219,7 @@ Meta operacional 90 dias: **≤ 15 min** no piloto (wizard / checklist Direct ai
 | **Complexidade cognitiva** | Admin rico (campanhas, mix, dispatcher, billing) vs promessa “5 minutos” | Fricção na venda SMB |
 | **Dois pitches no repo** | Doc 07 / este doc = P0 local; [06 SaaS](./manuais/06-APRESENTACAO-COMERCIAL-SAAS.md) = rede global | Mensagem diluída se misturados na 1.ª demo |
 | **Débito de UX/tema** | Identidade TotemDigital ainda parcial no admin | Branding fraco no primeiro ecrã |
-| **Gate de permissão (bug)** | Complementos e Configurações → Dispatcher bloqueiam `owner_system` / Owner System | Demo “sou dono e não consigo”; **corrigir em código** (não é limitação de produto) |
+| **Gate de permissão** | Complementos e Configurações → Dispatcher exigem papel exacto | Mitigado: normalização de role (`OWNER_SYSTEM` → `owner_system`); hub Dispatcher alinhado ao menu |
 | **Integrações incompletas** | Visual.Interface / BV não totalmente no backend principal | Feature story vs realidade |
 | **Superfície técnica** | Muitos players e pastas legadas no monorepo | Custo de manutenção / onboarding |
 | **Billing comercial** | Modelo de dados avançado; GTM e **pricing ainda por fechar** | Receita recorrente lenta |
@@ -389,14 +389,14 @@ Ordem recomendada de **foco de receita** (do mais próximo ao mais estratégico)
 4. **Padronizar campo** — 1–2 modelos de TV box + kit 2.12 versionado (pendrive + APK instalador).  
 5. **Medir funil** — demos → pilotos → pagos → 2ª tela.  
 6. **Documentar pricing** numa página comercial viva (actualizar **este** doc a cada trimestre).  
-7. **Corrigir gate `owner_system`** antes de escalar demos (Complementos + Configurações → Dispatcher).  
+7. **Validar em demo** Complementos + Configurações → Dispatcher com `owner_system` (gate normalizado).  
 8. **Dois documentos, dois públicos** — este doc + manuais = P0/ops; [06](./manuais/06-APRESENTACAO-COMERCIAL-SAAS.md) = upsell rede/SaaS. Não fundir num pitch genérico.
 
 ### Ordem de implementação (próximos passos internos)
 
 ```text
 1. Este doc v1.1 + glossário                    ← feito (ago/2026)
-2. Corrigir gate owner_system (código)          ← desbloqueia demo
+2. Corrigir gate owner_system (código)          ← feito
 3. Preço piloto + one-pager                     ← fecha venda
 4. Roteiro demo 15 min + PDFs de telas          ← operação comercial
 5. Kit 2.12 versionado + 1 TV box homologada    ← campo
@@ -424,8 +424,8 @@ O eixo operacional é **`main`** (produção `totemdigital.app.br`). O risco pri
 | Organização / locais / totens / usuários | Pronto — telas 15–19 |
 | Player-AD 2.12 + pendrive + APK instalador | Pronto (Wi‑Fi local + remoto) |
 | Controlo remoto / schedule | Pronto / em consolidação |
-| Dispatcher (gerir / monitor / debug) | Diferencial operador (P1–P2); sidebar ok; **settings tab com gate a corrigir** |
-| Complementos (modo Direct/Lite/Pro) | Crítico para ops; **gate `owner_system` a corrigir** |
+| Dispatcher (gerir / monitor / debug) | Diferencial operador (P1–P2); menu + Settings hub para owner/admin |
+| Complementos (modo Direct/Lite/Pro) | Crítico para ops; `owner_system` / `admin_sql` |
 | Contratos & billing | Base técnica; empacotar comercialmente (Pro) |
 | Playlist Mix / Dispatcher avançado | Diferencial operador (P1–P2) |
 | Configurações (Geral, APK, Logs, Mídias, 2FA, Senha) | Pronto para admin — telas 27–34 |

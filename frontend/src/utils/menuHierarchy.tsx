@@ -39,6 +39,11 @@ import {
 } from '@mui/icons-material';
 import { UserRole, canAccess } from './rolePermissions';
 import { UserFlags } from '../store/slices/authSlice';
+import {
+  isDispatcherAdminRole,
+  isInstallationManagerRole,
+  normalizeAppRole,
+} from './userRoleUserType';
 import { DASHBOARD_COMMERCIAL_FOCUS } from '../config/featureFlags';
 import { getInstallationCapabilities, isSimpleTotemMode } from '../config/installationCapabilities';
 import { isDirectTotemMode } from '../config/directTotemMode';
@@ -76,7 +81,8 @@ function filterHierarchicalMenu(
   userFlags?: UserFlags | null
 ): HierarchicalMenuItem[] {
   const filtered: HierarchicalMenuItem[] = [];
-  const isAdminRole = userRole === 'owner_system' || userRole === 'admin_sql' || userRole === 'admin';
+  const role = normalizeAppRole(userRole) as UserRole;
+  const isAdminRole = isDispatcherAdminRole(role);
 
   for (const item of items) {
     if (isStudioMode() && item.hiddenInCompact) {
@@ -95,12 +101,12 @@ function filterHierarchicalMenu(
 
     let filteredChildren: HierarchicalMenuItem[] | undefined;
     if (item.children && item.children.length > 0) {
-      filteredChildren = filterHierarchicalMenu(item.children, userRole, userFlags);
+      filteredChildren = filterHierarchicalMenu(item.children, role, userFlags);
     }
 
     const pathKey = (item.path || '').split('?')[0] || '/';
     const moduleOk = isPathAllowedByInstallationModules(pathKey);
-    const roleOk = canAccess(userRole, pathKey, userFlags);
+    const roleOk = canAccess(role, pathKey, userFlags);
     const hasVisibleChildren = Boolean(filteredChildren && filteredChildren.length > 0);
 
     // Contentor: preservar se houver filhos visíveis (Complementos não pode desaparecer
@@ -310,14 +316,14 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
 }
 
 function getDirectTotemMenu(role: UserRole): HierarchicalMenuItem[] {
+  const r = normalizeAppRole(role) as UserRole;
   const items: HierarchicalMenuItem[] = [
     { text: 'Publicar em Totem', icon: <Tv />, path: '/publish-totem' },
     { text: 'Biblioteca Mídias', icon: <VideoLibrary />, path: '/media' },
     { text: 'Sua organização', icon: <Business />, path: '/publishers' },
   ];
 
-  const canManageUsers =
-    role === 'owner_system' || role === 'admin' || role === 'admin_sql';
+  const canManageUsers = isDispatcherAdminRole(r);
   if (canManageUsers) {
     items.push({
       text: 'Usuários e acessos',
@@ -326,7 +332,7 @@ function getDirectTotemMenu(role: UserRole): HierarchicalMenuItem[] {
     });
   }
 
-  if (role === 'owner_system' || role === 'admin_sql') {
+  if (isInstallationManagerRole(r)) {
     items.push({
       text: 'Complementos do sistema',
       icon: <Extension />,
@@ -358,42 +364,47 @@ export const getMenuHierarchyByRole = (
   role: UserRole,
   userFlags?: UserFlags | null
 ): HierarchicalMenuItem[] => {
+  const normalizedRole = normalizeAppRole(role) as UserRole;
   if (isDirectTotemMode()) {
     const directTotemRoles: UserRole[] = ['owner_system', 'admin_sql', 'admin'];
-    if (!directTotemRoles.includes(role)) {
+    if (!directTotemRoles.includes(normalizedRole)) {
       return [];
     }
-    return filterHierarchicalMenu(getDirectTotemMenu(role), role, userFlags);
+    return filterHierarchicalMenu(getDirectTotemMenu(normalizedRole), normalizedRole, userFlags);
   }
 
   if (isStudioMode()) {
-    if (role === 'operador_tecnico' || role === 'operator') {
-      return filterHierarchicalMenu(getOperadorTecnicoMenu(), role, userFlags);
+    if (normalizedRole === 'operador_tecnico' || normalizedRole === 'operator') {
+      return filterHierarchicalMenu(getOperadorTecnicoMenu(), normalizedRole, userFlags);
     }
-    if (role === 'operador_comercial') {
-      return filterHierarchicalMenu(getOperadorComercialMenu(), role, userFlags);
+    if (normalizedRole === 'operador_comercial') {
+      return filterHierarchicalMenu(getOperadorComercialMenu(), normalizedRole, userFlags);
     }
-    if (role === 'operador_faturamento') {
-      return filterHierarchicalMenu(getOperadorFaturamentoMenu(), role, userFlags);
+    if (normalizedRole === 'operador_faturamento') {
+      return filterHierarchicalMenu(getOperadorFaturamentoMenu(), normalizedRole, userFlags);
     }
-    if (role === 'gerente_marketing' || role === 'editoracao' || role === 'visualizador') {
-      return filterHierarchicalMenu(getMarketingTeamMenu(), role, userFlags);
+    if (
+      normalizedRole === 'gerente_marketing' ||
+      normalizedRole === 'editoracao' ||
+      normalizedRole === 'visualizador'
+    ) {
+      return filterHierarchicalMenu(getMarketingTeamMenu(), normalizedRole, userFlags);
     }
-    const menu = getSystemAdminMenu(role);
-    return filterHierarchicalMenu(menu, role, userFlags);
+    const menu = getSystemAdminMenu(normalizedRole);
+    return filterHierarchicalMenu(menu, normalizedRole, userFlags);
   }
 
   let menu: HierarchicalMenuItem[] = [];
   
-  switch (role) {
+  switch (normalizedRole) {
     case 'owner_system':
-      menu = getSystemAdminMenu(role);
+      menu = getSystemAdminMenu(normalizedRole);
       break;
     case 'admin_sql':
-      menu = getSystemAdminMenu(role);
+      menu = getSystemAdminMenu(normalizedRole);
       break;
     case 'admin':
-      menu = getSystemAdminMenu(role);
+      menu = getSystemAdminMenu(normalizedRole);
       break;
     case 'operador_tecnico':
       menu = getOperadorTecnicoMenu();
@@ -424,11 +435,11 @@ export const getMenuHierarchyByRole = (
 
   // Para o momento: somente perfis de sistema (owner_system/admin_sql/admin) usarão o produto
   // e todas as opções devem estar sempre disponíveis.
-  const isSystemAdmin = role === 'owner_system' || role === 'admin_sql' || role === 'admin';
+  const isSystemAdmin = isDispatcherAdminRole(normalizedRole);
   if (isSystemAdmin) return menu;
 
   // Aplicar filtragem baseada em permissões
-  return filterHierarchicalMenu(menu, role, userFlags);
+  return filterHierarchicalMenu(menu, normalizedRole, userFlags);
 };
 
 /**

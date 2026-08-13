@@ -1,4 +1,8 @@
-import { canAccess, requiresClientAccess } from './rolePermissions';
+import { canAccess, canAccessDispatcherHub, requiresClientAccess } from './rolePermissions';
+
+jest.mock('./installationModuleAccess', () => ({
+  isPathAllowedByInstallationModules: () => true,
+}));
 
 const allFlagsFalse = {
   flag_smart_0: false,
@@ -32,6 +36,18 @@ describe('rolePermissions.canAccess', () => {
   it('owner_system acede a qualquer rota registada', () => {
     expect(canAccess('owner_system', '/ota-updates')).toBe(true);
     expect(canAccess('owner_system', '/billing')).toBe(true);
+  });
+
+  it('OWNER_SYSTEM (maiúsculas) acede Complementos e dispatcher', () => {
+    expect(canAccess('OWNER_SYSTEM', '/settings/system-modules')).toBe(true);
+    expect(canAccess('OWNER_SYSTEM', '/dispatcher-monitor', allFlagsFalse)).toBe(true);
+    expect(canAccessDispatcherHub('OWNER_SYSTEM', allFlagsFalse)).toBe(true);
+    expect(canAccessDispatcherHub('admin', allFlagsFalse)).toBe(true);
+  });
+
+  it('operador_tecnico sem flag_smart_2 não acede hub dispatcher', () => {
+    expect(canAccessDispatcherHub('operador_tecnico', allFlagsFalse)).toBe(false);
+    expect(canAccessDispatcherHub('operador_tecnico', withFlag('flag_smart_2'))).toBe(true);
   });
 
   it('admin acede a OTA e admin-tools sem depender de flag_smart_1/2', () => {
