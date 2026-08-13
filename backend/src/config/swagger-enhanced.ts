@@ -26,12 +26,11 @@ export const swaggerDocumentation = {
       - 1000 requisições por hora por usuário autenticado
     `,
     contact: {
-      name: 'Smart Signage Solutions',
-      email: 'support@smartsignage.pro'
+      name: 'Julio Cesar Eyras (J.C.E.) / Eyras Sistemas e Soluções',
     },
     license: {
-      name: 'MIT',
-      url: 'https://opensource.org/licenses/MIT'
+      name: 'Proprietary — All rights reserved',
+      url: 'https://github.com/Julio-Eyras/TotemDigital-Studio/blob/main/LICENSE',
     }
   },
   servers: [

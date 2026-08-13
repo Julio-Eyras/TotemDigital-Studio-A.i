@@ -1,0 +1,29 @@
+---
+description: Banner de autor/licença em ficheiros-fonte novos (não reescrever o histórico).
+globs: "{backend,frontend,Player-AD,Player-AD-Installer,scripts,database}/**/*.{ts,tsx,js,jsx,kt,sql,sh,ps1}"
+alwaysApply: false
+---
+
+# Autor em ficheiros novos
+
+Não adicionar cabeçalho em massa a ficheiros já existentes.
+
+Ao **criar** um ficheiro-fonte novo neste repo, começar com o banner curto:
+
+TypeScript / JavaScript / Kotlin:
+
+```
+/**
+ * Copyright (c) 2026 Julio Cesar Eyras (J.C.E.)
+ * Eyras Sistemas e Soluções — Todos os direitos reservados.
+ */
+```
+
+SQL / shell (comentário `#` ou `--`):
+
+```
+-- Copyright (c) 2026 Julio Cesar Eyras (J.C.E.)
+-- Eyras Sistemas e Soluções — Todos os direitos reservados.
+```
+
+Titularidade canónica: `LICENSE` + `NOTICE` na raiz.

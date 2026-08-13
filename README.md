@@ -127,4 +127,11 @@ bash scripts/backup-totemdigital-prod.sh --ajuda
 **Autor / titular:** Julio Cesar Eyras (J.C.E.) — Eyras Sistemas e Soluções  
 
 Software **proprietário**. Todos os direitos reservados. Sem autorização escrita
-não há permissão de cópia, distribuição ou sublicenciamento. Texto integral: [LICENSE](./LICENSE).
+não há permissão de cópia, distribuição ou sublicenciamento.
+
+- Texto integral: [LICENSE](./LICENSE)
+- Aviso canónico: [NOTICE](./NOTICE)
+
+O código já existente não leva cabeçalho em cada ficheiro; a titularidade
+aplica-se a todo o repositório. Ficheiros **novos** devem usar o banner curto
+(regra Cursor `copyright-header`).
