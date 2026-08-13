@@ -2,6 +2,7 @@
 
 **Catálogo completo (todas as rotas):** [07-API-INVENTARIO.md](./07-API-INVENTARIO.md) · [openapi.json](./openapi.json) · `GET /api/openapi.json`  
 **Swagger UI** (só `NODE_ENV=development`): `/api-docs`  
+**Overlay P0 (schemas de integração):** `backend/src/config/openapi-p0.json`  
 Regenerar: `python scripts/generate-openapi-from-routes.py`
 
 Este ficheiro descreve sobretudo o **Player API** (dispatch, token, heartbeat).
@@ -27,22 +28,27 @@ POST /api/auth/login
 Content-Type: application/json
 
 {
-  "email": "usuario@example.com",
+  "username": "admin",
   "password": "senha123"
 }
 ```
 
-**Resposta:**
+**Resposta (sem 2FA):**
 ```json
 {
-  "success": true,
-  "data": {
-    "user": { ... },
-    "accessToken": "eyJhbGciOiJIUzI1NiIs...",
-    "refreshToken": "refresh_token_aqui"
+  "message": "Login realizado com sucesso",
+  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "refreshToken": "eyJhbGciOiJIUzI1NiIs...",
+  "user": {
+    "id": 1,
+    "username": "admin",
+    "role": "owner_system",
+    "user_type": "system_user"
   }
 }
 ```
+
+Se 2FA estiver activo: `{ "message", "requiresTwoFactor": true, "user" }` (sem tokens). Schema completo: overlay P0 / `GET /api/openapi.json`.
 
 ## Endpoints Principais
 
@@ -77,15 +83,18 @@ GET /api/player/dispatch?uin={UIN}&token={token}&deviceId={deviceId}&timestamp={
         "duration": 30,
         "url": "https://...",
         "mediaType": "video",
-        "metadata": { ... }
+        "cacheBucket": "propagandas"
       }
     ],
     "totalDuration": 180,
     "priority": 75,
     "source": "direct",
+    "sourceId": 9,
     "validityStart": "2026-01-26T00:00:00Z",
     "validityEnd": "2026-01-26T23:59:59Z"
   },
+  "planState": "ACTIVE",
+  "planVersion": "pv-1-abc",
   "fromCache": false,
   "executionTimeMs": 45
 }

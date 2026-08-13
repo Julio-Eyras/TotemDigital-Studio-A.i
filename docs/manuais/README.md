@@ -28,6 +28,7 @@ A **fonte da verdade de regras/requisitos por módulo** está em [`../modulos/00
 | 06 | [Apresentação comercial (software + SaaS)](./06-APRESENTACAO-COMERCIAL-SAAS.md) · [PDF](./06-APRESENTACAO-COMERCIAL-SAAS.pdf) | Vendas / parceiros / C-level |
 | 07 | [Manual do utilizador — Publicar em Totem](./07-MANUAL-PUBLICAR-EM-TOTEM.md) | Operador / dono |
 | 08–11 | [Manuais de telas (Direct Totem, com capturas + PDF)](./telas/README.md) | Operador / admin |
+| 12 | [Roteiro demo 15 min (Direct)](./12-ROTEIRO-DEMO-15-MIN.md) · [PDF](./12-ROTEIRO-DEMO-15-MIN.pdf) | Vendas / campo |
 
 ### Catálogo canónico de módulos (negócio)
 

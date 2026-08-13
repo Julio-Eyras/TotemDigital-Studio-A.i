@@ -28,6 +28,11 @@ DOCS = [
         "TotemDigital Studio — Apresentação Comercial (Software + SaaS)",
     ),
     (
+        REPO / "docs" / "manuais" / "12-ROTEIRO-DEMO-15-MIN.md",
+        REPO / "docs" / "manuais" / "12-ROTEIRO-DEMO-15-MIN.pdf",
+        "TotemDigital Studio — Roteiro demo 15 min (Direct)",
+    ),
+    (
         REPO / "docs" / "DOCUMENTACAO-COMERCIAL-TECNICA.md",
         REPO / "docs" / "DOCUMENTACAO-COMERCIAL-TECNICA.pdf",
         "Smart Signage Pro — Documentação Comercial e Técnica (arquivo histórico)",

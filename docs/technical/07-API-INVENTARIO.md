@@ -16,10 +16,10 @@ Swagger UI (só desenvolvimento): `/api-docs`
 | Operações (método+path) | **572** |
 | Paths OpenAPI | **438** |
 | Tags | **39** |
-| Já com detalhe em swagger-enhanced | 21 |
-| Só no catálogo gerado | 551 |
+| Já com detalhe (enhanced + P0) | 42 |
+| Só stub gerado | 530 |
 
-> O Swagger “enhanced” antigo cobria sobretudo PlaylistMix + login. Este inventário é a lista **completa** das rotas montadas.
+> Catálogo completo das rotas montadas. Schemas ricos: `swagger-enhanced.ts` (PlaylistMix/publishers) + `openapi-p0.json` (integração).
 
 ## Por domínio
 
@@ -790,19 +790,17 @@ Swagger UI (só desenvolvimento): `/api-docs`
 | PUT | `/webhooks/{id}` | `—` | JWT (router) | `webhooks` |
 | POST | `/webhooks/{id}/test` | `—` | JWT (router) | `webhooks` |
 
-## Gap vs swagger-enhanced.ts
+## Detalhe OpenAPI
 
-Operações que **não** tinham path+método no OpenAPI manual:
+- Stubs: `backend/src/config/openapi-generated.json` (todas as rotas).
+- Overlay P0 (integração fechada): `backend/src/config/openapi-p0.json` — login, player dispatch/sync/heartbeat, installation modules + multi-agency, quick-publish + subscriber-access/grant, dispatcher-totem + dispatcher-debug.
+- swagger-enhanced: PlaylistMix / publishers / subscribers (legado).
+- Runtime: `GET /api/openapi.json` = gerado + enhanced + P0.
+- Estático: [`openapi.json`](./openapi.json) = gerado + P0.
 
-**551** operações passam a existir no `openapi.json` gerado.
+**530** operações ainda só têm stub (200/401/403 genéricos).
 
-Detalhe (schemas/exemplos) continua a valer a pena enriquecer à mão para:
-
-- `POST /auth/login`
-- `GET /player/dispatch`
-- `GET/PUT /installation/modules` e `PUT /installation/multi-agency`
-- `POST /quick-publish` e `POST /subscriber-access/grant`
-- Dispatcher (`/dispatcher-totem`, `/dispatcher-debug`)
+Próximos candidatos a schemas manuais: billing, OTA, campaigns, portal.
 
 ## Convenções
 

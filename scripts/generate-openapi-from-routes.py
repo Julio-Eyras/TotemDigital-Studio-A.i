@@ -21,6 +21,7 @@ OUT_JSON_DOCS = ROOT / "docs" / "technical" / "openapi.json"
 OUT_JSON_BE = BACKEND / "config" / "openapi-generated.json"
 OUT_INVENTORY = ROOT / "docs" / "technical" / "07-API-INVENTARIO.md"
 SWAGGER_ENHANCED = BACKEND / "config" / "swagger-enhanced.ts"
+P0_JSON = BACKEND / "config" / "openapi-p0.json"
 
 MOUNT_FILES = [
     BACKEND / "startup" / "registerCompactRoutes.ts",
@@ -275,6 +276,43 @@ def parse_enhanced_paths() -> set[tuple[str, str]]:
     return covered
 
 
+def parse_p0_paths() -> set[tuple[str, str]]:
+    if not P0_JSON.is_file():
+        return set()
+    p0 = json.loads(P0_JSON.read_text(encoding="utf-8"))
+    covered: set[tuple[str, str]] = set()
+    for path_key, item in (p0.get("paths") or {}).items():
+        if not isinstance(item, dict):
+            continue
+        for method, op in item.items():
+            if method.lower() in ("get", "post", "put", "patch", "delete", "options", "head") and isinstance(op, dict):
+                covered.add((method.lower(), path_key))
+    return covered
+
+
+def merge_openapi_overlay(base: dict, overlay: dict) -> dict:
+    """Fundir paths (método a método) + components.schemas do overlay P0."""
+    out = dict(base)
+    base_paths = dict(out.get("paths") or {})
+    for path_key, item in (overlay.get("paths") or {}).items():
+        if not isinstance(item, dict):
+            continue
+        current = dict(base_paths.get(path_key) or {})
+        current.update(item)
+        base_paths[path_key] = current
+    out["paths"] = base_paths
+    base_comp = dict(out.get("components") or {})
+    overlay_comp = overlay.get("components") or {}
+    schemas = dict(base_comp.get("schemas") or {})
+    schemas.update(overlay_comp.get("schemas") or {})
+    schemes = dict(base_comp.get("securitySchemes") or {})
+    schemes.update(overlay_comp.get("securitySchemes") or {})
+    out["components"] = {**base_comp, **{k: v for k, v in overlay_comp.items() if k not in ("schemas", "securitySchemes")}}
+    out["components"]["schemas"] = schemas
+    out["components"]["securitySchemes"] = schemes
+    return out
+
+
 def extra_index_ops() -> list[dict]:
     return [
         {
@@ -420,7 +458,7 @@ def build() -> tuple[list[dict], dict]:
             "description": (
                 "Catálogo gerado automaticamente a partir dos routers Express "
                 f"({date.today().isoformat()}). Paths relativos à base `/api`. "
-                "Detalhe rico (schemas) sobrepõe-se via swagger-enhanced.ts quando existir."
+                "Detalhe rico: swagger-enhanced.ts + overlay P0 (`openapi-p0.json`)."
             ),
             "contact": {
                 "name": "Julio Cesar Eyras (J.C.E.) / Eyras Sistemas e Soluções"
@@ -487,11 +525,11 @@ def write_inventory(ops: list[dict], spec: dict, covered_enhanced: set[tuple[str
         f"| Operações (método+path) | **{len(ops)}** |",
         f"| Paths OpenAPI | **{len(spec['paths'])}** |",
         f"| Tags | **{len(spec['tags'])}** |",
-        f"| Já com detalhe em swagger-enhanced | {enhanced_ops} |",
-        f"| Só no catálogo gerado | {generated_only} |",
+        f"| Já com detalhe (enhanced + P0) | {enhanced_ops} |",
+        f"| Só stub gerado | {generated_only} |",
         "",
-        "> O Swagger “enhanced” antigo cobria sobretudo PlaylistMix + login. "
-        "Este inventário é a lista **completa** das rotas montadas.",
+        "> Catálogo completo das rotas montadas. Schemas ricos: "
+        "`swagger-enhanced.ts` (PlaylistMix/publishers) + `openapi-p0.json` (integração).",
         "",
         "## Por domínio",
         "",
@@ -517,19 +555,19 @@ def write_inventory(ops: list[dict], spec: dict, covered_enhanced: set[tuple[str
         lines.append("")
 
     lines += [
-        "## Gap vs swagger-enhanced.ts",
+        "## Detalhe OpenAPI",
         "",
-        "Operações que **não** tinham path+método no OpenAPI manual:",
+        "- Stubs: `backend/src/config/openapi-generated.json` (todas as rotas).",
+        "- Overlay P0 (integração fechada): `backend/src/config/openapi-p0.json` — "
+        "login, player dispatch/sync/heartbeat, installation modules + multi-agency, "
+        "quick-publish + subscriber-access/grant, dispatcher-totem + dispatcher-debug.",
+        "- swagger-enhanced: PlaylistMix / publishers / subscribers (legado).",
+        "- Runtime: `GET /api/openapi.json` = gerado + enhanced + P0.",
+        "- Estático: [`openapi.json`](./openapi.json) = gerado + P0.",
         "",
-        f"**{generated_only}** operações passam a existir no `openapi.json` gerado.",
+        f"**{generated_only}** operações ainda só têm stub (200/401/403 genéricos).",
         "",
-        "Detalhe (schemas/exemplos) continua a valer a pena enriquecer à mão para:",
-        "",
-        "- `POST /auth/login`",
-        "- `GET /player/dispatch`",
-        "- `GET/PUT /installation/modules` e `PUT /installation/multi-agency`",
-        "- `POST /quick-publish` e `POST /subscriber-access/grant`",
-        "- Dispatcher (`/dispatcher-totem`, `/dispatcher-debug`)",
+        "Próximos candidatos a schemas manuais: billing, OTA, campaigns, portal.",
         "",
         "## Convenções",
         "",
@@ -544,11 +582,17 @@ def write_inventory(ops: list[dict], spec: dict, covered_enhanced: set[tuple[str
 
 def main() -> None:
     ops, spec = build()
-    covered = parse_enhanced_paths() if SWAGGER_ENHANCED.is_file() else set()
+    covered = set()
+    if SWAGGER_ENHANCED.is_file():
+        covered |= parse_enhanced_paths()
+    covered |= parse_p0_paths()
     OUT_JSON_DOCS.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(spec, ensure_ascii=False, indent=2)
-    OUT_JSON_DOCS.write_text(payload + "\n", encoding="utf-8")
-    OUT_JSON_BE.write_text(payload + "\n", encoding="utf-8")
+    generated_payload = json.dumps(spec, ensure_ascii=False, indent=2)
+    OUT_JSON_BE.write_text(generated_payload + "\n", encoding="utf-8")
+    docs_spec = spec
+    if P0_JSON.is_file():
+        docs_spec = merge_openapi_overlay(spec, json.loads(P0_JSON.read_text(encoding="utf-8")))
+    OUT_JSON_DOCS.write_text(json.dumps(docs_spec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     write_inventory(ops, spec, covered)
     print(f"OK {len(ops)} operações · {len(spec['paths'])} paths")
     print(f"   {OUT_INVENTORY.relative_to(ROOT)}")

@@ -288,7 +288,7 @@ Lite/Pro só no verso do one-pager ou 2.º encontro.
 - Vídeo demo 60s + case 1 página  
 - Kit pendrive / ZIP + **Instala-Player-TotemDigital.apk**  
 - Apresentação Amarelo Petróleo (já no site)  
-- Roteiro demo 15 min: login → Biblioteca → Publicar em Totem (PDFs [08–09](./manuais/telas/README.md))  
+- Roteiro demo 15 min: [12](./manuais/12-ROTEIRO-DEMO-15-MIN.md) · [PDF](./manuais/12-ROTEIRO-DEMO-15-MIN.pdf) — login → Biblioteca → Publicar em Totem (telas [08–09](./manuais/telas/README.md))  
 - Tabela Direct / Lite / Pro no **verso** do one-pager  
 - Tabela de preços simples (3 números: setup kit · MRR 1 tela · MRR tela extra) — **a preencher**
 
@@ -398,7 +398,7 @@ Ordem recomendada de **foco de receita** (do mais próximo ao mais estratégico)
 1. Este doc v1.1 + glossário                    ← feito (ago/2026)
 2. Corrigir gate owner_system (código)          ← feito
 3. Preço piloto + one-pager                     ← fecha venda
-4. Roteiro demo 15 min + PDFs de telas          ← operação comercial
+4. Roteiro demo 15 min + PDFs de telas          ← feito (ago/2026)
 5. Kit 2.12 versionado + 1 TV box homologada    ← campo
 6. Wizard / checklist 1ª publicação (Direct)    ← produto
 7. Templates cardápio                           ← P1, após 5–10 pilotos
@@ -438,6 +438,7 @@ O eixo operacional é **`main`** (produção `totemdigital.app.br`). O risco pri
 | Tema | Caminho |
 |------|---------|
 | Índice de manuais | [`docs/manuais/README.md`](./manuais/README.md) |
+| Roteiro demo 15 min (Direct) | [`docs/manuais/12-ROTEIRO-DEMO-15-MIN.md`](./manuais/12-ROTEIRO-DEMO-15-MIN.md) · [PDF](./manuais/12-ROTEIRO-DEMO-15-MIN.pdf) |
 | Telas Direct (capturas + PDF) | [`docs/manuais/telas/README.md`](./manuais/telas/README.md) |
 | Pitch SaaS / rede (upsell, não P0) | [`docs/manuais/06-APRESENTACAO-COMERCIAL-SAAS.md`](./manuais/06-APRESENTACAO-COMERCIAL-SAAS.md) |
 | Mini-livreto prod/DEV/TESTE (`main`) | [`docs/instalacao/05-MINI-LIVRETO-MAIN-PROD-DEV-TESTE.md`](./instalacao/05-MINI-LIVRETO-MAIN-PROD-DEV-TESTE.md) |

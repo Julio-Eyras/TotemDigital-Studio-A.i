@@ -3,7 +3,7 @@
   "info": {
     "title": "TotemDigital Studio API",
     "version": "2.1.15",
-    "description": "Catálogo gerado automaticamente a partir dos routers Express (2026-08-13). Paths relativos à base `/api`. Detalhe rico (schemas) sobrepõe-se via swagger-enhanced.ts quando existir.",
+    "description": "Catálogo gerado automaticamente a partir dos routers Express (2026-08-13). Paths relativos à base `/api`. Detalhe rico: swagger-enhanced.ts + overlay P0 (`openapi-p0.json`).",
     "contact": {
       "name": "Julio Cesar Eyras (J.C.E.) / Eyras Sistemas e Soluções"
     },
@@ -1425,25 +1425,93 @@
         "tags": [
           "Auth"
         ],
-        "summary": "POST /auth/login",
+        "summary": "Login de utilizador (painel)",
+        "description": "Autentica com username+password. Sucesso devolve JWT + refreshToken. Se 2FA estiver activo, devolve requiresTwoFactor sem tokens. Público (rate limit).",
         "operationId": "post_auth_login",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "403": {
-            "description": "Sem permissão ou módulo desligado"
-          }
-        },
-        "description": "Ficheiro `backend/src/routes/auth.ts`.",
         "security": [],
         "requestBody": {
-          "required": false,
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true
+                "$ref": "#/components/schemas/LoginRequest"
+              },
+              "examples": {
+                "admin": {
+                  "value": {
+                    "username": "admin",
+                    "password": "password123"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login OK ou 2FA pendente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/LoginSuccess"
+                    },
+                    {
+                      "$ref": "#/components/schemas/LoginRequires2FA"
+                    }
+                  ]
+                },
+                "examples": {
+                  "ok": {
+                    "summary": "Tokens emitidos",
+                    "value": {
+                      "message": "Login realizado com sucesso",
+                      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                      "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                      "user": {
+                        "id": 1,
+                        "username": "admin",
+                        "email": "admin@local",
+                        "name": "Administrador",
+                        "role": "owner_system",
+                        "user_type": "system_user"
+                      }
+                    }
+                  },
+                  "2fa": {
+                    "summary": "2FA necessário",
+                    "value": {
+                      "message": "Autenticação de dois fatores necessária",
+                      "requiresTwoFactor": true,
+                      "user": {
+                        "id": 1,
+                        "username": "admin",
+                        "role": "owner_system"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validação (username 3–50, password ≥ 6)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Credenciais inválidas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
               }
             }
           }
@@ -5628,33 +5696,40 @@
         "tags": [
           "Dispatcher"
         ],
-        "summary": "Limpar logs de debug",
+        "summary": "Limpar logs de debug em memória",
         "operationId": "post_dispatcher_debug_clear",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "403": {
-            "description": "Sem permissão ou módulo desligado"
-          }
-        },
-        "description": "Ficheiro `backend/src/routes/dispatcher-debug.ts`. Módulo de instalação: `dispatcher_admin`.",
-        "x-installation-module": "dispatcher_admin",
         "security": [
           {
             "bearerAuth": []
           }
         ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": true
+        "parameters": [
+          {
+            "name": "olderThan",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Se omitido, limpa tudo"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Logs limpos com sucesso"
+                    }
+                  }
+                }
               }
             }
           }
@@ -5666,26 +5741,72 @@
         "tags": [
           "Dispatcher"
         ],
-        "summary": "Obter todos os logs de debug (unificado)",
+        "summary": "Logs unificados (redis/query/message/cache)",
         "operationId": "get_dispatcher_debug_logs",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "403": {
-            "description": "Sem permissão ou módulo desligado"
-          }
-        },
-        "description": "Ficheiro `backend/src/routes/dispatcher-debug.ts`. Módulo de instalação: `dispatcher_admin`.",
-        "x-installation-module": "dispatcher_admin",
         "security": [
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 200
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "redis",
+                "query",
+                "message",
+                "cache"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "count": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/dispatcher-debug/messages": {
@@ -5693,26 +5814,134 @@
         "tags": [
           "Dispatcher"
         ],
-        "summary": "Obter logs de mensagens do dispatcher",
+        "summary": "Mensagens player↔dispatcher (Monitor)",
         "operationId": "get_dispatcher_debug_messages",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "403": {
-            "description": "Sem permissão ou módulo desligado"
-          }
-        },
-        "description": "Ficheiro `backend/src/routes/dispatcher-debug.ts`. Módulo de instalação: `dispatcher_admin`.",
-        "x-installation-module": "dispatcher_admin",
         "security": [
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "totemId",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "uin",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "traceId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "incoming",
+                "outgoing"
+              ]
+            }
+          },
+          {
+            "name": "endpoint",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "method",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "eventType",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mediaName",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "statusCode",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 599
+            }
+          },
+          {
+            "name": "hasError",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DispatcherMessage"
+                      }
+                    },
+                    "count": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/dispatcher-debug/queries": {
@@ -5720,26 +5949,58 @@
         "tags": [
           "Dispatcher"
         ],
-        "summary": "Obter logs de queries SQL",
+        "summary": "Logs SQL em memória",
         "operationId": "get_dispatcher_debug_queries",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "403": {
-            "description": "Sem permissão ou módulo desligado"
-          }
-        },
-        "description": "Ficheiro `backend/src/routes/dispatcher-debug.ts`. Módulo de instalação: `dispatcher_admin`.",
-        "x-installation-module": "dispatcher_admin",
         "security": [
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DispatcherQueryLog"
+                      }
+                    },
+                    "count": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/dispatcher-debug/redis-status": {
@@ -5747,26 +6008,32 @@
         "tags": [
           "Dispatcher"
         ],
-        "summary": "Obter status do Redis",
+        "summary": "Estado Redis (debug dispatcher)",
         "operationId": "get_dispatcher_debug_redis_status",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "403": {
-            "description": "Sem permissão ou módulo desligado"
-          }
-        },
-        "description": "Ficheiro `backend/src/routes/dispatcher-debug.ts`. Módulo de instalação: `dispatcher_admin`.",
-        "x-installation-module": "dispatcher_admin",
         "security": [
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RedisStatus"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/dispatcher-debug/stats": {
@@ -5774,26 +6041,32 @@
         "tags": [
           "Dispatcher"
         ],
-        "summary": "Obter estatísticas de debug",
+        "summary": "Estatísticas de debug + Redis",
         "operationId": "get_dispatcher_debug_stats",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "403": {
-            "description": "Sem permissão ou módulo desligado"
-          }
-        },
-        "description": "Ficheiro `backend/src/routes/dispatcher-debug.ts`. Módulo de instalação: `dispatcher_admin`.",
-        "x-installation-module": "dispatcher_admin",
         "security": [
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DispatcherDebugStats"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/dispatcher-totem/cache/config": {
@@ -5801,56 +6074,81 @@
         "tags": [
           "Dispatcher"
         ],
-        "summary": "Obter configuração de cache atual",
+        "summary": "Ler configuração de cache do dispatcher",
         "operationId": "get_dispatcher_totem_cache_config",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "403": {
-            "description": "Sem permissão ou módulo desligado"
-          }
-        },
-        "description": "Ficheiro `backend/src/routes/dispatcher-totem.ts`.",
         "security": [
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DispatcherCacheConfig"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "post": {
         "tags": [
           "Dispatcher"
         ],
-        "summary": "Configurar cache do dispatcher",
+        "summary": "Alterar cache do dispatcher (runtime)",
         "operationId": "post_dispatcher_totem_cache_config",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "403": {
-            "description": "Sem permissão ou módulo desligado"
-          }
-        },
-        "description": "Ficheiro `backend/src/routes/dispatcher-totem.ts`.",
         "security": [
           {
             "bearerAuth": []
           }
         ],
         "requestBody": {
-          "required": false,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true
+                "$ref": "#/components/schemas/DispatcherCacheConfig"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DispatcherCacheConfig"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "enabled/ttlSeconds inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
               }
             }
           }
@@ -5862,20 +6160,8 @@
         "tags": [
           "Dispatcher"
         ],
-        "summary": "Debug: ver quais agendamentos são candidatos em um momento",
-        "operationId": "get_dispatcher_totem_totemId_candidates",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "403": {
-            "description": "Sem permissão ou módulo desligado"
-          }
-        },
-        "description": "Ficheiro `backend/src/routes/dispatcher-totem.ts`.",
+        "summary": "Candidatos no instante (debug, ignora cache)",
+        "operationId": "get_dispatcher_totem_candidates",
         "security": [
           {
             "bearerAuth": []
@@ -5887,10 +6173,60 @@
             "in": "path",
             "required": true,
             "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "timestamp",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "timezone",
+            "in": "query",
+            "schema": {
               "type": "string"
             }
           }
-        ]
+        ],
+        "responses": {
+          "200": {
+            "description": "Candidatos + plano seleccionado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "candidates": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/CandidateSchedule"
+                      }
+                    },
+                    "selectedPlan": {
+                      "$ref": "#/components/schemas/DispatchPlan"
+                    },
+                    "count": {
+                      "type": "integer"
+                    },
+                    "simpleMode": {
+                      "type": "boolean"
+                    },
+                    "planSimpleMode": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/dispatcher-totem/{totemId}/diagnostics": {
@@ -5898,20 +6234,8 @@
         "tags": [
           "Dispatcher"
         ],
-        "summary": "Debug: métricas para entender por que o dispatcher não encontra candidatos",
-        "operationId": "get_dispatcher_totem_totemId_diagnostics",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "403": {
-            "description": "Sem permissão ou módulo desligado"
-          }
-        },
-        "description": "Ficheiro `backend/src/routes/dispatcher-totem.ts`.",
+        "summary": "Diagnóstico: porque não há candidatos",
+        "operationId": "get_dispatcher_totem_diagnostics",
         "security": [
           {
             "bearerAuth": []
@@ -5923,10 +6247,30 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "integer"
             }
           }
-        ]
+        ],
+        "responses": {
+          "200": {
+            "description": "Métricas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/DispatcherDiagnostics"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/dispatcher-totem/{totemId}/dispatch": {
@@ -5934,20 +6278,9 @@
         "tags": [
           "Dispatcher"
         ],
-        "summary": "Obter plano de exibição para um totem em um momento específico",
-        "operationId": "get_dispatcher_totem_totemId_dispatch",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "403": {
-            "description": "Sem permissão ou módulo desligado"
-          }
-        },
-        "description": "Ficheiro `backend/src/routes/dispatcher-totem.ts`.",
+        "summary": "Plano de dispatch (painel, um totem)",
+        "description": "JWT + scope do totem. Diferente de GET /player/dispatch: envelopa o plano em data e pode incluir candidates.",
+        "operationId": "get_dispatcher_totem_dispatch",
         "security": [
           {
             "bearerAuth": []
@@ -5959,10 +6292,60 @@
             "in": "path",
             "required": true,
             "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "timestamp",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "timezone",
+            "in": "query",
+            "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "skipCache",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "includeCandidates",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
           }
-        ]
+        ],
+        "responses": {
+          "200": {
+            "description": "Plano",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispatcherTotemDispatchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validação"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Fora do scope"
+          }
+        }
       }
     },
     "/dispatcher-totem/{totemId}/dispatch-batch": {
@@ -5970,20 +6353,8 @@
         "tags": [
           "Dispatcher"
         ],
-        "summary": "Vários planos de exibição (mesma lógica de GET /dispatch) num único pedido",
-        "operationId": "post_dispatcher_totem_totemId_dispatch_batch",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "403": {
-            "description": "Sem permissão ou módulo desligado"
-          }
-        },
-        "description": "Ficheiro `backend/src/routes/dispatcher-totem.ts`.",
+        "summary": "Vários planos no mesmo pedido (1–48 timestamps)",
+        "operationId": "post_dispatcher_totem_dispatch_batch",
         "security": [
           {
             "bearerAuth": []
@@ -5995,17 +6366,83 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "integer"
             }
           }
         ],
         "requestBody": {
-          "required": false,
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "additionalProperties": true
+                "required": [
+                  "timestamps"
+                ],
+                "properties": {
+                  "timestamps": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 48,
+                    "items": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "timezone": {
+                    "type": "string"
+                  },
+                  "skipCache": {
+                    "type": "boolean"
+                  },
+                  "includeCandidates": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resultados por timestamp",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "timestamp": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "success": {
+                            "type": "boolean"
+                          },
+                          "data": {
+                            "$ref": "#/components/schemas/DispatchPlan"
+                          },
+                          "error": {
+                            "type": "string"
+                          },
+                          "fromCache": {
+                            "type": "boolean"
+                          },
+                          "executionTimeMs": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
               }
             }
           }
@@ -6017,20 +6454,8 @@
         "tags": [
           "Dispatcher"
         ],
-        "summary": "Obter histórico de decisões do dispatcher",
-        "operationId": "get_dispatcher_totem_totemId_history",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "403": {
-            "description": "Sem permissão ou módulo desligado"
-          }
-        },
-        "description": "Ficheiro `backend/src/routes/dispatcher-totem.ts`.",
+        "summary": "Histórico de decisões de dispatch",
+        "operationId": "get_dispatcher_totem_history",
         "security": [
           {
             "bearerAuth": []
@@ -6042,10 +6467,55 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "integer"
+            }
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
             }
           }
-        ]
+        ],
+        "responses": {
+          "200": {
+            "description": "Histórico",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "count": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/email/status": {
@@ -6950,56 +7420,97 @@
         "tags": [
           "Installation"
         ],
-        "summary": "Catálogo + estado dos complementos de produto",
+        "summary": "Catálogo + estado dos complementos",
+        "description": "owner_system / admin_sql. Direct Totem vs Multi Lite/Pro vive nestes flags.",
         "operationId": "get_installation_modules",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Vista admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/InstallationModulesView"
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "Não autenticado"
           },
           "403": {
-            "description": "Sem permissão ou módulo desligado"
+            "description": "Sem papel owner_system/admin_sql"
           }
-        },
-        "description": "Ficheiro `backend/src/routes/installationModules.ts`.",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
+        }
       },
       "put": {
         "tags": [
           "Installation"
         ],
-        "summary": "Actualiza complementos individuais (opções avançadas)",
+        "summary": "Guardar complementos individuais",
+        "description": "Opções avançadas. Dependências são validadas no servidor (ex.: billing requer plans).",
         "operationId": "put_installation_modules",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "403": {
-            "description": "Sem permissão ou módulo desligado"
-          }
-        },
-        "description": "Ficheiro `backend/src/routes/installationModules.ts`.",
         "security": [
           {
             "bearerAuth": []
           }
         ],
         "requestBody": {
-          "required": false,
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true
+                "$ref": "#/components/schemas/SaveModulesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Guardado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SaveModulesResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dependências inválidas ou modules em falta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
               }
             }
           }
@@ -7011,32 +7522,73 @@
         "tags": [
           "Installation"
         ],
-        "summary": "Master switch — mode off | lite | full (ou enabled boolean legado)",
+        "summary": "Master switch multi-agência (off | lite | full)",
+        "description": "off = Direct Totem. lite = orgs+anunciantes+publicar sem billing/planos/contratos/OTA. full = Multi Pro. Não apaga dados.",
         "operationId": "put_installation_multi_agency",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "403": {
-            "description": "Sem permissão ou módulo desligado"
-          }
-        },
-        "description": "Ficheiro `backend/src/routes/installationModules.ts`.",
         "security": [
           {
             "bearerAuth": []
           }
         ],
         "requestBody": {
-          "required": false,
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true
+                "$ref": "#/components/schemas/SetMultiAgencyRequest"
+              },
+              "examples": {
+                "direct": {
+                  "summary": "Direct Totem",
+                  "value": {
+                    "mode": "off"
+                  }
+                },
+                "lite": {
+                  "summary": "Multi Lite",
+                  "value": {
+                    "mode": "lite"
+                  }
+                },
+                "pro": {
+                  "summary": "Multi Pro",
+                  "value": {
+                    "mode": "full"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Modo aplicado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SetMultiAgencyResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "mode/enabled em falta ou conflito de dependências",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
               }
             }
           }
@@ -9364,18 +9916,93 @@
         "tags": [
           "Player"
         ],
-        "summary": "Obter plano de exibição do Dispatcher-Totem para um totem (player)",
+        "summary": "Plano de exibição (Player-AD)",
+        "description": "Público com uin+token (HMAC ou device token). A resposta é o payload directo do DispatcherRouter (não vem envelopado em data).",
         "operationId": "get_player_dispatch",
+        "security": [],
+        "parameters": [
+          {
+            "name": "uin",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "example": "TD-000012"
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "timestamp",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Momento do plano (ISO-8601). Default = agora."
+          },
+          {
+            "name": "timezone",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "America/Sao_Paulo"
+          },
+          {
+            "name": "deviceId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Plano (pode estar EMPTY — HTTP 200 mesmo sem mídias)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerDispatchResponse"
+                }
+              }
+            }
           },
-          "403": {
-            "description": "Sem permissão ou módulo desligado"
+          "400": {
+            "description": "Parâmetros inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Totem inexistente ou inactivo"
           }
-        },
-        "description": "Ficheiro `backend/src/routes/player.ts`.",
-        "security": []
+        }
       }
     },
     "/player/event": {
@@ -9511,27 +10138,76 @@
         "tags": [
           "Player"
         ],
-        "summary": "Registrar heartbeat do totem e marcar comandos como executados",
+        "summary": "Heartbeat do totem",
+        "description": "Regista telemetria, devolve comandos pendentes, OTA e needsDispatch. Query uin+token obrigatórios. Body opcional (métricas / executedCommands).",
         "operationId": "post_player_heartbeat",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "403": {
-            "description": "Sem permissão ou módulo desligado"
-          }
-        },
-        "description": "Ficheiro `backend/src/routes/player.ts`.",
         "security": [],
+        "parameters": [
+          {
+            "name": "uin",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "deviceId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            }
+          }
+        ],
         "requestBody": {
           "required": false,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true
+                "$ref": "#/components/schemas/PlayerHeartbeatRequest"
+              },
+              "example": {
+                "status": "online",
+                "version": "2.12",
+                "metrics": {
+                  "knownPlanVersion": "pv-12-abc"
+                },
+                "executedCommands": []
               }
             }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Heartbeat aceite",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerHeartbeatResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parâmetros inválidos"
+          },
+          "401": {
+            "description": "Token inválido"
+          },
+          "404": {
+            "description": "Totem inexistente ou inactivo"
           }
         }
       }
@@ -9630,27 +10306,97 @@
         "tags": [
           "Player"
         ],
-        "summary": "Sincroniza telemetria, heartbeat opcional e resultados de comandos numa autenticação",
+        "summary": "Sync (heartbeat + telemetria + resultados de comando)",
+        "description": "Uma autenticação (uin+token) para envelope schemaVersion+syncId. Heartbeat opcional no body; sem heartbeat ainda devolve pendingCommands.",
         "operationId": "post_player_sync",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "403": {
-            "description": "Sem permissão ou módulo desligado"
-          }
-        },
-        "description": "Ficheiro `backend/src/routes/player.ts`.",
         "security": [],
+        "parameters": [
+          {
+            "name": "uin",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "deviceId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            }
+          },
+          {
+            "name": "x-trace-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
-          "required": false,
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true
+                "$ref": "#/components/schemas/PlayerSyncEnvelope"
+              },
+              "example": {
+                "schemaVersion": "1",
+                "syncId": "sync-001",
+                "knownPlanVersion": "pv-12-abc",
+                "heartbeat": {
+                  "status": "online",
+                  "version": "2.12"
+                },
+                "events": [],
+                "commandResults": []
               }
             }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sync OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerSyncResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Envelope inválido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token inválido"
+          },
+          "403": {
+            "description": "Totem inactivo"
+          },
+          "404": {
+            "description": "Totem não encontrado"
           }
         }
       }
@@ -11869,35 +12615,63 @@
         "tags": [
           "Publish"
         ],
-        "summary": "Publicação rápida V3x: cria playlist/campanha/vínculos a partir de mídias existentes",
+        "summary": "Publicação rápida (playlist + campanha + totens)",
+        "description": "Requer módulo quick_publish. Papéis: admin, admin_sql, owner_system, gerente_marketing, editoracao. contractId opcional no Multi Lite.",
         "operationId": "post_quick_publish",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "403": {
-            "description": "Sem permissão ou módulo desligado"
-          }
-        },
-        "description": "Ficheiro `backend/src/routes/quick-publish.ts`. Módulo de instalação: `quick_publish`.",
-        "x-installation-module": "quick_publish",
         "security": [
           {
             "bearerAuth": []
           }
         ],
         "requestBody": {
-          "required": false,
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true
+                "$ref": "#/components/schemas/QuickPublishRequest"
               }
             }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Publicado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/QuickPublishResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validação ou guarda comercial",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Módulo quick_publish desligado ou sem papel"
           }
         }
       }
@@ -16123,35 +16897,63 @@
         "tags": [
           "Subscribers"
         ],
-        "summary": "Concede acesso de subscriber a publisher (admin only)",
+        "summary": "Conceder acesso subscriber → publisher (SPA)",
+        "description": "admin / admin_sql / owner_system. Sem contrato grava accessType=override (Multi Lite). Com contrato = accessType=contract.",
         "operationId": "post_subscriber_access_grant",
-        "responses": {
-          "200": {
-            "description": "OK"
-          },
-          "401": {
-            "description": "Não autenticado"
-          },
-          "403": {
-            "description": "Sem permissão ou módulo desligado"
-          }
-        },
-        "description": "Ficheiro `backend/src/routes/subscriber-access.ts`. Módulo de instalação: `subscribers`.",
-        "x-installation-module": "subscribers",
         "security": [
           {
             "bearerAuth": []
           }
         ],
         "requestBody": {
-          "required": false,
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true
+                "$ref": "#/components/schemas/GrantAccessRequest"
+              },
+              "example": {
+                "subscriberId": 3,
+                "publisherId": 1,
+                "notes": "Multi Lite"
               }
             }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Acesso concedido ou reactivado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/SubscriberPublisherAccess"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Contrato inexistente ou dados inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Módulo subscribers desligado ou sem papel"
           }
         }
       }
@@ -20867,6 +21669,1439 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "ErrorMessage": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "details": {
+            "type": "array",
+            "items": {}
+          },
+          "serverTime": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "AuthUser": {
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "role"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "username": {
+            "type": "string",
+            "example": "admin"
+          },
+          "email": {
+            "type": "string",
+            "example": "admin@local"
+          },
+          "name": {
+            "type": "string",
+            "example": "Administrador"
+          },
+          "first_name": {
+            "type": "string"
+          },
+          "last_name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "description": "Papel bruto da BD; o frontend normaliza (owner_system, admin_sql, …).",
+            "example": "owner_system"
+          },
+          "user_type": {
+            "type": "string",
+            "enum": [
+              "system_user",
+              "subscriber_user",
+              "publisher_user"
+            ]
+          },
+          "publisherId": {
+            "type": "integer",
+            "nullable": true
+          },
+          "subscriberId": {
+            "type": "integer",
+            "nullable": true
+          },
+          "subscriberName": {
+            "type": "string"
+          },
+          "isTenantUser": {
+            "type": "boolean"
+          },
+          "flags": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "description": "flag_smart_0 … flag_smart_9"
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 50,
+            "example": "admin"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "minLength": 6,
+            "example": "password123"
+          }
+        }
+      },
+      "LoginSuccess": {
+        "type": "object",
+        "required": [
+          "message",
+          "token",
+          "refreshToken",
+          "user"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Login realizado com sucesso"
+          },
+          "token": {
+            "type": "string",
+            "description": "JWT de acesso"
+          },
+          "refreshToken": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/AuthUser"
+          }
+        }
+      },
+      "LoginRequires2FA": {
+        "type": "object",
+        "required": [
+          "message",
+          "requiresTwoFactor",
+          "user"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Autenticação de dois fatores necessária"
+          },
+          "requiresTwoFactor": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "user": {
+            "$ref": "#/components/schemas/AuthUser"
+          }
+        }
+      },
+      "DispatchEmptyCheck": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "ok"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "totem_active"
+          },
+          "label": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "hint": {
+            "type": "string"
+          }
+        }
+      },
+      "DispatchEmptyExplanation": {
+        "type": "object",
+        "required": [
+          "summary",
+          "checks"
+        ],
+        "properties": {
+          "summary": {
+            "type": "string"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DispatchEmptyCheck"
+            }
+          },
+          "diagnosticsPath": {
+            "type": "string",
+            "example": "/api/dispatcher-totem/12/diagnostics"
+          }
+        }
+      },
+      "DispatchMediaItem": {
+        "type": "object",
+        "required": [
+          "mediaId",
+          "order",
+          "url",
+          "mediaType",
+          "cacheBucket"
+        ],
+        "properties": {
+          "mediaId": {
+            "type": "integer",
+            "example": 42
+          },
+          "order": {
+            "type": "integer",
+            "example": 0
+          },
+          "duration": {
+            "type": "number",
+            "nullable": true,
+            "description": "Segundos de exposição (imagem/HTML). null em vídeo/áudio."
+          },
+          "url": {
+            "type": "string",
+            "example": "/uploads/medias/42.mp4"
+          },
+          "mediaType": {
+            "type": "string",
+            "example": "video"
+          },
+          "cacheBucket": {
+            "type": "string",
+            "enum": [
+              "propagandas",
+              "vinhetas"
+            ]
+          },
+          "mediaName": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "width": {
+                "type": "integer"
+              },
+              "height": {
+                "type": "integer"
+              },
+              "mimeType": {
+                "type": "string"
+              },
+              "durationSeconds": {
+                "type": "number"
+              }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "DispatchPlan": {
+        "type": "object",
+        "required": [
+          "totemId",
+          "playlistId",
+          "playlistName",
+          "mediaItems",
+          "totalDuration",
+          "priority",
+          "source",
+          "sourceId"
+        ],
+        "properties": {
+          "totemId": {
+            "type": "integer",
+            "example": 12
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "playlistId": {
+            "type": "integer",
+            "example": 7
+          },
+          "playlistName": {
+            "type": "string",
+            "example": "Cardápio almoço"
+          },
+          "mediaItems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DispatchMediaItem"
+            }
+          },
+          "totalDuration": {
+            "type": "number",
+            "description": "Duração total em segundos"
+          },
+          "priority": {
+            "type": "integer"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "direct",
+              "group",
+              "campaign",
+              "mix"
+            ]
+          },
+          "sourceId": {
+            "type": "integer"
+          },
+          "sourceName": {
+            "type": "string"
+          },
+          "validityStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "validityEnd": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cacheKey": {
+            "type": "string"
+          },
+          "cacheExpiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "resolution": {
+                "type": "string"
+              },
+              "orientation": {
+                "type": "string",
+                "enum": [
+                  "landscape",
+                  "portrait"
+                ]
+              },
+              "platform": {
+                "type": "string"
+              },
+              "campaignId": {
+                "type": "integer"
+              },
+              "campaignTitle": {
+                "type": "string"
+              },
+              "defaultAd": {
+                "type": "boolean"
+              },
+              "simpleMode": {
+                "type": "boolean"
+              },
+              "noCandidatesReason": {
+                "type": "string"
+              },
+              "diagnosticsUrl": {
+                "type": "string"
+              },
+              "emptyExplanation": {
+                "$ref": "#/components/schemas/DispatchEmptyExplanation"
+              }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "DispatchPlanState": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "EMPTY"
+        ],
+        "description": "ACTIVE = há mídias; EMPTY = plano vazio (player mostra fallback)."
+      },
+      "PlayerDispatchResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "plan",
+          "planState"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "plan": {
+            "$ref": "#/components/schemas/DispatchPlan"
+          },
+          "planState": {
+            "$ref": "#/components/schemas/DispatchPlanState"
+          },
+          "planVersion": {
+            "type": "string",
+            "nullable": true,
+            "example": "pv-12-abc"
+          },
+          "fromCache": {
+            "type": "boolean"
+          },
+          "executionTimeMs": {
+            "type": "integer"
+          }
+        }
+      },
+      "PendingCommand": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "type": {
+            "type": "string",
+            "example": "reload"
+          },
+          "data": {
+            "description": "Payload do comando"
+          },
+          "priority": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PlayerHeartbeatRequest": {
+        "type": "object",
+        "properties": {
+          "uin": {
+            "type": "string",
+            "description": "Também pode ir na query"
+          },
+          "token": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "example": "online"
+          },
+          "version": {
+            "type": "string",
+            "example": "2.12"
+          },
+          "firmwareVersion": {
+            "type": "string"
+          },
+          "ipAddress": {
+            "type": "string"
+          },
+          "config": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "metrics": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "knownPlanVersion": {
+                "type": "string"
+              },
+              "nowPlaying": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "deviceClock": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "playerSettings": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          },
+          "executedCommands": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "IDs de comandos remotos já executados"
+          },
+          "knownPlanVersion": {
+            "type": "string"
+          },
+          "requestApproval": {
+            "type": "boolean"
+          },
+          "hardware": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "PlayerHeartbeatResponse": {
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "token": {
+            "type": "string",
+            "description": "HMAC renovado (1 h)"
+          },
+          "pendingCommands": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PendingCommand"
+            }
+          },
+          "otaUpdate": {
+            "nullable": true,
+            "description": "Pacote OTA ou null"
+          },
+          "displaySchedule": {
+            "nullable": true
+          },
+          "pollAdaptive": {
+            "nullable": true
+          },
+          "planVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "needsDispatch": {
+            "type": "boolean",
+            "description": "Se true, o player deve chamar GET /player/dispatch"
+          },
+          "telemetryObservation": {
+            "nullable": true
+          }
+        }
+      },
+      "PlayerSyncEnvelope": {
+        "type": "object",
+        "required": [
+          "schemaVersion",
+          "syncId"
+        ],
+        "description": "Informe heartbeat, events ou commandResults (pelo menos um).",
+        "properties": {
+          "schemaVersion": {
+            "type": "string",
+            "example": "1"
+          },
+          "syncId": {
+            "type": "string",
+            "maxLength": 200,
+            "example": "sync-2026-08-13-001"
+          },
+          "knownPlanVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "heartbeat": {
+            "$ref": "#/components/schemas/PlayerHeartbeatRequest"
+          },
+          "events": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "commandResults": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "object",
+              "required": [
+                "requestId",
+                "status"
+              ],
+              "properties": {
+                "requestId": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "completed",
+                    "failed"
+                  ]
+                },
+                "result": {},
+                "error": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "PlayerSyncResponse": {
+        "type": "object",
+        "required": [
+          "serverTime"
+        ],
+        "properties": {
+          "serverTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "eventAck": {},
+          "commandAck": {},
+          "pendingCommands": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PendingCommand"
+            }
+          },
+          "heartbeat": {
+            "$ref": "#/components/schemas/PlayerHeartbeatResponse"
+          }
+        }
+      },
+      "InstallationModuleId": {
+        "type": "string",
+        "enum": [
+          "core_publish",
+          "organization",
+          "multi_agency",
+          "subscribers",
+          "campaigns",
+          "playlists_advanced",
+          "quick_publish",
+          "contracts",
+          "billing",
+          "plans",
+          "commercial_reports",
+          "devices",
+          "ota",
+          "dispatcher_admin",
+          "smart_display_fx",
+          "analytics",
+          "subscriber_portal",
+          "direct_totem_mode",
+          "simple_totem_mode"
+        ]
+      },
+      "InstallationModuleFlags": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "boolean"
+        },
+        "description": "Mapa id → ligado. IDs em InstallationModuleId. core_publish, organization e dispatcher_admin são locked.",
+        "example": {
+          "core_publish": true,
+          "organization": true,
+          "direct_totem_mode": true,
+          "dispatcher_admin": true,
+          "multi_agency": false
+        }
+      },
+      "InstallationModuleDefinition": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "group"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/InstallationModuleId"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "locked": {
+            "type": "boolean"
+          },
+          "requires": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InstallationModuleId"
+            }
+          },
+          "group": {
+            "type": "string",
+            "enum": [
+              "core",
+              "content",
+              "commercial",
+              "ops",
+              "ux"
+            ]
+          }
+        }
+      },
+      "MultiAgencyMode": {
+        "type": "string",
+        "enum": [
+          "off",
+          "lite",
+          "full"
+        ]
+      },
+      "InstallationProfile": {
+        "type": "string",
+        "enum": [
+          "single_publisher",
+          "multi_agency"
+        ]
+      },
+      "ChecklistItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warning",
+              "blocking"
+            ]
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      },
+      "InstallationModulesView": {
+        "type": "object",
+        "properties": {
+          "catalog": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InstallationModuleDefinition"
+            }
+          },
+          "modules": {
+            "$ref": "#/components/schemas/InstallationModuleFlags"
+          },
+          "defaults": {
+            "$ref": "#/components/schemas/InstallationModuleFlags"
+          },
+          "overrides": {
+            "nullable": true,
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "profile": {
+            "$ref": "#/components/schemas/InstallationProfile"
+          },
+          "multiAgencyEnabled": {
+            "type": "boolean"
+          },
+          "multiAgencyMode": {
+            "$ref": "#/components/schemas/MultiAgencyMode"
+          },
+          "multiAgencyPresetIds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InstallationModuleId"
+            }
+          },
+          "activationChecklist": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChecklistItem"
+            }
+          },
+          "note": {
+            "type": "string"
+          },
+          "phase": {
+            "type": "string",
+            "example": "multi_agency_master"
+          },
+          "enforcement": {
+            "type": "string",
+            "example": "menu_and_api"
+          }
+        }
+      },
+      "SaveModulesRequest": {
+        "type": "object",
+        "required": [
+          "modules"
+        ],
+        "properties": {
+          "modules": {
+            "$ref": "#/components/schemas/InstallationModuleFlags"
+          }
+        }
+      },
+      "SaveModulesResult": {
+        "type": "object",
+        "properties": {
+          "modules": {
+            "$ref": "#/components/schemas/InstallationModuleFlags"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/InstallationProfile"
+          },
+          "requiresBackendRestart": {
+            "type": "boolean"
+          },
+          "workersReconciled": {
+            "type": "boolean"
+          },
+          "workersReconcileError": {
+            "type": "string"
+          }
+        }
+      },
+      "SetMultiAgencyRequest": {
+        "type": "object",
+        "description": "Informe mode (off|lite|full) ou enabled (boolean legado: true→full, false→off).",
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/MultiAgencyMode"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SetMultiAgencyResult": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/MultiAgencyMode"
+          },
+          "modules": {
+            "$ref": "#/components/schemas/InstallationModuleFlags"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/InstallationProfile"
+          },
+          "requiresBackendRestart": {
+            "type": "boolean"
+          },
+          "workersReconciled": {
+            "type": "boolean"
+          },
+          "workersReconcileError": {
+            "type": "string"
+          },
+          "bootstrap": {
+            "type": "object",
+            "properties": {
+              "created": {
+                "type": "boolean"
+              },
+              "publisherId": {
+                "type": "integer"
+              },
+              "detail": {
+                "type": "string"
+              }
+            }
+          },
+          "secondAgency": {
+            "type": "object",
+            "properties": {
+              "created": {
+                "type": "boolean"
+              },
+              "publisherId": {
+                "type": "integer"
+              },
+              "subscriberId": {
+                "type": "integer"
+              },
+              "detail": {
+                "type": "string"
+              }
+            }
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "QuickPublishPreset": {
+        "type": "string",
+        "enum": [
+          "menu",
+          "promotion",
+          "ad",
+          "announcement",
+          "institutional"
+        ]
+      },
+      "QuickPublishRequest": {
+        "type": "object",
+        "required": [
+          "subscriberId",
+          "totemIds",
+          "mediaIds"
+        ],
+        "properties": {
+          "subscriberId": {
+            "type": "integer",
+            "minimum": 1,
+            "example": 3
+          },
+          "contractId": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 1,
+            "description": "Opcional no Multi Lite: publicação via subscriber_publisher_access."
+          },
+          "totemIds": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": [
+              12,
+              15
+            ]
+          },
+          "mediaIds": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": [
+              101,
+              102
+            ]
+          },
+          "preset": {
+            "$ref": "#/components/schemas/QuickPublishPreset"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "nullable": true
+          },
+          "publishNow": {
+            "type": "boolean",
+            "default": true
+          },
+          "durationMs": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 300000
+          }
+        }
+      },
+      "QuickPublishResult": {
+        "type": "object",
+        "required": [
+          "success",
+          "playlistId",
+          "campaignId",
+          "publishedTotemIds",
+          "message"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "playlistId": {
+            "type": "integer"
+          },
+          "campaignId": {
+            "type": "integer"
+          },
+          "publishedTotemIds": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "regeneratedTotemIds": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "failedTotemIds": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "partialRegeneration": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "GrantAccessRequest": {
+        "type": "object",
+        "required": [
+          "subscriberId",
+          "publisherId"
+        ],
+        "properties": {
+          "subscriberId": {
+            "type": "integer",
+            "minimum": 1,
+            "example": 3
+          },
+          "publisherId": {
+            "type": "integer",
+            "minimum": 1,
+            "example": 1
+          },
+          "contractId": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 1
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Omitir ou null = sem expiração"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "SubscriberPublisherAccess": {
+        "type": "object",
+        "properties": {
+          "accessId": {
+            "type": "integer"
+          },
+          "subscriberId": {
+            "type": "integer"
+          },
+          "publisherId": {
+            "type": "integer"
+          },
+          "contractId": {
+            "type": "integer",
+            "nullable": true
+          },
+          "planId": {
+            "type": "integer",
+            "nullable": true
+          },
+          "accessType": {
+            "type": "string",
+            "enum": [
+              "contract",
+              "override"
+            ]
+          },
+          "grantedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CandidateSchedule": {
+        "type": "object",
+        "properties": {
+          "campaignId": {
+            "type": "integer"
+          },
+          "campaignTitle": {
+            "type": "string"
+          },
+          "playlistId": {
+            "type": "integer"
+          },
+          "playlistName": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "integer"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "direct",
+              "group",
+              "campaign"
+            ]
+          },
+          "sourceId": {
+            "type": "integer"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "totem",
+              "group"
+            ]
+          },
+          "temporalValid": {
+            "type": "boolean"
+          },
+          "technicalValid": {
+            "type": "boolean"
+          },
+          "integrityValid": {
+            "type": "boolean"
+          },
+          "score": {
+            "type": "number"
+          },
+          "commercialTier": {
+            "type": "string",
+            "enum": [
+              "premium",
+              "standard",
+              "remnant"
+            ]
+          },
+          "subscriberId": {
+            "type": "integer"
+          },
+          "contractId": {
+            "type": "integer"
+          }
+        }
+      },
+      "DispatcherTotemDispatchResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DispatchPlan"
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CandidateSchedule"
+            }
+          },
+          "fromCache": {
+            "type": "boolean"
+          },
+          "executionTimeMs": {
+            "type": "integer"
+          },
+          "error": {
+            "type": "string"
+          },
+          "simpleMode": {
+            "type": "boolean"
+          },
+          "planSimpleMode": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DispatcherCacheConfig": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "ttlSeconds": {
+            "type": "integer",
+            "example": 60
+          },
+          "maxSize": {
+            "type": "integer"
+          }
+        }
+      },
+      "DispatcherDiagnostics": {
+        "type": "object",
+        "properties": {
+          "totem": {
+            "type": "object",
+            "properties": {
+              "totemId": {
+                "type": "integer"
+              },
+              "localId": {
+                "type": "integer",
+                "nullable": true
+              },
+              "publisherId": {
+                "type": "integer",
+                "nullable": true
+              }
+            }
+          },
+          "counts": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "hasCandidates": {
+            "type": "boolean"
+          },
+          "suggestion": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "DispatcherMessage": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "traceId": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "incoming",
+              "outgoing"
+            ]
+          },
+          "totemId": {
+            "type": "integer"
+          },
+          "uin": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": "string",
+            "example": "/api/player/dispatch"
+          },
+          "method": {
+            "type": "string"
+          },
+          "request": {},
+          "response": {},
+          "duration": {
+            "type": "integer"
+          },
+          "fromCache": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string"
+          },
+          "ipAddress": {
+            "type": "string"
+          },
+          "userAgent": {
+            "type": "string"
+          },
+          "statusCode": {
+            "type": "integer"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "mediaName": {
+            "type": "string"
+          }
+        }
+      },
+      "DispatcherQueryLog": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "query": {
+            "type": "string"
+          },
+          "params": {
+            "type": "array"
+          },
+          "duration": {
+            "type": "number"
+          },
+          "rowCount": {
+            "type": "integer"
+          },
+          "error": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      },
+      "RedisStatus": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "connected": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string"
+          },
+          "config": {
+            "type": "object",
+            "properties": {
+              "host": {
+                "type": "string"
+              },
+              "port": {
+                "type": "integer"
+              },
+              "db": {
+                "type": "integer"
+              },
+              "url": {
+                "type": "string"
+              }
+            }
+          },
+          "cacheServiceAvailable": {
+            "type": "boolean"
+          },
+          "lastCheck": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "DispatcherDebugStats": {
+        "type": "object",
+        "properties": {
+          "totalQueries": {
+            "type": "integer"
+          },
+          "totalMessages": {
+            "type": "integer"
+          },
+          "totalDebugLogs": {
+            "type": "integer"
+          },
+          "queriesWithError": {
+            "type": "integer"
+          },
+          "messagesWithError": {
+            "type": "integer"
+          },
+          "avgQueryDuration": {
+            "type": "number"
+          },
+          "avgMessageDuration": {
+            "type": "number"
+          },
+          "redis": {
+            "$ref": "#/components/schemas/RedisStatus"
+          }
+        }
       }
     }
   }

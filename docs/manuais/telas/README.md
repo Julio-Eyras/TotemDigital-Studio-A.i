@@ -14,6 +14,8 @@ Capturas reais do painel em **Direct Totem** (Front 2.1.21). Utilizador: `ismael
 
 Imagens: [`imagens/`](./imagens/). Regenerar PDFs: `python scripts/generate-telas-pdf.py`.
 
+**Demo comercial 15 min** (guião, sem capturas): [`../12-ROTEIRO-DEMO-15-MIN.md`](../12-ROTEIRO-DEMO-15-MIN.md) · [PDF](../12-ROTEIRO-DEMO-15-MIN.pdf).
+
 **Chrome comum (todas as telas autenticadas)**
 
 - Sidebar: Publicar em Totem · Biblioteca Mídias · Sua organização · Usuários e acessos · Complementos · Dispatcher · Configurações

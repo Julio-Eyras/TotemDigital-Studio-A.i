@@ -1,17 +1,24 @@
 // Importar documentação completa
 import { swaggerDocumentation } from './swagger-enhanced';
 import generatedSpec from './openapi-generated.json';
+import p0Spec from './openapi-p0.json';
 
 type PathItem = Record<string, unknown>;
 type Paths = Record<string, PathItem>;
+type Tag = { name: string; description?: string };
+type Components = {
+  schemas?: Record<string, unknown>;
+  securitySchemes?: Record<string, unknown>;
+  [key: string]: unknown;
+};
 
 function mergePathItems(base: PathItem = {}, overlay: PathItem = {}): PathItem {
   return { ...base, ...overlay };
 }
 
-function mergeOpenApiPaths(generated: Paths, enhanced: Paths): Paths {
-  const out: Paths = { ...generated };
-  for (const [pathKey, item] of Object.entries(enhanced || {})) {
+function mergeOpenApiPaths(base: Paths, overlay: Paths): Paths {
+  const out: Paths = { ...base };
+  for (const [pathKey, item] of Object.entries(overlay || {})) {
     out[pathKey] = mergePathItems(out[pathKey], item as PathItem);
   }
   return out;
@@ -19,17 +26,28 @@ function mergeOpenApiPaths(generated: Paths, enhanced: Paths): Paths {
 
 const generated = generatedSpec as {
   info?: Record<string, unknown>;
-  tags?: Array<{ name: string; description?: string }>;
+  tags?: Tag[];
   paths?: Paths;
-  components?: Record<string, unknown>;
+  components?: Components;
+};
+
+const p0 = p0Spec as {
+  tags?: Tag[];
+  paths?: Paths;
+  components?: Components;
 };
 
 const enhancedTags = Array.isArray(swaggerDocumentation.tags) ? swaggerDocumentation.tags : [];
 const generatedTags = Array.isArray(generated.tags) ? generated.tags : [];
-const tagByName = new Map<string, { name: string; description?: string }>();
-for (const t of [...generatedTags, ...enhancedTags]) {
+const p0Tags = Array.isArray(p0.tags) ? p0.tags : [];
+const tagByName = new Map<string, Tag>();
+for (const t of [...generatedTags, ...enhancedTags, ...p0Tags]) {
   if (t?.name) tagByName.set(t.name, t);
 }
+
+const enhancedComponents = (swaggerDocumentation.components || {}) as Components;
+const generatedComponents = generated.components || {};
+const p0Components = p0.components || {};
 
 export const openApiSpec = {
   ...swaggerDocumentation,
@@ -42,21 +60,31 @@ export const openApiSpec = {
       swaggerDocumentation.info?.description || '',
       '',
       'Catálogo completo gerado a partir dos routers (`openapi-generated.json`).',
-      'Os paths com schemas detalhados em swagger-enhanced sobrepõem o gerado.',
+      'swagger-enhanced sobrepõe PlaylistMix/publishers; `openapi-p0.json` fecha schemas de integração (login, player, installation, quick-publish/SPA, dispatcher).',
     ].join('\n'),
   },
   tags: Array.from(tagByName.values()),
-  paths: mergeOpenApiPaths(generated.paths || {}, (swaggerDocumentation.paths || {}) as Paths),
+  paths: mergeOpenApiPaths(
+    mergeOpenApiPaths(generated.paths || {}, (swaggerDocumentation.paths || {}) as Paths),
+    p0.paths || {}
+  ),
   components: {
-    ...(generated.components || {}),
-    ...(swaggerDocumentation.components || {}),
+    ...generatedComponents,
+    ...enhancedComponents,
+    ...p0Components,
+    schemas: {
+      ...(generatedComponents.schemas || {}),
+      ...(enhancedComponents.schemas || {}),
+      ...(p0Components.schemas || {}),
+    },
     securitySchemes: {
       bearerAuth: {
         type: 'http',
         scheme: 'bearer',
         bearerFormat: 'JWT',
       },
-      ...((swaggerDocumentation.components as any)?.securitySchemes || {}),
+      ...(enhancedComponents.securitySchemes || {}),
+      ...(p0Components.securitySchemes || {}),
     },
   },
 };
