@@ -216,7 +216,8 @@ const PlayerApkSettings: React.FC<Props> = ({
           <Typography variant="h5" fontWeight={700}>Player-AD APK</Typography>
           <Typography variant="body2" color="text.secondary">
             Player-AD oficial (não altera o logo de boot) e instalador de campo
-            (logo de boot + Player-AD). Download autenticado.
+            (Player-AD + logos TotemDigital só se o boot ainda não for TotemDigital).
+            Download autenticado.
           </Typography>
         </Box>
         <Button startIcon={<Refresh />} onClick={() => void load()}>Atualizar</Button>
@@ -322,7 +323,7 @@ const PlayerApkSettings: React.FC<Props> = ({
                   disabled={busy === 'installer'}
                   onClick={() => void downloadInstaller()}
                 >
-                  Baixar Instala-Player (logo de boot + Player-AD)
+                  Baixar Instala-Player (player + logos se ainda não for TotemDigital)
                 </Button>
               </CardActions>
             </Card>
