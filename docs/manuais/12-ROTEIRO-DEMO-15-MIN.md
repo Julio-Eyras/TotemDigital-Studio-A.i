@@ -21,6 +21,8 @@ Telas de apoio (capturas): [08 Login e Publicar](./telas/08-TELAS-LOGIN-E-PUBLIC
 
 Instalação em **Direct Totem**. Um totem **online** (heartbeat verde). Uma mídia de cardápio/promoção **já na biblioteca**, portrait 1080×1920 se possível. Notebook + TV box na mesma Wi‑Fi (ou 4G estável). URL do painel (prod ou DEV) e login que não seja `admin` genérico se o cliente for ver.
 
+Se o painel mostrar o card **Primeira publicação**, pode seguir as etapas ou dispensar (×) se o ambiente já estiver pronto.
+
 Não abrir Complementos, Dispatcher, Configurações, Anunciantes nem billing. HDMI-CEC **não oferecer**.
 
 Se o totem estiver offline: não faças a demo — resolve heartbeat primeiro.
@@ -47,17 +49,17 @@ Se a TV não actualizar em ~60 s: **Actualizar** no painel; confirma card Online
 
 Oferta **Direct** só:
 
-| SKU | Quando |
-|-----|--------|
-| **Kit Pronto** | Não têm TV box fiável — box + Player-AD 2.12 + painel + instalação + treino 1 h + assinatura |
-| **Só software** | Já têm box Android — painel + Player-AD + assinatura |
-| **2ª tela** | Só se perguntarem; desconto no setup, não no MRR |
+| SKU | Quando | Preço piloto |
+|-----|--------|----------------|
+| **Kit Pronto** | Não têm TV box fiável | **R$ 1.290** + **R$ 89**/mês |
+| **Só software** | Já têm box Android | **R$ 390** + **R$ 89**/mês |
+| **2ª tela** | Só se perguntarem; desconto no setup, não no MRR | **R$ 590** + **R$ 89**/mês |
 
 **Frase de fecho:** «Agendamos a instalação piloto esta semana. Vocês publicam o menu; nós tratamos da caixa e do Wi‑Fi.»
 
 **Pergunta seguinte (escolhe uma):** «Quantos ecrãs na loja hoje?» · «Quem muda o cardápio hoje — USB?» · «Podemos voltar terça com a box?»
 
-Não discutes tabela de preços se ainda não estiver fechada: «Envio orçamento do Kit / Só software ainda hoje.»
+Números piloto (não negociar o MRR): **Kit Pronto R$ 1.290 + R$ 89/mês** · **Só software R$ 390 + R$ 89/mês** · **2ª tela R$ 590 + R$ 89/mês**. Detalhe: [`../PRECOS-PILOTO-MERCADO-2026-08.md`](../PRECOS-PILOTO-MERCADO-2026-08.md).
 
 ---
 

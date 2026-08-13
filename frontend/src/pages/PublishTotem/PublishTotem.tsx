@@ -49,6 +49,9 @@ import { formatTotemScheduleCardLines } from '../../utils/totemDisplaySchedule';
 import { formatTotemMediaCountLabel } from '../../utils/totemMediaCountLabel';
 import { getDisabledContainerSx } from '../../utils/disabledVisualIdentity';
 import { useTotemPlaybackTelemetry } from '../../hooks/useTotemPlaybackTelemetry';
+import { useDirectFirstPublishSnapshot } from '../../hooks/useDirectFirstPublishSnapshot';
+import { DirectFirstPublishChecklist } from '../../components/Publish/DirectFirstPublishChecklist';
+import { isDirectTotemMode } from '../../config/directTotemMode';
 
 function isTotemRowActive(row: unknown): boolean {
   const r = row as Record<string, unknown> | null | undefined;
@@ -97,7 +100,10 @@ const PublishTotem: React.FC = () => {
   const [library, setLibrary] = useState<MediaItem[]>([]);
   const [totemMediaIds, setTotemMediaIds] = useState<Set<number>>(new Set());
   const [mediaActionLoading, setMediaActionLoading] = useState(false);
+  const [offlineHintDismissed, setOfflineHintDismissed] = useState(false);
   const playbackTelemetry = useTotemPlaybackTelemetry();
+  const directMode = isDirectTotemMode();
+  const checklistSnapshot = useDirectFirstPublishSnapshot(totems, directMode);
 
   const libraryAvailable = useMemo(() => {
     return library.filter(
@@ -344,6 +350,22 @@ const PublishTotem: React.FC = () => {
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
       <PageHeader title="Publicar em Totem" breadcrumbs={breadcrumbs} />
+      {directMode && checklistSnapshot && (
+        <DirectFirstPublishChecklist
+          snapshot={checklistSnapshot}
+          onCreateTotem={() => setCreateOpen(true)}
+        />
+      )}
+      {directMode &&
+        checklistSnapshot &&
+        checklistSnapshot.publishedTotemCount > 0 &&
+        checklistSnapshot.onlineTotemCount === 0 &&
+        !offlineHintDismissed && (
+          <Alert severity="info" sx={{ mb: 2 }} onClose={() => setOfflineHintDismissed(true)}>
+            Mídia já está no totem. Ligue a TV box com o Player-AD e o UIN do card — o ecrã actualiza
+            sozinho.
+          </Alert>
+        )}
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}

@@ -44,7 +44,7 @@ Usar **estes** nomes em venda, landing e proposta. Não misturar “Starter / En
 **Pitch de 15 min (P0):** só **Direct** + Kit Pronto ou Só software.  
 **Lite / Pro:** 2.º slide / upsell — ver [apresentação SaaS](./manuais/06-APRESENTACAO-COMERCIAL-SAAS.md), não a primeira conversa SMB.
 
-**Preços:** ainda **a fechar** numa página comercial viva. Este documento **não inventa** valores de lista; KPIs de MRR na §8 são orientativos.
+**Preços piloto Direct (ago/2026, âncora de mercado BR/LatAm):** [PRECOS-PILOTO-MERCADO-2026-08.md](./PRECOS-PILOTO-MERCADO-2026-08.md). KPIs de MRR na §8 continuam orientativos de escala, não de lista.
 
 ---
 
@@ -290,7 +290,7 @@ Lite/Pro só no verso do one-pager ou 2.º encontro.
 - Apresentação Amarelo Petróleo (já no site)  
 - Roteiro demo 15 min: [12](./manuais/12-ROTEIRO-DEMO-15-MIN.md) · [PDF](./manuais/12-ROTEIRO-DEMO-15-MIN.pdf) — login → Biblioteca → Publicar em Totem (telas [08–09](./manuais/telas/README.md))  
 - Tabela Direct / Lite / Pro no **verso** do one-pager  
-- Tabela de preços simples (3 números: setup kit · MRR 1 tela · MRR tela extra) — **a preencher**
+- Tabela de preços piloto: Kit **R$ 1.290** · MRR **R$ 89**/tela · 2ª tela setup **R$ 590** ([fonte](./PRECOS-PILOTO-MERCADO-2026-08.md))
 
 ### 9.4 Calendário 90 dias (resumo)
 
@@ -304,15 +304,15 @@ Lite/Pro só no verso do one-pager ou 2.º encontro.
 
 ### 10.1 Pacotes comerciais (mapeados aos modos)
 
-| Pacote (SKU) | Modo | Inclui | Modelo | Preço |
-|--------------|------|--------|--------|-------|
-| **Só software** | Direct | 1 totem/tela + painel Direct + suporte básico | Assinatura / tela | *a definir* |
-| **Kit Pronto** | Direct | Só software + TV box homologada + instalação + treino 1h (Wi‑Fi no local) | Setup único + assinatura | *a definir* |
-| **2ª tela** | Direct | Novo totem na mesma org | Setup (c/ desconto) + MRR cheio | *a definir* |
-| **Rede** | Lite | Multi-loja, roles, anunciantes, monitorização | Assinatura por org + telas | *a definir* |
-| **Mídia Indoor** | Pro | Publisher + anunciantes + revenue share + billing | Comissão + SaaS | *a definir* |
+| Pacote (SKU) | Modo | Inclui | Modelo | Preço piloto |
+|--------------|------|--------|--------|--------------|
+| **Só software** | Direct | 1 totem/tela + painel Direct + suporte básico | Setup + MRR / tela | **R$ 390** + **R$ 89**/mês |
+| **Kit Pronto** | Direct | Só software + TV box + instalação + treino 1h (Wi‑Fi no local) | Setup único + MRR / tela | **R$ 1.290** + **R$ 89**/mês |
+| **2ª tela** | Direct | Novo totem na mesma org | Setup c/ desconto + **MRR cheio** | **R$ 590** + **R$ 89**/mês |
+| **Rede** | Lite | Multi-loja, roles, anunciantes, monitorização | Assinatura por org + telas | sob consulta |
+| **Mídia Indoor** | Pro | Publisher + anunciantes + revenue share + billing | Comissão + SaaS | sob consulta |
 
-Página comercial viva: actualizar **esta tabela** quando o preço piloto fechar (não espalhar números em docs antigos).
+Lista viva + fontes: [PRECOS-PILOTO-MERCADO-2026-08.md](./PRECOS-PILOTO-MERCADO-2026-08.md). LatAm: MRR **USD 17**/tela · Kit **USD 250**. Anual −10% no MRR. Desconto só no setup.
 
 ### 10.2 Processo de venda (SMB / Direct)
 
@@ -397,10 +397,10 @@ Ordem recomendada de **foco de receita** (do mais próximo ao mais estratégico)
 ```text
 1. Este doc v1.1 + glossário                    ← feito (ago/2026)
 2. Corrigir gate owner_system (código)          ← feito
-3. Preço piloto + one-pager                     ← fecha venda
+3. Preço piloto + one-pager                     ← piloto Direct ago/2026 (mercado BR/LatAm)
 4. Roteiro demo 15 min + PDFs de telas          ← feito (ago/2026)
 5. Kit 2.12 versionado + 1 TV box homologada    ← campo
-6. Wizard / checklist 1ª publicação (Direct)    ← produto
+6. Wizard / checklist 1ª publicação (Direct)    ← feito (ago/2026)
 7. Templates cardápio                           ← P1, após 5–10 pilotos
 8. Lite/Pro só como upsell documentado
 ```
@@ -437,6 +437,7 @@ O eixo operacional é **`main`** (produção `totemdigital.app.br`). O risco pri
 
 | Tema | Caminho |
 |------|---------|
+| Preços piloto Direct (mercado BR/LatAm) | [`docs/PRECOS-PILOTO-MERCADO-2026-08.md`](./PRECOS-PILOTO-MERCADO-2026-08.md) |
 | Índice de manuais | [`docs/manuais/README.md`](./manuais/README.md) |
 | Roteiro demo 15 min (Direct) | [`docs/manuais/12-ROTEIRO-DEMO-15-MIN.md`](./manuais/12-ROTEIRO-DEMO-15-MIN.md) · [PDF](./manuais/12-ROTEIRO-DEMO-15-MIN.pdf) |
 | Telas Direct (capturas + PDF) | [`docs/manuais/telas/README.md`](./manuais/telas/README.md) |
@@ -459,7 +460,8 @@ O eixo operacional é **`main`** (produção `totemdigital.app.br`). O risco pri
 | Ver. | Data | Notas |
 |------|------|--------|
 | 1.0 | 23/07/2026 | Avaliação inicial; branch `SmartSignage-direc-totem`. |
-| 1.1 | 12/08/2026 | Eixo `main`; Direct/Lite/Pro; Player-AD 2.12 (Wi‑Fi, instalador APK); HDMI-CEC fora; licença proprietária; glossário SKU; riscos de gate e docs antigos; anexos e manuais de telas. **Sem preços inventados.** |
+| 1.1 | 12/08/2026 | Eixo `main`; Direct/Lite/Pro; Player-AD 2.12 (Wi‑Fi, instalador APK); HDMI-CEC fora; licença proprietária; glossário SKU; riscos de gate e docs antigos; anexos e manuais de telas. |
+| 1.1.1 | 13/08/2026 | Preço piloto Direct ancorado em mercado BR/LatAm (R$ 89/tela; Kit R$ 1.290). Fonte: `PRECOS-PILOTO-MERCADO-2026-08.md`. |
 
 ---
 

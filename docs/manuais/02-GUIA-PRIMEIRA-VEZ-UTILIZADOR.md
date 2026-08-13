@@ -29,12 +29,14 @@ Se ainda estiver em Direct e precisar de anunciantes → pedir ao admin para act
 
 ## 3. Fluxo A — Direct Totem (primeira publicação)
 
+No home **Publicar em Totem** o painel mostra o checklist **Primeira publicação** até estas etapas estarem feitas (pode dispensar com ×):
+
 1. **Sua organização** → confirmar dados  
-2. **Unidades / Locais** → criar local se vazio  
-3. **Totens / Dispositivos** → registar totem (UIN / device)  
-4. **Biblioteca de Mídias** → carregar vídeo/imagem  
-5. **Publicar em Totem** → escolher mídia + totem → publicar  
-6. No player: `serverUrl` aponta para o servidor; UIN correcto → deve receber o plano
+2. **Unidade / local** → criar local se vazio (dentro da organização)  
+3. **Totem** → **+ Novo totem** e anotar o UIN  
+4. **Biblioteca Mídias** → carregar vídeo/imagem  
+5. **Publicar no totem** → no card, **Mídia** → biblioteca  
+6. No player: `serverUrl` aponta para o servidor; UIN correcto → deve receber o plano (card **Online**)
 
 ---
 

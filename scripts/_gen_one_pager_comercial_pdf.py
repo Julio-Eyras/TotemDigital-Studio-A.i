@@ -138,14 +138,14 @@ def main():
     )
     story.append(P(who, styles['body']))
 
-    story.append(P('PACOTES (REFERÊNCIA)', styles['h']))
+    story.append(P('PACOTES DIRECT (PILOTO AGO/2026)', styles['h']))
     packs = [
-        [P('Pacote', styles['cellh']), P('Inclui', styles['cellh']), P('Modelo', styles['cellh'])],
-        [P('<b>Starter</b>', styles['cell']), P('1 tela + painel + suporte básico', styles['cell']), P('Assinatura mensal', styles['cell'])],
-        [P('<b>Kit Pronto</b>', styles['cell']), P('Starter + TV box + instalação + treino', styles['cell']), P('Setup + assinatura', styles['cell'])],
-        [P('<b>Rede</b>', styles['cell']), P('Multi-loja, monitorização, papéis', styles['cell']), P('Por org. / telas', styles['cell'])],
+        [P('Pacote', styles['cellh']), P('Inclui', styles['cellh']), P('Setup', styles['cellh']), P('Mensal / tela', styles['cellh'])],
+        [P('<b>Só software</b>', styles['cell']), P('Painel Direct + Player-AD + treino remoto', styles['cell']), P('R$ 390', styles['cell']), P('R$ 89', styles['cell'])],
+        [P('<b>Kit Pronto</b>', styles['cell']), P('Só software + TV box + visita + treino 1 h', styles['cell']), P('R$ 1.290', styles['cell']), P('R$ 89', styles['cell'])],
+        [P('<b>2ª tela</b>', styles['cell']), P('Nova box + instalação (mesma org)', styles['cell']), P('R$ 590', styles['cell']), P('R$ 89', styles['cell'])],
     ]
-    t3 = Table(packs, colWidths=[tw * 0.18, tw * 0.52, tw * 0.30])
+    t3 = Table(packs, colWidths=[tw * 0.18, tw * 0.40, tw * 0.20, tw * 0.22])
     t3.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), HexColor('#ffe9a8')),
         ('GRID', (0, 0), (-1, -1), 0.35, BORDER),
@@ -157,7 +157,7 @@ def main():
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [white, ROW]),
     ]))
     story.append(t3)
-    story.append(P('<i>Valores sob consulta — ajuste por região e volume.</i>', styles['foot']))
+    story.append(P('<i>LatAm: USD 17/tela · Kit USD 250. Anual −10% no mensal. Lite/Pro no 2.º encontro.</i>', styles['foot']))
 
     story.append(Spacer(1, 4))
     story.append(HRFlowable(width='100%', thickness=2, color=YELLOW, spaceBefore=2, spaceAfter=4))
@@ -176,7 +176,7 @@ def main():
         canvas.rect(0, 0, A4[0], 8 * mm, fill=1, stroke=0)
         canvas.setFillColor(YELLOW)
         canvas.setFont('Helvetica-Bold', 7)
-        canvas.drawCentredString(A4[0] / 2, 3.2 * mm, 'ONE-PAGER COMERCIAL  ·  JUL/2026  ·  CONFIDENCIAL PARA CLIENTES E PARCEIROS')
+        canvas.drawCentredString(A4[0] / 2, 3.2 * mm, 'ONE-PAGER COMERCIAL  ·  AGO/2026  ·  CONFIDENCIAL PARA CLIENTES E PARCEIROS')
         canvas.restoreState()
 
     doc = SimpleDocTemplate(

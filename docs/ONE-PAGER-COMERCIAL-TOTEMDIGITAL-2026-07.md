@@ -1,6 +1,6 @@
 # TotemDigital — One-pager comercial
 
-**Julho/2026** | Para clientes e parceiros  
+**Agosto/2026** | Para clientes e parceiros · Direct Totem  
 **Promessa:** Publique cardápios, promoções e anúncios nas suas telas em minutos.
 
 ---
@@ -51,15 +51,16 @@ Ideal para restaurantes, lojas, receções e operadores de mídia indoor.
 
 ---
 
-## Pacotes (referência)
+## Pacotes Direct (piloto ago/2026)
 
-| Pacote | Inclui | Modelo |
-|--------|--------|--------|
-| **Starter** | 1 tela + painel + suporte básico | Assinatura mensal |
-| **Kit Pronto** | Starter + TV box configurada + instalação + treino | Setup único + assinatura |
-| **Rede** | Multi-loja, monitorização, papéis | Assinatura por organização / telas |
+| Pacote | Inclui | Setup | Mensal / tela |
+|--------|--------|-------|----------------|
+| **Só software** | Painel Direct + Player-AD + treino remoto | **R$ 390** | **R$ 89** |
+| **Kit Pronto** | Só software + TV box + visita + treino 1 h | **R$ 1.290** | **R$ 89** |
+| **2ª tela** | Nova box + instalação (mesma org) | **R$ 590** | **R$ 89** |
 
-*Valores sob consulta — ajuste por região e volume.*
+LatAm: **USD 17**/tela · Kit **USD 250**. Anual −10% no mensal. Lite/Pro (rede / mídia indoor) no 2.º encontro.  
+Fonte de mercado: [`PRECOS-PILOTO-MERCADO-2026-08.md`](./PRECOS-PILOTO-MERCADO-2026-08.md).
 
 ---
 
