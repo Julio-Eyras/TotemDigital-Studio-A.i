@@ -3,6 +3,8 @@
 **Data:** 2026-08-12  
 **Repo:** https://github.com/Julio-Eyras/TotemDigital-Studio.git  
 **Branch de referência:** `main`  
+**Autor:** Julio Cesar Eyras (J.C.E.) / Eyras Sistemas e Soluções  
+**Licença:** proprietária — todos os direitos reservados ([LICENSE](../../LICENSE))  
 **Público:** instalação, operação, administração e desenvolvimento
 
 Esta pasta é o **ponto de entrada operacional e de utilização**.  

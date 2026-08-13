@@ -2,6 +2,9 @@
 
 **TotemDigital Studio** é uma plataforma de sinalização digital (digital signage) para gerir organizações, locais, totens/Smart TVs, mídias e (opcionalmente) anunciantes e campanhas comerciais.
 
+**Autor:** Julio Cesar Eyras (J.C.E.) / Eyras Sistemas e Soluções  
+**Licença:** proprietária — todos os direitos reservados.
+
 ---
 
 ## 1. O que o sistema resolve

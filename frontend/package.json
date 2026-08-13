@@ -2,6 +2,8 @@
   "name": "smart-signage-frontend",
   "version": "2.1.21",
   "description": "Smart Signage Frontend - Interface administrativa",
+  "author": "Julio Cesar Eyras (J.C.E.) / Eyras Sistemas e Soluções",
+  "license": "UNLICENSED",
   "private": true,
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",

@@ -25,8 +25,9 @@
     "business",
     "professional"
   ],
-  "author": "Smart Signage Solutions",
-  "license": "MIT",
+  "author": "Julio Cesar Eyras (J.C.E.) / Eyras Sistemas e Soluções",
+  "license": "UNLICENSED",
+  "private": true,
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=9.0.0"

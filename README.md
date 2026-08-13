@@ -5,6 +5,8 @@ Plataforma de sinalização digital (digital signage) para gerir organizações,
 **Repositório:** https://github.com/Julio-Eyras/TotemDigital-Studio.git  
 **Branch operacional / default:** `main`  
 **Produção:** https://totemdigital.app.br  
+**Autor:** Julio Cesar Eyras (J.C.E.) / Eyras Sistemas e Soluções  
+**Licença:** proprietária — todos os direitos reservados (ver [LICENSE](./LICENSE))  
 
 ---
 
@@ -117,3 +119,12 @@ Assistente de campo: `Instala-Player-TotemDigital.apk` (pergunta se altera logos
 bash scripts/Instala-TotemDigital-Server.sh --ajuda
 bash scripts/backup-totemdigital-prod.sh --ajuda
 ```
+
+---
+
+## Autor e licença
+
+**Autor / titular:** Julio Cesar Eyras (J.C.E.) — Eyras Sistemas e Soluções  
+
+Software **proprietário**. Todos os direitos reservados. Sem autorização escrita
+não há permissão de cópia, distribuição ou sublicenciamento. Texto integral: [LICENSE](./LICENSE).

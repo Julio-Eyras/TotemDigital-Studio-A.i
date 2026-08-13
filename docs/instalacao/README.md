@@ -4,6 +4,8 @@ Documentação de referência para instalar, atualizar, reparar, apagar e recupe
 
 **Script oficial do servidor:** `scripts/Instala-TotemDigital-Server.sh`  
 **Branch operacional principal:** `main`  
+**Autor:** Julio Cesar Eyras (J.C.E.) / Eyras Sistemas e Soluções  
+**Licença:** proprietária — todos os direitos reservados ([LICENSE](../../LICENSE))  
 **Executar como:** utilizador normal com acesso a `sudo` (não iniciar com `sudo bash`)
 
 ## Baseline operacional
