@@ -2,12 +2,21 @@ import express from 'express';
 import request from 'supertest';
 
 const mockFindFirst = jest.fn();
+const mockFindMany = jest.fn();
 const mockExecuteRaw = jest.fn();
 
 jest.mock('../../../config/database', () => ({
   getDatabase: () => ({
     findFirst: mockFindFirst,
+    findMany: mockFindMany,
     executeRaw: mockExecuteRaw,
+  }),
+}));
+
+jest.mock('../../../services/otaUpdateService', () => ({
+  getOTAUpdateService: () => ({
+    createUpdate: jest.fn(),
+    activateUpdate: jest.fn(),
   }),
 }));
 
@@ -47,6 +56,7 @@ async function buildApp() {
 describe('central APK', () => {
   beforeEach(() => {
     mockFindFirst.mockReset();
+    mockFindMany.mockReset();
     mockExecuteRaw.mockReset();
   });
 
@@ -108,5 +118,31 @@ describe('central APK', () => {
     expect(denied.status).toBe(403);
     expect(allowed.status).toBe(200);
     expect(mockExecuteRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('não rebenta com schema em falta — devolve data null', async () => {
+    mockFindFirst.mockRejectedValueOnce(Object.assign(new Error('relation does not exist'), { code: '42P01' }));
+
+    const response = await request(await buildApp())
+      .get('/api/player-apk/designated')
+      .set('Authorization', 'Bearer operator');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ success: true, schemaReady: false, data: null });
+  });
+
+  it('lista candidatos Android para administrador', async () => {
+    mockFindMany.mockResolvedValueOnce([
+      { id: 9, version: '2.12', version_code: 112, status: 'draft', file_size: 10 },
+    ]);
+
+    const response = await request(await buildApp())
+      .get('/api/player-apk/candidates')
+      .set('Authorization', 'Bearer admin');
+
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual([
+      expect.objectContaining({ id: 9, version: '2.12', versionCode: 112 }),
+    ]);
   });
 });

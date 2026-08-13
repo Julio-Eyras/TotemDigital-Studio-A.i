@@ -19,6 +19,7 @@ REPO = Path(__file__).resolve().parents[1]
 
 COMPLETE_DOC_SECTIONS: list[tuple[Path, str]] = [
     (REPO / "docs" / "hardware" / "1-PAGER-EXECUTIVO.md", "1-pager executivo"),
+    (REPO / "docs" / "hardware" / "HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md", "Homologação TV box — Player-AD 2.12"),
     (REPO / "docs" / "hardware" / "STATUS-PROJETO-TVBOX.md", "Status do projeto"),
     (REPO / "docs" / "hardware" / "README.md", "Índice e estrutura da documentação"),
     (REPO / "Player-AD" / "docs" / "MANUAL-OPERACIONAL-TVBOX.md", "Player-AD — Manual operacional TV box"),
@@ -36,6 +37,7 @@ PAGER_PDF = REPO / "docs" / "hardware" / "1-PAGER-EXECUTIVO.pdf"
 
 INDIVIDUAL_DOCS = [
     (REPO / "docs" / "hardware" / "1-PAGER-EXECUTIVO.md", PAGER_PDF, "Totem Digital — 1-pager"),
+    (REPO / "docs" / "hardware" / "HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md", REPO / "docs" / "hardware" / "HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.pdf", "Homologacao TV box Player-AD 2.12"),
     (REPO / "Player-AD" / "docs" / "MANUAL-OPERACIONAL-TVBOX.md", REPO / "docs" / "hardware" / "MANUAL-OPERACIONAL-TVBOX.pdf", "Manual Operacional TV Box"),
     (REPO / "docs" / "hardware" / "TOTEM-ODM-SPEC-v1.md", REPO / "docs" / "hardware" / "TOTEM-ODM-SPEC-v1.pdf", "Spec ODM v1"),
     (REPO / "docs" / "hardware" / "SOC-BOOT-PATHS.md", REPO / "docs" / "hardware" / "SOC-BOOT-PATHS.pdf", "SoC Boot Paths"),
@@ -99,6 +101,7 @@ docs/
     ├── README.md
     ├── STATUS-PROJETO-TVBOX.md
     ├── 1-PAGER-EXECUTIVO.md
+    ├── HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md
     ├── IMPORTACAO-BRASIL.md
     ├── TV_BOX_3-SPEC.md
     ├── SOC-BOOT-PATHS.md

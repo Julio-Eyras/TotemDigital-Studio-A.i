@@ -20,7 +20,7 @@ DOCS = [
     (
         REPO / "docs" / "AVALIACAO-COMERCIAL-PRODUTO-TOTEMDIGITAL-STUDIO-2026-07.md",
         REPO / "docs" / "AVALIACAO-COMERCIAL-PRODUTO-TOTEMDIGITAL-STUDIO-2026-07.pdf",
-        "TotemDigital Studio — Avaliação Comercial e de Produto (v1.1)",
+        "TotemDigital Studio — Avaliação Comercial e de Produto (v1.1.3)",
     ),
     (
         REPO / "docs" / "manuais" / "06-APRESENTACAO-COMERCIAL-SAAS.md",

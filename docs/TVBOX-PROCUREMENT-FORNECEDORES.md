@@ -156,7 +156,7 @@ Ordem sugerida para Totem Digital (Player-AD + portrait + boot custom):
 
 | Modelo | Status |
 |--------|--------|
-| **TV_BOX_3** (`dolphin-fvd-p1`) | Em produção; Player-AD v1.33 OK |
+| **TV_BOX_3** (`dolphin-fvd-p1`) | **PASS campo 13/08/2026** Player-AD 2.12 ([checklist](./hardware/HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md)) |
 
 ---
 

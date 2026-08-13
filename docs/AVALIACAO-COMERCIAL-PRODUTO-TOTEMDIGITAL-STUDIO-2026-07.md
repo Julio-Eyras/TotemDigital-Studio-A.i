@@ -1,7 +1,7 @@
 # TotemDigital Studio — Avaliação Comercial e de Produto
 
-**Versão do documento:** 1.1  
-**Data:** 12 de agosto de 2026  
+**Versão do documento:** 1.1.3  
+**Data:** 13 de agosto de 2026  
 **Origem:** v1.0 (23/07/2026) — actualizado ao eixo operacional `main`  
 **Repositório:** [Julio-Eyras/TotemDigital-Studio](https://github.com/Julio-Eyras/TotemDigital-Studio)  
 **Branch de referência / default:** `main`  
@@ -399,7 +399,7 @@ Ordem recomendada de **foco de receita** (do mais próximo ao mais estratégico)
 2. Corrigir gate owner_system (código)          ← feito
 3. Preço piloto + one-pager                     ← piloto Direct ago/2026 (mercado BR/LatAm)
 4. Roteiro demo 15 min + PDFs de telas          ← feito (ago/2026)
-5. Kit 2.12 versionado + 1 TV box homologada    ← campo
+5. Kit 2.12 versionado + 1 TV box homologada    ← feito (TV_BOX_3 PASS campo 13/08/2026)
 6. Wizard / checklist 1ª publicação (Direct)    ← feito (ago/2026)
 7. Templates cardápio                           ← P1, após 5–10 pilotos
 8. Lite/Pro só como upsell documentado
@@ -422,7 +422,7 @@ O eixo operacional é **`main`** (produção `totemdigital.app.br`). O risco pri
 | Publicar em Totem (Direct) | Pronto para oferta P0 — telas 01–09 documentadas |
 | Biblioteca de mídias | Pronto — telas 10–14 |
 | Organização / locais / totens / usuários | Pronto — telas 15–19 |
-| Player-AD 2.12 + pendrive + APK instalador | Pronto (Wi‑Fi local + remoto) |
+| Player-AD 2.12 + pendrive + APK instalador | Kit versionado; **TV_BOX_3 PASS campo** (2.12 / 112) |
 | Controlo remoto / schedule | Pronto / em consolidação |
 | Dispatcher (gerir / monitor / debug) | Diferencial operador (P1–P2); menu + Settings hub para owner/admin |
 | Complementos (modo Direct/Lite/Pro) | Crítico para ops; `owner_system` / `admin_sql` |
@@ -448,8 +448,9 @@ O eixo operacional é **`main`** (produção `totemdigital.app.br`). O risco pri
 | Visão de produto | [`docs/PRODUCT_VISION_TOTEM_DIGITAL_V3X.md`](./PRODUCT_VISION_TOTEM_DIGITAL_V3X.md) |
 | Handoff continuidade (jul/2026) | [`docs/HANDOFF-CONTINUIDADE-PRODUTO-2026-07-21.md`](./HANDOFF-CONTINUIDADE-PRODUTO-2026-07-21.md) |
 | Hardware 1-pager | [`docs/hardware/1-PAGER-EXECUTIVO.md`](./hardware/1-PAGER-EXECUTIVO.md) |
+| Homologação TV box (Player-AD 2.12) | [`docs/hardware/HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md`](./hardware/HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md) · [PDF](./hardware/HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.pdf) |
+| Kit pendrive (2.12 pinado) | [`install-pendrive/KIT-VERSION.txt`](../install-pendrive/KIT-VERSION.txt) · [`README`](../install-pendrive/README.md) |
 | Análise billing | [`docs/ANALISE_BILLING_MODELO_NEGOCIO.md`](./ANALISE_BILLING_MODELO_NEGOCIO.md) |
-| Kit pendrive | [`install-pendrive/README.md`](../install-pendrive/README.md) |
 | README raiz | [`README.md`](../README.md) |
 | Doc comercial-técnico jan/2026 | [`DOCUMENTACAO-COMERCIAL-TECNICA.md`](./DOCUMENTACAO-COMERCIAL-TECNICA.md) — **obsoleto para proposta** |
 
@@ -462,6 +463,8 @@ O eixo operacional é **`main`** (produção `totemdigital.app.br`). O risco pri
 | 1.0 | 23/07/2026 | Avaliação inicial; branch `SmartSignage-direc-totem`. |
 | 1.1 | 12/08/2026 | Eixo `main`; Direct/Lite/Pro; Player-AD 2.12 (Wi‑Fi, instalador APK); HDMI-CEC fora; licença proprietária; glossário SKU; riscos de gate e docs antigos; anexos e manuais de telas. |
 | 1.1.1 | 13/08/2026 | Preço piloto Direct ancorado em mercado BR/LatAm (R$ 89/tela; Kit R$ 1.290). Fonte: `PRECOS-PILOTO-MERCADO-2026-08.md`. |
+| 1.1.2 | 13/08/2026 | Kit pendrive pinado em Player-AD 2.12 (112); checklist homologação TV box (1 SKU PASS ainda é campo). |
+| 1.1.3 | 13/08/2026 | Homologação física em campo: **TV_BOX_3 PASS** (Player-AD 2.12 / 112). Item 5 fechado. |
 
 ---
 

@@ -72,7 +72,7 @@ Fonte de mercado: [`PRECOS-PILOTO-MERCADO-2026-08.md`](./PRECOS-PILOTO-MERCADO-2
 |----------|--|
 | Site | totemdigital.site |
 | Produto | TotemDigital · SmartSignage Studio |
-| Player | Player-AD (Android) |
+| Player | Player-AD **2.12** (Android) · kit `install-pendrive` |
 
 ---
 

@@ -266,6 +266,8 @@ const Settings: React.FC = () => {
     (role === 'owner_system' || role === 'admin' || role === 'admin_sql') &&
     canAccess(role, '/users', user?.flags ?? undefined);
   const canManageOta = !!role && canAccess(role, '/ota-updates', user?.flags ?? undefined);
+  const canDesignateApk =
+    !!role && ['owner_system', 'admin_sql', 'admin'].includes(role);
   const canDownloadApk =
     !!role &&
     ['owner_system', 'admin_sql', 'admin', 'operator', 'operador_tecnico'].includes(role);
@@ -673,7 +675,11 @@ const Settings: React.FC = () => {
       </TabPanel>
 
       <TabPanel value={tabValue} index={sectionIndex.apk ?? -1}>
-        <PlayerApkSettings canManageOta={canManageOta} canDownloadApk={canDownloadApk} />
+        <PlayerApkSettings
+          canManageOta={canManageOta}
+          canDownloadApk={canDownloadApk}
+          canDesignateApk={canDesignateApk}
+        />
       </TabPanel>
 
       {sectionIndex.financial != null && (

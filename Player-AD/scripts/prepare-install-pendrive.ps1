@@ -56,19 +56,46 @@ if (Test-Path $CfgSrc) {
   Write-Host "OK config: exemplo-player-config.json atualizado"
 }
 
-# Atualizar versao no LEIA-ME se existir versionName no build.gradle
+# Atualizar versao no LEIA-ME e KIT-VERSION.txt a partir do build.gradle
 $Gradle = Get-Content (Join-Path $PlayerDir 'build.gradle') -Raw
-if ($Gradle -match "versionName\s+'([^']+)'") {
-  $ver = $Matches[1]
-  $code = if ($Gradle -match 'versionCode\s+(\d+)') { $Matches[1] } else { '?' }
-  $leia = Join-Path $Dest 'LEIA-ME.txt'
-  if (Test-Path $leia) {
-    $txt = Get-Content $leia -Raw
-    $txt = [regex]::Replace($txt, 'Player-AD\s+[\d.]+ \(versionCode \d+\)', "Player-AD $ver (versionCode $code)")
-    Set-Content -Path $leia -Value $txt -NoNewline -Encoding UTF8
-    Write-Host "OK LEIA-ME: Player-AD $ver (versionCode $code)"
-  }
+$ver = if ($Gradle -match "versionName\s+'([^']+)'") { $Matches[1] } else { '?' }
+$code = if ($Gradle -match 'versionCode\s+(\d+)') { $Matches[1] } else { '?' }
+$feVer = '?'
+$beVer = '?'
+$fePkg = Join-Path $RepoRoot 'frontend\package.json'
+$bePkg = Join-Path $RepoRoot 'backend\package.json'
+if (Test-Path $fePkg) {
+  $feJson = Get-Content $fePkg -Raw | ConvertFrom-Json
+  if ($feJson.version) { $feVer = $feJson.version }
 }
+if (Test-Path $bePkg) {
+  $beJson = Get-Content $bePkg -Raw | ConvertFrom-Json
+  if ($beJson.version) { $beVer = $beJson.version }
+}
+$leia = Join-Path $Dest 'LEIA-ME.txt'
+if (Test-Path $leia) {
+  $txt = Get-Content $leia -Raw
+  $txt = [regex]::Replace($txt, 'Player-AD\s+[\d.]+ \(versionCode \d+\)', "Player-AD $ver (versionCode $code)")
+  $txt = [regex]::Replace($txt, 'Front [\d.]+ / Back [\d.]+', "Front $feVer / Back $beVer")
+  Set-Content -Path $leia -Value $txt -NoNewline -Encoding UTF8
+  Write-Host "OK LEIA-ME: Player-AD $ver (versionCode $code)"
+}
+$kitVer = Join-Path $Dest 'KIT-VERSION.txt'
+$today = Get-Date -Format 'yyyy-MM-dd'
+@"
+TotemDigital — Kit de campo (pendrive)
+Player-AD:     $ver (versionCode $code)
+Painel:        Front $feVer / Back $beVer
+Branch:        main
+Data kit:      $today
+Homologação:   docs/hardware/HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md
+Campo:         TV_BOX_3 PASS 2026-08-13 (Player-AD 2.12 / 112)
+
+Regenerar (com APK release compilado):
+  cd Player-AD
+  .\scripts\prepare-install-pendrive.ps1 -Rebuild
+"@ | Set-Content -Path $kitVer -Encoding UTF8
+Write-Host "OK KIT-VERSION.txt: Player-AD $ver ($code) · FE $feVer · BE $beVer"
 
 Write-Host ""
 Write-Host "Kit pronto em: $Dest"

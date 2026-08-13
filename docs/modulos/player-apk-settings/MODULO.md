@@ -9,7 +9,7 @@
 | **API** | `/api/player-apk` |
 | **Status** | active |
 | **Profundidade** | L2 |
-| **Última revisão** | 2026-08-09 |
+| **Última revisão** | 2026-08-13 |
 
 ---
 
@@ -19,9 +19,10 @@
 Designar o APK oficial por canal (`production`|`testing`), download autenticado e documentos do Player.
 
 ### Dentro do escopo
-- GET designated / POST designate
+- GET designated / POST designate / GET candidates / POST upload
 - Download do APK designado
 - Documentos markdown (`docs/player-apk`)
+- Em **Direct**, o módulo OTA está off: a aba Settings → APK é a via oficial (upload + designar)
 
 ### Fora do escopo
 - Ciclo de vida completo OTA admin (`ota-updates`)
@@ -45,6 +46,8 @@ Designar o APK oficial por canal (`production`|`testing`), download autenticado 
 | REQ-APK-003 | Unwanted | Subscriber não deve descarregar o APK. |
 | REQ-APK-004 | Ubiquitous | Download e docs exigem JWT + role adequada. |
 | REQ-APK-005 | Optional | Canal omitido deve defaultar a `production`. |
+| REQ-APK-006 | Ubiquitous | Em Direct, owner/admin deve poder designar o APK sem o módulo OTA. |
+| REQ-APK-007 | Unwanted | Schema em falta (`player_release_channels`) não deve devolver 500 no GET designated. |
 
 ---
 

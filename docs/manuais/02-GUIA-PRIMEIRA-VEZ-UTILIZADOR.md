@@ -36,7 +36,8 @@ No home **Publicar em Totem** o painel mostra o checklist **Primeira publicaçã
 3. **Totem** → **+ Novo totem** e anotar o UIN  
 4. **Biblioteca Mídias** → carregar vídeo/imagem  
 5. **Publicar no totem** → no card, **Mídia** → biblioteca  
-6. No player: `serverUrl` aponta para o servidor; UIN correcto → deve receber o plano (card **Online**)
+6. No player: `serverUrl` aponta para o servidor; UIN correcto → deve receber o plano (card **Online**)  
+   Kit de campo: Player-AD **2.12 (112)** — [`install-pendrive/KIT-VERSION.txt`](../../install-pendrive/KIT-VERSION.txt). Box de referência: **TV_BOX_3 PASS campo** — [`HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md`](../hardware/HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md).
 
 ---
 

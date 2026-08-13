@@ -2,7 +2,7 @@
 
 Dispositivo em uso no projeto. Completar campos marcados **(confirmar via ADB)** quando a box estiver conectada.
 
-**Última validação Player-AD:** v1.33 (jul/2026)
+**Última validação Player-AD:** **2.12 / 112 — PASS campo 13/08/2026** ([HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md](./HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md)). Lab jul/2026: v1.33.
 
 ---
 
@@ -53,7 +53,7 @@ adb shell "ip link show eth0 2>/dev/null || echo sem eth0"
 | `accelerometer_rotation` | 0 (fixo) |
 | Bootanimation custom | `/system/media/bootanimation.zip` (1080×1920 portrait) |
 | Bootlogo custom | `/dev/block/mmcblk0p2` → `bootlogo.bmp` 1280×720 |
-| Player-AD | v1.33, portrait, rotação mídia via TextureView |
+| Player-AD | **2.12 / 112 PASS campo** (13/08/2026). Histórico lab: v1.33 (jul/2026) |
 | Kiosk | strong + lock-task parcial |
 
 ---
@@ -91,3 +91,5 @@ Ver planilha: [TVBOX-PROCUREMENT-COMPARISON.csv](../TVBOX-PROCUREMENT-COMPARISON
 | 2026-07 | Bootlogo Allwinner instalado (1280×720) |
 | 2026-07 | Bootanimation portrait TotemDigital (texto 270° + linha amarela) |
 | 2026-07 | Player-AD v1.33 — rotação automática mídia (TextureView) |
+| 2026-08 | Kit campo pinado em Player-AD 2.12 (112); checklist de homologação Kit Pronto |
+| 2026-08-13 | **Homologação física em campo: PASS** (Player-AD 2.12 / 112) — 1 SKU Kit Pronto |

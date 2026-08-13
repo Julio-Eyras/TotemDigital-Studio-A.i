@@ -13,6 +13,7 @@
 | SoC boot paths | [SOC-BOOT-PATHS.md](./SOC-BOOT-PATHS.md) | [SOC-BOOT-PATHS.pdf](./SOC-BOOT-PATHS.pdf) |
 | Importação Brasil | [IMPORTACAO-BRASIL.md](./IMPORTACAO-BRASIL.md) | [IMPORTACAO-BRASIL.pdf](./IMPORTACAO-BRASIL.pdf) |
 | 1-pager executivo | [1-PAGER-EXECUTIVO.md](./1-PAGER-EXECUTIVO.md) | [1-PAGER-EXECUTIVO.pdf](./1-PAGER-EXECUTIVO.pdf) |
+| Homologação Player-AD 2.12 (Kit Pronto) | [HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md](./HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md) | [HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.pdf](./HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.pdf) |
 | Status projeto | [STATUS-PROJETO-TVBOX.md](./STATUS-PROJETO-TVBOX.md) | (incluído no PDF completo) |
 | Spec ODM v1 | [TOTEM-ODM-SPEC-v1.md](./TOTEM-ODM-SPEC-v1.md) | [TOTEM-ODM-SPEC-v1.pdf](./TOTEM-ODM-SPEC-v1.pdf) |
 | E-mails outreach | [../procurement-emails/](../procurement-emails/) | 5 arquivos .txt prontos |
@@ -56,6 +57,7 @@ python scripts/md_to_pdf.py Player-AD/docs/MANUAL-OPERACIONAL-TVBOX.md -o docs/h
 | 5 | Importação BR / custo landed | **Feito** — [IMPORTACAO-BRASIL.md](./IMPORTACAO-BRASIL.md) |
 | 6 | PDF / 1-pager executivo | **Feito** |
 | 1 | Cotações / amostras | E-mails prontos: [procurement-emails/](../procurement-emails/) |
+| 7 | Kit 2.12 versionado + 1 TV box homologada | **Feito** — TV_BOX_3 PASS campo 13/08/2026 |
 
 ---
 

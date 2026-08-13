@@ -10,6 +10,7 @@ import {
   CircularProgress,
   Grid,
   Stack,
+  TextField,
   Typography,
 } from '@mui/material';
 import {
@@ -19,9 +20,11 @@ import {
   OpenInNew,
   Refresh,
   SystemUpdateAlt,
+  Upload,
 } from '@mui/icons-material';
 import { Link as RouterLink } from 'react-router-dom';
 import {
+  PlayerApkCandidate,
   PlayerApkDocument,
   PlayerApkRelease,
   playerApkApi,
@@ -31,6 +34,7 @@ import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 interface Props {
   canManageOta: boolean;
   canDownloadApk: boolean;
+  canDesignateApk: boolean;
 }
 
 function bytesLabel(value: number): string {
@@ -62,29 +66,50 @@ function saveBlob(blob: Blob, filename: string): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 
-const PlayerApkSettings: React.FC<Props> = ({ canManageOta, canDownloadApk }) => {
+const PlayerApkSettings: React.FC<Props> = ({
+  canManageOta,
+  canDownloadApk,
+  canDesignateApk,
+}) => {
   const [release, setRelease] = useState<PlayerApkRelease | null>(null);
+  const [candidates, setCandidates] = useState<PlayerApkCandidate[]>([]);
   const [documents, setDocuments] = useState<PlayerApkDocument[]>([]);
+  const [schemaReady, setSchemaReady] = useState(true);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [version, setVersion] = useState('2.12');
+  const [versionCode, setVersionCode] = useState('112');
+  const [apkFile, setApkFile] = useState<File | null>(null);
 
   const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
-      const [nextRelease, nextDocuments] = await Promise.all([
-        canDownloadApk ? playerApkApi.getDesignated() : Promise.resolve(null),
-        playerApkApi.getDocuments(),
+      const docsPromise = playerApkApi.getDocuments().catch(() => [] as PlayerApkDocument[]);
+      const designatedPromise = canDownloadApk
+        ? playerApkApi.getDesignated()
+        : Promise.resolve({ release: null, schemaReady: true });
+      const candidatesPromise = canDesignateApk
+        ? playerApkApi.listCandidates().catch(() => ({ candidates: [], schemaReady: true }))
+        : Promise.resolve({ candidates: [], schemaReady: true });
+
+      const [nextDocuments, designated, nextCandidates] = await Promise.all([
+        docsPromise,
+        designatedPromise,
+        candidatesPromise,
       ]);
-      setRelease(nextRelease);
+
       setDocuments(nextDocuments);
+      setRelease(designated.release);
+      setCandidates(nextCandidates.candidates);
+      setSchemaReady(designated.schemaReady && nextCandidates.schemaReady);
     } catch (requestError) {
       setError(pickApiErrorMessage(requestError, 'Não foi possível carregar a central APK'));
     } finally {
       setLoading(false);
     }
-  }, [canDownloadApk]);
+  }, [canDownloadApk, canDesignateApk]);
 
   useEffect(() => {
     void load();
@@ -99,6 +124,42 @@ const PlayerApkSettings: React.FC<Props> = ({ canManageOta, canDownloadApk }) =>
       saveBlob(blob, release.originalFilename || `Player-AD-${release.version}.apk`);
     } catch (requestError) {
       setError(pickApiErrorMessage(requestError, 'Não foi possível baixar o APK'));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const designate = async (updateId: number) => {
+    try {
+      setBusy(`designate-${updateId}`);
+      setError(null);
+      await playerApkApi.designate(updateId);
+      await load();
+    } catch (requestError) {
+      setError(pickApiErrorMessage(requestError, 'Não foi possível designar o APK'));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const uploadOfficial = async () => {
+    if (!apkFile) {
+      setError('Escolha o ficheiro Player-AD-release.apk');
+      return;
+    }
+    const code = versionCode.trim() ? Number(versionCode) : undefined;
+    if (code != null && (!Number.isInteger(code) || code < 1)) {
+      setError('versionCode deve ser um inteiro positivo (ex.: 112)');
+      return;
+    }
+    try {
+      setBusy('upload');
+      setError(null);
+      await playerApkApi.uploadOfficial(apkFile, version.trim() || '2.12', code);
+      setApkFile(null);
+      await load();
+    } catch (requestError) {
+      setError(pickApiErrorMessage(requestError, 'Não foi possível enviar o APK'));
     } finally {
       setBusy(null);
     }
@@ -144,6 +205,13 @@ const PlayerApkSettings: React.FC<Props> = ({ canManageOta, canDownloadApk }) =>
       </Box>
 
       {error && <Alert severity="error">{error}</Alert>}
+
+      {!schemaReady && (
+        <Alert severity="error">
+          Schema desatualizado: falta a tabela <strong>player_release_channels</strong> (ou colunas OTA).
+          Em DEV/prod corra a actualização da instalação (<code>--modo atualizar</code>) e volte a esta aba.
+        </Alert>
+      )}
 
       {!canDownloadApk ? (
         <Alert severity="info">
@@ -199,8 +267,89 @@ const PlayerApkSettings: React.FC<Props> = ({ canManageOta, canDownloadApk }) =>
       ) : (
         <Alert severity="warning">
           Nenhum APK Android foi designado para produção.
-          {canManageOta ? ' Ative uma versão no gerenciamento OTA para torná-la oficial.' : ''}
+          {canDesignateApk
+            ? ' Envie o Player-AD 2.12 abaixo (funciona em Direct, sem o módulo OTA).'
+            : ''}
         </Alert>
+      )}
+
+      {canDesignateApk && schemaReady && (
+        <Card variant="outlined">
+          <CardContent>
+            <Typography variant="h6" fontWeight={700} gutterBottom>
+              Designar Player-AD oficial
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Em modo Direct o menu OTA está desligado de propósito. Esta aba é a fonte oficial do APK
+              (kit 2.12 / 112). O ficheiro fica em <code>uploads/ota-updates</code> no servidor.
+            </Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }}>
+              <TextField
+                size="small"
+                label="Versão"
+                value={version}
+                onChange={(event) => setVersion(event.target.value)}
+                sx={{ maxWidth: 140 }}
+              />
+              <TextField
+                size="small"
+                label="versionCode"
+                value={versionCode}
+                onChange={(event) => setVersionCode(event.target.value)}
+                sx={{ maxWidth: 140 }}
+              />
+              <Button variant="outlined" component="label" startIcon={<Upload />}>
+                {apkFile ? apkFile.name : 'Escolher .apk'}
+                <input
+                  hidden
+                  type="file"
+                  accept=".apk,application/vnd.android.package-archive"
+                  onChange={(event) => setApkFile(event.target.files?.[0] || null)}
+                />
+              </Button>
+              <Button
+                variant="contained"
+                disabled={busy === 'upload' || !apkFile}
+                startIcon={busy === 'upload' ? <CircularProgress size={16} color="inherit" /> : <Upload />}
+                onClick={() => void uploadOfficial()}
+              >
+                Enviar e designar
+              </Button>
+            </Stack>
+            {candidates.length > 0 && (
+              <Box sx={{ mt: 3 }}>
+                <Typography variant="subtitle2" gutterBottom>Pacotes já no servidor</Typography>
+                <Stack spacing={1}>
+                  {candidates.map((candidate) => (
+                    <Stack
+                      key={candidate.id}
+                      direction={{ xs: 'column', sm: 'row' }}
+                      spacing={1}
+                      alignItems={{ sm: 'center' }}
+                      justifyContent="space-between"
+                    >
+                      <Typography variant="body2">
+                        Player-AD {candidate.version}
+                        {candidate.versionCode ? ` · ${candidate.versionCode}` : ''}
+                        {' · '}
+                        {candidate.status}
+                        {' · '}
+                        {bytesLabel(candidate.fileSize)}
+                      </Typography>
+                      <Button
+                        size="small"
+                        disabled={busy === `designate-${candidate.id}` || release?.id === candidate.id}
+                        onClick={() => void designate(candidate.id)}
+                      >
+                        {release?.id === candidate.id ? 'Oficial' : 'Designar oficial'}
+                      </Button>
+                    </Stack>
+                  ))}
+                </Stack>
+              </Box>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       <Box>

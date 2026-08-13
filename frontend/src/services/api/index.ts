@@ -2429,12 +2429,52 @@ export interface PlayerApkDocument {
   url: string;
 }
 
+export interface PlayerApkCandidate {
+  id: number;
+  version: string;
+  versionCode?: number;
+  status: string;
+  fileSize: number;
+  checksum?: string;
+  originalFilename?: string;
+  createdAt?: string;
+  releasedAt?: string;
+}
+
 export const playerApkApi = {
   getDesignated: async (
     channel: 'production' | 'testing' = 'production',
-  ): Promise<PlayerApkRelease | null> => {
+  ): Promise<{ release: PlayerApkRelease | null; schemaReady: boolean }> => {
     const response = await api.get('/player-apk/designated', { params: { channel } });
-    return response.data?.data ?? null;
+    return {
+      release: response.data?.data ?? null,
+      schemaReady: response.data?.schemaReady !== false,
+    };
+  },
+
+  listCandidates: async (): Promise<{ candidates: PlayerApkCandidate[]; schemaReady: boolean }> => {
+    const response = await api.get('/player-apk/candidates');
+    return {
+      candidates: response.data?.data ?? [],
+      schemaReady: response.data?.schemaReady !== false,
+    };
+  },
+
+  designate: async (
+    updateId: number,
+    channel: 'production' | 'testing' = 'production',
+  ): Promise<void> => {
+    await api.post('/player-apk/designate', { updateId, channel });
+  },
+
+  uploadOfficial: async (file: File, version: string, versionCode?: number): Promise<void> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('version', version);
+    if (versionCode) formData.append('versionCode', String(versionCode));
+    await api.post('/player-apk/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
   },
 
   getDocuments: async (): Promise<PlayerApkDocument[]> => {

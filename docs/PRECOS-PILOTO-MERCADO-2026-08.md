@@ -41,7 +41,7 @@ TotemDigital vende **sinalização / cardápio em TV + TV box**, não totem de *
 | Faixa | Preço varejo | Uso |
 |-------|--------------|-----|
 | Box genérica (MXQ etc.) | ~R$ 70–180 | PlayTVi cita “a partir de R$ 90”. **Frágil 24/7** — não homologar. |
-| Box Android “boa” 4K (varejo decente) | ~R$ 200–450 custo | Base do **Kit Pronto** até haver SKU homologado. |
+| Box Android “boa” 4K (varejo decente) | ~R$ 200–450 custo | Alternativa de lote; referência homologada = **TV_BOX_3**. |
 | Totem touch / kiosk PDV | R$ 4–25 mil | Fora do Kit Pronto Direct. |
 
 Instalação + treino 1 h (visita SMB): tipicamente **R$ 400–800** mão-de-obra em capitais; menos no interior se o parceiro já está na zona.
@@ -96,4 +96,4 @@ Vigente para **piloto / 1.ª lista**. Desconto só no **setup**, nunca no MRR. A
 - Avaliação comercial §10.1 e one-pager devem **citar** estes valores.  
 - Roteiro demo 15 min: não negociar abaixo do MRR; setup pode flexionar ±15% na visita.
 
-Revisão: trimestre ou quando homologar TV box (custo real da box substitui a faixa R$ 200–450).
+Revisão: trimestre ou quando o **custo real** da TV_BOX_3 (já **PASS campo**) estiver na nota de compra — substitui a faixa R$ 200–450. Checklist: [HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md](./hardware/HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md).

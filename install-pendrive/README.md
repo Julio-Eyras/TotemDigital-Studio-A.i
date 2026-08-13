@@ -1,4 +1,7 @@
-# Kit pendrive — Player-AD (Android)
+# Kit pendrive — Player-AD 2.12 (Android)
+
+**Versão do kit:** Player-AD **2.12** (versionCode **112**) · Front 2.1.21 / Back 2.1.15 · `main`  
+Ficheiro de pin: [`KIT-VERSION.txt`](./KIT-VERSION.txt) · homologar box: [`docs/hardware/HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md`](../docs/hardware/HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md)
 
 Use esta pasta **como conteúdo raiz do pendrive** (ou copie tudo para a raiz do USB).  
 O nome da pasta no pendrive pode ser `install-pendrive` ou qualquer outro; os scripts procuram ficheiros relativos ao sítio onde estão.
@@ -7,6 +10,7 @@ O nome da pasta no pendrive pode ser `install-pendrive` ou qualquer outro; os sc
 
 ```
 install-pendrive/
+├── KIT-VERSION.txt          ← versão pinada do kit (2.12 / 112)
 ├── LEIA-ME.txt              ← início rápido
 ├── README.md                ← este ficheiro
 ├── apk/                     ← coloque aqui o APK assinado (.apk)
