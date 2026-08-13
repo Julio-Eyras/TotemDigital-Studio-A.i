@@ -1,7 +1,7 @@
 ================================================================================
   TotemDigital — Kit de instalação Player-AD (pendrive)
   App: Player-AD 2.12 (versionCode 112) — APK release (sem debug)
-  Painel: Front 2.1.21 / Back 2.1.15 · branch main
+  Painel: Front 2.1.22 / Back 2.1.16 · branch main
 ================================================================================
 
 MANUAL COMPLETO (PDF — todos os manuais num ficheiro):

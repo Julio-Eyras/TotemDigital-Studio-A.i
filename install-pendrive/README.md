@@ -1,6 +1,6 @@
 # Kit pendrive — Player-AD 2.12 (Android)
 
-**Versão do kit:** Player-AD **2.12** (versionCode **112**) · Front 2.1.21 / Back 2.1.15 · `main`  
+**Versão do kit:** Player-AD **2.12** (versionCode **112**) · Front 2.1.22 / Back 2.1.16 · `main`  
 Ficheiro de pin: [`KIT-VERSION.txt`](./KIT-VERSION.txt) · homologar box: [`docs/hardware/HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md`](../docs/hardware/HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md)
 
 Use esta pasta **como conteúdo raiz do pendrive** (ou copie tudo para a raiz do USB).  

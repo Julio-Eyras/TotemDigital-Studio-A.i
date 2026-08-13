@@ -925,6 +925,7 @@ tdi_instancia_update() {
   fi
 
   tdi_ensure_media_storage || warn "Storage de mídias não ficou alinhado — verifique media.storage.path"
+  tdi_apply_schema || return 1
   tdi_npm_install_build || return 1
   tdi_provision_instance_access || return 1
   tdi_rsync_deploy

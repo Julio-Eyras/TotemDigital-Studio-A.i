@@ -454,7 +454,7 @@ def build() -> tuple[list[dict], dict]:
         "openapi": "3.0.3",
         "info": {
             "title": "TotemDigital Studio API",
-            "version": "2.1.15",
+            "version": "2.1.16",
             "description": (
                 "Catálogo gerado automaticamente a partir dos routers Express "
                 f"({date.today().isoformat()}). Paths relativos à base `/api`. "
@@ -507,7 +507,7 @@ def write_inventory(ops: list[dict], spec: dict, covered_enhanced: set[tuple[str
     lines = [
         "# Inventário da API TotemDigital Studio",
         "",
-        f"**Gerado:** {date.today().isoformat()} · Backend **2.1.15** · branch `main`",
+        f"**Gerado:** {date.today().isoformat()} · Backend **2.1.16** · branch `main`",
         "**Autor:** Julio Cesar Eyras (J.C.E.) / Eyras Sistemas e Soluções",
         "",
         "Fonte: routers em `backend/src/routes/` montados em "

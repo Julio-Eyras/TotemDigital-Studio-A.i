@@ -327,8 +327,8 @@ bash scripts/restore-totemdigital-prod.sh --ajuda
 
 ```text
 Branch:    main (default no GitHub)
-Frontend:  2.1.21
-Backend:   2.1.15
+Frontend:  2.1.22
+Backend:   2.1.16
 Player-AD: 2.12 / 112
 Commit:    cf7260bb
 ```

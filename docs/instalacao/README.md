@@ -11,8 +11,8 @@ Documentação de referência para instalar, atualizar, reparar, apagar e recupe
 ## Baseline operacional
 
 ```text
-Frontend:  2.1.21
-Backend:   2.1.15
+Frontend:  2.1.22
+Backend:   2.1.16
 Player-AD: 2.12 (build 112)
 Commit funcional validado: cf7260bb
 Destino / default no GitHub: main

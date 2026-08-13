@@ -15,8 +15,8 @@
 
 | Componente | Versão |
 |------------|--------|
-| Frontend | 2.1.21 |
-| Backend | 2.1.15 |
+| Frontend | 2.1.22 |
+| Backend | 2.1.16 |
 | Player-AD (Android) | 2.12 (build 112) |
 
 Um código, **três modos** — nunca Direct Totem e multi-agência ao mesmo tempo:

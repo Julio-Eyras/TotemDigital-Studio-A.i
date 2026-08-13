@@ -7,7 +7,7 @@
 > - Avaliação comercial v1.1 — [`AVALIACAO-COMERCIAL-PRODUTO-TOTEMDIGITAL-STUDIO-2026-07.md`](./AVALIACAO-COMERCIAL-PRODUTO-TOTEMDIGITAL-STUDIO-2026-07.md)
 > - Pitch SaaS / rede (upsell) — [`manuais/06-APRESENTACAO-COMERCIAL-SAAS.md`](./manuais/06-APRESENTACAO-COMERCIAL-SAAS.md)
 > - Licença: **proprietária** ([LICENSE](../LICENSE) · [NOTICE](../NOTICE)) — Julio Cesar Eyras / Eyras Sistemas e Soluções  
-> - Baseline: `main` · FE 2.1.21 · BE 2.1.15 · Player-AD 2.12 (112)  
+> - Baseline: `main` · FE 2.1.22 · BE 2.1.16 · Player-AD 2.12 (112)  
 >
 > Manter apenas como arquivo histórico / ideias técnicas. Não anexar a orçamento nem a landing.  
 > **PDF (histórico):** [DOCUMENTACAO-COMERCIAL-TECNICA.pdf](./DOCUMENTACAO-COMERCIAL-TECNICA.pdf)

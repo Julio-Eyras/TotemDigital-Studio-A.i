@@ -3,7 +3,7 @@
 **Público:** vendedor / instalador / dono (SMB local)  
 **Modo:** só **TotemDigital Direct** — nunca Lite/Pro nesta conversa  
 **Duração:** 15 minutos cronometrados  
-**Baseline:** Front 2.1.21 · Back 2.1.15 · Player-AD 2.12 (112) · `main`  
+**Baseline:** Front 2.1.22 · Back 2.1.16 · Player-AD 2.12 (112) · `main`  
 **Data:** 13 de agosto de 2026  
 **Autor:** Julio Cesar Eyras (J.C.E.) / Eyras Sistemas e Soluções  
 **Licença:** proprietária  
