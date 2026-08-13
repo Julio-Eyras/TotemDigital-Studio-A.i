@@ -63,34 +63,21 @@ class InstallerActivity : AppCompatActivity() {
     private fun showIntro() {
         textTitle.text = "Instala Player TotemDigital"
         textBody.text =
-            "Este assistente instala o Player-AD nesta TV Box.\n\n" +
-                "De seguida pergunta se deseja trocar os dois logos de arranque " +
-                "(Android e MBox) pelo TotemDigital.\n\n" +
-                "Logos exigem root (SuperSU → Permitir). Sem root o player instala na mesma."
-        textStatus.text = "v${BuildConfig.VERSION_NAME}  ·  Player-AD empacotado"
-        setBusy(false)
-        btnPrimary.text = "Continuar"
-        btnSecondary.text = "Sair"
-        btnPrimary.setOnClickListener { showAskLogos() }
-        btnSecondary.setOnClickListener { finish() }
-        btnPrimary.requestFocus()
-    }
-
-    private fun showAskLogos() {
-        textTitle.text = "Logos de arranque"
-        textBody.text =
-            "Deseja alterar os logos de boot?\n\n" +
-                "• Logo Android (1.º ecrã, bootloader)\n" +
-                "• Logo MBox (2.º ecrã, animação Android)\n\n" +
-                "Escolha Não se esta box não tiver root, ou se quiser só o player."
+            "Este assistente raiz faz duas coisas:\n\n" +
+                "1. Instala/atualiza o Player-AD.\n" +
+                "2. Se os logos de boot ainda não forem TotemDigital, substitui:\n" +
+                "   • Android (BMP no bootloader)\n" +
+                "   • MBox (bootanimation.zip)\n\n" +
+                "Os logos oficiais vêm dentro deste APK. Root (SuperSU → Permitir) " +
+                "é necessário para os logos. Sem root o player instala na mesma."
         textStatus.text = if (RootShell.suPresent()) {
-            "Root (su) detetado neste aparelho."
+            "v${BuildConfig.VERSION_NAME}  ·  root detetado"
         } else {
-            "Root não detetado — a opção Sim pode falhar nos logos."
+            "v${BuildConfig.VERSION_NAME}  ·  root não detetado"
         }
         setBusy(false)
-        btnPrimary.text = "Sim, alterar logos"
-        btnSecondary.text = "Não, só o player"
+        btnPrimary.text = "Continuar"
+        btnSecondary.text = "Só o player"
         btnPrimary.setOnClickListener {
             changeLogos = true
             startPlayerInstall()
@@ -161,10 +148,10 @@ class InstallerActivity : AppCompatActivity() {
     }
 
     private fun applyLogos() {
-        textTitle.text = "A alterar logos de boot"
+        textTitle.text = "A verificar logos de boot"
         textBody.text =
             "Se o SuperSU aparecer, escolha Permitir / Always.\n" +
-                "Isto grava o logo do bootloader e a animação Android."
+                "Só grava TotemDigital se o boot ainda não for TotemDigital."
         setBusy(true)
         textStatus.text = "A pedir root…"
         lifecycleScope.launch {
@@ -177,14 +164,16 @@ class InstallerActivity : AppCompatActivity() {
                 )
                 return@launch
             }
-            textStatus.text = "Root OK. A gravar logos…"
+            textStatus.text = "Root OK. A comparar com TotemDigital…"
             val report = withContext(Dispatchers.IO) { BootLogoInstaller.apply(this@InstallerActivity) }
             val summary = report.messages.joinToString("\n")
             when {
+                report.bootlogoOk && report.animationOk && !report.changedAny ->
+                    showDone("Player-AD instalado. Logos já eram TotemDigital.\n\n$summary")
                 report.bootlogoOk && report.animationOk ->
-                    showDone("Player-AD e logos TotemDigital instalados.\n\n$summary", offerReboot = true)
+                    showDone("Player-AD instalado. Logos TotemDigital gravados.\n\n$summary", offerReboot = true)
                 report.bootlogoOk || report.animationOk ->
-                    showDone("Player-AD instalado. Logos parciais:\n\n$summary", offerReboot = true)
+                    showDone("Player-AD instalado. Logos parciais:\n\n$summary", offerReboot = report.changedAny)
                 else ->
                     showDone("Player-AD instalado. Logos não gravados:\n\n$summary")
             }

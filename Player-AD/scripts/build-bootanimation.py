@@ -56,7 +56,13 @@ def _load_font(size: int):
     return ImageFont.load_default()
 
 
-def write_branded_png(path: Path, width: int, height: int, text: str) -> None:
+def write_branded_png(
+    path: Path,
+    width: int,
+    height: int,
+    text: str,
+    rotation_deg: int | None = None,
+) -> None:
     from PIL import Image, ImageDraw
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -88,7 +94,12 @@ def write_branded_png(path: Path, width: int, height: int, text: str) -> None:
         fill=ACCENT_RGB + (255,),
     )
 
-    rotated = layer.rotate(TEXT_ROTATION_DEG, expand=True, resample=Image.Resampling.BICUBIC)
+    rotation = TEXT_ROTATION_DEG if rotation_deg is None else rotation_deg
+    rotated = (
+        layer.rotate(rotation, expand=True, resample=Image.Resampling.BICUBIC)
+        if rotation
+        else layer
+    )
     if TEXT_SCALE != 1.0:
         nw = max(1, int(rotated.width * TEXT_SCALE))
         nh = max(1, int(rotated.height * TEXT_SCALE))

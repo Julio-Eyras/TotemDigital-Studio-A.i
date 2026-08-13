@@ -302,7 +302,7 @@ const PlayerApkSettings: React.FC<Props> = ({
                 <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
                   <Android color="primary" />
                   <Typography variant="h6" fontWeight={700}>Instala-Player-TotemDigital</Typography>
-                  <Chip size="small" color="primary" label="Campo · boot + player" />
+                  <Chip size="small" color="primary" label="Campo · player + logos se necessário" />
                 </Stack>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                   {installer.summary}

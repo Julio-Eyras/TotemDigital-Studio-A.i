@@ -80,7 +80,7 @@ function installerMeta(): {
     fileSize: fs.statSync(filePath).size,
     downloadUrl: '/api/player-apk/download?kind=installer',
     summary:
-      'Altera o logo de boot (root) e instala o Player-AD. O Player-AD-release.apk sozinho não muda o boot.',
+      'Instala o Player-AD e, se o boot ainda não for TotemDigital, grava os logos oficiais (BMP + bootanimation). O Player-AD-release.apk sozinho não muda o boot.',
   };
 }
 

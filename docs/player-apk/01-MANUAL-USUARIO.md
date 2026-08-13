@@ -12,7 +12,7 @@
 
 ### Assistente `Instala-Player-TotemDigital`
 
-APK separado que instala/atualiza o Player-AD e **pergunta** se deseja trocar os logos de arranque (Android + MBox → TotemDigital). Logos exigem root (SuperSU → Permitir). Ver [../instalacao/04-PLAYER-AD.md](../instalacao/04-PLAYER-AD.md).
+APK separado (raiz) que instala/atualiza o Player-AD e, se os logos de boot **ainda não forem TotemDigital**, grava o BMP oficial + `bootanimation.zip` (vêm dentro do APK). Logos exigem root (SuperSU → Permitir). Ver [../instalacao/04-PLAYER-AD.md](../instalacao/04-PLAYER-AD.md).
 
 ## Ativação
 

@@ -111,13 +111,16 @@ TESTE:    https://test.totemdigital.app.br
 
 ## 8. Instalador na TV (`Instala-Player-TotemDigital.apk`)
 
-APK assistente (não é o player). Instala o **Player-AD** e **pergunta** se deseja
-trocar os logos de arranque (Android + MBox → TotemDigital).
+APK assistente (não é o player). Com root faz **duas** coisas:
+
+1. Instala/atualiza o **Player-AD**.
+2. Se os logos de boot **ainda não forem TotemDigital**, grava os oficiais
+   empacotados no APK (`totemdigital.bmp` + `bootanimation.zip`).
 
 No painel (Definições → APK) há dois downloads:
 
 - **Player-AD-release.apk** — só o player; **não** altera o logo de boot.
-- **Instala-Player-TotemDigital.apk** — altera o logo de boot (root) e instala o Player-AD.
+- **Instala-Player-TotemDigital.apk** — player + logos TotemDigital (se ainda não forem).
 
 ```text
 Pacote: br.com.smartchannel.instalaplayer
@@ -132,11 +135,13 @@ cd C:\TotemDigital-Studio\Player-AD-Installer
 powershell -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1
 ```
 
-Na TV: instalar só este APK (fontes desconhecidas) → Continuar → **Sim** ou **Não**
-aos logos → confirmar o diálogo de instalação do Player-AD.
+Na TV: instalar só este APK (fontes desconhecidas) → **Continuar** (player + logos)
+ou **Só o player** → confirmar o diálogo de instalação do Player-AD.
 
-- **Não:** só instala/atualiza o Player-AD. Logos de fábrica ficam.
-- **Sim:** precisa de **root** (SuperSU → Permitir). Sem root o player instala na mesma.
+- **Continuar:** instala o player; com root compara o boot actual com TotemDigital
+  e só grava se for diferente (fábrica ou outro logo).
+- **Só o player:** não mexe nos logos.
+- Sem root o player instala na mesma; logos ficam.
 - Logos só aplicam de forma fiável em boxes Allwinner com `/system` gravável
   (referência TV_BOX_3). Depois escolha **Reiniciar a TV**.
 
