@@ -56,6 +56,34 @@ function isSchemaGap(error: unknown): boolean {
   return code === '42P01' || code === '42703';
 }
 
+const INSTALLER_FILENAME = 'Instala-Player-TotemDigital.apk';
+
+function resolveInstallerApkPath(): string | null {
+  const candidates = [
+    path.join(process.cwd(), 'uploads', 'ota-updates', INSTALLER_FILENAME),
+    path.resolve(process.cwd(), '..', 'install-pendrive', 'apk', INSTALLER_FILENAME),
+    path.resolve(__dirname, '../../../install-pendrive/apk', INSTALLER_FILENAME),
+  ];
+  return candidates.find((filePath) => fs.existsSync(filePath)) || null;
+}
+
+function installerMeta(): {
+  filename: string;
+  fileSize: number;
+  downloadUrl: string;
+  summary: string;
+} | null {
+  const filePath = resolveInstallerApkPath();
+  if (!filePath) return null;
+  return {
+    filename: INSTALLER_FILENAME,
+    fileSize: fs.statSync(filePath).size,
+    downloadUrl: '/api/player-apk/download?kind=installer',
+    summary:
+      'Altera o logo de boot (root) e instala o Player-AD. O Player-AD-release.apk sozinho não muda o boot.',
+  };
+}
+
 const DOCUMENTS = [
   {
     slug: 'manual-usuario',
@@ -151,6 +179,7 @@ router.get(
       return res.json({
         success: true,
         schemaReady: true,
+        installer: installerMeta(),
         data: release
           ? {
               id: release.id,
@@ -180,6 +209,7 @@ router.get(
         return res.json({
           success: true,
           schemaReady: false,
+          installer: installerMeta(),
           data: null,
         });
       }
@@ -364,9 +394,21 @@ router.get(
   '/download',
   authorizeRole(DOWNLOAD_ROLES),
   query('channel').optional().isIn(['production', 'testing']),
+  query('kind').optional().isIn(['player', 'installer']),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
+      if (req.query.kind === 'installer') {
+        const installerPath = resolveInstallerApkPath();
+        if (!installerPath) {
+          return res.status(404).json({ success: false, error: 'Instalador APK não encontrado' });
+        }
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        await logInfo('Download administrativo do Instala-Player-TotemDigital', {
+          userId: req.user!.id,
+        });
+        return res.download(installerPath, INSTALLER_FILENAME);
+      }
       const channel = channelFrom(req.query.channel);
       const release = await designatedRelease(channel);
       if (!release) {

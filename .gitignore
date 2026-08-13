@@ -279,9 +279,10 @@ SmartSignage-AD/local.properties
 **/.cxx/
 **/.externalNativeBuild/
 
-# APK/AAB em pacotes de pendrive — só o release oficial do kit vai no Git
+# APK/AAB em pacotes de pendrive — só os oficiais do kit vão no Git
 install-pendrive/**/*.apk
 !install-pendrive/apk/Player-AD-release.apk
+!install-pendrive/apk/Instala-Player-TotemDigital.apk
 install-pendrive-smartsignage-ad/**/*.apk
 
 # Vídeos de demo do player-web (pesados; manter só imagens no Git — copiar .mp4 no deploy local)

@@ -2441,14 +2441,26 @@ export interface PlayerApkCandidate {
   releasedAt?: string;
 }
 
+export interface PlayerApkInstaller {
+  filename: string;
+  fileSize: number;
+  downloadUrl: string;
+  summary: string;
+}
+
 export const playerApkApi = {
   getDesignated: async (
     channel: 'production' | 'testing' = 'production',
-  ): Promise<{ release: PlayerApkRelease | null; schemaReady: boolean }> => {
+  ): Promise<{
+    release: PlayerApkRelease | null;
+    schemaReady: boolean;
+    installer: PlayerApkInstaller | null;
+  }> => {
     const response = await api.get('/player-apk/designated', { params: { channel } });
     return {
       release: response.data?.data ?? null,
       schemaReady: response.data?.schemaReady !== false,
+      installer: response.data?.installer ?? null,
     };
   },
 
@@ -2487,6 +2499,14 @@ export const playerApkApi = {
   ): Promise<Blob> => {
     const response = await api.get('/player-apk/download', {
       params: { channel },
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  downloadInstaller: async (): Promise<Blob> => {
+    const response = await api.get('/player-apk/download', {
+      params: { kind: 'installer' },
       responseType: 'blob',
     });
     return response.data;

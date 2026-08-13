@@ -12,6 +12,10 @@ MANUAL DO UTILIZADOR (Markdown):
 
 1) APK release já incluído em:  apk/Player-AD-release.apk
    (compilado com assembleRelease, debuggable=false — não use assembleDebug)
+   Só o player. NÃO altera o logo de boot.
+
+1b) Instalador de campo:  apk/Instala-Player-TotemDigital.apk
+   Altera o logo de boot (root) E instala o Player-AD.
 
 2) (Opcional) Ajuste a configuração em:  config/exemplo-player-config.json
    Campos principais: serverUrl, uin, deviceId
@@ -32,7 +36,7 @@ MANUAL DO UTILIZADOR (Markdown):
    Abrir o Player-AD → 3 toques rápidos no centro do ecrã →
    preencher URL do servidor + UIN + deviceId → Aplicar e iniciar.
    Na config: secção Wi‑Fi (scan/ligar) ou «Abrir Wi‑Fi do sistema».
-   Opcional: apk/Instala-Player-TotemDigital.apk (instala o player e pergunta pelos logos).
+   Campo com logo de boot: toque em Instala-Player-TotemDigital.apk (não no Player-AD sozinho).
 
 Documentação adicional: README.md (nesta pasta).
 

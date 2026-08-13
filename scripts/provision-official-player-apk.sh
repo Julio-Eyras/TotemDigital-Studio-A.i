@@ -41,12 +41,26 @@ fi
 
 DEST_DIR="$BACKEND_DIR/uploads/ota-updates"
 DEST="$DEST_DIR/Player-AD-release.apk"
-if mkdir -p "$DEST_DIR" 2>/dev/null && [[ -w "$DEST_DIR" ]]; then
-  cp -f "$APK" "$DEST"
+INSTALLER_SRC="$REPO/install-pendrive/apk/Instala-Player-TotemDigital.apk"
+INSTALLER_DEST="$DEST_DIR/Instala-Player-TotemDigital.apk"
+copy_apk() {
+  local src="$1" dest="$2"
+  local dest_dir
+  dest_dir="$(dirname "$dest")"
+  if mkdir -p "$dest_dir" 2>/dev/null && [[ -w "$dest_dir" ]]; then
+    cp -f "$src" "$dest"
+  else
+    sudo mkdir -p "$dest_dir"
+    sudo cp -f "$src" "$dest"
+    sudo chmod a+r "$dest"
+  fi
+}
+copy_apk "$APK" "$DEST"
+if [[ -f "$INSTALLER_SRC" ]]; then
+  copy_apk "$INSTALLER_SRC" "$INSTALLER_DEST"
+  echo "[OK] Instalador copiado — ${INSTALLER_DEST}"
 else
-  sudo mkdir -p "$DEST_DIR"
-  sudo cp -f "$APK" "$DEST"
-  sudo chmod a+r "$DEST"
+  echo "[AVISO] Instala-Player-TotemDigital.apk ausente no kit git"
 fi
 
 SIZE="$(stat -c%s "$DEST" 2>/dev/null || stat -f%z "$DEST")"
@@ -138,3 +152,6 @@ END
 SQL
 
 echo "[OK] Player-AD ${VER} (${CODE}) designado — ${DEST} (${SIZE} bytes)"
+if [[ -f "$INSTALLER_DEST" ]]; then
+  echo "[OK] Download do instalador (boot logo + Player-AD): ${INSTALLER_DEST}"
+fi

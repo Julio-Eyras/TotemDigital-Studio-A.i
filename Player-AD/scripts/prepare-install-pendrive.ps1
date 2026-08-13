@@ -44,11 +44,24 @@ if (-not $Apk) {
 
 New-Item -ItemType Directory -Force -Path $ApkDestDir | Out-Null
 
-# Remover APKs antigos/debug da pasta do kit
-Get-ChildItem -Path $ApkDestDir -Filter '*.apk' -ErrorAction SilentlyContinue | Remove-Item -Force
+# Remover APKs antigos/debug da pasta do kit (mantém o instalador se não houver fonte nova)
+Get-ChildItem -Path $ApkDestDir -Filter '*.apk' -ErrorAction SilentlyContinue |
+  Where-Object { $_.Name -ne 'Instala-Player-TotemDigital.apk' } |
+  Remove-Item -Force
 
 Copy-Item -Force $Apk.FullName (Join-Path $ApkDestDir 'Player-AD-release.apk')
-Write-Host "OK APK: $($Apk.Name) -> install-pendrive\apk\Player-AD-release.apk ($([math]::Round($Apk.Length/1MB, 2)) MB)"
+Write-Host "OK APK: $($Apk.Name) -> install-pendrive\apk\Player-AD-release.apk ($([math]::Round($Apk.Length/1MB, 2)) MB) — nao altera boot"
+
+$InstallerSrc = Join-Path $RepoRoot 'Player-AD-Installer\build\outputs\apk\release\Instala-Player-TotemDigital.apk'
+$InstallerDest = Join-Path $ApkDestDir 'Instala-Player-TotemDigital.apk'
+if (Test-Path $InstallerSrc) {
+  Copy-Item -Force $InstallerSrc $InstallerDest
+  Write-Host "OK instalador: Instala-Player-TotemDigital.apk (logo boot + Player-AD) ($([math]::Round((Get-Item $InstallerDest).Length/1MB, 2)) MB)"
+} elseif (Test-Path $InstallerDest) {
+  Write-Host "OK instalador: a manter Instala-Player-TotemDigital.apk ja no kit"
+} else {
+  Write-Host "AVISO: Instala-Player-TotemDigital.apk ausente — compile Player-AD-Installer"
+}
 
 $CfgSrc = Join-Path $PlayerDir 'scripts\generate-default-player-config.json'
 if (Test-Path $CfgSrc) {
@@ -88,6 +101,8 @@ Player-AD:     $ver (versionCode $code)
 Painel:        Front $feVer / Back $beVer
 Branch:        main
 Data kit:      $today
+APK git:       install-pendrive/apk/Player-AD-release.apk (sem debug; nao altera boot)
+Instalador:    install-pendrive/apk/Instala-Player-TotemDigital.apk (logo boot + Player-AD)
 Homologação:   docs/hardware/HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md
 Campo:         TV_BOX_3 PASS 2026-08-13 (Player-AD 2.12 / 112)
 

@@ -26,6 +26,7 @@ import { Link as RouterLink } from 'react-router-dom';
 import {
   PlayerApkCandidate,
   PlayerApkDocument,
+  PlayerApkInstaller,
   PlayerApkRelease,
   playerApkApi,
 } from '../../services/api';
@@ -72,6 +73,7 @@ const PlayerApkSettings: React.FC<Props> = ({
   canDesignateApk,
 }) => {
   const [release, setRelease] = useState<PlayerApkRelease | null>(null);
+  const [installer, setInstaller] = useState<PlayerApkInstaller | null>(null);
   const [candidates, setCandidates] = useState<PlayerApkCandidate[]>([]);
   const [documents, setDocuments] = useState<PlayerApkDocument[]>([]);
   const [schemaReady, setSchemaReady] = useState(true);
@@ -89,7 +91,7 @@ const PlayerApkSettings: React.FC<Props> = ({
       const docsPromise = playerApkApi.getDocuments().catch(() => [] as PlayerApkDocument[]);
       const designatedPromise = canDownloadApk
         ? playerApkApi.getDesignated()
-        : Promise.resolve({ release: null, schemaReady: true });
+        : Promise.resolve({ release: null, schemaReady: true, installer: null });
       const candidatesPromise = canDesignateApk
         ? playerApkApi.listCandidates().catch(() => ({ candidates: [], schemaReady: true }))
         : Promise.resolve({ candidates: [], schemaReady: true });
@@ -102,6 +104,7 @@ const PlayerApkSettings: React.FC<Props> = ({
 
       setDocuments(nextDocuments);
       setRelease(designated.release);
+      setInstaller(designated.installer);
       setCandidates(nextCandidates.candidates);
       setSchemaReady(designated.schemaReady && nextCandidates.schemaReady);
     } catch (requestError) {
@@ -124,6 +127,20 @@ const PlayerApkSettings: React.FC<Props> = ({
       saveBlob(blob, release.originalFilename || `Player-AD-${release.version}.apk`);
     } catch (requestError) {
       setError(pickApiErrorMessage(requestError, 'Não foi possível baixar o APK'));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const downloadInstaller = async () => {
+    if (!installer) return;
+    try {
+      setBusy('installer');
+      setError(null);
+      const blob = await playerApkApi.downloadInstaller();
+      saveBlob(blob, installer.filename || 'Instala-Player-TotemDigital.apk');
+    } catch (requestError) {
+      setError(pickApiErrorMessage(requestError, 'Não foi possível baixar o instalador'));
     } finally {
       setBusy(null);
     }
@@ -198,7 +215,8 @@ const PlayerApkSettings: React.FC<Props> = ({
         <Box>
           <Typography variant="h5" fontWeight={700}>Player-AD APK</Typography>
           <Typography variant="body2" color="text.secondary">
-            Versão oficial de produção, download autenticado e documentação operacional.
+            Player-AD oficial (não altera o logo de boot) e instalador de campo
+            (logo de boot + Player-AD). Download autenticado.
           </Typography>
         </Box>
         <Button startIcon={<Refresh />} onClick={() => void load()}>Atualizar</Button>
@@ -217,60 +235,104 @@ const PlayerApkSettings: React.FC<Props> = ({
         <Alert severity="info">
           O download do APK é restrito à administração e à operação técnica.
         </Alert>
-      ) : release ? (
-        <Card variant="outlined">
-          <CardContent>
-            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-              <Android color="success" />
-              <Typography variant="h6" fontWeight={700}>
-                Player-AD {release.version}
-                {release.versionCode ? ` · build ${release.versionCode}` : ''}
-              </Typography>
-              <Chip size="small" color="success" label="Oficial · produção" />
-            </Stack>
-            <Grid container spacing={2} sx={{ mt: 1 }}>
-              <Grid item xs={12} md={6}>
-                <Typography variant="body2"><strong>Package:</strong> {release.packageName || 'br.com.smartchannel.playerad'}</Typography>
-                <Typography variant="body2"><strong>Tamanho:</strong> {bytesLabel(release.fileSize)}</Typography>
-                <Typography variant="body2"><strong>Designada em:</strong> {dateLabel(release.designatedAt)}</Typography>
-                <Typography variant="body2"><strong>Commit:</strong> {release.sourceCommit || 'não informado'}</Typography>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
-                  <strong>SHA-256:</strong> {release.checksum}
-                </Typography>
-                <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
-                  <strong>Certificado:</strong> {release.signingCertSha256 || 'não informado'}
-                </Typography>
-              </Grid>
-            </Grid>
-            {release.description && (
-              <Typography variant="body2" sx={{ mt: 2 }}>{release.description}</Typography>
-            )}
-          </CardContent>
-          <CardActions sx={{ px: 2, pb: 2, gap: 1, flexWrap: 'wrap' }}>
-            <Button
-              variant="contained"
-              startIcon={busy === 'apk' ? <CircularProgress size={16} color="inherit" /> : <Download />}
-              disabled={busy === 'apk'}
-              onClick={() => void downloadApk()}
-            >
-              Baixar APK oficial
-            </Button>
-            {canManageOta && (
-              <Button component={RouterLink} to="/ota-updates" startIcon={<SystemUpdateAlt />}>
-                Gerenciar versões OTA
-              </Button>
-            )}
-          </CardActions>
-        </Card>
       ) : (
-        <Alert severity="warning">
-          Nenhum APK Android foi designado para produção.
-          {canDesignateApk
-            ? ' Envie o Player-AD 2.12 abaixo (funciona em Direct, sem o módulo OTA).'
-            : ''}
-        </Alert>
+        <>
+          {release ? (
+            <Card variant="outlined">
+              <CardContent>
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                  <Android color="success" />
+                  <Typography variant="h6" fontWeight={700}>
+                    Player-AD {release.version}
+                    {release.versionCode ? ` · build ${release.versionCode}` : ''}
+                  </Typography>
+                  <Chip size="small" color="success" label="Oficial · produção" />
+                </Stack>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  Só o player. <strong>Não altera o logo de boot.</strong>
+                </Typography>
+                <Grid container spacing={2} sx={{ mt: 1 }}>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="body2"><strong>Package:</strong> {release.packageName || 'br.com.smartchannel.playerad'}</Typography>
+                    <Typography variant="body2"><strong>Tamanho:</strong> {bytesLabel(release.fileSize)}</Typography>
+                    <Typography variant="body2"><strong>Designada em:</strong> {dateLabel(release.designatedAt)}</Typography>
+                    <Typography variant="body2"><strong>Commit:</strong> {release.sourceCommit || 'não informado'}</Typography>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
+                      <strong>SHA-256:</strong> {release.checksum}
+                    </Typography>
+                    <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
+                      <strong>Certificado:</strong> {release.signingCertSha256 || 'não informado'}
+                    </Typography>
+                  </Grid>
+                </Grid>
+                {release.description && (
+                  <Typography variant="body2" sx={{ mt: 2 }}>{release.description}</Typography>
+                )}
+              </CardContent>
+              <CardActions sx={{ px: 2, pb: 2, gap: 1, flexWrap: 'wrap' }}>
+                <Button
+                  variant="contained"
+                  startIcon={busy === 'apk' ? <CircularProgress size={16} color="inherit" /> : <Download />}
+                  disabled={busy === 'apk'}
+                  onClick={() => void downloadApk()}
+                >
+                  Baixar Player-AD (sem logo de boot)
+                </Button>
+                {canManageOta && (
+                  <Button component={RouterLink} to="/ota-updates" startIcon={<SystemUpdateAlt />}>
+                    Gerenciar versões OTA
+                  </Button>
+                )}
+              </CardActions>
+            </Card>
+          ) : (
+            <Alert severity="warning">
+              Nenhum APK Android foi designado para produção.
+              {canDesignateApk
+                ? ' Envie o Player-AD 2.12 abaixo (funciona em Direct, sem o módulo OTA).'
+                : ''}
+            </Alert>
+          )}
+
+          {installer ? (
+            <Card variant="outlined">
+              <CardContent>
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                  <Android color="primary" />
+                  <Typography variant="h6" fontWeight={700}>Instala-Player-TotemDigital</Typography>
+                  <Chip size="small" color="primary" label="Campo · boot + player" />
+                </Stack>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  {installer.summary}
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 1 }}>
+                  <strong>Ficheiro:</strong> {installer.filename}
+                </Typography>
+                <Typography variant="body2">
+                  <strong>Tamanho:</strong> {bytesLabel(installer.fileSize)}
+                </Typography>
+              </CardContent>
+              <CardActions sx={{ px: 2, pb: 2 }}>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  startIcon={busy === 'installer' ? <CircularProgress size={16} color="inherit" /> : <Download />}
+                  disabled={busy === 'installer'}
+                  onClick={() => void downloadInstaller()}
+                >
+                  Baixar Instala-Player (logo de boot + Player-AD)
+                </Button>
+              </CardActions>
+            </Card>
+          ) : (
+            <Alert severity="warning">
+              Instala-Player-TotemDigital.apk ainda não está no servidor.
+              Actualize a instalação (<code>--modo atualizar</code>) para o disponibilizar.
+            </Alert>
+          )}
+        </>
       )}
 
       {canDesignateApk && schemaReady && (

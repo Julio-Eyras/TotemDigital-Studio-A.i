@@ -13,7 +13,8 @@ install-pendrive/
 ├── KIT-VERSION.txt          ← versão pinada do kit (2.12 / 112)
 ├── LEIA-ME.txt              ← início rápido
 ├── README.md                ← este ficheiro
-├── apk/Player-AD-release.apk ← release oficial (no Git; sem debug)
+├── apk/Player-AD-release.apk ← release oficial (no Git; sem debug; **não** altera boot)
+├── apk/Instala-Player-TotemDigital.apk ← instalador (no Git; logo boot + Player-AD)
 ├── config/                  ← modelo de configuração do player
 ├── midias/                  ← opcional: propagandas e vinhetas para copiar manualmente
 │   ├── propagandas/
@@ -28,7 +29,8 @@ install-pendrive/
 
 | Item | Obrigatório | Notas |
 |------|-------------|--------|
-| `apk/Player-AD-release.apk` | **Sim** | APK **release** 2.12 / 112 (`debuggable=false`). **Versionado no Git** — o deploy designa-o automaticamente para download no painel. |
+| `apk/Player-AD-release.apk` | **Sim** | APK **release** 2.12 / 112 (`debuggable=false`). **Não altera o logo de boot.** Versionado no Git — o deploy designa-o para download no painel. |
+| `apk/Instala-Player-TotemDigital.apk` | **Sim** (campo com logo) | Assistente: **altera o logo de boot** (root) **e instala o Player-AD**. Também versionado no Git e disponível no painel (Definições → APK). |
 | `config/exemplo-player-config.json` | Não | Edite IP, `uin`, `deviceId` antes de enviar ao aparelho. |
 | `midias/*` | Não | Vídeos de fallback; no Android costumam ir para storage do app (ver abaixo). |
 
@@ -49,7 +51,7 @@ cd Player-AD
 .\scripts\prepare-install-pendrive.ps1 -Rebuild
 ```
 
-Isto copia o APK release (sem build debug) para `../install-pendrive/apk/Player-AD-release.apk` e atualiza `config/exemplo-player-config.json`.
+Isto copia o APK release (sem build debug) para `../install-pendrive/apk/Player-AD-release.apk`, mantém/copia `Instala-Player-TotemDigital.apk` e atualiza `config/exemplo-player-config.json`.
 
 ---
 

@@ -20,8 +20,19 @@ if [[ -z "$APK_PATH" || ! -f "$APK_PATH" ]]; then
   exit 1
 fi
 
-cp -f "$APK_PATH" "$DEST/apk/"
-echo "✔ Copiado: $(basename "$APK_PATH") → install-pendrive/apk/"
+cp -f "$APK_PATH" "$DEST/apk/Player-AD-release.apk"
+echo "✔ Copiado: $(basename "$APK_PATH") → install-pendrive/apk/Player-AD-release.apk (não altera boot)"
+
+INSTALLER_SRC="$REPO_ROOT/Player-AD-Installer/build/outputs/apk/release/Instala-Player-TotemDigital.apk"
+INSTALLER_DEST="$DEST/apk/Instala-Player-TotemDigital.apk"
+if [[ -f "$INSTALLER_SRC" ]]; then
+  cp -f "$INSTALLER_SRC" "$INSTALLER_DEST"
+  echo "✔ Copiado: Instala-Player-TotemDigital.apk (logo boot + Player-AD)"
+elif [[ -f "$INSTALLER_DEST" ]]; then
+  echo "✔ Mantido: Instala-Player-TotemDigital.apk já no kit"
+else
+  echo "⚠ Instala-Player-TotemDigital.apk ausente — compile Player-AD-Installer"
+fi
 
 if [[ -f "$PLAYER_DIR/scripts/generate-default-player-config.json" ]]; then
   cp -f "$PLAYER_DIR/scripts/generate-default-player-config.json" "$DEST/config/exemplo-player-config.json"
@@ -45,6 +56,8 @@ Player-AD:     ${VER} (versionCode ${CODE})
 Painel:        Front ${FE_VER} / Back ${BE_VER}
 Branch:        main
 Data kit:      ${TODAY}
+APK git:       install-pendrive/apk/Player-AD-release.apk (sem debug; não altera boot)
+Instalador:    install-pendrive/apk/Instala-Player-TotemDigital.apk (logo boot + Player-AD)
 Homologação:   docs/hardware/HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md
 Campo:         TV_BOX_3 PASS 2026-08-13 (Player-AD 2.12 / 112)
 

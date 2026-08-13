@@ -114,6 +114,11 @@ TESTE:    https://test.totemdigital.app.br
 APK assistente (não é o player). Instala o **Player-AD** e **pergunta** se deseja
 trocar os logos de arranque (Android + MBox → TotemDigital).
 
+No painel (Definições → APK) há dois downloads:
+
+- **Player-AD-release.apk** — só o player; **não** altera o logo de boot.
+- **Instala-Player-TotemDigital.apk** — altera o logo de boot (root) e instala o Player-AD.
+
 ```text
 Pacote: br.com.smartchannel.instalaplayer
 Saída:  Player-AD-Installer/build/outputs/apk/release/Instala-Player-TotemDigital.apk

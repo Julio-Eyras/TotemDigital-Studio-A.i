@@ -101,6 +101,13 @@ describe('central APK', () => {
       versionCode: 108,
       channel: 'production',
     });
+    expect(response.body).toHaveProperty('installer');
+    if (response.body.installer) {
+      expect(response.body.installer).toMatchObject({
+        filename: 'Instala-Player-TotemDigital.apk',
+        downloadUrl: '/api/player-apk/download?kind=installer',
+      });
+    }
   });
 
   it('permite designação somente para administrador', async () => {
@@ -129,6 +136,23 @@ describe('central APK', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ success: true, schemaReady: false, data: null });
+    expect(response.body).toHaveProperty('installer');
+  });
+
+  it('serve o instalador com kind=installer e restringe subscriber', async () => {
+    const app = await buildApp();
+    const denied = await request(app)
+      .get('/api/player-apk/download?kind=installer')
+      .set('Authorization', 'Bearer subscriber');
+    const allowed = await request(app)
+      .get('/api/player-apk/download?kind=installer')
+      .set('Authorization', 'Bearer operator');
+
+    expect(denied.status).toBe(403);
+    expect([200, 404]).toContain(allowed.status);
+    if (allowed.status === 200) {
+      expect(String(allowed.headers['content-disposition'] || '')).toMatch(/Instala-Player-TotemDigital\.apk/);
+    }
   });
 
   it('lista candidatos Android para administrador', async () => {
