@@ -61,6 +61,7 @@ Nunca Direct Totem e multi-agência ao mesmo tempo. Ver [03](./03-MODULOS-E-FORM
 | Player-AD — instalação/config (detalhe) | [../../Player-AD/docs/MANUAL-USUARIO-INSTALACAO-CONFIGURACAO.md](../../Player-AD/docs/MANUAL-USUARIO-INSTALACAO-CONFIGURACAO.md) |
 | Telas Direct Totem (capturas + PDF) | [./telas/README.md](./telas/README.md) |
 | Handoff multi-agência (continuidade IA/equipa) | [../HANDOFF-MULTI-AGENCIA-CONTINUIDADE.md](../HANDOFF-MULTI-AGENCIA-CONTINUIDADE.md) |
+| Inventário + OpenAPI da API | [../technical/07-API-INVENTARIO.md](../technical/07-API-INVENTARIO.md) · [openapi.json](../technical/openapi.json) |
 | Instalador (detalhe CLI) | [../INSTALA-TOTEMDIGITAL-SERVER.md](../INSTALA-TOTEMDIGITAL-SERVER.md) |
 | Avaliação comercial v1.1 (ago/2026) | [../AVALIACAO-COMERCIAL-PRODUTO-TOTEMDIGITAL-STUDIO-2026-07.md](../AVALIACAO-COMERCIAL-PRODUTO-TOTEMDIGITAL-STUDIO-2026-07.md) · [PDF](../AVALIACAO-COMERCIAL-PRODUTO-TOTEMDIGITAL-STUDIO-2026-07.pdf) |
 

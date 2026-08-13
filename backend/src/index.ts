@@ -297,7 +297,8 @@ app.get('/', (_req, res) => {
     compactMode: bootStudioMode,
     installationProfile: bootInstallationProfile,
     endpoints,
-    documentation: config.server.isDevelopment ? '/api-docs' : 'Not available in production',
+    documentation: '/api/openapi.json',
+    swaggerUi: config.server.isDevelopment ? '/api-docs' : null,
     timestamp: new Date().toISOString()
   });
 });
@@ -624,10 +625,17 @@ app.get('/player/config', async (_req, res) => {
   }
 });
 
-// API Documentation
+// Catálogo OpenAPI (JSON) — disponível em todos os ambientes
+app.get('/api/openapi.json', (_req, res) => {
+  res.json(openApiSpec);
+});
+
+// Swagger UI — só em desenvolvimento (try-it-out)
 if (config.server.isDevelopment) {
   const swaggerUi = require('swagger-ui-express');
-  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openApiSpec));
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openApiSpec, {
+    customSiteTitle: 'TotemDigital Studio API',
+  }));
 }
 
 // Servir frontend build quando acessado via backend (evita ChunkLoadError em /static/js/*)

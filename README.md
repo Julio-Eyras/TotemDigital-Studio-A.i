@@ -38,6 +38,7 @@ Um código, três modos de produto (nunca Direct e multi-agência ao mesmo tempo
 | Índice de manuais | [docs/manuais/README.md](docs/manuais/README.md) |
 | Instalar / actualizar servidor (prod, DEV, TESTE) | [docs/instalacao/05-MINI-LIVRETO-MAIN-PROD-DEV-TESTE.md](docs/instalacao/05-MINI-LIVRETO-MAIN-PROD-DEV-TESTE.md) |
 | Índice de instalação | [docs/instalacao/README.md](docs/instalacao/README.md) |
+| Catálogo da API (OpenAPI) | [docs/technical/07-API-INVENTARIO.md](docs/technical/07-API-INVENTARIO.md) · [openapi.json](docs/technical/openapi.json) |
 | Regras de negócio por módulo | [docs/modulos/00-INDICE.md](docs/modulos/00-INDICE.md) |
 | Player-AD (TV Box) | [docs/instalacao/04-PLAYER-AD.md](docs/instalacao/04-PLAYER-AD.md) · [docs/player-apk/01-MANUAL-USUARIO.md](docs/player-apk/01-MANUAL-USUARIO.md) |
 | Decisões técnicas (ADR) | [docs/adr/README.md](docs/adr/README.md) |

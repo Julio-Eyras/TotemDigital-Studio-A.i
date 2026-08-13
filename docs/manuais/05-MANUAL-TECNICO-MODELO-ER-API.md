@@ -172,6 +172,8 @@ Capabilities UI: `GET` dashboard ui-context → `InstallationCapabilitiesContext
 
 ---
 
+Catálogo completo (todas as rotas montadas): [`../technical/07-API-INVENTARIO.md`](../technical/07-API-INVENTARIO.md) · OpenAPI [`../technical/openapi.json`](../technical/openapi.json) · runtime `GET /api/openapi.json`. Regenerar: `python scripts/generate-openapi-from-routes.py`.
+
 ## 6. API — mapa por domínio
 
 Base: `https://<domínio>/api`  

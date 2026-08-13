@@ -1,4 +1,10 @@
-# Documentação da API - SmartSignage Pro
+# Documentação da API — TotemDigital Studio
+
+**Catálogo completo (todas as rotas):** [07-API-INVENTARIO.md](./07-API-INVENTARIO.md) · [openapi.json](./openapi.json) · `GET /api/openapi.json`  
+**Swagger UI** (só `NODE_ENV=development`): `/api-docs`  
+Regenerar: `python scripts/generate-openapi-from-routes.py`
+
+Este ficheiro descreve sobretudo o **Player API** (dispatch, token, heartbeat).
 
 ## Base URL
 
