@@ -13,7 +13,7 @@ install-pendrive/
 ├── KIT-VERSION.txt          ← versão pinada do kit (2.12 / 112)
 ├── LEIA-ME.txt              ← início rápido
 ├── README.md                ← este ficheiro
-├── apk/                     ← coloque aqui o APK assinado (.apk)
+├── apk/Player-AD-release.apk ← release oficial (no Git; sem debug)
 ├── config/                  ← modelo de configuração do player
 ├── midias/                  ← opcional: propagandas e vinhetas para copiar manualmente
 │   ├── propagandas/
@@ -28,7 +28,7 @@ install-pendrive/
 
 | Item | Obrigatório | Notas |
 |------|-------------|--------|
-| `apk/*.apk` | **Sim** | APK **release** do Player-AD (`assembleRelease`, `debuggable=false`). Nome: `Player-AD-release.apk`. |
+| `apk/Player-AD-release.apk` | **Sim** | APK **release** 2.12 / 112 (`debuggable=false`). **Versionado no Git** — o deploy designa-o automaticamente para download no painel. |
 | `config/exemplo-player-config.json` | Não | Edite IP, `uin`, `deviceId` antes de enviar ao aparelho. |
 | `midias/*` | Não | Vídeos de fallback; no Android costumam ir para storage do app (ver abaixo). |
 

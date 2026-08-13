@@ -696,6 +696,30 @@ SQL
   ok "Credenciais da instância garantidas: ${TDI_LOGIN_USERNAME}/${TDI_LOGIN_PASSWORD}"
 }
 
+tdi_provision_official_apk() {
+  local script="$TDI_CLONE_DIR/scripts/provision-official-player-apk.sh"
+  [[ -f "$script" ]] || script="${ROOT:-}/scripts/provision-official-player-apk.sh"
+  [[ -f "$script" ]] || { warn "provision-official-player-apk.sh ausente"; return 0; }
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "Dry-run: designaria Player-AD oficial do kit"
+    return 0
+  fi
+  tdi_read_existing_db_password || true
+  log "A designar Player-AD oficial do kit git ..."
+  if DB_NAME="$TDI_DB_NAME" \
+     DB_USER="$TDI_DB_USER" \
+     DB_PASSWORD="$TDI_DB_PASSWORD" \
+     PGPASSWORD="$TDI_DB_PASSWORD" \
+     DB_HOST="${DB_HOST:-localhost}" \
+     DB_PORT="${DB_PORT:-5432}" \
+     bash "$script" --repo "$TDI_CLONE_DIR" --backend-dir "$TDI_CLONE_DIR/backend"; then
+    ok "APK oficial do kit designado."
+    return 0
+  fi
+  warn "Não foi possível designar o APK oficial do kit (tabela/schema?)."
+  return 0
+}
+
 tdi_apply_schema() {
   local schema_script="$TDI_CLONE_DIR/database/apply-schema-v2.sh"
   [[ -f "$schema_script" ]] || { err "apply-schema-v2.sh não encontrado em $TDI_CLONE_DIR"; return 1; }
@@ -890,6 +914,7 @@ tdi_instancia_install() {
   tdi_ensure_database false
   tdi_write_env
   tdi_apply_schema || return 1
+  tdi_provision_official_apk
   tdi_load_seeds
   tdi_ensure_media_storage || warn "Storage de mídias não ficou alinhado — verifique media.storage.path"
   tdi_npm_install_build || return 1
@@ -926,6 +951,7 @@ tdi_instancia_update() {
 
   tdi_ensure_media_storage || warn "Storage de mídias não ficou alinhado — verifique media.storage.path"
   tdi_apply_schema || return 1
+  tdi_provision_official_apk
   tdi_npm_install_build || return 1
   tdi_provision_instance_access || return 1
   tdi_rsync_deploy
@@ -976,6 +1002,7 @@ tdi_instancia_wipe() {
   tdi_ensure_database true
   tdi_write_env
   tdi_apply_schema || return 1
+  tdi_provision_official_apk
   tdi_load_seeds
   tdi_ensure_media_storage || warn "Storage de mídias não ficou alinhado — verifique media.storage.path"
   tdi_npm_install_build || return 1

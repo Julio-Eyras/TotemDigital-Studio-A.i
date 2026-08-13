@@ -370,6 +370,37 @@ post_apply_schema() {
     bash "$ROOT/database/apply-schema-v2.sh"
 }
 
+post_provision_official_apk() {
+  local env_file="/opt/smart-signage/.env"
+  [[ -f "$env_file" ]] || env_file="$ROOT/.env"
+  local be="/opt/smart-signage/backend"
+  [[ -d "$be" ]] || be="$ROOT/backend"
+  if [[ ! -f "$env_file" ]]; then
+    warn ".env não encontrado — APK oficial não designado automaticamente."
+    return 0
+  fi
+  local db_name db_user db_host db_port db_password
+  db_name="$(grep '^DB_NAME=' "$env_file" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\"' | tr -d "'" | xargs || true)"
+  db_user="$(grep '^DB_USER=' "$env_file" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\"' | tr -d "'" | xargs || true)"
+  db_host="$(grep '^DB_HOST=' "$env_file" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\"' | tr -d "'" | xargs || true)"
+  db_port="$(grep '^DB_PORT=' "$env_file" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\"' | tr -d "'" | xargs || true)"
+  db_password="$(grep '^DB_PASSWORD=' "$env_file" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\r' | sed -e 's/^["'\'']//' -e 's/["'\'']$//' || true)"
+  log "A designar Player-AD oficial do kit git ..."
+  if [[ "$DRY_RUN" == "true" ]]; then
+    warn "Dry-run: APK não designado."
+    return 0
+  fi
+  DB_NAME="${db_name:-smartsignage}" \
+  DB_USER="${db_user:-smartsignage}" \
+  DB_HOST="${db_host:-localhost}" \
+  DB_PORT="${db_port:-5432}" \
+  PGPASSWORD="${db_password:-smartsignage123}" \
+    bash "$ROOT/scripts/provision-official-player-apk.sh" \
+      --repo "$ROOT" \
+      --backend-dir "$be" \
+    || warn "Não foi possível designar o APK oficial do kit."
+}
+
 post_rebuild_backend() {
   local be="$ROOT/backend"
   [[ -d "$be" ]] || return 0
@@ -493,6 +524,7 @@ modo_atualizar() {
   post_fix_financial_https
   post_apply_schema
   post_rebuild_backend
+  post_provision_official_apk
   post_rebuild_frontend_https
   post_https_unified
   ok "Actualização concluída (sem wipe da BD)."

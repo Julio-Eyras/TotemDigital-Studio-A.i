@@ -27,7 +27,7 @@ Documentação detalhada: [README.md](./README.md) · [01-PRODUCAO](./01-PRODUCA
 | Objectivo | Modo | BD |
 |---|---|---|
 | Instalar do zero (servidor vazio ou instância nova) | `--modo producao` | Pode criar / recriar |
-| Atualizar código sem perder dados | `--modo atualizar` | **Preserva** |
+| Atualizar código sem perder dados | `--modo atualizar` | **Preserva** (+ tabelas em falta + APK oficial do kit) |
 | Só corrigir Nginx / `.env` / HTTPS | `--modo reparar` | Preserva |
 | Apagar BD de propósito | `--modo wipe` | **Apaga** — perigoso |
 
