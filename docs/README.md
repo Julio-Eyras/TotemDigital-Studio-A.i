@@ -1,6 +1,13 @@
-# SmartSignage Pro — Documentação (`docs/`)
+# Documentação (`docs/`)
 
-Índice curado para operação, schema e players. Muitos análises históricas permanecem como ficheiros soltos nesta pasta; para **modelo de dados atual** e **limpeza**, use primeiro os links abaixo.
+**Índice canónico (explicação + ligação a toda a documentação vigente):**  
+[**00-INDICE.md**](./00-INDICE.md)
+
+O restante desta página é um índice antigo (schema/ER e estrutura clássica). Preferir o `00-INDICE.md`.
+
+---
+
+## Continuidade de produto (handoff multi-IA)
 
 ---
 
@@ -101,5 +108,4 @@ python scripts/md_to_pdf.py docs/COMMERCE-QR-WIZARD-SPEC.md -o docs/COMMERCE-QR-
 
 ---
 
-**Versão da documentação (índice):** 2.1.x  
-**Última atualização deste índice:** julho de 2026
+**Versão da documentação (índice):** ver [00-INDICE.md](./00-INDICE.md) (ago/2026).

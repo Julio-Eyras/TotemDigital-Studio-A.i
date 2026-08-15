@@ -7,6 +7,7 @@
 **Licença:** proprietária — todos os direitos reservados ([LICENSE](../../LICENSE))  
 **Público:** instalação, operação, administração e desenvolvimento
 
+Índice de **toda** a documentação do repositório: [`../00-INDICE.md`](../00-INDICE.md).  
 Esta pasta é o **ponto de entrada operacional e de utilização**.  
 A **fonte da verdade de regras/requisitos por módulo** está em [`../modulos/00-INDICE.md`](../modulos/00-INDICE.md) (metodologia EARS + RN + fluxos + aceite). Decisões técnicas: [`../adr/README.md`](../adr/README.md).
 

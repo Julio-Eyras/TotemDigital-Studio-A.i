@@ -24,6 +24,7 @@ Instalações novas e atualizações devem usar `main`.
 
 | Necessidade | Documento |
 |---|---|
+| **Índice de toda a documentação** | [../00-INDICE.md](../00-INDICE.md) |
 | **Mini-livreto** — do zero + actualizar sem perder dados (prod/DEV/TESTE) | [05-MINI-LIVRETO-MAIN-PROD-DEV-TESTE.md](./05-MINI-LIVRETO-MAIN-PROD-DEV-TESTE.md) |
 | Produção Direct Totem, instalação nova ou atualização segura | [01-PRODUCAO-DIRECT-TOTEM.md](./01-PRODUCAO-DIRECT-TOTEM.md) |
 | DEV e TESTE isolados no mesmo VPS | [02-DEV-TESTE-MULTI-INSTANCIA.md](./02-DEV-TESTE-MULTI-INSTANCIA.md) |
