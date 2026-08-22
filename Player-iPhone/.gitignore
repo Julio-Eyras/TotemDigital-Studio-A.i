@@ -1,0 +1,19 @@
+# Xcode / macOS
+*.xcodeproj/
+*.xcworkspace/
+DerivedData/
+.build/
+*.xcuserstate
+xcuserdata/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# SwiftPM
+.swiftpm/
+Packages/
+Package.resolved
+
+# OS
+.DS_Store
+Thumbs.db
