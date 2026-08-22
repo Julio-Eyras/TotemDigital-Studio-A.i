@@ -103,8 +103,8 @@ Branch:        main
 Data kit:      $today
 APK git:       install-pendrive/apk/Player-AD-release.apk (sem debug; nao altera boot)
 Instalador:    install-pendrive/apk/Instala-Player-TotemDigital.apk (logo boot + Player-AD)
-Homologação:   docs/hardware/HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md
-Campo:         TV_BOX_3 PASS 2026-08-13 (Player-AD 2.12 / 112)
+Homologação:   docs/hardware/HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md (base 2.12)
+Campo:         TV_BOX_3 — $ver / $code (kit $today); base PASS 2.12 / 112 (2026-08-13)
 
 Regenerar (com APK release compilado):
   cd Player-AD

@@ -2,7 +2,9 @@
 <resources>
     <style name="Theme.PlayerAD" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="android:windowFullscreen">true</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:showOnLockScreen">true</item>
     </style>
 </resources>
-

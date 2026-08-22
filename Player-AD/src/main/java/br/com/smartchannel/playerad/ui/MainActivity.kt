@@ -316,6 +316,9 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        // Antes do layout: evita measure inicial em 1280×672 (barras).
+        br.com.smartchannel.playerad.util.EdgeToEdgeFullscreen.apply(this)
+
         setContentView(R.layout.activity_main)
 
         playerView = findViewById(R.id.playerView)

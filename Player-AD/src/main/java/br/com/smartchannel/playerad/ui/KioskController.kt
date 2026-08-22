@@ -14,7 +14,9 @@ import androidx.core.view.WindowInsetsControllerCompat
 import br.com.smartchannel.playerad.R
 import br.com.smartchannel.playerad.config.KioskMode
 import br.com.smartchannel.playerad.config.PlayerConfig
+import br.com.smartchannel.playerad.util.EdgeToEdgeFullscreen
 import br.com.smartchannel.playerad.util.PlayerAdLogger
+import br.com.smartchannel.playerad.util.ViewDisplayRotation
 
 /**
  * Aplica kiosk fullscreen (imersivo ou forte) conforme [PlayerConfig].
@@ -24,15 +26,23 @@ object KioskController {
 
     fun applyPlayback(activity: Activity, config: PlayerConfig) {
         activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // Edge-to-edge ANTES da montagem — senão o fallback trava em 672×1280.
+        enterImmersiveMode(activity)
+        ViewDisplayRotation.invalidateCache()
         DisplayPresentationController.apply(activity, config)
+        // Reaplica após o layout absorver o fullscreen (métricas podem subir 672→720).
+        activity.window.decorView.post {
+            enterImmersiveMode(activity)
+            ViewDisplayRotation.invalidateCache()
+            DisplayPresentationController.apply(activity, config)
+        }
+
         when (config.kioskMode) {
             KioskMode.IMMERSIVE -> {
                 releaseLockTask(activity)
-                enterImmersiveMode(activity)
                 PlayerAdLogger.i("KIOSK", "Modo imersivo (fullscreen)")
             }
             KioskMode.STRONG -> {
-                enterImmersiveMode(activity)
                 tryStartLockTask(activity)
                 PlayerAdLogger.i("KIOSK", "Modo forte (lock task + imersivo)")
             }
@@ -72,20 +82,25 @@ object KioskController {
 
     private fun enterImmersiveMode(activity: Activity) {
         try {
-            val controller = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
-            controller.hide(WindowInsetsCompat.Type.systemBars())
-            controller.systemBarsBehavior =
-                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            EdgeToEdgeFullscreen.apply(activity)
         } catch (e: Exception) {
-            Log.w("Player-AD", "Immersive (WindowInsets) falhou; flags legadas: ${e.message}")
-            @Suppress("DEPRECATION")
-            activity.window.decorView.systemUiVisibility =
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-                    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                    View.SYSTEM_UI_FLAG_FULLSCREEN or
-                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            Log.w("Player-AD", "Edge-to-edge falhou; flags legadas: ${e.message}")
+            try {
+                val controller = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+                controller.hide(WindowInsetsCompat.Type.systemBars())
+                controller.systemBarsBehavior =
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            } catch (e2: Exception) {
+                Log.w("Player-AD", "Immersive (WindowInsets) falhou; flags legadas: ${e2.message}")
+                @Suppress("DEPRECATION")
+                activity.window.decorView.systemUiVisibility =
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                        View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                        View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                        View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                        View.SYSTEM_UI_FLAG_FULLSCREEN or
+                        View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            }
         }
         hideMouseCursor(activity)
     }
@@ -112,6 +127,7 @@ object KioskController {
 
     fun showSystemBars(activity: Activity) {
         try {
+            WindowCompat.setDecorFitsSystemWindows(activity.window, true)
             val controller = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
             controller.show(WindowInsetsCompat.Type.systemBars())
         } catch (e: Exception) {

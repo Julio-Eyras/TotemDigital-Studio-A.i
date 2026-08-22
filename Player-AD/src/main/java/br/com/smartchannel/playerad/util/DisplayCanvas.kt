@@ -1,11 +1,11 @@
 package br.com.smartchannel.playerad.util
 
 import android.content.Context
-import android.util.DisplayMetrics
 import br.com.smartchannel.playerad.config.PlayerConfigLoader
 
 /**
- * Canvas = DisplayMetrics do painel (viewport fullscreen, sem compensação de rotação).
+ * Canvas = tamanho físico do painel (viewport fullscreen).
+ * Preferir [PhysicalDisplaySize] em vez de DisplayMetrics “úteis” (sem barras).
  */
 object DisplayCanvas {
 
@@ -18,10 +18,14 @@ object DisplayCanvas {
     )
 
     fun resolve(context: Context, displayRotation: Int): Metrics {
-        val metrics: DisplayMetrics = context.resources.displayMetrics
-        val w = metrics.widthPixels.coerceAtLeast(1)
-        val h = metrics.heightPixels.coerceAtLeast(1)
-        return Metrics(w, h, metrics.densityDpi, displayRotation, needsSurfaceCompensation = false)
+        val physical = PhysicalDisplaySize.resolve(context)
+        return Metrics(
+            physical.width,
+            physical.height,
+            context.resources.displayMetrics.densityDpi,
+            displayRotation,
+            needsSurfaceCompensation = false,
+        )
     }
 
     fun resolveFromConfig(context: Context): Metrics {

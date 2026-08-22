@@ -1,9 +1,12 @@
-Coloque nesta pasta um único ficheiro APK assinado do Player-AD (release).
+Nesta pasta deve existir o APK release do Player-AD (já incluído no kit):
 
-Exemplo de nome: player-ad-release.apk
+  Player-AD-release.apk   ← 2.13 / versionCode 113
 
-Gere o APK com Gradle no projeto Player-AD:
+Gere/atualize a partir do projeto:
+
+  cd Player-AD
   ./gradlew assembleRelease
-
-Ou execute na raiz do repositório:
-  Player-AD/scripts/prepare-install-pendrive.sh
+  # Windows:
+  .\scripts\prepare-install-pendrive.ps1 -Rebuild
+  # Linux/macOS:
+  bash scripts/prepare-install-pendrive.sh

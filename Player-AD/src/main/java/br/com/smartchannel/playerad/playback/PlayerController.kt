@@ -1235,11 +1235,20 @@ class PlayerController(
 
     private fun applyDisplayScheduleFromServer(raw: JSONObject?) {
         if (raw == null) return
-        displaySchedule = DisplayScheduleStore.applyJson(context, raw)
+        val incoming = DisplaySchedule.fromJson(raw)
+        // forceMode local (debug/comando) sobrevive se o servidor não enviar override explícito.
+        val merged = if (raw.has("forceMode") && !raw.isNull("forceMode")) {
+            incoming
+        } else {
+            incoming.copy(forceMode = displaySchedule.forceMode)
+        }
+        displaySchedule = merged
+        DisplayScheduleStore.save(context, merged)
         PlayerAdLogger.i(
             "DISPLAY",
             "Schedule atualizado enabled=${displaySchedule.enabled} " +
-                "${displaySchedule.onTime}-${displaySchedule.offTime} tz=${displaySchedule.timezone}"
+                "${displaySchedule.onTime}-${displaySchedule.offTime} tz=${displaySchedule.timezone}" +
+                (displaySchedule.forceMode?.let { " force=$it" } ?: ""),
         )
     }
 

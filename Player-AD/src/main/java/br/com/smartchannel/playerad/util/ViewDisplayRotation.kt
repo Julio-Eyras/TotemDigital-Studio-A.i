@@ -8,11 +8,20 @@ import android.view.ViewGroup
 /**
  * Fallback quando `user_rotation` não altera o framebuffer (TV_BOX_3 / Android 14).
  * Gira o [contentHost] para a montagem pedida e **centra** no ecrã (evita mídia na metade de baixo).
+ *
+ * Usa [PhysicalDisplaySize] (ex. 1280×720) — não os DisplayMetrics “úteis” (ex. 1280×672) —
+ * para o host em retrato ser 720×1280 (9:16) e mídia 1080×1920 preencher sem faixas.
  */
 object ViewDisplayRotation {
 
     private var lastRootIdentity: Int = 0
     private var lastSignature: String? = null
+
+    /** Força reaplicar no próximo [apply] (ex.: após edge-to-edge). */
+    fun invalidateCache() {
+        lastSignature = null
+        lastRootIdentity = 0
+    }
 
     fun apply(activity: Activity, root: View?, displayRotation: Int, enabled: Boolean) {
         val target = root ?: return
@@ -36,9 +45,9 @@ object ViewDisplayRotation {
             return
         }
 
-        val metrics = activity.resources.displayMetrics
-        val screenW = metrics.widthPixels
-        val screenH = metrics.heightPixels
+        val physical = PhysicalDisplaySize.resolve(activity)
+        val screenW = physical.width
+        val screenH = physical.height
         if (screenW <= 0 || screenH <= 0) return
 
         val signature = "$normalized|$screenW|$screenH"
@@ -47,12 +56,17 @@ object ViewDisplayRotation {
         }
 
         target.post {
-            val metrics2 = activity.resources.displayMetrics
-            val w2 = metrics2.widthPixels
-            val h2 = metrics2.heightPixels
+            val physical2 = PhysicalDisplaySize.resolve(activity)
+            val appDm = activity.resources.displayMetrics
+            // Preferir físico 1280×720; se o SO reportar só 672, ainda usamos 720 para 9:16,
+            // mas expandimos o root para o mesmo canvas — evita host “fora” da janela (ecrã preto).
+            val w2 = maxOf(physical2.width, appDm.widthPixels)
+            val h2 = maxOf(physical2.height, appDm.heightPixels)
             if (w2 <= 0 || h2 <= 0) return@post
             val sig2 = "$normalized|$w2|$h2"
             if (lastRootIdentity == System.identityHashCode(target) && lastSignature == sig2) return@post
+
+            expandAncestorCanvas(target, w2, h2)
 
             // TV portrait física + framebuffer landscape (Allwinner): 270° em mount 0
             // deixa o conteúdo em pé; 90° ficava de cabeça para baixo no painel Panasonic.
@@ -63,6 +77,10 @@ object ViewDisplayRotation {
             }
             lastRootIdentity = System.identityHashCode(target)
             lastSignature = sig2
+            PlayerAdLogger.i(
+                "DISPLAY",
+                "Viewport físico ${w2}x${h2} (appMetrics=${appDm.widthPixels}x${appDm.heightPixels})",
+            )
         }
     }
 
@@ -134,5 +152,17 @@ object ViewDisplayRotation {
         lp.width = width
         lp.height = height
         target.layoutParams = lp
+    }
+
+    /** Garante que o root acompanha o framebuffer físico (ex. 1280×720). */
+    private fun expandAncestorCanvas(target: View, width: Int, height: Int) {
+        val root = (target.parent as? ViewGroup) ?: return
+        root.clipChildren = false
+        root.clipToPadding = false
+        resizeRoot(root, width, height)
+        (root.parent as? ViewGroup)?.let { grand ->
+            grand.clipChildren = false
+            grand.clipToPadding = false
+        }
     }
 }
