@@ -5,5 +5,7 @@ local.properties
 .idea/
 captures/
 .DS_Store
+
+# Output Gradle fica em build/; o APK oficial versionado vai em apk/
 *.apk
-!docs/**
+!apk/Player-AD-MON-Vs*-build-*.apk

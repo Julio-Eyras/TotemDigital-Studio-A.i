@@ -14,7 +14,12 @@ if (-not (Test-Path ".\local.properties")) {
 $apk = Get-ChildItem -Path ".\build\outputs\apk\release\Player-AD-MON-Vs*-build-*.apk" -ErrorAction SilentlyContinue |
     Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if ($apk) {
-    Write-Host "APK: $($apk.FullName)"
+    $destDir = Join-Path (Get-Location) "apk"
+    New-Item -ItemType Directory -Force -Path $destDir | Out-Null
+    $dest = Join-Path $destDir $apk.Name
+    Copy-Item -Force $apk.FullName $dest
+    Write-Host "APK Gradle: $($apk.FullName)"
+    Write-Host "APK git:    $dest"
 } else {
     Write-Host "Build terminou; verifique build\outputs\apk\release\"
 }

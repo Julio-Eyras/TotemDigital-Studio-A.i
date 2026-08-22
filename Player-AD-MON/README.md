@@ -53,6 +53,12 @@ APK gerado em:
 build\outputs\apk\release\Player-AD-MON-Vs1.0-build-1.apk
 ```
 
+Cópia versionada no Git (`scripts\build-release.ps1` copia para aqui):
+
+```text
+Player-AD-MON\apk\Player-AD-MON-Vs1.0-build-1.apk
+```
+
 Debug:
 
 ```bat
