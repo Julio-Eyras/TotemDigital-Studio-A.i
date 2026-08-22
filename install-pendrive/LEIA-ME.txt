@@ -16,7 +16,9 @@ MANUAL DO UTILIZADOR (Markdown):
    Só o player. NÃO altera o logo de boot.
 
 1b) Instalador de campo:  apk/Instala-Player-TotemDigital.apk
-   Instala o Player-AD e, se o boot ainda não for TotemDigital, grava os logos oficiais (BMP + bootanimation). Requer root.
+   Instala o Player-AD e pede ao técnico o sentido do totem
+   (retrato / retrato invertido / paisagem) para gravar os logos oficiais.
+   Requer root para os logos.
 
 2) (Opcional) Ajuste a configuração em:  config/exemplo-player-config.json
    Campos principais: serverUrl, uin, deviceId

@@ -16,30 +16,43 @@ buildscript {
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
-def playerApk = file("${rootDir}/../Player-AD/build/outputs/apk/release/Player-AD-release.apk")
+def playerReleaseDir = file("${rootDir}/../Player-AD/build/outputs/apk/release")
 def bootDir = file("${rootDir}/../install-pendrive/bootanimation")
 def bundledAssets = file("${buildDir}/bundled-assets")
 
 tasks.register('bundlePlayerApk', Copy) {
-    from playerApk
-    into bundledAssets
-    rename { 'player-ad.apk' }
-    doFirst {
-        bundledAssets.mkdirs()
-        if (!playerApk.exists()) {
+    from {
+        def versioned = (playerReleaseDir.listFiles() ?: []).findAll {
+            it.name ==~ /Player-AD-Vs.+-build-.+\.apk/ && !it.name.contains('unsigned')
+        }
+        def kitDir = file("${rootDir}/../install-pendrive/apk")
+        def kit = (kitDir.listFiles() ?: []).findAll {
+            it.name ==~ /Player-AD-Vs.+-build-.+\.apk/
+        }
+        def apk = versioned ? versioned.toList().max { it.lastModified() }
+            : kit ? kit.toList().max { it.lastModified() }
+            : file("${playerReleaseDir}/Player-AD-release.apk")
+        if (apk == null || !apk.exists()) {
             throw new GradleException(
-                "Player-AD-release.apk nao encontrado. Compile primeiro:\n" +
-                    "  cd Player-AD\n  .\\gradlew.bat assembleRelease"
+                "Player-AD APK nao encontrado em ${playerReleaseDir} nem em ${kitDir}.\n" +
+                    "Compile primeiro: cd Player-AD && .\\gradlew.bat assembleRelease\n" +
+                    "Esperado: Player-AD-Vs*-build-*.apk"
             )
         }
+        apk
     }
+    into bundledAssets
+    rename { 'player-ad.apk' }
 }
 
 tasks.register('bundleBootAssets', Copy) {
     from(bootDir) {
         include 'totemdigital.bmp'
+        include 'totemdigital-portrait.bmp'
+        include 'totemdigital-portrait-reverse.bmp'
         include 'bootanimation.zip'
         include 'bootanimation-portrait.zip'
+        include 'bootanimation-portrait-reverse.zip'
     }
     into bundledAssets
     rename { String name ->
@@ -49,7 +62,8 @@ tasks.register('bundleBootAssets', Copy) {
         bundledAssets.mkdirs()
         def bmp = new File(bootDir, 'totemdigital.bmp')
         def portrait = new File(bootDir, 'bootanimation-portrait.zip')
-        if (!bmp.exists() || !portrait.exists()) {
+        def reverse = new File(bootDir, 'bootanimation-portrait-reverse.zip')
+        if (!bmp.exists() || !portrait.exists() || !reverse.exists()) {
             throw new GradleException(
                 "Logos TotemDigital em falta em ${bootDir}.\n" +
                     "  python Player-AD/scripts/build-totemdigital-boot-assets.py"
@@ -66,8 +80,8 @@ android {
         applicationId 'br.com.smartchannel.instalaplayer'
         minSdk 24
         targetSdk 34
-        versionCode 2
-        versionName '1.1'
+        versionCode 3
+        versionName '1.2'
         multiDexEnabled false
     }
 

@@ -2,10 +2,13 @@
 """
 Gera os logos oficiais TotemDigital a partir de logo-totemdigital-boot.png:
 
-  install-pendrive/bootanimation/totemdigital.bmp           (bootloader 1280x720)
-  install-pendrive/bootanimation/bootlogo.bmp               (alias para scripts ADB)
-  install-pendrive/bootanimation/bootanimation.zip          (landscape 1920x1080)
-  install-pendrive/bootanimation/bootanimation-portrait.zip (1080x1920)
+  install-pendrive/bootanimation/totemdigital.bmp                    (bootloader 1280x720, paisagem)
+  install-pendrive/bootanimation/totemdigital-portrait.bmp           (bootloader, retrato 270°)
+  install-pendrive/bootanimation/totemdigital-portrait-reverse.bmp   (bootloader, retrato 90°)
+  install-pendrive/bootanimation/bootlogo.bmp                        (alias paisagem para scripts ADB)
+  install-pendrive/bootanimation/bootanimation.zip                   (landscape 1920x1080)
+  install-pendrive/bootanimation/bootanimation-portrait.zip          (1080x1920, 270°)
+  install-pendrive/bootanimation/bootanimation-portrait-reverse.zip  (1080x1920, 90°)
 
 Uso:
   python build-totemdigital-boot-assets.py
@@ -88,6 +91,11 @@ def main() -> None:
     print(f"OK {OUT_DIR / 'bootlogo.bmp'} (alias)")
 
     src = Image.open(LOGO_PNG)
+    fit_logo(src, *BMP_SIZE, rotate_deg=270).save(OUT_DIR / "totemdigital-portrait.bmp", format="BMP")
+    fit_logo(src, *BMP_SIZE, rotate_deg=90).save(OUT_DIR / "totemdigital-portrait-reverse.bmp", format="BMP")
+    print(f"OK {OUT_DIR / 'totemdigital-portrait.bmp'} (bootloader retrato 270°)")
+    print(f"OK {OUT_DIR / 'totemdigital-portrait-reverse.bmp'} (bootloader retrato 90°)")
+
     write_animation_zip(OUT_DIR / "bootanimation.zip", 1920, 1080, fit_logo(src, 1920, 1080))
     write_animation_zip(
         OUT_DIR / "bootanimation-portrait.zip",
@@ -95,12 +103,21 @@ def main() -> None:
         1920,
         fit_logo(src, 1080, 1920, rotate_deg=270),
     )
+    write_animation_zip(
+        OUT_DIR / "bootanimation-portrait-reverse.zip",
+        1080,
+        1920,
+        fit_logo(src, 1080, 1920, rotate_deg=90),
+    )
 
     manifest = OUT_DIR / "SHA256.txt"
     files = (
         "totemdigital.bmp",
+        "totemdigital-portrait.bmp",
+        "totemdigital-portrait-reverse.bmp",
         "bootanimation.zip",
         "bootanimation-portrait.zip",
+        "bootanimation-portrait-reverse.zip",
         "logo-totemdigital-boot.png",
     )
     manifest.write_text(

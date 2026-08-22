@@ -26,8 +26,10 @@ class InstallerActivity : AppCompatActivity() {
     private lateinit var progress: ProgressBar
     private lateinit var btnPrimary: Button
     private lateinit var btnSecondary: Button
+    private lateinit var btnTertiary: Button
 
     private var changeLogos = false
+    private var bootOrientation = BootOrientation.PORTRAIT
     private var busy = false
     private var waitingInstall = false
     private var finishedInstall = false
@@ -41,6 +43,7 @@ class InstallerActivity : AppCompatActivity() {
         progress = findViewById(R.id.progress)
         btnPrimary = findViewById(R.id.btnPrimary)
         btnSecondary = findViewById(R.id.btnSecondary)
+        btnTertiary = findViewById(R.id.btnTertiary)
         installCallback.set { success, message ->
             Handler(Looper.getMainLooper()).post { onPlayerInstallResult(success, message) }
         }
@@ -65,9 +68,8 @@ class InstallerActivity : AppCompatActivity() {
         textBody.text =
             "Este assistente raiz faz duas coisas:\n\n" +
                 "1. Instala/atualiza o Player-AD.\n" +
-                "2. Se os logos de boot ainda não forem TotemDigital, substitui:\n" +
-                "   • Android (BMP no bootloader)\n" +
-                "   • MBox (bootanimation.zip)\n\n" +
+                "2. Grava os logos de boot TotemDigital no sentido que o técnico escolher " +
+                "(retrato, retrato invertido ou paisagem).\n\n" +
                 "Os logos oficiais vêm dentro deste APK. Root (SuperSU → Permitir) " +
                 "é necessário para os logos. Sem root o player instala na mesma."
         textStatus.text = if (RootShell.suPresent()) {
@@ -76,17 +78,44 @@ class InstallerActivity : AppCompatActivity() {
             "v${BuildConfig.VERSION_NAME}  ·  root não detetado"
         }
         setBusy(false)
+        hideTertiary()
         btnPrimary.text = "Continuar"
         btnSecondary.text = "Só o player"
         btnPrimary.setOnClickListener {
             changeLogos = true
-            startPlayerInstall()
+            showOrientationPicker()
         }
         btnSecondary.setOnClickListener {
             changeLogos = false
             startPlayerInstall()
         }
         btnPrimary.requestFocus()
+    }
+
+    private fun showOrientationPicker() {
+        textTitle.text = "Posição do totem"
+        textBody.text =
+            "Escolha o sentido das imagens de boot conforme o totem está fixado.\n\n" +
+                "• Retrato — painel em pé, topo para cima\n" +
+                "• Retrato invertido — o outro sentido vertical (logo ao contrário)\n" +
+                "• Paisagem — painel deitado\n\n" +
+                "Se o logo ficar de cabeça para baixo no arranque, volte a correr o instalador e escolha o outro retrato."
+        textStatus.text = "As imagens oficiais vêm dentro deste APK."
+        setBusy(false)
+        btnTertiary.visibility = View.VISIBLE
+        btnPrimary.text = BootOrientation.PORTRAIT.label
+        btnSecondary.text = BootOrientation.REVERSE_PORTRAIT.label
+        btnTertiary.text = BootOrientation.LANDSCAPE.label
+        btnPrimary.setOnClickListener { chooseOrientation(BootOrientation.PORTRAIT) }
+        btnSecondary.setOnClickListener { chooseOrientation(BootOrientation.REVERSE_PORTRAIT) }
+        btnTertiary.setOnClickListener { chooseOrientation(BootOrientation.LANDSCAPE) }
+        btnPrimary.requestFocus()
+    }
+
+    private fun chooseOrientation(orientation: BootOrientation) {
+        bootOrientation = orientation
+        hideTertiary()
+        startPlayerInstall()
     }
 
     private fun startPlayerInstall() {
@@ -96,6 +125,7 @@ class InstallerActivity : AppCompatActivity() {
             "Confirme a instalação no diálogo do Android (Permitir / Instalar).\n" +
                 "Use o comando da TV se o diálogo aparecer por cima."
         setBusy(true)
+        hideTertiary()
         textStatus.text = "A preparar o APK…"
         if (!ensureUnknownSources()) return
         try {
@@ -114,6 +144,7 @@ class InstallerActivity : AppCompatActivity() {
         if (packageManager.canRequestPackageInstalls()) return true
         textStatus.text = "Autorize «fontes desconhecidas» para este instalador e volte a Continuar."
         setBusy(false)
+        hideTertiary()
         btnPrimary.text = "Abrir permissão"
         btnSecondary.text = "Tentar mesmo assim"
         btnPrimary.setOnClickListener {
@@ -150,9 +181,11 @@ class InstallerActivity : AppCompatActivity() {
     private fun applyLogos() {
         textTitle.text = "A verificar logos de boot"
         textBody.text =
-            "Se o SuperSU aparecer, escolha Permitir / Always.\n" +
-                "Só grava TotemDigital se o boot ainda não for TotemDigital."
+            "Sentido: ${bootOrientation.label}.\n" +
+                "Se o SuperSU aparecer, escolha Permitir / Always.\n" +
+                "Grava as imagens deste sentido; se já estiverem iguais, não altera."
         setBusy(true)
+        hideTertiary()
         textStatus.text = "A pedir root…"
         lifecycleScope.launch {
             val authorized = withContext(Dispatchers.IO) { RootShell.isAuthorized(90_000L) }
@@ -165,11 +198,13 @@ class InstallerActivity : AppCompatActivity() {
                 return@launch
             }
             textStatus.text = "Root OK. A comparar com TotemDigital…"
-            val report = withContext(Dispatchers.IO) { BootLogoInstaller.apply(this@InstallerActivity) }
+            val report = withContext(Dispatchers.IO) {
+                BootLogoInstaller.apply(this@InstallerActivity, bootOrientation)
+            }
             val summary = report.messages.joinToString("\n")
             when {
                 report.bootlogoOk && report.animationOk && !report.changedAny ->
-                    showDone("Player-AD instalado. Logos já eram TotemDigital.\n\n$summary")
+                    showDone("Player-AD instalado. Logos já eram TotemDigital neste sentido.\n\n$summary")
                 report.bootlogoOk && report.animationOk ->
                     showDone("Player-AD instalado. Logos TotemDigital gravados.\n\n$summary", offerReboot = true)
                 report.bootlogoOk || report.animationOk ->
@@ -189,6 +224,7 @@ class InstallerActivity : AppCompatActivity() {
             "Player-AD não aparece ainda — reinicie a TV se necessário."
         }
         setBusy(false)
+        hideTertiary()
         btnPrimary.text = "Abrir Player-AD"
         btnSecondary.text = if (offerReboot) "Reiniciar a TV" else "Sair"
         btnPrimary.setOnClickListener { launchPlayer() }
@@ -203,6 +239,7 @@ class InstallerActivity : AppCompatActivity() {
         textBody.text = message
         textStatus.text = "Pode tentar de novo."
         setBusy(false)
+        hideTertiary()
         btnPrimary.text = "Tentar de novo"
         btnSecondary.text = "Sair"
         btnPrimary.setOnClickListener { showIntro() }
@@ -229,11 +266,17 @@ class InstallerActivity : AppCompatActivity() {
         }
     }
 
+    private fun hideTertiary() {
+        btnTertiary.visibility = View.GONE
+        btnTertiary.setOnClickListener(null)
+    }
+
     private fun setBusy(value: Boolean) {
         busy = value
         progress.visibility = if (value) View.VISIBLE else View.GONE
         btnPrimary.isEnabled = !value
         btnSecondary.isEnabled = !value
+        btnTertiary.isEnabled = !value
     }
 
     companion object {

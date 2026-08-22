@@ -1,7 +1,6 @@
 package br.com.smartchannel.instalaplayer
 
 import android.content.Context
-import android.provider.Settings
 import java.io.File
 import java.io.FileInputStream
 import java.security.MessageDigest
@@ -13,7 +12,10 @@ object BootLogoInstaller {
     private const val ANIM_VENDOR = "/vendor/media/bootanimation.zip"
     private const val SD_DIR = "/sdcard/smartsignage"
     private const val ASSET_BMP = "totemdigital.bmp"
+    private const val ASSET_BMP_PORTRAIT = "totemdigital-portrait.bmp"
+    private const val ASSET_BMP_REVERSE = "totemdigital-portrait-reverse.bmp"
     private const val ASSET_ANIM_PORTRAIT = "bootanimation-portrait.zip"
+    private const val ASSET_ANIM_REVERSE = "bootanimation-portrait-reverse.zip"
     private const val ASSET_ANIM_LANDSCAPE = "bootanimation-landscape.zip"
 
     data class Report(
@@ -26,27 +28,28 @@ object BootLogoInstaller {
         val changedAny: Boolean get() = logoChanged || animationChanged
     }
 
-    fun apply(context: Context): Report {
+    fun apply(context: Context, orientation: BootOrientation): Report {
         val messages = mutableListOf<String>()
         val work = File(context.cacheDir, "boot-branding").apply {
             deleteRecursively()
             mkdirs()
         }
-        val bmp = extractAsset(context, ASSET_BMP, File(work, "totemdigital.bmp"))
-            ?: return Report(false, false, false, false, messages + "totemdigital.bmp em falta no APK.")
-        val portrait = isPortraitPreferred(context)
-        val animAsset = when {
-            portrait && assetExists(context, ASSET_ANIM_PORTRAIT) -> ASSET_ANIM_PORTRAIT
-            assetExists(context, ASSET_ANIM_LANDSCAPE) -> ASSET_ANIM_LANDSCAPE
-            assetExists(context, ASSET_ANIM_PORTRAIT) -> ASSET_ANIM_PORTRAIT
-            else -> null
-        }
-        val zip = animAsset?.let { extractAsset(context, it, File(work, "bootanimation.zip")) }
+        val bmpAsset = bmpAssetFor(context, orientation)
+        val animAsset = animAssetFor(context, orientation)
             ?: return Report(false, false, false, false, messages + "bootanimation.zip em falta no APK.")
+        val bmp = extractAsset(context, bmpAsset, File(work, "totemdigital.bmp"))
+            ?: return Report(false, false, false, false, messages + "$bmpAsset em falta no APK.")
+        val zip = extractAsset(context, animAsset, File(work, "bootanimation.zip"))
+            ?: return Report(false, false, false, false, messages + "$animAsset em falta no APK.")
 
         val wantLogo = sha256(bmp)
         val wantAnim = sha256(zip)
-        messages += if (portrait) "Bootanimation retrato (1080x1920)." else "Bootanimation paisagem (1920x1080)."
+        messages += "Sentido escolhido: ${orientation.label}."
+        messages += when (orientation) {
+            BootOrientation.LANDSCAPE -> "Bootanimation paisagem (1920x1080)."
+            BootOrientation.PORTRAIT -> "Bootanimation retrato (1080x1920, 270°)."
+            BootOrientation.REVERSE_PORTRAIT -> "Bootanimation retrato invertido (1080x1920, 90°)."
+        }
 
         RootShell.exec("mkdir -p $SD_DIR/backup")
         val pushedLogo = copyToSdcard(bmp, "$SD_DIR/totemdigital.bmp")
@@ -79,7 +82,7 @@ object BootLogoInstaller {
         val animChanged = anim.second && animOk
         if (logoOk && animOk) {
             RootShell.exec(
-                "printf 'logo=$wantLogo\nanim=$wantAnim\n' > $SD_DIR/totemdigital-boot.sha256",
+                "printf 'orientation=${orientation.name}\nlogo=$wantLogo\nanim=$wantAnim\n' > $SD_DIR/totemdigital-boot.sha256",
             )
         }
         return Report(logoOk, animOk, logoChanged, animChanged, messages)
@@ -209,9 +212,27 @@ object BootLogoInstaller {
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
-    private fun isPortraitPreferred(context: Context): Boolean {
-        val rotation = Settings.System.getInt(context.contentResolver, Settings.System.USER_ROTATION, 0)
-        return rotation == 1 || rotation == 3
+    private fun bmpAssetFor(context: Context, orientation: BootOrientation): String {
+        val preferred = when (orientation) {
+            BootOrientation.PORTRAIT -> ASSET_BMP_PORTRAIT
+            BootOrientation.REVERSE_PORTRAIT -> ASSET_BMP_REVERSE
+            BootOrientation.LANDSCAPE -> ASSET_BMP
+        }
+        return if (assetExists(context, preferred)) preferred else ASSET_BMP
+    }
+
+    private fun animAssetFor(context: Context, orientation: BootOrientation): String? {
+        val preferred = when (orientation) {
+            BootOrientation.PORTRAIT -> ASSET_ANIM_PORTRAIT
+            BootOrientation.REVERSE_PORTRAIT -> ASSET_ANIM_REVERSE
+            BootOrientation.LANDSCAPE -> ASSET_ANIM_LANDSCAPE
+        }
+        return when {
+            assetExists(context, preferred) -> preferred
+            orientation != BootOrientation.LANDSCAPE && assetExists(context, ASSET_ANIM_PORTRAIT) -> ASSET_ANIM_PORTRAIT
+            assetExists(context, ASSET_ANIM_LANDSCAPE) -> ASSET_ANIM_LANDSCAPE
+            else -> null
+        }
     }
 
     private data class Current(

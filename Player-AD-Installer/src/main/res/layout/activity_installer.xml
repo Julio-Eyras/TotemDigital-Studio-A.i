@@ -50,14 +50,12 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="28dp"
         android:gravity="center"
-        android:orientation="horizontal">
+        android:orientation="vertical">
 
         <Button
             android:id="@+id/btnPrimary"
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="12dp"
-            android:layout_weight="1"
             android:backgroundTint="#FFFFC107"
             android:minHeight="56dp"
             android:textColor="#FF101018"
@@ -66,13 +64,23 @@
 
         <Button
             android:id="@+id/btnSecondary"
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:layout_weight="1"
+            android:layout_marginTop="12dp"
             android:backgroundTint="#FF2A2A38"
             android:minHeight="56dp"
             android:textColor="#FFFFFFFF"
             android:textSize="17sp" />
+
+        <Button
+            android:id="@+id/btnTertiary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:backgroundTint="#FF2A2A38"
+            android:minHeight="56dp"
+            android:textColor="#FFFFFFFF"
+            android:textSize="17sp"
+            android:visibility="gone" />
     </LinearLayout>
 </LinearLayout>

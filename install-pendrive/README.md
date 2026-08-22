@@ -32,7 +32,7 @@ install-pendrive/
 | Item | Obrigatório | Notas |
 |------|-------------|--------|
 | `apk/Player-AD-Vs{ver}-build-{code}.apk` | **Sim** | APK **release** actual: `Player-AD-Vs2.13-build-113.apk` (`debuggable=false`). **Não altera o logo de boot.** Versionado no Git — o deploy designa-o para download no painel. |
-| `apk/Instala-Player-TotemDigital.apk` | **Sim** (campo com logo) | Assistente: **altera o logo de boot** (root) **e instala o Player-AD**. Também versionado no Git e disponível no painel (Definições → APK). |
+| `apk/Instala-Player-TotemDigital.apk` | **Sim** (campo com logo) | Assistente: instala o **Player-AD** e o técnico **escolhe o sentido** das imagens de boot (retrato / retrato invertido / paisagem). Requer root para os logos. Versionado no Git e disponível no painel (Definições → APK). |
 | `config/exemplo-player-config.json` | Não | Edite IP, `uin`, `deviceId` antes de enviar ao aparelho. |
 | `midias/*` | Não | Vídeos de fallback; no Android costumam ir para storage do app (ver abaixo). |
 

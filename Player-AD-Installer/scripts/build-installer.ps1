@@ -41,9 +41,16 @@ if (-not $SkipPlayerBuild) {
     }
 }
 
-$playerApk = Join-Path $PlayerDir 'build\outputs\apk\release\Player-AD-release.apk'
-if (-not (Test-Path $playerApk)) {
-    throw "Player-AD-release.apk em falta: $playerApk"
+$playerReleaseDir = Join-Path $PlayerDir 'build\outputs\apk\release'
+$playerApk = Get-ChildItem -Path $playerReleaseDir -Filter 'Player-AD-Vs*-build-*.apk' -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -notmatch 'unsigned' } |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+if (-not $playerApk -and (Test-Path (Join-Path $playerReleaseDir 'Player-AD-release.apk'))) {
+    $playerApk = Get-Item (Join-Path $playerReleaseDir 'Player-AD-release.apk')
+}
+if (-not $playerApk) {
+    throw "Player-AD APK em falta em $playerReleaseDir (esperado Player-AD-Vs*-build-*.apk)"
 }
 
 Write-Host ">> Compilar Instala-Player-TotemDigital" -ForegroundColor Yellow
