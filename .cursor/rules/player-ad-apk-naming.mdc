@@ -1,0 +1,20 @@
+---
+description: Nome oficial do APK Player-AD com versão e build
+alwaysApply: true
+---
+
+# Player-AD — nome do APK
+
+Ao gerar, copiar para o kit ou instalar o Player-AD, **não** usar `Player-AD-release.apk`.
+
+Padrão obrigatório (sem espaços):
+
+```text
+Player-AD-Vs{versionName}-build-{versionCode}.apk
+```
+
+Exemplo actual: `Player-AD-Vs2.13-build-113.apk` (`versionName` 2.13, `versionCode` 113).
+
+- Gradle já define `outputFileName` assim em `Player-AD/build.gradle`.
+- Kit: `install-pendrive/apk/Player-AD-Vs…-build-….apk` (o prepare-install-pendrive copia com este nome).
+- Manter `Instala-Player-TotemDigital.apk` com o nome fixo (instalador de boot + player).
