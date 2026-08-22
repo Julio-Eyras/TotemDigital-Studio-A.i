@@ -23,24 +23,40 @@ done
   exit 2
 }
 
-APK="$REPO/install-pendrive/apk/Player-AD-release.apk"
-if [[ ! -f "$APK" ]]; then
-  echo "[AVISO] APK oficial ausente no git: $APK"
+APK=""
+# Preferir nome versionado Player-AD-Vs{ver}-build-{code}.apk
+shopt -s nullglob
+CANDIDATES=( "$REPO"/install-pendrive/apk/Player-AD-Vs*-build-*.apk )
+shopt -u nullglob
+if ((${#CANDIDATES[@]} > 0)); then
+  # Mais recente por mtime
+  APK="$(ls -1t "${CANDIDATES[@]}" | head -n 1)"
+elif [[ -f "$REPO/install-pendrive/apk/Player-AD-release.apk" ]]; then
+  APK="$REPO/install-pendrive/apk/Player-AD-release.apk"
+fi
+if [[ -z "$APK" || ! -f "$APK" ]]; then
+  echo "[AVISO] APK oficial ausente no git (Player-AD-Vs*-build-*.apk)"
   exit 0
 fi
 
-VER="2.12"
-CODE="112"
+VER="2.13"
+CODE="113"
 GRADLE="$REPO/Player-AD/build.gradle"
 if [[ -f "$GRADLE" ]]; then
   VER="$(grep -E "versionName" "$GRADLE" | head -n1 | sed -E "s/.*versionName[[:space:]]+'([^']+)'.*/\1/" || true)"
   CODE="$(grep -E "versionCode" "$GRADLE" | head -n1 | sed -E "s/.*versionCode[[:space:]]+([0-9]+).*/\1/" || true)"
-  VER="${VER:-2.12}"
-  CODE="${CODE:-112}"
+  VER="${VER:-2.13}"
+  CODE="${CODE:-113}"
+fi
+
+APK_BASENAME="$(basename "$APK")"
+# Se o ficheiro ainda for o legado, normalizar o nome na cópia OTA
+if [[ "$APK_BASENAME" == "Player-AD-release.apk" ]]; then
+  APK_BASENAME="Player-AD-Vs${VER}-build-${CODE}.apk"
 fi
 
 DEST_DIR="$BACKEND_DIR/uploads/ota-updates"
-DEST="$DEST_DIR/Player-AD-release.apk"
+DEST="$DEST_DIR/$APK_BASENAME"
 INSTALLER_SRC="$REPO/install-pendrive/apk/Instala-Player-TotemDigital.apk"
 INSTALLER_DEST="$DEST_DIR/Instala-Player-TotemDigital.apk"
 copy_apk() {
@@ -90,6 +106,7 @@ sql_escape() {
 DEST_SQL="$(sql_escape "$DEST")"
 SHA_SQL="$(sql_escape "$SHA")"
 VER_SQL="$(sql_escape "$VER")"
+APK_BASENAME_SQL="$(sql_escape "$APK_BASENAME")"
 
 psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 <<SQL
 DO \$\$
@@ -109,7 +126,7 @@ BEGIN
     file_size = ${SIZE},
     checksum = '${SHA_SQL}',
     version_code = ${CODE},
-    original_filename = 'Player-AD-release.apk',
+    original_filename = '${APK_BASENAME_SQL}',
     package_name = 'br.com.smartchannel.playerad',
     status = 'active',
     is_active = true,
@@ -129,7 +146,7 @@ BEGIN
       version, version_code, platform, package_name, original_filename,
       file_path, file_size, checksum, description, status, is_active, released_at, created_by
     ) VALUES (
-      '${VER_SQL}', ${CODE}, 'android', 'br.com.smartchannel.playerad', 'Player-AD-release.apk',
+      '${VER_SQL}', ${CODE}, 'android', 'br.com.smartchannel.playerad', '${APK_BASENAME_SQL}',
       '${DEST_SQL}', ${SIZE}, '${SHA_SQL}',
       'Player-AD oficial (kit git, assembleRelease, debuggable=false)',
       'active', true, CURRENT_TIMESTAMP, v_owner

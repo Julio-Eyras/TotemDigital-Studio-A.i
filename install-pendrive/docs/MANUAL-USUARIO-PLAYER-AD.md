@@ -27,7 +27,7 @@ Sem `serverUrl` + `uin` válidos, o player não consegue receber conteúdo.
 |------|------------|
 | Aparelho Android | TV box / totem com Android 7 ou superior |
 | Rede | Wi‑Fi ou cabo; o aparelho deve alcançar o servidor (IP ou DNS) |
-| APK | Ficheiro `Player-AD-release.apk` (release assinado) |
+| APK | Ficheiro `Player-AD-Vs{versão}-build-{código}.apk` (release assinado) |
 | Código de ativação | Gerado no painel web ao criar/consultar o totem (campo **Ativação** / UIN) |
 | URL do servidor | `https://totemdigital.app.br` (sem barra no fim) |
 
@@ -48,11 +48,11 @@ Há três formas comuns. Use a que se adequar ao local.
 
 ### 3.1 Com pendrive (sem computador) — recomendado em campo
 
-1. Copie para o pendrive a pasta do kit (conteúdo de `install-pendrive/`), incluindo o APK em `apk/Player-AD-release.apk`
+1. Copie para o pendrive a pasta do kit (conteúdo de `install-pendrive/`), incluindo o APK em `apk/Player-AD-Vs{versão}-build-{código}.apk`
 2. Ligue o totem / TV box
 3. Insira o pendrive na porta USB
 4. Abra o **gestor de ficheiros**
-5. Entre em `apk/` e toque em `Player-AD-release.apk`
+5. Entre em `apk/` e toque em `Player-AD-Vs{versão}-build-{código}.apk`
 6. Toque em **Instalar**
 7. Se o Android bloquear apps fora da loja:
    - no aviso, abra **Definições**
@@ -106,7 +106,7 @@ Flags úteis:
 
 APK gerado pelo build:
 
-`Player-AD\build\outputs\apk\release\Player-AD-release.apk`
+`Player-AD\build\outputs\apk\release\Player-AD-Vs{versão}-build-{código}.apk`
 
 ---
 
@@ -222,7 +222,7 @@ Se o servidor estiver correto mas a playlist vazia, o player pode ficar à esper
 
 ## 6. Atualizar o Player-AD
 
-1. Obtenha o novo `Player-AD-release.apk`
+1. Obtenha o novo `Player-AD-Vs{versão}-build-{código}.apk`
 2. Instale por cima (pendrive ou ADB) — o Android pergunta **Atualizar**
 3. Em geral a configuração (`serverUrl` / `uin`) **mantém-se**
 4. Abra o app e confirme a reprodução
@@ -240,7 +240,7 @@ Se aparecer erro de assinatura (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`):
 | Sintoma | O que tentar |
 |---------|----------------|
 | Pendrive não aparece | Outra porta USB; reinserir; formatar em FAT32/exFAT |
-| Não instala o APK | Permitir apps desconhecidas; confirmar que o ficheiro é `Player-AD-release.apk` |
+| Não instala o APK | Permitir apps desconhecidas; confirmar que o ficheiro é `Player-AD-Vs{versão}-build-{código}.apk` |
 | App abre e fecha | Reiniciar o aparelho; reinstalar; pedir log ao suporte |
 | Não liga ao servidor | Confirmar `serverUrl` (IP, porta `:8080`), firewall e Wi‑Fi do totem |
 | Totem offline no painel | UIN errado; rede; aguardar o intervalo de heartbeat |
@@ -262,7 +262,7 @@ Ao pedir ajuda, envie:
 ## 8. Resumo em 1 minuto
 
 1. Crie o totem no painel e **copie o código de ativação**  
-2. Instale `Player-AD-release.apk` (pendrive ou ADB)  
+2. Instale `Player-AD-Vs{versão}-build-{código}.apk` (pendrive ou ADB)  
 3. Abra o player → **5 toques** → configuração  
 4. Preencha **URL do servidor**, **UIN** e **deviceId** (iguais ao código)  
 5. **Aplicar e iniciar**  
@@ -276,7 +276,7 @@ Ao pedir ajuda, envie:
 |------|--------|
 | Manual do utilizador (este) | `Player-AD/docs/MANUAL-USUARIO-INSTALACAO-CONFIGURACAO.md` |
 | Kit pendrive | `install-pendrive/` |
-| APK no kit | `install-pendrive/apk/Player-AD-release.apk` |
+| APK no kit | `install-pendrive/apk/Player-AD-Vs{versão}-build-{código}.apk` |
 | Exemplo de config | `install-pendrive/config/exemplo-player-config.json` |
 | Config no Android | `/sdcard/smartsignage/player-config.json` |
 | Manual técnico TV box | `Player-AD/docs/MANUAL-OPERACIONAL-TVBOX.md` |

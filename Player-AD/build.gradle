@@ -75,6 +75,15 @@ android {
     }
 }
 
+// Nome oficial do APK: Player-AD-Vs{versionName}-build-{versionCode}.apk
+android.applicationVariants.configureEach { variant ->
+    variant.outputs.configureEach { output ->
+        def vName = variant.versionName
+        def vCode = variant.versionCode
+        output.outputFileName = "Player-AD-Vs${vName}-build-${vCode}.apk"
+    }
+}
+
 dependencies {
     implementation 'androidx.core:core-ktx:1.13.1'
     implementation 'androidx.appcompat:appcompat:1.7.0'

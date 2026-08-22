@@ -1,6 +1,11 @@
-Nesta pasta deve existir o APK release do Player-AD (já incluído no kit):
+Nesta pasta deve existir o APK release do Player-AD (já incluído no kit), com nome versionado:
 
-  Player-AD-release.apk   ← 2.13 / versionCode 113
+  Player-AD-Vs{versionName}-build-{versionCode}.apk
+
+Exemplo actual:
+  Player-AD-Vs2.13-build-113.apk
+
+Não usar mais o nome legado Player-AD-release.apk.
 
 Gere/atualize a partir do projeto:
 

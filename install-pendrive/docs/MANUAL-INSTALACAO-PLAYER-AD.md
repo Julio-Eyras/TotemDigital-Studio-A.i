@@ -24,7 +24,7 @@ Use a pasta `install-pendrive` como raiz do conteudo a copiar para o USB.
 ```
 install-pendrive/
   apk/
-    Player-AD-release.apk
+    Player-AD-Vs{versão}-build-{código}.apk
     COLOQUE_O_APK_AQUI.txt
   config/
     exemplo-player-config.json
@@ -77,13 +77,13 @@ cd C:\SmartSignage-Pro\Player-AD
 
 APK esperado:
 
-- `Player-AD\build\outputs\apk\release\Player-AD-release.apk`
+- `Player-AD\build\outputs\apk\release\Player-AD-Vs{versão}-build-{código}.apk`
 
 ### 4.2 Copiar APK para o kit pendrive
 
 ```powershell
-$apk = "C:\SmartSignage-Pro\Player-AD\build\outputs\apk\release\Player-AD-release.apk"
-Copy-Item -Force $apk "C:\SmartSignage-Pro\install-pendrive\apk\Player-AD-release.apk"
+$apk = "C:\SmartSignage-Pro\Player-AD\build\outputs\apk\release\Player-AD-Vs{versão}-build-{código}.apk"
+Copy-Item -Force $apk "C:\SmartSignage-Pro\install-pendrive\apk\Player-AD-Vs{versão}-build-{código}.apk"
 ```
 
 ### 4.3 Ajustar configuracao de exemplo
@@ -156,7 +156,7 @@ adb install -r -d -g caminho/do/apk
 1. Inserir USB na TV Box.
 2. Abrir gestor de ficheiros.
 3. Ir para `apk/`.
-4. Selecionar `Player-AD-release.apk`.
+4. Selecionar `Player-AD-Vs{versão}-build-{código}.apk`.
 5. Confirmar instalacao.
 6. Se solicitado, permitir instalacao de apps desconhecidas.
 
@@ -235,7 +235,7 @@ Passo a passo simples:
 2. Insira o pendrive.
 3. Abra o gestor de ficheiros.
 4. Entre em `apk/`.
-5. Toque em `Player-AD-release.apk`.
+5. Toque em `Player-AD-Vs{versão}-build-{código}.apk`.
 6. Toque em Instalar.
 7. Abra o app SmartSignage Player-AD.
 

@@ -10,10 +10,16 @@ param(
 $ErrorActionPreference = 'Stop'
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $Src = Join-Path $RepoRoot 'install-pendrive'
-$Apk = Join-Path $Src 'apk\Player-AD-release.apk'
+$ApkDir = Join-Path $Src 'apk'
+$Apk = Get-ChildItem -Path $ApkDir -Filter 'Player-AD-Vs*-build-*.apk' -ErrorAction SilentlyContinue |
+  Sort-Object LastWriteTime -Descending |
+  Select-Object -First 1
+if (-not $Apk -and (Test-Path (Join-Path $ApkDir 'Player-AD-release.apk'))) {
+  $Apk = Get-Item (Join-Path $ApkDir 'Player-AD-release.apk')
+}
 
-if (-not (Test-Path $Apk)) {
-  Write-Error "APK em falta: $Apk — compile com: cd Player-AD; .\gradlew.bat assembleRelease"
+if (-not $Apk) {
+  Write-Error "APK em falta em $ApkDir (esperado Player-AD-Vs*-build-*.apk) — compile com: cd Player-AD; .\gradlew.bat assembleRelease; .\scripts\prepare-install-pendrive.ps1"
 }
 
 function Resolve-UsbRoot([string]$letter) {
@@ -51,5 +57,5 @@ if ($rc -ge 8) { throw "robocopy falhou com codigo $rc" }
 
 Write-Host ""
 Write-Host "OK — kit copiado para $Dest" -ForegroundColor Green
-Write-Host "Na TV Box: abra o pendrive → install-pendrive\apk\Player-AD-release.apk"
-Get-Item (Join-Path $Dest 'apk\Player-AD-release.apk') | Format-List FullName, Length, LastWriteTime
+Write-Host "Na TV Box: abra o pendrive → install-pendrive\apk\$($Apk.Name)"
+Get-Item (Join-Path (Join-Path $Dest 'apk') $Apk.Name) | Format-List FullName, Length, LastWriteTime

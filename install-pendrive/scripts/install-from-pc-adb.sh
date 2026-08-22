@@ -19,8 +19,11 @@ APK_PATH=""
 if [[ -n "$APK_ARG" && -f "$APK_ARG" ]]; then
   APK_PATH="$APK_ARG"
 else
-  # Mais recente em apk/
-  APK_PATH="$(ls -1t "$ROOT"/apk/*.apk 2>/dev/null | head -n 1 || true)"
+  # Preferir player versionado; nunca o instalador de boot por defeito
+  APK_PATH="$(ls -1t "$ROOT"/apk/Player-AD-Vs*-build-*.apk 2>/dev/null | head -n 1 || true)"
+  if [[ -z "$APK_PATH" || ! -f "$APK_PATH" ]]; then
+    APK_PATH="$(ls -1t "$ROOT"/apk/Player-AD*.apk 2>/dev/null | grep -v Instala-Player | head -n 1 || true)"
+  fi
 fi
 
 if [[ -z "$APK_PATH" || ! -f "$APK_PATH" ]]; then

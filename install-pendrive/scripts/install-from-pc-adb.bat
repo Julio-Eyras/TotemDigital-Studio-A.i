@@ -9,10 +9,16 @@ if errorlevel 1 (
 )
 
 set APK=
-for %%f in (apk\*.apk) do set "APK=%%f"
+for %%f in (apk\Player-AD-Vs*-build-*.apk) do set "APK=%%f"
+if not defined APK (
+  for %%f in (apk\Player-AD*.apk) do (
+    echo %%f | findstr /i /c:"Instala-Player" >nul
+    if errorlevel 1 set "APK=%%f"
+  )
+)
 
 if not defined APK (
-  echo ERRO: Nenhum APK em apk\ — coloque um ficheiro .apk nessa pasta.
+  echo ERRO: Nenhum Player-AD-Vs*-build-*.apk em apk\
   exit /b 1
 )
 

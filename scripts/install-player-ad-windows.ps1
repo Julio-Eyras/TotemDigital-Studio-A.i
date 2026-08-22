@@ -4,7 +4,7 @@
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $PlayerDir = Join-Path $Root 'Player-AD'
-$Apk = Join-Path $PlayerDir 'build\outputs\apk\release\Player-AD-release.apk'
+$ReleaseDir = Join-Path $PlayerDir 'build\outputs\apk\release'
 
 if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
     Write-Error 'adb nao encontrado no PATH'
@@ -20,9 +20,16 @@ finally {
     Pop-Location
 }
 
-if (-not (Test-Path $Apk)) {
-    Write-Error "APK nao encontrado: $Apk"
+$ApkItem = Get-ChildItem $ReleaseDir -Filter 'Player-AD-Vs*-build-*.apk' -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+if (-not $ApkItem -and (Test-Path (Join-Path $ReleaseDir 'Player-AD-release.apk'))) {
+    $ApkItem = Get-Item (Join-Path $ReleaseDir 'Player-AD-release.apk')
 }
+if (-not $ApkItem) {
+    Write-Error "APK nao encontrado em $ReleaseDir (esperado Player-AD-Vs*-build-*.apk)"
+}
+$Apk = $ApkItem.FullName
 
 Write-Host "== Instalar: $Apk ==" -ForegroundColor Cyan
 adb devices

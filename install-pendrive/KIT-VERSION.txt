@@ -3,7 +3,7 @@ Player-AD:     2.13 (versionCode 113)
 Painel:        Front 2.1.22 / Back 2.1.16
 Branch:        main
 Data kit:      2026-08-21
-APK git:       install-pendrive/apk/Player-AD-release.apk (release, sem debug; não altera boot)
+APK git:       install-pendrive/apk/Player-AD-Vs2.13-build-113.apk (release, sem debug; não altera boot)
 Instalador:    install-pendrive/apk/Instala-Player-TotemDigital.apk (logo boot + Player-AD)
 Homologação:   docs/hardware/HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md (base 2.12)
 Campo:         TV_BOX_3 — 2.13 / 113 viewport 720×1280 sem faixas pretas (2026-08-21); base PASS 2.12 / 112 (2026-08-13)

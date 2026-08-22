@@ -37,12 +37,27 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $PlayerRoot = Split-Path -Parent $ScriptDir
 $RepoRoot = Split-Path -Parent $PlayerRoot
 $ApkReleaseDir = Join-Path $PlayerRoot 'build\outputs\apk\release'
-$DefaultApkName = 'Player-AD-release.apk'
-$ApkPath = Join-Path $ApkReleaseDir $DefaultApkName
 $PendriveApkDir = Join-Path $RepoRoot 'install-pendrive\apk'
 $DefaultConfigCandidates = @(
     (Join-Path $RepoRoot 'install-pendrive\config\exemplo-player-config.json')
 )
+
+function Resolve-PlayerAdApk([string] $ReleaseDir) {
+    $versioned = Get-ChildItem -Path $ReleaseDir -Filter 'Player-AD-Vs*-build-*.apk' -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+    if ($versioned) { return $versioned.FullName }
+    $legacy = Join-Path $ReleaseDir 'Player-AD-release.apk'
+    if (Test-Path $legacy) { return $legacy }
+    $any = Get-ChildItem -Path $ReleaseDir -Filter '*.apk' -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -notmatch 'unsigned|debug' } |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+    if ($any) { return $any.FullName }
+    return $null
+}
+
+$ApkPath = Resolve-PlayerAdApk $ApkReleaseDir
 
 . (Join-Path $ScriptDir 'android-box-diagnostics.ps1')
 
@@ -215,11 +230,10 @@ if (-not $SkipBuild) {
     }
 }
 
-if (-not (Test-Path $ApkPath)) {
-    $found = Get-ChildItem -Path $ApkReleaseDir -Filter '*.apk' -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($found) { $ApkPath = $found.FullName }
+if (-not $ApkPath -or -not (Test-Path $ApkPath)) {
+    $ApkPath = Resolve-PlayerAdApk $ApkReleaseDir
 }
-if (-not (Test-Path $ApkPath)) {
+if (-not $ApkPath -or -not (Test-Path $ApkPath)) {
     Write-Error "APK nao encontrado em $ApkReleaseDir. Execute sem -SkipBuild ou faca o build no Android Studio."
 }
 
@@ -227,7 +241,10 @@ Write-Host "`nAPK: $ApkPath" -ForegroundColor Green
 
 if (-not $NoCopyToPendrive -and (Test-Path (Join-Path $RepoRoot 'install-pendrive'))) {
     New-Item -ItemType Directory -Force -Path $PendriveApkDir | Out-Null
-    $pendApk = Join-Path $PendriveApkDir $DefaultApkName
+    Get-ChildItem -Path $PendriveApkDir -Filter '*.apk' -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -ne 'Instala-Player-TotemDigital.apk' } |
+        Remove-Item -Force
+    $pendApk = Join-Path $PendriveApkDir (Split-Path -Leaf $ApkPath)
     Copy-Item -Force -Path $ApkPath -Destination $pendApk
     Write-Host "Copia: $pendApk" -ForegroundColor Gray
 }

@@ -33,14 +33,25 @@ if (-not (Test-Path $ReleaseDir)) {
   throw "Pasta release inexistente: $ReleaseDir — compile com: .\gradlew.bat assembleRelease"
 }
 
-$Apk = Get-ChildItem -Path $ReleaseDir -Filter '*.apk' |
-  Where-Object { $_.Name -notmatch '-unsigned\.apk$' -and $_.Name -notmatch 'debug' } |
+$Apk = Get-ChildItem -Path $ReleaseDir -Filter 'Player-AD-Vs*-build-*.apk' -ErrorAction SilentlyContinue |
   Sort-Object LastWriteTime -Descending |
   Select-Object -First 1
+if (-not $Apk) {
+  $Apk = Get-ChildItem -Path $ReleaseDir -Filter '*.apk' |
+    Where-Object { $_.Name -notmatch '-unsigned\.apk$' -and $_.Name -notmatch 'debug' } |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+}
 
 if (-not $Apk) {
   throw "APK release nao encontrado em $ReleaseDir"
 }
+
+# Versao a partir do build.gradle (nome oficial do ficheiro)
+$Gradle = Get-Content (Join-Path $PlayerDir 'build.gradle') -Raw
+$ver = if ($Gradle -match "versionName\s+'([^']+)'") { $Matches[1] } else { '?' }
+$code = if ($Gradle -match 'versionCode\s+(\d+)') { $Matches[1] } else { '?' }
+$DestApkName = "Player-AD-Vs$ver-build-$code.apk"
 
 New-Item -ItemType Directory -Force -Path $ApkDestDir | Out-Null
 
@@ -49,8 +60,9 @@ Get-ChildItem -Path $ApkDestDir -Filter '*.apk' -ErrorAction SilentlyContinue |
   Where-Object { $_.Name -ne 'Instala-Player-TotemDigital.apk' } |
   Remove-Item -Force
 
-Copy-Item -Force $Apk.FullName (Join-Path $ApkDestDir 'Player-AD-release.apk')
-Write-Host "OK APK: $($Apk.Name) -> install-pendrive\apk\Player-AD-release.apk ($([math]::Round($Apk.Length/1MB, 2)) MB) — nao altera boot"
+$DestApkPath = Join-Path $ApkDestDir $DestApkName
+Copy-Item -Force $Apk.FullName $DestApkPath
+Write-Host "OK APK: $($Apk.Name) -> install-pendrive\apk\$DestApkName ($([math]::Round($Apk.Length/1MB, 2)) MB) — nao altera boot"
 
 $InstallerSrc = Join-Path $RepoRoot 'Player-AD-Installer\build\outputs\apk\release\Instala-Player-TotemDigital.apk'
 $InstallerDest = Join-Path $ApkDestDir 'Instala-Player-TotemDigital.apk'
@@ -70,9 +82,6 @@ if (Test-Path $CfgSrc) {
 }
 
 # Atualizar versao no LEIA-ME e KIT-VERSION.txt a partir do build.gradle
-$Gradle = Get-Content (Join-Path $PlayerDir 'build.gradle') -Raw
-$ver = if ($Gradle -match "versionName\s+'([^']+)'") { $Matches[1] } else { '?' }
-$code = if ($Gradle -match 'versionCode\s+(\d+)') { $Matches[1] } else { '?' }
 $feVer = '?'
 $beVer = '?'
 $fePkg = Join-Path $RepoRoot 'frontend\package.json'
@@ -90,6 +99,7 @@ if (Test-Path $leia) {
   $txt = Get-Content $leia -Raw
   $txt = [regex]::Replace($txt, 'Player-AD\s+[\d.]+ \(versionCode \d+\)', "Player-AD $ver (versionCode $code)")
   $txt = [regex]::Replace($txt, 'Front [\d.]+ / Back [\d.]+', "Front $feVer / Back $beVer")
+  $txt = [regex]::Replace($txt, 'apk/Player-AD[^\s]+', "apk/$DestApkName")
   Set-Content -Path $leia -Value $txt -NoNewline -Encoding UTF8
   Write-Host "OK LEIA-ME: Player-AD $ver (versionCode $code)"
 }
@@ -101,7 +111,7 @@ Player-AD:     $ver (versionCode $code)
 Painel:        Front $feVer / Back $beVer
 Branch:        main
 Data kit:      $today
-APK git:       install-pendrive/apk/Player-AD-release.apk (sem debug; nao altera boot)
+APK git:       install-pendrive/apk/$DestApkName (sem debug; nao altera boot)
 Instalador:    install-pendrive/apk/Instala-Player-TotemDigital.apk (logo boot + Player-AD)
 Homologação:   docs/hardware/HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md (base 2.12)
 Campo:         TV_BOX_3 — $ver / $code (kit $today); base PASS 2.12 / 112 (2026-08-13)
@@ -115,4 +125,4 @@ Write-Host "OK KIT-VERSION.txt: Player-AD $ver ($code) · FE $feVer · BE $beVer
 Write-Host ""
 Write-Host "Kit pronto em: $Dest"
 Write-Host "Copie para o USB com: .\scripts\copy-install-pendrive-to-usb.ps1 E:"
-Get-Item (Join-Path $ApkDestDir 'Player-AD-release.apk') | Format-List FullName, Length, LastWriteTime
+Get-Item $DestApkPath | Format-List FullName, Length, LastWriteTime

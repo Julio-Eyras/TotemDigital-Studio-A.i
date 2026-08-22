@@ -11,8 +11,8 @@ MANUAL COMPLETO (PDF — todos os manuais num ficheiro):
 MANUAL DO UTILIZADOR (Markdown):
   docs/MANUAL-USUARIO-PLAYER-AD.md
 
-1) APK release já incluído em:  apk/Player-AD-release.apk
-   (compilado com assembleRelease, debuggable=false — não use assembleDebug)
+1) APK release já incluído em:  apk/Player-AD-Vs2.13-build-113.apk
+   (padrão: Player-AD-Vs{versão}-build-{código}.apk; assembleRelease, sem debug)
    Só o player. NÃO altera o logo de boot.
 
 1b) Instalador de campo:  apk/Instala-Player-TotemDigital.apk
