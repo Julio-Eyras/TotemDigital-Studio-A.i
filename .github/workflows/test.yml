@@ -232,8 +232,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
 
-      - name: Install Node deps (validate-v6)
+      - name: Install Node deps (validate-v6 usa pg do backend)
+        working-directory: ./backend
         run: npm ci --ignore-scripts
 
       - name: Apply schema v2 (ordered, fail on error)
@@ -255,6 +258,7 @@ jobs:
           DB_USER: postgres
           DB_PASSWORD: postgres
           VALIDATE_V6_STRICT: 'true'
+          NODE_PATH: ${{ github.workspace }}/backend/node_modules
         run: node database/validate-v6.js
 
       - name: Validate financial schema columns (Studio billing)
@@ -322,6 +326,20 @@ jobs:
   e2e-studio:
     name: e2e (Playwright full stack)
     runs-on: ubuntu-latest
+    services:
+      postgres-e2e:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: smartsignage
+          POSTGRES_USER: smartsignage
+          POSTGRES_PASSWORD: smartsignage123
+        options: >-
+          --health-cmd "pg_isready -U smartsignage -d smartsignage"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+        ports:
+          - 5433:5432
     steps:
       - uses: actions/checkout@v4
 
@@ -334,6 +352,19 @@ jobs:
         working-directory: backend
         run: npm ci
 
+      - name: Apply schema + seeds v6 (Postgres do job)
+        env:
+          SKIP_CONFIRM: 'true'
+          DB_HOST: localhost
+          DB_PORT: '5433'
+          DB_NAME: smartsignage
+          DB_USER: smartsignage
+          PGPASSWORD: smartsignage123
+        working-directory: database
+        run: |
+          ./apply-schema-v2.sh
+          PGPASSWORD="$PGPASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 -f carga-inicial-v6.sql
+
       - name: Install frontend dependencies
         run: npm ci --prefix frontend
 
@@ -344,6 +375,8 @@ jobs:
         env:
           CI: true
           E2E_MOCK_API: '0'
+          E2E_SKIP_DOCKER: '1'
+          DATABASE_URL: postgresql://smartsignage:smartsignage123@127.0.0.1:5433/smartsignage
         run: npm run test:e2e:full
 
       - name: Upload Playwright report

@@ -1,6 +1,6 @@
-import { resolveModuleForPath } from '../../installationModuleAccess';
+import { resolveModuleForPath } from './installationModuleAccess';
 
-jest.mock('../../config/installationCapabilities', () => ({
+jest.mock('../config/installationCapabilities', () => ({
   getInstallationCapabilities: () => ({
     modules: {
       campaigns: false,

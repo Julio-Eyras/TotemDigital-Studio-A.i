@@ -27,7 +27,7 @@ describe('mixPlaybackCycle', () => {
     const expanded = expandMixItemsForPlaybackCycle(items, 50);
     expect(expanded).toHaveLength(1);
     expect(expanded[0].media_id).toBe(42);
-    expect(expanded[0].order_index).toBe(1);
+    expect((expanded[0] as { order_index?: number }).order_index).toBe(1);
   });
 
   it('colapsa cópias repetidas da mesma mídia num único item', () => {

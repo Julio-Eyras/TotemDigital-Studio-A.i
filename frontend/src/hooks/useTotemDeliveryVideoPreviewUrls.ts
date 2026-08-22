@@ -13,8 +13,12 @@ export function shouldUseTotemDeliveryVideoPreview(media: {
 }): boolean {
   if (!/^video$/i.test(String(media.media_type || ''))) return false;
   if (!isTotemDeliveryMedia(media)) return false;
+  // Preview estático na biblioteca: só landscape (portrait usa thumbnail próprio).
+  const w = Number(media.width ?? 0);
+  const h = Number(media.height ?? 0);
+  if (!(w > h && w > 0 && h > 0)) return false;
   const bytes = Number(media.size_bytes ?? media.fileSizeBytes ?? 0);
-  if (bytes > TOTEM_VIDEO_PREVIEW_MAX_BYTES) return false;
+  if (Number.isFinite(bytes) && bytes > TOTEM_VIDEO_PREVIEW_MAX_BYTES) return false;
   return true;
 }
 

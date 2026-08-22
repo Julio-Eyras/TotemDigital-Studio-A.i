@@ -23,10 +23,13 @@ describe('registerProRoutes (alias registerExtendedApiRoutes)', () => {
 
     const clientCall = use.mock.calls.find((call) => call[0] === '/api/clients');
     expect(clientCall).toBeDefined();
-    const clientDeprecationMiddleware = clientCall?.[3] as Function;
+    const clientDeprecationMiddleware = clientCall?.find(
+      (arg: unknown) => typeof arg === 'function' && String(arg).includes('X-Deprecated-Route')
+    ) as Function | undefined;
+    expect(clientDeprecationMiddleware).toBeDefined();
     const resClients = { setHeader: jest.fn() } as any;
     const nextClients = jest.fn();
-    clientDeprecationMiddleware({}, resClients, nextClients);
+    clientDeprecationMiddleware!({}, resClients, nextClients);
     expect(resClients.setHeader).toHaveBeenCalledWith('X-Deprecated-Route', 'true');
     expect(nextClients).toHaveBeenCalled();
   });

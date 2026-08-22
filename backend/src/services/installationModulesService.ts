@@ -251,7 +251,7 @@ async function applyWorkersHotReload(db: DbLike): Promise<{ ok: boolean; error?:
       Boolean(config.redis?.enabled),
       'Hot-reload workers'
     );
-    return { ok: result.ok, error: result.error };
+    return { ok: result?.ok === true, error: result?.error };
   } catch (error: any) {
     await logError('Hot-reload de workers falhou', error);
     return { ok: false, error: error?.message || 'Falha no hot-reload' };

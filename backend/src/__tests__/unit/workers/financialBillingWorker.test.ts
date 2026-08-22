@@ -11,6 +11,7 @@ jest.mock('../../../config/env', () => ({
     cronIssueInvoices: '30 2 * * *',
     cronMarkOverdue: '30 3 * * *',
     cronSendReminders: '0 9 * * *',
+    cronEnforceOverdueBlocks: '15 4 * * *',
     autoRevenueSharePayouts: true,
     revenueShareSinceDays: 60,
     cronRevenueSharePayouts: '0 4 * * *',
@@ -28,6 +29,10 @@ jest.mock('../../../services/financialNotificationService', () => ({
   getFinancialNotificationService: () => ({
     sendPendingInvoiceReminders: jest.fn(),
   }),
+}));
+
+jest.mock('../../../services/financialIntegrationConfigService', () => ({
+  resolveFinancialWorkerEnabled: jest.fn().mockResolvedValue(true),
 }));
 
 jest.mock('../../../config/database', () => ({
@@ -48,14 +53,20 @@ describe('FinancialBillingWorker', () => {
     mockSchedule.mockImplementation(() => ({ stop: jest.fn() }));
   });
 
-  it('regista emissão, vencidas, lembretes e cron dedicado de revenue share', () => {
+  it('regista emissão, vencidas, lembretes, bloqueio e cron dedicado de revenue share', () => {
     const { FinancialBillingWorker } = require('../../../workers/financialBillingWorker');
     const worker = new FinancialBillingWorker();
     worker.start();
 
-    expect(mockSchedule).toHaveBeenCalledTimes(4);
+    expect(mockSchedule).toHaveBeenCalledTimes(5);
     expect(mockSchedule.mock.calls.map((c: string[]) => c[0])).toEqual(
-      expect.arrayContaining(['30 2 * * *', '30 3 * * *', '0 9 * * *', '0 4 * * *'])
+      expect.arrayContaining([
+        '30 2 * * *',
+        '30 3 * * *',
+        '0 9 * * *',
+        '0 4 * * *',
+        '15 4 * * *',
+      ])
     );
 
     worker.stop();

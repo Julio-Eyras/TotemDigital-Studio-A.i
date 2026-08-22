@@ -47,7 +47,7 @@ jest.mock('../../../config/env', () => ({
 }));
 
 jest.mock('../../../startup/operationalWorkersLifecycle', () => ({
-  reconcileWorkersFromCapabilities: jest.fn().mockResolvedValue({
+  reconcileWorkersFromCapabilities: async () => ({
     ok: true,
     changed: true,
     applied: {
@@ -66,7 +66,11 @@ function makeDb(opts?: {
   publisherCount?: number;
   modulesJson?: string;
   profile?: string;
-}) {
+}): {
+  inserted: unknown[][];
+  findFirst: jest.Mock;
+  executeRaw: jest.Mock;
+} {
   const publisherCount = opts?.publisherCount ?? 1;
   const inserted: unknown[][] = [];
 
@@ -92,6 +96,30 @@ function makeDb(opts?: {
 }
 
 describe('ensureDemoSecondAgencyIfNeeded', () => {
+  beforeEach(async () => {
+    const profileSvc = await import('../../../services/installationProfileService');
+    (profileSvc.resolveInstallationProfile as jest.Mock).mockResolvedValue('single_publisher');
+    (profileSvc.resolveInstallationCapabilities as jest.Mock).mockResolvedValue({
+      multiAgency: false,
+      bullExportQueues: false,
+      playlistMixWorker: false,
+      playlistEngineWorker: false,
+      alertCron: false,
+      stripeSubscriptions: false,
+      modules: {
+        multi_agency: false,
+        billing: false,
+        playlists_advanced: false,
+        subscribers: false,
+        dispatcher_admin: false,
+      },
+    });
+    const simpleSvc = await import('../../../services/totemSimpleModeService');
+    (simpleSvc.resolveInstallationSimpleTotemMode as jest.Mock).mockResolvedValue(true);
+    const runtime = await import('../../../config/installationRuntime');
+    (runtime.warmInstallationRuntime as jest.Mock).mockResolvedValue('multi_agency');
+  });
+
   it('não cria se já existirem 2+ organizações', async () => {
     const db = makeDb({ publisherCount: 2 });
     const result = await ensureDemoSecondAgencyIfNeeded(db as any);
@@ -147,11 +175,20 @@ describe('ensureSystemOwnerPublisherIfEmpty', () => {
 describe('setMultiAgencyMode', () => {
   it('ao activar com publishers existentes não faz seed e reconcilia workers', async () => {
     const db = makeDb({ publisherCount: 1 });
-    // Module/profile lookups
     db.findFirst = jest.fn(async (sql: string, params?: unknown[]) => {
       if (sql.includes('COUNT(*)') && sql.includes('publishers')) return { c: 1 };
       if (sql.includes('system_settings') && params?.[0] === 'installation.modules') {
-        return { setting_value: '{}' };
+        return {
+          setting_value: JSON.stringify({
+            multi_agency: false,
+            billing: false,
+            playlists_advanced: false,
+            subscribers: false,
+            dispatcher_admin: true,
+            direct_totem_mode: true,
+            simple_totem_mode: true,
+          }),
+        };
       }
       if (sql.includes('system_settings') && params?.[0] === 'installation.profile') {
         return { setting_value: 'single_publisher' };
@@ -237,6 +274,8 @@ describe('saveInstallationModules', () => {
     const result = await saveInstallationModules(db as any, { billing: true }, 1);
     expect(result.modules.billing).toBe(true);
     expect(result.workersReconciled).toBe(true);
+    expect(result.requiresBackendRestart).toBe(false);
+    expect(result.profile).toBe('multi_agency');
     expect(result.requiresBackendRestart).toBe(false);
     expect(result.profile).toBe('multi_agency');
   });

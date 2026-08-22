@@ -266,7 +266,7 @@ router.post(
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing', 'editoracao']),
   param('subscriberId').isInt({ min: 1 }),
   param('preset').isIn(PRESETS),
-  body('contractId').optional({ nullable: true }).isInt({ min: 1 }),
+  body('contractId').isInt({ min: 1 }),
   body('totemIds').isArray({ min: 1 }),
   body('totemIds.*').isInt({ min: 1 }),
   body('title').optional().isString().trim().isLength({ min: 1, max: 160 }),
@@ -292,11 +292,7 @@ router.post(
       const role = String(req.user?.role || '');
       const isAdmin = ['admin', 'admin_sql', 'owner_system'].includes(role);
       const userId = Number(req.user?.id || req.user?.userId || 0);
-      const rawContract = req.body.contractId;
-      const contractId =
-        rawContract === undefined || rawContract === null || rawContract === ''
-          ? null
-          : Number(rawContract);
+      const contractId = Number(req.body.contractId);
 
       const result = await getAutoPublishOrchestratorService().run({
         subscriberId,

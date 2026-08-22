@@ -4,7 +4,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { logWarn } from '../utils/loggerHelper';
 import { securityConfig, getEnvNumber } from '../config/env';
 
@@ -14,7 +14,8 @@ function playerRateLimitKey(req: Request): string {
     return `uin:${uin}`;
   }
   const ip = req.ip || req.socket?.remoteAddress || 'unknown';
-  return `ip:${ip}`;
+  // ipKeyGenerator evita ERR_ERL_KEY_GEN_IPV6 com IPs IPv6
+  return `ip:${ipKeyGenerator(ip)}`;
 }
 
 /**

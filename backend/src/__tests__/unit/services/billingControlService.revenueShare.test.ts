@@ -1,9 +1,11 @@
-const findFirst = jest.fn();
-const findMany = jest.fn();
-
-jest.mock('../../../config/database', () => ({
-  getDatabase: () => ({ findFirst, findMany }),
-}));
+jest.mock('../../../config/database', () => {
+  const findFirst = jest.fn();
+  const findMany = jest.fn();
+  return {
+    getDatabase: () => ({ findFirst, findMany }),
+    __dbMocks: { findFirst, findMany },
+  };
+});
 
 jest.mock('../../../services/subscriberBillingService', () => ({
   SubscriberBillingService: jest.fn().mockImplementation(() => ({
@@ -42,6 +44,11 @@ jest.mock('../../../services/publisherBillingService', () => ({
 jest.mock('../../../utils/loggerHelper', () => ({
   logError: jest.fn(async () => undefined),
 }));
+
+const { __dbMocks } = jest.requireMock('../../../config/database') as {
+  __dbMocks: { findFirst: jest.Mock; findMany: jest.Mock };
+};
+const { findFirst, findMany } = __dbMocks;
 
 describe('BillingControlService.getDashboard revenueShare', () => {
   beforeEach(() => {

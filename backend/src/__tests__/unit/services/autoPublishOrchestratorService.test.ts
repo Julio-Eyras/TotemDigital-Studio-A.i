@@ -77,7 +77,7 @@ describe('AutoPublishOrchestratorService', () => {
     });
 
     expect(mockSuggestCopy).not.toHaveBeenCalled();
-    expect(mockRenderToMediaHtml).toHaveBeenCalledWith(1, 'promotion', 1, true);
+    expect(mockRenderToMediaHtml).toHaveBeenCalledWith(1, 'promotion', 1, true, undefined);
     expect(mockPublish).toHaveBeenCalledWith(
       expect.objectContaining({ mediaIds: [88], contractId: 2, totemIds: [5] }),
       1
@@ -131,6 +131,6 @@ describe('AutoPublishOrchestratorService', () => {
     });
 
     expect(mockSuggestCopy).not.toHaveBeenCalled();
-    expect(mockRenderToMediaHtml).toHaveBeenCalledWith(1, 'menu', 1, true);
+    expect(mockRenderToMediaHtml).toHaveBeenCalledWith(1, 'menu', 1, true, undefined);
   });
 });

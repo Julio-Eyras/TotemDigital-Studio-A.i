@@ -1,6 +1,7 @@
 /**
  * Unit: initializeOperationalWorkers respects capability flags (Etapa E/F).
  */
+import cron from 'node-cron';
 import {
   initializeOperationalWorkers,
   resetOperationalWorkersStateForTests,
@@ -11,7 +12,7 @@ const startFinancial = jest.fn();
 const startSubscriber = jest.fn();
 const startEngine = jest.fn();
 const startMix = jest.fn();
-const cronSchedule = jest.fn(() => ({ stop: jest.fn() }));
+const cronSchedule = cron.schedule as unknown as jest.Mock;
 const initExport = jest.fn();
 const regExport = jest.fn();
 const initAdv = jest.fn();
@@ -22,7 +23,7 @@ const loadSchedules = jest.fn().mockResolvedValue(undefined);
 
 jest.mock('node-cron', () => ({
   __esModule: true,
-  default: { schedule: (...args: unknown[]) => cronSchedule(...args) },
+  default: { schedule: jest.fn(() => ({ stop: jest.fn() })) },
 }));
 
 jest.mock('../../../config/queue', () => ({
@@ -49,21 +50,21 @@ jest.mock('../../../services/exportScheduleService', () => ({
 }));
 
 jest.mock('../../../workers/invoiceWorker', () => ({
-  InvoiceWorker: jest.fn().mockImplementation(() => ({ start: startInvoice, stop: jest.fn() })),
+  InvoiceWorker: function InvoiceWorker() {
+    return { start: startInvoice, stop: jest.fn() };
+  },
 }));
 
 jest.mock('../../../workers/financialBillingWorker', () => ({
-  FinancialBillingWorker: jest.fn().mockImplementation(() => ({
-    start: startFinancial,
-    stop: jest.fn(),
-  })),
+  FinancialBillingWorker: function FinancialBillingWorker() {
+    return { start: startFinancial, stop: jest.fn() };
+  },
 }));
 
 jest.mock('../../../workers/subscriberAccessNotificationWorker', () => ({
-  SubscriberAccessNotificationWorker: jest.fn().mockImplementation(() => ({
-    start: startSubscriber,
-    stop: jest.fn(),
-  })),
+  SubscriberAccessNotificationWorker: function SubscriberAccessNotificationWorker() {
+    return { start: startSubscriber, stop: jest.fn() };
+  },
 }));
 
 jest.mock('../../../workers/playlistEngineWorker', () => ({
@@ -87,6 +88,10 @@ jest.mock('../../../utils/loggerHelper', () => ({
 describe('initializeOperationalWorkers', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    cronSchedule.mockImplementation(() => ({ stop: jest.fn() }));
+    closeExport.mockResolvedValue(undefined);
+    closeAdv.mockResolvedValue(undefined);
+    loadSchedules.mockResolvedValue(undefined);
     resetOperationalWorkersStateForTests();
   });
 
@@ -108,7 +113,9 @@ describe('initializeOperationalWorkers', () => {
     expect(startSubscriber).not.toHaveBeenCalled();
     expect(startEngine).not.toHaveBeenCalled();
     expect(startMix).not.toHaveBeenCalled();
-    expect(cronSchedule).not.toHaveBeenCalled();
+    // Purge comercial corre sempre; alertas (*/5) só com enableAlertCron.
+    expect(cronSchedule).toHaveBeenCalledWith('* * * * *', expect.any(Function));
+    expect(cronSchedule.mock.calls.some((c: string[]) => c[0] === '*/5 * * * *')).toBe(false);
   });
 
   it('multi-agência: arranca Bull + billing + playlists + alertas', async () => {
