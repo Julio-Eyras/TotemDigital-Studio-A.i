@@ -1,0 +1,8 @@
+# Ignorar artefactos de build locais
+/build/
+/data/
+/cmake-build-*/
+*.o
+*.a
+player-linux
+player-linux.exe

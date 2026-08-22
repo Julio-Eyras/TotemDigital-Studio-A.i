@@ -1,0 +1,26 @@
+{
+  "serverUrl": "https://totemdigital.app.br",
+  "uin": "T1000",
+  "deviceId": "T1000-EXTERMINATOR",
+  "storage": "path_override",
+  "storagePathOverride": "./data",
+  "maxCacheSizeMb": 1000,
+  "kioskMode": "strong",
+  "displayRotation": 0,
+  "screenOrientation": "portrait",
+  "allowPlaybackAudio": false,
+  "mediaTransitionEnabled": 1,
+  "acceptImagesInPlaylist": true,
+  "fallbackPropagandasPerVinheta": 3,
+  "batimentoCardiaco": 30,
+  "maxSecondsWithoutServerCheck": 180,
+  "pollAdaptive": {
+    "enabled": true,
+    "unchangedStreakBeforeSleep": 2,
+    "sleepGrowthFactor": 2.0,
+    "maxHeartbeatSeconds": 600,
+    "maxDispatchSeconds": 1800,
+    "idleHeartbeatSeconds": 120,
+    "idleDispatchSeconds": 600
+  }
+}

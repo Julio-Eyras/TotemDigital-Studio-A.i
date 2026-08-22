@@ -16,7 +16,7 @@ Há centenas de ficheiros históricos em `docs/` (análises, resumos de sessão)
 | Instalar ou actualizar o servidor | [§2 Instalação](#2-instalação-do-servidor) |
 | Usar o painel pela primeira vez | [§3 Manuais](#3-manuais-de-utilização) |
 | Regras de um módulo (o que pode / não pode) | [§4 Módulos](#4-módulos-de-produto-regras-de-negócio) |
-| Player / APK / TV box | [§5 Player e hardware](#5-player-ad-apk-e-hardware) |
+| Player / APK / TV box / Player-Linux | [§5 Player e hardware](#5-player-ad-player-linux-apk-e-hardware) |
 | Vender / preços / demo | [§6 Comercial](#6-comercial-e-produto) |
 | API / schema / ADRs | [§7 Técnica](#7-técnica-api-schema-e-decisões) |
 
@@ -176,7 +176,7 @@ Metodologia: [modulos/00-METODOLOGIA.md](./modulos/00-METODOLOGIA.md) · templat
 
 ---
 
-## 5. Player-AD, APK e hardware
+## 5. Player-AD, Player-Linux, APK e hardware
 
 ### Painel e kit
 
@@ -209,6 +209,15 @@ Metodologia: [modulos/00-METODOLOGIA.md](./modulos/00-METODOLOGIA.md) · templat
 | [../Player-AD/docs/Player-AD-CACHE-E-METADADOS.md](../Player-AD/docs/Player-AD-CACHE-E-METADADOS.md) | Cache e metadados. |
 | [../Player-AD/docs/HANDOFF-IA-SISTEMA-ARMAZENAMENTO-CACHE.md](../Player-AD/docs/HANDOFF-IA-SISTEMA-ARMAZENAMENTO-CACHE.md) | Handoff do sistema de cache. |
 | [Player-AD-CACHE-E-METADADOS.md](./Player-AD-CACHE-E-METADADOS.md) | Notas de cache no `docs/` (espelho). |
+
+### Player-Linux (C++ — parity AD 2.13 / 113)
+
+| Documento | Explicação |
+|-----------|------------|
+| [../Player-Linux/README.md](../Player-Linux/README.md) | Player Linux C++17; build CMake; parity com Player-AD 2.13. |
+| [../Player-Linux/docs/PARITY-PLAYER-AD-2.13.md](../Player-Linux/docs/PARITY-PLAYER-AD-2.13.md) | Checklist de parity Android → Linux. |
+| [../Player-Linux/docs/ARQUITETURA.md](../Player-Linux/docs/ARQUITETURA.md) | Módulos C++, threads, storage. |
+| [../Player-Linux/docs/API-E-CONFIG.md](../Player-Linux/docs/API-E-CONFIG.md) | Endpoints e `player-config.json`. |
 
 ### Hardware / TV box
 
