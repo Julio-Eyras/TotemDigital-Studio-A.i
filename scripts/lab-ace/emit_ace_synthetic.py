@@ -28,6 +28,7 @@ VALID = (
     "03-grupo-atencao-alta.json",
     "04-interacao-nfc.json",
     "05-interacao-qr.json",
+    "06-loja-fechada.json",
 )
 REFUSE_DEMOS = (
     "reject-identity-leak.json",

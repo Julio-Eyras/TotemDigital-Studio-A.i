@@ -16,6 +16,7 @@ VALID_NAMES = (
     "03-grupo-atencao-alta.json",
     "04-interacao-nfc.json",
     "05-interacao-qr.json",
+    "06-loja-fechada.json",
 )
 MUST_FAIL_SCHEMA = ("reject-identity-leak.json", "reject-tag-id.json")
 GATEWAY_EXPECT = {

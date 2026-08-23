@@ -268,7 +268,7 @@ Ordem. Cada passo espera decisão explícita antes de código.
 6. **Visão no edge (lab, feito)** — `scripts/lab-ace/edge_vision.py`: HOG de corpo ou modo `--synthetic`. Sem face, sem gravar frame. Contrato `ace/0.1` inalterado.
 7. **FX / NFC / QR no mesmo bus (lab, feito)** — bools `interaction.*`; `POST /api/lab/ace/interaction`. Sem `tag_id`. `tags_crud` e `FxOrchestratorService` (mood) **não** foram ligados.
 8. **Auditoria `ace.hint` (lab, feito)** — whitelist em `event_logs` + anel em RAM. Recusa nunca persiste o payload. Sem coluna SQL nova.
-9. **Ponte FX (lab, feito)** — `ingestFxInteractionForAce`: UID descartado; face/mood recusados. Efeitos FX inalterados.
+10. **Pipeline local + opt-in documentado (lab, feito)** — `python scripts/lab-ace/run_lab.py`. SQL de opt-in **não** vai na carga v6.
 
 Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anónimos — sem `tag_id`.
 
@@ -291,7 +291,7 @@ Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anó
 |-----------|--------|
 | Spec humana | [ACE-0.1-SPEC.md](./ACE-0.1-SPEC.md) |
 | JSON Schema | [lab-ace/audience.context.schema.json](./lab-ace/audience.context.schema.json) |
-| Exemplos válidos | [lab-ace/examples/](./lab-ace/examples/) (`01` vazio · `02` aproximação · `03` grupo · `04` NFC · `05` QR) |
+| Exemplos válidos | [lab-ace/examples/](./lab-ace/examples/) (`01` vazio · `02` aproximação · `03` grupo · `04` NFC · `05` QR · `06` loja fechada) |
 | Recusa identidade | [lab-ace/examples/reject-identity-leak.json](./lab-ace/examples/reject-identity-leak.json) |
 | Gateway (papel + lab local) | [lab-ace/PRIVACY-GATEWAY-0.1.md](./lab-ace/PRIVACY-GATEWAY-0.1.md) · `scripts/lab-ace/` |
 | Validador | `python scripts/lab-ace/validate_ace_schema.py` |
@@ -300,5 +300,6 @@ Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anó
 | Interacção anónima | [lab-ace/INTERACTION-BUS-0.1.md](./lab-ace/INTERACTION-BUS-0.1.md) · `POST /api/lab/ace/interaction` |
 | Auditoria sem PII | [lab-ace/ACE-AUDIT-0.1.md](./lab-ace/ACE-AUDIT-0.1.md) · `GET /api/lab/ace/audit/:totemId` · `event_logs` (`ace.hint`) |
 | Ponte FX | [lab-ace/FX-BRIDGE-0.1.md](./lab-ace/FX-BRIDGE-0.1.md) · touch/NFC anónimos; mood/face recusados |
+| Pipeline / opt-in | `python scripts/lab-ace/run_lab.py` · [lab-ace/OPT-IN-0.1.md](./lab-ace/OPT-IN-0.1.md) |
 
-**Próximo (se avançar):** Player-AD e face continuam fora. Direct default off.
+**Próximo (se avançar):** Player-AD e face continuam fora. Direct default off. Opt-in só à mão num totem de lab.

@@ -22,6 +22,8 @@ Norma humana: [../ACE-0.1-SPEC.md](../ACE-0.1-SPEC.md) · ADR: [../adr/0006-ace-
 | [FX-BRIDGE-0.1.md](./FX-BRIDGE-0.1.md) | Ponte SmartDisplayFX → ACE (sem UID, sem mood) |
 | [examples/04-interacao-nfc.json](./examples/04-interacao-nfc.json) | 1 pessoa, NFC anónimo |
 | [examples/05-interacao-qr.json](./examples/05-interacao-qr.json) | 1 pessoa, QR anónimo |
+| [examples/06-loja-fechada.json](./examples/06-loja-fechada.json) | Presença fora de hora → FILL |
+| [OPT-IN-0.1.md](./OPT-IN-0.1.md) | Como ligar `capabilities.ace_enabled` num totem (lab) |
 | [examples/reject-tag-id.json](./examples/reject-tag-id.json) | **Inválido** — `IDENTITY_LEAK` (`tag_id`) |
 
 ## Lab HTTP (este clone)
