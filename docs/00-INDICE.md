@@ -1,8 +1,9 @@
 # Índice da documentação TotemDigital Studio
 
 **Ponto de entrada de toda a documentação.**  
-**Data:** 15 de agosto de 2026 · **Branch:** `main` · **Produção:** https://totemdigital.app.br  
-**Baseline:** Front 2.1.22 · Back 2.1.16 · Player-AD 2.12 / 112  
+**Data:** 23 de agosto de 2026 · **Repo:** TotemDigital-Studio-A.i (lab A.I.) · **Branch:** `main`  
+**Produto operacional:** TotemDigital-Studio · https://totemdigital.app.br  
+**Baseline:** Front 2.1.22 · Back 2.1.16 · Player-AD 2.13 / 113  
 **Autor:** Julio Cesar Eyras (J.C.E.) / Eyras Sistemas e Soluções  
 
 Há centenas de ficheiros históricos em `docs/` (análises, resumos de sessão). Este índice lista a **documentação vigente** com explicação e ligação. O arquivo histórico está no fim.
@@ -18,6 +19,7 @@ Há centenas de ficheiros históricos em `docs/` (análises, resumos de sessão)
 | Regras de um módulo (o que pode / não pode) | [§4 Módulos](#4-módulos-de-produto-regras-de-negócio) |
 | Player / APK / TV box / Player-Linux | [§5 Player e hardware](#5-player-ad-player-linux-apk-e-hardware) |
 | Vender / preços / demo | [§6 Comercial](#6-comercial-e-produto) |
+| Lab A.I. / ACE (este clone) | [§6b Lab ACE](#6b-lab-ai--ace-este-clone) |
 | API / schema / ADRs | [§7 Técnica](#7-técnica-api-schema-e-decisões) |
 
 Índices satélite (já existentes, mais detalhados no seu tema):
@@ -262,6 +264,20 @@ Metodologia: [modulos/00-METODOLOGIA.md](./modulos/00-METODOLOGIA.md) · templat
 | [PRODUCT_VISION_TOTEM_DIGITAL_V3X.md](./PRODUCT_VISION_TOTEM_DIGITAL_V3X.md) | Visão de produto v3x. |
 | [PLANO-ESTRATEGICO-2026-2027.md](./PLANO-ESTRATEGICO-2026-2027.md) | Plano estratégico 2026–2027. |
 | [COMMERCE-QR-WIZARD-SPEC.md](./COMMERCE-QR-WIZARD-SPEC.md) · [PDF](./COMMERCE-QR-WIZARD-SPEC.pdf) | Spec QR / e-commerce (Shopify, Woo, Magento). |
+
+---
+
+## 6b. Lab A.I. / ACE (este clone)
+
+Documentação de evolução **só** em `TotemDigital-Studio-A.i`. Não substitui Direct / Kit Pronto. Não altera o Studio operacional.
+
+| Documento | Explicação |
+|-----------|------------|
+| [ACE-0.1-SPEC.md](./ACE-0.1-SPEC.md) | **Spec** Audience Context Engine 0.1: contrato `audience.context`, Privacy Gateway, inventário real do código. Sem player/painel. |
+| [lab-ace/README.md](./lab-ace/README.md) | JSON Schema `ace/0.1`, exemplos válidos e fixture de recusa `IDENTITY_LEAK`. |
+| [lab-ace/PRIVACY-GATEWAY-0.1.md](./lab-ace/PRIVACY-GATEWAY-0.1.md) | Cortes e códigos de recusa do gateway (papel + lab local). |
+| [../scripts/lab-ace/README.md](../scripts/lab-ace/README.md) | Validador e emissor sintético (`logs/ace-synthetic.jsonl`). Sem Dispatcher. |
+| [adr/0006-ace-audience-nao-identidade.md](./adr/0006-ace-audience-nao-identidade.md) | ADR: ACE = audiência anónima; identidade (face) permanece 501. |
 
 ---
 

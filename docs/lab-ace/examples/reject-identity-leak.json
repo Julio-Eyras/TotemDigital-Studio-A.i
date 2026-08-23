@@ -1,0 +1,38 @@
+{
+  "schema": "ace/0.1",
+  "context_id": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+  "observed_at": "2026-08-23T21:32:11.420Z",
+  "totem_id": 41,
+  "privacy": {
+    "gateway": "ace/0.1",
+    "identity_dropped": true,
+    "image_dropped": true
+  },
+  "presence": true,
+  "count": 1,
+  "group": false,
+  "density": "low",
+  "motion": {
+    "approaching": 0,
+    "passing": 0,
+    "stopped": 1,
+    "leaving": 0
+  },
+  "attention": "high",
+  "dwell_ms": 3000,
+  "interaction": {
+    "touch": false,
+    "qr": false,
+    "nfc": false
+  },
+  "clock": {
+    "hour_local": 18,
+    "day_of_week": 6,
+    "store_open": true
+  },
+  "confidence": 0.95,
+  "session_id": "ephemeral-leak",
+  "person_id": 123,
+  "age_bucket": "26-40",
+  "mood": "happy"
+}

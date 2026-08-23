@@ -11,6 +11,7 @@ Registos curtos de **decisões técnicas** que afectam vários módulos.
 | [ADR-0003](./0003-entrega-hibrida-comandos.md) | Entrega híbrida de comandos (sync + heartbeat) | Aceite |
 | [ADR-0004](./0004-telemetria-observacao-sob-pedido.md) | Telemetria detalhada só com lease sob pedido | Aceite |
 | [ADR-0005](./0005-fonte-unica-apk-designado.md) | Fonte única do APK via `player_release_channels` | Aceite |
+| [ADR-0006](./0006-ace-audience-nao-identidade.md) | ACE trata audiência, não identidade (lab A.i) | Aceite |
 
 ## Formato
 

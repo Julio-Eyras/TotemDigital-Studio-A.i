@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://totemdigital.app.br/schemas/ace/0.1/audience.context.json",
+  "title": "ACE 0.1 audience.context",
+  "description": "Snapshot anónimo do ambiente diante de um totem. Sem PII. Schema ace/0.1. Lab TotemDigital-Studio-A.i.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "context_id",
+    "observed_at",
+    "totem_id",
+    "privacy",
+    "presence",
+    "count",
+    "group",
+    "density",
+    "motion",
+    "attention",
+    "dwell_ms",
+    "interaction",
+    "clock",
+    "confidence",
+    "session_id"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "ace/0.1"
+    },
+    "context_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Id do snapshot, não da pessoa."
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC do emissor (ISO-8601)."
+    },
+    "totem_id": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "site_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gateway", "identity_dropped", "image_dropped"],
+      "properties": {
+        "gateway": { "type": "string", "const": "ace/0.1" },
+        "identity_dropped": { "type": "boolean", "const": true },
+        "image_dropped": { "type": "boolean", "const": true }
+      }
+    },
+    "presence": { "type": "boolean" },
+    "count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 999
+    },
+    "group": { "type": "boolean" },
+    "density": {
+      "type": "string",
+      "enum": ["low", "medium", "high"]
+    },
+    "motion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["approaching", "passing", "stopped", "leaving"],
+      "properties": {
+        "approaching": { "type": "integer", "minimum": 0 },
+        "passing": { "type": "integer", "minimum": 0 },
+        "stopped": { "type": "integer", "minimum": 0 },
+        "leaving": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "attention": {
+      "type": "string",
+      "enum": ["none", "low", "medium", "high"],
+      "description": "Comportamento visual. Não é emoção."
+    },
+    "dwell_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3600000
+    },
+    "interaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["touch", "qr", "nfc"],
+      "properties": {
+        "touch": { "type": "boolean" },
+        "qr": { "type": "boolean" },
+        "nfc": { "type": "boolean" }
+      }
+    },
+    "clock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hour_local", "day_of_week", "store_open"],
+      "properties": {
+        "hour_local": { "type": "integer", "minimum": 0, "maximum": 23 },
+        "day_of_week": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6,
+          "description": "0 = domingo … 6 = sábado (ISO weekday seria 1–7; aqui 0–6 estilo JS)."
+        },
+        "store_open": { "type": "boolean" }
+      }
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 64,
+      "pattern": "^ephemeral-[A-Za-z0-9-]+$",
+      "description": "Sessão efémera. TTL 30–120 s. Não é person_id."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "presence": { "const": false } } },
+      "then": {
+        "properties": {
+          "count": { "const": 0 },
+          "group": { "const": false },
+          "attention": { "const": "none" },
+          "dwell_ms": { "const": 0 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "count": { "minimum": 2 } },
+        "required": ["count"]
+      },
+      "then": {
+        "properties": { "group": { "const": true } }
+      }
+    },
+    {
+      "if": {
+        "properties": { "count": { "maximum": 1 } },
+        "required": ["count"]
+      },
+      "then": {
+        "properties": { "group": { "const": false } }
+      }
+    }
+  ],
+  "not": {
+    "anyOf": [
+      { "required": ["person_id"] },
+      { "required": ["face"] },
+      { "required": ["embedding"] },
+      { "required": ["image"] },
+      { "required": ["mood"] },
+      { "required": ["age"] },
+      { "required": ["age_bucket"] },
+      { "required": ["gender"] },
+      { "required": ["emotion"] },
+      { "required": ["features"] },
+      { "required": ["name"] }
+    ]
+  }
+}

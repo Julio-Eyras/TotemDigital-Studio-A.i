@@ -1,10 +1,20 @@
+# TotemDigital Studio — A.i (lab)
+
+**Este repositório não é o produto operacional.**  
+Clone de laboratório para temas de A.I. / ACE. Produção continua em [TotemDigital-Studio](https://github.com/Julio-Eyras/TotemDigital-Studio) (`totemdigital.app.br`).
+
+Spec vigente do lab: [docs/ACE-0.1-SPEC.md](docs/ACE-0.1-SPEC.md).
+
+---
+
 # TotemDigital Studio
 
 Plataforma de sinalização digital (digital signage) para gerir organizações, locais, totens/Smart TVs, mídias e — opcionalmente — anunciantes e operação comercial multi-agência.
 
-**Repositório:** https://github.com/Julio-Eyras/TotemDigital-Studio.git  
-**Branch operacional / default:** `main`  
-**Produção:** https://totemdigital.app.br  
+**Repositório deste clone:** https://github.com/Julio-Eyras/TotemDigital-Studio-A.i.git  
+**Produto operacional:** https://github.com/Julio-Eyras/TotemDigital-Studio.git  
+**Branch default deste clone:** `main`  
+**Produção (Studio, não este repo):** https://totemdigital.app.br  
 **Autor:** Julio Cesar Eyras (J.C.E.) / Eyras Sistemas e Soluções  
 **Licença:** proprietária — todos os direitos reservados (ver [LICENSE](./LICENSE))  
 
