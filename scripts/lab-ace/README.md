@@ -21,3 +21,5 @@ npx jest --selectProjects unit --testPathPattern=aceHint --forceExit --coverage=
 Saída do emissor: `logs/ace-synthetic.jsonl`. Visão edge: `logs/ace-edge.jsonl` (`logs/` no `.gitignore`). Opt-in: [docs/lab-ace/OPT-IN-0.1.md](../../docs/lab-ace/OPT-IN-0.1.md).
 
 Requer `jsonschema` (já usado na validação de docs).
+
+Emulação completa (ACE + Maestro + TDEP, mocks): `python scripts/lab-emulate/run_emulation.py`.

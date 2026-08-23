@@ -22,6 +22,7 @@ Há centenas de ficheiros históricos em `docs/` (análises, resumos de sessão)
 | Lab A.I. / ACE (este clone) | [§6b Lab ACE](#6b-lab-ai--ace-este-clone) |
 | Lab Maestro Cue | [§6c Lab Maestro](#6c-lab-maestro-cue) |
 | Lab TDEP | [§6d Lab TDEP](#6d-lab-tdep--totemnet) |
+| Emulação lab | [§6e Emulação](#6e-emulação-lab-in-memory) |
 | API / schema / ADRs | [§7 Técnica](#7-técnica-api-schema-e-decisões) |
 
 Índices satélite (já existentes, mais detalhados no seu tema):
@@ -310,6 +311,21 @@ Federação **entre CMS**. Sem `audience.context`. Sem HTTP de produto neste lot
 | [CONVERSA-PROTOCOLO-DOOH-TDEP-2026-08.md](./CONVERSA-PROTOCOLO-DOOH-TDEP-2026-08.md) | Debate e plano TDEP. |
 | [lab-tdep/README.md](./lab-tdep/README.md) | Schema Face + Flight `tdep/0.1`. |
 | [adr/0008-tdep-nao-transporta-audiencia.md](./adr/0008-tdep-nao-transporta-audiencia.md) | ADR: TDEP ≠ ACE. |
+
+---
+
+## 6e. Emulação lab (in-memory)
+
+Mocks de Dispatcher, bus FX, player Maestro e parceiro TDEP. Sem Player-AD, MQTT, Postgres ou face.
+
+| Documento | Explicação |
+|-----------|------------|
+| [../scripts/lab-emulate/README.md](../scripts/lab-emulate/README.md) | Como correr a emulação. Relatório em `logs/lab-emulation-report.json`. |
+
+```powershell
+python scripts/lab-emulate/test_emulation.py
+python scripts/lab-emulate/run_emulation.py
+```
 
 ---
 

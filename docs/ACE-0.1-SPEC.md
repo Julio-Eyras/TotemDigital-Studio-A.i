@@ -270,6 +270,7 @@ Ordem. Cada passo espera decisão explícita antes de código.
 8. **Auditoria `ace.hint` (lab, feito)** — whitelist em `event_logs` + anel em RAM. Recusa nunca persiste o payload. Sem coluna SQL nova.
 10. **Pipeline local + opt-in documentado (lab, feito)** — `python scripts/lab-ace/run_lab.py`. SQL de opt-in **não** vai na carga v6.
 11. **FX apresenta o hint (lab, feito)** — `ace.hint` no MessageBridge; `fx_rules.ace_category`. Sem mood. Dispatcher continua a escolher o vídeo.
+12. **Emulação lab (feito)** — `python scripts/lab-emulate/run_emulation.py` + `runLabAceTick` (Dispatcher/FX/player/TDEP in-memory). Sem Player-AD, sem face.
 
 Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anónimos — sem `tag_id`.
 
@@ -302,5 +303,6 @@ Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anó
 | Auditoria sem PII | [lab-ace/ACE-AUDIT-0.1.md](./lab-ace/ACE-AUDIT-0.1.md) · `GET /api/lab/ace/audit/:totemId` · `event_logs` (`ace.hint`) |
 | Ponte FX | [lab-ace/FX-BRIDGE-0.1.md](./lab-ace/FX-BRIDGE-0.1.md) · touch/NFC anónimos; `publishAceHint`; `ace_category` |
 | Pipeline / opt-in | `python scripts/lab-ace/run_lab.py` · [lab-ace/OPT-IN-0.1.md](./lab-ace/OPT-IN-0.1.md) |
+| Emulação (mocks) | `python scripts/lab-emulate/run_emulation.py` · [../scripts/lab-emulate/README.md](../scripts/lab-emulate/README.md) |
 
-**Próximo (se avançar):** Player-AD e face continuam fora. Direct default off. Opt-in só à mão num totem de lab.
+**Próximo (se avançar):** opt-in ACE num totem de lab (`capabilities.ace_enabled`). Player-AD e face continuam fora. Direct default off. Cue Maestro em 2 boxes só depois de NTP medido.

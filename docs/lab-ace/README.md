@@ -37,3 +37,5 @@ GET  /api/lab/ace/audit/:id
 
 Opt-in: `totems.capabilities.ace_enabled = true`. Sem isso, o Dispatcher ignora o hint (`ACE_DISABLED`).
 
+Emulação in-memory (Dispatcher + FX + Maestro + TDEP): `python scripts/lab-emulate/run_emulation.py`.
+
