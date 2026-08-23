@@ -43,6 +43,6 @@ Não deixa passar emoção, idade, género, humor, nome.
 
 ---
 
-## Próximo passo (ainda sem produto)
+**Próximo passo (ainda sem produto operacional)**
 
-Hint no Dispatcher (opt-in, default off). Não ligar câmara nem face.
+Visão no edge, sem face. Hint no Dispatcher já está neste clone (opt-in).

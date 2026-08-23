@@ -5,7 +5,8 @@ Ferramentas **locais** do contrato `ace/0.1`. Não sobem serviço, não falam co
 ```powershell
 python scripts/lab-ace/validate_ace_schema.py
 python scripts/lab-ace/emit_ace_synthetic.py
-python scripts/lab-ace/emit_ace_synthetic.py --ace-off
+cd backend
+npx jest --forceExit --testPathPatterns=aceHint
 ```
 
 Saída do emissor: `logs/ace-synthetic.jsonl` (pasta `logs/` já está no `.gitignore`).

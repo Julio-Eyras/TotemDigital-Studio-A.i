@@ -85,7 +85,7 @@ COMMENT ON TABLE totems IS 'Totens - micro-servidores edge que controlam Smart T
 COMMENT ON COLUMN totems.local_id IS 'Local onde totem está instalado (FK → locals → publishers)';
 COMMENT ON COLUMN totems.identifier IS 'Identificador único do totem';
 COMMENT ON COLUMN totems.status IS 'Status atual do totem: pending_activation, pending_approval, offline, online, error, maintenance, syncing';
-COMMENT ON COLUMN totems.capabilities IS 'Recursos do totem (JSON)';
+COMMENT ON COLUMN totems.capabilities IS 'Recursos do totem (JSON). Lab ACE 0.1: ace_enabled (boolean, default false) ou ace.enabled; não é setting do Player-AD.';
 COMMENT ON COLUMN totems.player_settings IS 'Espelho da config Player-AD (displayRotation, kioskMode, displaySchedule, …) para admin remota. displaySchedule: { enabled, timezone, daysOfWeek[0-6], onTime, offTime, keepAliveWhileOff, keepAliveIntervalMinutes, forceMode }';
 COMMENT ON COLUMN totems.now_playing IS 'Última mídia em reprodução reportada pelo player';
 

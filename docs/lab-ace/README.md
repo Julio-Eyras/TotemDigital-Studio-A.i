@@ -17,4 +17,12 @@ Norma humana: [../ACE-0.1-SPEC.md](../ACE-0.1-SPEC.md) · ADR: [../adr/0006-ace-
 | [examples/reject-low-confidence.json](./examples/reject-low-confidence.json) | Schema ok — gateway `LOW_CONFIDENCE` |
 | [../scripts/lab-ace/README.md](../scripts/lab-ace/README.md) | `validate_ace_schema.py` e `emit_ace_synthetic.py` |
 
-Campos proibidos no schema (`additionalProperties: false` + `not`): `person_id`, `face`, `embedding`, `image`, `mood`, `age`, `age_bucket`, `gender`, `emotion`, `features`, `name`.
+## Lab HTTP (este clone)
+
+```text
+POST /api/lab/ace/context     body = audience.context fresco (auth)
+GET  /api/lab/ace/hint/:id
+```
+
+Opt-in: `totems.capabilities.ace_enabled = true`. Sem isso, o Dispatcher ignora o hint (`ACE_DISABLED`).
+

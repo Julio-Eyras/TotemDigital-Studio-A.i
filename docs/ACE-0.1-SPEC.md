@@ -262,9 +262,9 @@ Ordem. Cada passo espera decisão explícita antes de código.
 
 1. **Este spec (feito)** — contrato + inventário.
 2. **JSON Schema** `ace/0.1` em [`docs/lab-ace/`](./lab-ace/README.md) **(feito)**.
-3. **Privacy Gateway em papel + fixture `IDENTITY_LEAK` (feito).** `STALE_CONTEXT` só no runtime futuro (precisa de relógio).
+3. **Privacy Gateway em papel + fixtures de recusa (feito).** `STALE_CONTEXT` / `LOW_CONFIDENCE` também no gateway TS.
 4. **Emissor sintético (feito)** — `scripts/lab-ace/emit_ace_synthetic.py` → `logs/ace-synthetic.jsonl`. Sem Dispatcher.
-5. **Hint no Dispatcher** (ainda não) — default off, Direct intocado no Studio.
+5. **Hint no Dispatcher (feito neste clone)** — `applyAceHintToWeight` se `totems.capabilities.ace_enabled === true`. Default **off**. Direct local continua a ganhar. Cache de 60s é ignorado quando ACE está on.
 6. **Visão no edge** (modelo escolhido depois; o contrato não muda).
 7. **FX / NFC / QR no mesmo bus** — só depois do núcleo presença → contagem → dwell → atenção.
 
@@ -295,4 +295,4 @@ Não começar pelo passo 6. Não ligar face “para ter um demo”.
 | Validador | `python scripts/lab-ace/validate_ace_schema.py` |
 | Emissor sintético | `python scripts/lab-ace/emit_ace_synthetic.py` → `logs/ace-synthetic.jsonl` |
 
-**Próximo (se avançar):** hint no Dispatcher, default off. Ainda: **zero** ALTER TABLE, **zero** endpoint de produto, **zero** mudança no Player-AD.
+**Próximo (se avançar):** visão no edge (sem face). Hint no Dispatcher já existe neste clone, default off. Ainda: **zero** alteração no Player-AD; **zero** coluna SQL nova (`capabilities.ace_enabled`).

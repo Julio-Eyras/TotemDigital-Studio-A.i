@@ -22,6 +22,8 @@ import { isTotemSimpleModeEnabled } from './totemSimpleModeService';
 import { buildDispatchMediaItem } from '../utils/dispatchMediaItem';
 import { sumDispatchMediaItemsPlanDuration } from '../utils/dispatchItemDuration';
 import { enrichDispatchPlanWithGlobalVinhetas } from './dispatchVinhetaEnrichment';
+import { getAceHintStore } from './ace/aceHintStore';
+import { applyAceHintToWeight, isAceEnabledInCapabilities } from './ace/aceRuleEngine';
 import { getMediaService } from './mediaService';
 import {
   DEFAULT_FALLBACK_PROPAGANDAS_PER_VINHETA,
@@ -82,6 +84,7 @@ export class DispatcherTotemService {
 
     try {
       const totemContext = await this.getTotemLogContext(totemId);
+      const aceEnabled = await this.isTotemAceEnabled(totemId);
       // Normalizar timestamp
       const targetTimestamp = timestamp 
         ? new Date(timestamp) 
@@ -90,8 +93,9 @@ export class DispatcherTotemService {
       // Gerar chave de cache
       const cacheKey = this.generateCacheKey(totemId, targetTimestamp);
       
-      // Verificar cache (se habilitado e não forçado a ignorar)
-      if (this.cacheConfig.enabled && !skipCache && !validateOnly) {
+      // Verificar cache (se habilitado e não forçado a ignorar).
+      // ACE opt-in: não servir plano com TTL 60s — o hint vive ~3s.
+      if (this.cacheConfig.enabled && !skipCache && !aceEnabled && !validateOnly) {
         const cached = await this.getFromCache(cacheKey);
         // Se pedimos candidates, mas o cache não tem candidates (porque foi gerado via /dispatch sem includeCandidates),
         // tratar como cache miss para evitar retorno "vazio" no endpoint /candidates.
@@ -140,7 +144,7 @@ export class DispatcherTotemService {
             fallbackPlaylist: { id: fallbackPlan.playlistId, name: fallbackPlan.playlistName },
           });
           const planVersion = await this.rememberPlanVersion(totemId, fallbackPlan);
-          if (this.cacheConfig.enabled && !validateOnly) {
+          if (this.cacheConfig.enabled && !aceEnabled && !validateOnly) {
             await this.saveToCache(cacheKey, { plan: fallbackPlan, candidates: [] });
           }
           return {
@@ -229,7 +233,7 @@ export class DispatcherTotemService {
               subscribers: simpleMixPlan.metadata?.subscriberIds,
               simpleMode: true,
             });
-            if (this.cacheConfig.enabled && !skipCache && !validateOnly) {
+            if (this.cacheConfig.enabled && !skipCache && !aceEnabled && !validateOnly) {
               await this.saveToCache(cacheKey, {
                 plan: simpleMixPlan,
                 candidates: includeCandidates ? validatedCandidates : undefined,
@@ -404,8 +408,8 @@ export class DispatcherTotemService {
         };
       }
 
-      // 6. Salvar no cache
-      if (this.cacheConfig.enabled && !validateOnly) {
+      // 6. Salvar no cache (não persistir plano ACE — hint expira em ~3s)
+      if (this.cacheConfig.enabled && !aceEnabled && !validateOnly) {
         await this.saveToCache(cacheKey, {
           plan,
           candidates: includeCandidates ? validatedCandidates : undefined,
@@ -429,6 +433,7 @@ export class DispatcherTotemService {
         validationDetails: {
           strategy: strategy === 'mix' && winner ? 'priority_fallback' : strategy,
           commercialValidation: true,
+          ace: getAceHintStore().audit(totemId, aceEnabled),
         },
         fromCache: false,
         cacheKey,
@@ -1572,10 +1577,11 @@ export class DispatcherTotemService {
     }
 
     // Calcular peso completo para cada candidato (Fase 2.1) se totemId e timestamp disponíveis
+    const aceEnabled = totemId ? await this.isTotemAceEnabled(totemId) : false;
     const candidatesWithWeight = await Promise.all(
       validCandidates.map(async (candidate) => {
         const weight = totemId && timestamp
-          ? await this.calculateWeight(candidate, totemId, timestamp)
+          ? await this.calculateWeight(candidate, totemId, timestamp, aceEnabled)
           : candidate.score; // Fallback para score simples se não tiver totemId/timestamp
         
         return {
@@ -1714,7 +1720,8 @@ export class DispatcherTotemService {
   private async calculateWeight(
     candidate: CandidateSchedule,
     totemId: number,
-    _timestamp: Date
+    _timestamp: Date,
+    aceEnabled = false
   ): Promise<number> {
     let weight = 0;
     
@@ -1781,8 +1788,16 @@ export class DispatcherTotemService {
     if (candidate.scope === 'totem') {
       weight += 100; // Bonus significativo para agendamento direto
     }
-    
-    // 7. Ajustes baseados em IA (se disponível)
+
+    // 7. ACE 0.1 — hint opcional (default off). Não usa ai_context_data.
+    try {
+      const audit = getAceHintStore().audit(totemId, aceEnabled);
+      weight = applyAceHintToWeight(weight, audit.hint, aceEnabled, candidate.commercialTier);
+    } catch {
+      // ACE nunca derruba o dispatch
+    }
+
+    // 8. Ajustes baseados em IA (se disponível)
     if (aiContext && rule && (rule.ai_enabled || rule.rule_type === 'ai' || rule.rule_type === 'hybrid')) {
       // Ajuste por densidade de transeuntes
       if (rule.use_pedestrian_detection && aiContext.pedestrian_count > 0) {
@@ -2499,6 +2514,18 @@ export class DispatcherTotemService {
       local: row.local_id ? { id: row.local_id, name: row.local_name } : undefined,
       publisher: row.publisher_id ? { id: row.publisher_id, name: row.publisher_name } : undefined,
     };
+  }
+
+  private async isTotemAceEnabled(totemId: number): Promise<boolean> {
+    try {
+      const row = await this.db.findFirst(
+        `SELECT capabilities FROM totems WHERE totem_id = $1`,
+        [totemId]
+      );
+      return isAceEnabledInCapabilities(row?.capabilities);
+    } catch {
+      return false;
+    }
   }
 
   private async getCandidateLogContext(candidate: CandidateSchedule): Promise<Record<string, unknown>> {
