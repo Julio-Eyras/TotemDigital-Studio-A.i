@@ -11,6 +11,7 @@ O maestro **não envia o vídeo**. Envia `play item_id @ t0`. Cada totem toca o 
 | [cue.schema.json](./cue.schema.json) | Mensagem `maestro/0.1` SKU cue |
 | [examples/01-play-t0.json](./examples/01-play-t0.json) | Cue válido |
 | [examples/reject-clock-drift.json](./examples/reject-clock-drift.json) | `CLOCK_DRIFT` |
+| [NTP-0.1.md](./NTP-0.1.md) | Medição NTP em 2 boxes (lab virtual; hardware opcional) |
 | [../scripts/lab-maestro/validate_maestro.py](../scripts/lab-maestro/validate_maestro.py) | Validador local |
 
 SKU B (matriz de pixels) **não** entra neste schema.

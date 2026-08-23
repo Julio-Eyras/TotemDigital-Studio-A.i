@@ -199,6 +199,42 @@ export function runLabAceTick(input: LabAceTickInput): LabAceTickResult {
 
 export const LAB_MAESTRO_CLOCK_DRIFT_MAX_MS = 200;
 
+export function ntpOffsetFromExchangeMs(t1: number, t2: number, t3: number, t4: number): number {
+  return ((t2 - t1) + (t3 - t4)) / 2;
+}
+
+export function simulateNtpExchange(
+  clientOffsetMs: number,
+  serverOffsetMs = 0,
+  rttMs = 4,
+  procMs = 0,
+  refMs = 1_000_000
+): { t1: number; t2: number; t3: number; t4: number; offsetMs: number } {
+  const t1 = refMs + clientOffsetMs;
+  const t2 = refMs + Math.floor(rttMs / 2) + serverOffsetMs;
+  const t3 = refMs + Math.floor(rttMs / 2) + procMs + serverOffsetMs;
+  const t4 = refMs + rttMs + procMs + clientOffsetMs;
+  return { t1, t2, t3, t4, offsetMs: ntpOffsetFromExchangeMs(t1, t2, t3, t4) };
+}
+
+export function measureMaestroPair(
+  offsetAMs: number,
+  offsetBMs: number,
+  opts?: { ntpOkA?: boolean; ntpOkB?: boolean }
+): {
+  driftMs: number;
+  ntpOk: boolean;
+  accepted: boolean;
+  code: 'CLOCK_DRIFT' | null;
+} {
+  const a = simulateNtpExchange(offsetAMs, 0);
+  const b = simulateNtpExchange(offsetBMs, 0);
+  const driftMs = Math.round(a.offsetMs - b.offsetMs);
+  const ntpOk = (opts?.ntpOkA ?? true) && (opts?.ntpOkB ?? true);
+  const accepted = ntpOk && Math.abs(driftMs) <= LAB_MAESTRO_CLOCK_DRIFT_MAX_MS;
+  return { driftMs, ntpOk, accepted, code: accepted ? null : 'CLOCK_DRIFT' };
+}
+
 export function mockMaestroPlayerAcceptsCue(cue: {
   clock?: { ntp_ok?: boolean; drift_ms?: number };
 }): { accepted: boolean; code: string | null } {

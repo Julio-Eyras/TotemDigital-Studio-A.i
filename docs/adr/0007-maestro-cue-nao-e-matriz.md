@@ -20,6 +20,7 @@ Pedidos de “Player-AD como hub Wi‑Fi de N TVs” misturam dois problemas: al
 
 - Lab em `docs/lab-maestro/` + `scripts/lab-maestro/validate_maestro.py`.
 - Recusa de campo: `CLOCK_DRIFT` se `|drift_ms| > 200`.
+- Lab NTP (2 boxes virtuais): `scripts/lab-maestro/ntp_measure.py`. Medição ganha ao JSON.
 - TDEP e ACE são labs irmãos; o cue não transporta audiência nem campanha entre CMS.
 
 ## Alternativas rejeitadas

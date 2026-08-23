@@ -2,6 +2,8 @@ import {
   runLabAceTick,
   mockMaestroPlayerAcceptsCue,
   mockTdepPartnerAccepts,
+  measureMaestroPair,
+  simulateNtpExchange,
 } from '../../../services/lab/labEmulation';
 import { resetAceHintStoreForTests } from '../../../services/ace/aceHintStore';
 import { resetAceAuditRingForTests } from '../../../services/ace/aceAudit';
@@ -123,6 +125,33 @@ describe('mocks Maestro + TDEP (sem Player-AD)', () => {
     expect(mockMaestroPlayerAcceptsCue({ clock: { ntp_ok: true, drift_ms: 480 } }).code).toBe(
       'CLOCK_DRIFT'
     );
+  });
+
+  it('NTP medido em 2 boxes virtuais: 18 ms aceita, 480 ms recusa, medicao ganha ao JSON', () => {
+    expect(Math.round(simulateNtpExchange(18).offsetMs)).toBe(-18);
+    const aligned = measureMaestroPair(18, 0);
+    expect(aligned.accepted).toBe(true);
+    expect(Math.abs(aligned.driftMs)).toBe(18);
+    expect(
+      mockMaestroPlayerAcceptsCue({
+        clock: { ntp_ok: aligned.ntpOk, drift_ms: aligned.driftMs },
+      }).accepted
+    ).toBe(true);
+
+    const drifted = measureMaestroPair(480, 0);
+    expect(drifted.code).toBe('CLOCK_DRIFT');
+    expect(
+      mockMaestroPlayerAcceptsCue({
+        clock: { ntp_ok: true, drift_ms: 18 },
+      }).accepted
+    ).toBe(true);
+    expect(
+      mockMaestroPlayerAcceptsCue({
+        clock: { ntp_ok: drifted.ntpOk, drift_ms: drifted.driftMs },
+      }).code
+    ).toBe('CLOCK_DRIFT');
+
+    expect(measureMaestroPair(0, 0, { ntpOkA: false }).code).toBe('CLOCK_DRIFT');
   });
 
   it('parceiro TDEP recusa audience/ace/mood; aceita face sem audiência', () => {

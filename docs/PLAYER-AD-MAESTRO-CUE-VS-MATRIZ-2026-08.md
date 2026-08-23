@@ -152,5 +152,7 @@ Wi‑Fi de players: SSID dedicado, sem roaming agressivo. Cabo Ethernet no maest
 
 Medir NTP em 2 boxes. **Não** ligar SKU B nem CEC. Schema Cue: [lab-maestro/](./lab-maestro/README.md).
 
+Lab sem hardware: [lab-maestro/NTP-0.1.md](./lab-maestro/NTP-0.1.md) (`python scripts/lab-maestro/run_ntp_lab.py`). Cue só toca se a **medição** der `|drift_ms| <= 200` e `ntp_ok`.
+
 Contacto / titular: Julio Cesar Eyras (J.C.E.) — Eyras Sistemas e Soluções  
 Repositório: https://github.com/Julio-Eyras/TotemDigital-Studio

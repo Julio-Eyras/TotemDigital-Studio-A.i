@@ -272,6 +272,7 @@ Ordem. Cada passo espera decisão explícita antes de código.
 11. **FX apresenta o hint (lab, feito)** — `ace.hint` no MessageBridge; `fx_rules.ace_category`. Sem mood. Dispatcher continua a escolher o vídeo.
 12. **Emulação lab (feito)** — `python scripts/lab-emulate/run_emulation.py` + `runLabAceTick` (Dispatcher/FX/player/TDEP in-memory). Sem Player-AD, sem face.
 13. **Opt-in verificado em lab (feito, sem Postgres)** — `python scripts/lab-ace/verify_optin.py`. Default off. Seeds/v6/instalador não ligam ACE. SQL humano: `scripts/lab-ace/optin-totem-lab.sql`.
+14. **NTP Maestro em 2 boxes virtuais (feito, sem TV box)** — `python scripts/lab-maestro/test_ntp.py`. `|drift|<=200` e `ntp_ok`; a medição ganha ao JSON. Player-AD intocado.
 
 Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anónimos — sem `tag_id`.
 
@@ -306,5 +307,6 @@ Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anó
 | Pipeline / opt-in | `python scripts/lab-ace/run_lab.py` · [lab-ace/OPT-IN-0.1.md](./lab-ace/OPT-IN-0.1.md) |
 | Emulação (mocks) | `python scripts/lab-emulate/run_emulation.py` · [../scripts/lab-emulate/README.md](../scripts/lab-emulate/README.md) |
 | Opt-in verificado (sem Postgres) | `python scripts/lab-ace/verify_optin.py` · SQL manual `scripts/lab-ace/optin-totem-lab.sql` |
+| NTP Maestro (2 boxes virtuais) | `python scripts/lab-maestro/test_ntp.py` · [lab-maestro/NTP-0.1.md](./lab-maestro/NTP-0.1.md) |
 
-**Próximo (se avançar):** SQL à mão num totem de lab (`capabilities.ace_enabled`) **se** existir Postgres; senão medir NTP em 2 boxes para o Maestro Cue deixar de ser mock. Player-AD e face continuam fora. Direct default off.
+**Próximo (se avançar):** SQL ACE à mão num totem **se** existir Postgres; e/ou repetir a medição NTP em 2 TV boxes reais. Player-AD, face, SKU B e CEC continuam fora. Direct default off.

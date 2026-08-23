@@ -28,6 +28,9 @@ from mocks import (  # noqa: E402
     mock_tdep_partner_accepts,
 )
 
+sys.path.insert(0, str(REPO / "scripts" / "lab-maestro"))
+from ntp_measure import cue_clock_from_measurement, measure_pair  # noqa: E402
+
 CANDIDATES = [
     {"id": "direct-local", "base_weight": 100, "commercial_tier": "premium"},
     {"id": "network-std", "base_weight": 40, "commercial_tier": "standard"},
@@ -92,12 +95,26 @@ def run_maestro_scenario() -> dict:
     drift_cue = load(examples / "reject-clock-drift.json")
     play_ok = mock_maestro_player_accepts(ok_cue)
     play_drift = mock_maestro_player_accepts(drift_cue)
+    aligned = measure_pair(18, 0)
+    drifted = measure_pair(480, 0)
+    cue_from_clocks = dict(ok_cue)
+    cue_from_clocks["clock"] = cue_clock_from_measurement(drifted, ok_cue.get("clock"))
+    play_measured_lie = mock_maestro_player_accepts(cue_from_clocks)
     checks = {
         "play_ok": play_ok["accepted"] is True,
         "clock_drift_refused": play_drift["code"] == "CLOCK_DRIFT",
         "no_pixels_in_cue": "pixels" not in ok_cue,
+        "ntp_pair_18ms": aligned.accepted is True,
+        "ntp_pair_480ms": drifted.code == "CLOCK_DRIFT",
+        "ntp_overrides_json": play_measured_lie["code"] == "CLOCK_DRIFT",
     }
-    return {"checks": checks, "ok": all(checks.values()), "play_ok": play_ok, "play_drift": play_drift}
+    return {
+        "checks": checks,
+        "ok": all(checks.values()),
+        "play_ok": play_ok,
+        "play_drift": play_drift,
+        "ntp": {"aligned": aligned.as_dict(), "drifted": drifted.as_dict()},
+    }
 
 
 def run_tdep_scenario() -> dict:
@@ -121,6 +138,8 @@ def run_validators() -> dict:
     cmds = [
         [sys.executable, str(REPO / "scripts" / "lab-ace" / "run_lab.py")],
         [sys.executable, str(REPO / "scripts" / "lab-maestro" / "validate_maestro.py")],
+        [sys.executable, str(REPO / "scripts" / "lab-maestro" / "test_ntp.py")],
+        [sys.executable, str(REPO / "scripts" / "lab-maestro" / "run_ntp_lab.py")],
         [sys.executable, str(REPO / "scripts" / "lab-tdep" / "validate_tdep.py")],
     ]
     results = []

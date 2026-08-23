@@ -57,6 +57,15 @@ def main() -> int:
         fail("maestro drift")
     print("PASS maestro player mock")
 
+    sys.path.insert(0, str(REPO / "scripts" / "lab-maestro"))
+    from ntp_measure import measure_pair  # noqa: E402
+
+    aligned = measure_pair(18, 0)
+    drifted = measure_pair(480, 0)
+    if not aligned.accepted or drifted.code != "CLOCK_DRIFT":
+        fail(f"ntp pair {aligned.as_dict()} {drifted.as_dict()}")
+    print("PASS ntp pair virtual 18/480")
+
     face = json.loads((REPO / "docs" / "lab-tdep" / "examples" / "01-face.json").read_text(encoding="utf-8"))
     if not mock_tdep_partner_accepts(face)["accepted"]:
         fail("tdep face")

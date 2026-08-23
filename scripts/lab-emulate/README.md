@@ -15,5 +15,5 @@ O orquestrador corre ACE + Maestro + TDEP (validadores + mocks) e escreve `logs/
 |------|-----|---------|
 | Dispatcher | Aplica `apply_ace_hint_to_weight` a candidatos | Não escolhe `media_id` real |
 | Bus FX | Publica `ace.hint` sanitizado | Não liga MQTT |
-| Player Maestro | Aceita cue se `|drift_ms| ≤ 200` | Não toca vídeo |
+| Player Maestro | Aceita cue se `|drift_ms| ≤ 200` **medido** (não o valor declarado no JSON) | Não toca vídeo |
 | Parceiro TDEP | Aceita face+flight; recusa `audience` | Sem HTTP de produto |
