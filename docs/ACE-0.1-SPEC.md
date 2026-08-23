@@ -271,6 +271,7 @@ Ordem. Cada passo espera decisão explícita antes de código.
 10. **Pipeline local + opt-in documentado (lab, feito)** — `python scripts/lab-ace/run_lab.py`. SQL de opt-in **não** vai na carga v6.
 11. **FX apresenta o hint (lab, feito)** — `ace.hint` no MessageBridge; `fx_rules.ace_category`. Sem mood. Dispatcher continua a escolher o vídeo.
 12. **Emulação lab (feito)** — `python scripts/lab-emulate/run_emulation.py` + `runLabAceTick` (Dispatcher/FX/player/TDEP in-memory). Sem Player-AD, sem face.
+13. **Opt-in verificado em lab (feito, sem Postgres)** — `python scripts/lab-ace/verify_optin.py`. Default off. Seeds/v6/instalador não ligam ACE. SQL humano: `scripts/lab-ace/optin-totem-lab.sql`.
 
 Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anónimos — sem `tag_id`.
 
@@ -304,5 +305,6 @@ Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anó
 | Ponte FX | [lab-ace/FX-BRIDGE-0.1.md](./lab-ace/FX-BRIDGE-0.1.md) · touch/NFC anónimos; `publishAceHint`; `ace_category` |
 | Pipeline / opt-in | `python scripts/lab-ace/run_lab.py` · [lab-ace/OPT-IN-0.1.md](./lab-ace/OPT-IN-0.1.md) |
 | Emulação (mocks) | `python scripts/lab-emulate/run_emulation.py` · [../scripts/lab-emulate/README.md](../scripts/lab-emulate/README.md) |
+| Opt-in verificado (sem Postgres) | `python scripts/lab-ace/verify_optin.py` · SQL manual `scripts/lab-ace/optin-totem-lab.sql` |
 
-**Próximo (se avançar):** opt-in ACE num totem de lab (`capabilities.ace_enabled`). Player-AD e face continuam fora. Direct default off. Cue Maestro em 2 boxes só depois de NTP medido.
+**Próximo (se avançar):** SQL à mão num totem de lab (`capabilities.ace_enabled`) **se** existir Postgres; senão medir NTP em 2 boxes para o Maestro Cue deixar de ser mock. Player-AD e face continuam fora. Direct default off.

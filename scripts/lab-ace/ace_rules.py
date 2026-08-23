@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 
@@ -74,3 +75,28 @@ def apply_ace_hint_to_weight(
     if hint.get("category") == "FILL" and commercial_tier == "remnant":
         next_w += 3
     return max(0, next_w)
+
+
+def is_ace_enabled_in_capabilities(capabilities: Any) -> bool:
+    cap: dict[str, Any] | None = None
+    if isinstance(capabilities, str):
+        try:
+            parsed = json.loads(capabilities)
+        except json.JSONDecodeError:
+            return False
+        cap = parsed if isinstance(parsed, dict) else None
+    elif isinstance(capabilities, dict):
+        cap = capabilities
+    if not cap:
+        return False
+    if cap.get("ace_enabled") is True:
+        return True
+    ace = cap.get("ace")
+    if isinstance(ace, dict) and ace.get("enabled") is True:
+        return True
+    return False
+
+
+def should_use_dispatch_plan_cache(ace_enabled: bool) -> bool:
+    """Cache de plano (TTL 60s) só quando ACE está off — o hint vive ~3s."""
+    return not ace_enabled

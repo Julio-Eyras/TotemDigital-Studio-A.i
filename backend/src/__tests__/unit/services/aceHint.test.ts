@@ -3,6 +3,7 @@ import {
   applyAceHintToWeight,
   aceContextToHint,
   isAceEnabledInCapabilities,
+  shouldUseDispatchPlanCache,
 } from '../../../services/ace/aceRuleEngine';
 import { getAceHintStore, resetAceHintStoreForTests } from '../../../services/ace/aceHintStore';
 import { parseAnonymousInteraction } from '../../../services/ace/aceInteraction';
@@ -84,8 +85,17 @@ describe('ACE 0.1 rule engine + dispatcher hint', () => {
   it('capabilities.ace_enabled default false', () => {
     expect(isAceEnabledInCapabilities(null)).toBe(false);
     expect(isAceEnabledInCapabilities({})).toBe(false);
+    expect(isAceEnabledInCapabilities({ ace_enabled: false })).toBe(false);
+    expect(isAceEnabledInCapabilities({ ace_enabled: 'true' })).toBe(false);
+    expect(isAceEnabledInCapabilities('{not-json')).toBe(false);
+    expect(isAceEnabledInCapabilities({ ace: { enabled: false } })).toBe(false);
     expect(isAceEnabledInCapabilities({ ace_enabled: true })).toBe(true);
     expect(isAceEnabledInCapabilities('{"ace":{"enabled":true}}')).toBe(true);
+  });
+
+  it('cache de plano só quando ACE off', () => {
+    expect(shouldUseDispatchPlanCache(false)).toBe(true);
+    expect(shouldUseDispatchPlanCache(true)).toBe(false);
   });
 
   it('store TTL: sem contexto depois de expirar', () => {

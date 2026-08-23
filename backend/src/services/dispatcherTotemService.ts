@@ -25,7 +25,11 @@ import { enrichDispatchPlanWithGlobalVinhetas } from './dispatchVinhetaEnrichmen
 import { getAceHintStore } from './ace/aceHintStore';
 import { recordAceAudit } from './ace/aceAudit';
 import { publishAceHintWire } from './ace/aceFxPublish';
-import { applyAceHintToWeight, isAceEnabledInCapabilities } from './ace/aceRuleEngine';
+import {
+  applyAceHintToWeight,
+  isAceEnabledInCapabilities,
+  shouldUseDispatchPlanCache,
+} from './ace/aceRuleEngine';
 import { getMediaService } from './mediaService';
 import {
   DEFAULT_FALLBACK_PROPAGANDAS_PER_VINHETA,
@@ -97,7 +101,7 @@ export class DispatcherTotemService {
       
       // Verificar cache (se habilitado e não forçado a ignorar).
       // ACE opt-in: não servir plano com TTL 60s — o hint vive ~3s.
-      if (this.cacheConfig.enabled && !skipCache && !aceEnabled && !validateOnly) {
+      if (this.cacheConfig.enabled && !skipCache && shouldUseDispatchPlanCache(aceEnabled) && !validateOnly) {
         const cached = await this.getFromCache(cacheKey);
         // Se pedimos candidates, mas o cache não tem candidates (porque foi gerado via /dispatch sem includeCandidates),
         // tratar como cache miss para evitar retorno "vazio" no endpoint /candidates.
@@ -146,7 +150,7 @@ export class DispatcherTotemService {
             fallbackPlaylist: { id: fallbackPlan.playlistId, name: fallbackPlan.playlistName },
           });
           const planVersion = await this.rememberPlanVersion(totemId, fallbackPlan);
-          if (this.cacheConfig.enabled && !aceEnabled && !validateOnly) {
+          if (this.cacheConfig.enabled && shouldUseDispatchPlanCache(aceEnabled) && !validateOnly) {
             await this.saveToCache(cacheKey, { plan: fallbackPlan, candidates: [] });
           }
           return {
@@ -235,7 +239,7 @@ export class DispatcherTotemService {
               subscribers: simpleMixPlan.metadata?.subscriberIds,
               simpleMode: true,
             });
-            if (this.cacheConfig.enabled && !skipCache && !aceEnabled && !validateOnly) {
+            if (this.cacheConfig.enabled && !skipCache && shouldUseDispatchPlanCache(aceEnabled) && !validateOnly) {
               await this.saveToCache(cacheKey, {
                 plan: simpleMixPlan,
                 candidates: includeCandidates ? validatedCandidates : undefined,
@@ -411,7 +415,7 @@ export class DispatcherTotemService {
       }
 
       // 6. Salvar no cache (não persistir plano ACE — hint expira em ~3s)
-      if (this.cacheConfig.enabled && !aceEnabled && !validateOnly) {
+      if (this.cacheConfig.enabled && shouldUseDispatchPlanCache(aceEnabled) && !validateOnly) {
         await this.saveToCache(cacheKey, {
           plan,
           candidates: includeCandidates ? validatedCandidates : undefined,

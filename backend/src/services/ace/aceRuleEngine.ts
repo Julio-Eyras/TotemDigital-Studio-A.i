@@ -103,3 +103,8 @@ export function isAceEnabledInCapabilities(capabilities: unknown): boolean {
   }
   return false;
 }
+
+/** Cache de plano (TTL 60s) só quando ACE está off — o hint vive ~3s. */
+export function shouldUseDispatchPlanCache(aceEnabled: boolean): boolean {
+  return !aceEnabled;
+}

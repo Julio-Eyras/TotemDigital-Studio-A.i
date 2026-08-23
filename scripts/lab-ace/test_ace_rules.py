@@ -47,6 +47,20 @@ def main() -> int:
     else:
         print("PASS weight inalterado com ACE off")
 
+    from ace_rules import is_ace_enabled_in_capabilities, should_use_dispatch_plan_cache  # noqa: E402
+
+    if is_ace_enabled_in_capabilities({}) or is_ace_enabled_in_capabilities({"ace_enabled": "true"}):
+        print("FAIL capabilities lixo/string não devem ligar ACE")
+        failed = True
+    elif not is_ace_enabled_in_capabilities({"ace": {"enabled": True}}):
+        print("FAIL nested ace.enabled")
+        failed = True
+    elif should_use_dispatch_plan_cache(True) is not False:
+        print("FAIL cache deve ser ignorado com ACE on")
+        failed = True
+    else:
+        print("PASS opt-in flag + cache skip")
+
     return 1 if failed else 0
 
 
