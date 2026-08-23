@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "TotemDigital Studio API",
-    "version": "2.1.15",
-    "description": "Catálogo gerado automaticamente a partir dos routers Express (2026-08-13). Paths relativos à base `/api`. Detalhe rico: swagger-enhanced.ts + overlay P0 (`openapi-p0.json`).",
+    "version": "2.1.16",
+    "description": "Catálogo gerado automaticamente a partir dos routers Express (2026-08-23). Paths relativos à base `/api`. Detalhe rico: swagger-enhanced.ts + overlay P0 (`openapi-p0.json`).",
     "contact": {
       "name": "Julio Cesar Eyras (J.C.E.) / Eyras Sistemas e Soluções"
     },
@@ -94,6 +94,10 @@
     {
       "name": "Installation",
       "description": "Rotas Installation"
+    },
+    {
+      "name": "Lab",
+      "description": "Rotas Lab"
     },
     {
       "name": "Locals",
@@ -7804,6 +7808,152 @@
         }
       }
     },
+    "/lab/ace/audit/{totemId}": {
+      "get": {
+        "tags": [
+          "Lab"
+        ],
+        "summary": "GET /lab/ace/audit/{totemId}",
+        "operationId": "get_lab_ace_audit_totemId",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem permissão ou módulo desligado"
+          }
+        },
+        "description": "Ficheiro `backend/src/routes/lab-ace.ts`.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "totemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/lab/ace/context": {
+      "post": {
+        "tags": [
+          "Lab"
+        ],
+        "summary": "POST /lab/ace/context",
+        "operationId": "post_lab_ace_context",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem permissão ou módulo desligado"
+          }
+        },
+        "description": "Ficheiro `backend/src/routes/lab-ace.ts`.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lab/ace/hint/{totemId}": {
+      "get": {
+        "tags": [
+          "Lab"
+        ],
+        "summary": "GET /lab/ace/hint/{totemId}",
+        "operationId": "get_lab_ace_hint_totemId",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem permissão ou módulo desligado"
+          }
+        },
+        "description": "Ficheiro `backend/src/routes/lab-ace.ts`.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "totemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/lab/ace/interaction": {
+      "post": {
+        "tags": [
+          "Lab"
+        ],
+        "summary": "POST /lab/ace/interaction",
+        "operationId": "post_lab_ace_interaction",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Não autenticado"
+          },
+          "403": {
+            "description": "Sem permissão ou módulo desligado"
+          }
+        },
+        "description": "Ficheiro `backend/src/routes/lab-ace.ts`.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
     "/locals": {
       "get": {
         "tags": [
@@ -9588,6 +9738,25 @@
         ]
       }
     },
+    "/player-apk/candidates": {
+      "get": {
+        "tags": [
+          "Player"
+        ],
+        "summary": "GET /player-apk/candidates",
+        "operationId": "get_player_apk_candidates",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "Sem permissão ou módulo desligado"
+          }
+        },
+        "description": "Ficheiro `backend/src/routes/player-apk.ts`.",
+        "security": []
+      }
+    },
     "/player-apk/designate": {
       "post": {
         "tags": [
@@ -9702,6 +9871,36 @@
         },
         "description": "Ficheiro `backend/src/routes/player-apk.ts`.",
         "security": []
+      }
+    },
+    "/player-apk/upload": {
+      "post": {
+        "tags": [
+          "Player"
+        ],
+        "summary": "POST /player-apk/upload",
+        "operationId": "post_player_apk_upload",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "403": {
+            "description": "Sem permissão ou módulo desligado"
+          }
+        },
+        "description": "Ficheiro `backend/src/routes/player-apk.ts`.",
+        "security": [],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
       }
     },
     "/player-static/{path}": {

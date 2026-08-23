@@ -7,6 +7,7 @@ import {
 import { getAceHintStore, resetAceHintStoreForTests } from '../../../services/ace/aceHintStore';
 import { parseAnonymousInteraction } from '../../../services/ace/aceInteraction';
 import { listAceAudit, recordAceAudit, resetAceAuditRingForTests, sanitizeAceForLog } from '../../../services/ace/aceAudit';
+import { ingestFxInteractionForAce, mapFxInteractionToAce, reviewFxAiEventForAce } from '../../../services/ace/aceFxBridge';
 import { AudienceContext } from '../../../services/ace/aceTypes';
 
 function baseContext(overrides: Partial<AudienceContext> = {}): AudienceContext {
@@ -195,5 +196,62 @@ describe('ACE 0.1 audit log (sem PII)', () => {
     expect(refuse?.snapshot).toBeNull();
     expect(ok?.snapshot?.count).toBe(3);
     expect(JSON.stringify(ok?.snapshot)).not.toContain('ephemeral-8f42a1');
+  });
+});
+
+describe('ACE 0.1 FILL + ponte FX', () => {
+  it('loja fechada sem outro sinal → FILL', () => {
+    const hint = aceContextToHint(
+      baseContext({
+        attention: 'low',
+        dwell_ms: 200,
+        count: 1,
+        group: false,
+        motion: { approaching: 0, passing: 0, stopped: 1, leaving: 0 },
+        clock: { hour_local: 23, day_of_week: 0, store_open: false },
+      })
+    );
+    expect(hint?.category).toBe('FILL');
+    expect(applyAceHintToWeight(10, hint, true, 'remnant')).toBe(15);
+  });
+
+  it('FX tag_id com UID vira NFC anónimo; face e mood recusados', () => {
+    resetAceHintStoreForTests();
+    resetAceAuditRingForTests();
+    const mapped = mapFxInteractionToAce({
+      siteId: 'loja',
+      totemId: '41',
+      interactionType: 'tag_id',
+      extra: {},
+    });
+    expect(mapped.status).toBe('ok');
+    if (mapped.status === 'ok') {
+      expect(mapped.interactionType).toBe('nfc');
+    }
+
+    const hint = ingestFxInteractionForAce({
+      siteId: 'loja',
+      totemId: '41',
+      interactionType: 'tag_id',
+      extra: { tagId: '04:SHOULD-NOT-LEAK' } as Record<string, unknown>,
+    });
+    expect(hint?.priority_delta).toBe(20);
+    const stored = getAceHintStore().get(41);
+    expect(JSON.stringify(stored?.context)).not.toContain('04:SHOULD-NOT-LEAK');
+
+    expect(
+      mapFxInteractionToAce({
+        siteId: 'loja',
+        totemId: '41',
+        interactionType: 'facial_recognition',
+      }).status
+    ).toBe('refuse');
+    expect(
+      reviewFxAiEventForAce({
+        totemId: '41',
+        eventType: 'attention',
+        payload: { mood: 'happy', attention_ms: 3000 },
+      }).status
+    ).toBe('refuse');
   });
 });

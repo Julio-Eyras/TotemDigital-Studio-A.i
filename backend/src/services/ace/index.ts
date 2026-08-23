@@ -4,3 +4,4 @@ export * from './aceRuleEngine';
 export * from './aceHintStore';
 export * from './aceInteraction';
 export * from './aceAudit';
+export * from './aceFxBridge';

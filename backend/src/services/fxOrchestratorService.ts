@@ -21,6 +21,7 @@ import { getFxEffectService } from './fxEffectService';
 import { getFxTimelineService } from './fxTimelineService';
 import { getFxSiteService } from './fxSiteService';
 import { getFxTelemetryService } from './fxTelemetryService';
+import { ingestFxInteractionForAce, rejectFxAiEventForAce } from './ace/aceFxBridge';
 
 // ---------------------------------------------------------------------------
 // Tipos básicos segundo o protocolo SmartDisplayFlow
@@ -108,7 +109,12 @@ export class FxOrchestratorService {
    */
   async handleInteractionEvent(event: FxInteractionEvent): Promise<void> {
     try {
-      await logInfo('FxOrchestratorService.handleInteractionEvent', event);
+      ingestFxInteractionForAce(event);
+      await logInfo('FxOrchestratorService.handleInteractionEvent', {
+        siteId: event.siteId,
+        totemId: event.totemId,
+        interactionType: event.interactionType,
+      });
 
       // Buscar regras ativas para o site
       const rules = await this.ruleService.getActiveRulesForSite(event.siteId);
@@ -196,7 +202,13 @@ export class FxOrchestratorService {
    */
   async handleAiEvent(event: FxAiEvent): Promise<void> {
     try {
-      await logInfo('FxOrchestratorService.handleAiEvent', event);
+      rejectFxAiEventForAce(event);
+      await logInfo('FxOrchestratorService.handleAiEvent', {
+        siteId: event.siteId,
+        totemId: event.totemId,
+        eventType: event.eventType,
+        eventId: event.eventId,
+      });
       
       // Buscar regras ativas para o site
       const rules = await this.ruleService.getActiveRulesForSite(event.siteId);

@@ -1,6 +1,6 @@
 # Inventário da API TotemDigital Studio
 
-**Gerado:** 2026-08-13 · Backend **2.1.15** · branch `main`
+**Gerado:** 2026-08-23 · Backend **2.1.16** · branch `main`
 **Autor:** Julio Cesar Eyras (J.C.E.) / Eyras Sistemas e Soluções
 
 Fonte: routers em `backend/src/routes/` montados em `registerCompactRoutes.ts`, `registerExtendedApiRoutes.ts` e `index.ts`.
@@ -13,11 +13,11 @@ Swagger UI (só desenvolvimento): `/api-docs`
 
 | Métrica | Valor |
 |---------|-------|
-| Operações (método+path) | **572** |
-| Paths OpenAPI | **438** |
-| Tags | **39** |
+| Operações (método+path) | **578** |
+| Paths OpenAPI | **444** |
+| Tags | **40** |
 | Já com detalhe (enhanced + P0) | 42 |
-| Só stub gerado | 530 |
+| Só stub gerado | 536 |
 
 > Catálogo completo das rotas montadas. Schemas ricos: `swagger-enhanced.ts` (PlaylistMix/publishers) + `openapi-p0.json` (integração).
 
@@ -308,6 +308,15 @@ Swagger UI (só desenvolvimento): `/api-docs`
 | POST | `/installation/portal/ssl/issue` | `—` | JWT (router) | `installationModules` |
 | POST | `/installation/portal/sync` | `—` | JWT (router) | `installationModules` |
 
+### Lab (4)
+
+| Método | Path `/api`… | Módulo | Auth | Ficheiro |
+|--------|--------------|--------|------|----------|
+| GET | `/lab/ace/audit/{totemId}` | `—` | JWT (router) | `lab-ace` |
+| POST | `/lab/ace/context` | `—` | JWT (router) | `lab-ace` |
+| GET | `/lab/ace/hint/{totemId}` | `—` | JWT (router) | `lab-ace` |
+| POST | `/lab/ace/interaction` | `—` | JWT (router) | `lab-ace` |
+
 ### Locals (7)
 
 | Método | Path `/api`… | Módulo | Auth | Ficheiro |
@@ -394,15 +403,17 @@ Swagger UI (só desenvolvimento): `/api-docs`
 | PUT | `/plans/{id}` | `plans` | JWT (router) | `plans` |
 | GET | `/plans/{id}/network-topology` | `plans` | JWT (router) | `plans` |
 
-### Player (25)
+### Player (27)
 
 | Método | Path `/api`… | Módulo | Auth | Ficheiro |
 |--------|--------------|--------|------|----------|
+| GET | `/player-apk/candidates` | `—` | público | `player-apk` |
 | POST | `/player-apk/designate` | `—` | público | `player-apk` |
 | GET | `/player-apk/designated` | `—` | público | `player-apk` |
 | GET | `/player-apk/documents` | `—` | público | `player-apk` |
 | GET | `/player-apk/documents/{slug}` | `—` | público | `player-apk` |
 | GET | `/player-apk/download` | `—` | público | `player-apk` |
+| POST | `/player-apk/upload` | `—` | público | `player-apk` |
 | GET | `/player-static/{path}` | `—` | público | `index.ts` |
 | POST | `/player/command-result` | `—` | público | `player` |
 | GET | `/player/config` | `—` | público | `player` |
@@ -798,7 +809,7 @@ Swagger UI (só desenvolvimento): `/api-docs`
 - Runtime: `GET /api/openapi.json` = gerado + enhanced + P0.
 - Estático: [`openapi.json`](./openapi.json) = gerado + P0.
 
-**530** operações ainda só têm stub (200/401/403 genéricos).
+**536** operações ainda só têm stub (200/401/403 genéricos).
 
 Próximos candidatos a schemas manuais: billing, OTA, campaigns, portal.
 

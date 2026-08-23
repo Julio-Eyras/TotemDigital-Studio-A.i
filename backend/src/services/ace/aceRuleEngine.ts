@@ -49,6 +49,14 @@ export function aceContextToHint(ctx: AudienceContext): AceHint | null {
     };
   }
 
+  if (ctx.clock && ctx.clock.store_open === false) {
+    return {
+      category: 'FILL',
+      priority_delta: 2,
+      reason: 'AUDIENCE.STORE_CLOSED',
+    };
+  }
+
   return null;
 }
 

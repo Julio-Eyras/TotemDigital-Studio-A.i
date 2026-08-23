@@ -281,6 +281,7 @@ Documentação de evolução **só** em `TotemDigital-Studio-A.i`. Não substitu
 | [lab-ace/EDGE-VISION-0.1.md](./lab-ace/EDGE-VISION-0.1.md) | Visão no edge: contagem/dwell sem face. |
 | [lab-ace/INTERACTION-BUS-0.1.md](./lab-ace/INTERACTION-BUS-0.1.md) | NFC/QR/touch no bus ACE (bools; sem `tag_id`). |
 | [lab-ace/ACE-AUDIT-0.1.md](./lab-ace/ACE-AUDIT-0.1.md) | Auditoria `ace.hint` sem PII (`event_logs`). |
+| [lab-ace/FX-BRIDGE-0.1.md](./lab-ace/FX-BRIDGE-0.1.md) | Ponte FX → ACE: touch/NFC anónimos; face/mood recusados. |
 | [adr/0006-ace-audience-nao-identidade.md](./adr/0006-ace-audience-nao-identidade.md) | ADR: ACE = audiência anónima; identidade (face) permanece 501. |
 
 ---
