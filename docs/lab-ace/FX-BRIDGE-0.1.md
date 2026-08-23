@@ -12,4 +12,6 @@
 
 O FX **não** deixa de usar `mood` para efeitos visuais. Esse caminho não alimenta o Dispatcher.
 
+Hint ACE sanitizado pode ir no MQTT (`ace.hint`) e `fx_rules.ace_category` pode casar PREMIUM/STANDARD/FILL — sem UID.
+
 `totemId` tem de ser numérico (`totems.totem_id`). UIN em texto é ignorado no 0.1.

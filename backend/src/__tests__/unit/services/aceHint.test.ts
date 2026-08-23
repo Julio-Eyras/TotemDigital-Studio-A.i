@@ -8,6 +8,7 @@ import { getAceHintStore, resetAceHintStoreForTests } from '../../../services/ac
 import { parseAnonymousInteraction } from '../../../services/ace/aceInteraction';
 import { listAceAudit, recordAceAudit, resetAceAuditRingForTests, sanitizeAceForLog } from '../../../services/ace/aceAudit';
 import { ingestFxInteractionForAce, mapFxInteractionToAce, reviewFxAiEventForAce } from '../../../services/ace/aceFxBridge';
+import { fxRuleMatchesAceHint, toAceHintWire } from '../../../services/ace/aceFxPublish';
 import { AudienceContext } from '../../../services/ace/aceTypes';
 
 function baseContext(overrides: Partial<AudienceContext> = {}): AudienceContext {
@@ -253,5 +254,16 @@ describe('ACE 0.1 FILL + ponte FX', () => {
         payload: { mood: 'happy', attention_ms: 3000 },
       }).status
     ).toBe('refuse');
+  });
+
+  it('fx_rules.ace_category casa com hint; wire MQTT não leva UID', () => {
+    const hint = { category: 'STANDARD' as const, priority_delta: 20, reason: 'x' };
+    expect(fxRuleMatchesAceHint({ ace_category: 'STANDARD' }, hint)).toBe(true);
+    expect(fxRuleMatchesAceHint({ ace_category: 'PREMIUM' }, hint)).toBe(false);
+    expect(fxRuleMatchesAceHint({}, hint)).toBe(true);
+    const wire = toAceHintWire(41, hint, 'loja');
+    expect(wire.msg_type).toBe('ace.hint');
+    expect(JSON.stringify(wire)).not.toContain('tag');
+    expect(wire.totem_id).toBe(41);
   });
 });

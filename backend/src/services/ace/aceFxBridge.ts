@@ -2,6 +2,7 @@ import { getAceHintStore } from './aceHintStore';
 import { parseAnonymousInteraction } from './aceInteraction';
 import { recordAceAudit } from './aceAudit';
 import { AceHint } from './aceTypes';
+import { publishAceHintWire } from './aceFxPublish';
 
 interface FxInteractionLike {
   siteId: string;
@@ -125,6 +126,9 @@ export function ingestFxInteractionForAce(event: FxInteractionLike): AceHint | n
       hint,
       context: stored?.context ?? null,
     });
+    if (hint) {
+      publishAceHintWire(parsed.totemId, hint, event.siteId);
+    }
     return hint;
   } catch {
     return null;

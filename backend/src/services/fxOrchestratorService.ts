@@ -22,6 +22,8 @@ import { getFxTimelineService } from './fxTimelineService';
 import { getFxSiteService } from './fxSiteService';
 import { getFxTelemetryService } from './fxTelemetryService';
 import { ingestFxInteractionForAce, rejectFxAiEventForAce } from './ace/aceFxBridge';
+import { fxRuleMatchesAceHint } from './ace/aceFxPublish';
+import { getAceHintStore } from './ace/aceHintStore';
 
 // ---------------------------------------------------------------------------
 // Tipos básicos segundo o protocolo SmartDisplayFlow
@@ -685,6 +687,16 @@ export class FxOrchestratorService {
    */
   private async evaluateRuleConditions(conditions: Record<string, any>, event: FxInteractionEvent | FxAiEvent): Promise<boolean> {
     try {
+      if (conditions.ace_category) {
+        const totemId = Number(
+          (event as FxInteractionEvent).totemId ?? (event as FxAiEvent).totemId
+        );
+        const hint = Number.isFinite(totemId) ? getAceHintStore().get(totemId)?.hint ?? null : null;
+        if (!fxRuleMatchesAceHint(conditions, hint)) {
+          return false;
+        }
+      }
+
       // Avaliar condições de idade
       if (conditions.age_bucket) {
         const ageBuckets = Array.isArray(conditions.age_bucket) ? conditions.age_bucket : [conditions.age_bucket];

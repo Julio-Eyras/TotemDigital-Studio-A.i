@@ -48,6 +48,16 @@ export interface FxSyncTimeMessage {
   server_timestamp: number;
 }
 
+export interface FxAceHintMessage {
+  msg_type: 'ace.hint';
+  schema: 'ace/0.1';
+  totem_id: number;
+  site_id?: string;
+  category: 'PREMIUM' | 'STANDARD' | 'FILL';
+  priority_delta: number;
+  reason: string;
+}
+
 export interface FxTelemetryMessage {
   msg_type: 'fx_telemetry';
   site_id: string;
@@ -233,6 +243,37 @@ export class FxMessageBridge {
       });
     } catch (error: any) {
       await logError('FxMessageBridge publishTelemetry exception', error, { topic }).catch(() => {});
+    }
+  }
+
+  /**
+   * Publica hint ACE sanitizado (sem snapshot, sem PII) em smartdisplay/{site}/ace_hint.
+   * Sem broker: log-only, como as outras publicações.
+   */
+  async publishAceHint(message: FxAceHintMessage): Promise<void> {
+    const siteId = message.site_id || 'lab';
+    const topic = this.buildTopic(siteId, 'ace_hint');
+
+    if (!this.connected || !this.client) {
+      await logWarn('FxMessageBridge.publishAceHint (MQTT indisponível, log-only)', {
+        topic,
+        totemId: message.totem_id,
+        category: message.category,
+      }).catch(() => {});
+      return;
+    }
+
+    try {
+      const payload = JSON.stringify(message);
+      this.client.publish(topic, payload, { qos: 0 }, (err: Error | null) => {
+        if (err) {
+          logError('FxMessageBridge publishAceHint erro', err, { topic }).catch(() => {});
+        } else {
+          logInfo('FxMessageBridge publishAceHint ok', { topic, category: message.category });
+        }
+      });
+    } catch (error: any) {
+      await logError('FxMessageBridge publishAceHint exception', error, { topic }).catch(() => {});
     }
   }
 

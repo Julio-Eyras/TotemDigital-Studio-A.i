@@ -24,6 +24,7 @@ import { sumDispatchMediaItemsPlanDuration } from '../utils/dispatchItemDuration
 import { enrichDispatchPlanWithGlobalVinhetas } from './dispatchVinhetaEnrichment';
 import { getAceHintStore } from './ace/aceHintStore';
 import { recordAceAudit } from './ace/aceAudit';
+import { publishAceHintWire } from './ace/aceFxPublish';
 import { applyAceHintToWeight, isAceEnabledInCapabilities } from './ace/aceRuleEngine';
 import { getMediaService } from './mediaService';
 import {
@@ -427,6 +428,7 @@ export class DispatcherTotemService {
           hint: aceAudit.hint,
           context: getAceHintStore().get(totemId)?.context ?? null,
         });
+        publishAceHintWire(totemId, aceAudit.hint);
       }
       await this.logDispatch({
         totemId,

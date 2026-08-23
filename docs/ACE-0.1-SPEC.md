@@ -199,15 +199,15 @@ Classificação contra o código em `TotemDigital-Studio-A.i` (`main`, 23/08/202
 | Dispatcher / `dispatcher_log` | backend + `database/...part6` | **REUTILIZAR** | Árbitro final. O ACE só sugere. |
 | Player-AD 2.13 / 113 | `Player-AD/` | **NÃO ALTERAR** no 0.1 | Cache, heartbeat, kiosk. Visão no edge é fase posterior. |
 | `FxOrchestratorService` | `backend/src/services/fxOrchestratorService.ts` | **PONTE lab** | Touch/NFC anónimos → ACE. `mood` / face **não** entram no ACE. |
-| `FxRuleService` / `fx_rules` | serviço + `part2-tables-base.sql` | **ADAPTAR depois** | CRUD de efeitos visuais. Não é scoring de campanha. |
-| `FxMessageBridge` | `backend/src/services/fxMessageBridge.ts` | **ADAPTAR depois** | MQTT opcional; hoje cai em log se o broker não existir. |
+| `FxRuleService` / `fx_rules` | serviço + `part2-tables-base.sql` | **PONTE lab** | Condição opcional `ace_category` (PREMIUM/STANDARD/FILL). Sem mood. |
+| `FxMessageBridge` | `backend/src/services/fxMessageBridge.ts` | **PONTE lab** | `publishAceHint` — JSON sanitizado; MQTT opcional / log-only. |
 | `event_logs` | schema part6 | **REUTILIZAR** | `event_type = ace.hint`; metadata sanitizada. Sem coluna nova. |
 | `interaction_logs` | schema part6 | **NÃO USAR no 0.1** | Tem `person_id` → Identity. |
 | `recognized_persons` + `facialRecognitionService` | schema + `backend/src/services/` | **NÃO ALTERAR** | Manter 501. Fora do ACE. |
 | `ai_context_data` | `part11-playlist-mix.sql` | **NÃO USAR como store ACE** | Mistura `pedestrian_count` com sentimento, emoção e demografia. |
 | `emotion_data` / `totem_ml_config` | schema part6 | **NÃO USAR no 0.1** | Emoção e flags de face. |
 | `tags_crud` | `deferredFeatures.ts` | **NÃO ALTERAR agora** | 501. NFC/QR no ACE são bools (`POST /interaction`), sem `tag_id`. |
-| `audience.context` / Privacy Gateway / ACE | — | **CRIAR** | Não existem. Este documento é o contrato. |
+| `audience.context` / Privacy Gateway / ACE | lab + `backend/src/services/ace/` | **CRIADO** | Contrato + gateway + hint + auditoria. |
 | TDEP endpoints | — | **NÃO MISTURAR** | Protocolo entre CMS; outro lab. |
 
 **Correcção à conversa ChatGPT:** não há 60–70% de ACE pronto. Há um Dispatcher de produção e esboços FX/IA. O ACE 0.1 começa pelo contrato, não por ligar a câmara a `recognized_persons`.
@@ -269,6 +269,7 @@ Ordem. Cada passo espera decisão explícita antes de código.
 7. **FX / NFC / QR no mesmo bus (lab, feito)** — bools `interaction.*`; `POST /api/lab/ace/interaction`. Sem `tag_id`. `tags_crud` e `FxOrchestratorService` (mood) **não** foram ligados.
 8. **Auditoria `ace.hint` (lab, feito)** — whitelist em `event_logs` + anel em RAM. Recusa nunca persiste o payload. Sem coluna SQL nova.
 10. **Pipeline local + opt-in documentado (lab, feito)** — `python scripts/lab-ace/run_lab.py`. SQL de opt-in **não** vai na carga v6.
+11. **FX apresenta o hint (lab, feito)** — `ace.hint` no MessageBridge; `fx_rules.ace_category`. Sem mood. Dispatcher continua a escolher o vídeo.
 
 Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anónimos — sem `tag_id`.
 
@@ -299,7 +300,7 @@ Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anó
 | Visão no edge | [lab-ace/EDGE-VISION-0.1.md](./lab-ace/EDGE-VISION-0.1.md) · `python scripts/lab-ace/edge_vision.py --synthetic` |
 | Interacção anónima | [lab-ace/INTERACTION-BUS-0.1.md](./lab-ace/INTERACTION-BUS-0.1.md) · `POST /api/lab/ace/interaction` |
 | Auditoria sem PII | [lab-ace/ACE-AUDIT-0.1.md](./lab-ace/ACE-AUDIT-0.1.md) · `GET /api/lab/ace/audit/:totemId` · `event_logs` (`ace.hint`) |
-| Ponte FX | [lab-ace/FX-BRIDGE-0.1.md](./lab-ace/FX-BRIDGE-0.1.md) · touch/NFC anónimos; mood/face recusados |
+| Ponte FX | [lab-ace/FX-BRIDGE-0.1.md](./lab-ace/FX-BRIDGE-0.1.md) · touch/NFC anónimos; `publishAceHint`; `ace_category` |
 | Pipeline / opt-in | `python scripts/lab-ace/run_lab.py` · [lab-ace/OPT-IN-0.1.md](./lab-ace/OPT-IN-0.1.md) |
 
 **Próximo (se avançar):** Player-AD e face continuam fora. Direct default off. Opt-in só à mão num totem de lab.

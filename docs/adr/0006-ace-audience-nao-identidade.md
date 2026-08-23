@@ -24,7 +24,7 @@ Fonte normativa: [docs/ACE-0.1-SPEC.md](../ACE-0.1-SPEC.md).
 
 - Spec e labs de ACE vivem neste repo, não no TotemDigital-Studio operacional.
 - `ai_context_data` não é o store do ACE 0.1 (mistura pedestres com emoção/demografia).
-- `FxOrchestratorService` (mood / age_bucket) não é o Rule Engine do ACE; adaptar só numa fase posterior.
+- `FxOrchestratorService` pode **receber** touch/NFC anónimos no ACE e **publicar** `ace.hint` sanitizado; `mood` / face continuam fora do ACE.
 - Demo com câmara e face fica **fora** do 0.1.
 
 ## Alternativas rejeitadas
