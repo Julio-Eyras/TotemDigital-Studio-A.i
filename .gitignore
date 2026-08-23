@@ -315,3 +315,4 @@ docs/chaves*/
 scripts/__pycache__/
 **/__pycache__/
 install-pendrive/bootanimation/.bootanimation-build/
+install-pendrive/bootanimation/_preview/

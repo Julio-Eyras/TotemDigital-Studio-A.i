@@ -50,6 +50,7 @@ tasks.register('bundleBootAssets', Copy) {
         include 'totemdigital.bmp'
         include 'totemdigital-portrait.bmp'
         include 'totemdigital-portrait-reverse.bmp'
+        include 'totemdigital-landscape.bmp'
         include 'bootanimation.zip'
         include 'bootanimation-portrait.zip'
         include 'bootanimation-portrait-reverse.zip'
@@ -60,10 +61,12 @@ tasks.register('bundleBootAssets', Copy) {
     }
     doFirst {
         bundledAssets.mkdirs()
-        def bmp = new File(bootDir, 'totemdigital.bmp')
+        def bmp = new File(bootDir, 'totemdigital-portrait.bmp')
+        def reverseBmp = new File(bootDir, 'totemdigital-portrait-reverse.bmp')
+        def landscapeBmp = new File(bootDir, 'totemdigital-landscape.bmp')
         def portrait = new File(bootDir, 'bootanimation-portrait.zip')
         def reverse = new File(bootDir, 'bootanimation-portrait-reverse.zip')
-        if (!bmp.exists() || !portrait.exists() || !reverse.exists()) {
+        if (!bmp.exists() || !reverseBmp.exists() || !landscapeBmp.exists() || !portrait.exists() || !reverse.exists()) {
             throw new GradleException(
                 "Logos TotemDigital em falta em ${bootDir}.\n" +
                     "  python Player-AD/scripts/build-totemdigital-boot-assets.py"
@@ -80,8 +83,8 @@ android {
         applicationId 'br.com.smartchannel.instalaplayer'
         minSdk 24
         targetSdk 34
-        versionCode 3
-        versionName '1.2'
+        versionCode 4
+        versionName '1.3'
         multiDexEnabled false
     }
 

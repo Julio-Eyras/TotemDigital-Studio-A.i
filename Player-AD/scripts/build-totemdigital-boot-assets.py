@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Gera os logos oficiais TotemDigital a partir de logo-totemdigital-boot.png:
+Gera os logos oficiais TotemDigital a partir de logo-totemdigital-boot.png.
 
-  install-pendrive/bootanimation/totemdigital.bmp                    (bootloader 1280x720, paisagem)
-  install-pendrive/bootanimation/totemdigital-portrait.bmp           (bootloader, retrato 270°)
-  install-pendrive/bootanimation/totemdigital-portrait-reverse.bmp   (bootloader, retrato 90°)
-  install-pendrive/bootanimation/bootlogo.bmp                        (alias paisagem para scripts ADB)
-  install-pendrive/bootanimation/bootanimation.zip                   (landscape 1920x1080)
-  install-pendrive/bootanimation/bootanimation-portrait.zip          (1080x1920, 270°)
-  install-pendrive/bootanimation/bootanimation-portrait-reverse.zip  (1080x1920, 90°)
+A imagem-mãe já está em 16:9 com a arte rodada para totem em pé (sentido A)
+no framebuffer landscape Allwinner (1280x720). Não se volta a aplicar 90°/270°
+nesse BMP — isso letterboxava dois “retratos” no mesmo canvas e invertia o sentido.
+
+  Retrato A (topo para cima):     0°   (mãe tal como está)
+  Retrato B (topo para baixo):    180°
+  Paisagem (texto a direito):     90° CCW, encaixado em 16:9
 
 Uso:
   python build-totemdigital-boot-assets.py
@@ -16,7 +16,6 @@ Uso:
 from __future__ import annotations
 
 import hashlib
-import importlib.util
 import shutil
 import zipfile
 from pathlib import Path
@@ -28,19 +27,22 @@ OUT_DIR = SCRIPT_DIR.parent.parent / "install-pendrive" / "bootanimation"
 LOGO_PNG = OUT_DIR / "logo-totemdigital-boot.png"
 BMP_SIZE = (1280, 720)
 
-_SPEC = importlib.util.spec_from_file_location(
-    "build_bootlogo",
-    SCRIPT_DIR / "build-bootlogo.py",
-)
-_BOOTLOGO = importlib.util.module_from_spec(_SPEC)
-assert _SPEC.loader is not None
-_SPEC.loader.exec_module(_BOOTLOGO)
+
+def rotate_ccw(img: Image.Image, deg: int) -> Image.Image:
+    deg = deg % 360
+    if deg == 0:
+        return img
+    if deg == 90:
+        return img.transpose(Image.Transpose.ROTATE_90)
+    if deg == 180:
+        return img.transpose(Image.Transpose.ROTATE_180)
+    if deg == 270:
+        return img.transpose(Image.Transpose.ROTATE_270)
+    return img.rotate(deg, expand=True, resample=Image.Resampling.BICUBIC)
 
 
-def fit_logo(src: Image.Image, width: int, height: int, rotate_deg: int = 0) -> Image.Image:
-    img = src.convert("RGBA")
-    if rotate_deg:
-        img = img.rotate(rotate_deg, expand=True, resample=Image.Resampling.BICUBIC)
+def fit_logo(src: Image.Image, width: int, height: int, rotate_ccw_deg: int = 0) -> Image.Image:
+    img = rotate_ccw(src.convert("RGBA"), rotate_ccw_deg)
     scale = min(width / img.width, height / img.height)
     new_w = max(1, int(round(img.width * scale)))
     new_h = max(1, int(round(img.height * scale)))
@@ -85,29 +87,36 @@ def main() -> None:
         raise SystemExit(f"Logo oficial em falta: {LOGO_PNG}")
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    bmp = OUT_DIR / "totemdigital.bmp"
-    _BOOTLOGO.build(LOGO_PNG, bmp, BMP_SIZE)
-    shutil.copyfile(bmp, OUT_DIR / "bootlogo.bmp")
-    print(f"OK {OUT_DIR / 'bootlogo.bmp'} (alias)")
-
     src = Image.open(LOGO_PNG)
-    fit_logo(src, *BMP_SIZE, rotate_deg=270).save(OUT_DIR / "totemdigital-portrait.bmp", format="BMP")
-    fit_logo(src, *BMP_SIZE, rotate_deg=90).save(OUT_DIR / "totemdigital-portrait-reverse.bmp", format="BMP")
-    print(f"OK {OUT_DIR / 'totemdigital-portrait.bmp'} (bootloader retrato 270°)")
-    print(f"OK {OUT_DIR / 'totemdigital-portrait-reverse.bmp'} (bootloader retrato 90°)")
 
-    write_animation_zip(OUT_DIR / "bootanimation.zip", 1920, 1080, fit_logo(src, 1920, 1080))
+    # Bootloader 1280x720: retrato A = mãe; retrato B = 180°; paisagem = 90° CCW.
+    fit_logo(src, *BMP_SIZE, 0).save(OUT_DIR / "totemdigital-portrait.bmp", format="BMP")
+    fit_logo(src, *BMP_SIZE, 180).save(OUT_DIR / "totemdigital-portrait-reverse.bmp", format="BMP")
+    fit_logo(src, *BMP_SIZE, 90).save(OUT_DIR / "totemdigital-landscape.bmp", format="BMP")
+    shutil.copyfile(OUT_DIR / "totemdigital-portrait.bmp", OUT_DIR / "totemdigital.bmp")
+    shutil.copyfile(OUT_DIR / "totemdigital-portrait.bmp", OUT_DIR / "bootlogo.bmp")
+    print(f"OK {OUT_DIR / 'totemdigital-portrait.bmp'} (retrato A, 0°)")
+    print(f"OK {OUT_DIR / 'totemdigital-portrait-reverse.bmp'} (retrato B, 180°)")
+    print(f"OK {OUT_DIR / 'totemdigital-landscape.bmp'} (paisagem, 90° CCW)")
+    print(f"OK {OUT_DIR / 'totemdigital.bmp'} / bootlogo.bmp (alias retrato A)")
+
+    write_animation_zip(
+        OUT_DIR / "bootanimation.zip",
+        1920,
+        1080,
+        fit_logo(src, 1920, 1080, 90),
+    )
     write_animation_zip(
         OUT_DIR / "bootanimation-portrait.zip",
         1080,
         1920,
-        fit_logo(src, 1080, 1920, rotate_deg=270),
+        fit_logo(src, 1080, 1920, 90),
     )
     write_animation_zip(
         OUT_DIR / "bootanimation-portrait-reverse.zip",
         1080,
         1920,
-        fit_logo(src, 1080, 1920, rotate_deg=90),
+        fit_logo(src, 1080, 1920, 270),
     )
 
     manifest = OUT_DIR / "SHA256.txt"
@@ -115,6 +124,7 @@ def main() -> None:
         "totemdigital.bmp",
         "totemdigital-portrait.bmp",
         "totemdigital-portrait-reverse.bmp",
+        "totemdigital-landscape.bmp",
         "bootanimation.zip",
         "bootanimation-portrait.zip",
         "bootanimation-portrait-reverse.zip",

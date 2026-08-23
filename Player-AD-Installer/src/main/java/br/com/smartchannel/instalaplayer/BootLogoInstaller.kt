@@ -14,6 +14,7 @@ object BootLogoInstaller {
     private const val ASSET_BMP = "totemdigital.bmp"
     private const val ASSET_BMP_PORTRAIT = "totemdigital-portrait.bmp"
     private const val ASSET_BMP_REVERSE = "totemdigital-portrait-reverse.bmp"
+    private const val ASSET_BMP_LANDSCAPE = "totemdigital-landscape.bmp"
     private const val ASSET_ANIM_PORTRAIT = "bootanimation-portrait.zip"
     private const val ASSET_ANIM_REVERSE = "bootanimation-portrait-reverse.zip"
     private const val ASSET_ANIM_LANDSCAPE = "bootanimation-landscape.zip"
@@ -47,8 +48,8 @@ object BootLogoInstaller {
         messages += "Sentido escolhido: ${orientation.label}."
         messages += when (orientation) {
             BootOrientation.LANDSCAPE -> "Bootanimation paisagem (1920x1080)."
-            BootOrientation.PORTRAIT -> "Bootanimation retrato (1080x1920, 270°)."
-            BootOrientation.REVERSE_PORTRAIT -> "Bootanimation retrato invertido (1080x1920, 90°)."
+            BootOrientation.PORTRAIT -> "Bootanimation retrato (1080x1920)."
+            BootOrientation.REVERSE_PORTRAIT -> "Bootanimation retrato invertido (1080x1920, 180°)."
         }
 
         RootShell.exec("mkdir -p $SD_DIR/backup")
@@ -216,7 +217,7 @@ object BootLogoInstaller {
         val preferred = when (orientation) {
             BootOrientation.PORTRAIT -> ASSET_BMP_PORTRAIT
             BootOrientation.REVERSE_PORTRAIT -> ASSET_BMP_REVERSE
-            BootOrientation.LANDSCAPE -> ASSET_BMP
+            BootOrientation.LANDSCAPE -> ASSET_BMP_LANDSCAPE
         }
         return if (assetExists(context, preferred)) preferred else ASSET_BMP
     }

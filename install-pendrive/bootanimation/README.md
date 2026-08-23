@@ -1,16 +1,16 @@
 # Logos de boot TotemDigital
 
-Fonte gráfica: `logo-totemdigital-boot.png`
+Fonte gráfica: `logo-totemdigital-boot.png` (16:9 com arte já rodada para **totem em pé, sentido A**).
 
-| Ficheiro | Uso |
-|----------|-----|
-| `totemdigital.bmp` / `bootlogo.bmp` | 1.º ecrã paisagem (bootloader Allwinner, 1280×720) |
-| `totemdigital-portrait.bmp` | 1.º ecrã retrato (logo 270°, canvas 1280×720) |
-| `totemdigital-portrait-reverse.bmp` | 1.º ecrã retrato invertido (logo 90°) |
-| `bootanimation.zip` | 2.º ecrã landscape (1920×1080) |
-| `bootanimation-portrait.zip` | 2.º ecrã retrato (1080×1920, 270°) |
-| `bootanimation-portrait-reverse.zip` | 2.º ecrã retrato invertido (1080×1920, 90°) |
-| `bootlogo-original.bmp` | Referência do logo de fábrica (não gravar na box) |
+| Ficheiro | Sentido | Transformação |
+|----------|---------|----------------|
+| `totemdigital-portrait.bmp` / `totemdigital.bmp` / `bootlogo.bmp` | Retrato (topo para cima) | 0° (mãe) |
+| `totemdigital-portrait-reverse.bmp` | Retrato invertido (o outro vertical) | 180° |
+| `totemdigital-landscape.bmp` | Paisagem | 90° CCW, encaixado em 1280×720 |
+| `bootanimation-portrait.zip` | Retrato 1080×1920 | 90° CCW |
+| `bootanimation-portrait-reverse.zip` | Retrato invertido 1080×1920 | 270° CCW (180° do anterior) |
+| `bootanimation.zip` | Paisagem 1920×1080 | 90° CCW |
+| `bootlogo-original.bmp` | Referência de fábrica | não gravar na box |
 
 Regenerar:
 
@@ -19,4 +19,4 @@ cd Player-AD\scripts
 python build-totemdigital-boot-assets.py
 ```
 
-O `Instala-Player-TotemDigital.apk` embute estes ficheiros. O técnico **escolhe o sentido** no assistente (retrato / retrato invertido / paisagem) e só grava na TV se as imagens desse sentido ainda não estiverem no boot.
+O `Instala-Player-TotemDigital.apk` embute estes ficheiros. O técnico escolhe o sentido no assistente.
