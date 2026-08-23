@@ -265,7 +265,7 @@ Ordem. Cada passo espera decisão explícita antes de código.
 3. **Privacy Gateway em papel + fixtures de recusa (feito).** `STALE_CONTEXT` / `LOW_CONFIDENCE` também no gateway TS.
 4. **Emissor sintético (feito)** — `scripts/lab-ace/emit_ace_synthetic.py` → `logs/ace-synthetic.jsonl`. Sem Dispatcher.
 5. **Hint no Dispatcher (feito neste clone)** — `applyAceHintToWeight` se `totems.capabilities.ace_enabled === true`. Default **off**. Direct local continua a ganhar. Cache de 60s é ignorado quando ACE está on.
-6. **Visão no edge** (modelo escolhido depois; o contrato não muda).
+6. **Visão no edge (lab, feito)** — `scripts/lab-ace/edge_vision.py`: HOG de corpo ou modo `--synthetic`. Sem face, sem gravar frame. Contrato `ace/0.1` inalterado.
 7. **FX / NFC / QR no mesmo bus** — só depois do núcleo presença → contagem → dwell → atenção.
 
 Não começar pelo passo 6. Não ligar face “para ter um demo”.
@@ -294,5 +294,6 @@ Não começar pelo passo 6. Não ligar face “para ter um demo”.
 | Gateway (papel + lab local) | [lab-ace/PRIVACY-GATEWAY-0.1.md](./lab-ace/PRIVACY-GATEWAY-0.1.md) · `scripts/lab-ace/` |
 | Validador | `python scripts/lab-ace/validate_ace_schema.py` |
 | Emissor sintético | `python scripts/lab-ace/emit_ace_synthetic.py` → `logs/ace-synthetic.jsonl` |
+| Visão no edge | [lab-ace/EDGE-VISION-0.1.md](./lab-ace/EDGE-VISION-0.1.md) · `python scripts/lab-ace/edge_vision.py --synthetic` |
 
-**Próximo (se avançar):** visão no edge (sem face). Hint no Dispatcher já existe neste clone, default off. Ainda: **zero** alteração no Player-AD; **zero** coluna SQL nova (`capabilities.ace_enabled`).
+**Próximo (se avançar):** FX / NFC / QR no mesmo bus. Ainda: **zero** alteração no Player-AD; **zero** coluna SQL nova.

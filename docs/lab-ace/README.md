@@ -15,7 +15,8 @@ Norma humana: [../ACE-0.1-SPEC.md](../ACE-0.1-SPEC.md) · ADR: [../adr/0006-ace-
 | [examples/reject-identity-leak.json](./examples/reject-identity-leak.json) | **Inválido** — `IDENTITY_LEAK` |
 | [examples/reject-stale.json](./examples/reject-stale.json) | Schema ok — gateway `STALE_CONTEXT` |
 | [examples/reject-low-confidence.json](./examples/reject-low-confidence.json) | Schema ok — gateway `LOW_CONFIDENCE` |
-| [../scripts/lab-ace/README.md](../scripts/lab-ace/README.md) | `validate_ace_schema.py` e `emit_ace_synthetic.py` |
+| [../scripts/lab-ace/README.md](../scripts/lab-ace/README.md) | Validador, emissor sintético e visão no edge |
+| [EDGE-VISION-0.1.md](./EDGE-VISION-0.1.md) | Contagem/dwell no edge, sem face |
 
 ## Lab HTTP (este clone)
 
