@@ -6,6 +6,7 @@ import {
 } from '../../../services/ace/aceRuleEngine';
 import { getAceHintStore, resetAceHintStoreForTests } from '../../../services/ace/aceHintStore';
 import { parseAnonymousInteraction } from '../../../services/ace/aceInteraction';
+import { listAceAudit, recordAceAudit, resetAceAuditRingForTests, sanitizeAceForLog } from '../../../services/ace/aceAudit';
 import { AudienceContext } from '../../../services/ace/aceTypes';
 
 function baseContext(overrides: Partial<AudienceContext> = {}): AudienceContext {
@@ -143,5 +144,56 @@ describe('ACE 0.1 interaction bus (anónimo)', () => {
     const hint = getAceHintStore().mergeInteraction(41, { touch: false, qr: false, nfc: true });
     expect(hint?.priority_delta).toBe(20);
     expect(getAceHintStore().audit(41, true).code).toBe('HINT_APPLIED');
+  });
+});
+
+describe('ACE 0.1 audit log (sem PII)', () => {
+  it('sanitize remove person_id, tag_id e session_id', () => {
+    const dirty = {
+      ...baseContext(),
+      person_id: 99,
+      tag_id: '04:AA',
+      session_id: 'ephemeral-secret',
+      extra: 'drop',
+    } as AudienceContext & Record<string, unknown>;
+    const clean = sanitizeAceForLog(dirty)!;
+    const blob = JSON.stringify(clean);
+    expect(clean.person_id).toBeUndefined();
+    expect(clean.tag_id).toBeUndefined();
+    expect(clean.session_id).toBeUndefined();
+    expect(clean.context_id).toBeUndefined();
+    expect(blob).not.toContain('04:AA');
+    expect(blob).not.toContain('ephemeral-secret');
+    expect(clean.count).toBe(3);
+    expect(clean.privacy).toEqual({
+      gateway: 'ace/0.1',
+      identity_dropped: true,
+      image_dropped: true,
+    });
+  });
+
+  it('refuse não guarda snapshot; context entra no ring sanitizado', () => {
+    resetAceAuditRingForTests();
+    recordAceAudit({
+      source: 'refuse',
+      totemId: 41,
+      code: 'IDENTITY_LEAK',
+      context: { ...baseContext(), person_id: 1 } as unknown as Record<string, unknown>,
+      errors: ['campo de identidade: person_id'],
+    });
+    recordAceAudit({
+      source: 'context',
+      totemId: 41,
+      code: 'HINT_APPLIED',
+      hint: { category: 'PREMIUM', priority_delta: 30, reason: 'x' },
+      context: baseContext(),
+    });
+    const rows = listAceAudit(41);
+    expect(rows).toHaveLength(2);
+    const refuse = rows.find((r) => r.source === 'refuse');
+    const ok = rows.find((r) => r.source === 'context');
+    expect(refuse?.snapshot).toBeNull();
+    expect(ok?.snapshot?.count).toBe(3);
+    expect(JSON.stringify(ok?.snapshot)).not.toContain('ephemeral-8f42a1');
   });
 });

@@ -67,7 +67,8 @@ export enum EventType {
   
   // Outros
   SYSTEM_EVENT = 'system_event',
-  CUSTOM_EVENT = 'custom_event'
+  CUSTOM_EVENT = 'custom_event',
+  ACE_HINT = 'ace.hint',
 }
 
 export class EventLogService {

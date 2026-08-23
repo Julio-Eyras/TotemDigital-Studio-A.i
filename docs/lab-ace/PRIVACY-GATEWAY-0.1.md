@@ -45,4 +45,4 @@ Não deixa passar emoção, idade, género, humor, nome.
 
 **Próximo passo (ainda sem produto operacional)**
 
-Não ligar FX Orchestrator (`mood` / face). Interacção NFC/QR anónima, visão no edge e hint no Dispatcher já estão neste clone (opt-in).
+Não ligar FX Orchestrator (`mood` / face). Auditoria `ace.hint`, interacção NFC/QR, visão no edge e hint no Dispatcher já estão neste clone (opt-in).

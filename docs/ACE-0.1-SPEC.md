@@ -201,12 +201,12 @@ Classificação contra o código em `TotemDigital-Studio-A.i` (`main`, 23/08/202
 | `FxOrchestratorService` | `backend/src/services/fxOrchestratorService.ts` | **ADAPTAR depois** | Já recebe `FxAiEvent`, mas usa `mood` / `age_bucket` / `facial_recognition`. Isso é Identity, não ACE. |
 | `FxRuleService` / `fx_rules` | serviço + `part2-tables-base.sql` | **ADAPTAR depois** | CRUD de efeitos visuais. Não é scoring de campanha. |
 | `FxMessageBridge` | `backend/src/services/fxMessageBridge.ts` | **ADAPTAR depois** | MQTT opcional; hoje cai em log se o broker não existir. |
-| `event_logs` | schema part6 | **ADAPTAR** | Telemetria genérica. Pode guardar `ace.hint` sem PII. |
+| `event_logs` | schema part6 | **REUTILIZAR** | `event_type = ace.hint`; metadata sanitizada. Sem coluna nova. |
 | `interaction_logs` | schema part6 | **NÃO USAR no 0.1** | Tem `person_id` → Identity. |
 | `recognized_persons` + `facialRecognitionService` | schema + `backend/src/services/` | **NÃO ALTERAR** | Manter 501. Fora do ACE. |
 | `ai_context_data` | `part11-playlist-mix.sql` | **NÃO USAR como store ACE** | Mistura `pedestrian_count` com sentimento, emoção e demografia. |
 | `emotion_data` / `totem_ml_config` | schema part6 | **NÃO USAR no 0.1** | Emoção e flags de face. |
-| `tags_crud` | `deferredFeatures.ts` | **NÃO ALTERAR agora** | 501. NFC/RFID entram no mesmo bus só numa fase seguinte. |
+| `tags_crud` | `deferredFeatures.ts` | **NÃO ALTERAR agora** | 501. NFC/QR no ACE são bools (`POST /interaction`), sem `tag_id`. |
 | `audience.context` / Privacy Gateway / ACE | — | **CRIAR** | Não existem. Este documento é o contrato. |
 | TDEP endpoints | — | **NÃO MISTURAR** | Protocolo entre CMS; outro lab. |
 
@@ -267,6 +267,7 @@ Ordem. Cada passo espera decisão explícita antes de código.
 5. **Hint no Dispatcher (feito neste clone)** — `applyAceHintToWeight` se `totems.capabilities.ace_enabled === true`. Default **off**. Direct local continua a ganhar. Cache de 60s é ignorado quando ACE está on.
 6. **Visão no edge (lab, feito)** — `scripts/lab-ace/edge_vision.py`: HOG de corpo ou modo `--synthetic`. Sem face, sem gravar frame. Contrato `ace/0.1` inalterado.
 7. **FX / NFC / QR no mesmo bus (lab, feito)** — bools `interaction.*`; `POST /api/lab/ace/interaction`. Sem `tag_id`. `tags_crud` e `FxOrchestratorService` (mood) **não** foram ligados.
+8. **Auditoria `ace.hint` (lab, feito)** — whitelist em `event_logs` + anel em RAM. Recusa nunca persiste o payload. Sem coluna SQL nova.
 
 Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anónimos — sem `tag_id`.
 
@@ -296,5 +297,6 @@ Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anó
 | Emissor sintético | `python scripts/lab-ace/emit_ace_synthetic.py` → `logs/ace-synthetic.jsonl` |
 | Visão no edge | [lab-ace/EDGE-VISION-0.1.md](./lab-ace/EDGE-VISION-0.1.md) · `python scripts/lab-ace/edge_vision.py --synthetic` |
 | Interacção anónima | [lab-ace/INTERACTION-BUS-0.1.md](./lab-ace/INTERACTION-BUS-0.1.md) · `POST /api/lab/ace/interaction` |
+| Auditoria sem PII | [lab-ace/ACE-AUDIT-0.1.md](./lab-ace/ACE-AUDIT-0.1.md) · `GET /api/lab/ace/audit/:totemId` · `event_logs` (`ace.hint`) |
 
 **Próximo (se avançar):** não ligar `FxOrchestratorService` nem face. Ainda: **zero** alteração no Player-AD; **zero** coluna SQL nova.

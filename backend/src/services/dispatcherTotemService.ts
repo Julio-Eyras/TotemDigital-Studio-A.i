@@ -23,6 +23,7 @@ import { buildDispatchMediaItem } from '../utils/dispatchMediaItem';
 import { sumDispatchMediaItemsPlanDuration } from '../utils/dispatchItemDuration';
 import { enrichDispatchPlanWithGlobalVinhetas } from './dispatchVinhetaEnrichment';
 import { getAceHintStore } from './ace/aceHintStore';
+import { recordAceAudit } from './ace/aceAudit';
 import { applyAceHintToWeight, isAceEnabledInCapabilities } from './ace/aceRuleEngine';
 import { getMediaService } from './mediaService';
 import {
@@ -417,6 +418,16 @@ export class DispatcherTotemService {
       }
 
       // 7. Registrar log de auditoria
+      const aceAudit = getAceHintStore().audit(totemId, aceEnabled);
+      if (aceEnabled && aceAudit.code === 'HINT_APPLIED') {
+        recordAceAudit({
+          source: 'dispatch',
+          totemId,
+          code: aceAudit.code,
+          hint: aceAudit.hint,
+          context: getAceHintStore().get(totemId)?.context ?? null,
+        });
+      }
       await this.logDispatch({
         totemId,
         timestamp: targetTimestamp,
@@ -433,7 +444,7 @@ export class DispatcherTotemService {
         validationDetails: {
           strategy: strategy === 'mix' && winner ? 'priority_fallback' : strategy,
           commercialValidation: true,
-          ace: getAceHintStore().audit(totemId, aceEnabled),
+          ace: aceAudit,
         },
         fromCache: false,
         cacheKey,

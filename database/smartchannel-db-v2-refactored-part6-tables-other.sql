@@ -99,6 +99,9 @@ CREATE TABLE IF NOT EXISTS event_logs (
     timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+COMMENT ON COLUMN event_logs.event_type IS 'Tipo do evento. Lab ACE 0.1: ace.hint (metadata sem PII).';
+COMMENT ON COLUMN event_logs.metadata IS 'JSON. Lab ACE: snapshot audience.context sanitizado; nunca person_id, tag_id nem imagem.';
+
 -- =============================================
 -- DISPATCHER-TOTEM LOGS
 -- =============================================
