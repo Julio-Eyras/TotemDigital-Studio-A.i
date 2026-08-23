@@ -1,0 +1,11 @@
+{
+  "schema": "tdep/0.1",
+  "face_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "owner_partner_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  "orientation": "portrait",
+  "pixel_w": 1080,
+  "pixel_h": 1920,
+  "supported_mime": ["video/mp4", "image/jpeg"],
+  "audio": false,
+  "venue_category": "mall-indoor"
+}

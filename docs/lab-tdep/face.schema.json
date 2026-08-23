@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://totemdigital.app.br/schemas/tdep/0.1/face.json",
+  "title": "TDEP 0.1 Face",
+  "description": "Uma tela / face de inventário entre CMS. Sem audiência. Lab TotemDigital-Studio-A.i.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "face_id",
+    "owner_partner_id",
+    "orientation",
+    "pixel_w",
+    "pixel_h",
+    "supported_mime",
+    "audio"
+  ],
+  "properties": {
+    "schema": { "type": "string", "const": "tdep/0.1" },
+    "face_id": { "type": "string", "format": "uuid" },
+    "owner_partner_id": { "type": "string", "format": "uuid" },
+    "orientation": { "type": "string", "enum": ["portrait", "landscape"] },
+    "pixel_w": { "type": "integer", "minimum": 1, "maximum": 16384 },
+    "pixel_h": { "type": "integer", "minimum": 1, "maximum": 16384 },
+    "supported_mime": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 3 }
+    },
+    "audio": { "type": "boolean" },
+    "venue_category": { "type": "string", "maxLength": 64 }
+  },
+  "not": {
+    "anyOf": [
+      { "required": ["audience"] },
+      { "required": ["person_id"] },
+      { "required": ["ace"] },
+      { "required": ["mood"] }
+    ]
+  }
+}

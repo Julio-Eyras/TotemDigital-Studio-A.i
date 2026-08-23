@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://totemdigital.app.br/schemas/tdep/0.1/flight.json",
+  "title": "TDEP 0.1 Flight",
+  "description": "Pedido/reserva de ar entre parceiros. Sem audience.context. Lab TotemDigital-Studio-A.i.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "flight_id",
+    "buyer_partner_id",
+    "seller_partner_id",
+    "face_ids",
+    "creative_ids",
+    "priority",
+    "status",
+    "window"
+  ],
+  "properties": {
+    "schema": { "type": "string", "const": "tdep/0.1" },
+    "flight_id": { "type": "string", "format": "uuid" },
+    "buyer_partner_id": { "type": "string", "format": "uuid" },
+    "seller_partner_id": { "type": "string", "format": "uuid" },
+    "face_ids": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "format": "uuid" }
+    },
+    "creative_ids": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "format": "uuid" }
+    },
+    "priority": { "type": "string", "enum": ["guaranteed", "fill", "preemptible"] },
+    "status": {
+      "type": "string",
+      "enum": ["offered", "accepted", "rejected", "active", "paused", "revoked"]
+    },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "until"],
+      "properties": {
+        "from": { "type": "string", "format": "date-time" },
+        "until": { "type": "string", "format": "date-time" }
+      }
+    },
+    "refuse_code": {
+      "type": "string",
+      "enum": ["NO_CAPACITY", "POLICY_AUDIO", "FORMAT_MISMATCH", "CATEGORY_BLOCKED"]
+    }
+  },
+  "not": {
+    "anyOf": [
+      { "required": ["audience"] },
+      { "required": ["person_id"] },
+      { "required": ["ace"] }
+    ]
+  }
+}

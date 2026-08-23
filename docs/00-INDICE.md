@@ -20,6 +20,8 @@ Há centenas de ficheiros históricos em `docs/` (análises, resumos de sessão)
 | Player / APK / TV box / Player-Linux | [§5 Player e hardware](#5-player-ad-player-linux-apk-e-hardware) |
 | Vender / preços / demo | [§6 Comercial](#6-comercial-e-produto) |
 | Lab A.I. / ACE (este clone) | [§6b Lab ACE](#6b-lab-ai--ace-este-clone) |
+| Lab Maestro Cue | [§6c Lab Maestro](#6c-lab-maestro-cue) |
+| Lab TDEP | [§6d Lab TDEP](#6d-lab-tdep--totemnet) |
 | API / schema / ADRs | [§7 Técnica](#7-técnica-api-schema-e-decisões) |
 
 Índices satélite (já existentes, mais detalhados no seu tema):
@@ -287,6 +289,30 @@ Documentação de evolução **só** em `TotemDigital-Studio-A.i`. Não substitu
 
 ---
 
+## 6c. Lab Maestro (Cue)
+
+SKU A: relógio + `play @ t0`. **Não** altera o Player-AD neste lote. SKU B (matriz) fica fora do JSON 0.1.
+
+| Documento | Explicação |
+|-----------|------------|
+| [PLAYER-AD-MAESTRO-CUE-VS-MATRIZ-2026-08.md](./PLAYER-AD-MAESTRO-CUE-VS-MATRIZ-2026-08.md) | One-pager Cue vs Matriz. |
+| [lab-maestro/README.md](./lab-maestro/README.md) | Schema `maestro/0.1` e validador. |
+| [adr/0007-maestro-cue-nao-e-matriz.md](./adr/0007-maestro-cue-nao-e-matriz.md) | ADR: Cue ≠ pixels. |
+
+---
+
+## 6d. Lab TDEP / TotemNet
+
+Federação **entre CMS**. Sem `audience.context`. Sem HTTP de produto neste lote.
+
+| Documento | Explicação |
+|-----------|------------|
+| [CONVERSA-PROTOCOLO-DOOH-TDEP-2026-08.md](./CONVERSA-PROTOCOLO-DOOH-TDEP-2026-08.md) | Debate e plano TDEP. |
+| [lab-tdep/README.md](./lab-tdep/README.md) | Schema Face + Flight `tdep/0.1`. |
+| [adr/0008-tdep-nao-transporta-audiencia.md](./adr/0008-tdep-nao-transporta-audiencia.md) | ADR: TDEP ≠ ACE. |
+
+---
+
 ## 7. Técnica: API, schema e decisões
 
 ### API e plataforma
@@ -333,6 +359,9 @@ Documentação de evolução **só** em `TotemDigital-Studio-A.i`. Não substitu
 | [ADR-0003](./adr/0003-entrega-hibrida-comandos.md) | Comandos: sync + heartbeat. |
 | [ADR-0004](./adr/0004-telemetria-observacao-sob-pedido.md) | Telemetria detalhada só com lease. |
 | [ADR-0005](./adr/0005-fonte-unica-apk-designado.md) | APK oficial via `player_release_channels`. |
+| [ADR-0006](./adr/0006-ace-audience-nao-identidade.md) | ACE = audiência, não identidade. |
+| [ADR-0007](./adr/0007-maestro-cue-nao-e-matriz.md) | Maestro Cue ≠ matriz de pixels. |
+| [ADR-0008](./adr/0008-tdep-nao-transporta-audiencia.md) | TDEP não transporta ACE. |
 
 ---
 

@@ -141,7 +141,7 @@ Wi‑Fi de players: SSID dedicado, sem roaming agressivo. Cabo Ethernet no maest
 ## 6. Caminho de maturação (ainda sem código)
 
 1. **Papel (este documento)** — dois SKUs nomeados; TDEP separado.
-2. **SKU A lab** — NTP verificável + cue `play @ t0` em 2 boxes; medir desvio (alvo: < 200 ms comercial; < 40 ms se PTP).
+2. **SKU A lab (schema, feito neste clone)** — JSON `maestro/0.1` + validador. Player-AD **ainda não** toca no cue.
 3. **SSID de players** — checklist de campo (AP 5/6 GHz, sem clientes da loja).
 4. **SKU B lab** — 1 encoder NDI HX ou SRT + 1 TV + 1 HDMI em sending card LED de parceiro. Player-AD só alimenta o encoder.
 5. **Só então** comando/UI no Direct. Até lá, não tocar no Player-AD operacional nem no Kit Pronto.
@@ -150,7 +150,7 @@ Wi‑Fi de players: SSID dedicado, sem roaming agressivo. Cabo Ethernet no maest
 
 ## 7. Próximo artefacto (se avançar)
 
-Whitepaper curto **Maestro 0.1**: mensagem de cue (JSON), tolerância de relógio, códigos de recusa (`CLOCK_DRIFT`, `ASSET_MISSING`, `SSID_NOT_AV`), e diagrama de ligação LED (HDMI obrigatório no sending card).
+Medir NTP em 2 boxes. **Não** ligar SKU B nem CEC. Schema Cue: [lab-maestro/](./lab-maestro/README.md).
 
 Contacto / titular: Julio Cesar Eyras (J.C.E.) — Eyras Sistemas e Soluções  
 Repositório: https://github.com/Julio-Eyras/TotemDigital-Studio

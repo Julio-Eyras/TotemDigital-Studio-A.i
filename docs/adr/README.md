@@ -12,6 +12,8 @@ Registos curtos de **decisões técnicas** que afectam vários módulos.
 | [ADR-0004](./0004-telemetria-observacao-sob-pedido.md) | Telemetria detalhada só com lease sob pedido | Aceite |
 | [ADR-0005](./0005-fonte-unica-apk-designado.md) | Fonte única do APK via `player_release_channels` | Aceite |
 | [ADR-0006](./0006-ace-audience-nao-identidade.md) | ACE trata audiência, não identidade (lab A.i) | Aceite |
+| [ADR-0007](./0007-maestro-cue-nao-e-matriz.md) | Maestro Cue não é matriz de pixels (lab A.i) | Aceite |
+| [ADR-0008](./0008-tdep-nao-transporta-audiencia.md) | TDEP não transporta audiência (lab A.i) | Aceite |
 
 ## Formato
 

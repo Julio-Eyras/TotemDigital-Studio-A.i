@@ -1,0 +1,12 @@
+{
+  "schema": "maestro/0.1",
+  "sku": "cue",
+  "cue_id": "22222222-2222-4222-8222-222222222222",
+  "item_id": "media-local-42",
+  "play_at": "2026-08-23T12:00:00.000Z",
+  "totem_ids": [41, 42],
+  "clock": {
+    "ntp_ok": true,
+    "drift_ms": 480
+  }
+}

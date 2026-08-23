@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://totemdigital.app.br/schemas/maestro/0.1/cue.json",
+  "title": "Maestro 0.1 cue",
+  "description": "Cue de play alinhado. Sem pixels, sem CEC, sem TDEP. Lab TotemDigital-Studio-A.i.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "sku", "cue_id", "item_id", "play_at", "totem_ids", "clock"],
+  "properties": {
+    "schema": { "type": "string", "const": "maestro/0.1" },
+    "sku": { "type": "string", "const": "cue" },
+    "cue_id": { "type": "string", "format": "uuid" },
+    "item_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "play_at": { "type": "string", "format": "date-time" },
+    "totem_ids": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": { "type": "integer", "minimum": 1 }
+    },
+    "clock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ntp_ok", "drift_ms"],
+      "properties": {
+        "ntp_ok": { "type": "boolean" },
+        "drift_ms": { "type": "integer", "minimum": -60000, "maximum": 60000 }
+      }
+    }
+  },
+  "not": {
+    "anyOf": [
+      { "required": ["pixels"] },
+      { "required": ["hdmi"] },
+      { "required": ["audience"] },
+      { "required": ["person_id"] }
+    ]
+  }
+}
