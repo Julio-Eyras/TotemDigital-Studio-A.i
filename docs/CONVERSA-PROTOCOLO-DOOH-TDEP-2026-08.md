@@ -353,6 +353,8 @@ As 500 totens + 200 LEDs só se encontram se:
 
 Próximo passo sugerido em papel (ainda sem código): **TDEP 0.1** (2–4 páginas + exemplos JSON dos 6 objectos + endpoints + códigos de recusa) **ou** um one-pager só comercial para um parceiro LED/shopping.
 
+Documento irmão (pixels e cue *dentro do sítio*, não campanha entre CMS): [PLAYER-AD-MAESTRO-CUE-VS-MATRIZ-2026-08.md](./PLAYER-AD-MAESTRO-CUE-VS-MATRIZ-2026-08.md).
+
 ---
 
 ## 17. Origem desta conversa

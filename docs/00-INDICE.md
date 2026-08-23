@@ -189,6 +189,7 @@ Metodologia: [modulos/00-METODOLOGIA.md](./modulos/00-METODOLOGIA.md) · templat
 | [player-apk/04-FLUXO-FUNCIONAMENTO.md](./player-apk/04-FLUXO-FUNCIONAMENTO.md) | Heartbeat, dispatch, reprodução, telemetria. |
 | [player-apk/05-REQUISITOS-E-REGRAS.md](./player-apk/05-REQUISITOS-E-REGRAS.md) | Pré-requisitos, identidade, segurança. |
 | [player-apk/06-FUNCIONALIDADES-E-FUNCOES.md](./player-apk/06-FUNCIONALIDADES-E-FUNCOES.md) | Catálogo de capacidades do Player-AD. |
+| [PLAYER-AD-MAESTRO-CUE-VS-MATRIZ-2026-08.md](./PLAYER-AD-MAESTRO-CUE-VS-MATRIZ-2026-08.md) · [PDF](./PLAYER-AD-MAESTRO-CUE-VS-MATRIZ-2026-08.pdf) | **Plano** Maestro: SKU A rede sincronizada (cue) vs SKU B espelho LED/TV (matriz). Sem código. |
 | [../install-pendrive/README.md](../install-pendrive/README.md) | Kit pendrive (APKs oficiais no Git). |
 | [../install-pendrive/LEIA-ME.txt](../install-pendrive/LEIA-ME.txt) | Início rápido no USB. |
 | [../install-pendrive/KIT-VERSION.txt](../install-pendrive/KIT-VERSION.txt) | Versão pinada do kit (2.12 / 112). |
@@ -255,6 +256,7 @@ Metodologia: [modulos/00-METODOLOGIA.md](./modulos/00-METODOLOGIA.md) · templat
 | [manuais/06-APRESENTACAO-COMERCIAL-SAAS.md](./manuais/06-APRESENTACAO-COMERCIAL-SAAS.md) · [PDF](./manuais/06-APRESENTACAO-COMERCIAL-SAAS.pdf) | Apresentação SaaS (Lite/Pro como upsell). |
 | [manuais/12-ROTEIRO-DEMO-15-MIN.md](./manuais/12-ROTEIRO-DEMO-15-MIN.md) · [PDF](./manuais/12-ROTEIRO-DEMO-15-MIN.pdf) | Roteiro de demo Direct 15 min. |
 | [CONVERSA-PROTOCOLO-DOOH-TDEP-2026-08.md](./CONVERSA-PROTOCOLO-DOOH-TDEP-2026-08.md) · [PDF](./CONVERSA-PROTOCOLO-DOOH-TDEP-2026-08.pdf) | **Plano** TDEP/TotemNet: interoperabilidade entre CMS DOOH (sem código). |
+| [PLAYER-AD-MAESTRO-CUE-VS-MATRIZ-2026-08.md](./PLAYER-AD-MAESTRO-CUE-VS-MATRIZ-2026-08.md) · [PDF](./PLAYER-AD-MAESTRO-CUE-VS-MATRIZ-2026-08.pdf) | **Plano** Player-AD Maestro: cue (totens) vs matriz (LED/TV). Distinto do TDEP. |
 | [INDICE_DOCUMENTOS_COMERCIAIS.md](./INDICE_DOCUMENTOS_COMERCIAIS.md) | Kit comercial legado SmartSignage Pro (pitch, investidores, scripts). |
 | [DOCUMENTACAO-COMERCIAL-TECNICA.md](./DOCUMENTACAO-COMERCIAL-TECNICA.md) | Ponte comercial ↔ técnica. |
 | [PRODUCT_VISION_TOTEM_DIGITAL_V3X.md](./PRODUCT_VISION_TOTEM_DIGITAL_V3X.md) | Visão de produto v3x. |
@@ -344,6 +346,7 @@ Se um ficheiro solto contradisser `docs/modulos/`, `docs/instalacao/` ou `docs/m
 
 ```powershell
 python scripts/md_to_pdf.py docs/00-INDICE.md -o docs/00-INDICE.pdf
+python scripts/md_to_pdf.py docs/PLAYER-AD-MAESTRO-CUE-VS-MATRIZ-2026-08.md -o docs/PLAYER-AD-MAESTRO-CUE-VS-MATRIZ-2026-08.pdf
 python scripts/generate-comercial-pdfs.py
 python scripts/generate-hardware-docs-pdf.py
 python scripts/generate-telas-pdf.py
