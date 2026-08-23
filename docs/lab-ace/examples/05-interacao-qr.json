@@ -1,0 +1,36 @@
+{
+  "schema": "ace/0.1",
+  "context_id": "c3d4e5f6-a7b8-4901-c234-56789abcdef0",
+  "observed_at": "2026-08-23T11:05:44.000Z",
+  "totem_id": 41,
+  "site_id": "loja-centro",
+  "privacy": {
+    "gateway": "ace/0.1",
+    "identity_dropped": true,
+    "image_dropped": true
+  },
+  "presence": true,
+  "count": 1,
+  "group": false,
+  "density": "low",
+  "motion": {
+    "approaching": 0,
+    "passing": 0,
+    "stopped": 1,
+    "leaving": 0
+  },
+  "attention": "medium",
+  "dwell_ms": 1200,
+  "interaction": {
+    "touch": false,
+    "qr": true,
+    "nfc": false
+  },
+  "clock": {
+    "hour_local": 11,
+    "day_of_week": 0,
+    "store_open": true
+  },
+  "confidence": 0.9,
+  "session_id": "ephemeral-qr-41"
+}

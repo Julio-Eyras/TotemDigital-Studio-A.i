@@ -26,12 +26,12 @@ O schema 0.1 materializa isto com `additionalProperties: false`, `privacy.identi
 
 | Código | Como detectar no 0.1 | Fixture |
 |--------|----------------------|---------|
-| `IDENTITY_LEAK` | Schema inválido por campo de identidade ou `privacy.*.dropped !== true` | [examples/reject-identity-leak.json](./examples/reject-identity-leak.json) |
+| `IDENTITY_LEAK` | Schema inválido por campo de identidade (`person_id`, `tag_id`, …) ou `privacy.*.dropped !== true` | [examples/reject-identity-leak.json](./examples/reject-identity-leak.json) · [examples/reject-tag-id.json](./examples/reject-tag-id.json) |
 | `STALE_CONTEXT` | `now - observed_at` > 3 s | [examples/reject-stale.json](./examples/reject-stale.json) |
 | `LOW_CONFIDENCE` | `confidence` abaixo do limiar (default 0.50) | [examples/reject-low-confidence.json](./examples/reject-low-confidence.json) |
 | `ACE_DISABLED` | Opt-in do totem off (default Direct) | `python scripts/lab-ace/emit_ace_synthetic.py --ace-off` |
 
-`IDENTITY_LEAK` **ganha** a `LOW_CONFIDENCE`: um payload com face é recusado mesmo com `confidence: 1`.
+`IDENTITY_LEAK` **ganha** a `LOW_CONFIDENCE`: um payload com face ou `tag_id` é recusado mesmo com `confidence: 1`.
 
 ---
 
@@ -45,4 +45,4 @@ Não deixa passar emoção, idade, género, humor, nome.
 
 **Próximo passo (ainda sem produto operacional)**
 
-Visão no edge, sem face. Hint no Dispatcher já está neste clone (opt-in).
+Não ligar FX Orchestrator (`mood` / face). Interacção NFC/QR anónima, visão no edge e hint no Dispatcher já estão neste clone (opt-in).

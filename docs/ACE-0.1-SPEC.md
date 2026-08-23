@@ -266,9 +266,9 @@ Ordem. Cada passo espera decisão explícita antes de código.
 4. **Emissor sintético (feito)** — `scripts/lab-ace/emit_ace_synthetic.py` → `logs/ace-synthetic.jsonl`. Sem Dispatcher.
 5. **Hint no Dispatcher (feito neste clone)** — `applyAceHintToWeight` se `totems.capabilities.ace_enabled === true`. Default **off**. Direct local continua a ganhar. Cache de 60s é ignorado quando ACE está on.
 6. **Visão no edge (lab, feito)** — `scripts/lab-ace/edge_vision.py`: HOG de corpo ou modo `--synthetic`. Sem face, sem gravar frame. Contrato `ace/0.1` inalterado.
-7. **FX / NFC / QR no mesmo bus** — só depois do núcleo presença → contagem → dwell → atenção.
+7. **FX / NFC / QR no mesmo bus (lab, feito)** — bools `interaction.*`; `POST /api/lab/ace/interaction`. Sem `tag_id`. `tags_crud` e `FxOrchestratorService` (mood) **não** foram ligados.
 
-Não começar pelo passo 6. Não ligar face “para ter um demo”.
+Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anónimos — sem `tag_id`.
 
 ---
 
@@ -289,11 +289,12 @@ Não começar pelo passo 6. Não ligar face “para ter um demo”.
 |-----------|--------|
 | Spec humana | [ACE-0.1-SPEC.md](./ACE-0.1-SPEC.md) |
 | JSON Schema | [lab-ace/audience.context.schema.json](./lab-ace/audience.context.schema.json) |
-| Exemplos válidos | [lab-ace/examples/](./lab-ace/examples/) (`01` vazio · `02` aproximação · `03` grupo) |
+| Exemplos válidos | [lab-ace/examples/](./lab-ace/examples/) (`01` vazio · `02` aproximação · `03` grupo · `04` NFC · `05` QR) |
 | Recusa identidade | [lab-ace/examples/reject-identity-leak.json](./lab-ace/examples/reject-identity-leak.json) |
 | Gateway (papel + lab local) | [lab-ace/PRIVACY-GATEWAY-0.1.md](./lab-ace/PRIVACY-GATEWAY-0.1.md) · `scripts/lab-ace/` |
 | Validador | `python scripts/lab-ace/validate_ace_schema.py` |
 | Emissor sintético | `python scripts/lab-ace/emit_ace_synthetic.py` → `logs/ace-synthetic.jsonl` |
 | Visão no edge | [lab-ace/EDGE-VISION-0.1.md](./lab-ace/EDGE-VISION-0.1.md) · `python scripts/lab-ace/edge_vision.py --synthetic` |
+| Interacção anónima | [lab-ace/INTERACTION-BUS-0.1.md](./lab-ace/INTERACTION-BUS-0.1.md) · `POST /api/lab/ace/interaction` |
 
-**Próximo (se avançar):** FX / NFC / QR no mesmo bus. Ainda: **zero** alteração no Player-AD; **zero** coluna SQL nova.
+**Próximo (se avançar):** não ligar `FxOrchestratorService` nem face. Ainda: **zero** alteração no Player-AD; **zero** coluna SQL nova.

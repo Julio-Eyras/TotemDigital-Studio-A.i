@@ -16,6 +16,14 @@ export const ACE_IDENTITY_FIELDS = [
   'emotion',
   'features',
   'name',
+  'tag_id',
+  'tagId',
+  'uid',
+  'nfc_uid',
+  'nfc_id',
+  'card_id',
+  'rfid',
+  'rfid_id',
 ] as const;
 
 export type AceRefuseCode =

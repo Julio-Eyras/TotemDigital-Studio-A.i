@@ -17,11 +17,16 @@ Norma humana: [../ACE-0.1-SPEC.md](../ACE-0.1-SPEC.md) · ADR: [../adr/0006-ace-
 | [examples/reject-low-confidence.json](./examples/reject-low-confidence.json) | Schema ok — gateway `LOW_CONFIDENCE` |
 | [../scripts/lab-ace/README.md](../scripts/lab-ace/README.md) | Validador, emissor sintético e visão no edge |
 | [EDGE-VISION-0.1.md](./EDGE-VISION-0.1.md) | Contagem/dwell no edge, sem face |
+| [INTERACTION-BUS-0.1.md](./INTERACTION-BUS-0.1.md) | NFC/QR/touch no mesmo bus (bools, sem `tag_id`) |
+| [examples/04-interacao-nfc.json](./examples/04-interacao-nfc.json) | 1 pessoa, NFC anónimo |
+| [examples/05-interacao-qr.json](./examples/05-interacao-qr.json) | 1 pessoa, QR anónimo |
+| [examples/reject-tag-id.json](./examples/reject-tag-id.json) | **Inválido** — `IDENTITY_LEAK` (`tag_id`) |
 
 ## Lab HTTP (este clone)
 
 ```text
-POST /api/lab/ace/context     body = audience.context fresco (auth)
+POST /api/lab/ace/context         body = audience.context fresco (auth)
+POST /api/lab/ace/interaction     body = { totem_id, nfc|qr|touch } (auth; sem tag_id)
 GET  /api/lab/ace/hint/:id
 ```
 

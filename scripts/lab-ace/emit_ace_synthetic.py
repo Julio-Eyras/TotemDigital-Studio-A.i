@@ -26,9 +26,12 @@ VALID = (
     "01-vazio.json",
     "02-aproximacao-um.json",
     "03-grupo-atencao-alta.json",
+    "04-interacao-nfc.json",
+    "05-interacao-qr.json",
 )
 REFUSE_DEMOS = (
     "reject-identity-leak.json",
+    "reject-tag-id.json",
     "reject-stale.json",
     "reject-low-confidence.json",
 )
@@ -68,7 +71,7 @@ def main() -> int:
     parser.add_argument(
         "--valid-only",
         action="store_true",
-        help="Só os 3 exemplos válidos (com observed_at fresco)",
+        help="Só os exemplos válidos (com observed_at fresco)",
     )
     args = parser.parse_args()
 

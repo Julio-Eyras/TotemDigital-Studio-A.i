@@ -1,4 +1,5 @@
-import { AceDispatchAudit, AceHint, AudienceContext } from './aceTypes';
+import { AceDispatchAudit, AceHint, AceInteraction, AudienceContext } from './aceTypes';
+import { mergeInteractionIntoContext, seedContextFromInteraction } from './aceInteraction';
 import { aceContextToHint } from './aceRuleEngine';
 
 interface StoredAce {
@@ -25,6 +26,18 @@ class AceHintStore {
       storedAtMs: Date.now(),
     });
     return hint;
+  }
+
+  mergeInteraction(
+    totemId: number,
+    interaction: AceInteraction,
+    siteId?: string
+  ): AceHint | null {
+    const row = this.get(totemId);
+    const next = row
+      ? mergeInteractionIntoContext(row.context, interaction)
+      : seedContextFromInteraction(totemId, interaction, siteId);
+    return this.put(next);
   }
 
   get(totemId: number, nowMs = Date.now()): StoredAce | null {

@@ -5,6 +5,7 @@ import {
   isAceEnabledInCapabilities,
 } from '../../../services/ace/aceRuleEngine';
 import { getAceHintStore, resetAceHintStoreForTests } from '../../../services/ace/aceHintStore';
+import { parseAnonymousInteraction } from '../../../services/ace/aceInteraction';
 import { AudienceContext } from '../../../services/ace/aceTypes';
 
 function baseContext(overrides: Partial<AudienceContext> = {}): AudienceContext {
@@ -40,6 +41,13 @@ describe('ACE 0.1 gateway', () => {
   it('recusa IDENTITY_LEAK com person_id', () => {
     const d = aceGatewayDecide(
       { ...baseContext(), person_id: 123 } as unknown as Record<string, unknown>
+    );
+    expect(d.code).toBe('IDENTITY_LEAK');
+  });
+
+  it('recusa IDENTITY_LEAK com tag_id', () => {
+    const d = aceGatewayDecide(
+      { ...baseContext(), tag_id: '04:A3:11' } as unknown as Record<string, unknown>
     );
     expect(d.code).toBe('IDENTITY_LEAK');
   });
@@ -83,5 +91,57 @@ describe('ACE 0.1 rule engine + dispatcher hint', () => {
     store.put(baseContext());
     expect(store.audit(41, true).code).toBe('HINT_APPLIED');
     expect(store.get(41, Date.now() + 4000)).toBeNull();
+  });
+
+  it('NFC/QR dá STANDARD +20 sem tag_id', () => {
+    const hint = aceContextToHint(
+      baseContext({
+        attention: 'low',
+        dwell_ms: 400,
+        count: 1,
+        group: false,
+        interaction: { touch: false, qr: false, nfc: true },
+      })
+    );
+    expect(hint?.category).toBe('STANDARD');
+    expect(hint?.priority_delta).toBe(20);
+    expect(applyAceHintToWeight(10, hint, true)).toBe(30);
+  });
+
+  it('PREMIUM ganha a NFC', () => {
+    const hint = aceContextToHint(
+      baseContext({ interaction: { touch: false, qr: false, nfc: true } })
+    );
+    expect(hint?.category).toBe('PREMIUM');
+  });
+});
+
+describe('ACE 0.1 interaction bus (anónimo)', () => {
+  it('aceita NFC sem UID', () => {
+    const d = parseAnonymousInteraction({ totem_id: 41, nfc: true });
+    expect(d.status).toBe('accepted');
+    expect(d.interaction).toEqual({ touch: false, qr: false, nfc: true });
+  });
+
+  it('mapeia interactionType tag_id para nfc, sem guardar o id', () => {
+    const d = parseAnonymousInteraction({ totem_id: 41, interactionType: 'tag_id' });
+    expect(d.status).toBe('accepted');
+    expect(d.interaction?.nfc).toBe(true);
+  });
+
+  it('recusa tag_id / face', () => {
+    expect(parseAnonymousInteraction({ totem_id: 41, nfc: true, tag_id: 'AA' }).code).toBe(
+      'IDENTITY_LEAK'
+    );
+    expect(
+      parseAnonymousInteraction({ totem_id: 41, interactionType: 'facial_recognition' }).code
+    ).toBe('IDENTITY_LEAK');
+  });
+
+  it('merge no store: NFC sozinho gera hint STANDARD', () => {
+    resetAceHintStoreForTests();
+    const hint = getAceHintStore().mergeInteraction(41, { touch: false, qr: false, nfc: true });
+    expect(hint?.priority_delta).toBe(20);
+    expect(getAceHintStore().audit(41, true).code).toBe('HINT_APPLIED');
   });
 });

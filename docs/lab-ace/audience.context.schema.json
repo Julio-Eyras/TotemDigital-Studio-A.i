@@ -170,7 +170,15 @@
       { "required": ["gender"] },
       { "required": ["emotion"] },
       { "required": ["features"] },
-      { "required": ["name"] }
+      { "required": ["name"] },
+      { "required": ["tag_id"] },
+      { "required": ["tagId"] },
+      { "required": ["uid"] },
+      { "required": ["nfc_uid"] },
+      { "required": ["nfc_id"] },
+      { "required": ["card_id"] },
+      { "required": ["rfid"] },
+      { "required": ["rfid_id"] }
     ]
   }
 }

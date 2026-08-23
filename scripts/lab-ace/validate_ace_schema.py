@@ -14,10 +14,13 @@ VALID_NAMES = (
     "01-vazio.json",
     "02-aproximacao-um.json",
     "03-grupo-atencao-alta.json",
+    "04-interacao-nfc.json",
+    "05-interacao-qr.json",
 )
-MUST_FAIL_SCHEMA = ("reject-identity-leak.json",)
+MUST_FAIL_SCHEMA = ("reject-identity-leak.json", "reject-tag-id.json")
 GATEWAY_EXPECT = {
     "reject-identity-leak.json": "IDENTITY_LEAK",
+    "reject-tag-id.json": "IDENTITY_LEAK",
     "reject-stale.json": "STALE_CONTEXT",
     "reject-low-confidence.json": "LOW_CONFIDENCE",
 }

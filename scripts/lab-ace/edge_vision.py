@@ -34,6 +34,10 @@ IDENTITY_FORBIDDEN = (
     "emotion",
     "features",
     "name",
+    "tag_id",
+    "tagId",
+    "uid",
+    "nfc_uid",
 )
 
 

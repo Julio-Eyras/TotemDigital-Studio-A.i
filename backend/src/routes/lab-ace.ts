@@ -10,6 +10,7 @@ import { isStudioRuntime } from '../config/installationRuntime';
 import { logError } from '../utils/loggerHelper';
 import { aceGatewayDecide } from '../services/ace/aceGateway';
 import { getAceHintStore } from '../services/ace/aceHintStore';
+import { parseAnonymousInteraction } from '../services/ace/aceInteraction';
 import { isAceEnabledInCapabilities } from '../services/ace/aceRuleEngine';
 import { AudienceContext } from '../services/ace/aceTypes';
 
@@ -48,6 +49,31 @@ router.post('/context', async (req: AuthenticatedRequest, res: Response) => {
     });
   } catch (error: any) {
     await logError('[lab-ace] POST /context', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/interaction', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const body = (req.body || {}) as Record<string, unknown>;
+    const parsed = parseAnonymousInteraction(body);
+    if (parsed.status !== 'accepted' || !parsed.totemId || !parsed.interaction) {
+      return res.status(422).json({
+        success: false,
+        code: parsed.code,
+        errors: parsed.errors,
+      });
+    }
+    const siteId = typeof body.site_id === 'string' ? body.site_id : undefined;
+    const hint = getAceHintStore().mergeInteraction(parsed.totemId, parsed.interaction, siteId);
+    return res.status(202).json({
+      success: true,
+      totem_id: parsed.totemId,
+      interaction: parsed.interaction,
+      hint,
+    });
+  } catch (error: any) {
+    await logError('[lab-ace] POST /interaction', error);
     return res.status(500).json({ success: false, error: error.message });
   }
 });

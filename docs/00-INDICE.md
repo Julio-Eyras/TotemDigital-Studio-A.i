@@ -276,9 +276,10 @@ Documentação de evolução **só** em `TotemDigital-Studio-A.i`. Não substitu
 | [ACE-0.1-SPEC.md](./ACE-0.1-SPEC.md) | **Spec** Audience Context Engine 0.1: contrato `audience.context`, Privacy Gateway, inventário real do código. Sem player/painel. |
 | [lab-ace/README.md](./lab-ace/README.md) | JSON Schema `ace/0.1`, exemplos válidos e fixture de recusa `IDENTITY_LEAK`. |
 | [lab-ace/PRIVACY-GATEWAY-0.1.md](./lab-ace/PRIVACY-GATEWAY-0.1.md) | Cortes e códigos de recusa do gateway (papel + lab local). |
-| [../scripts/lab-ace/README.md](../scripts/lab-ace/README.md) | Validador e emissor sintético (`logs/ace-synthetic.jsonl`). Sem Dispatcher. |
-| Lab HTTP | `POST /api/lab/ace/context` · `GET /api/lab/ace/hint/:totemId` (auth). Hint só se `capabilities.ace_enabled`. |
+| [../scripts/lab-ace/README.md](../scripts/lab-ace/README.md) | Validador, emissor sintético e visão no edge (`logs/ace-synthetic.jsonl`, `logs/ace-edge.jsonl`). |
+| Lab HTTP | `POST /api/lab/ace/context` · `POST /api/lab/ace/interaction` · `GET /api/lab/ace/hint/:totemId` (auth). Hint só se `capabilities.ace_enabled`. |
 | [lab-ace/EDGE-VISION-0.1.md](./lab-ace/EDGE-VISION-0.1.md) | Visão no edge: contagem/dwell sem face. |
+| [lab-ace/INTERACTION-BUS-0.1.md](./lab-ace/INTERACTION-BUS-0.1.md) | NFC/QR/touch no bus ACE (bools; sem `tag_id`). |
 | [adr/0006-ace-audience-nao-identidade.md](./adr/0006-ace-audience-nao-identidade.md) | ADR: ACE = audiência anónima; identidade (face) permanece 501. |
 
 ---

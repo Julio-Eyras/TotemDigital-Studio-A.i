@@ -17,11 +17,27 @@ export function aceContextToHint(ctx: AudienceContext): AceHint | null {
     };
   }
 
+  if (ctx.interaction?.nfc || ctx.interaction?.qr) {
+    return {
+      category: 'STANDARD',
+      priority_delta: 20,
+      reason: 'AUDIENCE.INTERACTION.NFC_OR_QR',
+    };
+  }
+
   if (ctx.count >= 2 && (ctx.attention === 'high' || ctx.attention === 'medium')) {
     return {
       category: 'STANDARD',
       priority_delta: 10,
       reason: 'AUDIENCE.COUNT>=2 AND ATTENTION>=MEDIUM',
+    };
+  }
+
+  if (ctx.interaction?.touch) {
+    return {
+      category: 'STANDARD',
+      priority_delta: 8,
+      reason: 'AUDIENCE.INTERACTION.TOUCH',
     };
   }
 
