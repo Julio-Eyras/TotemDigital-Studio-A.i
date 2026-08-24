@@ -66,6 +66,15 @@ def main() -> int:
         fail(f"ntp pair {aligned.as_dict()} {drifted.as_dict()}")
     print("PASS ntp pair virtual 18/480")
 
+    sys.path.insert(0, str(REPO / "scripts" / "lab-maestro"))
+    from ssid_measure import measure_ssid_pair, players_box, store_box  # noqa: E402
+
+    ssid_ok = measure_ssid_pair(players_box(), players_box())
+    ssid_store = measure_ssid_pair(players_box(), store_box())
+    if not ssid_ok.ok or ssid_store.code != "SSID_STORE":
+        fail(f"ssid {ssid_ok.as_dict()} {ssid_store.as_dict()}")
+    print("PASS ssid pair players vs loja")
+
     face = json.loads((REPO / "docs" / "lab-tdep" / "examples" / "01-face.json").read_text(encoding="utf-8"))
     if not mock_tdep_partner_accepts(face)["accepted"]:
         fail("tdep face")

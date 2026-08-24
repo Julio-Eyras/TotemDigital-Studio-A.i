@@ -30,6 +30,7 @@ from mocks import (  # noqa: E402
 
 sys.path.insert(0, str(REPO / "scripts" / "lab-maestro"))
 from ntp_measure import cue_clock_from_measurement, measure_pair  # noqa: E402
+from ssid_measure import measure_ssid_pair, players_box, store_box  # noqa: E402
 
 CANDIDATES = [
     {"id": "direct-local", "base_weight": 100, "commercial_tier": "premium"},
@@ -100,6 +101,10 @@ def run_maestro_scenario() -> dict:
     cue_from_clocks = dict(ok_cue)
     cue_from_clocks["clock"] = cue_clock_from_measurement(drifted, ok_cue.get("clock"))
     play_measured_lie = mock_maestro_player_accepts(cue_from_clocks)
+    ssid_ok = measure_ssid_pair(players_box(), players_box())
+    ssid_store = measure_ssid_pair(players_box(), store_box())
+    play_ssid_ok = mock_maestro_player_accepts(ok_cue, ssid=ssid_ok.as_dict())
+    play_ssid_store = mock_maestro_player_accepts(ok_cue, ssid=ssid_store.as_dict())
     checks = {
         "play_ok": play_ok["accepted"] is True,
         "clock_drift_refused": play_drift["code"] == "CLOCK_DRIFT",
@@ -107,6 +112,8 @@ def run_maestro_scenario() -> dict:
         "ntp_pair_18ms": aligned.accepted is True,
         "ntp_pair_480ms": drifted.code == "CLOCK_DRIFT",
         "ntp_overrides_json": play_measured_lie["code"] == "CLOCK_DRIFT",
+        "ssid_players": ssid_ok.ok and play_ssid_ok["accepted"] is True,
+        "ssid_store_blocked": ssid_store.code == "SSID_STORE" and play_ssid_store["code"] == "SSID_STORE",
     }
     return {
         "checks": checks,
@@ -140,6 +147,8 @@ def run_validators() -> dict:
         [sys.executable, str(REPO / "scripts" / "lab-maestro" / "validate_maestro.py")],
         [sys.executable, str(REPO / "scripts" / "lab-maestro" / "test_ntp.py")],
         [sys.executable, str(REPO / "scripts" / "lab-maestro" / "run_ntp_lab.py")],
+        [sys.executable, str(REPO / "scripts" / "lab-maestro" / "test_ssid.py")],
+        [sys.executable, str(REPO / "scripts" / "lab-maestro" / "run_ssid_lab.py")],
         [sys.executable, str(REPO / "scripts" / "lab-tdep" / "validate_tdep.py")],
     ]
     results = []

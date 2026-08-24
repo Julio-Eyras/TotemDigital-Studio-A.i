@@ -273,6 +273,7 @@ Ordem. Cada passo espera decisão explícita antes de código.
 12. **Emulação lab (feito)** — `python scripts/lab-emulate/run_emulation.py` + `runLabAceTick` (Dispatcher/FX/player/TDEP in-memory). Sem Player-AD, sem face.
 13. **Opt-in verificado em lab (feito, sem Postgres)** — `python scripts/lab-ace/verify_optin.py`. Default off. Seeds/v6/instalador não ligam ACE. SQL humano: `scripts/lab-ace/optin-totem-lab.sql`.
 14. **NTP Maestro em 2 boxes virtuais (feito, sem TV box)** — `python scripts/lab-maestro/test_ntp.py`. `|drift|<=200` e `ntp_ok`; a medição ganha ao JSON. Player-AD intocado.
+15. **SSID de players (feito, sem AP)** — `python scripts/lab-maestro/test_ssid.py`. Cue recusa `SSID_STORE` / `SSID_MIXED` / `SSID_BAND` / `SSID_SHARED`. Pitch 15 min não vende isto.
 
 Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anónimos — sem `tag_id`.
 
@@ -308,5 +309,6 @@ Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anó
 | Emulação (mocks) | `python scripts/lab-emulate/run_emulation.py` · [../scripts/lab-emulate/README.md](../scripts/lab-emulate/README.md) |
 | Opt-in verificado (sem Postgres) | `python scripts/lab-ace/verify_optin.py` · SQL manual `scripts/lab-ace/optin-totem-lab.sql` |
 | NTP Maestro (2 boxes virtuais) | `python scripts/lab-maestro/test_ntp.py` · [lab-maestro/NTP-0.1.md](./lab-maestro/NTP-0.1.md) |
+| SSID de players (sem AP) | `python scripts/lab-maestro/test_ssid.py` · [lab-maestro/SSID-0.1.md](./lab-maestro/SSID-0.1.md) |
 
-**Próximo (se avançar):** SQL ACE à mão num totem **se** existir Postgres; e/ou repetir a medição NTP em 2 TV boxes reais. Player-AD, face, SKU B e CEC continuam fora. Direct default off.
+**Próximo (se avançar):** SQL ACE à mão num totem **se** existir Postgres; e/ou repetir NTP + SSID em 2 TV boxes reais no AP de players. Player-AD, face, SKU B e CEC continuam fora. Direct default off.

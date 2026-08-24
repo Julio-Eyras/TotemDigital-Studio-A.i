@@ -299,6 +299,7 @@ SKU A: relógio + `play @ t0`. **Não** altera o Player-AD neste lote. SKU B (ma
 | [PLAYER-AD-MAESTRO-CUE-VS-MATRIZ-2026-08.md](./PLAYER-AD-MAESTRO-CUE-VS-MATRIZ-2026-08.md) | One-pager Cue vs Matriz. |
 | [lab-maestro/README.md](./lab-maestro/README.md) | Schema `maestro/0.1` e validador. |
 | [lab-maestro/NTP-0.1.md](./lab-maestro/NTP-0.1.md) | NTP em 2 boxes: lab virtual feito; hardware real opcional. `|drift|<=200`. |
+| [lab-maestro/SSID-0.1.md](./lab-maestro/SSID-0.1.md) | SSID só de players 5/6 GHz. Cue recusa Wi-Fi da loja. Pitch não vende. |
 | [adr/0007-maestro-cue-nao-e-matriz.md](./adr/0007-maestro-cue-nao-e-matriz.md) | ADR: Cue ≠ pixels. |
 
 ---

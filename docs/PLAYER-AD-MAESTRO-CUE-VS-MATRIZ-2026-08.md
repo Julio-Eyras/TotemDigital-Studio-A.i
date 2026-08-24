@@ -142,7 +142,7 @@ Wi‑Fi de players: SSID dedicado, sem roaming agressivo. Cabo Ethernet no maest
 
 1. **Papel (este documento)** — dois SKUs nomeados; TDEP separado.
 2. **SKU A lab (schema, feito neste clone)** — JSON `maestro/0.1` + validador. Player-AD **ainda não** toca no cue.
-3. **SSID de players** — checklist de campo (AP 5/6 GHz, sem clientes da loja).
+3. **SSID de players (lab, feito)** — checklist + pré-voo virtual: [lab-maestro/SSID-0.1.md](./lab-maestro/SSID-0.1.md). AP 5/6 GHz, sem clientes da loja. Player-AD ainda não lê o SSID.
 4. **SKU B lab** — 1 encoder NDI HX ou SRT + 1 TV + 1 HDMI em sending card LED de parceiro. Player-AD só alimenta o encoder.
 5. **Só então** comando/UI no Direct. Até lá, não tocar no Player-AD operacional nem no Kit Pronto.
 
@@ -150,9 +150,9 @@ Wi‑Fi de players: SSID dedicado, sem roaming agressivo. Cabo Ethernet no maest
 
 ## 7. Próximo artefacto (se avançar)
 
-Medir NTP em 2 boxes. **Não** ligar SKU B nem CEC. Schema Cue: [lab-maestro/](./lab-maestro/README.md).
+Repetir NTP + SSID em **2 TV boxes reais** no AP de players. **Não** ligar SKU B nem CEC. Player-AD continua a não ler o cue.
 
-Lab sem hardware: [lab-maestro/NTP-0.1.md](./lab-maestro/NTP-0.1.md) (`python scripts/lab-maestro/run_ntp_lab.py`). Cue só toca se a **medição** der `|drift_ms| <= 200` e `ntp_ok`.
+Lab sem hardware: [lab-maestro/NTP-0.1.md](./lab-maestro/NTP-0.1.md) e [lab-maestro/SSID-0.1.md](./lab-maestro/SSID-0.1.md). Cue só toca se NTP **e** SSID de players passarem a medição.
 
 Contacto / titular: Julio Cesar Eyras (J.C.E.) — Eyras Sistemas e Soluções  
 Repositório: https://github.com/Julio-Eyras/TotemDigital-Studio

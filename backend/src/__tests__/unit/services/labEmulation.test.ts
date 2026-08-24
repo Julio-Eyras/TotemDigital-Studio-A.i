@@ -4,6 +4,7 @@ import {
   mockTdepPartnerAccepts,
   measureMaestroPair,
   simulateNtpExchange,
+  measureSsidPair,
 } from '../../../services/lab/labEmulation';
 import { resetAceHintStoreForTests } from '../../../services/ace/aceHintStore';
 import { resetAceAuditRingForTests } from '../../../services/ace/aceAudit';
@@ -152,6 +153,25 @@ describe('mocks Maestro + TDEP (sem Player-AD)', () => {
     ).toBe('CLOCK_DRIFT');
 
     expect(measureMaestroPair(0, 0, { ntpOkA: false }).code).toBe('CLOCK_DRIFT');
+  });
+
+  it('SSID de players: 5 GHz isolado aceita; Wi-Fi da loja recusa mesmo com NTP ok', () => {
+    const players = { role: 'players', ssid: 'totem-players', bandGhz: 5 };
+    const store = { role: 'store', ssid: 'loja-wifi', bandGhz: 2.4 };
+    const ok = measureSsidPair(players, players);
+    expect(ok.ok).toBe(true);
+    expect(
+      mockMaestroPlayerAcceptsCue({ clock: { ntp_ok: true, drift_ms: 18 } }, ok).accepted
+    ).toBe(true);
+    const blocked = measureSsidPair(players, store);
+    expect(blocked.code).toBe('SSID_STORE');
+    expect(
+      mockMaestroPlayerAcceptsCue({ clock: { ntp_ok: true, drift_ms: 18 } }, blocked).code
+    ).toBe('SSID_STORE');
+    expect(measureSsidPair(players, { ...players, ssid: 'outro' }).code).toBe('SSID_MIXED');
+    expect(measureSsidPair({ ...players, bandGhz: 2.4 }, { ...players, bandGhz: 2.4 }).code).toBe(
+      'SSID_BAND'
+    );
   });
 
   it('parceiro TDEP recusa audience/ace/mood; aceita face sem audiência', () => {

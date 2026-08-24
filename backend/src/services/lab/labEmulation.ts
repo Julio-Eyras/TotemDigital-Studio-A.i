@@ -235,13 +235,55 @@ export function measureMaestroPair(
   return { driftMs, ntpOk, accepted, code: accepted ? null : 'CLOCK_DRIFT' };
 }
 
-export function mockMaestroPlayerAcceptsCue(cue: {
-  clock?: { ntp_ok?: boolean; drift_ms?: number };
-}): { accepted: boolean; code: string | null } {
+export type LabSsidBox = {
+  role?: string;
+  ssid?: string;
+  bandGhz?: number;
+  storeClients?: boolean;
+};
+
+export function measureSsidPair(
+  boxA: LabSsidBox,
+  boxB: LabSsidBox
+): { ok: boolean; code: string | null; ssid: string | null } {
+  const roleA = String(boxA.role || 'unknown').toLowerCase();
+  const roleB = String(boxB.role || 'unknown').toLowerCase();
+  const bandA = Number(boxA.bandGhz || 0);
+  const bandB = Number(boxB.bandGhz || 0);
+  const ssidA = String(boxA.ssid || '');
+  const ssidB = String(boxB.ssid || '');
+  const storeClients = Boolean(boxA.storeClients || boxB.storeClients);
+  if (roleA === 'store' || roleB === 'store') {
+    return { ok: false, code: 'SSID_STORE', ssid: ssidA || ssidB || null };
+  }
+  if (roleA !== 'players' || roleB !== 'players') {
+    return { ok: false, code: 'SSID_UNKNOWN', ssid: ssidA || ssidB || null };
+  }
+  if (!ssidA || ssidA !== ssidB) {
+    return { ok: false, code: 'SSID_MIXED', ssid: null };
+  }
+  if (![5, 6].includes(bandA) || ![5, 6].includes(bandB)) {
+    return { ok: false, code: 'SSID_BAND', ssid: ssidA };
+  }
+  if (storeClients) {
+    return { ok: false, code: 'SSID_SHARED', ssid: ssidA };
+  }
+  return { ok: true, code: null, ssid: ssidA };
+}
+
+export function mockMaestroPlayerAcceptsCue(
+  cue: {
+    clock?: { ntp_ok?: boolean; drift_ms?: number };
+  },
+  ssid?: { ok?: boolean; code?: string | null } | null
+): { accepted: boolean; code: string | null } {
   const ntpOk = cue.clock?.ntp_ok === true;
   const drift = Number(cue.clock?.drift_ms ?? 0);
   if (!ntpOk || Math.abs(drift) > LAB_MAESTRO_CLOCK_DRIFT_MAX_MS) {
     return { accepted: false, code: 'CLOCK_DRIFT' };
+  }
+  if (ssid != null && !ssid.ok) {
+    return { accepted: false, code: ssid.code || 'SSID_FORBIDDEN' };
   }
   return { accepted: true, code: null };
 }

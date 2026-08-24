@@ -48,12 +48,17 @@ def mock_fx_bus_publish(totem_id: int, hint: dict[str, Any] | None, ace_enabled:
     return wire
 
 
-def mock_maestro_player_accepts(cue: dict[str, Any]) -> dict[str, Any]:
+def mock_maestro_player_accepts(
+    cue: dict[str, Any],
+    ssid: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     clock = cue.get("clock") if isinstance(cue.get("clock"), dict) else {}
     ntp_ok = clock.get("ntp_ok") is True
     drift = int(clock.get("drift_ms") or 0)
     if not ntp_ok or abs(drift) > CLOCK_DRIFT_MAX_MS:
         return {"accepted": False, "code": "CLOCK_DRIFT"}
+    if ssid is not None and not ssid.get("ok"):
+        return {"accepted": False, "code": str(ssid.get("code") or "SSID_FORBIDDEN")}
     if "pixels" in cue or "hdmi" in cue or "audience" in cue:
         return {"accepted": False, "code": "SKU_FORBIDDEN"}
     return {"accepted": True, "code": None, "played_item": cue.get("item_id")}
