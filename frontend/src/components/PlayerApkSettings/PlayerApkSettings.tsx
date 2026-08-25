@@ -329,7 +329,7 @@ const PlayerApkSettings: React.FC<Props> = ({
             </Card>
           ) : (
             <Alert severity="warning">
-              Instala-Player-TotemDigital.apk ainda não está no servidor.
+              Instala-Player-TotemDigital-Vs*-build-*.apk ainda não está no servidor.
               Actualize a instalação (<code>--modo atualizar</code>) para o disponibilizar.
             </Alert>
           )}

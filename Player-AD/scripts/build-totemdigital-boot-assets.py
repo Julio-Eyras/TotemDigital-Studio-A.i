@@ -100,24 +100,15 @@ def main() -> None:
     print(f"OK {OUT_DIR / 'totemdigital-landscape.bmp'} (paisagem, 90° CCW)")
     print(f"OK {OUT_DIR / 'totemdigital.bmp'} / bootlogo.bmp (alias retrato A)")
 
-    write_animation_zip(
-        OUT_DIR / "bootanimation.zip",
-        1920,
-        1080,
-        fit_logo(src, 1920, 1080, 90),
-    )
-    write_animation_zip(
-        OUT_DIR / "bootanimation-portrait.zip",
-        1080,
-        1920,
-        fit_logo(src, 1080, 1920, 90),
-    )
-    write_animation_zip(
-        OUT_DIR / "bootanimation-portrait-reverse.zip",
-        1080,
-        1920,
-        fit_logo(src, 1080, 1920, 270),
-    )
+    # Mesmo canvas do bootloader (1280x720). ZIP 1080x1920 no painel landscape
+    # nativo aparece deitado no totem em pé — o splash e a animação têm de coincidir.
+    portrait = fit_logo(src, *BMP_SIZE, 0)
+    reverse = fit_logo(src, *BMP_SIZE, 180)
+    landscape = fit_logo(src, *BMP_SIZE, 90)
+    write_animation_zip(OUT_DIR / "bootanimation.zip", *BMP_SIZE, landscape)
+    write_animation_zip(OUT_DIR / "bootanimation-portrait.zip", *BMP_SIZE, portrait)
+    write_animation_zip(OUT_DIR / "bootanimation-portrait-reverse.zip", *BMP_SIZE, reverse)
+    write_animation_zip(OUT_DIR / "bootanimation-landscape.zip", *BMP_SIZE, landscape)
 
     manifest = OUT_DIR / "SHA256.txt"
     files = (
@@ -128,6 +119,7 @@ def main() -> None:
         "bootanimation.zip",
         "bootanimation-portrait.zip",
         "bootanimation-portrait-reverse.zip",
+        "bootanimation-landscape.zip",
         "logo-totemdigital-boot.png",
     )
     manifest.write_text(

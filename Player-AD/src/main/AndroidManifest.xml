@@ -59,11 +59,13 @@
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|uiMode"
             android:resizeableActivity="false">
 
-            <!-- Lista de apps (TV e launcher genérico). HOME vai no alias (dá para desligar no debug). -->
+            <!-- Kiosk: HOME no próprio MainActivity (como antes) para o boot ir directo ao player. -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
 

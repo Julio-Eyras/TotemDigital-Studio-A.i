@@ -56,15 +56,48 @@ function isSchemaGap(error: unknown): boolean {
   return code === '42P01' || code === '42703';
 }
 
-const INSTALLER_FILENAME = 'Instala-Player-TotemDigital.apk';
+const INSTALLER_VERSIONED_RE = /^Instala-Player-TotemDigital-Vs.+\-build-\d+\.apk$/i;
+const INSTALLER_LEGACY_FILENAME = 'Instala-Player-TotemDigital.apk';
+
+function installerSearchDirs(): string[] {
+  return [
+    path.join(process.cwd(), 'uploads', 'ota-updates'),
+    path.resolve(process.cwd(), '..', 'install-pendrive', 'apk'),
+    path.resolve(__dirname, '../../../install-pendrive/apk'),
+  ];
+}
+
+function installerBuildCode(filename: string): number {
+  const match = filename.match(/-build-(\d+)\.apk$/i);
+  return match ? Number(match[1]) : 0;
+}
+
+function pickPreferredInstaller(files: string[]): string | null {
+  if (files.length === 0) return null;
+  return files.slice().sort((left, right) => {
+    const codeDiff = installerBuildCode(path.basename(right)) - installerBuildCode(path.basename(left));
+    if (codeDiff !== 0) return codeDiff;
+    return fs.statSync(right).mtimeMs - fs.statSync(left).mtimeMs;
+  })[0];
+}
 
 function resolveInstallerApkPath(): string | null {
-  const candidates = [
-    path.join(process.cwd(), 'uploads', 'ota-updates', INSTALLER_FILENAME),
-    path.resolve(process.cwd(), '..', 'install-pendrive', 'apk', INSTALLER_FILENAME),
-    path.resolve(__dirname, '../../../install-pendrive/apk', INSTALLER_FILENAME),
-  ];
-  return candidates.find((filePath) => fs.existsSync(filePath)) || null;
+  const dirs = [...new Set(installerSearchDirs().filter((dir) => fs.existsSync(dir)))];
+  const versioned: string[] = [];
+  const legacy: string[] = [];
+  for (const dir of dirs) {
+    for (const name of fs.readdirSync(dir)) {
+      const fullPath = path.join(dir, name);
+      try {
+        if (!fs.statSync(fullPath).isFile()) continue;
+      } catch {
+        continue;
+      }
+      if (INSTALLER_VERSIONED_RE.test(name)) versioned.push(fullPath);
+      else if (name === INSTALLER_LEGACY_FILENAME) legacy.push(fullPath);
+    }
+  }
+  return pickPreferredInstaller(versioned) || pickPreferredInstaller(legacy);
 }
 
 function installerMeta(): {
@@ -76,7 +109,7 @@ function installerMeta(): {
   const filePath = resolveInstallerApkPath();
   if (!filePath) return null;
   return {
-    filename: INSTALLER_FILENAME,
+    filename: path.basename(filePath),
     fileSize: fs.statSync(filePath).size,
     downloadUrl: '/api/player-apk/download?kind=installer',
     summary:
@@ -407,7 +440,7 @@ router.get(
         await logInfo('Download administrativo do Instala-Player-TotemDigital', {
           userId: req.user!.id,
         });
-        return res.download(installerPath, INSTALLER_FILENAME);
+        return res.download(installerPath, path.basename(installerPath));
       }
       const channel = channelFrom(req.query.channel);
       const release = await designatedRelease(channel);

@@ -64,7 +64,7 @@ frontend/         Painel React
 database/         Schema SQL v2 (part*.sql) + seeds v6
 scripts/          Instala-TotemDigital-Server.sh, backup/restore, Nginx
 Player-AD/        Player Android (produção de campo)
-Player-AD-Installer/  Instala-Player-TotemDigital.apk (player + logos opcionais)
+Player-AD-Installer/  Instala-Player-TotemDigital-Vs{versão}-build-{código}.apk (player + logos opcionais)
 install-pendrive/ Kit de campo (APK + docs)
 docs/             Manuais, instalação, módulos, ADRs
 nginx/ systemd/   Artefactos de deploy
@@ -117,7 +117,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install-player-adb.ps1 -NoCon
 ```
 
 No aparelho: **3 toques** OK → configuração (Wi‑Fi, URL, UIN).  
-Assistente de campo: `Instala-Player-TotemDigital.apk` (pergunta se altera logos de boot; logos exigem root).
+Assistente de campo: `Instala-Player-TotemDigital-Vs{versão}-build-{código}.apk` (pergunta se altera logos de boot; logos exigem root).
 
 ---
 

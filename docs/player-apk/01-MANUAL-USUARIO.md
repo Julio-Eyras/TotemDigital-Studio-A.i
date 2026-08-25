@@ -4,7 +4,7 @@
 
 ## Instalação
 
-1. No painel (Definições → APK) há dois ficheiros: **Player-AD-release** (só o player, **não** altera boot) e **Instala-Player-TotemDigital** (logo de boot + instala o player).
+1. No painel (Definições → APK) há dois ficheiros: **Player-AD-Vs*-build-*** (só o player, **não** altera boot) e **Instala-Player-TotemDigital-Vs*-build-*** (logo de boot + instala o player).
 2. Confirme a versão, o build e o SHA-256 apresentados no painel (quando aplicável).
 3. No TV Box, permita temporariamente a instalação por fonte externa.
 4. Instale o APK sem remover a versão anterior, preservando configuração e cache.

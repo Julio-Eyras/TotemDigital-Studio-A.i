@@ -299,7 +299,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install-player-adb.ps1 -NoCon
 Versão de referência: **Player-AD 2.12** (`versionCode` 112).  
 `serverUrl` produção: `https://totemdigital.app.br`
 
-Assistente com pergunta de logos: `Instala-Player-TotemDigital.apk` — ver [04-PLAYER-AD.md](./04-PLAYER-AD.md).
+Assistente com pergunta de logos: `Instala-Player-TotemDigital-Vs{versão}-build-{código}.apk` — ver [04-PLAYER-AD.md](./04-PLAYER-AD.md).
 
 ---
 

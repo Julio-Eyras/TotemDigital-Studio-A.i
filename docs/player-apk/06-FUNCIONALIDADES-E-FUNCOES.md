@@ -38,6 +38,6 @@
 
 - ADB;
 - kit pendrive;
-- instalador `Instala-Player-TotemDigital.apk` (Player-AD + pergunta dos logos de boot);
+- instalador `Instala-Player-TotemDigital-Vs{versão}-build-{código}.apk` (Player-AD + pergunta dos logos de boot);
 - reinstalação assistida;
 - preservação de configuração em atualização sobreposta.

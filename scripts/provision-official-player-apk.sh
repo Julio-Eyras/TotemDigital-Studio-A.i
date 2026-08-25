@@ -57,8 +57,15 @@ fi
 
 DEST_DIR="$BACKEND_DIR/uploads/ota-updates"
 DEST="$DEST_DIR/$APK_BASENAME"
-INSTALLER_SRC="$REPO/install-pendrive/apk/Instala-Player-TotemDigital.apk"
-INSTALLER_DEST="$DEST_DIR/Instala-Player-TotemDigital.apk"
+shopt -s nullglob
+INSTALLER_CANDIDATES=( "$REPO"/install-pendrive/apk/Instala-Player-TotemDigital-Vs*-build-*.apk )
+shopt -u nullglob
+INSTALLER_SRC=""
+if ((${#INSTALLER_CANDIDATES[@]} > 0)); then
+  INSTALLER_SRC="$(ls -1t "${INSTALLER_CANDIDATES[@]}" | head -n 1)"
+elif [[ -f "$REPO/install-pendrive/apk/Instala-Player-TotemDigital.apk" ]]; then
+  INSTALLER_SRC="$REPO/install-pendrive/apk/Instala-Player-TotemDigital.apk"
+fi
 copy_apk() {
   local src="$1" dest="$2"
   local dest_dir
@@ -72,11 +79,18 @@ copy_apk() {
   fi
 }
 copy_apk "$APK" "$DEST"
-if [[ -f "$INSTALLER_SRC" ]]; then
+if [[ -n "$INSTALLER_SRC" && -f "$INSTALLER_SRC" ]]; then
+  INSTALLER_DEST="$DEST_DIR/$(basename "$INSTALLER_SRC")"
+  if mkdir -p "$DEST_DIR" 2>/dev/null && [[ -w "$DEST_DIR" ]]; then
+    rm -f "$DEST_DIR"/Instala-Player-TotemDigital*.apk
+  else
+    sudo mkdir -p "$DEST_DIR"
+    sudo rm -f "$DEST_DIR"/Instala-Player-TotemDigital*.apk
+  fi
   copy_apk "$INSTALLER_SRC" "$INSTALLER_DEST"
   echo "[OK] Instalador copiado — ${INSTALLER_DEST}"
 else
-  echo "[AVISO] Instala-Player-TotemDigital.apk ausente no kit git"
+  echo "[AVISO] Instala-Player-TotemDigital-Vs*-build-*.apk ausente no kit git"
 fi
 
 SIZE="$(stat -c%s "$DEST" 2>/dev/null || stat -f%z "$DEST")"

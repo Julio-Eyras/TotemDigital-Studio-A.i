@@ -297,6 +297,7 @@ class MainActivity : AppCompatActivity() {
         kioskConfig = PlayerConfigLoader(this).load()
         if (!devUiOpen) {
             KioskEscape.setHomeAliasEnabled(this, enabled = true)
+            KioskEscape.restorePreferredHome(this)
             KioskController.applyPlayback(this, kioskConfig!!)
         }
 
@@ -377,6 +378,7 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         if (devUiOpen) return
         KioskEscape.setHomeAliasEnabled(this, enabled = true)
+        KioskEscape.restorePreferredHome(this)
         val cfg = PlayerConfigLoader(this).load()
         kioskConfig = cfg
         // Chrome leve: não re-layout do contentHost (evita flicker a cada resume/focus).

@@ -19,4 +19,4 @@ cd Player-AD\scripts
 python build-totemdigital-boot-assets.py
 ```
 
-O `Instala-Player-TotemDigital.apk` embute estes ficheiros. O técnico escolhe o sentido no assistente.
+O `Instala-Player-TotemDigital-Vs{versão}-build-{código}.apk` embute estes ficheiros. O técnico escolhe o sentido no assistente.

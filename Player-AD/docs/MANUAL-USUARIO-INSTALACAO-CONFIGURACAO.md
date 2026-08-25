@@ -50,8 +50,8 @@ Há três formas comuns. Use a que se adequar ao local.
 ### 3.1 Com pendrive (sem computador) — recomendado em campo
 
 1. Copie para o pendrive a pasta do kit (conteúdo de `install-pendrive/`), incluindo:
-   - `apk/Player-AD-release.apk` **ou**
-   - `apk/Instala-Player-TotemDigital.apk` (assistente: instala o player e pergunta pelos logos de boot)
+   - `apk/Player-AD-Vs{versão}-build-{código}.apk` **ou**
+   - `apk/Instala-Player-TotemDigital-Vs{versão}-build-{código}.apk` (assistente: instala o player e pergunta pelos logos de boot)
 2. Ligue o totem / TV box
 3. Insira o pendrive na porta USB
 4. Abra o **gestor de ficheiros**
@@ -124,19 +124,19 @@ Pode configurar **pelo ecrã do aparelho** (mais simples) ou com ficheiro **JSON
 1. Abra o **Player-AD**
 2. Dê **3 toques rápidos** no canto OK / centro do ecrã (D-pad ou toque)
 3. Aparece um aviso do tipo “Mais N toque(s)…”
-4. No terceiro toque abre a **tela de configuração** (kiosk relaxado: deixa de ser HOME)
+4. No terceiro toque abre a **tela de configuração** (kiosk relaxado: barras visíveis). O Player-AD **continua** a ser HOME.
 
 ### 4.2 Escape do kiosk (explorador e menu Android)
 
-Nesta tela o Player-AD **não** é o launcher HOME. Use:
+Nesta tela o Player-AD **mantém-se** o launcher HOME. Use:
 
 | Acção | Uso |
 |-------|-----|
 | Explorador de ficheiros | Abre o gestor de ficheiros da box (DocumentsUI, TvdFileManager, etc.) |
-| Menu principal | Abre o launcher Android verdadeiro (não o player) |
-| Aplicar e iniciar | Volta ao totem e o Player-AD volta a ser HOME |
+| Menu principal | Abre o launcher Android (visita). O Player-AD continua a ser HOME. |
+| Aplicar e iniciar | Volta ao totem |
 
-O botão HOME do comando volta ao player só depois de sair da configuração.
+O botão HOME do comando regressa ao Player-AD. Um reboot também arranca o player, não o menu do sistema.
 
 ### 4.3 Wi‑Fi neste aparelho (Player-AD ≥ 2.12)
 
@@ -296,7 +296,7 @@ Ao pedir ajuda, envie:
 ## 8. Resumo em 1 minuto
 
 1. Crie o totem no painel e **copie o código de ativação**  
-2. Instale `Player-AD-release.apk` ou `Instala-Player-TotemDigital.apk` (pendrive ou ADB)  
+2. Instale `Player-AD-Vs{versão}-build-{código}.apk` ou `Instala-Player-TotemDigital-Vs{versão}-build-{código}.apk` (pendrive ou ADB)  
 3. Abra o player → **3 toques** → configuração (Wi‑Fi se necessário)  
 4. Preencha **URL do servidor**, **UIN** e **deviceId** (iguais ao código)  
 5. **Aplicar e iniciar**  

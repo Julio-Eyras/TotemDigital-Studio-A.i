@@ -29,21 +29,27 @@ if [[ -z "$APK_PATH" || ! -f "$APK_PATH" ]]; then
   exit 1
 fi
 
-# Remover APKs antigos do kit (mantém instalador)
-find "$DEST/apk" -maxdepth 1 -type f -name '*.apk' ! -name 'Instala-Player-TotemDigital.apk' -delete 2>/dev/null || true
+# Remover APKs antigos do kit (mantém instalador versionado até copiar o novo)
+find "$DEST/apk" -maxdepth 1 -type f -name '*.apk' ! -name 'Instala-Player-TotemDigital*' -delete 2>/dev/null || true
 
 cp -f "$APK_PATH" "$DEST/apk/$DEST_APK_NAME"
 echo "✔ Copiado: $(basename "$APK_PATH") → install-pendrive/apk/${DEST_APK_NAME} (não altera boot)"
 
-INSTALLER_SRC="$REPO_ROOT/Player-AD-Installer/build/outputs/apk/release/Instala-Player-TotemDigital.apk"
-INSTALLER_DEST="$DEST/apk/Instala-Player-TotemDigital.apk"
-if [[ -f "$INSTALLER_SRC" ]]; then
-  cp -f "$INSTALLER_SRC" "$INSTALLER_DEST"
-  echo "✔ Copiado: Instala-Player-TotemDigital.apk (logo boot + Player-AD)"
-elif [[ -f "$INSTALLER_DEST" ]]; then
-  echo "✔ Mantido: Instala-Player-TotemDigital.apk já no kit"
+INSTALLER_SRC="$(ls -1t "$REPO_ROOT"/Player-AD-Installer/build/outputs/apk/release/Instala-Player-TotemDigital-Vs*-build-*.apk 2>/dev/null | head -n 1 || true)"
+INSTALLER_DEST_NAME=""
+if [[ -n "$INSTALLER_SRC" && -f "$INSTALLER_SRC" ]]; then
+  find "$DEST/apk" -maxdepth 1 -type f -name 'Instala-Player-TotemDigital*.apk' -delete 2>/dev/null || true
+  INSTALLER_DEST_NAME="$(basename "$INSTALLER_SRC")"
+  cp -f "$INSTALLER_SRC" "$DEST/apk/$INSTALLER_DEST_NAME"
+  echo "✔ Copiado: ${INSTALLER_DEST_NAME} (logo boot + Player-AD)"
 else
-  echo "⚠ Instala-Player-TotemDigital.apk ausente — compile Player-AD-Installer"
+  EXISTING="$(ls -1t "$DEST"/apk/Instala-Player-TotemDigital-Vs*-build-*.apk 2>/dev/null | head -n 1 || true)"
+  if [[ -n "$EXISTING" && -f "$EXISTING" ]]; then
+    INSTALLER_DEST_NAME="$(basename "$EXISTING")"
+    echo "✔ Mantido: ${INSTALLER_DEST_NAME} já no kit"
+  else
+    echo "⚠ Instala-Player-TotemDigital-Vs*-build-*.apk ausente — compile Player-AD-Installer"
+  fi
 fi
 
 if [[ -f "$PLAYER_DIR/scripts/generate-default-player-config.json" ]]; then
@@ -58,6 +64,9 @@ if [[ -f "$DEST/LEIA-ME.txt" && -n "$VER" ]]; then
   sed -i -E "s/Player-AD[[:space:]]+[0-9.]+ \(versionCode [0-9]+\)/Player-AD ${VER} (versionCode ${CODE})/" "$DEST/LEIA-ME.txt"
   sed -i -E "s/Front [0-9.]+ \/ Back [0-9.]+/Front ${FE_VER} \/ Back ${BE_VER}/" "$DEST/LEIA-ME.txt"
   sed -i -E "s|apk/Player-AD[^[:space:]]+|apk/${DEST_APK_NAME}|g" "$DEST/LEIA-ME.txt"
+  if [[ -n "$INSTALLER_DEST_NAME" ]]; then
+    sed -i -E "s|apk/Instala-Player-TotemDigital[^[:space:]]*|apk/${INSTALLER_DEST_NAME}|g" "$DEST/LEIA-ME.txt"
+  fi
   echo "✔ LEIA-ME: Player-AD ${VER} (versionCode ${CODE})"
 fi
 cat > "$DEST/KIT-VERSION.txt" <<EOF
@@ -67,7 +76,7 @@ Painel:        Front ${FE_VER} / Back ${BE_VER}
 Branch:        main
 Data kit:      ${TODAY}
 APK git:       install-pendrive/apk/${DEST_APK_NAME} (sem debug; não altera boot)
-Instalador:    install-pendrive/apk/Instala-Player-TotemDigital.apk (logo boot + Player-AD)
+Instalador:    install-pendrive/apk/${INSTALLER_DEST_NAME:-Instala-Player-TotemDigital-Vs*-build-*.apk} (logo boot + Player-AD)
 Homologação:   docs/hardware/HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md (base 2.12)
 Campo:         TV_BOX_3 — ${VER} / ${CODE} (kit ${TODAY}); base PASS 2.12 / 112 (2026-08-13)
 

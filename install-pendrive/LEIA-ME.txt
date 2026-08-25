@@ -1,6 +1,6 @@
 ================================================================================
   TotemDigital — Kit de instalação Player-AD (pendrive)
-  App: Player-AD 2.14 (versionCode 114) — APK release (sem debug)
+  App: Player-AD 2.15 (versionCode 115) — APK release (sem debug)
   Painel: Front 2.1.22 / Back 2.1.16 · branch main
   Kit: 2026-08-24 — escape de kiosk (explorador + menu Android) · viewport 9:16 (720×1280)
 ================================================================================
@@ -11,11 +11,12 @@ MANUAL COMPLETO (PDF — todos os manuais num ficheiro):
 MANUAL DO UTILIZADOR (Markdown):
   docs/MANUAL-USUARIO-PLAYER-AD.md
 
-1) APK release já incluído em:  apk/Player-AD-Vs2.14-build-114.apk
+1) APK release já incluído em:  apk/Player-AD-Vs2.15-build-115.apk
    (padrão: Player-AD-Vs{versão}-build-{código}.apk; assembleRelease, sem debug)
    Só o player. NÃO altera o logo de boot.
 
-1b) Instalador de campo:  apk/Instala-Player-TotemDigital.apk
+1b) Instalador de campo:  apk/Instala-Player-TotemDigital-Vs1.7-build-8.apk
+   (padrão: Instala-Player-TotemDigital-Vs{versão}-build-{código}.apk)
    Instala o Player-AD e pede ao técnico o sentido do totem
    (retrato / retrato invertido / paisagem) para gravar os logos oficiais.
    Requer root para os logos.
@@ -39,7 +40,7 @@ MANUAL DO UTILIZADOR (Markdown):
    Abrir o Player-AD → 3 toques rápidos no centro do ecrã →
    preencher URL do servidor + UIN + deviceId → Aplicar e iniciar.
    Na config: Wi‑Fi, «Abrir Wi‑Fi do sistema», «Explorador de ficheiros» e «Menu principal».
-   Campo com logo de boot: toque em Instala-Player-TotemDigital.apk (não no Player-AD sozinho).
+   Campo com logo de boot: toque em Instala-Player-TotemDigital-Vs*-build-*.apk (não no Player-AD sozinho).
 
 Documentação adicional: README.md (nesta pasta).
 

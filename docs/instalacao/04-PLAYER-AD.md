@@ -109,7 +109,7 @@ TESTE:    https://test.totemdigital.app.br
 -UserRotation N    valor Android user_rotation (default: 1)
 ```
 
-## 8. Instalador na TV (`Instala-Player-TotemDigital.apk`)
+## 8. Instalador na TV (`Instala-Player-TotemDigital-Vs{versão}-build-{código}.apk`)
 
 APK assistente (não é o player). Com root faz **duas** coisas:
 
@@ -119,13 +119,14 @@ APK assistente (não é o player). Com root faz **duas** coisas:
 
 No painel (Definições → APK) há dois downloads:
 
-- **Player-AD-release.apk** — só o player; **não** altera o logo de boot.
-- **Instala-Player-TotemDigital.apk** — player + logos TotemDigital (se ainda não forem).
+- **Player-AD-Vs{versão}-build-{código}.apk** — só o player; **não** altera o logo de boot.
+- **Instala-Player-TotemDigital-Vs{versão}-build-{código}.apk** — player + logos TotemDigital no sentido escolhido (substitui o logo anterior).
 
 ```text
 Pacote: br.com.smartchannel.instalaplayer
-Saída:  Player-AD-Installer/build/outputs/apk/release/Instala-Player-TotemDigital.apk
-Pendrive: install-pendrive/apk/Instala-Player-TotemDigital.apk
+Saída:  Player-AD-Installer/build/outputs/apk/release/Instala-Player-TotemDigital-Vs{versão}-build-{código}.apk
+Pendrive: install-pendrive/apk/Instala-Player-TotemDigital-Vs{versão}-build-{código}.apk
+Exemplo: Instala-Player-TotemDigital-Vs1.6-build-7.apk
 ```
 
 Compilar (embute o Player-AD 2.12 já gerado):

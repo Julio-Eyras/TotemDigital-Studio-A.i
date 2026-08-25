@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Compila Instala-Player-TotemDigital.apk (embute o Player-AD release).
+  Compila Instala-Player-TotemDigital-Vs{versionName}-build-{versionCode}.apk (embute o Player-AD release).
 
 .EXAMPLE
   .\build-installer.ps1
@@ -63,22 +63,26 @@ try {
 }
 
 $outDir = Join-Path $InstallerDir 'build\outputs\apk\release'
-$apk = Get-ChildItem $outDir -Filter 'Instala-Player-TotemDigital.apk' -ErrorAction SilentlyContinue |
-    Select-Object -First 1
+$apk = Get-ChildItem $outDir -Filter 'Instala-Player-TotemDigital-Vs*-build-*.apk' -ErrorAction SilentlyContinue |
+  Where-Object { $_.Name -notmatch 'unsigned' } |
+  Sort-Object LastWriteTime -Descending |
+  Select-Object -First 1
 if (-not $apk) {
-    $apk = Get-ChildItem $outDir -Filter '*.apk' |
-        Where-Object { $_.Name -notmatch 'unsigned' } |
-        Sort-Object LastWriteTime -Descending |
-        Select-Object -First 1
+    $apk = Get-ChildItem $outDir -Filter 'Instala-Player-TotemDigital*.apk' -ErrorAction SilentlyContinue |
+      Where-Object { $_.Name -notmatch 'unsigned' } |
+      Sort-Object LastWriteTime -Descending |
+      Select-Object -First 1
 }
-if (-not $apk) { throw "APK do instalador nao encontrado em $outDir" }
+if (-not $apk) { throw "APK do instalador nao encontrado em $outDir (esperado Instala-Player-TotemDigital-Vs*-build-*.apk)" }
 
 Write-Host "OK $($apk.FullName) ($([math]::Round($apk.Length/1MB, 2)) MB)" -ForegroundColor Green
 
 if (-not $NoCopyToPendrive) {
     $destDir = Join-Path $RepoRoot 'install-pendrive\apk'
     New-Item -ItemType Directory -Force -Path $destDir | Out-Null
-    $dest = Join-Path $destDir 'Instala-Player-TotemDigital.apk'
+    Get-ChildItem -Path $destDir -Filter 'Instala-Player-TotemDigital*.apk' -ErrorAction SilentlyContinue |
+      Remove-Item -Force
+    $dest = Join-Path $destDir $apk.Name
     Copy-Item -Force $apk.FullName $dest
     Write-Host "OK copiado para $dest" -ForegroundColor Green
 }

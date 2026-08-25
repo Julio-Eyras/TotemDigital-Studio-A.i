@@ -55,24 +55,40 @@ $DestApkName = "Player-AD-Vs$ver-build-$code.apk"
 
 New-Item -ItemType Directory -Force -Path $ApkDestDir | Out-Null
 
-# Remover APKs antigos/debug da pasta do kit (mantém o instalador se não houver fonte nova)
+# Remover APKs antigos/debug da pasta do kit (mantém o instalador até copiar o novo)
 Get-ChildItem -Path $ApkDestDir -Filter '*.apk' -ErrorAction SilentlyContinue |
-  Where-Object { $_.Name -ne 'Instala-Player-TotemDigital.apk' } |
+  Where-Object { $_.Name -notmatch '^Instala-Player-TotemDigital' } |
   Remove-Item -Force
 
 $DestApkPath = Join-Path $ApkDestDir $DestApkName
 Copy-Item -Force $Apk.FullName $DestApkPath
 Write-Host "OK APK: $($Apk.Name) -> install-pendrive\apk\$DestApkName ($([math]::Round($Apk.Length/1MB, 2)) MB) — nao altera boot"
 
-$InstallerSrc = Join-Path $RepoRoot 'Player-AD-Installer\build\outputs\apk\release\Instala-Player-TotemDigital.apk'
-$InstallerDest = Join-Path $ApkDestDir 'Instala-Player-TotemDigital.apk'
-if (Test-Path $InstallerSrc) {
-  Copy-Item -Force $InstallerSrc $InstallerDest
-  Write-Host "OK instalador: Instala-Player-TotemDigital.apk (logo boot + Player-AD) ($([math]::Round((Get-Item $InstallerDest).Length/1MB, 2)) MB)"
-} elseif (Test-Path $InstallerDest) {
-  Write-Host "OK instalador: a manter Instala-Player-TotemDigital.apk ja no kit"
+$InstallerReleaseDir = Join-Path $RepoRoot 'Player-AD-Installer\build\outputs\apk\release'
+$InstallerSrc = $null
+if (Test-Path $InstallerReleaseDir) {
+  $InstallerSrc = Get-ChildItem -Path $InstallerReleaseDir -Filter 'Instala-Player-TotemDigital-Vs*-build-*.apk' -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -notmatch 'unsigned' } |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+}
+$InstallerDestName = $null
+if ($InstallerSrc) {
+  Get-ChildItem -Path $ApkDestDir -Filter 'Instala-Player-TotemDigital*.apk' -ErrorAction SilentlyContinue |
+    Remove-Item -Force
+  $InstallerDestName = $InstallerSrc.Name
+  Copy-Item -Force $InstallerSrc.FullName (Join-Path $ApkDestDir $InstallerDestName)
+  Write-Host "OK instalador: $InstallerDestName (logo boot + Player-AD) ($([math]::Round($InstallerSrc.Length/1MB, 2)) MB)"
 } else {
-  Write-Host "AVISO: Instala-Player-TotemDigital.apk ausente — compile Player-AD-Installer"
+  $existing = Get-ChildItem -Path $ApkDestDir -Filter 'Instala-Player-TotemDigital-Vs*-build-*.apk' -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+  if ($existing) {
+    $InstallerDestName = $existing.Name
+    Write-Host "OK instalador: a manter $InstallerDestName ja no kit"
+  } else {
+    Write-Host "AVISO: Instala-Player-TotemDigital-Vs*-build-*.apk ausente — compile Player-AD-Installer"
+  }
 }
 
 $CfgSrc = Join-Path $PlayerDir 'scripts\generate-default-player-config.json'
@@ -100,11 +116,15 @@ if (Test-Path $leia) {
   $txt = [regex]::Replace($txt, 'Player-AD\s+[\d.]+ \(versionCode \d+\)', "Player-AD $ver (versionCode $code)")
   $txt = [regex]::Replace($txt, 'Front [\d.]+ / Back [\d.]+', "Front $feVer / Back $beVer")
   $txt = [regex]::Replace($txt, 'apk/Player-AD[^\s]+', "apk/$DestApkName")
+  if ($InstallerDestName) {
+    $txt = [regex]::Replace($txt, 'apk/Instala-Player-TotemDigital[^\s]*', "apk/$InstallerDestName")
+  }
   Set-Content -Path $leia -Value $txt -NoNewline -Encoding UTF8
   Write-Host "OK LEIA-ME: Player-AD $ver (versionCode $code)"
 }
 $kitVer = Join-Path $Dest 'KIT-VERSION.txt'
 $today = Get-Date -Format 'yyyy-MM-dd'
+$installerKitName = if ($InstallerDestName) { $InstallerDestName } else { 'Instala-Player-TotemDigital-Vs*-build-*.apk' }
 @"
 TotemDigital — Kit de campo (pendrive)
 Player-AD:     $ver (versionCode $code)
@@ -112,7 +132,7 @@ Painel:        Front $feVer / Back $beVer
 Branch:        main
 Data kit:      $today
 APK git:       install-pendrive/apk/$DestApkName (sem debug; nao altera boot)
-Instalador:    install-pendrive/apk/Instala-Player-TotemDigital.apk (logo boot + Player-AD)
+Instalador:    install-pendrive/apk/$installerKitName (logo boot + Player-AD)
 Homologação:   docs/hardware/HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md (base 2.12)
 Campo:         TV_BOX_3 — $ver / $code (kit $today); base PASS 2.12 / 112 (2026-08-13)
 

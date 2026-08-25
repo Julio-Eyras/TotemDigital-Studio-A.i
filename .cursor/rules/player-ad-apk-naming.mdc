@@ -13,8 +13,22 @@ Padrão obrigatório (sem espaços):
 Player-AD-Vs{versionName}-build-{versionCode}.apk
 ```
 
-Exemplo actual: `Player-AD-Vs2.14-build-114.apk` (`versionName` 2.14, `versionCode` 114).
+Exemplo actual: `Player-AD-Vs2.15-build-115.apk` (`versionName` 2.15, `versionCode` 115).
 
 - Gradle já define `outputFileName` assim em `Player-AD/build.gradle`.
 - Kit: `install-pendrive/apk/Player-AD-Vs…-build-….apk` (o prepare-install-pendrive copia com este nome).
-- Manter `Instala-Player-TotemDigital.apk` com o nome fixo (instalador de boot + player).
+
+# Instalador — nome do APK
+
+Ao gerar, copiar para o kit ou instalar o assistente de campo, **não** usar `Instala-Player-TotemDigital.apk` sem versão.
+
+Padrão obrigatório (sem espaços):
+
+```text
+Instala-Player-TotemDigital-Vs{versionName}-build-{versionCode}.apk
+```
+
+Exemplo actual: `Instala-Player-TotemDigital-Vs1.7-build-8.apk` (`versionName` 1.7, `versionCode` 8).
+
+- Gradle define `outputFileName` assim em `Player-AD-Installer/build.gradle`.
+- Kit: `install-pendrive/apk/Instala-Player-TotemDigital-Vs…-build-….apk`.

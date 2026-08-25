@@ -104,9 +104,9 @@ describe('central APK', () => {
     expect(response.body).toHaveProperty('installer');
     if (response.body.installer) {
       expect(response.body.installer).toMatchObject({
-        filename: 'Instala-Player-TotemDigital.apk',
         downloadUrl: '/api/player-apk/download?kind=installer',
       });
+      expect(String(response.body.installer.filename)).toMatch(/^Instala-Player-TotemDigital/);
     }
   });
 
@@ -151,7 +151,7 @@ describe('central APK', () => {
     expect(denied.status).toBe(403);
     expect([200, 404]).toContain(allowed.status);
     if (allowed.status === 200) {
-      expect(String(allowed.headers['content-disposition'] || '')).toMatch(/Instala-Player-TotemDigital\.apk/);
+      expect(String(allowed.headers['content-disposition'] || '')).toMatch(/Instala-Player-TotemDigital/);
     }
   });
 

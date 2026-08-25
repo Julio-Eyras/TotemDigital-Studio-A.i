@@ -6,15 +6,15 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.DocumentsContract
-import android.provider.Settings
 import android.util.Log
 
 /**
  * Escape de kiosk na tela de debug: explorador e launcher Android (não o Player-AD).
- * O alias HOME é desligado só enquanto o debug está aberto.
+ * O alias HOME permanece ligado — o Player-AD continua a ser o kiosk por defeito.
  */
 object KioskEscape {
 
+    const val HOME_ACTIVITY = ".ui.MainActivity"
     const val HOME_ALIAS = "br.com.smartchannel.playerad.ui.PlayerHomeAlias"
 
     val FILE_MANAGER_PACKAGES = listOf(
@@ -54,6 +54,31 @@ object KioskEscape {
         }
     }
 
+    /**
+     * Garante que o Player-AD é o launcher HOME. Não desliga o alias: abrir o
+     * menu Android é só uma visita; o totem continua a ser o kiosk no reboot e no botão HOME.
+     */
+    fun restorePreferredHome(context: Context) {
+        setHomeAliasEnabled(context, enabled = true)
+        val pkg = context.packageName
+        val component = "$pkg/$HOME_ACTIVITY"
+        if (!SuAccessHelper.suBinaryPresent()) return
+        try {
+            val script = """
+                cmd package set-home-activity --user 0 $component
+                cmd package set-home-activity $component
+                cmd role add-role-holder --user 0 android.app.role.HOME $pkg
+                """.trimIndent()
+            val proc = Runtime.getRuntime().exec(arrayOf("su", "-c", script))
+            val waiter = Thread { proc.waitFor() }
+            waiter.start()
+            waiter.join(8_000L)
+            PlayerAdLogger.i("KIOSK", "HOME por defeito: $component")
+        } catch (e: Exception) {
+            PlayerAdLogger.w("KIOSK", "set-home-activity: ${e.message ?: "erro"}")
+        }
+    }
+
     fun pickOtherHomeComponent(
         selfPackage: String,
         candidates: List<ComponentName>,
@@ -84,8 +109,8 @@ object KioskEscape {
     fun openSystemLauncher(context: Context): LaunchResult {
         val others = queryHomeComponents(context).filter { it.packageName != context.packageName }
         val picked = pickOtherHomeComponent(context.packageName, others)
-        if (picked != null) {
-            return start(
+        val result = if (picked != null) {
+            start(
                 context,
                 Intent(Intent.ACTION_MAIN)
                     .addCategory(Intent.CATEGORY_HOME)
@@ -93,12 +118,17 @@ object KioskEscape {
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 "Launcher: ${picked.packageName}",
             )
+        } else {
+            start(
+                context,
+                Intent(Intent.ACTION_MAIN)
+                    .addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                "Lista de apps Android TV",
+            )
         }
-        return start(
-            context,
-            Intent(Settings.ACTION_HOME_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            "Sem outro launcher. A abrir escolha de HOME.",
-        )
+        restorePreferredHome(context)
+        return result
     }
 
     fun openFileExplorer(context: Context): LaunchResult {

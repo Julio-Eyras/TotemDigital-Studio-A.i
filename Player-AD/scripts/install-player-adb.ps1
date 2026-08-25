@@ -93,7 +93,7 @@ function Resolve-JavaHome {
 
 function Invoke-AndroidKioskSetup {
     param([int] $Rotation = 1)
-    $homeActivity = "$PackageId/.ui.PlayerHomeAlias"
+    $homeActivity = "$PackageId/.ui.MainActivity"
     Write-Host "`n>> Provisionamento kiosk Android (portrait + home + immersive)" -ForegroundColor Yellow
 
     $rotResult = Set-AndroidDisplayRotation -Rotation $Rotation
@@ -242,7 +242,7 @@ Write-Host "`nAPK: $ApkPath" -ForegroundColor Green
 if (-not $NoCopyToPendrive -and (Test-Path (Join-Path $RepoRoot 'install-pendrive'))) {
     New-Item -ItemType Directory -Force -Path $PendriveApkDir | Out-Null
     Get-ChildItem -Path $PendriveApkDir -Filter '*.apk' -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -ne 'Instala-Player-TotemDigital.apk' } |
+        Where-Object { $_.Name -notmatch '^Instala-Player-TotemDigital' } |
         Remove-Item -Force
     $pendApk = Join-Path $PendriveApkDir (Split-Path -Leaf $ApkPath)
     Copy-Item -Force -Path $ApkPath -Destination $pendApk

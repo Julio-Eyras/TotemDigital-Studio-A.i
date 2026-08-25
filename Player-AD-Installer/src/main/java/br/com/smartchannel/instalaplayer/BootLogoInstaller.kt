@@ -11,6 +11,7 @@ object BootLogoInstaller {
     private const val ANIM_SYSTEM = "/system/media/bootanimation.zip"
     private const val ANIM_VENDOR = "/vendor/media/bootanimation.zip"
     private const val SD_DIR = "/sdcard/smartsignage"
+    private const val TMP_DIR = "/data/local/tmp/td-boot"
     private const val ASSET_BMP = "totemdigital.bmp"
     private const val ASSET_BMP_PORTRAIT = "totemdigital-portrait.bmp"
     private const val ASSET_BMP_REVERSE = "totemdigital-portrait-reverse.bmp"
@@ -43,139 +44,168 @@ object BootLogoInstaller {
         val zip = extractAsset(context, animAsset, File(work, "bootanimation.zip"))
             ?: return Report(false, false, false, false, messages + "$animAsset em falta no APK.")
 
-        val wantLogo = sha256(bmp)
-        val wantAnim = sha256(zip)
+        val wantLogo = md5(bmp)
+        val wantAnim = md5(zip)
         messages += "Sentido escolhido: ${orientation.label}."
-        messages += when (orientation) {
-            BootOrientation.LANDSCAPE -> "Bootanimation paisagem (1920x1080)."
-            BootOrientation.PORTRAIT -> "Bootanimation retrato (1080x1920)."
-            BootOrientation.REVERSE_PORTRAIT -> "Bootanimation retrato invertido (1080x1920, 180°)."
+        messages += "Assets: $bmpAsset / $animAsset."
+        messages += "MD5 logo=$wantLogo"
+        messages += "MD5 anim=$wantAnim"
+
+        val previous = readStamp()
+        if (previous != null) {
+            messages += "Stamp anterior:\n$previous"
         }
 
-        RootShell.exec("mkdir -p $SD_DIR/backup")
-        val pushedLogo = copyToSdcard(bmp, "$SD_DIR/totemdigital.bmp")
-        val pushedAnim = copyToSdcard(zip, "$SD_DIR/bootanimation.zip")
-        if (!pushedLogo || !pushedAnim) {
-            messages += "Falha ao copiar logos oficiais para $SD_DIR."
+        RootShell.exec("mkdir -p $SD_DIR/backup $TMP_DIR")
+        if (!stageFile(bmp, "$TMP_DIR/totemdigital.bmp") || !stageFile(zip, "$TMP_DIR/bootanimation.zip")) {
+            messages += "Falha ao copiar logos oficiais para $TMP_DIR."
             return Report(false, false, false, false, messages)
         }
+        RootShell.exec("cp $TMP_DIR/totemdigital.bmp $SD_DIR/totemdigital.bmp")
+        RootShell.exec("cp $TMP_DIR/bootanimation.zip $SD_DIR/bootanimation.zip")
 
-        val current = inspect(work, wantLogo, wantAnim, messages)
+        val beforeLogo = hashRemote("$MOUNT/bootlogo.bmp", work, mountFirst = true)
+        val beforeAnim = hashRemote(animationTarget(), work, mountFirst = false)
+        val logoOk = installBootlogo(work, wantLogo, messages)
+        val animOk = installBootanimation(work, wantAnim, messages)
 
-        val logo = when {
-            current.logoIsTotemDigital -> {
-                messages += "Logo Android já é TotemDigital — sem alteração."
-                true to false
-            }
-            else -> installBootlogo(messages) to true
+        if (logoOk && beforeLogo.equals(wantLogo, ignoreCase = true)) {
+            messages += "Logo Android já coincidia e foi regravado."
         }
-        val anim = when {
-            current.animIsTotemDigital -> {
-                messages += "Bootanimation já é TotemDigital — sem alteração."
-                true to false
-            }
-            else -> installBootanimation(messages) to true
+        if (animOk && beforeAnim.equals(wantAnim, ignoreCase = true)) {
+            messages += "Bootanimation já coincidia e foi regravado."
         }
 
-        val logoOk = logo.first
-        val animOk = anim.first
-        val logoChanged = logo.second && logoOk
-        val animChanged = anim.second && animOk
-        if (logoOk && animOk) {
-            RootShell.exec(
-                "printf 'orientation=${orientation.name}\nlogo=$wantLogo\nanim=$wantAnim\n' > $SD_DIR/totemdigital-boot.sha256",
-            )
-        }
-        return Report(logoOk, animOk, logoChanged, animChanged, messages)
+        RootShell.exec(
+            "printf 'orientation=${orientation.name}\\nlogo=$wantLogo\\nanim=$wantAnim\\n' > $SD_DIR/totemdigital-boot.md5",
+        )
+        return Report(logoOk, animOk, logoOk, animOk, messages)
     }
 
-    private fun inspect(
-        work: File,
-        wantLogo: String,
-        wantAnim: String,
-        messages: MutableList<String>,
-    ): Current {
-        val inspectLogo = File(work, "inspect-bootlogo.bmp")
-        val inspectAnim = File(work, "inspect-bootanimation.zip")
-        val logoScript = """
+    private fun readStamp(): String? {
+        val r = RootShell.exec(
+            "cat $SD_DIR/totemdigital-boot.md5 2>/dev/null || cat $SD_DIR/totemdigital-boot.sha256 2>/dev/null",
+            8_000L,
+        )
+        return r.output.trim().takeIf { it.isNotBlank() }
+    }
+
+    private fun animationTarget(): String {
+        val r = RootShell.exec(
+            "[ -f $ANIM_VENDOR ] && echo $ANIM_VENDOR || echo $ANIM_SYSTEM",
+            8_000L,
+        )
+        return r.output.trim().ifBlank { ANIM_SYSTEM }
+    }
+
+    private fun hashRemote(path: String, work: File, mountFirst: Boolean): String? {
+        val script = if (mountFirst) {
+            """
+            umount $MOUNT 2>/dev/null || true
             mkdir -p $MOUNT
-            rm -f '${inspectLogo.absolutePath}'
             if mount -t vfat $BOOTLOADER_PART $MOUNT; then
-              if [ -f $MOUNT/bootlogo.bmp ]; then
-                cp $MOUNT/bootlogo.bmp '${inspectLogo.absolutePath}'
-                echo LOGO_COPIED
-              else
-                echo MISSING_BOOTLOGO
+              if [ -f '$path' ]; then
+                md5sum '$path' 2>/dev/null || toybox md5sum '$path'
               fi
               umount $MOUNT || true
-            else
-              echo MOUNT_FAIL
             fi
-        """.trimIndent().replace('\n', ';')
-        val animScript = """
-            TARGET=$ANIM_SYSTEM
-            [ -f $ANIM_VENDOR ] && TARGET=$ANIM_VENDOR
-            rm -f '${inspectAnim.absolutePath}'
-            if [ -f ${'$'}TARGET ]; then
-              cp ${'$'}TARGET '${inspectAnim.absolutePath}'
-              echo ANIM_COPIED
-            else
-              echo MISSING_ANIM
+            """.trimIndent()
+        } else {
+            """
+            if [ -f '$path' ]; then
+              md5sum '$path' 2>/dev/null || toybox md5sum '$path'
             fi
-        """.trimIndent().replace('\n', ';')
-
-        val logoOut = RootShell.exec(logoScript, 45_000L).combined
-        val animOut = RootShell.exec(animScript, 20_000L).combined
-        if (logoOut.contains("MOUNT_FAIL")) messages += "Não foi possível ler a partição do logo Android."
-        if (logoOut.contains("MISSING_BOOTLOGO")) messages += "bootlogo.bmp ausente no bootloader."
-        if (animOut.contains("MISSING_ANIM")) messages += "bootanimation.zip ausente em /system."
-
-        val logoHash = inspectLogo.takeIf { it.isFile && it.length() > 0L }?.let { sha256(it) }
-        val animHash = inspectAnim.takeIf { it.isFile && it.length() > 0L }?.let { sha256(it) }
-        return Current(
-            logoIsTotemDigital = logoHash.equals(wantLogo, ignoreCase = true),
-            animIsTotemDigital = animHash.equals(wantAnim, ignoreCase = true),
-        )
+            """.trimIndent()
+        }
+        return parseMd5(RootShell.runScript(work, script, 45_000L).combined)
     }
 
-    private fun installBootlogo(messages: MutableList<String>): Boolean {
-        val script = """
+    private fun parseMd5(output: String): String? {
+        return output.lineSequence()
+            .map { it.trim().split(Regex("\\s+")).firstOrNull().orEmpty() }
+            .firstOrNull { it.length == 32 && it.matches(Regex("[0-9a-fA-F]{32}")) }
+    }
+
+    private fun installBootlogo(work: File, wantLogo: String, messages: MutableList<String>): Boolean {
+        val r = RootShell.runScript(
+            work,
+            """
+            umount $MOUNT 2>/dev/null || true
             mkdir -p $MOUNT
-            mount -t vfat $BOOTLOADER_PART $MOUNT || exit 11
+            mkdir -p $SD_DIR/backup
+            mount -t vfat $BOOTLOADER_PART $MOUNT || { echo MOUNT_FAIL; exit 11; }
+            echo PARTITION_FILES
+            ls -la $MOUNT || true
             if [ -f $MOUNT/bootlogo.bmp ]; then
               cp $MOUNT/bootlogo.bmp $SD_DIR/backup/bootlogo-backup.bmp
             fi
-            cp $SD_DIR/totemdigital.bmp $MOUNT/bootlogo.bmp
+            cp $TMP_DIR/totemdigital.bmp $MOUNT/bootlogo.bmp
             sync
+            HASH=${'$'}(md5sum $MOUNT/bootlogo.bmp 2>/dev/null || toybox md5sum $MOUNT/bootlogo.bmp)
+            echo "VERIFY ${'$'}HASH"
             umount $MOUNT || true
             echo BOOTLOGO_OK
-        """.trimIndent().replace('\n', ';')
-        val r = RootShell.exec(script, 60_000L)
-        return if (r.combined.contains("BOOTLOGO_OK")) {
-            messages += "Logo Android (bootloader) gravado com totemdigital.bmp."
+            """.trimIndent(),
+            60_000L,
+        )
+        messages += r.combined.take(500)
+        val got = parseMd5(r.combined)
+        return if (r.combined.contains("BOOTLOGO_OK") && got.equals(wantLogo, ignoreCase = true)) {
+            messages += "Logo Android (bootloader) gravado e verificado neste sentido."
             true
         } else {
-            messages += "Logo Android não gravado ($BOOTLOADER_PART). ${r.combined.take(180)}"
+            messages += "Logo Android não confirmado ($BOOTLOADER_PART). hash=$got want=$wantLogo"
             false
         }
     }
 
-    private fun installBootanimation(messages: MutableList<String>): Boolean {
-        val script = """
-            mount -o rw,remount /system 2>/dev/null || mount -o rw,remount / 2>/dev/null || true
+    private fun installBootanimation(work: File, wantAnim: String, messages: MutableList<String>): Boolean {
+        val r = RootShell.runScript(
+            work,
+            """
             TARGET=$ANIM_SYSTEM
             [ -f $ANIM_VENDOR ] && TARGET=$ANIM_VENDOR
-            if [ -f ${'$'}TARGET ]; then
-              cp ${'$'}TARGET $SD_DIR/backup/bootanimation-backup.zip
+            echo ANIM_TARGET=${'$'}TARGET
+            # SuperSU -mm: remount no namespace do init (senão /system continua RO de verdade).
+            blockdev --setrw /dev/block/by-name/system 2>/dev/null || true
+            mount -o rw,remount /system 2>/dev/null || mount -o rw,remount / 2>/dev/null || true
+            mount -o rw,remount /vendor 2>/dev/null || true
+            if [ -f "${'$'}TARGET" ]; then
+              cp "${'$'}TARGET" $SD_DIR/backup/bootanimation-backup.zip
             fi
-            cp $SD_DIR/bootanimation.zip ${'$'}TARGET && chmod 644 ${'$'}TARGET && echo ANIM_OK
-        """.trimIndent().replace('\n', ';')
-        val r = RootShell.exec(script, 60_000L)
-        return if (r.combined.contains("ANIM_OK") && r.ok) {
-            messages += "Logo MBox (bootanimation.zip) gravado com TotemDigital."
+            if cp $TMP_DIR/bootanimation.zip "${'$'}TARGET"; then
+              chmod 644 "${'$'}TARGET" 2>/dev/null || true
+              chown root:root "${'$'}TARGET" 2>/dev/null || true
+              sync
+              HASH=${'$'}(md5sum "${'$'}TARGET" 2>/dev/null || toybox md5sum "${'$'}TARGET")
+              echo "VERIFY ${'$'}HASH"
+              echo SYSTEM_ANIM_OK
+            else
+              echo SYSTEM_ANIM_FAIL
+            fi
+            if [ -d /data/adb/modules ]; then
+              mkdir -p /data/adb/modules/totemdigital-boot/system/media
+              printf 'id=totemdigital-boot\nname=TotemDigital bootanimation\nversion=1.7\nversionCode=8\nauthor=TotemDigital\ndescription=bootanimation do sentido escolhido no instalador\n' > /data/adb/modules/totemdigital-boot/module.prop
+              cp $TMP_DIR/bootanimation.zip /data/adb/modules/totemdigital-boot/system/media/bootanimation.zip
+              echo MAGISK_ANIM_OK
+            fi
+            mount -o ro,remount /system 2>/dev/null || true
+            echo ANIM_DONE
+            """.trimIndent(),
+            60_000L,
+        )
+        messages += r.combined.take(500)
+        val got = parseMd5(r.combined)
+        val persisted = r.combined.contains("SYSTEM_ANIM_OK") && got.equals(wantAnim, ignoreCase = true)
+        val magisk = r.combined.contains("MAGISK_ANIM_OK")
+        return if (persisted || magisk) {
+            messages += when {
+                persisted -> "Bootanimation gravado em /system e verificado. Reinicie a TV."
+                else -> "Bootanimation gravado (módulo Magisk — persiste após reboot)."
+            }
             true
         } else {
-            messages += "Bootanimation ficou em $SD_DIR/bootanimation.zip — /system pode estar só de leitura."
+            messages += "Bootanimation não persistiu em /system (só de leitura). hash=$got want=$wantAnim"
             false
         }
     }
@@ -196,12 +226,13 @@ object BootLogoInstaller {
         }
     }
 
-    private fun copyToSdcard(local: File, remote: String): Boolean {
-        return RootShell.exec("cp '${local.absolutePath}' '$remote'", 30_000L).ok
+    private fun stageFile(local: File, remote: String): Boolean {
+        val r = RootShell.exec("cp '${local.absolutePath}' '$remote' && chmod 644 '$remote'", 30_000L)
+        return r.ok
     }
 
-    private fun sha256(file: File): String {
-        val digest = MessageDigest.getInstance("SHA-256")
+    private fun md5(file: File): String {
+        val digest = MessageDigest.getInstance("MD5")
         FileInputStream(file).use { input ->
             val buffer = ByteArray(64 * 1024)
             while (true) {
@@ -235,9 +266,4 @@ object BootLogoInstaller {
             else -> null
         }
     }
-
-    private data class Current(
-        val logoIsTotemDigital: Boolean,
-        val animIsTotemDigital: Boolean,
-    )
 }

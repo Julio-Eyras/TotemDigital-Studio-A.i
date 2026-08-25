@@ -156,7 +156,8 @@ class DebugConfigActivity : AppCompatActivity() {
         setContentView(R.layout.activity_debug_config)
 
         KioskController.applyDebug(this)
-        KioskEscape.setHomeAliasEnabled(this, enabled = false)
+        KioskEscape.setHomeAliasEnabled(this, enabled = true)
+        KioskEscape.restorePreferredHome(this)
 
         onboarding = intent.getBooleanExtra(EXTRA_ONBOARDING, false)
 
@@ -357,7 +358,8 @@ class DebugConfigActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        KioskEscape.setHomeAliasEnabled(this, enabled = false)
+        KioskEscape.setHomeAliasEnabled(this, enabled = true)
+        KioskEscape.restorePreferredHome(this)
         refreshOfflineState()
         refreshOperationalLog()
         refreshSystemProvisioning()
@@ -571,11 +573,11 @@ class DebugConfigActivity : AppCompatActivity() {
 
     private fun bindKioskEscape() {
         textKioskEscapeStatus.text =
-            "HOME do totem desligado nesta tela. Explorador e menu Android abaixo."
+            "Player-AD continua HOME/kiosk. Explorador e menu Android são só uma visita."
         btnOpenFileExplorer.setOnClickListener {
             KioskController.applyDebug(this)
-            KioskEscape.setHomeAliasEnabled(this, enabled = false)
             val result = KioskEscape.openFileExplorer(this)
+            KioskEscape.restorePreferredHome(this)
             textKioskEscapeStatus.text = result.detail
             textKioskEscapeStatus.setTextColor(
                 if (result.ok) 0xFF81C784.toInt() else 0xFFE57373.toInt(),
@@ -583,7 +585,6 @@ class DebugConfigActivity : AppCompatActivity() {
         }
         btnOpenSystemLauncher.setOnClickListener {
             KioskController.applyDebug(this)
-            KioskEscape.setHomeAliasEnabled(this, enabled = false)
             val result = KioskEscape.openSystemLauncher(this)
             textKioskEscapeStatus.text = result.detail
             textKioskEscapeStatus.setTextColor(
@@ -877,6 +878,7 @@ class DebugConfigActivity : AppCompatActivity() {
 
     private fun launchPlayerAndFinish() {
         KioskEscape.setHomeAliasEnabled(this, enabled = true)
+        KioskEscape.restorePreferredHome(this)
         val intent = Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         }

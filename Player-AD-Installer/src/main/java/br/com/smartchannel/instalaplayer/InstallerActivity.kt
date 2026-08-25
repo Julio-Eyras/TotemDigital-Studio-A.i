@@ -30,6 +30,8 @@ class InstallerActivity : AppCompatActivity() {
 
     private var changeLogos = false
     private var bootOrientation = BootOrientation.PORTRAIT
+    private var orientationPicked = false
+    private var applyingLogos = false
     private var busy = false
     private var waitingInstall = false
     private var finishedInstall = false
@@ -47,7 +49,24 @@ class InstallerActivity : AppCompatActivity() {
         installCallback.set { success, message ->
             Handler(Looper.getMainLooper()).post { onPlayerInstallResult(success, message) }
         }
-        showIntro()
+        restoreDraft(savedInstanceState)
+        val playerPresent = PlayerPackageInstaller.isPlayerInstalled(this)
+        when {
+            !finishedInstall && changeLogos && orientationPicked && playerPresent -> {
+                waitingInstall = false
+                applyLogos()
+            }
+            waitingInstall && !finishedInstall -> {
+                textTitle.text = "A instalar Player-AD"
+                textBody.text = "A retomar após o instalador do sistema…"
+                setBusy(true)
+                hideTertiary()
+                if (playerPresent) {
+                    onPlayerInstallResult(true, "retomado")
+                }
+            }
+            else -> showIntro()
+        }
     }
 
     override fun onResume() {
@@ -59,8 +78,19 @@ class InstallerActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
+        if (!finishedInstall) persistDraft()
         installCallback.set(null)
+        super.onDestroy()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(STATE_CHANGE_LOGOS, changeLogos)
+        outState.putString(STATE_ORIENTATION, bootOrientation.name)
+        outState.putBoolean(STATE_ORIENTATION_PICKED, orientationPicked)
+        outState.putBoolean(STATE_WAITING, waitingInstall)
+        outState.putBoolean(STATE_FINISHED, finishedInstall)
+        persistDraft()
     }
 
     private fun showIntro() {
@@ -83,10 +113,12 @@ class InstallerActivity : AppCompatActivity() {
         btnSecondary.text = "Só o player"
         btnPrimary.setOnClickListener {
             changeLogos = true
+            persistDraft()
             showOrientationPicker()
         }
         btnSecondary.setOnClickListener {
             changeLogos = false
+            persistDraft()
             startPlayerInstall()
         }
         btnPrimary.requestFocus()
@@ -114,6 +146,8 @@ class InstallerActivity : AppCompatActivity() {
 
     private fun chooseOrientation(orientation: BootOrientation) {
         bootOrientation = orientation
+        orientationPicked = true
+        persistDraft()
         hideTertiary()
         startPlayerInstall()
     }
@@ -133,6 +167,7 @@ class InstallerActivity : AppCompatActivity() {
             textStatus.text = "A abrir o instalador do sistema…"
             waitingInstall = true
             finishedInstall = false
+            persistDraft()
             PlayerPackageInstaller.startSession(this, apk)
         } catch (e: Exception) {
             showError("Não foi possível iniciar a instalação do Player-AD.\n${e.message}")
@@ -165,8 +200,8 @@ class InstallerActivity : AppCompatActivity() {
 
     private fun onPlayerInstallResult(success: Boolean, message: String) {
         if (finishedInstall) return
-        finishedInstall = true
         waitingInstall = false
+        persistDraft()
         if (!success && !PlayerPackageInstaller.isPlayerInstalled(this)) {
             showError("Instalação do Player-AD recusada ou falhou.\n$message")
             return
@@ -174,16 +209,21 @@ class InstallerActivity : AppCompatActivity() {
         if (changeLogos) {
             applyLogos()
         } else {
-            showDone("Player-AD instalado. Logos de boot não foram alterados.")
+            lifecycleScope.launch {
+                withContext(Dispatchers.IO) { restoreKioskHome() }
+                showDone("Player-AD instalado. Logos de boot não foram alterados.")
+            }
         }
     }
 
     private fun applyLogos() {
-        textTitle.text = "A verificar logos de boot"
+        if (finishedInstall || applyingLogos) return
+        applyingLogos = true
+        textTitle.text = "A gravar logos de boot"
         textBody.text =
             "Sentido: ${bootOrientation.label}.\n" +
                 "Se o SuperSU aparecer, escolha Permitir / Always.\n" +
-                "Grava as imagens deste sentido; se já estiverem iguais, não altera."
+                "Grava sempre as imagens deste sentido (substitui o logo anterior)."
         setBusy(true)
         hideTertiary()
         textStatus.text = "A pedir root…"
@@ -197,16 +237,17 @@ class InstallerActivity : AppCompatActivity() {
                 )
                 return@launch
             }
-            textStatus.text = "Root OK. A comparar com TotemDigital…"
+            textStatus.text = "Root OK. A gravar logos deste sentido…"
             val report = withContext(Dispatchers.IO) {
                 BootLogoInstaller.apply(this@InstallerActivity, bootOrientation)
             }
+            withContext(Dispatchers.IO) { restoreKioskHome() }
             val summary = report.messages.joinToString("\n")
             when {
                 report.bootlogoOk && report.animationOk && !report.changedAny ->
-                    showDone("Player-AD instalado. Logos já eram TotemDigital neste sentido.\n\n$summary")
+                    showDone("Player-AD instalado. Logos TotemDigital já estavam neste sentido e foram regravados.\n\n$summary", offerReboot = true)
                 report.bootlogoOk && report.animationOk ->
-                    showDone("Player-AD instalado. Logos TotemDigital gravados.\n\n$summary", offerReboot = true)
+                    showDone("Player-AD instalado. Logos TotemDigital gravados neste sentido.\n\n$summary", offerReboot = true)
                 report.bootlogoOk || report.animationOk ->
                     showDone("Player-AD instalado. Logos parciais:\n\n$summary", offerReboot = report.changedAny)
                 else ->
@@ -215,7 +256,53 @@ class InstallerActivity : AppCompatActivity() {
         }
     }
 
+    private fun restoreKioskHome() {
+        val pkg = PlayerPackageInstaller.PLAYER_PACKAGE
+        RootShell.exec(
+            "cmd package enable $pkg/.ui.PlayerHomeAlias; " +
+                "cmd package set-home-activity --user 0 $pkg/.ui.MainActivity; " +
+                "cmd package set-home-activity $pkg/.ui.MainActivity; " +
+                "cmd role add-role-holder --user 0 android.app.role.HOME $pkg",
+            15_000L,
+        )
+    }
+
+    private fun persistDraft() {
+        InstallerDraft.save(
+            this,
+            changeLogos,
+            bootOrientation,
+            orientationPicked,
+            waitingInstall,
+            finishedInstall,
+        )
+    }
+
+    private fun restoreDraft(savedInstanceState: Bundle?) {
+        if (savedInstanceState != null) {
+            changeLogos = savedInstanceState.getBoolean(STATE_CHANGE_LOGOS, false)
+            waitingInstall = savedInstanceState.getBoolean(STATE_WAITING, false)
+            finishedInstall = savedInstanceState.getBoolean(STATE_FINISHED, false)
+            orientationPicked = savedInstanceState.getBoolean(STATE_ORIENTATION_PICKED, false)
+            val name = savedInstanceState.getString(STATE_ORIENTATION)
+            bootOrientation = BootOrientation.entries.firstOrNull { it.name == name }
+                ?: BootOrientation.PORTRAIT
+            persistDraft()
+            return
+        }
+        val draft = InstallerDraft.load(this)
+        changeLogos = draft.changeLogos
+        bootOrientation = draft.orientation
+        orientationPicked = draft.orientationPicked
+        waitingInstall = draft.waitingInstall
+        finishedInstall = draft.finishedInstall
+    }
+
     private fun showDone(message: String, offerReboot: Boolean = false) {
+        waitingInstall = false
+        finishedInstall = true
+        applyingLogos = false
+        InstallerDraft.clear(this)
         textTitle.text = "Concluído"
         textBody.text = message
         textStatus.text = if (PlayerPackageInstaller.isPlayerInstalled(this)) {
@@ -235,6 +322,10 @@ class InstallerActivity : AppCompatActivity() {
     }
 
     private fun showError(message: String) {
+        waitingInstall = false
+        finishedInstall = true
+        applyingLogos = false
+        InstallerDraft.clear(this)
         textTitle.text = "Falhou"
         textBody.text = message
         textStatus.text = "Pode tentar de novo."
@@ -280,6 +371,11 @@ class InstallerActivity : AppCompatActivity() {
     }
 
     companion object {
+        private const val STATE_CHANGE_LOGOS = "changeLogos"
+        private const val STATE_ORIENTATION = "bootOrientation"
+        private const val STATE_ORIENTATION_PICKED = "orientationPicked"
+        private const val STATE_WAITING = "waitingInstall"
+        private const val STATE_FINISHED = "finishedInstall"
         private val installCallback = AtomicReference<((Boolean, String) -> Unit)?>(null)
 
         fun onInstallFinished(success: Boolean, message: String) {

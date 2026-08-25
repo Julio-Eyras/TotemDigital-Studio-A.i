@@ -835,7 +835,7 @@
             android:layout_marginTop="4dp"
             android:textColor="#BDBDBD"
             android:textSize="12sp"
-            android:text="Nesta tela o Player-AD deixa de ser HOME. Explorador e menu Android (launcher da box). «Aplicar e iniciar» volta ao totem."/>
+            android:text="O Player-AD continua a ser HOME. Explorador e menu Android abrem por cima; o botão HOME e o próximo reboot voltam ao totem."/>
 
         <LinearLayout
             android:layout_width="match_parent"

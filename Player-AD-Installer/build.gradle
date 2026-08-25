@@ -83,8 +83,8 @@ android {
         applicationId 'br.com.smartchannel.instalaplayer'
         minSdk 24
         targetSdk 34
-        versionCode 4
-        versionName '1.3'
+        versionCode 8
+        versionName '1.7'
         multiDexEnabled false
     }
 
@@ -120,7 +120,9 @@ android {
 
 android.applicationVariants.configureEach { variant ->
     variant.outputs.configureEach { output ->
-        output.outputFileName = "Instala-Player-TotemDigital.apk"
+        def vName = variant.versionName
+        def vCode = variant.versionCode
+        output.outputFileName = "Instala-Player-TotemDigital-Vs${vName}-build-${vCode}.apk"
     }
 }
 

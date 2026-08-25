@@ -5,7 +5,7 @@ set -euo pipefail
 
 PACKAGE_ID="${PACKAGE_ID:-br.com.smartchannel.playerad}"
 MAIN_ACTIVITY="${MAIN_ACTIVITY:-br.com.smartchannel.playerad/.ui.MainActivity}"
-HOME_ACTIVITY="${HOME_ACTIVITY:-br.com.smartchannel.playerad/.ui.PlayerHomeAlias}"
+HOME_ACTIVITY="${HOME_ACTIVITY:-br.com.smartchannel.playerad/.ui.MainActivity}"
 # 0=0°, 1=90° (portrait típico em painel landscape), 2=180°, 3=270°
 USER_ROTATION="${USER_ROTATION:-1}"
 SET_HOME=true
