@@ -31,12 +31,13 @@ O `Player-AD` é um player Android TV orientado a:
   - cria `ExoPlayer` + `PlayerView` + `ImageView`;
   - inicia `PlayerController.start()`;
   - mantém watchdog interno para reiniciar o loop caso ele termine ou falhe;
-  - abre `DebugConfigActivity` no primeiro arranque ou por gesto oculto (**5 toques** no OK/centro).
+  - abre `DebugConfigActivity` no primeiro arranque ou por gesto oculto (**3 toques** no OK/centro).
 - `DebugConfigActivity`
   - edição de `serverUrl`, `uin`, `deviceId`;
   - testes de conectividade (`heartbeat`, `dispatch`);
   - exibe log operacional e estado offline;
-  - persiste `player-config.json` interno (e tenta externo).
+  - persiste `player-config.json` interno (e tenta externo);
+  - escape de kiosk: explorador de ficheiros e launcher Android (`KioskEscape`).
 
 ### 2.3 Integração backend
 

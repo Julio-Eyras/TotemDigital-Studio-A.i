@@ -93,7 +93,7 @@ function Resolve-JavaHome {
 
 function Invoke-AndroidKioskSetup {
     param([int] $Rotation = 1)
-    $mainActivity = "$PackageId/.ui.MainActivity"
+    $homeActivity = "$PackageId/.ui.PlayerHomeAlias"
     Write-Host "`n>> Provisionamento kiosk Android (portrait + home + immersive)" -ForegroundColor Yellow
 
     $rotResult = Set-AndroidDisplayRotation -Rotation $Rotation
@@ -118,9 +118,9 @@ function Invoke-AndroidKioskSetup {
         }
     }
 
-    $homeOut = adb shell "cmd package set-home-activity $mainActivity" 2>&1 | Out-String
+    $homeOut = adb shell "cmd package set-home-activity $homeActivity" 2>&1 | Out-String
     if ($homeOut -match 'Success|success') {
-        Write-Host "  OK launcher padrao: $mainActivity" -ForegroundColor Gray
+        Write-Host "  OK launcher padrao: $homeActivity" -ForegroundColor Gray
     } else {
         Write-Host "  AVISO launcher: $($homeOut.Trim())" -ForegroundColor DarkYellow
     }

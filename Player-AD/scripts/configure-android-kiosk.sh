@@ -5,6 +5,7 @@ set -euo pipefail
 
 PACKAGE_ID="${PACKAGE_ID:-br.com.smartchannel.playerad}"
 MAIN_ACTIVITY="${MAIN_ACTIVITY:-br.com.smartchannel.playerad/.ui.MainActivity}"
+HOME_ACTIVITY="${HOME_ACTIVITY:-br.com.smartchannel.playerad/.ui.PlayerHomeAlias}"
 # 0=0°, 1=90° (portrait típico em painel landscape), 2=180°, 3=270°
 USER_ROTATION="${USER_ROTATION:-1}"
 SET_HOME=true
@@ -69,10 +70,10 @@ fi
 run_setting "Manter tela ligada com energia" settings put global stay_on_while_plugged_in 3 || true
 
 if [[ "$SET_HOME" == "true" ]]; then
-  if adb shell cmd package set-home-activity "$MAIN_ACTIVITY" 2>/dev/null | grep -qi "success\|Success"; then
-    echo "✔ Launcher padrão: $MAIN_ACTIVITY"
-  elif adb shell cmd package set-home-activity "$MAIN_ACTIVITY" >/dev/null 2>&1; then
-    echo "✔ Launcher padrão: $MAIN_ACTIVITY"
+  if adb shell cmd package set-home-activity "$HOME_ACTIVITY" 2>/dev/null | grep -qi "success\|Success"; then
+    echo "✔ Launcher padrão: $HOME_ACTIVITY"
+  elif adb shell cmd package set-home-activity "$HOME_ACTIVITY" >/dev/null 2>&1; then
+    echo "✔ Launcher padrão: $HOME_ACTIVITY"
   else
     echo "⚠ Launcher padrão não definido (execute manualmente ou confirme no 1º boot)"
   fi

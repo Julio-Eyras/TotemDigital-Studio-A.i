@@ -194,7 +194,10 @@ Em kiosk **STRONG** com launcher HOME (`set-home-activity`), o Android muitas ve
 1. **3 toques** no canto OK da imagem (antes eram 5) → abre `DebugConfigActivity`.
 2. Na config, o kiosk é **relaxado** (barras visíveis, sem lock task).
 3. Botões **Abrir Wi‑Fi do sistema** / **Abrir Settings**, ou scan/ligar Wi‑Fi no próprio painel.
-4. Instalação ADB com `-NoKioskSetup` se precisar provisionar sem tornar o Player launcher HOME.
+4. **Explorador de ficheiros** e **Menu principal** (escape explícito: o alias HOME `PlayerHomeAlias` é desligado nesta tela).
+5. Instalação ADB com `-NoKioskSetup` se precisar provisionar sem tornar o Player launcher HOME.
+
+O `set-home-activity` aponta para `br.com.smartchannel.playerad/.ui.PlayerHomeAlias` (não para `MainActivity`), para o debug poder desligar HOME sem matar o player.
 
 ### Wi‑Fi no aparelho (offline)
 

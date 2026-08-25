@@ -4,8 +4,8 @@
 > [MANUAL-USUARIO-PLAYER-AD.md](./MANUAL-USUARIO-PLAYER-AD.md)  
 > Cópia canónica no repositório: `Player-AD/docs/MANUAL-USUARIO-INSTALACAO-CONFIGURACAO.md`
 
-Versão do app de referência: `2.13` (`versionCode=113`)  
-Data kit: 2026-08-21
+Versão do app de referência: `2.14` (`versionCode=114`)  
+Data kit: 2026-08-24
 
 ## 1) Objetivo
 

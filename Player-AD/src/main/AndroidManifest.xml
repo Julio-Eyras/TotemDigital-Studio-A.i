@@ -19,6 +19,28 @@
         android:name="android.permission.NEARBY_WIFI_DEVICES"
         android:usesPermissionFlags="neverForLocation" />
 
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.GET_CONTENT" />
+            <data android:mimeType="*/*" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+        </intent>
+        <package android:name="com.android.documentsui" />
+        <package android:name="com.google.android.documentsui" />
+        <package android:name="com.softwinner.TvdFileManager" />
+        <package android:name="com.droidlogic.FileBrower" />
+        <package android:name="com.droidlogic.app.FileBrower" />
+        <package android:name="com.estrongs.android.pop" />
+        <package android:name="com.jrm.filemanager" />
+    </queries>
+
     <application
         android:name=".PlayerAdApplication"
         android:allowBackup="false"
@@ -37,18 +59,25 @@
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|uiMode"
             android:resizeableActivity="false">
 
-            <!-- Launcher para Android TV -->
+            <!-- Lista de apps (TV e launcher genérico). HOME vai no alias (dá para desligar no debug). -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
-            <!-- Launcher padrão (kiosk): substitui a home do Android após provisionamento ADB -->
+        </activity>
+
+        <activity-alias
+            android:name=".ui.PlayerHomeAlias"
+            android:targetActivity=".ui.MainActivity"
+            android:exported="true"
+            android:enabled="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.HOME" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
-        </activity>
+        </activity-alias>
 
         <activity
             android:name=".ui.DebugConfigActivity"

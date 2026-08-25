@@ -36,6 +36,7 @@ import br.com.smartchannel.playerad.config.PlayerStorageMode
 import br.com.smartchannel.playerad.config.ScreenOrientationMode
 import br.com.smartchannel.playerad.util.AppDirs
 import br.com.smartchannel.playerad.util.DeviceProvisioningDiagnostics
+import br.com.smartchannel.playerad.util.KioskEscape
 import br.com.smartchannel.playerad.util.LocalNetworkAddresses
 import br.com.smartchannel.playerad.util.PlayerAdLogger
 import br.com.smartchannel.playerad.util.PlayerAdPrefs
@@ -105,6 +106,9 @@ class DebugConfigActivity : AppCompatActivity() {
     private lateinit var textIpOther: TextView
     private lateinit var btnOpenSystemWifi: Button
     private lateinit var btnOpenSystemSettings: Button
+    private lateinit var btnOpenFileExplorer: Button
+    private lateinit var btnOpenSystemLauncher: Button
+    private lateinit var textKioskEscapeStatus: TextView
     private lateinit var btnWifiScan: Button
     private lateinit var btnWifiConnect: Button
     private lateinit var spinnerWifiNetworks: Spinner
@@ -152,6 +156,7 @@ class DebugConfigActivity : AppCompatActivity() {
         setContentView(R.layout.activity_debug_config)
 
         KioskController.applyDebug(this)
+        KioskEscape.setHomeAliasEnabled(this, enabled = false)
 
         onboarding = intent.getBooleanExtra(EXTRA_ONBOARDING, false)
 
@@ -203,6 +208,9 @@ class DebugConfigActivity : AppCompatActivity() {
         textIpOther = findViewById(R.id.textIpOther)
         btnOpenSystemWifi = findViewById(R.id.btnOpenSystemWifi)
         btnOpenSystemSettings = findViewById(R.id.btnOpenSystemSettings)
+        btnOpenFileExplorer = findViewById(R.id.btnOpenFileExplorer)
+        btnOpenSystemLauncher = findViewById(R.id.btnOpenSystemLauncher)
+        textKioskEscapeStatus = findViewById(R.id.textKioskEscapeStatus)
         btnWifiScan = findViewById(R.id.btnWifiScan)
         btnWifiConnect = findViewById(R.id.btnWifiConnect)
         spinnerWifiNetworks = findViewById(R.id.spinnerWifiNetworks)
@@ -219,6 +227,7 @@ class DebugConfigActivity : AppCompatActivity() {
 
         bindLocalIps()
         bindWifiPanel()
+        bindKioskEscape()
         textPlayerVersion.text = installedVersionLabel()
 
         val reason = intent.getStringExtra(EXTRA_REASON) ?: "manual"
@@ -348,6 +357,7 @@ class DebugConfigActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        KioskEscape.setHomeAliasEnabled(this, enabled = false)
         refreshOfflineState()
         refreshOperationalLog()
         refreshSystemProvisioning()
@@ -557,6 +567,29 @@ class DebugConfigActivity : AppCompatActivity() {
             android.R.layout.simple_spinner_dropdown_item,
             listOf("(procure redes)"),
         )
+    }
+
+    private fun bindKioskEscape() {
+        textKioskEscapeStatus.text =
+            "HOME do totem desligado nesta tela. Explorador e menu Android abaixo."
+        btnOpenFileExplorer.setOnClickListener {
+            KioskController.applyDebug(this)
+            KioskEscape.setHomeAliasEnabled(this, enabled = false)
+            val result = KioskEscape.openFileExplorer(this)
+            textKioskEscapeStatus.text = result.detail
+            textKioskEscapeStatus.setTextColor(
+                if (result.ok) 0xFF81C784.toInt() else 0xFFE57373.toInt(),
+            )
+        }
+        btnOpenSystemLauncher.setOnClickListener {
+            KioskController.applyDebug(this)
+            KioskEscape.setHomeAliasEnabled(this, enabled = false)
+            val result = KioskEscape.openSystemLauncher(this)
+            textKioskEscapeStatus.text = result.detail
+            textKioskEscapeStatus.setTextColor(
+                if (result.ok) 0xFF81C784.toInt() else 0xFFE57373.toInt(),
+            )
+        }
     }
 
     private fun refreshWifiCurrentLabel() {
@@ -843,6 +876,7 @@ class DebugConfigActivity : AppCompatActivity() {
     }
 
     private fun launchPlayerAndFinish() {
+        KioskEscape.setHomeAliasEnabled(this, enabled = true)
         val intent = Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         }

@@ -827,6 +827,54 @@
             android:layout_marginTop="14dp"
             android:textColor="#FFFFFF"
             android:textStyle="bold"
+            android:text="Escape do kiosk (técnico)"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#BDBDBD"
+            android:textSize="12sp"
+            android:text="Nesta tela o Player-AD deixa de ser HOME. Explorador e menu Android (launcher da box). «Aplicar e iniciar» volta ao totem."/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnOpenFileExplorer"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="6dp"
+                android:text="Explorador de ficheiros"/>
+
+            <Button
+                android:id="@+id/btnOpenSystemLauncher"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="6dp"
+                android:text="Menu principal"/>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/textKioskEscapeStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="#81C784"
+            android:textSize="12sp"
+            android:text=""/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
             android:text="Wi‑Fi (configurar neste aparelho)"/>
 
         <TextView

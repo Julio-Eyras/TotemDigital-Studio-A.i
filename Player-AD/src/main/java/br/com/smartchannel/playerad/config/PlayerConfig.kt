@@ -57,7 +57,7 @@ data class PlayerConfig(
     val maxCachePercentOfVolume: Int? = null,
     /**
      * Kiosk na tela principal: [KioskMode.IMMERSIVE] (só fullscreen) ou [KioskMode.STRONG] (lock task + teclas).
-     * Na tela de debug (5 toques no OK) o kiosk é sempre relaxado.
+     * Na tela de debug (3 toques no OK) o kiosk é sempre relaxado.
      */
     val kioskMode: KioskMode = KioskMode.STRONG,
     /**

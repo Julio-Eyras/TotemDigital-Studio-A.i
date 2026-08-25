@@ -39,14 +39,14 @@ if [[ -z "$APK" || ! -f "$APK" ]]; then
   exit 0
 fi
 
-VER="2.13"
-CODE="113"
+VER="2.14"
+CODE="114"
 GRADLE="$REPO/Player-AD/build.gradle"
 if [[ -f "$GRADLE" ]]; then
   VER="$(grep -E "versionName" "$GRADLE" | head -n1 | sed -E "s/.*versionName[[:space:]]+'([^']+)'.*/\1/" || true)"
   CODE="$(grep -E "versionCode" "$GRADLE" | head -n1 | sed -E "s/.*versionCode[[:space:]]+([0-9]+).*/\1/" || true)"
-  VER="${VER:-2.13}"
-  CODE="${CODE:-113}"
+  VER="${VER:-2.14}"
+  CODE="${CODE:-114}"
 fi
 
 APK_BASENAME="$(basename "$APK")"

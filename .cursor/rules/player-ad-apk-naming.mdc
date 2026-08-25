@@ -13,7 +13,7 @@ Padrão obrigatório (sem espaços):
 Player-AD-Vs{versionName}-build-{versionCode}.apk
 ```
 
-Exemplo actual: `Player-AD-Vs2.13-build-113.apk` (`versionName` 2.13, `versionCode` 113).
+Exemplo actual: `Player-AD-Vs2.14-build-114.apk` (`versionName` 2.14, `versionCode` 114).
 
 - Gradle já define `outputFileName` assim em `Player-AD/build.gradle`.
 - Kit: `install-pendrive/apk/Player-AD-Vs…-build-….apk` (o prepare-install-pendrive copia com este nome).

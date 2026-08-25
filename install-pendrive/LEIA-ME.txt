@@ -1,8 +1,8 @@
 ================================================================================
   TotemDigital — Kit de instalação Player-AD (pendrive)
-  App: Player-AD 2.13 (versionCode 113) — APK release (sem debug)
+  App: Player-AD 2.14 (versionCode 114) — APK release (sem debug)
   Painel: Front 2.1.22 / Back 2.1.16 · branch main
-  Kit: 2026-08-21 — viewport 9:16 (720×1280) sem faixas pretas em mídia vertical
+  Kit: 2026-08-24 — escape de kiosk (explorador + menu Android) · viewport 9:16 (720×1280)
 ================================================================================
 
 MANUAL COMPLETO (PDF — todos os manuais num ficheiro):
@@ -11,7 +11,7 @@ MANUAL COMPLETO (PDF — todos os manuais num ficheiro):
 MANUAL DO UTILIZADOR (Markdown):
   docs/MANUAL-USUARIO-PLAYER-AD.md
 
-1) APK release já incluído em:  apk/Player-AD-Vs2.13-build-113.apk
+1) APK release já incluído em:  apk/Player-AD-Vs2.14-build-114.apk
    (padrão: Player-AD-Vs{versão}-build-{código}.apk; assembleRelease, sem debug)
    Só o player. NÃO altera o logo de boot.
 
@@ -38,7 +38,7 @@ MANUAL DO UTILIZADOR (Markdown):
 4) Configurar no aparelho:
    Abrir o Player-AD → 3 toques rápidos no centro do ecrã →
    preencher URL do servidor + UIN + deviceId → Aplicar e iniciar.
-   Na config: secção Wi‑Fi (scan/ligar) ou «Abrir Wi‑Fi do sistema».
+   Na config: Wi‑Fi, «Abrir Wi‑Fi do sistema», «Explorador de ficheiros» e «Menu principal».
    Campo com logo de boot: toque em Instala-Player-TotemDigital.apk (não no Player-AD sozinho).
 
 Documentação adicional: README.md (nesta pasta).

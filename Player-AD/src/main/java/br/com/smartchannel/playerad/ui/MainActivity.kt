@@ -22,6 +22,7 @@ import br.com.smartchannel.playerad.config.PlayerConfigLoader
 import br.com.smartchannel.playerad.playback.PlayerController
 import br.com.smartchannel.playerad.util.AppDirs
 import br.com.smartchannel.playerad.util.FullscreenViewport
+import br.com.smartchannel.playerad.util.KioskEscape
 import br.com.smartchannel.playerad.util.PlayerAdLogger
 import br.com.smartchannel.playerad.util.PlayerAdPrefs
 import br.com.smartchannel.playerad.util.StorageRootMigrator
@@ -295,6 +296,7 @@ class MainActivity : AppCompatActivity() {
     private fun completeStartup() {
         kioskConfig = PlayerConfigLoader(this).load()
         if (!devUiOpen) {
+            KioskEscape.setHomeAliasEnabled(this, enabled = true)
             KioskController.applyPlayback(this, kioskConfig!!)
         }
 
@@ -374,6 +376,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         if (devUiOpen) return
+        KioskEscape.setHomeAliasEnabled(this, enabled = true)
         val cfg = PlayerConfigLoader(this).load()
         kioskConfig = cfg
         // Chrome leve: não re-layout do contentHost (evita flicker a cada resume/focus).

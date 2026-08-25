@@ -1,8 +1,9 @@
-# Kit pendrive — Player-AD 2.13 (Android)
+# Kit pendrive — Player-AD 2.14 (Android)
 
-**Versão do kit:** Player-AD **2.13** (versionCode **113**) · Front 2.1.22 / Back 2.1.16 · `main`  
+**Versão do kit:** Player-AD **2.14** (versionCode **114**) · Front 2.1.22 / Back 2.1.16 · `main`  
 Ficheiro de pin: [`KIT-VERSION.txt`](./KIT-VERSION.txt) · homologação base: [`docs/hardware/HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md`](../docs/hardware/HOMOLOGACAO-TV-BOX-PLAYER-AD-2.12.md)
 
+**2.14 (2026-08-24):** escape de kiosk na configuração — explorador de ficheiros e menu principal Android (launcher verdadeiro).  
 **2.13 (2026-08-21):** ecrã útil em retrato **720×1280** (9:16) — mídia vertical do cliente preenche o totem **sem faixas pretas**, sem cortar nem distorcer (TV_BOX_3).
 
 Use esta pasta **como conteúdo raiz do pendrive** (ou copie tudo para a raiz do USB).  
@@ -12,10 +13,10 @@ O nome da pasta no pendrive pode ser `install-pendrive` ou qualquer outro; os sc
 
 ```
 install-pendrive/
-├── KIT-VERSION.txt          ← versão pinada do kit (2.13 / 113)
+├── KIT-VERSION.txt          ← versão pinada do kit (2.14 / 114)
 ├── LEIA-ME.txt              ← início rápido
 ├── README.md                ← este ficheiro
-├── apk/Player-AD-Vs2.13-build-113.apk ← release oficial (padrão Vs{ver}-build{code}; **não** altera boot)
+├── apk/Player-AD-Vs2.14-build-114.apk ← release oficial (padrão Vs{ver}-build{code}; **não** altera boot)
 ├── apk/Instala-Player-TotemDigital.apk ← instalador (no Git; logo boot + Player-AD)
 ├── config/                  ← modelo de configuração do player
 ├── midias/                  ← opcional: propagandas e vinhetas para copiar manualmente
@@ -31,7 +32,7 @@ install-pendrive/
 
 | Item | Obrigatório | Notas |
 |------|-------------|--------|
-| `apk/Player-AD-Vs{ver}-build-{code}.apk` | **Sim** | APK **release** actual: `Player-AD-Vs2.13-build-113.apk` (`debuggable=false`). **Não altera o logo de boot.** Versionado no Git — o deploy designa-o para download no painel. |
+| `apk/Player-AD-Vs{ver}-build-{code}.apk` | **Sim** | APK **release** actual: `Player-AD-Vs2.14-build-114.apk` (`debuggable=false`). **Não altera o logo de boot.** Versionado no Git — o deploy designa-o para download no painel. |
 | `apk/Instala-Player-TotemDigital.apk` | **Sim** (campo com logo) | Assistente: instala o **Player-AD** e o técnico **escolhe o sentido** das imagens de boot (retrato / retrato invertido / paisagem). Requer root para os logos. Versionado no Git e disponível no painel (Definições → APK). |
 | `config/exemplo-player-config.json` | Não | Edite IP, `uin`, `deviceId` antes de enviar ao aparelho. |
 | `midias/*` | Não | Vídeos de fallback; no Android costumam ir para storage do app (ver abaixo). |

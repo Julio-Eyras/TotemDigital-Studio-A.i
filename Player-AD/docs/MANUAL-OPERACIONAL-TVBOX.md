@@ -113,6 +113,11 @@ Na **tela de config** (debug) o kiosk fica sempre relaxado.
 
 Salvar config → **Aplicar e iniciar** (barra fixa no rodapé).
 
+Na config, **Escape do kiosk**:
+
+- **Explorador de ficheiros** — gestor de ficheiros da box
+- **Menu principal** — launcher Android verdadeiro (o Player-AD deixa de ser HOME nesta tela)
+
 ---
 
 ## 5. Boot customizado (duas fases)

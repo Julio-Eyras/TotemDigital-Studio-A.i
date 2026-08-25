@@ -64,7 +64,7 @@ Solicitamos cotação separada para:
 | Boot logo | Imagem Totem Digital (fornecer BMP/PNG) |
 | Boot animation | ZIP portrait 1080×1920 (fornecer ou path `/system/media/`) |
 | APK pré-instalado | `Player-AD-release.apk` |
-| Launcher padrão | `br.com.smartchannel.playerad/.ui.MainActivity` |
+| Launcher padrão | `br.com.smartchannel.playerad/.ui.PlayerHomeAlias` |
 | Portrait | `user_rotation=1`, rotação automática desligada |
 | Config | `player-config.json` em `/sdcard/smartsignage/` |
 | Gravação serial | Etiqueta ou flash de UIN por unidade (opcional) |

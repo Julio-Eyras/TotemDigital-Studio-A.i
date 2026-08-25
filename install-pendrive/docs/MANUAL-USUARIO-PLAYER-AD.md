@@ -2,7 +2,7 @@
 
 Instalação e configuração do player Android (TV box / totem digital).
 
-**Versão de referência do app:** 2.13 (versionCode 113)  
+**Versão de referência do app:** 2.14 (versionCode 114)  
 **Público:** operador de campo, técnico de instalação e administrador do painel web  
 **Documentação técnica (boot, kiosk avançado, logs):** no repositório, `Player-AD/docs/MANUAL-OPERACIONAL-TVBOX.md`
 
