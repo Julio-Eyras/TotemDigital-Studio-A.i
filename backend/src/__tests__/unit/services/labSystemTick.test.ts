@@ -205,6 +205,41 @@ describe('ciclo de sistema lab (ACE + Maestro mock + TDEP mock)', () => {
     expect(leak.winnerLane).toBe('local');
   });
 
+  it('hydrate SQL: SELECT liga ACE; NO_DATABASE e NO_TOTEM ficam off', () => {
+    const ctx = labAcePremiumContext(41);
+    const noDb = runLabSystemTick({
+      totemId: 41,
+      ace: { hydrateSql: true, sqlConnected: false, context: ctx },
+    });
+    expect(noDb.optIn.sqlCode).toBe('NO_DATABASE');
+    expect(noDb.optIn.source).toBe('default_off');
+    expect(noDb.optIn.aceEnabled).toBe(false);
+    expect(noDb.ace.hint).toBeNull();
+    expect(noDb.winnerId).toBe('direct-local');
+
+    const missing = runLabSystemTick({
+      totemId: 41,
+      ace: { hydrateSql: true, sqlConnected: true, sqlRow: null, context: ctx },
+    });
+    expect(missing.optIn.sqlCode).toBe('NO_TOTEM');
+    expect(missing.optIn.aceEnabled).toBe(false);
+    expect(missing.ace.ranked[0].weight).toBe(100);
+
+    const on = runLabSystemTick({
+      totemId: 41,
+      ace: {
+        hydrateSql: true,
+        sqlRow: { ace_enabled: true },
+        context: labAcePremiumContext(41),
+      },
+    });
+    expect(on.optIn.sqlCode).toBe('OK');
+    expect(on.optIn.source).toBe('sql');
+    expect(on.optIn.aceEnabled).toBe(true);
+    expect(on.ace.hint?.category).toBe('PREMIUM');
+    expect(on.winnerId).toBe('direct-local');
+  });
+
   it('STALE_CONTEXT e FORMAT_MISMATCH: sem hint e sem fill', () => {
     const stale = runLabSystemTick({
       totemId: 41,

@@ -20,6 +20,7 @@ SCRIPTS = [
     HERE / "test_edge_vision.py",
     HERE / "test_ace_rules.py",
     HERE / "verify_optin.py",
+    HERE / "test_sql_optin.py",
 ]
 
 
@@ -46,6 +47,7 @@ def main() -> int:
 
     print("\n=== pipeline ACE 0.1 OK ===", flush=True)
     print("Opt-in verificado (sem Postgres): scripts/lab-ace/verify_optin.py", flush=True)
+    print("SQL lab (SELECT, skip sem BD): python scripts/lab-ace/test_sql_optin.py", flush=True)
     print("SQL humano (se existir Postgres de lab): scripts/lab-ace/optin-totem-lab.sql", flush=True)
     print("Hint só aplica se totems.capabilities.ace_enabled = true", flush=True)
     return 0

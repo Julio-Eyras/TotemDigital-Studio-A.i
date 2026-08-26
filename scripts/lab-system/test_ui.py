@@ -48,6 +48,8 @@ def main() -> int:
         fail("labSystemTick.ts sem cenários CATEGORY_BLOCKED / NOT_CEDIBLE")
     if "no_handshake" not in payloads or "handshake_replay" not in payloads:
         fail("labSystemTick.ts sem cenários NO_HANDSHAKE / HANDSHAKE_REPLAY")
+    if "sql_ace" not in payloads or "sql_no_database" not in payloads or "sql_no_totem" not in payloads:
+        fail("labSystemTick.ts sem cenários SQL ACE / NO_DATABASE / NO_TOTEM")
     print("PASS página LabSystem")
 
     palette = (

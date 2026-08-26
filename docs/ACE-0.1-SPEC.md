@@ -288,6 +288,7 @@ Ordem. Cada passo espera decisão explícita antes de código.
 27. **Recusas LOW_CONFIDENCE e POLICY_AUDIO no tick (feito)** — `confidence` < 0.50 sem hint. Variante com som em face muda → `POLICY_AUDIO`, idle, sem proof. Direct default off.
 28. **Recusas CATEGORY_BLOCKED e NOT_CEDIBLE no tick (feito)** — categoria vetada ou `cedible: false` recusa o fill. Idle, sem proof. Pitch 15 min não menciona.
 29. **Recusas NO_HANDSHAKE e HANDSHAKE_REPLAY no tick (feito)** — `handshake_ok: false` ou timestamp > 60 s recusa o fill. Idle, sem proof. Payload default do fill (sem estes campos) continua a aceitar. Pitch 15 min não menciona.
+30. **SQL ACE no tick (feito, sem UPDATE Postgres no HTTP)** — `hydrateSql` faz SELECT na tabela lab (`totems.capabilities`). Sem ligação → `NO_DATABASE`; sem linha → `NO_TOTEM`. `ace_enabled: true` liga o hint; string `"true"` não. `POST /optin/:id/sql` só escreve a tabela lab com `apply: true`. SQL humano: `optin-totem-lab.sql`. Direct default off.
 
 Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anónimos — sem `tag_id`.
 
@@ -338,5 +339,6 @@ Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anó
 | Recusas no tick (confiança / áudio) | `LOW_CONFIDENCE` · `POLICY_AUDIO` · [lab-system/SYSTEM-0.1.md](./lab-system/SYSTEM-0.1.md) |
 | Recusas no tick (categoria / cedible) | `CATEGORY_BLOCKED` · `NOT_CEDIBLE` · [lab-system/SYSTEM-0.1.md](./lab-system/SYSTEM-0.1.md) |
 | Recusas no tick (handshake) | `NO_HANDSHAKE` · `HANDSHAKE_REPLAY` · [lab-system/SYSTEM-0.1.md](./lab-system/SYSTEM-0.1.md) |
+| SQL ACE no tick (SELECT lab) | `NO_DATABASE` · `NO_TOTEM` · `hydrateSql` · [lab-ace/OPT-IN-0.1.md](./lab-ace/OPT-IN-0.1.md) |
 
-**Próximo (se avançar):** SQL ACE real num totem de lab (`optin-totem-lab.sql`). Player-AD, face, SKU B, CEC, `/tdep/v1` de produto e TV box reais continuam fora. Direct default off.
+**Próximo (se avançar):** SQL humano `optin-totem-lab.sql` num Postgres de lab (à mão; não no instalador) **ou** recusa `HANDSHAKE_REJECTED` no tick. Player-AD, face, SKU B, CEC, `/tdep/v1` de produto e TV box reais continuam fora. Direct default off.

@@ -1,6 +1,7 @@
 /**
  * Ciclo de sistema lab 0.1 — ACE + Maestro (mock) + TDEP (mock).
- * Sem Player-AD, TV box, câmara, Postgres ou /tdep/v1 de produto.
+ * Sem Player-AD, TV box, câmara ou /tdep/v1 de produto.
+ * SELECT ACE usa tabela lab (NO_DATABASE se não houver ligação). Sem UPDATE Postgres neste tick.
  */
 
 import {
@@ -17,8 +18,10 @@ import {
 import { isAceEnabledInCapabilities } from '../ace/aceRuleEngine';
 import {
   getLabCapabilities,
+  putLabCapabilities,
   resetLabCapabilitiesStoreForTests,
 } from './labCapabilitiesStore';
+import { resetLabAceSqlForTests, selectLabAceSql, type LabAceSqlCode } from './labAceSql';
 import {
   applyTdepLane,
   TdepLane,
@@ -63,6 +66,9 @@ export interface LabSystemTickInput {
   ace?: Omit<LabAceTickInput, 'candidates' | 'aceEnabled'> & {
     aceEnabled?: boolean;
     candidates?: LabCandidate[];
+    hydrateSql?: boolean;
+    sqlConnected?: boolean;
+    sqlRow?: Record<string, unknown> | null;
   };
   maestro?: LabMaestroTickInput;
   tdep?: LabTdepTickInput;
@@ -77,13 +83,14 @@ export interface LabNowPlaying {
   at: string;
 }
 
-export type LabAceOptInSource = 'body' | 'store' | 'default_off';
+export type LabAceOptInSource = 'body' | 'store' | 'sql' | 'default_off';
 
 export interface LabAceOptInTick {
   aceEnabled: boolean;
   source: LabAceOptInSource;
   capabilities: Record<string, unknown>;
   mockSql: true;
+  sqlCode: LabAceSqlCode | null;
 }
 
 export interface LabSystemTickResult {
@@ -120,6 +127,7 @@ export function resetLabPlayerStoreForTests(): void {
   proofs.clear();
   revokedFlights.clear();
   resetLabCapabilitiesStoreForTests();
+  resetLabAceSqlForTests();
 }
 
 export function revokeLabFlight(flightId: string = LAB_FLIGHT_ID): string {
@@ -167,14 +175,37 @@ function mapAceSlateToTdep(
 
 function resolveAceOptIn(
   totemId: number,
-  bodyEnabled: boolean | undefined
+  ace: LabSystemTickInput['ace']
 ): LabAceOptInTick {
+  const bodyEnabled = ace?.aceEnabled;
   const capabilities = getLabCapabilities(totemId);
   if (bodyEnabled === true) {
-    return { aceEnabled: true, source: 'body', capabilities, mockSql: true };
+    return { aceEnabled: true, source: 'body', capabilities, mockSql: true, sqlCode: null };
   }
   if (bodyEnabled === false) {
-    return { aceEnabled: false, source: 'body', capabilities, mockSql: true };
+    return { aceEnabled: false, source: 'body', capabilities, mockSql: true, sqlCode: null };
+  }
+  if (ace?.hydrateSql === true) {
+    const override: { connected?: boolean; row?: Record<string, unknown> | null } = {};
+    if (ace.sqlConnected !== undefined) {
+      override.connected = ace.sqlConnected === true;
+    } else if ('sqlRow' in ace) {
+      override.connected = true;
+    }
+    if ('sqlRow' in ace) {
+      override.row = ace.sqlRow ?? null;
+    }
+    const selected = selectLabAceSql(totemId, Object.keys(override).length ? override : undefined);
+    if (selected.code === 'OK') {
+      putLabCapabilities(totemId, selected.capabilities);
+    }
+    return {
+      aceEnabled: selected.aceEnabled,
+      source: selected.code === 'OK' ? 'sql' : 'default_off',
+      capabilities: selected.capabilities,
+      mockSql: true,
+      sqlCode: selected.code,
+    };
   }
   const aceEnabled = isAceEnabledInCapabilities(capabilities);
   return {
@@ -182,6 +213,7 @@ function resolveAceOptIn(
     source: aceEnabled ? 'store' : 'default_off',
     capabilities,
     mockSql: true,
+    sqlCode: null,
   };
 }
 
@@ -192,7 +224,7 @@ export function runLabSystemTick(input: LabSystemTickInput = {}): LabSystemTickR
   const totemId = ids[0] || Number(input.totemId || input.ace?.context?.totem_id || 41) || 41;
   const totemIds = ids.length ? ids : [totemId];
   const candidates = input.ace?.candidates?.length ? input.ace.candidates : DEFAULT_LAB_CANDIDATES;
-  const optIn = resolveAceOptIn(totemId, input.ace?.aceEnabled);
+  const optIn = resolveAceOptIn(totemId, input.ace);
   const ace = runLabAceTick({
     aceEnabled: optIn.aceEnabled,
     context: input.ace?.context,

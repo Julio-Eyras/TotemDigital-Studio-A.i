@@ -52,6 +52,21 @@ describe('labSystemTick payloads (lab UI)', () => {
     expect(leak.ace?.context?.person_id).toBe(123);
   });
 
+  it('SQL ACE, NO_DATABASE e NO_TOTEM no payload', () => {
+    const on = buildLabTickBody('sql_ace', 41);
+    expect(on.ace?.hydrateSql).toBe(true);
+    expect(on.ace?.sqlRow).toEqual({ ace_enabled: true });
+    expect(on.ace?.aceEnabled).toBeUndefined();
+
+    const noDb = buildLabTickBody('sql_no_database', 41);
+    expect(noDb.ace?.hydrateSql).toBe(true);
+    expect(noDb.ace?.sqlConnected).toBe(false);
+
+    const missing = buildLabTickBody('sql_no_totem', 41);
+    expect(missing.ace?.sqlRow).toBeNull();
+    expect(missing.ace?.sqlConnected).toBe(true);
+  });
+
   it('STALE_CONTEXT e FORMAT_MISMATCH no payload', () => {
     const stale = buildLabTickBody('stale_context', 41);
     expect(stale.ace?.aceEnabled).toBe(true);

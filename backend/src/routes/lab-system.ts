@@ -15,6 +15,7 @@ import {
   runLabSystemTick,
 } from '../services/lab/labSystemTick';
 import { labAceOptInSnapshot, putLabAceOptIn } from '../services/lab/labCapabilitiesStore';
+import { applyLabAceSql, selectLabAceSql } from '../services/lab/labAceSql';
 import {
   measureMaestroPair,
   measureSsidPair,
@@ -73,7 +74,7 @@ router.get('/optin/:totemId', (req: AuthenticatedRequest, res: Response) => {
   if (!Number.isInteger(totemId) || totemId < 1) {
     return res.status(400).json({ success: false, code: 'BAD_TOTEM' });
   }
-  return res.json({ success: true, ...labAceOptInSnapshot(totemId) });
+  return res.json({ success: true, ...labAceOptInSnapshot(totemId), postgres: selectLabAceSql(totemId) });
 });
 
 router.patch('/optin/:totemId', (req: AuthenticatedRequest, res: Response) => {
@@ -85,7 +86,33 @@ router.patch('/optin/:totemId', (req: AuthenticatedRequest, res: Response) => {
   if (body.aceEnabled !== undefined) {
     putLabAceOptIn(totemId, body.aceEnabled === true);
   }
-  return res.json({ success: true, ...labAceOptInSnapshot(totemId) });
+  return res.json({ success: true, ...labAceOptInSnapshot(totemId), postgres: selectLabAceSql(totemId) });
+});
+
+router.post('/optin/:totemId/sql', (req: AuthenticatedRequest, res: Response) => {
+  const totemId = Number(req.params.totemId);
+  if (!Number.isInteger(totemId) || totemId < 1) {
+    return res.status(400).json({ success: false, code: 'BAD_TOTEM' });
+  }
+  const body = (req.body || {}) as Record<string, unknown>;
+  const selected = selectLabAceSql(totemId);
+  if (body.aceEnabled === undefined) {
+    return res.json({
+      success: true,
+      totemId,
+      apply: false,
+      ...selected,
+      note: 'SELECT lab. Sem UPDATE Postgres neste HTTP.',
+    });
+  }
+  const result = applyLabAceSql(totemId, body.aceEnabled === true, { apply: body.apply === true });
+  return res.json({
+    success: true,
+    totemId,
+    apply: body.apply === true,
+    ...result,
+    note: 'UPDATE só na tabela lab em RAM se apply=true. Postgres real fica no SQL humano.',
+  });
 });
 
 router.post('/maestro/preview', (req: AuthenticatedRequest, res: Response) => {

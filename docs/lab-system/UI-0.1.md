@@ -8,7 +8,7 @@ Player-AD, TV box, câmara e CMS parceiro continuam **mocks**. Sem `/tdep/v1` de
 
 | Superfície | Comportamento |
 |------------|----------------|
-| `/lab/system` | Cenários: default off, ACE opt-in, IDENTITY_LEAK, STALE_CONTEXT, LOW_CONFIDENCE, FORMAT_MISMATCH, POLICY_AUDIO, CATEGORY_BLOCKED, NOT_CEDIBLE, NO_HANDSHAKE, HANDSHAKE_REPLAY, fill, guaranteed, cap, revoke, NTP drift, SSID loja, dois totens. Switch «Opt-in ACE (mock SQL)». |
+| `/lab/system` | Cenários: default off, ACE opt-in, SQL ACE, NO_DATABASE, NO_TOTEM, IDENTITY_LEAK, STALE_CONTEXT, LOW_CONFIDENCE, FORMAT_MISMATCH, POLICY_AUDIO, CATEGORY_BLOCKED, NOT_CEDIBLE, NO_HANDSHAKE, HANDSHAKE_REPLAY, fill, guaranteed, cap, revoke, NTP drift, SSID loja, dois totens. Switch «Opt-in ACE (mock SQL)». |
 | Direct → editar totem | «Laboratório — ciclo de sistema». Tick default off neste totem + ligar à consola. |
 | `POST /api/lab/system/tick` | Body dos cenários em `frontend/src/utils/labSystemTick.ts`. |
 

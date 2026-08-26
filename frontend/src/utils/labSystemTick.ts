@@ -18,12 +18,18 @@ export type LabTickScenarioId =
   | 'category_blocked'
   | 'not_cedible'
   | 'no_handshake'
-  | 'handshake_replay';
+  | 'handshake_replay'
+  | 'sql_ace'
+  | 'sql_no_database'
+  | 'sql_no_totem';
 
 export type LabTickAceBody = {
   aceEnabled?: boolean;
   candidates?: Array<{ id: string; baseWeight: number; commercialTier: string }>;
   context?: Record<string, unknown>;
+  hydrateSql?: boolean;
+  sqlConnected?: boolean;
+  sqlRow?: Record<string, unknown> | null;
 };
 
 export type LabTickTdepBody = {
@@ -60,7 +66,10 @@ export const IDLE_ACE: LabTickAceBody = {
 
 export const LAB_TICK_SCENARIOS: Array<{ id: LabTickScenarioId; label: string; hint: string }> = [
   { id: 'default_off', label: 'Default off', hint: 'Direct local ganha. TotemNet off. Sem proof.' },
-  { id: 'ace_optin', label: 'ACE opt-in', hint: 'Mock SQL. Context PREMIUM. Local continua a ganhar.' },
+  { id: 'ace_optin', label: 'ACE opt-in', hint: 'Mock SQL RAM. Context PREMIUM. Local continua a ganhar.' },
+  { id: 'sql_ace', label: 'SQL ACE', hint: 'SELECT capabilities ace_enabled true. Local continua a ganhar.' },
+  { id: 'sql_no_database', label: 'NO_DATABASE', hint: 'Sem Postgres. ACE off. Ar de sempre.' },
+  { id: 'sql_no_totem', label: 'NO_TOTEM', hint: 'SELECT sem linha. ACE off. Ar de sempre.' },
   { id: 'identity_leak', label: 'IDENTITY_LEAK', hint: 'person_id no context. Sem hint. Ar de sempre.' },
   { id: 'stale_context', label: 'STALE_CONTEXT', hint: 'observed_at > 3 s. Sem hint. Ar de sempre.' },
   { id: 'format_mismatch', label: 'FORMAT_MISMATCH', hint: 'Parceiro recusa variante. Idle, sem proof.' },
@@ -135,6 +144,30 @@ export function buildLabTickBody(id: LabTickScenarioId, totemId = 41): LabSystem
       return { totemId: tid };
     case 'ace_optin':
       return { totemId: tid, ace: { context: labAcePremiumContext(tid) } };
+    case 'sql_ace':
+      return {
+        totemId: tid,
+        ace: {
+          hydrateSql: true,
+          sqlRow: { ace_enabled: true },
+          context: labAcePremiumContext(tid),
+        },
+      };
+    case 'sql_no_database':
+      return {
+        totemId: tid,
+        ace: { hydrateSql: true, sqlConnected: false, context: labAcePremiumContext(tid) },
+      };
+    case 'sql_no_totem':
+      return {
+        totemId: tid,
+        ace: {
+          hydrateSql: true,
+          sqlConnected: true,
+          sqlRow: null,
+          context: labAcePremiumContext(tid),
+        },
+      };
     case 'identity_leak':
       return {
         totemId: tid,
@@ -271,7 +304,7 @@ export type LabSystemTickResponse = {
   proof?: { seller_sig?: string } | null;
   nowPlayingByTotem?: Array<{ totemId: number }>;
   mocks?: { playerAd?: boolean };
-  optIn?: { aceEnabled?: boolean; source?: string };
+  optIn?: { aceEnabled?: boolean; source?: string; sqlCode?: string | null };
   ace?: { gatewayCode?: string | null; identityLeak?: boolean; hint?: { category?: string } | null };
 };
 
@@ -285,6 +318,7 @@ export type LabTickSummary = {
   totemCount: number;
   aceEnabled: boolean;
   optInSource: string | null;
+  sqlCode: string | null;
   gatewayCode: string | null;
   hintCategory: string | null;
   identityLeak: boolean;
@@ -303,6 +337,7 @@ export function summarizeLabTick(result: LabSystemTickResponse | null | undefine
     totemCount: Array.isArray(result?.nowPlayingByTotem) ? result.nowPlayingByTotem.length : 0,
     aceEnabled: result?.optIn?.aceEnabled === true,
     optInSource: result?.optIn?.source ?? null,
+    sqlCode: result?.optIn?.sqlCode ?? null,
     gatewayCode: result?.ace?.gatewayCode ?? null,
     hintCategory: result?.ace?.hint?.category ?? null,
     identityLeak: result?.ace?.identityLeak === true,
