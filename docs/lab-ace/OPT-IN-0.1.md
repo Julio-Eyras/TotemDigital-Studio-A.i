@@ -16,6 +16,10 @@ python scripts/lab-ace/verify_optin.py
 
 Já entra em `python scripts/lab-ace/run_lab.py`.
 
+## Mock no ciclo de sistema (sem Postgres)
+
+O tick de lab **não** faz `UPDATE`. `GET/PATCH /api/lab/system/optin/:totemId` replica o merge JSONB do SQL em RAM. O tick lê o store se o body **não** mandar `ace.aceEnabled`. String `"true"` **não** liga. Consola: `/lab/system`.
+
 ## Ligar num totem (lab, Postgres)
 
 Script de referência (manual): [`scripts/lab-ace/optin-totem-lab.sql`](../../scripts/lab-ace/optin-totem-lab.sql). **Não** é corrido pelo instalador.
@@ -49,3 +53,5 @@ WHERE totem_id = 41;
 6. Com ACE on, o cache de 60 s do Dispatcher é ignorado (hint ~3 s).
 
 Boolean estrito: `ace_enabled: "true"` (string) **não** liga o ACE.
+
+Pre-voo de campo (não escreve na BD): [../lab-field/FIELD-0.1.md](../lab-field/FIELD-0.1.md).

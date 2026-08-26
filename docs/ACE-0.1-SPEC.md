@@ -280,6 +280,12 @@ Ordem. Cada passo espera decisão explícita antes de código.
 19. **Lane TDEP no Dispatcher (feito)** — `python scripts/lab-tdep/test_lane.py`. Local > fill > idle. `tdep_fill_enabled` default off. Player-AD intocado.
 20. **UI Direct ceder ar ocioso (feito, lab)** — accordion colapsado em `TotemEditDialog`. `PUT tdepFill` + `GET/PATCH /api/lab/tdep/fill`. Default off. Pitch 15 min não menciona TotemNet.
 21. **One-pager comercial parceiro TDEP (feito)** — [lab-tdep/ONE-PAGER-PARCEIRO-0.1.md](./lab-tdep/ONE-PAGER-PARCEIRO-0.1.md). Telas do parceiro; cap 10%; kill-switch; sem factura no Flight; fora do pitch de 15 min.
+22. **Pre-voo de campo (feito, hardware opcional)** — `python scripts/lab-field/test_field.py`. Sem 2 boxes ADB: skip `NO_HARDWARE`. SQL ACE não faz UPDATE. Player-AD intocado. Pitch 15 min não vende.
+23. **Ciclo de sistema lab com mocks (feito)** — `POST /api/lab/system/tick`. ACE + Maestro mock + TDEP mock. Proof HMAC no fill/guaranteed; cap `NO_CAPACITY`; revoke `RIGHTS_REVOKED`; `totemIds`. Sem TV box, sem APK, sem `/tdep/v1` de produto. Direct local continua a ganhar.
+24. **UI lab do tick (feito)** — `/lab/system` fora do menu. Accordion colapsado em `TotemEditDialog`. Cenários mock (fill, guaranteed, cap, revoke, drift). Pitch 15 min não menciona.
+25. **Opt-in ACE mock SQL no tick (feito)** — `GET/PATCH /api/lab/system/optin/:totemId` replica o merge JSONB em RAM. Tick lê o store. `IDENTITY_LEAK` recusa o hint. Sem `UPDATE` Postgres. Direct default off.
+26. **Recusas STALE_CONTEXT e FORMAT_MISMATCH no tick (feito)** — context velho (>3 s) não gera hint. Parceiro sem variante → `FORMAT_MISMATCH`, idle, sem proof. Pitch 15 min não menciona.
+27. **Recusas LOW_CONFIDENCE e POLICY_AUDIO no tick (feito)** — `confidence` < 0.50 sem hint. Variante com som em face muda → `POLICY_AUDIO`, idle, sem proof. Direct default off.
 
 Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anónimos — sem `tag_id`.
 
@@ -322,5 +328,11 @@ Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anó
 | Lane TDEP no Dispatcher | `python scripts/lab-tdep/test_lane.py` · [lab-tdep/LANE-0.1.md](./lab-tdep/LANE-0.1.md) |
 | UI TDEP (ceder ar ocioso) | accordion `TotemEditDialog` · [lab-tdep/UI-0.1.md](./lab-tdep/UI-0.1.md) |
 | One-pager parceiro TDEP | [lab-tdep/ONE-PAGER-PARCEIRO-0.1.md](./lab-tdep/ONE-PAGER-PARCEIRO-0.1.md) |
+| Pre-voo de campo (ADB/SQL) | `python scripts/lab-field/test_field.py` · [lab-field/FIELD-0.1.md](./lab-field/FIELD-0.1.md) |
+| Ciclo de sistema (mocks) | `POST /api/lab/system/tick` · [lab-system/SYSTEM-0.1.md](./lab-system/SYSTEM-0.1.md) |
+| UI ciclo de sistema (lab) | `/lab/system` · accordion Direct · [lab-system/UI-0.1.md](./lab-system/UI-0.1.md) |
+| Opt-in ACE no tick (mock SQL) | `GET/PATCH /api/lab/system/optin/:totemId` · [lab-ace/OPT-IN-0.1.md](./lab-ace/OPT-IN-0.1.md) |
+| Recusas no tick (stale / formato) | `STALE_CONTEXT` · `FORMAT_MISMATCH` · [lab-system/SYSTEM-0.1.md](./lab-system/SYSTEM-0.1.md) |
+| Recusas no tick (confiança / áudio) | `LOW_CONFIDENCE` · `POLICY_AUDIO` · [lab-system/SYSTEM-0.1.md](./lab-system/SYSTEM-0.1.md) |
 
-**Próximo (se avançar):** SQL ACE / NTP+SSID em hardware. Player-AD, face, SKU B, CEC e `/tdep/v1` de produto continuam fora. Direct default off.
+**Próximo (se avançar):** `CATEGORY_BLOCKED` / `NOT_CEDIBLE` no tick **ou** SQL ACE real num totem de lab. Player-AD, face, SKU B, CEC, `/tdep/v1` de produto e TV box reais continuam fora. Direct default off.

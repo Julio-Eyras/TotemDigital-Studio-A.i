@@ -180,5 +180,11 @@ describe('mocks Maestro + TDEP (sem Player-AD)', () => {
       'AUDIENCE_FORBIDDEN'
     );
     expect(mockTdepPartnerAccepts({ schema: 'tdep/0.1', ace: { hint: 'x' } }).accepted).toBe(false);
+    expect(
+      mockTdepPartnerAccepts({ schema: 'tdep/0.1', refuse_code: 'FORMAT_MISMATCH' }).code
+    ).toBe('FORMAT_MISMATCH');
+    expect(
+      mockTdepPartnerAccepts({ schema: 'tdep/0.1', audio: true, face_audio: false }).code
+    ).toBe('POLICY_AUDIO');
   });
 });

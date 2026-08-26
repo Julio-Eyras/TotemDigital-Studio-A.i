@@ -2182,6 +2182,38 @@ export const totemApi = {
   },
 };
 
+/** Lab: ciclo ACE+Maestro+TDEP com mocks. Fora do pitch de 15 min. */
+export const labSystemApi = {
+  tick: async (body: Record<string, unknown> = {}) => {
+    const response = await api.post('/lab/system/tick', body);
+    return response.data;
+  },
+  now: async (totemId: number) => {
+    const response = await api.get(`/lab/system/now/${totemId}`);
+    return response.data;
+  },
+  proofs: async (totemId: number) => {
+    const response = await api.get(`/lab/system/proofs/${totemId}`);
+    return response.data;
+  },
+  revoke: async (flightId?: string) => {
+    const response = await api.post('/lab/system/revoke', flightId ? { flightId } : {});
+    return response.data;
+  },
+  maestroPreview: async (body: Record<string, unknown> = {}) => {
+    const response = await api.post('/lab/system/maestro/preview', body);
+    return response.data;
+  },
+  getOptin: async (totemId: number) => {
+    const response = await api.get(`/lab/system/optin/${totemId}`);
+    return response.data;
+  },
+  patchOptin: async (totemId: number, body: { aceEnabled?: boolean } = {}) => {
+    const response = await api.patch(`/lab/system/optin/${totemId}`, body);
+    return response.data;
+  },
+};
+
 export interface TotemDirectMediaItem {
   item_id: number;
   media_id: number;

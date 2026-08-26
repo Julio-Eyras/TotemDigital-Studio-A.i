@@ -32,3 +32,5 @@ Ja entra em `python scripts/lab-emulate/run_emulation.py`. Relatorio: `logs/lab-
 5. Se alguma box cair na Wi-Fi da loja: **nao** enviar cue. Cada totem segue no ar de sempre, sem Maestro.
 
 Nao ligar SKU B, CEC, PTP ou genlock para “compensar Wi-Fi mau”.
+
+Pre-voo ADB (opcional): [../lab-field/FIELD-0.1.md](../lab-field/FIELD-0.1.md).

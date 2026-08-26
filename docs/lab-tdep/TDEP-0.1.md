@@ -82,6 +82,6 @@ Já entra em `python scripts/lab-emulate/run_emulation.py`. Relatórios: `logs/l
 
 ## Próximo (se avançar)
 
-SQL ACE / NTP+SSID em boxes reais. Player-AD, face, SKU B, CEC e `/tdep/v1` de produto continuam fora. Direct default **off**. Pitch de 15 min não menciona TotemNet.
+Ciclo de sistema com mocks: [../lab-system/SYSTEM-0.1.md](../lab-system/SYSTEM-0.1.md). Player-AD, face, SKU B, CEC e `/tdep/v1` de produto continuam fora. Direct default **off**.
 
 UI lab: [UI-0.1.md](./UI-0.1.md). One-pager parceiro: [ONE-PAGER-PARCEIRO-0.1.md](./ONE-PAGER-PARCEIRO-0.1.md).

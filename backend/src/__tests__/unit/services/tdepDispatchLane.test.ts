@@ -48,6 +48,38 @@ describe('TDEP fill lane (lab)', () => {
     expect(r.code).toBe('KILL_SWITCH');
   });
 
+  it('revoke e cap e guaranteed', () => {
+    const idleOnly = SLATE.filter((c) => c.id !== 'direct-local');
+    const revoked = applyTdepLane(idleOnly, {
+      enabled: true,
+      flightAccepted: true,
+      revoked: true,
+    });
+    expect(revoked.code).toBe('RIGHTS_REVOKED');
+    expect(revoked.winnerLane).toBe('idle');
+
+    const cap = applyTdepLane(idleOnly, {
+      enabled: true,
+      flightAccepted: true,
+      flightPriority: 'guaranteed',
+      capSharePct: 10,
+      shareUsedPct: 0,
+      wantSharePct: 15,
+    });
+    expect(cap.code).toBe('NO_CAPACITY');
+    expect(cap.winnerLane).toBe('idle');
+
+    const g = applyTdepLane(
+      [
+        { id: 'tdep-g', weight: 50, lane: 'tdep_guaranteed' },
+        { id: 'idle', weight: 1, lane: 'idle' },
+      ],
+      { enabled: true, flightAccepted: true, flightPriority: 'guaranteed' }
+    );
+    expect(g.winnerLane).toBe('tdep_guaranteed');
+    expect(g.code).toBeNull();
+  });
+
   it('mergeTdepFillCapabilities não liga com string true e preserva outras keys', () => {
     const next = mergeTdepFillCapabilities({ ace_enabled: true }, { enabled: true, capSharePct: 8 });
     expect(next.ace_enabled).toBe(true);

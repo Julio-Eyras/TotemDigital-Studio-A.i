@@ -14,6 +14,7 @@ python scripts/lab-ace/emit_ace_synthetic.py
 python scripts/lab-ace/test_edge_vision.py
 python scripts/lab-ace/test_ace_rules.py
 python scripts/lab-ace/verify_optin.py
+python scripts/lab-field/test_field.py
 python scripts/lab-ace/edge_vision.py --synthetic --frames 6
 cd backend
 npx jest --selectProjects unit --testPathPattern=aceHint --forceExit --coverage=false

@@ -79,6 +79,12 @@ describe('rolePermissions.canAccess', () => {
     expect(canAccess('subscriber_user', '/users')).toBe(false);
     expect(canAccess('subscriber_user', '/ota-updates')).toBe(false);
   });
+
+  it('lab /lab/system é consola de lab, não menu Direct', () => {
+    expect(canAccess('admin', '/lab/system')).toBe(true);
+    expect(canAccess('visualizador', '/lab/system')).toBe(false);
+    expect(canAccess('subscriber_user', '/lab/system')).toBe(false);
+  });
 });
 
 describe('rolePermissions.canAccess (Studio)', () => {
@@ -91,10 +97,11 @@ describe('rolePermissions.canAccess (Studio)', () => {
     expect(canAccess('operador_faturamento', '/plan-publisher-access')).toBe(true);
   });
 
-  it('publisher_user acede dispatcher e billing sem flag_smart_2/3', () => {
+  it('publisher_user acede dispatcher, billing e lab system sem flag_smart_2/3', () => {
     expect(canAccess('publisher_user', '/dispatcher-manager', allFlagsFalse)).toBe(true);
     expect(canAccess('publisher_user', '/billing', allFlagsFalse)).toBe(true);
     expect(canAccess('publisher_user', '/playlist-mix', allFlagsFalse)).toBe(true);
+    expect(canAccess('publisher_user', '/lab/system', allFlagsFalse)).toBe(true);
   });
 
   it('publisher_user no Studio continua sem OTA', () => {

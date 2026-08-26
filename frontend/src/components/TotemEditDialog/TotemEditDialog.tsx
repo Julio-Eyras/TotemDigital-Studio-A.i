@@ -26,7 +26,8 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import RotateRightIcon from '@mui/icons-material/RotateRight';
 import RotateLeftIcon from '@mui/icons-material/RotateLeft';
 import ScreenRotationIcon from '@mui/icons-material/ScreenRotation';
-import { totemApi, UpdatePlayerRequest } from '../../services/api';
+import { useNavigate } from 'react-router-dom';
+import { labSystemApi, totemApi, UpdatePlayerRequest } from '../../services/api';
 import { getTotemIdFromRow, getTotemLocalIdFromRow } from '../../utils/totemRowIds';
 import { pickApiErrorMessage } from '../../utils/apiErrorMessage';
 import {
@@ -42,6 +43,7 @@ import {
   readScheduleFromTotem,
 } from '../../utils/totemDisplaySchedule';
 import { DEFAULT_FILL, readTdepFillFromTotem, tdepFillPayload, TdepFillForm } from '../../utils/totemTdepFill';
+import { buildLabTickBody, summarizeLabTick } from '../../utils/labSystemTick';
 
 export interface TotemEditDialogProps {
   open: boolean;
@@ -151,6 +153,7 @@ function readPlayerAdFromTotem(totem: Record<string, unknown> | null): PlayerAdF
 }
 
 const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose, onSaved }) => {
+  const navigate = useNavigate();
   const [form, setForm] = useState<UpdatePlayerRequest>({
     name: '',
     identifier: '',
@@ -171,6 +174,8 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
   const [wifiBusy, setWifiBusy] = useState(false);
   const [wifiMessage, setWifiMessage] = useState<string | null>(null);
   const [tdepFill, setTdepFill] = useState<TdepFillForm>(DEFAULT_FILL);
+  const [labTickBusy, setLabTickBusy] = useState(false);
+  const [labTickLine, setLabTickLine] = useState<string | null>(null);
   /** Após o 1º load, o poll só atualiza relógio — não apaga edições locais de horário. */
   const formHydratedRef = useRef(false);
 
@@ -970,6 +975,61 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
               }
               label="Cortar parceiro agora (kill-switch)"
             />
+          </AccordionDetails>
+        </Accordion>
+
+        <Accordion
+          defaultExpanded={false}
+          disableGutters
+          elevation={0}
+          sx={{ mt: 1, border: '1px solid', borderColor: 'divider' }}
+        >
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography variant="subtitle2">Laboratório — ciclo de sistema</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              Tick mock ACE + Maestro + TDEP. Não é o Player-AD. Fora do pitch de 15 min.
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Button
+                size="small"
+                variant="outlined"
+                disabled={labTickBusy || !getTotemIdFromRow(totem)}
+                onClick={async () => {
+                  const id = getTotemIdFromRow(totem);
+                  if (!id) return;
+                  setLabTickBusy(true);
+                  setLabTickLine(null);
+                  try {
+                    const result = await labSystemApi.tick(buildLabTickBody('default_off', id) as Record<string, unknown>);
+                    const s = summarizeLabTick(result);
+                    setLabTickLine(`${s.winnerId || '—'} · ${s.winnerLane || '—'} · ${s.tdepCode || 'ok'}`);
+                  } catch (err: unknown) {
+                    setLabTickLine(pickApiErrorMessage(err, 'Falha no tick de lab'));
+                  } finally {
+                    setLabTickBusy(false);
+                  }
+                }}
+              >
+                {labTickBusy ? 'A correr…' : 'Correr tick (default off)'}
+              </Button>
+              <Button
+                size="small"
+                onClick={() => {
+                  const id = getTotemIdFromRow(totem);
+                  onClose();
+                  navigate(id ? `/lab/system?totemId=${id}` : '/lab/system');
+                }}
+              >
+                Abrir consola
+              </Button>
+            </Stack>
+            {labTickLine && (
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                {labTickLine}
+              </Typography>
+            )}
           </AccordionDetails>
         </Accordion>
       </DialogContent>

@@ -67,6 +67,10 @@ def mock_maestro_player_accepts(
 def mock_tdep_partner_accepts(payload: dict[str, Any]) -> dict[str, Any]:
     if any(k in payload for k in TDEP_LEAK_KEYS):
         return {"accepted": False, "code": "AUDIENCE_FORBIDDEN"}
+    if payload.get("refuse_code") == "POLICY_AUDIO" or (
+        payload.get("audio") is True and payload.get("face_audio") is False
+    ):
+        return {"accepted": False, "code": "POLICY_AUDIO"}
     if payload.get("refuse_code") == "FORMAT_MISMATCH" or payload.get("status") == "rejected":
         return {"accepted": False, "code": "FORMAT_MISMATCH"}
     return {"accepted": True, "code": None}

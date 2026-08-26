@@ -1,6 +1,6 @@
 /**
  * Emulação lab 0.1 — ACE + Dispatcher + FX sem Player-AD, MQTT, Postgres ou face.
- * Maestro/TDEP ficam nos validadores Python (schemas isolados).
+ * Ciclo completo (ACE + Maestro mock + TDEP mock): labSystemTick.ts
  */
 
 import { aceGatewayDecide } from '../ace/aceGateway';
@@ -296,8 +296,55 @@ export function mockTdepPartnerAccepts(payload: Record<string, unknown>): {
   if (leakKeys.some((k) => k in payload)) {
     return { accepted: false, code: 'AUDIENCE_FORBIDDEN' };
   }
+  if (payload.refuse_code === 'POLICY_AUDIO' || (payload.audio === true && payload.face_audio === false)) {
+    return { accepted: false, code: 'POLICY_AUDIO' };
+  }
   if (payload.refuse_code === 'FORMAT_MISMATCH' || payload.status === 'rejected') {
     return { accepted: false, code: 'FORMAT_MISMATCH' };
   }
   return { accepted: true, code: null };
+}
+
+export function labAcePremiumContext(totemId = 41): Record<string, unknown> {
+  return {
+    schema: 'ace/0.1',
+    context_id: '8f42a1e2-4c1a-4b9e-9d3a-0c7e1b2a9f10',
+    observed_at: new Date().toISOString(),
+    totem_id: totemId,
+    privacy: { gateway: 'ace/0.1', identity_dropped: true, image_dropped: true },
+    presence: true,
+    count: 3,
+    group: true,
+    density: 'medium',
+    motion: { approaching: 2, passing: 0, stopped: 1, leaving: 0 },
+    attention: 'high',
+    dwell_ms: 4200,
+    interaction: { touch: false, qr: false, nfc: false },
+    clock: { hour_local: 18, day_of_week: 0, store_open: true },
+    confidence: 0.91,
+    session_id: 'ephemeral-lab',
+  };
+}
+
+export function labAceIdentityLeakContext(totemId = 41): Record<string, unknown> {
+  return {
+    ...labAcePremiumContext(totemId),
+    person_id: 123,
+    age_bucket: '26-40',
+    mood: 'happy',
+  };
+}
+
+export function labAceStaleContext(totemId = 41, ageMs = 10_000): Record<string, unknown> {
+  return {
+    ...labAcePremiumContext(totemId),
+    observed_at: new Date(Date.now() - ageMs).toISOString(),
+  };
+}
+
+export function labAceLowConfidenceContext(totemId = 41, confidence = 0.12): Record<string, unknown> {
+  return {
+    ...labAcePremiumContext(totemId),
+    confidence,
+  };
 }

@@ -119,6 +119,7 @@ export const menuPermissions: MenuItemPermission[] = [
   { path: '/dispatcher-manager', roles: ['owner_system', 'admin_sql', 'operator', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_2' },
   { path: '/dispatcher-monitor', roles: ['owner_system', 'admin_sql', 'operator', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_2' },
   { path: '/dispatcher-debug', roles: ['owner_system', 'admin_sql', 'operator', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_2' },
+  { path: '/lab/system', roles: ['owner_system', 'admin_sql', 'admin', 'operador_tecnico', 'publisher_user'] },
   /** Playlist Mix — resultado final por totem (debug junto ao dispatcher) */
   { path: '/playlist-mix', roles: ['owner_system', 'admin_sql', 'operator', 'admin', 'operador_tecnico'], requiredFlag: 'flag_smart_2' },
   

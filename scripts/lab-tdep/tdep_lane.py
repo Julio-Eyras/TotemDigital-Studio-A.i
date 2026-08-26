@@ -49,6 +49,7 @@ def apply_tdep_lane(
     *,
     enabled: bool = False,
     kill_switch: bool = False,
+    revoked: bool = False,
     flight_accepted: bool = False,
     flight_priority: str = "fill",
     cap_share_pct: int = 10,
@@ -67,6 +68,9 @@ def apply_tdep_lane(
     elif kill_switch:
         playable = [r for r in rows if r["lane"] not in TDEP_LANES]
         code = "KILL_SWITCH"
+    elif revoked:
+        playable = [r for r in rows if r["lane"] not in TDEP_LANES]
+        code = "RIGHTS_REVOKED"
     elif not flight_accepted:
         playable = [r for r in rows if r["lane"] not in TDEP_LANES]
         code = "NO_FLIGHT"

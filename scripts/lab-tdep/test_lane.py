@@ -61,6 +61,21 @@ def main() -> int:
         fail(f"kill {killed}")
     print("PASS kill-switch: idle, nao o parceiro")
 
+    revoked = apply_tdep_lane(idle_only, enabled=True, flight_accepted=True, revoked=True)
+    if revoked["winner_id"] != "idle" or revoked["code"] != "RIGHTS_REVOKED":
+        fail(f"revoke {revoked}")
+    print("PASS revoke: idle, RIGHTS_REVOKED")
+
+    guaranteed = apply_tdep_lane(
+        [{"id": "tdep-g", "weight": 50, "lane": "tdep_guaranteed"}, {"id": "idle", "weight": 1, "lane": "idle"}],
+        enabled=True,
+        flight_accepted=True,
+        flight_priority="guaranteed",
+    )
+    if guaranteed["winner_lane"] != "tdep_guaranteed" or guaranteed["code"] is not None:
+        fail(f"guaranteed {guaranteed}")
+    print("PASS guaranteed ocupa idle e exige o slot")
+
     cap = apply_tdep_lane(
         idle_only,
         enabled=True,

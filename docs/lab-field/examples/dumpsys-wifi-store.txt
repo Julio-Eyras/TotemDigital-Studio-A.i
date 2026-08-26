@@ -1,0 +1,1 @@
+mWifiInfo SSID: "loja-wifi", BSSID: 11:22:33:44:55:66, MAC: 02:00:00:00:00:01, Supplicant state: COMPLETED, RSSI: -61, Link speed: 72Mbps, Frequency: 2437, Net ID: 1, Metered hint: true, score: 20

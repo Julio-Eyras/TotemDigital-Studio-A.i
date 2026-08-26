@@ -57,6 +57,7 @@ const DispatcherMonitor = React.lazy(() => import('./pages/DispatcherMonitor/Dis
 const NetworkTopology = React.lazy(() => import('./pages/NetworkTopology/NetworkTopology'));
 const DispatcherManager = React.lazy(() => import('./pages/DispatcherManager/DispatcherManager'));
 const DispatcherDebug = React.lazy(() => import('./pages/DispatcherDebug/DispatcherDebug'));
+const LabSystem = React.lazy(() => import('./pages/LabSystem/LabSystem'));
 const PlaylistMix = React.lazy(() => import('./pages/PlaylistMix/PlaylistMix'));
 const PlaylistMixRules = React.lazy(() => import('./pages/PlaylistMix/PlaylistMixRules'));
 const PlaylistMixGroup = React.lazy(() => import('./pages/PlaylistMix/PlaylistMixGroup'));
@@ -767,6 +768,14 @@ const AppContent: React.FC = () => {
             element={
               <ProtectedRoute>
                 <DispatcherDebug />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/lab/system"
+            element={
+              <ProtectedRoute>
+                <LabSystem />
               </ProtectedRoute>
             }
           />

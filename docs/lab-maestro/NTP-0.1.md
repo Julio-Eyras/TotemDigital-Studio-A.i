@@ -27,3 +27,5 @@ UDP/123 a `pool.ntp.org` e **opcional**. Se o firewall bloquear, o lab in-memory
 5. So depois disto o Cue deixa de ser mock de JSON.
 
 Nao ligar PTP, genlock, SKU B nem CEC para “melhorar o demo”.
+
+Pre-voo ADB (opcional): [../lab-field/FIELD-0.1.md](../lab-field/FIELD-0.1.md).

@@ -300,6 +300,7 @@ SKU A: relógio + `play @ t0`. **Não** altera o Player-AD neste lote. SKU B (ma
 | [lab-maestro/README.md](./lab-maestro/README.md) | Schema `maestro/0.1` e validador. |
 | [lab-maestro/NTP-0.1.md](./lab-maestro/NTP-0.1.md) | NTP em 2 boxes: lab virtual feito; hardware real opcional. `|drift|<=200`. |
 | [lab-maestro/SSID-0.1.md](./lab-maestro/SSID-0.1.md) | SSID só de players 5/6 GHz. Cue recusa Wi-Fi da loja. Pitch não vende. |
+| [lab-field/FIELD-0.1.md](./lab-field/FIELD-0.1.md) | Pre-voo ADB/SQL: sem 2 boxes faz skip; nunca UPDATE. |
 | [adr/0007-maestro-cue-nao-e-matriz.md](./adr/0007-maestro-cue-nao-e-matriz.md) | ADR: Cue ≠ pixels. |
 
 ---
@@ -329,6 +330,8 @@ Mocks de Dispatcher, bus FX, player Maestro e parceiro TDEP. Sem Player-AD, MQTT
 | Documento | Explicação |
 |-----------|------------|
 | [../scripts/lab-emulate/README.md](../scripts/lab-emulate/README.md) | Como correr a emulação. Relatório em `logs/lab-emulation-report.json`. |
+| [lab-system/SYSTEM-0.1.md](./lab-system/SYSTEM-0.1.md) | Ciclo HTTP ACE+Maestro+TDEP com player/box/câmara/parceiro mock. |
+| [lab-system/UI-0.1.md](./lab-system/UI-0.1.md) | Consola `/lab/system` (fora do menu) + accordion Direct. |
 
 ```powershell
 python scripts/lab-emulate/test_emulation.py

@@ -16,6 +16,7 @@ export interface TdepLaneCandidate {
 export interface TdepLaneState {
   enabled?: boolean;
   killSwitch?: boolean;
+  revoked?: boolean;
   flightAccepted?: boolean;
   flightPriority?: 'fill' | 'guaranteed' | 'preemptible';
   capSharePct?: number;
@@ -80,6 +81,7 @@ export function applyTdepLane(
   const rows = candidates.map((c) => ({ ...c, lane: inferTdepLane(c) }));
   const enabled = state.enabled === true;
   const killSwitch = state.killSwitch === true;
+  const revoked = state.revoked === true;
   const flightAccepted = state.flightAccepted === true;
   const flightPriority = state.flightPriority || 'fill';
   const capSharePct = state.capSharePct ?? 10;
@@ -94,6 +96,9 @@ export function applyTdepLane(
   } else if (killSwitch) {
     playable = rows.filter((r) => !TDEP_LANES.has(r.lane));
     code = 'KILL_SWITCH';
+  } else if (revoked) {
+    playable = rows.filter((r) => !TDEP_LANES.has(r.lane));
+    code = 'RIGHTS_REVOKED';
   } else if (!flightAccepted) {
     playable = rows.filter((r) => !TDEP_LANES.has(r.lane));
     code = 'NO_FLIGHT';

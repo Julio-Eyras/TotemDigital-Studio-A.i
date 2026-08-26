@@ -28,6 +28,7 @@ const breadcrumbConfig: BreadcrumbConfig[] = [
   { path: '/media', label: 'Mídias', parent: '/publish-totem' },
   { path: '/playlists', label: 'Playlists', parent: '/dashboard' },
   { path: '/totems', label: 'Totens', parent: '/dashboard' },
+  { path: '/lab/system', label: 'Lab ciclo de sistema', parent: '/totems' },
   { path: '/users', label: 'Usuários', parent: '/dashboard' },
   { path: '/billing', label: 'Faturamento e Cobrança', parent: '/dashboard' },
   { path: '/subscriber-contracts', label: 'Contratos de anunciantes', parent: '/billing' },

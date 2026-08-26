@@ -1,0 +1,1 @@
+mWifiInfo SSID: "totem-players", BSSID: aa:bb:cc:dd:ee:ff, MAC: 02:00:00:00:00:00, Supplicant state: COMPLETED, RSSI: -47, Link speed: 433Mbps, Frequency: 5180, Net ID: 2, Metered hint: false, score: 60

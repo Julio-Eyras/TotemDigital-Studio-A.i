@@ -207,6 +207,8 @@ def run_validators() -> dict:
         [sys.executable, str(REPO / "scripts" / "lab-tdep" / "run_lane_lab.py")],
         [sys.executable, str(REPO / "scripts" / "lab-tdep" / "verify_lane.py")],
         [sys.executable, str(REPO / "scripts" / "lab-tdep" / "test_onepager.py")],
+        [sys.executable, str(REPO / "scripts" / "lab-field" / "test_field.py")],
+        [sys.executable, str(REPO / "scripts" / "lab-field" / "run_field_lab.py")],
     ]
     results = []
     ok = True
