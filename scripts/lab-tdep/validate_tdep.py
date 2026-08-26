@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Valida TDEP 0.1 (face + flight). Sem HTTP de produto, sem ACE."""
+"""Valida TDEP 0.1 (6 objectos). Sem HTTP de produto, sem ACE, sem Player-AD."""
 
 from __future__ import annotations
 
@@ -22,30 +22,56 @@ def load_validator(name: str) -> Draft202012Validator:
 
 def main() -> int:
     failed = False
-    face_v = load_validator("face.schema.json")
-    flight_v = load_validator("flight.schema.json")
+    validators = {
+        "partner": load_validator("partner.schema.json"),
+        "face": load_validator("face.schema.json"),
+        "availability": load_validator("availability.schema.json"),
+        "creative": load_validator("creative.schema.json"),
+        "flight": load_validator("flight.schema.json"),
+        "proof": load_validator("proof.schema.json"),
+    }
 
-    checks = [
-        ("01-face.json", face_v, True),
-        ("02-flight-offered.json", flight_v, True),
-        ("reject-format-mismatch.json", flight_v, True),
+    checks: list[tuple[str, str, bool]] = [
+        ("01-face.json", "face", True),
+        ("02-flight-offered.json", "flight", True),
+        ("03-partner-seller.json", "partner", True),
+        ("04-partner-buyer.json", "partner", True),
+        ("05-availability.json", "availability", True),
+        ("06-creative.json", "creative", True),
+        ("07-proof.json", "proof", True),
+        ("11-creative-dual.json", "creative", True),
+        ("12-flight-led-fill.json", "flight", True),
+        ("08-partner-led.json", "partner", True),
+        ("09-face-led.json", "face", True),
+        ("10-availability-led.json", "availability", True),
+        ("reject-format-mismatch.json", "flight", True),
+        ("reject-category-blocked.json", "flight", True),
+        ("reject-creative-landscape-only.json", "creative", True),
     ]
-    for name, validator, must_pass_schema in checks:
+    for name, kind, must_pass_schema in checks:
         payload = json.loads((EX / name).read_text(encoding="utf-8"))
-        errors = list(validator.iter_errors(payload))
+        errors = list(validators[kind].iter_errors(payload))
         ok = len(errors) == 0
         if ok != must_pass_schema:
-            print(f"FAIL schema {name}")
+            print(f"FAIL schema {name}: {[e.message for e in errors][:3]}")
             failed = True
         else:
             print(f"PASS schema {name}")
 
     leak = json.loads((EX / "01-face.json").read_text(encoding="utf-8"))
     leak["audience"] = {"count": 3}
-    if list(face_v.iter_errors(leak)):
+    if list(validators["face"].iter_errors(leak)):
         print("PASS face recusa audience")
     else:
         print("FAIL face deixou passar audience")
+        failed = True
+
+    money = json.loads((EX / "02-flight-offered.json").read_text(encoding="utf-8"))
+    money["cpm"] = 12.5
+    if list(validators["flight"].iter_errors(money)):
+        print("PASS flight recusa cpm")
+    else:
+        print("FAIL flight deixou passar cpm")
         failed = True
 
     rejected = json.loads((EX / "reject-format-mismatch.json").read_text(encoding="utf-8"))

@@ -10,7 +10,7 @@ TDEP quer partilhar campanha e inventário *entre empresas*. ACE descreve o ambi
 
 ## Decisão
 
-1. TDEP 0.1 = Partner / Face / Flight / Proof (lab: Face + Flight neste lote).
+1. TDEP 0.1 = Partner / Face / Availability / Creative / Flight / Proof (lab JSON; sem HTTP de produto).
 2. **Proibido** no JSON TDEP: `audience`, `ace`, `person_id`, `mood`.
 3. Sem endpoints HTTP de produto neste lote (`/tdep/v1/...` fica para depois).
 4. Kill-switch e prioridade local ficam no CMS vendedor.
@@ -18,9 +18,9 @@ TDEP quer partilhar campanha e inventário *entre empresas*. ACE descreve o ambi
 
 ## Consequências
 
-- Lab em `docs/lab-tdep/` + `scripts/lab-tdep/validate_tdep.py`.
-- Recusa documentada: `FORMAT_MISMATCH`, `NO_CAPACITY`, `POLICY_AUDIO`, `CATEGORY_BLOCKED`.
-- Player-AD e Direct não mudam.
+- Lab em `docs/lab-tdep/` + `scripts/lab-tdep/` (`tdep_policy`, `tdep_nodes`, `led_cms`, `tdep_lane`).
+- Recusa documentada: `FORMAT_MISMATCH`, `NO_CAPACITY`, `POLICY_AUDIO`, `CATEGORY_BLOCKED`, `RIGHTS_REVOKED`, `KILL_SWITCH`, `NOT_CEDIBLE`, `AUDIENCE_FORBIDDEN`, `NO_HANDSHAKE`, `TOTEMNET_OFF`.
+- Player-AD não muda. TotemNet default off; opt-in por face e accordion Direct ([lab-tdep/UI-0.1.md](../lab-tdep/UI-0.1.md)). CMS LED não importa o motor TotemDigital. Lane no Dispatcher: local > fill. Nota comercial: [lab-tdep/ONE-PAGER-PARCEIRO-0.1.md](../lab-tdep/ONE-PAGER-PARCEIRO-0.1.md).
 
 ## Alternativas rejeitadas
 

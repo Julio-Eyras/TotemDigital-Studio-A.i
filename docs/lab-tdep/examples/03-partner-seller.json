@@ -1,0 +1,8 @@
+{
+  "schema": "tdep/0.1",
+  "partner_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  "name": "TotemDigital Lab Seller",
+  "roles": ["seller"],
+  "handshake": "hmac",
+  "default_off": true
+}

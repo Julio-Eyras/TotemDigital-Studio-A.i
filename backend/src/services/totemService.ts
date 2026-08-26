@@ -27,6 +27,7 @@ import {
   validateDisplayScheduleInput,
 } from '../utils/displaySchedule';
 import { getRemoteCommandService } from './remoteCommandService';
+import { mergeTdepFillCapabilities } from './lab/tdepDispatchLane';
 
 function normalizeStockText(value: unknown): string {
   return String(value || '')
@@ -82,6 +83,8 @@ export interface UpdateTotemRequest {
   active?: boolean;
   /** Merge parcial em totems.player_settings (ex.: { displaySchedule: {...} }). */
   playerSettings?: Record<string, unknown>;
+  /** Lab TDEP: merge em capabilities (tdep_fill_enabled). Default off. */
+  tdepFill?: { enabled?: boolean; killSwitch?: boolean; capSharePct?: number };
 }
 
 export interface TotemResponse {
@@ -115,6 +118,8 @@ export interface TotemResponse {
   campaignCount?: number;
   playlistCount?: number;
   uptime?: number;
+  playerSettings?: Record<string, unknown>;
+  capabilities?: Record<string, unknown> | string | null;
 }
 
 export interface TotemStats {
@@ -366,6 +371,7 @@ export class TotemService {
           t.is_active as active,
           t.is_active as is_active,
           t.player_settings as "playerSettings",
+          t.capabilities as "capabilities",
           t.now_playing as "nowPlaying",
           NULL as current_playlist_id,
           t.created_at as createdAt,
@@ -558,6 +564,7 @@ export class TotemService {
           t.is_active as active,
           t.is_active as is_active,
           t.player_settings as "playerSettings",
+          t.capabilities as "capabilities",
           t.now_playing as "nowPlaying",
           NULL as current_playlist_id,
           t.created_at as createdAt,
@@ -1129,6 +1136,16 @@ export class TotemService {
         }
         updates.push(`player_settings = $${paramIndex++}::jsonb`);
         params.push(JSON.stringify(nextSettings));
+      }
+
+      if (data.tdepFill !== undefined && data.tdepFill !== null) {
+        if (typeof data.tdepFill !== 'object' || Array.isArray(data.tdepFill)) {
+          throw new Error('tdepFill deve ser um objeto');
+        }
+        const existingCaps = (existingTotem as TotemResponse).capabilities;
+        const nextCaps = mergeTdepFillCapabilities(existingCaps, data.tdepFill);
+        updates.push(`capabilities = $${paramIndex++}::jsonb`);
+        params.push(JSON.stringify(nextCaps));
       }
 
       if (data.ipAddress !== undefined) {

@@ -1,0 +1,11 @@
+{
+  "schema": "tdep/0.1",
+  "face_id": "66666666-6666-4666-8666-666666666666",
+  "owner_partner_id": "77777777-7777-4777-8777-777777777777",
+  "orientation": "landscape",
+  "pixel_w": 1920,
+  "pixel_h": 1080,
+  "supported_mime": ["video/mp4", "image/jpeg"],
+  "audio": false,
+  "venue_category": "mall-led"
+}

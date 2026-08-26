@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Box,
   Button,
   Checkbox,
@@ -19,6 +22,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import RotateRightIcon from '@mui/icons-material/RotateRight';
 import RotateLeftIcon from '@mui/icons-material/RotateLeft';
 import ScreenRotationIcon from '@mui/icons-material/ScreenRotation';
@@ -37,6 +41,7 @@ import {
   readPollAdaptiveFromTotem,
   readScheduleFromTotem,
 } from '../../utils/totemDisplaySchedule';
+import { DEFAULT_FILL, readTdepFillFromTotem, tdepFillPayload, TdepFillForm } from '../../utils/totemTdepFill';
 
 export interface TotemEditDialogProps {
   open: boolean;
@@ -165,6 +170,7 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
   const [wifiOpenNetwork, setWifiOpenNetwork] = useState(false);
   const [wifiBusy, setWifiBusy] = useState(false);
   const [wifiMessage, setWifiMessage] = useState<string | null>(null);
+  const [tdepFill, setTdepFill] = useState<TdepFillForm>(DEFAULT_FILL);
   /** Após o 1º load, o poll só atualiza relógio — não apaga edições locais de horário. */
   const formHydratedRef = useRef(false);
 
@@ -184,6 +190,7 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
     setSchedule(readScheduleFromTotem(totem));
     setPollAdaptive(readPollAdaptiveFromTotem(totem));
     setPlayerAd(readPlayerAdFromTotem(totem));
+    setTdepFill(readTdepFillFromTotem(totem));
     setDeviceClock(readDeviceClockFromTotem(totem));
     setLastHeartbeat(
       totem.lastHeartbeat
@@ -214,6 +221,7 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
           setSchedule(readScheduleFromTotem(full as any));
           setPollAdaptive(readPollAdaptiveFromTotem(full as any));
           setPlayerAd(readPlayerAdFromTotem(full as any));
+          setTdepFill(readTdepFillFromTotem(full as any));
           formHydratedRef.current = true;
         }
         setDeviceClock(readDeviceClockFromTotem(full as any));
@@ -361,6 +369,7 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
       if (uin) payload.uin = uin;
       if (form.localId) payload.localId = form.localId;
       if (playerAd.deviceId.trim()) payload.deviceId = playerAd.deviceId.trim().toUpperCase();
+      payload.tdepFill = tdepFillPayload(tdepFill);
 
       await totemApi.update(totemId, payload);
       onSaved();
@@ -928,6 +937,41 @@ const TotemEditDialog: React.FC<TotemEditDialogProps> = ({ open, totem, onClose,
             </Typography>
           )}
         </Box>
+
+        <Accordion
+          defaultExpanded={false}
+          disableGutters
+          elevation={0}
+          sx={{ mt: 3, border: '1px solid', borderColor: 'divider' }}
+        >
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography variant="subtitle2">Laboratório — ceder ar ocioso</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              TotemNet lab. Default desligado. O cardápio local continua a ganhar. Não entra no pitch de
+              15 min. Máximo 10% do ar.
+            </Typography>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={tdepFill.enabled}
+                  onChange={(e) => setTdepFill((prev) => ({ ...prev, enabled: e.target.checked }))}
+                />
+              }
+              label="Ceder até 10% do ar ocioso a parceiro"
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={tdepFill.killSwitch}
+                  onChange={(e) => setTdepFill((prev) => ({ ...prev, killSwitch: e.target.checked }))}
+                />
+              }
+              label="Cortar parceiro agora (kill-switch)"
+            />
+          </AccordionDetails>
+        </Accordion>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={loading}>

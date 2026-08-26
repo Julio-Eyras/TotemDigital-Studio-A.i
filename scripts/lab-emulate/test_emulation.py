@@ -84,6 +84,36 @@ def main() -> int:
         fail("tdep audience")
     print("PASS tdep partner mock")
 
+    sys.path.insert(0, str(REPO / "scripts" / "lab-tdep"))
+    from tdep_policy import seller_decide  # noqa: E402
+
+    flight = json.loads((REPO / "docs" / "lab-tdep" / "examples" / "02-flight-offered.json").read_text(encoding="utf-8"))
+    availability = json.loads((REPO / "docs" / "lab-tdep" / "examples" / "05-availability.json").read_text(encoding="utf-8"))
+    creative = json.loads((REPO / "docs" / "lab-tdep" / "examples" / "06-creative.json").read_text(encoding="utf-8"))
+    landscape = json.loads(
+        (REPO / "docs" / "lab-tdep" / "examples" / "reject-creative-landscape-only.json").read_text(encoding="utf-8")
+    )
+    if not seller_decide(face, creative, flight, availability)["accepted"]:
+        fail("tdep fill")
+    if seller_decide(face, landscape, flight, availability)["code"] != "FORMAT_MISMATCH":
+        fail("tdep variant")
+    print("PASS tdep seller policy")
+
+    from tdep_lane import apply_tdep_lane  # noqa: E402
+
+    lane = apply_tdep_lane(
+        [
+            {"id": "direct-local", "weight": 100, "lane": "local"},
+            {"id": "tdep-fill", "weight": 900, "lane": "tdep_fill"},
+            {"id": "idle", "weight": 1, "lane": "idle"},
+        ],
+        enabled=True,
+        flight_accepted=True,
+    )
+    if lane["winner_lane"] != "local":
+        fail(f"tdep lane {lane}")
+    print("PASS tdep dispatcher lane: local > fill")
+
     closed = {
         "presence": True,
         "count": 1,

@@ -649,6 +649,7 @@ export interface Player {
   nowPlaying?: PlayerNowPlaying;
   now_playing?: PlayerNowPlaying;
   runtime?: PlayerNowPlaying;
+  capabilities?: Record<string, unknown> | string | null;
 }
 
 export interface PlayerNowPlaying {
@@ -726,6 +727,8 @@ export interface UpdatePlayerRequest {
   isActive?: boolean;
   /** Merge parcial em totems.player_settings (ex.: displaySchedule). */
   playerSettings?: Record<string, unknown>;
+  /** Lab TDEP: ceder ar ocioso (default off). */
+  tdepFill?: { enabled?: boolean; killSwitch?: boolean; capSharePct?: number };
 }
 
 export interface PlayerListResponse {

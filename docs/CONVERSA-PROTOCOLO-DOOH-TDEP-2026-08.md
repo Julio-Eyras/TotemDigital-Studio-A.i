@@ -330,11 +330,12 @@ Valor imediato para um dono Direct: telas ligadas muitas horas com ar ocioso pas
 
 ## 15. Caminho de maturação (lab, sem código agora)
 
-1. **Whitepaper TDEP 0.1** — 6 objectos + matriz de prioridade + ~8 endpoints + códigos de recusa.
-2. **Dois nós vossos** — prod ↔ DEV (ou duas orgs fictícias). Um Flight + um Proof. Zero UI nova no Direct.
-3. **Opt-in conceptual Direct** — “ceder até 10% do ar”, default off (pode ser mock).
-4. **Um parceiro externo** — mesmo um script a fingir CMS LED. Segunda implementação = o standard começou a existir.
-5. **Só então:** lane no dispatcher + UI. Até lá, não tocar em `main` operacional.
+1. **Whitepaper TDEP 0.1 (feito neste clone)** — 6 objectos + matriz de prioridade + ~8 endpoints + códigos de recusa.
+2. **Dois nós vossos (feito neste clone)** — prod ↔ DEV in-memory. Um Flight fill + um Proof. Zero UI nova no Direct. TotemNet default off; opt-in por face.
+3. **Opt-in conceptual Direct (feito neste clone)** — “ceder até 10% do ar”, default off (`enable_totemnet`).
+4. **Um parceiro externo (feito neste clone)** — script CMS LED (`led_cms.py`). Segunda implementação = o standard começou a existir em lab.
+5. **Lane no Dispatcher (feito neste clone)** — `tdep_lane.py` / `tdepDispatchLane.ts`. Local > fill. Default off. UI: [lab-tdep/UI-0.1.md](./lab-tdep/UI-0.1.md).
+6. **One-pager comercial (feito neste clone)** — [lab-tdep/ONE-PAGER-PARCEIRO-0.1.md](./lab-tdep/ONE-PAGER-PARCEIRO-0.1.md). Para um CMS LED/shopping. Fora do pitch de 15 min.
 
 ---
 
@@ -351,7 +352,9 @@ As 500 totens + 200 LEDs só se encontram se:
 - o proof voltar **assinado**;
 - cada CMS continuar a mandar nos **seus** dispositivos.
 
-Próximo passo sugerido em papel (ainda sem código): **TDEP 0.1** (2–4 páginas + exemplos JSON dos 6 objectos + endpoints + códigos de recusa) **ou** um one-pager só comercial para um parceiro LED/shopping.
+**TDEP 0.1 em lab (feito neste clone):** [lab-tdep/TDEP-0.1.md](./lab-tdep/TDEP-0.1.md) — 6 objectos JSON + recusas. Dois nós: [lab-tdep/NODES-0.1.md](./lab-tdep/NODES-0.1.md). CMS LED: [lab-tdep/LED-CMS-0.1.md](./lab-tdep/LED-CMS-0.1.md). Lane: [lab-tdep/LANE-0.1.md](./lab-tdep/LANE-0.1.md). UI Direct (accordion, default off): [lab-tdep/UI-0.1.md](./lab-tdep/UI-0.1.md). One-pager parceiro: [lab-tdep/ONE-PAGER-PARCEIRO-0.1.md](./lab-tdep/ONE-PAGER-PARCEIRO-0.1.md). Sem `/tdep/v1` de produto.
+
+Próximo (se avançar): SQL ACE / NTP+SSID em hardware. Direct default off. Pitch de 15 min não menciona TotemNet.
 
 Documento irmão (pixels e cue *dentro do sítio*, não campanha entre CMS): [PLAYER-AD-MAESTRO-CUE-VS-MATRIZ-2026-08.md](./PLAYER-AD-MAESTRO-CUE-VS-MATRIZ-2026-08.md).
 

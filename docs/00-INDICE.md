@@ -306,12 +306,18 @@ SKU A: relógio + `play @ t0`. **Não** altera o Player-AD neste lote. SKU B (ma
 
 ## 6d. Lab TDEP / TotemNet
 
-Federação **entre CMS**. Sem `audience.context`. Sem HTTP de produto neste lote.
+Federação **entre CMS**. Sem `audience.context`. Sem `/tdep/v1` de produto. Lab HTTP: `/api/lab/tdep` + accordion Direct ([lab-tdep/UI-0.1.md](./lab-tdep/UI-0.1.md)).
 
 | Documento | Explicação |
 |-----------|------------|
 | [CONVERSA-PROTOCOLO-DOOH-TDEP-2026-08.md](./CONVERSA-PROTOCOLO-DOOH-TDEP-2026-08.md) | Debate e plano TDEP. |
-| [lab-tdep/README.md](./lab-tdep/README.md) | Schema Face + Flight `tdep/0.1`. |
+| [lab-tdep/README.md](./lab-tdep/README.md) | Schema dos 6 objectos `tdep/0.1`. |
+| [lab-tdep/TDEP-0.1.md](./lab-tdep/TDEP-0.1.md) | Contrato curto: variantes, recusas, endpoints em papel. |
+| [lab-tdep/NODES-0.1.md](./lab-tdep/NODES-0.1.md) | Dois nós fictícios (prod ↔ DEV): Flight fill + Proof. TotemNet default off. |
+| [lab-tdep/LED-CMS-0.1.md](./lab-tdep/LED-CMS-0.1.md) | Segunda implementação: CMS LED fictício. Mesmo schema, outro motor. |
+| [lab-tdep/LANE-0.1.md](./lab-tdep/LANE-0.1.md) | Lane TDEP no Dispatcher de lab. Local ganha. |
+| [lab-tdep/UI-0.1.md](./lab-tdep/UI-0.1.md) | Accordion Direct: ceder até 10% do ar ocioso. Default off. |
+| [lab-tdep/ONE-PAGER-PARCEIRO-0.1.md](./lab-tdep/ONE-PAGER-PARCEIRO-0.1.md) | Nota comercial para parceiro LED/CMS. Fora do pitch de 15 min. |
 | [adr/0008-tdep-nao-transporta-audiencia.md](./adr/0008-tdep-nao-transporta-audiencia.md) | ADR: TDEP ≠ ACE. |
 
 ---

@@ -274,6 +274,12 @@ Ordem. Cada passo espera decisão explícita antes de código.
 13. **Opt-in verificado em lab (feito, sem Postgres)** — `python scripts/lab-ace/verify_optin.py`. Default off. Seeds/v6/instalador não ligam ACE. SQL humano: `scripts/lab-ace/optin-totem-lab.sql`.
 14. **NTP Maestro em 2 boxes virtuais (feito, sem TV box)** — `python scripts/lab-maestro/test_ntp.py`. `|drift|<=200` e `ntp_ok`; a medição ganha ao JSON. Player-AD intocado.
 15. **SSID de players (feito, sem AP)** — `python scripts/lab-maestro/test_ssid.py`. Cue recusa `SSID_STORE` / `SSID_MIXED` / `SSID_BAND` / `SSID_SHARED`. Pitch 15 min não vende isto.
+16. **TDEP 0.1 seis objectos (feito, sem HTTP)** — Partner / Face / Availability / Creative / Flight / Proof. Seller recusa `FORMAT_MISMATCH` / `KILL_SWITCH` / `NO_CAPACITY`. Sem dinheiro no Flight.
+17. **Dois nós TDEP (feito, sem CMS reais)** — `python scripts/lab-tdep/test_nodes.py`. Prod seller ↔ DEV buyer. TotemNet default off; opt-in por face (10%). Fill + Proof. Pitch 15 min não vende.
+18. **CMS LED segunda implementação (feito)** — `python scripts/lab-tdep/test_led_cms.py`. Motor próprio, JSON `tdep/0.1`. Fill nos dois sentidos. Sem Player-AD.
+19. **Lane TDEP no Dispatcher (feito)** — `python scripts/lab-tdep/test_lane.py`. Local > fill > idle. `tdep_fill_enabled` default off. Player-AD intocado.
+20. **UI Direct ceder ar ocioso (feito, lab)** — accordion colapsado em `TotemEditDialog`. `PUT tdepFill` + `GET/PATCH /api/lab/tdep/fill`. Default off. Pitch 15 min não menciona TotemNet.
+21. **One-pager comercial parceiro TDEP (feito)** — [lab-tdep/ONE-PAGER-PARCEIRO-0.1.md](./lab-tdep/ONE-PAGER-PARCEIRO-0.1.md). Telas do parceiro; cap 10%; kill-switch; sem factura no Flight; fora do pitch de 15 min.
 
 Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anónimos — sem `tag_id`.
 
@@ -310,5 +316,11 @@ Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anó
 | Opt-in verificado (sem Postgres) | `python scripts/lab-ace/verify_optin.py` · SQL manual `scripts/lab-ace/optin-totem-lab.sql` |
 | NTP Maestro (2 boxes virtuais) | `python scripts/lab-maestro/test_ntp.py` · [lab-maestro/NTP-0.1.md](./lab-maestro/NTP-0.1.md) |
 | SSID de players (sem AP) | `python scripts/lab-maestro/test_ssid.py` · [lab-maestro/SSID-0.1.md](./lab-maestro/SSID-0.1.md) |
+| TDEP 6 objectos (sem HTTP) | `python scripts/lab-tdep/test_tdep.py` · [lab-tdep/TDEP-0.1.md](./lab-tdep/TDEP-0.1.md) |
+| Dois nós TDEP (prod ↔ DEV) | `python scripts/lab-tdep/test_nodes.py` · [lab-tdep/NODES-0.1.md](./lab-tdep/NODES-0.1.md) |
+| CMS LED (2.ª implementação) | `python scripts/lab-tdep/test_led_cms.py` · [lab-tdep/LED-CMS-0.1.md](./lab-tdep/LED-CMS-0.1.md) |
+| Lane TDEP no Dispatcher | `python scripts/lab-tdep/test_lane.py` · [lab-tdep/LANE-0.1.md](./lab-tdep/LANE-0.1.md) |
+| UI TDEP (ceder ar ocioso) | accordion `TotemEditDialog` · [lab-tdep/UI-0.1.md](./lab-tdep/UI-0.1.md) |
+| One-pager parceiro TDEP | [lab-tdep/ONE-PAGER-PARCEIRO-0.1.md](./lab-tdep/ONE-PAGER-PARCEIRO-0.1.md) |
 
-**Próximo (se avançar):** SQL ACE à mão num totem **se** existir Postgres; e/ou repetir NTP + SSID em 2 TV boxes reais no AP de players. Player-AD, face, SKU B e CEC continuam fora. Direct default off.
+**Próximo (se avançar):** SQL ACE / NTP+SSID em hardware. Player-AD, face, SKU B, CEC e `/tdep/v1` de produto continuam fora. Direct default off.

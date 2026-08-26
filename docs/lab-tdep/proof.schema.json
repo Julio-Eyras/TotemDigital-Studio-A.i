@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://totemdigital.app.br/schemas/tdep/0.1/proof.json",
+  "title": "TDEP 0.1 Proof",
+  "description": "Exibição assinada pelo seller. Sem audiência. Lab TotemDigital-Studio-A.i.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "proof_id",
+    "face_id",
+    "creative_id",
+    "flight_id",
+    "played_at",
+    "duration_ms",
+    "player_hash",
+    "seller_sig"
+  ],
+  "properties": {
+    "schema": { "type": "string", "const": "tdep/0.1" },
+    "proof_id": { "type": "string", "format": "uuid" },
+    "face_id": { "type": "string", "format": "uuid" },
+    "creative_id": { "type": "string", "format": "uuid" },
+    "flight_id": { "type": "string", "format": "uuid" },
+    "played_at": { "type": "string", "format": "date-time" },
+    "duration_ms": { "type": "integer", "minimum": 1000, "maximum": 600000 },
+    "player_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "seller_sig": { "type": "string", "minLength": 16, "maxLength": 256 }
+  },
+  "not": {
+    "anyOf": [
+      { "required": ["audience"] },
+      { "required": ["person_id"] },
+      { "required": ["ace"] },
+      { "required": ["mood"] }
+    ]
+  }
+}

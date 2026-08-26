@@ -126,17 +126,64 @@ def run_maestro_scenario() -> dict:
 
 def run_tdep_scenario() -> dict:
     examples = REPO / "docs" / "lab-tdep" / "examples"
+    sys.path.insert(0, str(REPO / "scripts" / "lab-tdep"))
+    from tdep_policy import seller_decide  # noqa: E402
+    from tdep_lane import apply_tdep_lane  # noqa: E402
+    from tdep_nodes import (  # noqa: E402
+        enable_totemnet,
+        exchange_fill,
+        handshake,
+        prod_seller,
+        dev_buyer,
+    )
+    from led_cms import LedCms  # noqa: E402
+
     face = load(examples / "01-face.json")
     flight = load(examples / "02-flight-offered.json")
+    availability = load(examples / "05-availability.json")
+    creative = load(examples / "06-creative.json")
+    landscape = load(examples / "reject-creative-landscape-only.json")
     mismatch = load(examples / "reject-format-mismatch.json")
     leak = dict(face)
     leak["audience"] = {"count": 3}
+    policy_ok = seller_decide(face, creative, flight, availability)
+    policy_mismatch = seller_decide(face, landscape, flight, availability)
+    policy_kill = seller_decide(face, creative, flight, availability, kill_switch=True)
+    seller = prod_seller()
+    buyer = dev_buyer()
+    hs = handshake(seller, buyer)
+    off_nodes = exchange_fill(seller, buyer, handshake_ok=True)
+    enable_totemnet(seller, face["face_id"], cap_share_pct=10)
+    on_nodes = exchange_fill(seller, buyer, handshake_ok=True)
+    led = LedCms()
+    led.enable_panel()
+    dual = load(examples / "11-creative-dual.json")
+    flight_led = load(examples / "12-flight-led-fill.json")
+    led_ok = led.decide(flight_led, dual, handshake_ok=True)
     checks = {
         "face_ok": mock_tdep_partner_accepts(face)["accepted"] is True,
         "flight_ok": mock_tdep_partner_accepts(flight)["accepted"] is True,
         "mismatch": mock_tdep_partner_accepts(mismatch)["code"] == "FORMAT_MISMATCH",
         "audience_blocked": mock_tdep_partner_accepts(leak)["code"] == "AUDIENCE_FORBIDDEN",
         "no_ace_on_face": "ace" not in face and "audience" not in face,
+        "six_objects_fill": policy_ok["accepted"] is True,
+        "variant_mismatch": policy_mismatch["code"] == "FORMAT_MISMATCH",
+        "kill_switch": policy_kill["code"] == "KILL_SWITCH",
+        "no_cpm": "cpm" not in flight,
+        "nodes_handshake": hs["ok"] is True,
+        "nodes_default_off": off_nodes["code"] == "TOTEMNET_OFF",
+        "nodes_fill_proof": on_nodes["played"] is True and on_nodes.get("proof") is not None,
+        "led_second_impl": led_ok["accepted"] is True and led_ok.get("proof") is not None,
+        "lane_local_wins": apply_tdep_lane(
+            [
+                {"id": "direct-local", "weight": 100, "lane": "local"},
+                {"id": "tdep-fill", "weight": 900, "lane": "tdep_fill"},
+                {"id": "idle", "weight": 1, "lane": "idle"},
+            ],
+            enabled=True,
+            flight_accepted=True,
+        )["winner_lane"]
+        == "local",
     }
     return {"checks": checks, "ok": all(checks.values())}
 
@@ -150,6 +197,16 @@ def run_validators() -> dict:
         [sys.executable, str(REPO / "scripts" / "lab-maestro" / "test_ssid.py")],
         [sys.executable, str(REPO / "scripts" / "lab-maestro" / "run_ssid_lab.py")],
         [sys.executable, str(REPO / "scripts" / "lab-tdep" / "validate_tdep.py")],
+        [sys.executable, str(REPO / "scripts" / "lab-tdep" / "test_tdep.py")],
+        [sys.executable, str(REPO / "scripts" / "lab-tdep" / "run_tdep_lab.py")],
+        [sys.executable, str(REPO / "scripts" / "lab-tdep" / "test_nodes.py")],
+        [sys.executable, str(REPO / "scripts" / "lab-tdep" / "run_nodes_lab.py")],
+        [sys.executable, str(REPO / "scripts" / "lab-tdep" / "test_led_cms.py")],
+        [sys.executable, str(REPO / "scripts" / "lab-tdep" / "run_led_lab.py")],
+        [sys.executable, str(REPO / "scripts" / "lab-tdep" / "test_lane.py")],
+        [sys.executable, str(REPO / "scripts" / "lab-tdep" / "run_lane_lab.py")],
+        [sys.executable, str(REPO / "scripts" / "lab-tdep" / "verify_lane.py")],
+        [sys.executable, str(REPO / "scripts" / "lab-tdep" / "test_onepager.py")],
     ]
     results = []
     ok = True

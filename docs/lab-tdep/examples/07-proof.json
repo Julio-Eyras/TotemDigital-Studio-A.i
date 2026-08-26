@@ -1,0 +1,11 @@
+{
+  "schema": "tdep/0.1",
+  "proof_id": "22222222-2222-4222-8222-222222222222",
+  "face_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "creative_id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+  "flight_id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+  "played_at": "2026-08-23T12:00:00.000Z",
+  "duration_ms": 15000,
+  "player_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "seller_sig": "lab-hmac-seller-sig-not-product"
+}

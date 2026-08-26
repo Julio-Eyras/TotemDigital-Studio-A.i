@@ -1,0 +1,8 @@
+{
+  "schema": "tdep/0.1",
+  "partner_id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+  "name": "LED Partner Lab Buyer",
+  "roles": ["buyer"],
+  "handshake": "hmac",
+  "default_off": true
+}

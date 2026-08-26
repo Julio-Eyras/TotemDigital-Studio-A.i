@@ -1,0 +1,8 @@
+{
+  "schema": "tdep/0.1",
+  "partner_id": "77777777-7777-4777-8777-777777777777",
+  "name": "LED Mall Lab CMS",
+  "roles": ["seller", "buyer"],
+  "handshake": "hmac",
+  "default_off": true
+}

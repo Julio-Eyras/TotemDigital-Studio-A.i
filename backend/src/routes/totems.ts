@@ -755,6 +755,7 @@ router.put('/:id',
   body('orientation').optional({ nullable: true }).isString().isIn(['portrait', 'landscape']),
   body('isActive').optional({ nullable: true }).isBoolean(),
   body('playerSettings').optional({ nullable: true }).isObject(),
+  body('tdepFill').optional({ nullable: true }).isObject(),
   validateRequest,
   async (req: AuthenticatedRequest, res: Response) => {
     try {

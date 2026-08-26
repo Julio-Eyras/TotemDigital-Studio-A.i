@@ -1,0 +1,14 @@
+{
+  "schema": "tdep/0.1",
+  "flight_id": "cececece-cece-4cec-8cec-cececececece",
+  "buyer_partner_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  "seller_partner_id": "77777777-7777-4777-8777-777777777777",
+  "face_ids": ["66666666-6666-4666-8666-666666666666"],
+  "creative_ids": ["abababab-abab-4aba-8aba-abababababab"],
+  "priority": "fill",
+  "status": "offered",
+  "window": {
+    "from": "2026-08-23T08:00:00.000Z",
+    "until": "2026-08-23T22:00:00.000Z"
+  }
+}

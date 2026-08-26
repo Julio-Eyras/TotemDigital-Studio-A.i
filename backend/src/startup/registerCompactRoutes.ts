@@ -20,6 +20,7 @@ import installationModulesRoutes from '../routes/installationModules';
 import dashboardRoutes from '../routes/dashboard';
 import healthRoutes from '../routes/health';
 import labAceRoutes from '../routes/lab-ace';
+import labTdepRoutes from '../routes/lab-tdep';
 import alertsRoutes from '../routes/alerts';
 import logsRoutes from '../routes/logs';
 import playlistEngineRoutes from '../routes/playlist-engine';
@@ -120,6 +121,7 @@ export function registerCompactRoutes(app: Express): void {
   );
   app.use('/api/health', healthRoutes);
   app.use('/api/lab/ace', labAceRoutes);
+  app.use('/api/lab/tdep', labTdepRoutes);
 
   app.use('/api/billing', authMiddleware as any, requireModule('billing') as any, blockClientDataAccess as any, (_req, res, next) => {
     res.setHeader('X-Deprecated-Route', 'true');

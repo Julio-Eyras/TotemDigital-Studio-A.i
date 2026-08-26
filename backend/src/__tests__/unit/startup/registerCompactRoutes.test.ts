@@ -35,6 +35,7 @@ describe('registerCompactRoutes', () => {
         '/api/playlist-engine',
         '/api/health',
         '/api/lab/ace',
+        '/api/lab/tdep',
         '/api/billing',
         '/api/subscriber-billing',
         '/api/publisher-billing',
