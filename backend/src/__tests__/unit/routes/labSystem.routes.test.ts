@@ -232,4 +232,70 @@ describe('HTTP lab sistema (auth mock, sem Postgres nem TV box)', () => {
     expect(audio.body.tdep.code).toBe('POLICY_AUDIO');
     expect(audio.body.proof).toBeNull();
   });
+
+  it('POST /tick CATEGORY_BLOCKED e NOT_CEDIBLE', async () => {
+    const server = app();
+    const remnant = {
+      aceEnabled: false,
+      candidates: [{ id: 'fill-night', baseWeight: 10, commercialTier: 'remnant' }],
+    };
+    const blocked = await request(server)
+      .post('/api/lab/system/tick')
+      .send({
+        ace: remnant,
+        tdep: {
+          enabled: true,
+          flightAccepted: true,
+          partnerPayload: {
+            schema: 'tdep/0.1',
+            brand_categories: ['alcohol'],
+            blocked_categories: ['alcohol'],
+          },
+        },
+      });
+    expect(blocked.body.tdep.code).toBe('CATEGORY_BLOCKED');
+    expect(blocked.body.proof).toBeNull();
+
+    const notCedible = await request(server)
+      .post('/api/lab/system/tick')
+      .send({
+        ace: remnant,
+        tdep: { enabled: true, flightAccepted: true, partnerPayload: { schema: 'tdep/0.1', cedible: false } },
+      });
+    expect(notCedible.body.tdep.code).toBe('NOT_CEDIBLE');
+    expect(notCedible.body.proof).toBeNull();
+  });
+
+  it('POST /tick NO_HANDSHAKE e HANDSHAKE_REPLAY', async () => {
+    const server = app();
+    const remnant = {
+      aceEnabled: false,
+      candidates: [{ id: 'fill-night', baseWeight: 10, commercialTier: 'remnant' }],
+    };
+    const noHs = await request(server)
+      .post('/api/lab/system/tick')
+      .send({
+        ace: remnant,
+        tdep: {
+          enabled: true,
+          flightAccepted: true,
+          partnerPayload: { schema: 'tdep/0.1', handshake_ok: false },
+        },
+      });
+    expect(noHs.body.tdep.code).toBe('NO_HANDSHAKE');
+    expect(noHs.body.proof).toBeNull();
+
+    const replay = await request(server)
+      .post('/api/lab/system/tick')
+      .send({
+        ace: remnant,
+        tdep: {
+          enabled: true,
+          flightAccepted: true,
+          partnerPayload: { schema: 'tdep/0.1', handshake_ts: '2020-01-01T00:00:00.000Z' },
+        },
+      });
+    expect(replay.body.tdep.code).toBe('HANDSHAKE_REPLAY');
+    expect(replay.body.proof).toBeNull();
+  });
 });

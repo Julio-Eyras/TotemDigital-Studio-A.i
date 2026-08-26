@@ -186,5 +186,19 @@ describe('mocks Maestro + TDEP (sem Player-AD)', () => {
     expect(
       mockTdepPartnerAccepts({ schema: 'tdep/0.1', audio: true, face_audio: false }).code
     ).toBe('POLICY_AUDIO');
+    expect(
+      mockTdepPartnerAccepts({
+        schema: 'tdep/0.1',
+        brand_categories: ['alcohol'],
+        blocked_categories: ['alcohol'],
+      }).code
+    ).toBe('CATEGORY_BLOCKED');
+    expect(mockTdepPartnerAccepts({ schema: 'tdep/0.1', cedible: false }).code).toBe('NOT_CEDIBLE');
+    expect(mockTdepPartnerAccepts({ schema: 'tdep/0.1', handshake_ok: false }).code).toBe(
+      'NO_HANDSHAKE'
+    );
+    expect(
+      mockTdepPartnerAccepts({ schema: 'tdep/0.1', handshake_ts: '2020-01-01T00:00:00.000Z' }).code
+    ).toBe('HANDSHAKE_REPLAY');
   });
 });

@@ -44,6 +44,10 @@ def main() -> int:
         fail("labSystemTick.ts sem cenários STALE_CONTEXT / FORMAT_MISMATCH")
     if "low_confidence" not in payloads or "policy_audio" not in payloads:
         fail("labSystemTick.ts sem cenários LOW_CONFIDENCE / POLICY_AUDIO")
+    if "category_blocked" not in payloads or "not_cedible" not in payloads:
+        fail("labSystemTick.ts sem cenários CATEGORY_BLOCKED / NOT_CEDIBLE")
+    if "no_handshake" not in payloads or "handshake_replay" not in payloads:
+        fail("labSystemTick.ts sem cenários NO_HANDSHAKE / HANDSHAKE_REPLAY")
     print("PASS página LabSystem")
 
     palette = (

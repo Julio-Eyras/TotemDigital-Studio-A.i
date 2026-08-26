@@ -258,4 +258,68 @@ describe('ciclo de sistema lab (ACE + Maestro mock + TDEP mock)', () => {
     expect(audio.winnerLane).toBe('idle');
     expect(audio.proof).toBeNull();
   });
+
+  it('CATEGORY_BLOCKED e NOT_CEDIBLE: sem fill nem proof', () => {
+    const idleAce = {
+      aceEnabled: false as const,
+      candidates: [{ id: 'fill-night', baseWeight: 10, commercialTier: 'remnant' }],
+    };
+    const blocked = runLabSystemTick({
+      ace: idleAce,
+      tdep: {
+        enabled: true,
+        flightAccepted: true,
+        partnerPayload: {
+          schema: 'tdep/0.1',
+          brand_categories: ['alcohol'],
+          blocked_categories: ['alcohol'],
+        },
+      },
+    });
+    expect(blocked.tdep.code).toBe('CATEGORY_BLOCKED');
+    expect(blocked.winnerLane).toBe('idle');
+    expect(blocked.proof).toBeNull();
+
+    const notCedible = runLabSystemTick({
+      ace: idleAce,
+      tdep: {
+        enabled: true,
+        flightAccepted: true,
+        partnerPayload: { schema: 'tdep/0.1', cedible: false },
+      },
+    });
+    expect(notCedible.tdep.code).toBe('NOT_CEDIBLE');
+    expect(notCedible.winnerLane).toBe('idle');
+    expect(notCedible.proof).toBeNull();
+  });
+
+  it('NO_HANDSHAKE e HANDSHAKE_REPLAY: sem fill nem proof', () => {
+    const idleAce = {
+      aceEnabled: false as const,
+      candidates: [{ id: 'fill-night', baseWeight: 10, commercialTier: 'remnant' }],
+    };
+    const noHs = runLabSystemTick({
+      ace: idleAce,
+      tdep: {
+        enabled: true,
+        flightAccepted: true,
+        partnerPayload: { schema: 'tdep/0.1', handshake_ok: false },
+      },
+    });
+    expect(noHs.tdep.code).toBe('NO_HANDSHAKE');
+    expect(noHs.winnerLane).toBe('idle');
+    expect(noHs.proof).toBeNull();
+
+    const replay = runLabSystemTick({
+      ace: idleAce,
+      tdep: {
+        enabled: true,
+        flightAccepted: true,
+        partnerPayload: { schema: 'tdep/0.1', handshake_ts: '2020-01-01T00:00:00.000Z' },
+      },
+    });
+    expect(replay.tdep.code).toBe('HANDSHAKE_REPLAY');
+    expect(replay.winnerLane).toBe('idle');
+    expect(replay.proof).toBeNull();
+  });
 });

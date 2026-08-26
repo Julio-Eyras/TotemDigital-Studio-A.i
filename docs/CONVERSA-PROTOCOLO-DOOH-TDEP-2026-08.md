@@ -354,7 +354,7 @@ As 500 totens + 200 LEDs só se encontram se:
 
 **TDEP 0.1 em lab (feito neste clone):** [lab-tdep/TDEP-0.1.md](./lab-tdep/TDEP-0.1.md) — 6 objectos JSON + recusas. Dois nós: [lab-tdep/NODES-0.1.md](./lab-tdep/NODES-0.1.md). CMS LED: [lab-tdep/LED-CMS-0.1.md](./lab-tdep/LED-CMS-0.1.md). Lane: [lab-tdep/LANE-0.1.md](./lab-tdep/LANE-0.1.md). UI Direct (accordion, default off): [lab-tdep/UI-0.1.md](./lab-tdep/UI-0.1.md). One-pager parceiro: [lab-tdep/ONE-PAGER-PARCEIRO-0.1.md](./lab-tdep/ONE-PAGER-PARCEIRO-0.1.md). Ciclo mock: [lab-system/SYSTEM-0.1.md](./lab-system/SYSTEM-0.1.md). Consola: [lab-system/UI-0.1.md](./lab-system/UI-0.1.md). Sem `/tdep/v1` de produto.
 
-Próximo (se avançar): `CATEGORY_BLOCKED` / `NOT_CEDIBLE` no tick ou SQL ACE real. Direct default off. Pitch de 15 min não menciona TotemNet.
+Próximo (se avançar): SQL ACE real num totem de lab. Direct default off. Pitch de 15 min não menciona TotemNet.
 
 Documento irmão (pixels e cue *dentro do sítio*, não campanha entre CMS): [PLAYER-AD-MAESTRO-CUE-VS-MATRIZ-2026-08.md](./PLAYER-AD-MAESTRO-CUE-VS-MATRIZ-2026-08.md).
 

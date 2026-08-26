@@ -286,6 +286,8 @@ Ordem. Cada passo espera decisão explícita antes de código.
 25. **Opt-in ACE mock SQL no tick (feito)** — `GET/PATCH /api/lab/system/optin/:totemId` replica o merge JSONB em RAM. Tick lê o store. `IDENTITY_LEAK` recusa o hint. Sem `UPDATE` Postgres. Direct default off.
 26. **Recusas STALE_CONTEXT e FORMAT_MISMATCH no tick (feito)** — context velho (>3 s) não gera hint. Parceiro sem variante → `FORMAT_MISMATCH`, idle, sem proof. Pitch 15 min não menciona.
 27. **Recusas LOW_CONFIDENCE e POLICY_AUDIO no tick (feito)** — `confidence` < 0.50 sem hint. Variante com som em face muda → `POLICY_AUDIO`, idle, sem proof. Direct default off.
+28. **Recusas CATEGORY_BLOCKED e NOT_CEDIBLE no tick (feito)** — categoria vetada ou `cedible: false` recusa o fill. Idle, sem proof. Pitch 15 min não menciona.
+29. **Recusas NO_HANDSHAKE e HANDSHAKE_REPLAY no tick (feito)** — `handshake_ok: false` ou timestamp > 60 s recusa o fill. Idle, sem proof. Payload default do fill (sem estes campos) continua a aceitar. Pitch 15 min não menciona.
 
 Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anónimos — sem `tag_id`.
 
@@ -334,5 +336,7 @@ Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anó
 | Opt-in ACE no tick (mock SQL) | `GET/PATCH /api/lab/system/optin/:totemId` · [lab-ace/OPT-IN-0.1.md](./lab-ace/OPT-IN-0.1.md) |
 | Recusas no tick (stale / formato) | `STALE_CONTEXT` · `FORMAT_MISMATCH` · [lab-system/SYSTEM-0.1.md](./lab-system/SYSTEM-0.1.md) |
 | Recusas no tick (confiança / áudio) | `LOW_CONFIDENCE` · `POLICY_AUDIO` · [lab-system/SYSTEM-0.1.md](./lab-system/SYSTEM-0.1.md) |
+| Recusas no tick (categoria / cedible) | `CATEGORY_BLOCKED` · `NOT_CEDIBLE` · [lab-system/SYSTEM-0.1.md](./lab-system/SYSTEM-0.1.md) |
+| Recusas no tick (handshake) | `NO_HANDSHAKE` · `HANDSHAKE_REPLAY` · [lab-system/SYSTEM-0.1.md](./lab-system/SYSTEM-0.1.md) |
 
-**Próximo (se avançar):** `CATEGORY_BLOCKED` / `NOT_CEDIBLE` no tick **ou** SQL ACE real num totem de lab. Player-AD, face, SKU B, CEC, `/tdep/v1` de produto e TV box reais continuam fora. Direct default off.
+**Próximo (se avançar):** SQL ACE real num totem de lab (`optin-totem-lab.sql`). Player-AD, face, SKU B, CEC, `/tdep/v1` de produto e TV box reais continuam fora. Direct default off.

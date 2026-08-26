@@ -73,6 +73,23 @@ describe('labSystemTick payloads (lab UI)', () => {
     expect(audio.tdep?.partnerPayload?.face_audio).toBe(false);
   });
 
+  it('CATEGORY_BLOCKED e NOT_CEDIBLE no payload', () => {
+    const blocked = buildLabTickBody('category_blocked', 41);
+    expect(blocked.tdep?.partnerPayload?.brand_categories).toEqual(['alcohol']);
+    expect(blocked.tdep?.partnerPayload?.blocked_categories).toEqual(['alcohol']);
+
+    const notCedible = buildLabTickBody('not_cedible', 41);
+    expect(notCedible.tdep?.partnerPayload?.cedible).toBe(false);
+  });
+
+  it('NO_HANDSHAKE e HANDSHAKE_REPLAY no payload', () => {
+    const noHs = buildLabTickBody('no_handshake', 41);
+    expect(noHs.tdep?.partnerPayload?.handshake_ok).toBe(false);
+
+    const replay = buildLabTickBody('handshake_replay', 41);
+    expect(replay.tdep?.partnerPayload?.handshake_ts).toBe('2020-01-01T00:00:00.000Z');
+  });
+
   it('summarizeLabTick extrai proof e códigos', () => {
     const s = summarizeLabTick({
       winnerId: 'tdep-fill-mock',

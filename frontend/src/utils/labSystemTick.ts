@@ -14,7 +14,11 @@ export type LabTickScenarioId =
   | 'stale_context'
   | 'format_mismatch'
   | 'low_confidence'
-  | 'policy_audio';
+  | 'policy_audio'
+  | 'category_blocked'
+  | 'not_cedible'
+  | 'no_handshake'
+  | 'handshake_replay';
 
 export type LabTickAceBody = {
   aceEnabled?: boolean;
@@ -62,6 +66,10 @@ export const LAB_TICK_SCENARIOS: Array<{ id: LabTickScenarioId; label: string; h
   { id: 'format_mismatch', label: 'FORMAT_MISMATCH', hint: 'Parceiro recusa variante. Idle, sem proof.' },
   { id: 'low_confidence', label: 'LOW_CONFIDENCE', hint: 'confidence < 0.50. Sem hint. Ar de sempre.' },
   { id: 'policy_audio', label: 'POLICY_AUDIO', hint: 'Variante com som, face muda. Idle, sem proof.' },
+  { id: 'category_blocked', label: 'CATEGORY_BLOCKED', hint: 'Categoria vetada na face. Idle, sem proof.' },
+  { id: 'not_cedible', label: 'NOT_CEDIBLE', hint: 'Availability cedible false. Idle, sem proof.' },
+  { id: 'no_handshake', label: 'NO_HANDSHAKE', hint: 'handshake_ok false. Idle, sem proof.' },
+  { id: 'handshake_replay', label: 'HANDSHAKE_REPLAY', hint: 'Timestamp > 60 s. Idle, sem proof.' },
   { id: 'fill_idle', label: 'Fill no idle', hint: 'Sem cardápio local. Fill mock + proof HMAC.' },
   { id: 'guaranteed_idle', label: 'Guaranteed', hint: 'Guaranteed no idle + proof.' },
   { id: 'no_capacity', label: 'Cap 10%', hint: 'want 15% → NO_CAPACITY. Sem proof.' },
@@ -160,6 +168,50 @@ export function buildLabTickBody(id: LabTickScenarioId, totemId = 41): LabSystem
           enabled: true,
           flightAccepted: true,
           partnerPayload: { schema: 'tdep/0.1', audio: true, face_audio: false },
+        },
+      };
+    case 'category_blocked':
+      return {
+        totemId: tid,
+        ace: IDLE_ACE,
+        tdep: {
+          enabled: true,
+          flightAccepted: true,
+          partnerPayload: {
+            schema: 'tdep/0.1',
+            brand_categories: ['alcohol'],
+            blocked_categories: ['alcohol'],
+          },
+        },
+      };
+    case 'not_cedible':
+      return {
+        totemId: tid,
+        ace: IDLE_ACE,
+        tdep: {
+          enabled: true,
+          flightAccepted: true,
+          partnerPayload: { schema: 'tdep/0.1', cedible: false },
+        },
+      };
+    case 'no_handshake':
+      return {
+        totemId: tid,
+        ace: IDLE_ACE,
+        tdep: {
+          enabled: true,
+          flightAccepted: true,
+          partnerPayload: { schema: 'tdep/0.1', handshake_ok: false },
+        },
+      };
+    case 'handshake_replay':
+      return {
+        totemId: tid,
+        ace: IDLE_ACE,
+        tdep: {
+          enabled: true,
+          flightAccepted: true,
+          partnerPayload: { schema: 'tdep/0.1', handshake_ts: '2020-01-01T00:00:00.000Z' },
         },
       };
     case 'fill_idle':
