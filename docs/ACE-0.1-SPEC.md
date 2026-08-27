@@ -1,6 +1,7 @@
 # ACE 0.1 — Audience Context Engine
 
 **Tipo:** especificação de laboratório (papel) — **sem alteração de schema, player nem painel**  
+**Briefing para I.A. colaboradora:** [LAB-IA-COLABORADOR-0.1.md](./LAB-IA-COLABORADOR-0.1.md) (estado, invariantes, testes).  
 **Data:** 23 de agosto de 2026  
 **Repositório:** [Julio-Eyras/TotemDigital-Studio-A.i](https://github.com/Julio-Eyras/TotemDigital-Studio-A.i)  
 **Não é:** o produto operacional TotemDigital-Studio (`totemdigital.app.br`)  

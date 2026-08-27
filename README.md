@@ -3,7 +3,8 @@
 **Este repositório não é o produto operacional.**  
 Clone de laboratório para temas de A.I. / ACE. Produção continua em [TotemDigital-Studio](https://github.com/Julio-Eyras/TotemDigital-Studio) (`totemdigital.app.br`).
 
-Spec vigente do lab: [docs/ACE-0.1-SPEC.md](docs/ACE-0.1-SPEC.md).
+Spec vigente do lab: [docs/ACE-0.1-SPEC.md](docs/ACE-0.1-SPEC.md).  
+Briefing para outra I.A. (implementar, sugerir, testar): [docs/LAB-IA-COLABORADOR-0.1.md](docs/LAB-IA-COLABORADOR-0.1.md).
 
 ---
 
@@ -42,6 +43,7 @@ Um código, três modos de produto (nunca Direct e multi-agência ao mesmo tempo
 
 | Precisa de… | Abrir |
 |---|---|
+| **I.A. colaborar no lab (implementar / testar)** | [docs/LAB-IA-COLABORADOR-0.1.md](docs/LAB-IA-COLABORADOR-0.1.md) |
 | **Índice de toda a documentação** | [docs/00-INDICE.md](docs/00-INDICE.md) |
 | Usar o painel (primeira vez) | [docs/manuais/02-GUIA-PRIMEIRA-VEZ-UTILIZADOR.md](docs/manuais/02-GUIA-PRIMEIRA-VEZ-UTILIZADOR.md) |
 | Telas do painel (capturas + PDF) | [docs/manuais/telas/README.md](docs/manuais/telas/README.md) |
