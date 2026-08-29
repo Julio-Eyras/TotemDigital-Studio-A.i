@@ -70,7 +70,7 @@ Por baixo, há uma arquitetura madura (campanhas, playlists, contratos, billing,
 | **SmartSignage Pro** | Plataforma multi-tenant (admin + API + PostgreSQL + billing/contratos) — modos Lite/Pro |
 | **Player-AD** | Player Android nativo (Kotlin/ExoPlayer) para TV box / totem 24/7 — versão de campo **2.12 / 112** |
 | **Player-AD-Installer** | `Instala-Player-TotemDigital.apk` — instala o player + logos opcionais |
-| **player-web / Player-LXN / WOS** | Linhas alternativas de player (browser, Linux, webOS) |
+| **player-web / Player-Linux / Player-WOS** | Linhas alternativas de player (browser, Linux, webOS) |
 | **install-pendrive** | Kit de instalação de campo (APK, config, ADB, manuais) |
 | **totemdigital.app.br** | Produção operacional (`main`) |
 | **totemdigital.site / corporate-site** | Presença web e apresentações comerciais |

@@ -3,7 +3,7 @@
 **Ponto de entrada de toda a documentação.**  
 **Data:** 23 de agosto de 2026 · **Repo:** TotemDigital-Studio-A.i (lab A.I.) · **Branch:** `main`  
 **Produto operacional:** TotemDigital-Studio · https://totemdigital.app.br  
-**Baseline:** Front 2.1.22 · Back 2.1.16 · Player-AD 2.13 / 113  
+**Baseline:** Front 2.1.22 · Back 2.1.16 · Player-AD 2.15 / 115  
 **Autor:** Julio Cesar Eyras (J.C.E.) / Eyras Sistemas e Soluções  
 
 Há centenas de ficheiros históricos em `docs/` (análises, resumos de sessão). Este índice lista a **documentação vigente** com explicação e ligação. O arquivo histórico está no fim.
@@ -224,6 +224,7 @@ Metodologia: [modulos/00-METODOLOGIA.md](./modulos/00-METODOLOGIA.md) · templat
 | [../Player-Linux/docs/PARITY-PLAYER-AD-2.13.md](../Player-Linux/docs/PARITY-PLAYER-AD-2.13.md) | Checklist de parity Android → Linux. |
 | [../Player-Linux/docs/ARQUITETURA.md](../Player-Linux/docs/ARQUITETURA.md) | Módulos C++, threads, storage. |
 | [../Player-Linux/docs/API-E-CONFIG.md](../Player-Linux/docs/API-E-CONFIG.md) | Endpoints e `player-config.json`. |
+| [players/EQUIVALENCIA-PLAYER-AD-2.15.md](./players/EQUIVALENCIA-PLAYER-AD-2.15.md) | Cruzamento de paridade: AD 2.15/115 vs Linux, webOS, Tizen, player-web. |
 
 ### Hardware / TV box
 
@@ -246,7 +247,6 @@ Metodologia: [modulos/00-METODOLOGIA.md](./modulos/00-METODOLOGIA.md) · templat
 | Documento | Explicação |
 |-----------|------------|
 | [../Player-WOS/docs/MANUAL-INSTALACAO-LG-WEBOS.md](../Player-WOS/docs/MANUAL-INSTALACAO-LG-WEBOS.md) | Player LG webOS. |
-| [../Player-LXN/docs/](../Player-LXN/) | Player Linux (kiosk / Electron). |
 | [ARQUITETURA_PLAYER_CLIENT_AVANCADO.md](./ARQUITETURA_PLAYER_CLIENT_AVANCADO.md) | Arquitectura do player-client avançado. |
 
 ---

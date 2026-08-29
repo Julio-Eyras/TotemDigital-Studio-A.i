@@ -45,4 +45,4 @@ Kit final:
 
 ## Objetivo
 
-Manter o `SmartSignage-AD` separado dos players por plataforma (`Player-AD`, `Player-WOS`, `Player-LXN`) para permitir evolucao de produto completo de forma modular.
+Manter o `SmartSignage-AD` separado dos players por plataforma (`Player-AD`, `Player-Linux`, `Player-WOS`) para permitir evolucao de produto completo de forma modular.
