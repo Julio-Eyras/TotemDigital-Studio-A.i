@@ -15,7 +15,6 @@ import { promisify } from 'util';
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
-import { config } from '../config/env';
 import { getTotemSecretKey } from '../config/totemSecurity';
 import { decryptOpenSslSaltedBase64 } from '../utils/totemEncryption';
 import { normalizeTotemUin } from '../utils/normalizeTotemUin';
@@ -28,22 +27,10 @@ import {
 
 const execAsync = promisify(exec);
 
-const VIDEO_EXT = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.m4v', '.ogv'];
-const IMAGE_EXT = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-
-function listMediaFiles(dir: string): string[] {
-  if (!fs.existsSync(dir)) return [];
-  const files = fs.readdirSync(dir, { withFileTypes: true });
-  return files
-    .filter((f) => f.isFile() && (VIDEO_EXT.includes(path.extname(f.name).toLowerCase()) || IMAGE_EXT.includes(path.extname(f.name).toLowerCase())))
-    .map((f) => f.name)
-    .sort((a, b) => path.basename(a, path.extname(a)).localeCompare(path.basename(b, path.extname(b)), undefined, { numeric: true }));
-}
-
 const router = express.Router();
 const dispatcherRouter = getDispatcherRouter();
 
-/** Alinha UIN e Device ID ao formato canónico (igual Player-AD / player-web). */
+/** Alinha UIN e Device ID ao formato canónico (igual Player-AD). */
 function normalizePlayerRequestIdentity(req: express.Request): void {
   const q = req.query.uin;
   const qStr = Array.isArray(q) ? q[0] : q;
@@ -241,23 +228,7 @@ async function handleApprovalRequest(
 
     // Se status for 'online' ou se houver flag de auto-aprovação, gerar config
     if (finalStatus === 'online' || req.body?.autoApprove === true) {
-      try {
-        // Usar variável de ambiente ou padrão
-        const playerDir = process.env.PLAYER_DIR || '/opt/smart-signage/player-web';
-        const path = require('path');
-        const scriptPath = process.env.GENERATE_CONFIG_SCRIPT || 
-                         path.join(__dirname, '../../scripts/generate-player-config.sh');
-        
-        await execAsync(`bash "${scriptPath}" "${uin}" "${playerDir}" "${getTotemSecretKey()}"`, {
-          timeout: 10000
-        });
-        
-        encryptedConfigPath = `${playerDir}/config.json.enc`;
-        configGenerated = true;
-        await logInfo(`[${requestId}] Config.json.enc gerado automaticamente`, { uin, path: encryptedConfigPath });
-      } catch (configError: any) {
-        await logWarn(`[${requestId}] Erro ao gerar config encriptado (continuando)`, { error: configError.message });
-      }
+      // config.json.enc era da página HTML player-web (removida). Players de campo usam o próprio storage.
     }
 
     // Registrar evento
@@ -388,14 +359,7 @@ router.get('/config', async (_req: Request, res: Response) => {
  */
 router.get('/fallback-manifest', async (_req: Request, res: Response) => {
   try {
-    const playerDir = process.env.PLAYER_DIR || config.player.dir || '/opt/smart-signage/player-web';
-    const propagandasDir = path.join(playerDir, 'propagandas');
-    const vinhetasDir = path.join(playerDir, 'vinhetas');
-
-    const propagandas = listMediaFiles(propagandasDir);
-    const vinhetas = listMediaFiles(vinhetasDir);
-
-    return res.json({ propagandas, vinhetas });
+    return res.json({ propagandas: [] as string[], vinhetas: [] as string[] });
   } catch (err: any) {
     await logError('Erro ao listar manifest de fallback', err);
     return res.status(500).json({ error: err.message || 'Erro ao listar fallback' });
@@ -1853,7 +1817,7 @@ router.post('/exit-kiosk',
 
 /**
  * @route GET /api/player/ota-download/:id
- * @desc Download APK OTA para Player-AD (uin + token na query)
+ * @desc Download OTA (APK Android ou .deb Linux) — uin + token na query
  */
 router.get('/ota-download/:id',
   query('uin').isString().notEmpty(),
@@ -1880,15 +1844,22 @@ router.get('/ota-download/:id',
       const update = await db.findFirst(`
         SELECT file_path, version, platform, checksum
         FROM ota_updates
-        WHERE id = $1 AND status = 'active' AND platform IN ('android', 'all')
+        WHERE id = $1 AND status = 'active' AND platform IN ('android', 'linux', 'all')
       `, [updateId]);
 
       if (!update || !fs.existsSync(update.file_path)) {
         return res.status(404).json({ error: 'Atualização não encontrada' });
       }
 
-      const fileName = `update_${update.version}_android${path.extname(update.file_path)}`;
-      res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+      const plat = String(update.platform || 'android').toLowerCase();
+      const ext = path.extname(update.file_path) || (plat === 'linux' ? '.deb' : '.apk');
+      const fileName = `update_${update.version}_${plat === 'linux' ? 'linux' : 'android'}${ext}`;
+      res.setHeader(
+        'Content-Type',
+        plat === 'linux'
+          ? 'application/vnd.debian.binary-package'
+          : 'application/vnd.android.package-archive'
+      );
       res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
       res.setHeader('X-Update-Checksum', update.checksum);
       fs.createReadStream(update.file_path).pipe(res);
@@ -1902,7 +1873,7 @@ router.get('/ota-download/:id',
 
 /**
  * @route POST /api/player/ota-status
- * @desc Player-AD reporta progresso de atualização OTA Android
+ * @desc Player reporta progresso de atualização OTA (Android APK ou Linux .deb)
  * @access Public (totem autenticado)
  */
 router.post('/ota-status',
@@ -1958,13 +1929,21 @@ router.post('/command-result',
   body('uin').isString().notEmpty().withMessage('UIN é obrigatório'),
   body('token').isString().notEmpty().withMessage('Token é obrigatório'),
   body('requestId').isString().notEmpty().withMessage('requestId é obrigatório'),
-  body('status').isIn(['completed', 'failed']).withMessage('status deve ser completed ou failed'),
+  body('status').isIn(['completed', 'failed', 'unsupported', 'ok', 'error']).withMessage('status deve ser completed, failed ou unsupported'),
   body('result').optional({ nullable: true }),
   body('error').optional({ nullable: true }).isString(),
   validateRequest,
   async (req: Request, res: Response) => {
     try {
       const { uin, token, requestId, status, result, error } = req.body;
+      const normalizedStatus =
+        status === 'failed' || status === 'error'
+          ? 'failed'
+          : 'completed';
+      const normalizedResult =
+        status === 'unsupported'
+          ? { ...(result && typeof result === 'object' ? result : {}), unsupported: true }
+          : result;
 
       // Validar token
       if (!validateTotemToken(uin, token)) {
@@ -1997,15 +1976,15 @@ router.post('/command-result',
       // Atualizar status do comando
       const remoteCommandService = getRemoteCommandService();
       
-      if (status === 'completed') {
-        await remoteCommandService.markCommandAsCompleted(command.id, result);
+      if (normalizedStatus === 'completed') {
+        await remoteCommandService.markCommandAsCompleted(command.id, normalizedResult);
         
         // Screenshot: preferir imageBase64 (ficheiro no servidor); legacy filePath Android é ignorado para disco
         if (command.command_type === 'screenshot' || command.command_type === 'capture_screen') {
           const { decodeScreenshotPayload, saveRemoteScreenshotFile } = await import(
             '../services/remoteScreenshotStorage'
           );
-          const decoded = decodeScreenshotPayload(result);
+          const decoded = decodeScreenshotPayload(normalizedResult);
           if (decoded) {
             const saved = await saveRemoteScreenshotFile({
               totemId: totem.totem_id,
@@ -2022,22 +2001,22 @@ router.post('/command-result',
               saved.format,
               command.id
             );
-          } else if (result?.filePath && !String(result.filePath).includes('/Android/') && !String(result.filePath).startsWith('/data/')) {
+          } else if (normalizedResult?.filePath && !String(normalizedResult.filePath).includes('/Android/') && !String(normalizedResult.filePath).startsWith('/data/')) {
             // Só aceitar path se já for path de servidor (não path do device)
             await remoteCommandService.saveScreenshot(
               totem.totem_id,
-              result.filePath,
-              result.fileSize || 0,
-              result.width || 0,
-              result.height || 0,
-              result.format || 'png',
+              normalizedResult.filePath,
+              normalizedResult.fileSize || 0,
+              normalizedResult.width || 0,
+              normalizedResult.height || 0,
+              normalizedResult.format || 'png',
               command.id
             );
           } else {
             await logWarn('Screenshot completado sem imageBase64 — ficheiro não gravado no servidor', {
               commandId: command.id,
               totemId: totem.totem_id,
-              hasFilePath: !!result?.filePath,
+              hasFilePath: !!normalizedResult?.filePath,
             });
           }
         }
@@ -2048,14 +2027,14 @@ router.post('/command-result',
       // Registrar evento
       const eventLogService = getEventLogService();
       await eventLogService.logEvent({
-        eventType: status === 'completed' ? EventType.TOTEM_COMMAND_COMPLETED : EventType.TOTEM_COMMAND_FAILED,
+        eventType: normalizedStatus === 'completed' ? EventType.TOTEM_COMMAND_COMPLETED : EventType.TOTEM_COMMAND_FAILED,
         entityType: 'totem',
         entityId: totem.totem_id,
         totemId: totem.totem_id,
         metadata: {
           commandType: command.command_type,
           requestId,
-          result,
+          result: normalizedResult,
           error
         }
       }).catch(e => logWarn('Erro ao registrar evento de comando', { error: e.message }));
@@ -2063,7 +2042,7 @@ router.post('/command-result',
       await logInfo('Resultado de comando reportado', {
         requestId,
         totemId: totem.totem_id,
-        status
+        status: normalizedStatus
       });
 
       return res.json({

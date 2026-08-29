@@ -216,15 +216,15 @@ Metodologia: [modulos/00-METODOLOGIA.md](./modulos/00-METODOLOGIA.md) · templat
 | [../Player-AD/docs/HANDOFF-IA-SISTEMA-ARMAZENAMENTO-CACHE.md](../Player-AD/docs/HANDOFF-IA-SISTEMA-ARMAZENAMENTO-CACHE.md) | Handoff do sistema de cache. |
 | [Player-AD-CACHE-E-METADADOS.md](./Player-AD-CACHE-E-METADADOS.md) | Notas de cache no `docs/` (espelho). |
 
-### Player-Linux (C++ — parity AD 2.13 / 113)
+### Player-Linux (C++ — parity AD 2.15 / 115)
 
 | Documento | Explicação |
 |-----------|------------|
-| [../Player-Linux/README.md](../Player-Linux/README.md) | Player Linux C++17; build CMake; parity com Player-AD 2.13. |
-| [../Player-Linux/docs/PARITY-PLAYER-AD-2.13.md](../Player-Linux/docs/PARITY-PLAYER-AD-2.13.md) | Checklist de parity Android → Linux. |
+| [../Player-Linux/README.md](../Player-Linux/README.md) | Player Linux C++17; build CMake; parity com Player-AD 2.15. |
+| [../Player-Linux/docs/PARITY-PLAYER-AD-2.13.md](../Player-Linux/docs/PARITY-PLAYER-AD-2.13.md) | Checklist de parity Android → Linux (alvo 2.15/115). |
 | [../Player-Linux/docs/ARQUITETURA.md](../Player-Linux/docs/ARQUITETURA.md) | Módulos C++, threads, storage. |
 | [../Player-Linux/docs/API-E-CONFIG.md](../Player-Linux/docs/API-E-CONFIG.md) | Endpoints e `player-config.json`. |
-| [players/EQUIVALENCIA-PLAYER-AD-2.15.md](./players/EQUIVALENCIA-PLAYER-AD-2.15.md) | Cruzamento de paridade: AD 2.15/115 vs Linux, webOS, Tizen, player-web. |
+| [players/EQUIVALENCIA-PLAYER-AD-2.15.md](./players/EQUIVALENCIA-PLAYER-AD-2.15.md) | Cruzamento de paridade: AD 2.15/115 vs Linux, webOS, Tizen. |
 
 ### Hardware / TV box
 

@@ -271,7 +271,7 @@ app.get('/', (_req, res) => {
         playlists: '/api/playlists',
         campaigns: '/api/campaigns',
         settings: '/api/settings',
-        player: '/player',
+        playerApi: '/api/player',
       }
     : {
         health: '/health',
@@ -283,7 +283,7 @@ app.get('/', (_req, res) => {
         players: '/api/players',
         media: '/api/media',
         playlists: '/api/playlists',
-        player: '/player',
+        playerApi: '/api/player',
         admin: '/admin',
       };
 
@@ -396,234 +396,18 @@ app.get('/api/docs.json', (_req, res) => {
 // Player routes (sem autenticação)
 import playerValidationRoutes from './routes/player';
 
-// Servir arquivos estáticos do player (js/, css/, etc.)
-// IMPORTANTE: Esta rota deve vir ANTES da rota /player para servir arquivos estáticos
-let playerDir = config.player.dir || '/opt/smart-signage/player-web';
-
-// Lista de diretórios possíveis
-const possibleDirs = [
-  process.env.PLAYER_DIR, // Variável de ambiente tem prioridade
-  '/opt/smart-signage/player-web', // Diretório de produção (install copia aqui)
-  path.join(process.cwd(), 'player-web'), // Desenvolvimento local
-  config.player.dir // Config do env.ts
-].filter(Boolean) as string[];
-
-// Procurar primeiro diretório que existe
-let foundDir: string | null = null;
-for (const dir of possibleDirs) {
-  if (fs.existsSync(dir)) {
-    // Verificar se tem index.html (confirma que é o diretório do player)
-    const indexPath = path.join(dir, 'index.html');
-    if (fs.existsSync(indexPath)) {
-      foundDir = dir;
-      logInfoSync(`[Server] Diretório do player encontrado: ${dir}`);
-      break;
-    }
-  }
-}
-
-if (foundDir) {
-  playerDir = foundDir;
-} else {
-  // Se nenhum diretório válido foi encontrado, usar o padrão e logar aviso
-  logWarn(`[Server] Nenhum diretório válido do player encontrado. Tentando: ${playerDir}`);
-  logWarn(`[Server] Diretórios testados: ${possibleDirs.join(', ')}`);
-  if (!fs.existsSync(playerDir)) {
-    logWarn(`[Server] ⚠️ Diretório ${playerDir} não existe. Arquivos estáticos retornarão 404.`);
-  }
-}
-
-logInfoSync(`[Server] Servindo player de: ${playerDir}`);
-
-// Verificar se arquivos JS existem
-const jsDir = path.join(playerDir, 'js');
-const jsApiDir = path.join(playerDir, 'js', 'api');
-const jsCacheDir = path.join(playerDir, 'js', 'cache');
-if (fs.existsSync(jsDir)) {
-  logInfoSync(`[Server] Diretório js/ encontrado: ${jsDir}`);
-  if (fs.existsSync(jsApiDir)) {
-    logInfoSync(`[Server] Diretório js/api/ encontrado: ${jsApiDir}`);
-  } else {
-    logWarn(`[Server] Diretório js/api/ NÃO encontrado: ${jsApiDir}`);
-  }
-  if (fs.existsSync(jsCacheDir)) {
-    logInfoSync(`[Server] Diretório js/cache/ encontrado: ${jsCacheDir}`);
-  } else {
-    logWarn(`[Server] Diretório js/cache/ NÃO encontrado: ${jsCacheDir}`);
-  }
-} else {
-  logWarn(`[Server] Diretório js/ NÃO encontrado: ${jsDir}`);
-}
-
-// IMPORTANTE: Rota /api/player-static/* DEVE vir ANTES de todas as rotas app.use('/api/...')
-// para evitar que outras rotas interceptem antes.
-// Usar regex para capturar todo o path (propagandas/vinhetas/arquivo.mp4, js/app.js, etc.)
-app.get(/^\/api\/player-static\/(.*)$/, (req, res) => {
-  const subpathRaw = (req.params[0] || '').replace(/^\//, '');
-  if (!subpathRaw) {
-    return res.status(404).end();
-  }
-
-  const filePath = path.join(playerDir, subpathRaw);
-  const resolvedPlayer = path.resolve(playerDir);
-  const resolvedFile = path.resolve(filePath);
-
-  // Garantir que o arquivo está dentro de playerDir (evita path traversal)
-  if (!resolvedFile.startsWith(resolvedPlayer)) {
-    return res.status(403).end();
-  }
-
-  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-    logWarn(`[Player Static] Arquivo não encontrado: ${req.path} -> ${filePath} (playerDir: ${playerDir})`);
-    return res.status(404).end();
-  }
-
-  if (filePath.endsWith('.js')) {
-    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-  } else if (filePath.endsWith('.css')) {
-    res.setHeader('Content-Type', 'text/css; charset=utf-8');
-  } else if (filePath.endsWith('.json')) {
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  }
-
-  logInfoSync(`[Player Static] ✅ Servindo: ${req.path} -> ${filePath}`);
-  return res.sendFile(filePath);
-});
-
-// Servir arquivos estáticos do player (js/, css/, etc.)
-// IMPORTANTE: Este middleware DEVE vir ANTES das rotas app.get('/player') e app.get('/player/')
-// Middleware global que intercepta /player/* antes das rotas específicas
-app.use((req, res, next) => {
-  // Só processar requisições para /player/* que não sejam exatamente /player ou /player/
-  if (!req.path.startsWith('/player/')) {
-    return next();
-  }
-  
-  // Se é exatamente /player ou /player/, deixar para rotas abaixo
-  if (req.path === '/player' || req.path === '/player/') {
-    return next();
-  }
-  
-  // Extrair subpath: /player/js/app.js -> js/app.js
-  const subpath = req.path.slice('/player/'.length);
-  
-  // Construir caminho completo do arquivo
-  const filePath = path.join(playerDir, subpath);
-  
-  // Verificar path traversal (garantir que não sai do playerDir)
-  const resolvedPlayerDir = path.resolve(playerDir);
-  const resolvedFilePath = path.resolve(filePath);
-  if (!resolvedFilePath.startsWith(resolvedPlayerDir)) {
-    logWarn(`[Player] Path traversal bloqueado: ${req.path} -> ${filePath}`);
-    return res.status(403).end();
-  }
-  
-  // Verificar se arquivo existe
-  if (!fs.existsSync(filePath)) {
-    logWarn(`[Player] Arquivo não encontrado: ${req.path} -> ${filePath}`);
-    logWarn(`[Player] playerDir: ${playerDir}, subpath: ${subpath}`);
-    logWarn(`[Player] Diretório existe? ${fs.existsSync(playerDir)}`);
-    if (fs.existsSync(playerDir)) {
-      const jsPath = path.join(playerDir, 'js');
-      logWarn(`[Player] js/ existe? ${fs.existsSync(jsPath)}`);
-      if (fs.existsSync(jsPath)) {
-        const files = fs.readdirSync(jsPath);
-        logWarn(`[Player] Arquivos em js/: ${files.join(', ')}`);
-      }
-    }
-    return next();
-  }
-  
-  const stat = fs.statSync(filePath);
-  if (!stat.isFile()) {
-    return next();
-  }
-  
-  // Servir arquivo
-  logInfoSync(`[Player] ✅ Servindo: ${req.path} -> ${filePath}`);
-  res.removeHeader('Strict-Transport-Security');
-  res.removeHeader('Upgrade-Insecure-Requests');
-  if (filePath.endsWith('.js')) {
-    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-  } else if (filePath.endsWith('.css')) {
-    res.setHeader('Content-Type', 'text/css; charset=utf-8');
-  } else if (filePath.endsWith('.json')) {
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  }
-  res.sendFile(filePath);
-});
-
-// Servir player index.html com suporte a UIN como parâmetro
-// Usar playerDir (já resolvido na inicialização) em vez de config.player.path para evitar "Player não encontrado"
-const playerIndexPath = path.join(playerDir, 'index.html');
-
-app.get('/player', (req, res) => {
-  // Se é um arquivo estático (js/, css/, etc.) que não foi encontrado, retornar 404
-  if (req.path !== '/player' && req.path.startsWith('/player/')) {
-    const pathWithoutPrefix = req.path.substring('/player'.length);
-    if (!pathWithoutPrefix.endsWith('/') && 
-        !pathWithoutPrefix.match(/\.(js|css|json|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/i)) {
-      logWarn(`[Player] Arquivo estático não encontrado: ${req.path}`);
-      return res.status(404).json({ error: 'Arquivo não encontrado', path: req.path });
-    }
-  }
-  if (fs.existsSync(playerIndexPath)) {
-    res.removeHeader('Strict-Transport-Security');
-    res.removeHeader('Upgrade-Insecure-Requests');
-    return res.sendFile(playerIndexPath);
-  }
-  logWarn(`[Server] Arquivo index.html do player não encontrado: ${playerIndexPath} (playerDir: ${playerDir})`);
-  return res.status(404).json({ error: 'Player não encontrado' });
-});
-
-// Também servir /player/ (com barra final) - necessário para URLs com query string
-app.get('/player/', (_req, res) => {
-  if (fs.existsSync(playerIndexPath)) {
-    res.removeHeader('Strict-Transport-Security');
-    res.removeHeader('Upgrade-Insecure-Requests');
-    return res.sendFile(playerIndexPath);
-  }
-  logWarn(`[Server] Arquivo index.html do player não encontrado: ${playerIndexPath} (playerDir: ${playerDir})`);
-  return res.status(404).json({ error: 'Player não encontrado' });
-});
-
-// API de validação do player (antes do middleware de autenticação)
-app.use('/api/player/token', playerTokenLimiter);
-app.use('/api/player', playerApiLimiter);
-app.use('/api/player', playerValidationRoutes);
-app.use('/api/player/debug', authMiddleware as any, playerDebugRoutes); // Debug de transações do player (requer autenticação)
-app.use('/api/debug', debugRoutes); // Debug endpoints (logs, diagnóstico)
-
-// Diagnóstico do player (público, para descobrir por que /player/js/* retorna 404)
-app.get('/api/debug/player-static', (_req, res) => {
-  const files = {
-    'js/activationCode.js': fs.existsSync(path.join(playerDir, 'js', 'activationCode.js')),
-    'js/app.js': fs.existsSync(path.join(playerDir, 'js', 'app.js')),
-    'js/api/client.js': fs.existsSync(path.join(playerDir, 'js', 'api', 'client.js')),
-    'js/cache/MediaCacheManager.js': fs.existsSync(path.join(playerDir, 'js', 'cache', 'MediaCacheManager.js')),
-    'js/cache/PlaylistChangeDetector.js': fs.existsSync(path.join(playerDir, 'js', 'cache', 'PlaylistChangeDetector.js')),
-    'index.html': fs.existsSync(path.join(playerDir, 'index.html'))
-  };
-  const allExist = Object.values(files).every(Boolean);
-  res.json({
-    playerDir,
-    filesExist: files,
-    allJsPresent: allExist,
-    message: allExist
-      ? 'Backend tem os arquivos. Se ainda 404, o Nginx NÃO está fazendo proxy de /player para o backend.'
-      : 'Backend NÃO encontra os arquivos. Copie player-web para ' + playerDir + ' e reinicie o backend.'
+app.get(['/player', '/player/'], (_req, res) => {
+  res.status(410).json({
+    error: 'gone',
+    message: 'A página HTML player-web foi retirada. Players de campo: Player-AD, Player-Linux, Player-WOS, Tizen — contrato /api/player/*.'
   });
 });
 
-app.get('/player/config', async (_req, res) => {
-  try {
-    const systemService = new SystemService();
-    const config = await systemService.getPlayerConfig();
-    res.json(config);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
+app.use('/api/player/token', playerTokenLimiter);
+app.use('/api/player', playerApiLimiter);
+app.use('/api/player', playerValidationRoutes);
+app.use('/api/player/debug', authMiddleware as any, playerDebugRoutes);
+app.use('/api/debug', debugRoutes);
 
 // Catálogo OpenAPI (JSON) — disponível em todos os ambientes
 app.get('/api/openapi.json', (_req, res) => {
@@ -908,13 +692,8 @@ async function startServer() {
         environment: config.server.nodeEnv
       });
       
-      const playerUrl = config.player.port 
-        ? `http://${HOST}:${config.player.port}` 
-        : `http://${HOST}:${PORT}/player`;
-      
       logInfoSync('Servidor rodando', {
         server: `http://${HOST}:${PORT}`,
-        player: playerUrl,
         admin: `http://${HOST}:${PORT}/admin`,
         apiDocs: `http://${HOST}:${PORT}/api-docs`,
         health: `http://${HOST}:${PORT}/health`,
@@ -925,67 +704,10 @@ async function startServer() {
         redis: config.redis.enabled ? 'Conectado' : 'Desabilitado',
         bullQueue: config.redis.enabled ? 'Ativo' : 'Desabilitado',
         websocket: 'Ativo',
-        aiProvider: process.env.AI_PROVIDER || 'ollama',
-        playerPort: config.player.port ? `Separada (${config.player.port})` : 'Mesma do backend'
+        aiProvider: process.env.AI_PROVIDER || 'ollama'
       });
     });
 
-    // Se PLAYER_PORT estiver definido, criar servidor Express separado para o player
-    if (config.player.port && config.player.port > 0) {
-      const playerApp = express();
-      
-      // CORS básico para o player
-      playerApp.use(cors({
-        origin: '*', // Player pode ser acessado de qualquer origem
-        credentials: false
-      }));
-
-      // Servir arquivos estáticos do player
-      playerApp.use('/', express.static(playerDir, {
-        index: false,
-        setHeaders: (res, filePath) => {
-          if (filePath.endsWith('.js')) {
-            res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-          } else if (filePath.endsWith('.css')) {
-            res.setHeader('Content-Type', 'text/css; charset=utf-8');
-          } else if (filePath.endsWith('.json')) {
-            res.setHeader('Content-Type', 'application/json; charset=utf-8');
-          }
-        },
-        fallthrough: false,
-        dotfiles: 'ignore'
-      }));
-
-      // Servir index.html do player (mesmo playerDir da app principal)
-      playerApp.get('/', (_req, res) => {
-        if (fs.existsSync(playerIndexPath)) {
-          res.sendFile(playerIndexPath);
-        } else {
-          logWarn(`[Player Server] Arquivo index.html não encontrado: ${playerIndexPath}`);
-          res.status(404).json({ error: 'Player não encontrado' });
-        }
-      });
-
-      // Iniciar servidor do player na porta separada
-      const playerServer = playerApp.listen(config.player.port, HOST, () => {
-        logInfoSync(`[Player Server] Servidor do player iniciado na porta ${config.player.port}`, {
-          port: config.player.port,
-          host: HOST,
-          url: `http://${HOST}:${config.player.port}`
-        });
-      });
-
-      playerServer.on('error', (error: any) => {
-        if (error.code === 'EADDRINUSE') {
-          logWarn(`[Player Server] Porta ${config.player.port} já está em uso. Player será servido na porta do backend.`);
-        } else {
-          logError('[Player Server] Erro ao iniciar servidor do player', error).catch(() => {});
-        }
-      });
-
-      // Salvar referência para graceful shutdown
-      (global as any).playerServer = playerServer;
-    }
     
   } catch (error: any) {
     await logError('Erro ao iniciar servidor', error);

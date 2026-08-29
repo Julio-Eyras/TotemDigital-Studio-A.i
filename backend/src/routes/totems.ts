@@ -1056,34 +1056,7 @@ router.put('/:id/approve',
         WHERE totem_id = ?
       `, [totemId]);
 
-      // Se solicitado, gerar arquivo de configuração encriptado
-      let encryptedConfigPath = null;
-      if (generateEncryptedConfig && totemFull.uin) {
-        try {
-          const { exec } = require('child_process');
-          const { promisify } = require('util');
-          const execAsync = promisify(exec);
-          
-          // Determinar diretório do player
-          const { config } = require('../config/env');
-          const playerDir = config.player.dir;
-          const secretKey = getTotemSecretKey();
-          
-          // Executar script de geração de config
-          const path = require('path');
-          const scriptPath = process.env.GENERATE_CONFIG_SCRIPT || 
-                           path.join(__dirname, '../../scripts/generate-player-config.sh');
-          
-          await execAsync(`bash "${scriptPath}" "${totemFull.uin}" "${playerDir}" "${secretKey}"`, {
-            timeout: 10000
-          });
-          
-          encryptedConfigPath = `${playerDir}/config.json.enc`;
-        } catch (configError: any) {
-          await logWarn('Erro ao gerar config encriptado', { error: configError.message });
-          // Não falhar a aprovação se gerar config falhar
-        }
-      }
+      // generateEncryptedConfig era da página HTML player-web (removida).
 
       // Log de auditoria
       try {
@@ -1103,8 +1076,7 @@ router.put('/:id/approve',
       return res.json({
         success: true,
         message: 'Totem aprovado com sucesso',
-        totem: approvedTotem,
-        encryptedConfigPath: encryptedConfigPath || undefined
+        totem: approvedTotem
       });
     } catch (error: any) {
       await logError('Erro ao aprovar totem', error);

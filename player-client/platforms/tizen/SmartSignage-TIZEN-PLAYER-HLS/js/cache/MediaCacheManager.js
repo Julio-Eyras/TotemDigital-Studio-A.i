@@ -53,16 +53,23 @@ class MediaCacheManager {
                     const cached = await this.getCachedMedia(mediaItem.mediaId);
                     
                     if (cached && cached.valid) {
-                        // Verificar checksum se disponível
-                        if (mediaItem.metadata?.checksum) {
-                            const isValid = await this.validateChecksum(cached.localPath, mediaItem.metadata.checksum);
-                            if (!isValid) {
-                                console.warn(`[MediaCacheManager] Mídia ${mediaItem.mediaId} corrompida, removendo e baixando novamente`);
-                                await this.removeCachedMedia(mediaItem.mediaId);
-                                await this.downloadMedia(mediaItem, apiClient, stats);
-                            } else {
-                                stats.skipped++;
-                            }
+                        const expectedVer = String(
+                            mediaItem.contentVersion || mediaItem.content_version ||
+                            (mediaItem.metadata && (mediaItem.metadata.contentVersion || mediaItem.metadata.content_version)) ||
+                            ""
+                        ).trim();
+                        const expectedCs = String(
+                            mediaItem.checksum || (mediaItem.metadata && mediaItem.metadata.checksum) || ""
+                        ).trim().toLowerCase();
+                        const versionOk = !expectedVer || cached.contentVersion === expectedVer;
+                        let checksumOk = true;
+                        if (expectedCs) {
+                            checksumOk = await this.validateChecksum(cached.localPath, expectedCs);
+                        }
+                        if (!versionOk || !checksumOk) {
+                            console.warn(`[MediaCacheManager] Mídia ${mediaItem.mediaId} desactualizada ou checksum falhou — re-descarregar`);
+                            await this.removeCachedMedia(mediaItem.mediaId);
+                            await this.downloadMedia(mediaItem, apiClient, stats);
                         } else {
                             stats.skipped++;
                         }
@@ -116,9 +123,11 @@ class MediaCacheManager {
             // Calcular checksum
             const checksum = await this.calculateChecksum(data);
             
-            // Validar checksum se disponível
-            if (mediaItem.metadata?.checksum && checksum !== mediaItem.metadata.checksum) {
-                throw new Error(`Checksum inválido: esperado ${mediaItem.metadata.checksum}, calculado ${checksum}`);
+            const expectedCs = String(
+                mediaItem.checksum || (mediaItem.metadata && mediaItem.metadata.checksum) || ""
+            ).trim().toLowerCase();
+            if (expectedCs && checksum !== expectedCs) {
+                throw new Error(`Checksum inválido: esperado ${expectedCs}, calculado ${checksum}`);
             }
             
             // Salvar em propagandas com convenção {mediaId}.{ext} (design)
@@ -135,6 +144,11 @@ class MediaCacheManager {
                 url: mediaItem.url,
                 localPath: localPath,
                 checksum: checksum,
+                contentVersion: String(
+                    mediaItem.contentVersion || mediaItem.content_version ||
+                    (mediaItem.metadata && (mediaItem.metadata.contentVersion || mediaItem.metadata.content_version)) ||
+                    ""
+                ).trim(),
                 size: data.length,
                 mimeType: mediaItem.metadata?.mimeType || 'application/octet-stream',
                 downloadedAt: Date.now(),
@@ -251,6 +265,21 @@ class MediaCacheManager {
         }
         
         console.log(`[MediaCacheManager] Limpeza concluída: ${freedSpace} bytes liberados`);
+    }
+
+    async purgeAll() {
+        try {
+            const all = await this.loadAllMediaMetadata();
+            const ids = Object.keys(all || {});
+            for (let i = 0; i < ids.length; i += 1) {
+                await this.removeCachedMedia(ids[i]);
+            }
+            console.log('[MediaCacheManager] Cache purgado');
+            return { purged: true, count: ids.length };
+        } catch (error) {
+            console.error('[MediaCacheManager] Erro ao purgar cache', error);
+            return { purged: false };
+        }
     }
 
     /**
@@ -431,7 +460,7 @@ class MediaCacheManager {
             // Ler arquivo e calcular checksum
             const fileData = await this.readFile(filePath);
             const calculatedChecksum = await this.calculateChecksum(fileData);
-            return calculatedChecksum === expectedChecksum;
+            return calculatedChecksum === String(expectedChecksum || "").trim().toLowerCase();
         } catch (error) {
             console.error('[MediaCacheManager] Erro ao validar checksum', error);
             return false;

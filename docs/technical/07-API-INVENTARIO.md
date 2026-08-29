@@ -206,7 +206,6 @@ Swagger UI (só desenvolvimento): `/api-docs`
 | Método | Path `/api`… | Módulo | Auth | Ficheiro |
 |--------|--------------|--------|------|----------|
 | GET | `/debug/player-registration-logs` | `—` | JWT (router) | `debug` |
-| GET | `/debug/player-static` | `—` | público | `index.ts` |
 | GET | `/debug/system-info` | `—` | JWT (router) | `debug` |
 | GET | `/debug/totem/{id}` | `—` | JWT (router) | `debug` |
 
@@ -414,7 +413,6 @@ Swagger UI (só desenvolvimento): `/api-docs`
 | GET | `/player-apk/documents/{slug}` | `—` | público | `player-apk` |
 | GET | `/player-apk/download` | `—` | público | `player-apk` |
 | POST | `/player-apk/upload` | `—` | público | `player-apk` |
-| GET | `/player-static/{path}` | `—` | público | `index.ts` |
 | POST | `/player/command-result` | `—` | público | `player` |
 | GET | `/player/config` | `—` | público | `player` |
 | POST | `/player/debug/cleanup` | `—` | JWT (mount) | `player-debug` |

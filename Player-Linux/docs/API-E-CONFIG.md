@@ -1,6 +1,6 @@
 # API e configuração — Player-Linux
 
-Contrato idêntico ao Player-AD 2.13, excepto `platform: "linux"`.
+Contrato idêntico ao Player-AD 2.15, excepto `platform: "linux"`.
 
 ## Endpoints
 
@@ -23,7 +23,9 @@ Contrato idêntico ao Player-AD 2.13, excepto `platform: "linux"`.
   "status": "online",
   "platform": "linux",
   "version": "0.1.0",
-  "appVersion": "0.1.0"
+  "appVersion": "0.1.0",
+  "currentVersion": "0.1.0",
+  "updateStatus": "up_to_date"
 }
 ```
 

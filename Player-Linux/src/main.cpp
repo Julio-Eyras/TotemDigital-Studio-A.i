@@ -1,3 +1,4 @@
+#include "ops/FieldOps.hpp"
 #include "config/PlayerConfig.hpp"
 #include "playback/PlayerOrchestrator.hpp"
 #include "util/Logger.hpp"
@@ -9,7 +10,23 @@
 #include <iostream>
 #include <string>
 
+#ifndef _WIN32
+#include <csignal>
+#endif
+
 namespace {
+
+player::playback::PlayerOrchestrator* gOrch = nullptr;
+
+#ifndef _WIN32
+void onSigUsr1(int) {
+  player::ops::releaseKiosk();
+}
+
+void onSigTerm(int) {
+  if (gOrch) gOrch->requestStop();
+}
+#endif
 
 void printHelp(const char* argv0) {
   std::cout
@@ -53,12 +70,21 @@ int main(int argc, char** argv) {
     return 2;
   }
   player::config::savePlayerConfig(layout.configPath, cfg);
+  player::ops::applyKiosk(cfg.kioskMode, cfg.displayRotation);
   player::util::Logger::i("SETUP",
                           "Início platform=" PLAYER_LINUX_PLATFORM " version=" PLAYER_LINUX_VERSION_STR
                           " server=" +
                               cfg.serverUrl + " deviceId=" + cfg.deviceId);
 
+#ifndef _WIN32
+  std::signal(SIGUSR1, onSigUsr1);
+  std::signal(SIGTERM, onSigTerm);
+  std::signal(SIGINT, onSigTerm);
+#endif
+
   player::playback::PlayerOrchestrator orch(cfg, layout);
+  gOrch = &orch;
   orch.run();
+  gOrch = nullptr;
   return 0;
 }

@@ -7298,27 +7298,8 @@ server {
     
     # Player - Proxy para backend Express (^~ evita que /player/js/* seja capturado por regex .js)
     location ^~ /player {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
-        proxy_read_timeout 300s;
-        proxy_connect_timeout 75s;
-        # Buffers maiores para player (arquivos JS podem ser grandes)
-        proxy_buffer_size 256k;
-        proxy_buffers 8 512k;
-        proxy_busy_buffers_size 512k;
-        proxy_temp_file_write_size 512k;
-        # Remover headers que quebram player em HTTP (CSP/COOP bloqueiam inline scripts)
-        proxy_hide_header Content-Security-Policy;
-        proxy_hide_header Cross-Origin-Opener-Policy;
-        proxy_hide_header Origin-Agent-Cluster;
-    }
+            return 410;
+        }
     
     # Assets - Proxy para backend (evita problemas de permissão)
     # Backend já serve /assets via express.static
@@ -7903,7 +7884,8 @@ ${ssl_extra}
     }
 
     location ^~ /player {
-        proxy_pass http://127.0.0.1:${BACKEND_PORT};
+            return 410;
+        };
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -8026,7 +8008,8 @@ server {
     }
 
     location ^~ /player {
-        proxy_pass http://127.0.0.1:${BACKEND_PORT};
+            return 410;
+        };
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -8265,7 +8248,8 @@ server {
         proxy_send_timeout 86400s;
     }
     location ^~ /player {
-        proxy_pass http://127.0.0.1:${BACKEND_PORT};
+            return 410;
+        };
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -8344,23 +8328,8 @@ server {
     
     # Player - Proxy para backend Express (^~ evita que /player/js/* seja capturado por regex .js)
     location ^~ /player {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
-        proxy_read_timeout 300s;
-        proxy_connect_timeout 75s;
-        # Buffers maiores para player (arquivos JS podem ser grandes)
-        proxy_buffer_size 256k;
-        proxy_buffers 8 512k;
-        proxy_busy_buffers_size 512k;
-        proxy_temp_file_write_size 512k;
-    }
+            return 410;
+        }
     
     # Assets - Proxy para backend (evita problemas de permissão)
     # Backend já serve /assets via express.static
@@ -8443,58 +8412,7 @@ setup_nginx() {
         sudo chmod -R 755 "$DEPLOY_DIR" 2>/dev/null || true
         sudo find "$DEPLOY_DIR" -type f -exec chmod 644 {} \; 2>/dev/null || true
         
-        # Garantir player-web em INSTALL_DIR e depois em /opt/smart-signage/player-web (instalação funcional)
-        if [[ ! -d "$INSTALL_DIR/player-web" ]] || [[ -z "$(ls -A "$INSTALL_DIR/player-web" 2>/dev/null)" ]]; then
-            if [[ -d "$SOURCE_DIR/player-web" ]] && [[ -f "$SOURCE_DIR/player-web/index.html" ]]; then
-                log "Player-web não encontrado em INSTALL_DIR, copiando do repositório..."
-                mkdir -p "$INSTALL_DIR/player-web"
-                cp -r "$SOURCE_DIR/player-web/"* "$INSTALL_DIR/player-web/" 2>/dev/null || {
-                    warn "Falha ao copiar Player Web"
-                }
-            fi
-        fi
-        
-        sudo mkdir -p /opt/smart-signage/player-web
-        if [[ -d "$INSTALL_DIR/player-web" ]] && [[ -n "$(ls -A "$INSTALL_DIR/player-web" 2>/dev/null)" ]]; then
-            sudo rm -rf /opt/smart-signage/player-web/* 2>/dev/null || true
-            sudo cp -a "$INSTALL_DIR/player-web"/* /opt/smart-signage/player-web/ || true
-            if id www-data &>/dev/null; then
-                sudo chown -R www-data:www-data /opt/smart-signage/player-web 2>/dev/null || true
-            else
-                sudo chown -R nginx:nginx /opt/smart-signage/player-web 2>/dev/null || true
-            fi
-            sudo chmod -R 755 /opt/smart-signage/player-web 2>/dev/null || true
-            sudo find /opt/smart-signage/player-web -type f -exec chmod 644 {} \; 2>/dev/null || true
-            log "✅ Player copiado para /opt/smart-signage/player-web"
-            
-            # Verificar se arquivos JS foram copiados
-            if [[ -f "/opt/smart-signage/player-web/js/activationCode.js" ]] && \
-               [[ -f "/opt/smart-signage/player-web/js/app.js" ]] && \
-               [[ -f "/opt/smart-signage/player-web/js/api/client.js" ]] && \
-               [[ -f "/opt/smart-signage/player-web/js/cache/MediaCacheManager.js" ]] && \
-               [[ -f "/opt/smart-signage/player-web/js/cache/PlaylistChangeDetector.js" ]]; then
-                log "✅ Arquivos JS do player verificados e presentes"
-            else
-                warn "⚠️ Alguns arquivos JS do player não foram encontrados em /opt/smart-signage/player-web/js/"
-                warn "   Verifique se player-web/js/ existe no diretório de origem"
-            fi
-            log "   (Nginx e backend já configurados para /player — nenhum passo manual necessário)"
-            
-            # Gerar arquivo de configuração encriptado do player (se não existir)
-            if [[ ! -f "/opt/smart-signage/player-web/config.json.enc" ]]; then
-                if [[ -f "$INSTALL_DIR/scripts/generate-player-config.sh" ]]; then
-                    chmod +x "$INSTALL_DIR/scripts/generate-player-config.sh"
-                    log "ℹ️ Nenhum arquivo de configuração encriptado encontrado."
-                    log "   O player permanecerá em modo demo local até que um UIN seja configurado."
-                    log "   Quando o totem for provisionado, execute:"
-                    log "   sudo $INSTALL_DIR/scripts/generate-player-config.sh <UIN> /opt/smart-signage/player-web"
-                else
-                    warn "⚠️ Script de geração de configuração não encontrado"
-                fi
-            else
-                log "✅ Arquivo de configuração encriptado já existe"
-            fi
-        fi
+        log "ℹ️ Página HTML player-web removida. Campo: Player-AD / Player-Linux / WOS / Tizen (/api/player/*)."
 
         # Atualizar INSTALL_DIR para o diretório de deploy (apenas para configuração do Nginx)
         FRONTEND_BUILD_DIR="$DEPLOY_DIR"
@@ -8520,50 +8438,18 @@ setup_nginx() {
         fi
         log "  - Site corporativo (HTTP): http://${_disp_host}:${CORPORATE_HTTP_PORT}/"
         log "  - Painel / API / player (HTTP): http://${_disp_host}:${SYSTEM_HTTP_PORT}/"
-        log "  - Player (HTTP): http://${_disp_host}:${SYSTEM_HTTP_PORT}/player"
+        log "  - API players: http://${_disp_host}:${SYSTEM_HTTP_PORT}/api/player/"
         log "  (Com Let's Encrypt: https://DOMINIO/ unifica site + painel + API na 443; :${SYSTEM_HTTP_PORT} fica HTTP auxiliar.)"
     else
         log "  - Login HTTP : http://$SERVER_IP/"
         log "  - Login HTTPS: https://$SERVER_IP/   (se HTTPS estiver configurado no Nginx)"
-        log "  - Player HTTP: http://$SERVER_IP/player"
-        log "  - Player HTTPS: https://$SERVER_IP/player   (se HTTPS estiver configurado no Nginx)"
+        log "  - API players: http://$SERVER_IP/api/player/"
+        log "  - Painel HTTPS: https://$SERVER_IP/   (se HTTPS estiver configurado no Nginx)"
     fi
     log "========================================="
     
-    # SINGLE-SERVER: SEMPRE fazer deploy de player-web em /opt/smart-signage/player-web (instalação funcional, sem scripts de correção)
-    if [[ "$INSTALL_MODE" == "single-server" ]]; then
-        PLAYER_DEST="/opt/smart-signage/player-web"
-        SRC_PLAYER=""
-        [[ -d "$INSTALL_DIR/player-web" ]] && [[ -f "$INSTALL_DIR/player-web/js/app.js" ]] && SRC_PLAYER="$INSTALL_DIR/player-web"
-        [[ -z "$SRC_PLAYER" ]] && [[ -d "$SOURCE_DIR/player-web" ]] && [[ -f "$SOURCE_DIR/player-web/js/app.js" ]] && SRC_PLAYER="$SOURCE_DIR/player-web"
-        if [[ -n "$SRC_PLAYER" ]]; then
-            log "Fazendo deploy de player-web em $PLAYER_DEST..."
-            sudo mkdir -p "$PLAYER_DEST"
-            sudo rm -rf "$PLAYER_DEST"/* 2>/dev/null || true
-            sudo cp -a "$SRC_PLAYER"/* "$PLAYER_DEST/" || true
-            if id www-data &>/dev/null; then
-                sudo chown -R www-data:www-data "$PLAYER_DEST" 2>/dev/null || true
-            else
-                sudo chown -R nginx:nginx "$PLAYER_DEST" 2>/dev/null || true
-            fi
-            sudo chmod -R 755 "$PLAYER_DEST" 2>/dev/null || true
-            log "✅ Player-web em $PLAYER_DEST (Nginx com location ^~ /player)"
-            # Verificação: arquivos obrigatórios para o player (scripts carregam via /api/player-static/)
-            PLAYER_FILES=( "index.html" "js/activationCode.js" "js/app.js" "js/api/client.js" "js/cache/MediaCacheManager.js" "js/cache/PlaylistChangeDetector.js" "chromium-policies/managed-totemdigital-v3x.json" )
-            MISSING=()
-            for f in "${PLAYER_FILES[@]}"; do
-                [[ -f "$PLAYER_DEST/$f" ]] || MISSING+=("$f")
-            done
-            if [[ ${#MISSING[@]} -eq 0 ]]; then
-                log "✅ Arquivos do player verificados em $PLAYER_DEST"
-            else
-                warn "⚠️ Arquivos do player faltando em $PLAYER_DEST: ${MISSING[*]}"
-            fi
-        else
-            warn "⚠️ player-web não encontrado em $INSTALL_DIR/player-web nem em $SOURCE_DIR/player-web. /player não funcionará até existir player-web no repositório."
-        fi
-    fi
-    
+    log "ℹ️ Sem deploy de player-web (página HTML retirada deste repositório)."
+
     NGINX_CONFIG="/etc/nginx/sites-available/smart-signage"
     
     # Porta do backend (do .env ou padrão 3000) – usada em location /ws e pode ser reutilizada noutros proxy_pass
@@ -8663,27 +8549,8 @@ server {
 
     # Player - Proxy para backend Express (^~ evita que /player/js/* seja capturado por regex .js)
     location ^~ /player {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
-        proxy_read_timeout 300s;
-        proxy_connect_timeout 75s;
-        # Buffers maiores para player (arquivos JS podem ser grandes)
-        proxy_buffer_size 256k;
-        proxy_buffers 8 512k;
-        proxy_busy_buffers_size 512k;
-        proxy_temp_file_write_size 512k;
-        # Remover headers que quebram player em HTTP (CSP/COOP bloqueiam inline scripts)
-        proxy_hide_header Content-Security-Policy;
-        proxy_hide_header Cross-Origin-Opener-Policy;
-        proxy_hide_header Origin-Agent-Cluster;
-    }
+            return 410;
+        }
 
     # Player com Cache (laboratório) - também usa proxy
     location /player-cache {
@@ -8818,7 +8685,8 @@ server {
     }
 
     location ^~ /player {
-        proxy_pass http://127.0.0.1:${BACKEND_PORT};
+            return 410;
+        };
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -8953,27 +8821,8 @@ server {
     
     # Player - Proxy para backend Express (^~ evita que /player/js/* seja capturado por regex .js)
     location ^~ /player {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
-        proxy_read_timeout 300s;
-        proxy_connect_timeout 75s;
-        # Buffers maiores para player (arquivos JS podem ser grandes)
-        proxy_buffer_size 256k;
-        proxy_buffers 8 512k;
-        proxy_busy_buffers_size 512k;
-        proxy_temp_file_write_size 512k;
-        # Remover headers que quebram player em HTTP (CSP/COOP bloqueiam inline scripts)
-        proxy_hide_header Content-Security-Policy;
-        proxy_hide_header Cross-Origin-Opener-Policy;
-        proxy_hide_header Origin-Agent-Cluster;
-    }
+            return 410;
+        }
     
     # Arquivos estáticos do React - DEPOIS de /api/ e /player para não interceptar
     location /static/ {
@@ -9352,7 +9201,6 @@ RestartSec=5
 StandardOutput=journal
 StandardError=journal
 Environment=NODE_ENV=production
-Environment=PLAYER_DIR=/opt/smart-signage/player-web
 # Usar EnvironmentFile com fallback: se não existir, não falhar
 EnvironmentFile=-$INSTALL_DIR/.env
 
@@ -9790,7 +9638,7 @@ test_endpoints() {
             ["Backend Health"]="http://$SERVER_IP:3000/health"
             ["Backend API"]="http://$SERVER_IP:3000/api/health"
             ["Frontend"]="http://$SERVER_IP:80"
-            ["Player"]="http://$SERVER_IP:80/player"
+            ["API health"]="http://$SERVER_IP:3000/api/health"
             ["Prometheus"]="http://$SERVER_IP:9090"
             ["Grafana"]="http://$SERVER_IP:3002"
             ["MQTT Broker"]="mqtt://$SERVER_IP:1883"
@@ -9807,8 +9655,8 @@ test_endpoints() {
         ENDPOINTS=(
             ["Backend Health"]="http://$SERVER_IP:3000/health"
             ["Backend API"]="http://$SERVER_IP:3000/api/health"
-            ["Player HTML (Nginx)"]="http://$SERVER_IP:${ng_sys}/player/"
-            ["Player estáticos (backend)"]="http://127.0.0.1:3000/api/player-static/js/app.js"
+            ["Painel (Nginx)"]="http://$SERVER_IP:${ng_sys}/"
+            ["API player"]="http://127.0.0.1:3000/api/player/token"
             ["Painel Admin (Nginx)"]="http://$SERVER_IP:${ng_sys}"
         )
         
@@ -9854,15 +9702,7 @@ test_endpoints() {
         fi
     done
     
-    # Single-server: verificar que o backend serve os estáticos do player (necessário para /player carregar)
-    if [[ "$INSTALL_MODE" == "single-server" ]]; then
-        PLAYER_STATIC_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "http://127.0.0.1:3000/api/player-static/js/app.js" 2>/dev/null || echo "000")
-        if [[ "$PLAYER_STATIC_CODE" == "200" ]]; then
-            log "✅ Player estáticos: backend servindo /api/player-static/ (HTTP 200)"
-        else
-            warning "⚠️ Player estáticos: backend retornou HTTP $PLAYER_STATIC_CODE para /api/player-static/js/app.js (verifique PLAYER_DIR e /opt/smart-signage/player-web)"
-        fi
-    fi
+    # página HTML /player retirada
     
     # Verificações adicionais integradas do post-install-check
     echo
@@ -10249,30 +10089,8 @@ validate_system_complete() {
         test_result "API Docs acessivel" false "Nao foi possivel acessar"
     fi
     
-    # Single-server: Player (arquivos em /opt e endpoint /api/player-static/)
-    # Evitar `[[ -f ]] || arr+=` sob set -e/ERR (pode derrubar a validação no meio).
-    if [[ "$INSTALL_MODE" == "single-server" ]]; then
-        PLAYER_DIR="/opt/smart-signage/player-web"
-        PLAYER_FILES=( "index.html" "js/activationCode.js" "js/app.js" "js/api/client.js" "js/cache/MediaCacheManager.js" "js/cache/PlaylistChangeDetector.js" "chromium-policies/managed-totemdigital-v3x.json" )
-        PLAYER_MISSING=()
-        for f in "${PLAYER_FILES[@]}"; do
-            if [[ ! -f "$PLAYER_DIR/$f" ]]; then
-                PLAYER_MISSING+=("$f")
-            fi
-        done
-        if [[ ${#PLAYER_MISSING[@]} -eq 0 ]]; then
-            test_result "Player: arquivos em $PLAYER_DIR" true
-        else
-            test_result "Player: arquivos em $PLAYER_DIR" false "Faltando: ${PLAYER_MISSING[*]}"
-        fi
-        PLAYER_STATIC_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "http://127.0.0.1:3000/api/player-static/js/app.js" 2>/dev/null || echo "000")
-        if [[ "$PLAYER_STATIC_CODE" == "200" ]]; then
-            test_result "Player: backend servindo /api/player-static/" true "HTTP 200"
-        else
-            test_result "Player: backend servindo /api/player-static/" false "HTTP $PLAYER_STATIC_CODE (backend deve usar PLAYER_DIR=$PLAYER_DIR)"
-        fi
-    fi
-    
+    # player-web HTML retirado — sem validação de /opt/.../player-web
+
     echo ""
     
     # ============================================
@@ -12992,7 +12810,7 @@ case "$1" in
         echo "Frontend: http://$SERVER_IP:$FRONTEND_PORT"
         echo "Frontend Direto: http://$SERVER_IP:$FRONTEND_ALT_PORT"
         echo "Backend API: http://$SERVER_IP:$BACKEND_PORT"
-        echo "Player: http://$SERVER_IP:$FRONTEND_PORT/player"
+        echo "API: http://$SERVER_IP:$FRONTEND_PORT/api/player/"
         echo "Prometheus: http://$SERVER_IP:$PROMETHEUS_PORT"
         echo "Grafana: http://$SERVER_IP:$GRAFANA_PORT"
         ;;
@@ -14232,7 +14050,7 @@ show_players_menu() {
     echo -e "${GREEN}[ ]${NC} 6) Tizen (Samsung) - Player para TVs Samsung Tizen"
     echo -e "${GREEN}[ ]${NC} 7) SmartDisplayFX Client - Cliente para efeitos visuais"
     echo -e "${GREEN}[ ]${NC} 8) Smart FX Interface - Interface e protótipos"
-    echo -e "${GREEN}[ ]${NC} 9) Player Web Cache - Player HTML5 com cache completo (substitui player-web obsoleto)"
+    echo -e "${YELLOW}[ ]${NC} 9) (retirado) player-web HTML"
     echo
     echo -e "${GREEN}[ ]${NC} 10) Instalar TODOS os players (recomendado para desenvolvimento)"
     echo -e "${GREEN}[ ]${NC} 0) Não instalar players (apenas servidor)"
@@ -14362,7 +14180,7 @@ copy_selected_players() {
             cp -r "$SOURCE_DIR/player-web/"* "$INSTALL_DIR/player-web/" 2>/dev/null || {
                 warn "Falha ao copiar Player Web, continuando..."
             }
-            log "✅ Player Web copiado para player-web/"
+            log "ℹ️ player-web HTML já não existe neste repositório — cópia ignorada"
         fi
         log "✅ Todos os players copiados"
         return
@@ -14463,7 +14281,7 @@ copy_selected_players() {
         cp -r "$SOURCE_DIR/player-web/"* "$INSTALL_DIR/player-web/" 2>/dev/null || {
             warn "Falha ao copiar Player Web"
         }
-        log "✅ Player Web copiado para player-web/"
+        log "ℹ️ player-web HTML já não existe neste repositório — cópia ignorada"
     fi
     
     log "✅ Players selecionados copiados"
@@ -14674,7 +14492,7 @@ EOF
     
     # Obter IP do servidor para o URL
     SERVER_IP=$(hostname -I | awk '{print $1}')
-    KIOSK_URL="http://${SERVER_IP}:80/player"
+    KIOSK_URL="http://${SERVER_IP}:80/"
     
     # Criar diretório de autostart
     mkdir -p "$HOME/.config/autostart"
@@ -15332,7 +15150,7 @@ main() {
         cp -r "$SOURCE_DIR/player-web/"* "$INSTALL_DIR/player-web/" 2>/dev/null || {
             warn "Falha ao copiar Player Web"
         }
-        log "✅ Player Web copiado para $INSTALL_DIR/player-web/ (inclui vinhetas e propagandas)"
+        log "ℹ️ player-web HTML já não existe neste repositório — cópia ignorada"
     fi
     
     # Perguntar layout Nginx (site corporativo vs painel) antes de HTTPS e firewall

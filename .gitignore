@@ -285,9 +285,7 @@ install-pendrive/**/*.apk
 !install-pendrive/apk/Instala-Player-TotemDigital-Vs*-build-*.apk
 install-pendrive-smartsignage-ad/**/*.apk
 
-# Vídeos de demo do player-web (pesados; manter só imagens no Git — copiar .mp4 no deploy local)
-player-web/propagandas/*.mp4
-player-web/vinhetas/*.mp4
+# Vídeos de demo (pesados; copiar .mp4 no deploy local)
 propagandas/*.mp4
 vinhetas/*.mp4
 

@@ -2,8 +2,10 @@
 
 #include "util/Logger.hpp"
 
+#include <algorithm>
 #include <fstream>
 #include <filesystem>
+#include <vector>
 
 #include <curl/curl.h>
 
@@ -82,6 +84,13 @@ bool MediaCache::downloadUrl(const std::string& url, const std::string& destPath
 }
 
 std::string MediaCache::ensureLocal(const api::MediaItem& item) {
+  if (item.url.rfind("file://", 0) == 0) {
+    std::string local = item.url.substr(7);
+    if (fs::exists(local)) return local;
+  }
+  if (!item.url.empty() && item.url.rfind("http", 0) != 0 && fs::exists(item.url)) {
+    return item.url;
+  }
   const std::string ext = extensionFor(item);
   const std::string path = dir_ + "/" + item.mediaId + ext;
   const bool exists = fs::exists(path);
@@ -115,7 +124,43 @@ std::string MediaCache::ensureLocal(const api::MediaItem& item) {
       {"path", path},
   };
   saveMetadata();
+  evictIfNeeded(path);
   return path;
+}
+
+void MediaCache::evictIfNeeded(const std::string& keepPath) {
+  const auto maxBytes =
+      static_cast<std::uintmax_t>(std::max(50, cfg_.maxCacheSizeMb)) * 1024ull * 1024ull;
+  std::error_code ec;
+  struct Entry {
+    fs::path path;
+    std::uintmax_t size = 0;
+    fs::file_time_type mtime{};
+  };
+  std::vector<Entry> files;
+  std::uintmax_t total = 0;
+  for (const auto& e : fs::directory_iterator(dir_, ec)) {
+    if (!e.is_regular_file()) continue;
+    if (e.path().filename() == "metadata.json") continue;
+    Entry ent;
+    ent.path = e.path();
+    ent.size = e.file_size(ec);
+    ent.mtime = e.last_write_time(ec);
+    total += ent.size;
+    files.push_back(std::move(ent));
+  }
+  if (total <= maxBytes) return;
+  std::sort(files.begin(), files.end(),
+            [](const Entry& a, const Entry& b) { return a.mtime < b.mtime; });
+  for (const auto& f : files) {
+    if (total <= maxBytes) break;
+    if (f.path == fs::path(keepPath)) continue;
+    fs::remove(f.path, ec);
+    total = total > f.size ? total - f.size : 0;
+    metadata_.erase(f.path.stem().string());
+    util::Logger::i("CACHE", "LRU evict " + f.path.filename().string());
+  }
+  saveMetadata();
 }
 
 void MediaCache::purgeAll() {

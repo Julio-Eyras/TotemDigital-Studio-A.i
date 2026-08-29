@@ -32,6 +32,13 @@ PlayerConfig PlayerConfig::fromJson(const nlohmann::json& j) {
   c.serverUrl = j.value("serverUrl", c.serverUrl);
   c.uin = j.value("uin", c.uin);
   c.deviceId = j.value("deviceId", c.deviceId);
+  while (!c.deviceId.empty() &&
+         std::isspace(static_cast<unsigned char>(c.deviceId.front())))
+    c.deviceId.erase(c.deviceId.begin());
+  while (!c.deviceId.empty() &&
+         std::isspace(static_cast<unsigned char>(c.deviceId.back())))
+    c.deviceId.pop_back();
+  for (char& ch : c.deviceId) ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
   c.acceptImagesInPlaylist = j.value("acceptImagesInPlaylist", true);
   c.allowPlaybackAudio = j.value("allowPlaybackAudio", false);
   if (j.contains("mediaTransitionEnabled")) {
@@ -52,8 +59,7 @@ PlayerConfig PlayerConfig::fromJson(const nlohmann::json& j) {
   c.kioskMode = j.value("kioskMode", "strong");
   c.displayRotation = clampInt(j.value("displayRotation", 0), 0, 3);
   c.screenOrientation = j.value("screenOrientation", "portrait");
-  // Normalizar deviceId uppercase (parity Android)
-  for (char& ch : c.deviceId) ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
+  // Normalizar deviceId TRIM+UPPER (RN-PAD-007)
   while (!c.serverUrl.empty() && c.serverUrl.back() == '/') c.serverUrl.pop_back();
   return c;
 }
@@ -91,6 +97,11 @@ nlohmann::json PlayerConfig::toJson() const {
 
 bool PlayerConfig::isValid() const {
   return !serverUrl.empty() && !uin.empty() && !deviceId.empty();
+}
+
+void PlayerConfig::mergePollAdaptive(const nlohmann::json& j) {
+  if (!j.is_object()) return;
+  pollAdaptive = pollFromJson(j);
 }
 
 PlayerConfig loadPlayerConfig(const std::string& preferredPath, const std::string& fallbackPath) {

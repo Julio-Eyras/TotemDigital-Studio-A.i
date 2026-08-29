@@ -163,7 +163,7 @@ if curl -s http://localhost:${BACKEND_PORT}/health > /dev/null 2>&1; then
     echo "📊 ENDPOINTS DISPONÍVEIS:"
     echo "Frontend: http://$SERVER_IP:$FRONTEND_PORT"
     echo "Backend API: http://$SERVER_IP:$BACKEND_PORT"
-    echo "Player: http://$SERVER_IP:$FRONTEND_PORT/player"
+    echo "API: http://$SERVER_IP:$FRONTEND_PORT/api/player/"
     echo "Prometheus: http://$SERVER_IP:$PROMETHEUS_PORT"
     echo "Grafana: http://$SERVER_IP:$GRAFANA_PORT"
     

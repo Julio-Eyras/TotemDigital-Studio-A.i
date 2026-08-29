@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Player-Linux
+Comment=TotemDigital player (paridade Player-AD 2.15)
+Exec=/opt/player-linux/bin/player-linux --data-dir /var/lib/player-linux
+Terminal=false
+X-GNOME-Autostart-enabled=true
+StartupNotify=false
+Categories=AudioVideo;

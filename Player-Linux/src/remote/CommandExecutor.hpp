@@ -20,7 +20,10 @@ public:
                   const std::string& schedulePath,
                   const std::string& configPath,
                   cache::MediaCache& cache,
-                  api::DispatcherClient& client);
+                  api::DispatcherClient& client,
+                  std::string receiptsPath,
+                  std::string otaDir,
+                  std::string shotsDir);
 
   void setOnRefreshDispatch(std::function<void()> fn) { onRefreshDispatch_ = std::move(fn); }
   void setOnRestart(RestartFn fn) { onRestart_ = std::move(fn); }
@@ -32,13 +35,20 @@ private:
   config::DisplaySchedule& schedule_;
   std::string schedulePath_;
   std::string configPath_;
+  std::string receiptsPath_;
+  std::string otaDir_;
+  std::string shotsDir_;
   cache::MediaCache& cache_;
   api::DispatcherClient& client_;
   std::unordered_set<std::string> seenIds_;
   std::function<void()> onRefreshDispatch_;
   RestartFn onRestart_;
 
+  void loadReceipts();
+  void saveReceipts();
+  void remember(const std::string& id);
   void handleOne(const api::PendingCommand& cmd, const std::string& token);
+  static std::string apiStatus(const std::string& status);
 };
 
 }  // namespace player::remote

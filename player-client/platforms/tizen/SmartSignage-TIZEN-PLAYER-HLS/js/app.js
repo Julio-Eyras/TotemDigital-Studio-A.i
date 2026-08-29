@@ -26,6 +26,27 @@ class SmartSignageApp {
     this.initialized = false;
   }
 
+  _installDebugTaps() {
+    const proto = window.PlayerProtocol;
+    if (!proto || !proto.installDebugTaps || this._debugTaps) return;
+    const self = this;
+    this._debugTaps = proto.installDebugTaps({
+      required: 3,
+      windowMs: 1200,
+      lines: function () {
+        const plan = self.currentDispatchPlan;
+        return {
+          platform: "tizen",
+          uin: self.uin || "",
+          deviceId: self.deviceId || "",
+          version: (self.config && self.config.appVersion) || "tizen-hls-2.15",
+          planSource: plan ? "ONLINE/CACHE" : "NONE",
+          planVersion: (plan && (plan.planVersion || plan.plan_version)) || ""
+        };
+      }
+    });
+  }
+
   /**
    * Inicializa a aplicação
    */
@@ -169,6 +190,7 @@ class SmartSignageApp {
 
       this.initialized = true;
       console.log('[App] Aplicação inicializada com sucesso!');
+      this._installDebugTaps();
 
     } catch (error) {
       console.error('[App] Erro na inicialização:', error);
@@ -247,10 +269,17 @@ class SmartSignageApp {
       // Fallback: gerar ID baseado em hardware
       const hardwareInfo = await this.deviceInfo.collectHardwareInfo();
       this.deviceId = `TIZEN-${hardwareInfo.serial || Date.now()}`.trim().toUpperCase();
+      if (window.PlayerProtocol) {
+        this.deviceId = window.PlayerProtocol.canonicalDeviceId(this.deviceId);
+      } else {
+        this.deviceId = String(this.deviceId || '').trim().toUpperCase();
+      }
       return this.deviceId;
     } catch (error) {
       console.warn('[App] Erro ao obter deviceId:', error);
-      this.deviceId = `TIZEN-${Date.now()}`;
+      this.deviceId = window.PlayerProtocol
+        ? window.PlayerProtocol.canonicalDeviceId(`TIZEN-${Date.now()}`)
+        : `TIZEN-${Date.now()}`;
       return this.deviceId;
     }
   }
@@ -268,7 +297,7 @@ class SmartSignageApp {
         uin: this.uin,
         deviceId: this.deviceId || '',
         platform: 'tizen',
-        appVersion: '2.1.0'
+        appVersion: '2.15.0'
       });
 
       const response = await fetch(`${this.apiUrl}/player/token?${params}`);
@@ -348,7 +377,12 @@ class SmartSignageApp {
         timezone: timezone
       });
 
-      const response = await fetch(`${this.apiUrl}/player/dispatch?${params}`);
+      const apiBase = (() => {
+        let b = String(this.apiUrl || "").replace(/\/$/, "");
+        if (!b.endsWith("/api")) b = `${b}/api`;
+        return b;
+      })();
+      const response = await fetch(`${apiBase}/player/dispatch?${params}`);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
@@ -357,8 +391,19 @@ class SmartSignageApp {
       const result = await response.json();
       
       if (result.success && result.plan) {
-        this.currentDispatchPlan = result.plan;
-        console.log('[App] DispatchPlan obtido:', result.plan);
+        const proto = window.PlayerProtocol;
+        this.currentDispatchPlan = proto && proto.stripVinhetasFromOnlinePlan
+          ? proto.stripVinhetasFromOnlinePlan(result.plan)
+          : result.plan;
+        const count = proto ? proto.mediaItemCount(this.currentDispatchPlan) : (this.currentDispatchPlan.mediaItems || []).length;
+        this.planState = proto ? proto.resolvePlanState(result, count) : (count ? "ACTIVE" : "EMPTY");
+        console.log('[App] DispatchPlan obtido source=ONLINE itens=' + count + ' state=' + this.planState);
+        return this.currentDispatchPlan;
+      }
+
+      if (result.success && result.plan && !(result.plan.mediaItems || []).length) {
+        this.planState = "EMPTY";
+        console.log("[App] EMPTY_PLAN — sem fallback (RN-PAD-001)");
         return result.plan;
       }
 
@@ -436,11 +481,18 @@ class SmartSignageApp {
     );
     // Usar deviceToken se disponível, senão token legado
     this.heartbeatService.setToken(this.deviceToken || this.token);
-    
-    // Atualizar callbacks para incluir informações do dispositivo
+    this.heartbeatService.onRefreshDispatch = () => this.getDispatchPlan().catch((e) => {
+      console.warn('[App] refresh dispatch via HB:', e);
+    });
+    this.heartbeatService.onPurgeCache = async () => {
+      if (this.mediaCacheManager && this.mediaCacheManager.purgeAll) {
+        return this.mediaCacheManager.purgeAll();
+      }
+      return { purged: false };
+    };
+    this._installDebugTaps();
     const originalStatusCallback = () => this.player.getStatus();
     const originalStreamCallback = () => this.player.getCurrentStream();
-    
     this.heartbeatService.setCallbacks(
       () => {
         const status = originalStatusCallback();
@@ -448,7 +500,7 @@ class SmartSignageApp {
           ...status,
           deviceId: this.deviceId,
           platform: 'tizen',
-          appVersion: '2.1.0',
+          appVersion: '2.15.0',
           isOnline: navigator.onLine
         };
       },
@@ -675,6 +727,7 @@ class SmartSignageApp {
    */
   async initializeFallbackMode() {
     console.log('[App] Inicializando modo fallback...');
+    this._installDebugTaps();
     
     this.player = new HLSPlayer('player');
     

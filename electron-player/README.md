@@ -1,6 +1,6 @@
 # TotemDigital Player (Electron) — esqueleto V3x
 
-Piloto suportado continua a ser **Chromium kiosk** (`docs/PLAYER_OFICIAL_V3X.md`). Esta pasta é um **ponto de partida** para empacotar o mesmo `player-web` numa janela dedicada.
+Piloto suportado: **Player-Linux** (GStreamer / Chromium kiosk de HTML de campanha). Esta pasta é um esqueleto Electron legado — não há página HTML `player-web` neste repositório.
 
 ## Requisitos
 

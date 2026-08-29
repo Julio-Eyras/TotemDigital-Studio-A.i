@@ -126,13 +126,7 @@ log "✅ Backend configurado"
 # CONFIGURAÇÃO DO PLAYER
 # =============================================
 
-log "Configurando player HTML5 (com cache completo)..."
-
-if [ -f "/app/player-web/index.html" ]; then
-    log "✅ Player HTML5 encontrado (versão com cache completo)"
-else
-    warning "Player HTML5 não encontrado"
-fi
+log "Players de campo: Player-AD / Player-Linux / WOS / Tizen (API /api/player/*)."
 
 # =============================================
 # CONFIGURAÇÃO DE PERMISSÕES

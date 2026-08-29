@@ -18,6 +18,24 @@ class HLSPlayer {
     this.setupEventListeners();
   }
 
+  _coverVeil() {
+    let veil = document.getElementById("media-transition-veil");
+    if (!veil) {
+      veil = document.createElement("div");
+      veil.id = "media-transition-veil";
+      veil.style.cssText =
+        "position:fixed;inset:0;background:#000;z-index:9998;opacity:1;pointer-events:none;";
+      document.body.appendChild(veil);
+    }
+    veil.style.display = "block";
+    veil.style.opacity = "1";
+    setTimeout(() => {
+      veil.style.transition = "opacity 60ms";
+      veil.style.opacity = "0";
+      setTimeout(() => { veil.style.display = "none"; }, 80);
+    }, 280);
+  }
+
   /**
    * Configura event listeners do vídeo
    */
@@ -78,6 +96,7 @@ class HLSPlayer {
 
     console.log('[HLSPlayer] Trocando para stream:', streamUrl);
     this.currentStream = streamUrl;
+    this._coverVeil();
 
     try {
       // Definir source do vídeo

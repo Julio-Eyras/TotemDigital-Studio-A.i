@@ -26,6 +26,13 @@ public:
     return true;
   }
 
+  bool playBlackVeil(int durationMs) override {
+    const int ms = durationMs > 0 ? durationMs : 300;
+    util::Logger::i("PLAYBACK", "STUB véu " + std::to_string(ms) + "ms");
+    std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+    return true;
+  }
+
   void stop() override { playing_ = false; }
 
   bool isPlaying() const override {

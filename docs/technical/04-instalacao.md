@@ -175,7 +175,6 @@ DB_USER=smartsignage
 DB_PASSWORD=sua_senha_aqui
 JWT_SECRET=seu_jwt_secret_aqui
 TOTEM_SECRET_KEY=seu_totem_secret_aqui
-PLAYER_DIR=/opt/smart-signage/player-web
 ```
 
 ### 8. Configurar Nginx
@@ -203,7 +202,6 @@ Type=simple
 User=www-data
 WorkingDirectory=/opt/smart-signage/backend
 Environment=NODE_ENV=production
-Environment=PLAYER_DIR=/opt/smart-signage/player-web
 ExecStart=/usr/bin/node dist/index.js
 Restart=always
 RestartSec=10
@@ -264,13 +262,9 @@ INSERT INTO users (email, password_hash, name, role) VALUES
 EOF
 ```
 
-### 2. Configurar Player
+### 2. Players de campo
 
-```bash
-# Gerar configuração do player para um totem
-cd scripts
-bash generate-player-config.sh UIN-SHOPPING-001-2025 /opt/smart-signage/player-web
-```
+Player-AD (TV box), Player-Linux (totem) ou Smart TV (WOS/Tizen). Contrato: `GET/POST /api/player/*` com UIN. Não há página HTML `/player`.
 
 ### 3. Verificar Instalação
 
@@ -281,8 +275,8 @@ curl http://localhost:3000/api/health
 # Verificar frontend
 curl http://localhost
 
-# Verificar player
-curl http://localhost/api/player-static/js/app.js
+# Verificar API do player (UIN de um totem cadastrado)
+curl -s -o /dev/null -w "%{http_code}" "http://localhost:3000/api/player/token?uin=TOT001"
 ```
 
 ## Troubleshooting
@@ -326,18 +320,13 @@ curl http://localhost:3000/api/health
 sudo nginx -t
 ```
 
-### Player não carrega
+### Player de campo não liga ao dispatcher
 
 ```bash
-# Verificar arquivos do player
-ls -la /opt/smart-signage/player-web/
-
-# Verificar permissões
-sudo chown -R www-data:www-data /opt/smart-signage/player-web
-
-# Verificar endpoint
-curl http://localhost/api/player-static/js/app.js
+curl -i "http://localhost:3000/api/player/token?uin=UIN_DO_TOTEM"
 ```
+
+O UIN tem de existir no painel. Não há página HTML `/player`.
 
 ## Atualização
 

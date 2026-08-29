@@ -1,5 +1,6 @@
 # Ignorar artefactos de build locais
 /build/
+/build-wsl/
 /data/
 /cmake-build-*/
 *.o

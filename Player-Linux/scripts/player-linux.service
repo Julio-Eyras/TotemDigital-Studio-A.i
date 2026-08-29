@@ -1,0 +1,20 @@
+[Unit]
+Description=Player-Linux (paridade Player-AD 2.15)
+After=network-online.target graphical.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=playerlinux
+Group=playerlinux
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/playerlinux/.Xauthority
+Environment=PLAYER_LINUX_DATA=/var/lib/player-linux
+ExecStart=/opt/player-linux/bin/player-linux --data-dir /var/lib/player-linux
+Restart=always
+RestartSec=5
+KillMode=mixed
+TimeoutStopSec=15
+
+[Install]
+WantedBy=graphical.target
