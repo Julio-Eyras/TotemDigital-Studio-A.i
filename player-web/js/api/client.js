@@ -135,6 +135,10 @@ class APIClient {
         return response;
     }
 
+    async getPlayerConfig() {
+        return this.request('/api/player/config');
+    }
+
     /**
      * Envia heartbeat. uin/token/deviceId em query; métricas no body.
      * Atualiza this.token com o novo token retornado.

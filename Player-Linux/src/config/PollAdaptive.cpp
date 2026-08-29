@@ -17,6 +17,10 @@ void PollAdaptive::wake() {
   dispatchMs_ = cfg_.maxSecondsWithoutServerCheck * 1000;
 }
 
+void PollAdaptive::replaceConfig(const PlayerConfig& cfg) {
+  cfg_ = cfg;
+}
+
 void PollAdaptive::onFailure() {
   heartbeatMs_ = std::min(heartbeatMs_ * 2, cfg_.pollAdaptive.maxHeartbeatSeconds * 1000);
   dispatchMs_ = std::min(dispatchMs_ * 2, cfg_.pollAdaptive.maxDispatchSeconds * 1000);

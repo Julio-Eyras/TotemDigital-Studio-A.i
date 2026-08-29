@@ -139,6 +139,12 @@ class DispatcherApi {
     if (!res.ok) throw new Error(`command-result HTTP ${res.status}`);
     return res.json();
   }
+
+  async getPlayerConfig() {
+    const res = await fetch(`${this.serverUrl}/api/player/config`);
+    if (!res.ok) throw new Error(`config HTTP ${res.status}`);
+    return res.json();
+  }
 }
 
 window.DispatcherApi = DispatcherApi;

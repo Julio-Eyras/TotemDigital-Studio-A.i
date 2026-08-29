@@ -77,6 +77,24 @@ class PlayerControllerWOS {
     veil.style.display = idle ? "block" : "none";
   }
 
+  _coverMediaVeil() {
+    let veil = document.getElementById("media-transition-veil");
+    if (!veil) {
+      veil = document.createElement("div");
+      veil.id = "media-transition-veil";
+      veil.style.cssText =
+        "position:fixed;inset:0;background:#000;z-index:9998;opacity:1;pointer-events:none;";
+      document.body.appendChild(veil);
+    }
+    veil.style.display = "block";
+    veil.style.opacity = "1";
+    setTimeout(() => {
+      veil.style.transition = "opacity 60ms";
+      veil.style.opacity = "0";
+      setTimeout(() => { veil.style.display = "none"; }, 80);
+    }, 280);
+  }
+
   parsePlan(dispatchJson) {
     const p = dispatchJson?.plan || {};
       const mediaItems = Array.isArray(p.mediaItems) ? p.mediaItems.map((it) => ({
@@ -99,16 +117,36 @@ class PlayerControllerWOS {
   fallbackPlan() {
     const ads = this.config.fallbackPropagandas || [];
     const vins = this.config.fallbackVinhetas || [];
-    if (!ads.length || !vins.length) return null;
+    if (!ads.length && !vins.length) return null;
     const n = Math.max(1, Number(this.config.fallbackPropagandasPerVinheta || 3));
     const items = [];
-    for (let i = 0; i < n; i += 1) items.push({ mediaId: 0, url: ads[i % ads.length], duration: null, mediaType: "video" });
-    items.push({ mediaId: 0, url: vins[0], duration: null, mediaType: "video" });
+    const push = (url) => {
+      items.push({ mediaId: 0, url: url, duration: null, mediaType: "video" });
+    };
+    if (!vins.length) {
+      ads.forEach(push);
+    } else if (!ads.length) {
+      vins.forEach(push);
+    } else {
+      let ai = 0;
+      let vi = 0;
+      while (ai < ads.length || vi < vins.length) {
+        for (let k = 0; k < n && ai < ads.length; k += 1) push(ads[ai++]);
+        if (vi < vins.length) push(vins[vi++]);
+      }
+    }
     return { playlistId: 0, playlistName: `Fallback ${n}:1`, campaignId: null, mediaItems: items };
   }
 
   async start() {
     this._ensureCommands();
+    try {
+      const remoteCfg = await this.api.getPlayerConfig();
+      if (remoteCfg && typeof remoteCfg === "object") {
+        if (remoteCfg.heartbeatInterval) this.config.heartbeatInterval = remoteCfg.heartbeatInterval;
+        if (typeof remoteCfg.portrait === "boolean") this.config.portrait = remoteCfg.portrait;
+      }
+    } catch (_) {}
     try {
       const hb = await this.api.heartbeat(null, this.knownPlanVersion);
       if (this.commandRunner && hb && hb.pendingCommands) {
@@ -167,6 +205,7 @@ class PlayerControllerWOS {
         continue;
       }
       const item = this.plan.mediaItems[idx % this.plan.mediaItems.length];
+      await this._veil();
       await this.playItem(item);
       idx = (idx + 1) % this.plan.mediaItems.length;
       if (idx === 0) await this.tryRefreshOnlinePlan(false);
@@ -196,25 +235,62 @@ class PlayerControllerWOS {
     } catch (_) {}
   }
 
+  async _veil() {
+    this._setIdle(true);
+    await new Promise((r) => setTimeout(r, 300));
+    if (this.forceMode !== "off") this._setIdle(false);
+  }
+
   async playItem(item) {
-    const isImage = item.mediaType.includes("image") || /\.(png|jpe?g|webp|gif)$/i.test(item.url);
+    const type = String(item.mediaType || "").toLowerCase();
+    const isHtml = type.indexOf("html") >= 0 || type.indexOf("web") >= 0 || /\.html?(\?|$)/i.test(item.url || "");
+    if (isHtml) return this.playHtml(item);
+    const isImage = type.indexOf("image") >= 0 || /\.(png|jpe?g|webp|gif)$/i.test(item.url);
     if (isImage) return this.playImage(item);
     return this.playVideo(item);
+  }
+
+  async playHtml(item) {
+    const sec = window.PlayerProtocol
+      ? window.PlayerProtocol.htmlDurationSeconds(item.duration)
+      : (Number(item.duration) >= 30 ? Number(item.duration) : 60);
+    this.video.pause();
+    this.video.style.display = "none";
+    this.image.style.display = "none";
+    let frame = document.getElementById("htmlPlayer");
+    if (!frame) {
+      frame = document.createElement("iframe");
+      frame.id = "htmlPlayer";
+      frame.style.cssText = "position:fixed;inset:0;width:100%;height:100%;border:0;z-index:2;background:#000;";
+      document.body.appendChild(frame);
+    }
+    frame.style.display = "block";
+    frame.src = item.url;
+    await new Promise((r) => setTimeout(r, sec * 1000));
+    frame.style.display = "none";
+    frame.src = "about:blank";
   }
 
   async playImage(item) {
     if (!this.config.acceptImagesInPlaylist) return;
     this.video.pause();
     this.video.style.display = "none";
+    const htmlFrame = document.getElementById("htmlPlayer");
+    if (htmlFrame) htmlFrame.style.display = "none";
     this.image.style.display = "block";
     this.image.src = item.url;
+    const sec = window.PlayerProtocol
+      ? window.PlayerProtocol.imageDurationSeconds(item.duration)
+      : (item.duration || this.config.imageDurationSeconds || 10);
     await this.eventsClient.sendEvent("image_display", item, { playlistId: this.plan.playlistId, campaignId: this.plan.campaignId });
-    await new Promise((resolve) => setTimeout(resolve, (item.duration || this.config.imageDurationSeconds || 20) * 1000));
+    await new Promise((resolve) => setTimeout(resolve, sec * 1000));
     this.image.style.display = "none";
   }
 
   async playVideo(item) {
     this.image.style.display = "none";
+    const htmlFrame = document.getElementById("htmlPlayer");
+    if (htmlFrame) htmlFrame.style.display = "none";
     this.video.style.display = "block";
     await this.eventsClient.sendEvent("video_playback_start", item, { playlistId: this.plan.playlistId, campaignId: this.plan.campaignId });
     await new Promise((resolve) => {

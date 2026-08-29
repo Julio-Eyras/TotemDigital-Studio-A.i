@@ -13,13 +13,13 @@ export interface HeartbeatOtaPayload {
   downloadUrl: string;
 }
 
-/** OTA apenas Player-AD Android no heartbeat do dispatcher. */
+/** OTA no heartbeat: Player-AD (`android`) e Player-Linux (`linux`). Smart TV / web = N/D. */
 export async function resolveOtaUpdateForHeartbeat(
   totemId: number,
   body?: Record<string, unknown>
 ): Promise<HeartbeatOtaPayload | null> {
   const platform = String(body?.platform || 'android').toLowerCase();
-  if (platform !== 'android') {
+  if (platform !== 'android' && platform !== 'linux') {
     return null;
   }
 
@@ -27,7 +27,7 @@ export async function resolveOtaUpdateForHeartbeat(
 
   try {
     const otaService = getOTAUpdateService();
-    const otaUpdate = await otaService.getAvailableUpdate(totemId, currentVersion, 'android');
+    const otaUpdate = await otaService.getAvailableUpdate(totemId, currentVersion, platform);
 
     if (otaUpdate) {
       await otaService.updateTotemStatus(totemId, {

@@ -31,6 +31,7 @@ set(PLAYER_LINUX_SOURCES
   src/cache/MediaCache.cpp
   src/playback/PlayerOrchestrator.cpp
   src/remote/CommandExecutor.cpp
+  src/ops/FieldOps.cpp
 )
 
 add_executable(player-linux ${PLAYER_LINUX_SOURCES})
@@ -41,7 +42,7 @@ target_include_directories(player-linux PRIVATE
 
 target_compile_definitions(player-linux PRIVATE
   PLAYER_LINUX_VERSION="${PROJECT_VERSION}"
-  PLAYER_LINUX_PARITY_AD="2.13/113"
+  PLAYER_LINUX_PARITY_AD="2.15/115"
 )
 
 target_link_libraries(player-linux PRIVATE
@@ -67,3 +68,10 @@ endif()
 
 install(TARGETS player-linux RUNTIME DESTINATION bin)
 install(FILES config/exemplo-player-config.json DESTINATION share/player-linux)
+install(FILES scripts/player-linux.service DESTINATION lib/systemd/system)
+install(FILES scripts/player-linux.desktop DESTINATION share/applications)
+install(PROGRAMS
+  scripts/kiosk-escape.sh
+  scripts/install-player-linux.sh
+  scripts/player-linux-xsession.sh
+  DESTINATION share/player-linux)

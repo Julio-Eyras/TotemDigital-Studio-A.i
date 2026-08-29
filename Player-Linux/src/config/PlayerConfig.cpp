@@ -99,6 +99,11 @@ bool PlayerConfig::isValid() const {
   return !serverUrl.empty() && !uin.empty() && !deviceId.empty();
 }
 
+void PlayerConfig::mergePollAdaptive(const nlohmann::json& j) {
+  if (!j.is_object()) return;
+  pollAdaptive = pollFromJson(j);
+}
+
 PlayerConfig loadPlayerConfig(const std::string& preferredPath, const std::string& fallbackPath) {
   for (const auto& path : {preferredPath, fallbackPath}) {
     if (path.empty()) continue;

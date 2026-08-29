@@ -14,6 +14,8 @@ public:
                         const std::string& mediaType,
                         int durationSeconds,
                         bool allowAudio) = 0;
+  /** Véu preto FIT 720×1280 (~300 ms entre mídias). */
+  virtual bool playBlackVeil(int durationMs) = 0;
   virtual void stop() = 0;
   virtual bool isPlaying() const = 0;
 };

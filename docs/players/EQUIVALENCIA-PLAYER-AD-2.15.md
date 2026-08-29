@@ -23,13 +23,13 @@ O player Linux de campo é **só** `Player-Linux/` (não há segunda linha Chrom
 | Código | Projecto | Papel | Alvo de paridade | Estado vs 2.15 |
 |--------|----------|--------|------------------|----------------|
 | **AD** | `Player-AD/` | TV box Android (campo) | — | **100%** referência |
-| **Linux** | `Player-Linux/` | Totem / PC Linux | Alvo 2.15/115 | **~50%** — sync/ACK/EMPTY_PLAN; GStreamer/HTML/OTA/kiosk em falta |
-| **WOS** | `Player-WOS/` | LG webOS (Smart TV) | Mesmo contrato HTTP | **~45%** + N/D de campo Android |
-| **Tizen** | `player-client/platforms/tizen/` | Samsung Tizen (Smart TV) | Contrato `/api/player/*` | **~40%** + N/D |
-| **Web** | `player-web/` | Browser / laboratório | Dispatch + cache + ACK | **~55%**; reboot/Wi‑Fi/OTA = N/D |
+| **Linux** | `Player-Linux/` | Totem / PC Linux | Alvo 2.15/115 | **~88%** do replicável — contrato + GStreamer FIT + HTML + OTA/NM/screenshot + systemd |
+| **WOS** | `Player-WOS/` | LG webOS (Smart TV) | Mesmo contrato HTTP | **~80%** do replicável + N/D de campo Android |
+| **Tizen** | `player-client/platforms/tizen/` | Samsung Tizen (Smart TV) | Contrato `/api/player/*` | **~70%** do replicável + N/D |
+| **Web** | `player-web/` | Browser / laboratório | Dispatch + cache + ACK | **~85%** do replicável; reboot/Wi‑Fi/OTA = N/D |
 | **MON** | `Player-iPhone/` · `Player-AD-MON/` | Monitor JWT (painel) | Telemetria web | **0%** playback; fora do kiosk |
 
-O Player-Linux tem de **retargetar 2.15/115** (hoje o README/parity citam 2.13). Deltas 2.14–2.15: escape de kiosk; HOME persistente.
+Deltas 2.14–2.15 no AD: escape de kiosk; HOME persistente. No Linux: `scripts/kiosk-escape.sh` (SIGUSR1) + `player-linux.service`.
 
 ---
 
@@ -41,10 +41,10 @@ O Player-Linux tem de **retargetar 2.15/115** (hoje o README/parity citam 2.13).
 | `POST /api/player/sync` (preferido) + fallback HB | Ref | Eq | Eq | Eq | Eq |
 | `POST /api/player/heartbeat` + métricas | Ref | Eq | Eq | Eq | Eq |
 | `GET /api/player/dispatch` condicionado (`needsDispatch`) | Ref | Eq | Eq | Parc | Eq |
-| `GET /api/player/config` | Ref | Eq | Parc | Parc | Parc |
+| `GET /api/player/config` | Ref | Eq | Eq | Eq | Eq |
 | `POST /api/player/command-result` at-most-once | Ref | Eq | Eq | Eq | Eq |
-| Telemetria events v2 / fila persistente | Ref | Parc (jsonl) | Parc | Parc | Parc |
-| OTA report no HB | Ref | Falta (.deb/AppImage) | **N/D** | **N/D** | **N/D** |
+| Telemetria events v2 / fila persistente | Ref | Parc (dir jsonl) | Parc | Parc | Parc |
+| OTA report no HB + `POST /api/player/ota-status` | Ref | Eq (`.deb`) | **N/D** | **N/D** | **N/D** |
 
 `platform` no HB: AD `android` · Linux `linux` · WOS `webos` · Tizen `tizen` · Web `web`.
 
@@ -57,14 +57,14 @@ O Player-Linux tem de **retargetar 2.15/115** (hoje o README/parity citam 2.13).
 | RN-PAD-001 EMPTY_PLAN estável (sem reboot loop) | Ref | Eq | Eq | Parc | Eq |
 | RN-PAD-002 Recibo **antes** do efeito (comandos destrutivos) | Ref | Eq | Eq | Eq | Eq |
 | RN-PAD-003 Duplicata = ACK sem reexecutar | Ref | Eq | Eq | Eq | Eq |
-| RN-PAD-004 Display idle (agenda; index=0) | Ref | Eq (lógica) | Parc (overlay) | Parc | Parc (overlay) |
+| RN-PAD-004 Display idle (agenda; index=0) | Ref | Eq | Eq (overlay) | Parc | Parc (overlay) |
 | RN-PAD-005 Dispatch só se needsDispatch / safety | Ref | Eq | Eq | Parc | Eq |
 | RN-PAD-006 HB fora do caminho crítico de render | Ref | Parc | Parc | Parc | Parc |
 | RN-PAD-007 `device_id` trim+uppercase | Ref | Eq | Eq | Eq | Eq |
-| Plano ONLINE → PERSISTIDO → FALLBACK local | Ref | Eq (ficheiros) | Parc (localStorage) | Parc | Parc |
-| Vinhetas só no fallback mix N:1 | Ref | Eq (regra) | Falta | Falta | Falta |
-| Poll adaptativo + idle fora de horário | Ref | Eq (lógica) | Falta | Falta | Falta |
-| Estados ACTIVE / EMPTY / UNAVAILABLE | Ref | Parc | Falta | Falta | Falta |
+| Plano ONLINE → PERSISTIDO → FALLBACK local | Ref | Eq (ficheiros) | Eq (localStorage) | Parc | Parc |
+| Vinhetas só no fallback mix N:1 | Ref | Eq | Eq | Falta | Eq (regra) |
+| Poll adaptativo + idle fora de horário | Ref | Eq | Falta | Falta | Falta |
+| Estados ACTIVE / EMPTY / UNAVAILABLE | Ref | Eq | Eq | Parc | Parc |
 
 ---
 
@@ -72,15 +72,15 @@ O Player-Linux tem de **retargetar 2.15/115** (hoje o README/parity citam 2.13).
 
 | L3 | AD | Linux | WOS | Tizen | Web |
 |----|----|-------|-----|-------|-----|
-| Vídeo FIT 9:16 (720×1280, sem distorção) | Ref | Falta (GStreamer) | Parc | Parc (HLS) | Parc |
-| Imagem (duração default 10 s) | Ref | Falta | Parc | Parc | Parc |
-| HTML / WebView (default 60 s, mín 30) | Ref | Falta (WebKit fase 2) | Parc | N/D / Parc | Parc |
-| Loop sem bloquear rede entre mídias | Ref | Falta | Parc | Parc | Parc |
-| Cache `{mediaId}.{ext}` + metadata + LRU | Ref | Parc | Falta | Parc | Parc (IndexedDB) |
-| Checksum / contentVersion | Ref | Parc | Falta | Parc | Parc |
-| Áudio mute por default | Ref | Eq (regra) | Verificar | Verificar | Verificar |
-| Transição véu preto | Ref | Falta | Falta | Falta | Falta |
-| Rotação viewport / `displayRotation` | Ref | Falta (compositor) | **N/D** | **N/D** | **N/D** |
+| Vídeo FIT 9:16 (720×1280, sem distorção) | Ref | Eq (GStreamer) | Parc | Parc (HLS) | Parc |
+| Imagem (duração default 10 s) | Ref | Eq | Eq | Parc | Eq |
+| HTML / WebView (default 60 s, mín 30) | Ref | Eq (Chromium kiosk) | Eq (iframe) | N/D / Parc | Eq |
+| Loop sem bloquear rede entre mídias | Ref | Eq | Parc | Parc | Parc |
+| Cache `{mediaId}.{ext}` + metadata + LRU | Ref | Eq | Falta | Parc | Parc (IndexedDB) |
+| Checksum / contentVersion | Ref | Eq | Falta | Parc | Parc |
+| Áudio mute por default | Ref | Eq | Eq | Verificar | Eq |
+| Transição véu preto | Ref | Eq | Eq | Falta | Eq |
+| Rotação viewport / `displayRotation` | Ref | Eq (xrandr) | **N/D** | **N/D** | **N/D** |
 
 ---
 
@@ -92,13 +92,13 @@ O Player-Linux tem de **retargetar 2.15/115** (hoje o README/parity citam 2.13).
 | `invalidate_*` / `purge_cache` | Ref | Eq | Eq | Parc | Eq |
 | `config` / `apply_player_config` | Ref | Eq | Eq | Parc | Eq |
 | `restart` / `restart_app` | Ref | Eq | Parc (reload app) | Parc | **N/D** |
-| `reboot` / `reset_board` | Ref | Parc (`systemctl`) | **N/D** | **N/D** | **N/D** |
-| `configure_wifi` | Ref | Falta (NM fase 2) | **N/D** | **N/D** | **N/D** |
-| `display_force_on/off/clear` | Ref | Eq | Parc (overlay) | Parc | Parc |
-| `capture_screen` / `screenshot` | Ref | Falta | **N/D** | **N/D** | **N/D** |
-| `update` / `ota_rollback` | Ref (APK SHA-256) | Falta (.deb) | **N/D** | **N/D** | **N/D** |
+| `reboot` / `reset_board` | Ref | Eq (`systemctl`) | **N/D** | **N/D** | **N/D** |
+| `configure_wifi` | Ref | Eq (`nmcli`) | **N/D** | **N/D** | **N/D** |
+| `display_force_on/off/clear` | Ref | Eq | Eq | Parc | Parc |
+| `capture_screen` / `screenshot` | Ref | Eq | **N/D** | **N/D** | **N/D** |
+| `update` / `ota_rollback` | Ref (APK SHA-256) | Eq (`.deb`) | **N/D** | **N/D** | **N/D** |
 
-WOS/Web: heartbeat **pode** trazer a lista; **executar + ACK** é a dívida (excepto N/D).
+WOS/Web: comandos N/D fazem ACK `unsupported` (servidor não reenvia em loop).
 
 ---
 
@@ -106,14 +106,14 @@ WOS/Web: heartbeat **pode** trazer a lista; **executar + ACK** é a dívida (exc
 
 | L3 | AD | Linux | WOS | Tizen | Web |
 |----|----|-------|-----|-------|-----|
-| Kiosk lock-task + HOME persistente (2.15) | Ref | Falta (X11/Wayland / systemd) | **N/D** | **N/D** | **N/D** |
-| Escape 3× OK → config + Settings | Ref | Falta | **N/D** | **N/D** | **N/D** |
-| Boot completed / autostart 24/7 | Ref | Falta (systemd) | Parc (app TV) | Parc | **N/D** |
-| Kit pendrive + ADB + instalador APK 1.7 | Ref | Outro kit (não APK) | **N/D** | **N/D** | **N/D** |
-| Logos / bootanimation | Ref | Falta | **N/D** | **N/D** | **N/D** |
-| Debug 5 toques / 3 toques | Ref | Falta | Falta | Falta | Parc |
+| Kiosk lock-task + HOME persistente (2.15) | Ref | Eq (systemd + xset) | **N/D** | **N/D** | **N/D** |
+| Escape 3× OK → config + Settings | Ref | Eq (`SIGUSR1` / `kiosk-escape.sh`) | **N/D** | **N/D** | **N/D** |
+| Boot completed / autostart 24/7 | Ref | Eq (systemd + xdg autostart) | Parc (app TV) | Parc | **N/D** |
+| Kit pendrive + ADB + instalador APK 1.7 | Ref | Outro kit (`install-player-linux.sh`) | **N/D** | **N/D** | **N/D** |
+| Logos / bootanimation | Ref | Falta (kit Linux, não APK) | **N/D** | **N/D** | **N/D** |
+| Debug 5 toques / 3 toques | Ref | Parc (sinal, sem UI) | Falta | Falta | Parc |
 | USB storage externo primeiro | Ref | Parc (`/proc/mounts`) | **N/D** / limitado | limitado | **N/D** |
-| `su` / reboot privilegiado | Ref | Parc (systemd) | **N/D** | **N/D** | **N/D** |
+| `su` / reboot privilegiado | Ref | Eq (systemd) | **N/D** | **N/D** | **N/D** |
 | Cue Maestro no APK | Fora 0.1 lab | Fora | Fora | Fora | Fora |
 
 ---
@@ -125,20 +125,21 @@ Percentagem = julgamento contra o **catálogo AD 2.15**, excluindo linhas N/D de
 | Plataforma | Replicável (excl. N/D) | Feito | Falta | Prioridade |
 |------------|------------------------|-------|-------|------------|
 | Player-AD 2.15 | 100% | 100% | 0 | Referência |
-| Player-Linux | ~90% (sem APK/ADB) | ~40% | playback/HTML/OTA/kiosk/Wi‑Fi/screenshot; retarget 2.15 | **P0** |
-| Player-WOS | ~55% (resto N/D) | ~30% | contrato + RN-PAD + comandos não N/D; N/D ficam desligados | **P1** Smart TV |
-| Tizen | ~55% | ~25% | alinhar a WOS (mesmo contrato, HLS onde o SO exigir) | **P1** Smart TV |
-| player-web | ~50% | ~40% | **não** executar reboot/wifi/OTA; sim ACK de purge/refresh/config | **P2** lab |
+| Player-Linux | ~90% (sem APK/ADB) | **~88%** | logos/bootanimation; events v2 HTTP; HB off-thread | **P0** residual |
+| Player-WOS | ~55% (resto N/D) | **~80%** desse 55% | poll adaptativo; cache LRU; debug toques | **P1** Smart TV |
+| Tizen | ~55% | **~70%** desse 55% | alinhar dispatch condicionado e véu ao WOS | **P1** Smart TV |
+| player-web | ~50% | **~85%** desse 50% | poll adaptativo; N/D já ACK `unsupported` | **P2** lab |
 | iPhone / AD-MON | 0% kiosk | monitor | fora deste plano | — |
 
 ---
 
 ## 8. Ordem de trabalho (cruzamento)
 
-1. **Contrato único** — todos os players de reprodução: token → sync/HB → dispatch condicionado → command-result; RN-PAD-001..007; `device_id` canónico.
-2. **Player-Linux → 2.15** — actualizar `PARITY-PLAYER-AD-2.13.md` para 2.15/115; fechar GStreamer FIT, HTML, kiosk systemd, OTA Linux, NM Wi‑Fi, screenshot.
-3. **WOS / Tizen** — mesmo subconjunto de protocolo e RN; na UI/API marcar reboot, Wi‑Fi, OTA APK, kiosk HOME, ADB, screenshot como **desabilitado**.
-4. **player-web** — executar só comandos seguros no browser (`refresh_dispatch`, `purge` limitado por quota, `config`); resto N/D.
-5. **Não misturar** monitores (iPhone/MON) neste backlog de kiosk.
+1. **Contrato único** — fechado no ramo `cursor/player-ad-215-parity` (web, Linux, WOS, Tizen HLS).
+2. **Player-Linux fase 2** — GStreamer FIT, HTML Chromium, systemd, OTA `.deb`, NM Wi‑Fi, screenshot, SIGUSR1. **Fechado em software** (build no totem Linux).
+3. **WOS** — véu, HTML iframe, GET config, duração imagem 10 s. Residual: poll adaptativo.
+4. **Tizen** — mesmo subconjunto; HLS onde o SO exigir.
+5. **player-web** — comandos seguros + ACK N/D; GET config.
+6. **Não misturar** monitores (iPhone/MON) neste backlog de kiosk.
 
-Smart TV: o servidor deve aceitar ACK `unsupported` / não reenviar comandos N/D em loop.
+Smart TV: o servidor aceita ACK `unsupported` / não reenvia comandos N/D em loop.

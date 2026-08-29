@@ -1853,7 +1853,7 @@ router.post('/exit-kiosk',
 
 /**
  * @route GET /api/player/ota-download/:id
- * @desc Download APK OTA para Player-AD (uin + token na query)
+ * @desc Download OTA (APK Android ou .deb Linux) — uin + token na query
  */
 router.get('/ota-download/:id',
   query('uin').isString().notEmpty(),
@@ -1880,15 +1880,22 @@ router.get('/ota-download/:id',
       const update = await db.findFirst(`
         SELECT file_path, version, platform, checksum
         FROM ota_updates
-        WHERE id = $1 AND status = 'active' AND platform IN ('android', 'all')
+        WHERE id = $1 AND status = 'active' AND platform IN ('android', 'linux', 'all')
       `, [updateId]);
 
       if (!update || !fs.existsSync(update.file_path)) {
         return res.status(404).json({ error: 'Atualização não encontrada' });
       }
 
-      const fileName = `update_${update.version}_android${path.extname(update.file_path)}`;
-      res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+      const plat = String(update.platform || 'android').toLowerCase();
+      const ext = path.extname(update.file_path) || (plat === 'linux' ? '.deb' : '.apk');
+      const fileName = `update_${update.version}_${plat === 'linux' ? 'linux' : 'android'}${ext}`;
+      res.setHeader(
+        'Content-Type',
+        plat === 'linux'
+          ? 'application/vnd.debian.binary-package'
+          : 'application/vnd.android.package-archive'
+      );
       res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
       res.setHeader('X-Update-Checksum', update.checksum);
       fs.createReadStream(update.file_path).pipe(res);
@@ -1902,7 +1909,7 @@ router.get('/ota-download/:id',
 
 /**
  * @route POST /api/player/ota-status
- * @desc Player-AD reporta progresso de atualização OTA Android
+ * @desc Player reporta progresso de atualização OTA (Android APK ou Linux .deb)
  * @access Public (totem autenticado)
  */
 router.post('/ota-status',

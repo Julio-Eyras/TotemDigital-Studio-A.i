@@ -13,6 +13,7 @@ public:
   void onDispatchSuccess(bool unchanged, bool idle);
   void onFailure();
   void wake();
+  void replaceConfig(const PlayerConfig& cfg);
 
   int heartbeatIntervalMs() const { return heartbeatMs_; }
   int dispatchIntervalMs() const { return dispatchMs_; }

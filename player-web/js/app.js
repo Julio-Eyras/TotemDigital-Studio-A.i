@@ -260,6 +260,10 @@ class SmartSignagePlayer {
             this.config.totemSecret
         );
         this.apiClient.deviceId = this.config.deviceId;
+        try {
+            const remoteCfg = await this.apiClient.getPlayerConfig();
+            if (remoteCfg && typeof remoteCfg === 'object') this._applyRemoteConfig(remoteCfg);
+        } catch (e) { /* GET config opcional */ }
         this._ensureCommandRunner();
     }
 
@@ -872,6 +876,24 @@ class MediaPlayerHTML5 {
         this._currentBlobURL = null; // Para limpar Blob URLs
     }
 
+    _coverMediaVeil() {
+        let veil = document.getElementById('media-transition-veil');
+        if (!veil) {
+            veil = document.createElement('div');
+            veil.id = 'media-transition-veil';
+            veil.style.cssText =
+                'position:fixed;inset:0;background:#000;z-index:9998;opacity:1;pointer-events:none;';
+            document.body.appendChild(veil);
+        }
+        veil.style.display = 'block';
+        veil.style.opacity = '1';
+        setTimeout(() => {
+            veil.style.transition = 'opacity 60ms';
+            veil.style.opacity = '0';
+            setTimeout(() => { veil.style.display = 'none'; }, 80);
+        }, 280);
+    }
+
     on(event, callback) {
         if (!this.listeners[event]) this.listeners[event] = [];
         this.listeners[event].push(callback);
@@ -901,6 +923,7 @@ class MediaPlayerHTML5 {
     async play(mediaItem, url) {
         return new Promise((resolve, reject) => {
             this._stopSilent();
+            this._coverMediaVeil();
             this._startedAt = Date.now();
             const mt = (mediaItem.mediaType || 'video').toLowerCase();
             const duration = mediaItem.duration;

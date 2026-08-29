@@ -21,7 +21,9 @@ public:
                   const std::string& configPath,
                   cache::MediaCache& cache,
                   api::DispatcherClient& client,
-                  std::string receiptsPath);
+                  std::string receiptsPath,
+                  std::string otaDir,
+                  std::string shotsDir);
 
   void setOnRefreshDispatch(std::function<void()> fn) { onRefreshDispatch_ = std::move(fn); }
   void setOnRestart(RestartFn fn) { onRestart_ = std::move(fn); }
@@ -34,6 +36,8 @@ private:
   std::string schedulePath_;
   std::string configPath_;
   std::string receiptsPath_;
+  std::string otaDir_;
+  std::string shotsDir_;
   cache::MediaCache& cache_;
   api::DispatcherClient& client_;
   std::unordered_set<std::string> seenIds_;

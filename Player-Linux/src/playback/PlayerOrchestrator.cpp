@@ -1,13 +1,79 @@
 #include "playback/PlayerOrchestrator.hpp"
 
+#include "ops/FieldOps.hpp"
 #include "util/Logger.hpp"
 #include "version.hpp"
 
+#include <algorithm>
 #include <chrono>
+#include <cctype>
+#include <filesystem>
 #include <fstream>
+#include <stdexcept>
 #include <thread>
+#include <vector>
 
 namespace player::playback {
+
+namespace fs = std::filesystem;
+
+namespace {
+
+std::string lowerCopy(std::string s) {
+  for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  return s;
+}
+
+std::string guessType(const std::string& name) {
+  const auto n = lowerCopy(name);
+  if (n.size() >= 5 && (n.compare(n.size() - 5, 5, ".html") == 0 || n.compare(n.size() - 4, 4, ".htm") == 0))
+    return "html";
+  if (n.size() >= 4 && (n.compare(n.size() - 4, 4, ".jpg") == 0 || n.compare(n.size() - 4, 4, ".png") == 0))
+    return "image";
+  if (n.size() >= 5 && (n.compare(n.size() - 5, 5, ".jpeg") == 0 || n.compare(n.size() - 5, 5, ".webp") == 0))
+    return "image";
+  return "video";
+}
+
+bool isFallbackName(const std::string& name) {
+  if (name == "metadata.json") return false;
+  const auto n = lowerCopy(name);
+  return n.size() >= 4 &&
+         (n.compare(n.size() - 4, 4, ".mp4") == 0 || n.compare(n.size() - 5, 5, ".webm") == 0 ||
+          n.compare(n.size() - 4, 4, ".mov") == 0 || n.compare(n.size() - 4, 4, ".jpg") == 0 ||
+          n.compare(n.size() - 5, 5, ".jpeg") == 0 || n.compare(n.size() - 4, 4, ".png") == 0 ||
+          n.compare(n.size() - 5, 5, ".html") == 0 || n.compare(n.size() - 4, 4, ".htm") == 0);
+}
+
+std::vector<std::string> listMedia(const std::string& dir) {
+  std::vector<std::string> out;
+  std::error_code ec;
+  if (!fs::exists(dir, ec) || !fs::is_directory(dir, ec)) return out;
+  for (const auto& e : fs::directory_iterator(dir, ec)) {
+    if (!e.is_regular_file()) continue;
+    const auto name = e.path().filename().string();
+    if (!isFallbackName(name)) continue;
+    if (e.file_size(ec) == 0) continue;
+    out.push_back(e.path().string());
+  }
+  std::sort(out.begin(), out.end(), [](const std::string& a, const std::string& b) {
+    return lowerCopy(a) < lowerCopy(b);
+  });
+  return out;
+}
+
+api::MediaItem itemFromPath(const std::string& path, int order) {
+  api::MediaItem m;
+  m.mediaId = fs::path(path).stem().string();
+  m.url = "file://" + path;
+  m.mediaType = guessType(path);
+  m.order = order;
+  if (m.mediaType == "image") m.durationSeconds = 10;
+  else if (m.mediaType == "html") m.durationSeconds = 60;
+  return m;
+}
+
+}  // namespace
 
 PlayerOrchestrator::PlayerOrchestrator(config::PlayerConfig cfg, util::DataLayout layout)
     : cfg_(std::move(cfg)),
@@ -17,7 +83,7 @@ PlayerOrchestrator::PlayerOrchestrator(config::PlayerConfig cfg, util::DataLayou
       client_(cfg_),
       cache_(cfg_, layout_.propagandasDir, layout_.metadataPath),
       commands_(cfg_, schedule_, layout_.schedulePath, layout_.configPath, cache_, client_,
-                layout_.receiptsPath),
+                layout_.receiptsPath, layout_.otaDir, layout_.screenshotsDir),
       backend_(createMediaBackend()) {
   commands_.setOnRefreshDispatch([this] { tickDispatch(true); });
   commands_.setOnRestart([this] {
@@ -42,6 +108,9 @@ void PlayerOrchestrator::persistPlan() {
   j["playlistId"] = plan_.playlistId;
   j["playlistName"] = plan_.playlistName;
   j["planVersion"] = plan_.planVersion;
+  j["planState"] = plan_.mediaItems.empty()
+                       ? (planSource_ == "UNAVAILABLE" ? "UNAVAILABLE" : "EMPTY")
+                       : "ACTIVE";
   j["mediaItems"] = nlohmann::json::array();
   for (const auto& m : plan_.mediaItems) {
     nlohmann::json it;
@@ -98,6 +167,11 @@ void PlayerOrchestrator::tickHeartbeat() {
             (schedule_.forceMode ? (" force=" + *schedule_.forceMode) : ""));
   }
   commands_.handleAll(hb.pendingCommands, client_.token());
+  maybeApplyOta(hb.otaUpdate);
+  if (hb.pollAdaptive) {
+    cfg_.mergePollAdaptive(*hb.pollAdaptive);
+    poll_.replaceConfig(cfg_);
+  }
   const bool unchanged =
       hb.planVersion && knownPlanVersion_ && *hb.planVersion == *knownPlanVersion_;
   const bool idle = !schedule_.isDisplayActiveNow();
@@ -119,6 +193,17 @@ void PlayerOrchestrator::tickDispatch(bool force) {
   if (!dr.ok) {
     poll_.onFailure();
     util::Logger::w("DISPATCH", "falhou HTTP " + std::to_string(dr.httpStatus));
+    if (plan_.mediaItems.empty() && planSource_ != "EMPTY_PLAN") {
+      auto fb = buildFallbackPlan();
+      if (!fb.mediaItems.empty()) {
+        plan_ = std::move(fb);
+        planSource_ = "FALLBACK_LOCAL";
+        index_ = 0;
+        persistPlan();
+        util::Logger::i("DISPATCH", "FALLBACK_LOCAL mix N:1 itens=" +
+                                        std::to_string(plan_.mediaItems.size()));
+      }
+    }
     return;
   }
   const bool changed = dr.plan.planVersion.empty() || !knownPlanVersion_ ||
@@ -138,8 +223,7 @@ void PlayerOrchestrator::tickDispatch(bool force) {
 
 void PlayerOrchestrator::playCurrent() {
   if (plan_.mediaItems.empty()) {
-    planSource_ = "EMPTY_PLAN";
-    util::Logger::i("PLAYBACK", "EMPTY_PLAN — aguardar needsDispatch (RN-PAD-001)");
+    util::Logger::i("PLAYBACK", planSource_ + " — plano vazio; aguardar needsDispatch (RN-PAD-001)");
     std::this_thread::sleep_for(std::chrono::seconds(30));
     return;
   }
@@ -158,7 +242,11 @@ void PlayerOrchestrator::playCurrent() {
     ++index_;
     return;
   }
-  util::Logger::i("PLAYBACK", "Início mediaId=" + item.mediaId + " playlist=\"" + plan_.playlistName + "\"");
+  if (cfg_.mediaTransitionEnabled) {
+    backend_->playBlackVeil(300);
+  }
+  util::Logger::i("PLAYBACK", "Início mediaId=" + item.mediaId + " playlist=\"" + plan_.playlistName +
+                                  "\" source=" + planSource_);
   backend_->playFile(path, item.mediaType, item.durationSeconds, cfg_.allowPlaybackAudio);
   while (!stop_ && backend_->isPlaying()) {
     if (!schedule_.isDisplayActiveNow()) {
@@ -176,6 +264,16 @@ void PlayerOrchestrator::run() {
   util::Logger::i("WATCHDOG",
                   std::string("Loop Player-Linux ") + PLAYER_LINUX_VERSION_STR +
                       " parity AD " + PLAYER_LINUX_PARITY_STR);
+  if (auto remote = client_.fetchPlayerConfig()) {
+    if (remote->contains("heartbeatInterval") && (*remote)["heartbeatInterval"].is_number()) {
+      int v = (*remote)["heartbeatInterval"].get<int>();
+      if (v > 120) v = std::max(15, v / 1000);
+      cfg_.batimentoCardiaco = std::max(15, v);
+      poll_.replaceConfig(cfg_);
+      util::Logger::i("SETUP", "GET /api/player/config heartbeat=" +
+                                   std::to_string(cfg_.batimentoCardiaco) + "s");
+    }
+  }
   tickHeartbeat();
   tickDispatch(true);
 
@@ -201,6 +299,60 @@ void PlayerOrchestrator::run() {
     }
     playCurrent();
   }
+}
+
+void PlayerOrchestrator::maybeApplyOta(const std::optional<nlohmann::json>& ota) {
+  if (!ota) return;
+  auto pkg = ops::parseOta(*ota);
+  if (!pkg) return;
+  if (pkg->version == lastOtaVersion_ || pkg->version == PLAYER_LINUX_VERSION_STR) return;
+  lastOtaVersion_ = pkg->version;
+  const std::string tok = client_.token();
+  util::Logger::i("OTA", "heartbeat OTA " + pkg->version);
+  client_.reportOtaStatus(tok, PLAYER_LINUX_VERSION_STR, "downloading", pkg->version, "");
+  try {
+    ops::applyOta(*pkg, cfg_.serverUrl, layout_.otaDir, cfg_.uin, tok);
+    client_.reportOtaStatus(tok, pkg->version, "up_to_date", pkg->version, "");
+  } catch (const std::exception& ex) {
+    util::Logger::e("OTA", std::string("falhou: ") + ex.what());
+    client_.reportOtaStatus(tok, PLAYER_LINUX_VERSION_STR, "failed", pkg->version, ex.what());
+  }
+}
+
+api::DispatchPlan PlayerOrchestrator::buildFallbackPlan() const {
+  api::DispatchPlan plan;
+  const auto ads = listMedia(layout_.propagandasDir);
+  const auto vins = listMedia(layout_.vinhetasDir);
+  if (ads.empty() && vins.empty()) return plan;
+
+  const int n = std::max(1, cfg_.fallbackPropagandasPerVinheta);
+  plan.playlistId = "fallback-local";
+  plan.playlistName = "Fallback local " + std::to_string(n) + ":1";
+  plan.planVersion = "FALLBACK_LOCAL";
+
+  int order = 1;
+  if (vins.empty()) {
+    for (const auto& a : ads) plan.mediaItems.push_back(itemFromPath(a, order++));
+  } else if (ads.empty()) {
+    for (const auto& v : vins) plan.mediaItems.push_back(itemFromPath(v, order++));
+  } else {
+    size_t ai = 0;
+    size_t vi = 0;
+    while (ai < ads.size() || vi < vins.size()) {
+      for (int k = 0; k < n && ai < ads.size(); ++k) {
+        plan.mediaItems.push_back(itemFromPath(ads[ai++], order++));
+      }
+      if (vi < vins.size()) plan.mediaItems.push_back(itemFromPath(vins[vi++], order++));
+    }
+  }
+  if (!cfg_.acceptImagesInPlaylist) {
+    std::vector<api::MediaItem> kept;
+    for (auto& m : plan.mediaItems) {
+      if (m.mediaType.find("image") == std::string::npos) kept.push_back(std::move(m));
+    }
+    plan.mediaItems = std::move(kept);
+  }
+  return plan;
 }
 
 }  // namespace player::playback

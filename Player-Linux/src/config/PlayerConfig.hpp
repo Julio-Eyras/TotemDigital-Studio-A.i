@@ -41,6 +41,7 @@ struct PlayerConfig {
   static PlayerConfig fromJson(const nlohmann::json& j);
   nlohmann::json toJson() const;
   bool isValid() const;
+  void mergePollAdaptive(const nlohmann::json& j);
 };
 
 PlayerConfig loadPlayerConfig(const std::string& preferredPath, const std::string& fallbackPath);

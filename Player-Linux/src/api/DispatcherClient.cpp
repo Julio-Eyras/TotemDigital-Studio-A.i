@@ -100,6 +100,20 @@ std::optional<std::string> DispatcherClient::getToken() {
   return std::nullopt;
 }
 
+std::optional<nlohmann::json> DispatcherClient::fetchPlayerConfig() {
+  const std::string url = urlJoin("/api/player/config");
+  long status = 0;
+  std::string body;
+  if (!httpRequest("GET", url, "", 8, status, body) || status < 200 || status >= 300) {
+    return std::nullopt;
+  }
+  try {
+    return nlohmann::json::parse(body);
+  } catch (...) {
+    return std::nullopt;
+  }
+}
+
 HeartbeatResult DispatcherClient::heartbeatOrSync(const std::string& token,
                                                   const std::optional<std::string>& knownPlanVersion) {
   HeartbeatResult r;
@@ -110,6 +124,8 @@ HeartbeatResult DispatcherClient::heartbeatOrSync(const std::string& token,
       {"platform", PLAYER_LINUX_PLATFORM},
       {"version", PLAYER_LINUX_VERSION_STR},
       {"appVersion", PLAYER_LINUX_VERSION_STR},
+      {"currentVersion", PLAYER_LINUX_VERSION_STR},
+      {"updateStatus", "up_to_date"},
   };
 
   const auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -304,6 +320,26 @@ bool DispatcherClient::reportCommandResult(const std::string& token,
   long httpStatus = 0;
   std::string resp;
   return httpRequest("POST", url, body.dump(), 60, httpStatus, resp) && httpStatus >= 200 &&
+         httpStatus < 300;
+}
+
+bool DispatcherClient::reportOtaStatus(const std::string& token,
+                                       const std::string& currentVersion,
+                                       const std::string& updateStatus,
+                                       const std::string& availableVersion,
+                                       const std::string& error) {
+  nlohmann::json body = {
+      {"uin", cfg_.uin},
+      {"token", token},
+      {"currentVersion", currentVersion},
+      {"updateStatus", updateStatus},
+  };
+  if (!availableVersion.empty()) body["availableVersion"] = availableVersion;
+  if (!error.empty()) body["error"] = error;
+  const std::string url = urlJoin("/api/player/ota-status");
+  long httpStatus = 0;
+  std::string resp;
+  return httpRequest("POST", url, body.dump(), 30, httpStatus, resp) && httpStatus >= 200 &&
          httpStatus < 300;
 }
 

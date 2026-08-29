@@ -16,6 +16,8 @@ struct DataLayout {
   std::string metadataPath;
   std::string telemetryDir;
   std::string receiptsPath;
+  std::string otaDir;
+  std::string screenshotsDir;
 };
 
 DataLayout resolveDataLayout(const std::string& dataRoot);

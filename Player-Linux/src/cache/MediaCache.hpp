@@ -28,6 +28,7 @@ private:
   void saveMetadata();
   std::string extensionFor(const api::MediaItem& item) const;
   bool downloadUrl(const std::string& url, const std::string& destPath);
+  void evictIfNeeded(const std::string& keepPath);
 };
 
 }  // namespace player::cache

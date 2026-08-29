@@ -2,6 +2,7 @@
 
 #include "config/PlayerConfig.hpp"
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
@@ -59,6 +60,7 @@ public:
   explicit DispatcherClient(config::PlayerConfig cfg);
 
   std::optional<std::string> getToken();
+  std::optional<nlohmann::json> fetchPlayerConfig();
   HeartbeatResult heartbeatOrSync(const std::string& token,
                                   const std::optional<std::string>& knownPlanVersion);
   DispatchResult getDispatchPlan(const std::string& token, const std::string& timezone);
@@ -67,6 +69,11 @@ public:
                            const std::string& status,
                            const nlohmann::json& result,
                            const std::string& error);
+  bool reportOtaStatus(const std::string& token,
+                       const std::string& currentVersion,
+                       const std::string& updateStatus,
+                       const std::string& availableVersion,
+                       const std::string& error);
 
   const std::string& token() const { return token_; }
   void setToken(std::string t) { token_ = std::move(t); }
