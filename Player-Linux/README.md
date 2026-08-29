@@ -21,7 +21,7 @@ Reproduzir no Linux as **mesmas regras de negócio, contratos de API, config JSO
 | [docs/PARITY-PLAYER-AD-2.13.md](./docs/PARITY-PLAYER-AD-2.13.md) | Checklist de parity Android → Linux (alvo 2.15/115) |
 | [docs/ARQUITETURA.md](./docs/ARQUITETURA.md) | Módulos C++, threads, storage |
 | [docs/API-E-CONFIG.md](./docs/API-E-CONFIG.md) | Endpoints e schema `player-config.json` |
-| [../docs/players/EQUIVALENCIA-PLAYER-AD-2.15.md](../docs/players/EQUIVALENCIA-PLAYER-AD-2.15.md) | Mapa cruzado AD / Linux / WOS / Tizen / web |
+| [../docs/players/EQUIVALENCIA-PLAYER-AD-2.15.md](../docs/players/EQUIVALENCIA-PLAYER-AD-2.15.md) | Mapa cruzado AD / Linux / WOS / Tizen |
 | [config/exemplo-player-config.json](./config/exemplo-player-config.json) | Modelo de configuração (igual ao kit Android) |
 
 ## Build (Linux)

@@ -15,7 +15,6 @@ import { promisify } from 'util';
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
-import { config } from '../config/env';
 import { getTotemSecretKey } from '../config/totemSecurity';
 import { decryptOpenSslSaltedBase64 } from '../utils/totemEncryption';
 import { normalizeTotemUin } from '../utils/normalizeTotemUin';
@@ -28,22 +27,10 @@ import {
 
 const execAsync = promisify(exec);
 
-const VIDEO_EXT = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.m4v', '.ogv'];
-const IMAGE_EXT = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-
-function listMediaFiles(dir: string): string[] {
-  if (!fs.existsSync(dir)) return [];
-  const files = fs.readdirSync(dir, { withFileTypes: true });
-  return files
-    .filter((f) => f.isFile() && (VIDEO_EXT.includes(path.extname(f.name).toLowerCase()) || IMAGE_EXT.includes(path.extname(f.name).toLowerCase())))
-    .map((f) => f.name)
-    .sort((a, b) => path.basename(a, path.extname(a)).localeCompare(path.basename(b, path.extname(b)), undefined, { numeric: true }));
-}
-
 const router = express.Router();
 const dispatcherRouter = getDispatcherRouter();
 
-/** Alinha UIN e Device ID ao formato canónico (igual Player-AD / player-web). */
+/** Alinha UIN e Device ID ao formato canónico (igual Player-AD). */
 function normalizePlayerRequestIdentity(req: express.Request): void {
   const q = req.query.uin;
   const qStr = Array.isArray(q) ? q[0] : q;
@@ -241,23 +228,7 @@ async function handleApprovalRequest(
 
     // Se status for 'online' ou se houver flag de auto-aprovação, gerar config
     if (finalStatus === 'online' || req.body?.autoApprove === true) {
-      try {
-        // Usar variável de ambiente ou padrão
-        const playerDir = process.env.PLAYER_DIR || '/opt/smart-signage/player-web';
-        const path = require('path');
-        const scriptPath = process.env.GENERATE_CONFIG_SCRIPT || 
-                         path.join(__dirname, '../../scripts/generate-player-config.sh');
-        
-        await execAsync(`bash "${scriptPath}" "${uin}" "${playerDir}" "${getTotemSecretKey()}"`, {
-          timeout: 10000
-        });
-        
-        encryptedConfigPath = `${playerDir}/config.json.enc`;
-        configGenerated = true;
-        await logInfo(`[${requestId}] Config.json.enc gerado automaticamente`, { uin, path: encryptedConfigPath });
-      } catch (configError: any) {
-        await logWarn(`[${requestId}] Erro ao gerar config encriptado (continuando)`, { error: configError.message });
-      }
+      // config.json.enc era da página HTML player-web (removida). Players de campo usam o próprio storage.
     }
 
     // Registrar evento
@@ -388,14 +359,7 @@ router.get('/config', async (_req: Request, res: Response) => {
  */
 router.get('/fallback-manifest', async (_req: Request, res: Response) => {
   try {
-    const playerDir = process.env.PLAYER_DIR || config.player.dir || '/opt/smart-signage/player-web';
-    const propagandasDir = path.join(playerDir, 'propagandas');
-    const vinhetasDir = path.join(playerDir, 'vinhetas');
-
-    const propagandas = listMediaFiles(propagandasDir);
-    const vinhetas = listMediaFiles(vinhetasDir);
-
-    return res.json({ propagandas, vinhetas });
+    return res.json({ propagandas: [] as string[], vinhetas: [] as string[] });
   } catch (err: any) {
     await logError('Erro ao listar manifest de fallback', err);
     return res.status(500).json({ error: err.message || 'Erro ao listar fallback' });

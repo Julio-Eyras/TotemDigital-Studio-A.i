@@ -47,7 +47,6 @@ RestartSec=5
 StandardOutput=journal
 StandardError=journal
 Environment=NODE_ENV=production
-Environment=PLAYER_DIR=/opt/smart-signage/player-web
 EnvironmentFile=-$INSTALL_DIR/.env
 LimitNOFILE=65536
 LimitNPROC=4096

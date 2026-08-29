@@ -157,10 +157,9 @@ check_file "monitoring/grafana/datasources/prometheus.yml" "Datasource Grafana"
 # =============================================
 # VERIFICAÇÃO DO PLAYER
 # =============================================
-info "🔍 Verificando Player..."
+info "🔍 Verificando Player-AD..."
 
-check_file "player-web/index-dispatchplan.html" "Player Web (DispatchPlan)"
-check_file "player-web/index.html" "Player Web (HTML5)"
+check_file "Player-AD/build.gradle" "Player-AD (Android)"
 
 # =============================================
 # VERIFICAÇÃO DOS SCRIPTS

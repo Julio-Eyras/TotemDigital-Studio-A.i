@@ -129,7 +129,7 @@ test_endpoint "Backend Health" "http://$SERVER_IP:$BACKEND_PORT/health"
 test_endpoint "Backend API" "http://$SERVER_IP:$BACKEND_PORT/api/health"
 
 # Testar Player
-test_endpoint "Player" "http://$SERVER_IP:$FRONTEND_PORT/player"
+test_endpoint "API health" "http://$SERVER_IP:$FRONTEND_PORT/api/health"
 
 # Testar Prometheus
 test_endpoint "Prometheus" "http://$SERVER_IP:$PROMETHEUS_PORT"

@@ -195,31 +195,7 @@ EOF
 
 # Testar player
 test_player() {
-    log "Testando player..."
-    
-    if [[ ! -d "player-web" ]]; then
-        error "Diretório player-web não encontrado!"
-        return 1
-    fi
-    
-    # Verificar se index.html existe
-    if [[ ! -f "player-web/index.html" ]]; then
-        error "Arquivo player-web/index.html não encontrado!"
-        return 1
-    fi
-    
-    # Verificar se o arquivo é válido HTML
-    if ! grep -q "<!DOCTYPE html>" player-web/index.html; then
-        warn "Arquivo player-web/index.html pode não ser HTML válido"
-    fi
-    
-    # Verificar tamanho do arquivo
-    FILE_SIZE=$(stat -c%s player-web/index.html 2>/dev/null || stat -f%z player-web/index.html 2>/dev/null || echo "0")
-    if [[ $FILE_SIZE -lt 100 ]]; then
-        warn "Arquivo player-web/index.html muito pequeno ($FILE_SIZE bytes)"
-    fi
-    
-    log "Player verificado com sucesso! Tamanho: $FILE_SIZE bytes"
+    log "Página HTML player-web retirada — a saltar verificação de player-web/"
     return 0
 }
 
@@ -425,9 +401,8 @@ Frontend:
 - Build: $([ -f "frontend/build/index.html" ] && echo "✅ Sucesso" || echo "❌ Falha")
 - Tamanho: $([ -f "frontend/build/index.html" ] && echo "$(stat -c%s frontend/build/index.html 2>/dev/null || stat -f%z frontend/build/index.html 2>/dev/null || echo "0") bytes" || echo "N/A")
 
-Player:
-- Arquivo: $([ -f "player-web/index.html" ] && echo "✅ Encontrado" || echo "❌ Não encontrado")
-- Tamanho: $([ -f "player-web/index.html" ] && echo "$(stat -c%s player-web/index.html 2>/dev/null || stat -f%z player-web/index.html 2>/dev/null || echo "0") bytes" || echo "N/A")
+Player-AD:
+- Gradle: $([ -f "Player-AD/build.gradle" ] && echo "✅ Encontrado" || echo "❌ Não encontrado")
 
 Configurações:
 - docker-compose.yml: $([ -f "docker-compose.yml" ] && echo "✅ Encontrado" || echo "❌ Não encontrado")
@@ -442,7 +417,7 @@ Scripts:
 - install.sh: $([ -f "scripts/install.sh" ] && echo "✅ Encontrado" || echo "❌ Não encontrado")
 - first-boot.sh: $([ -f "scripts/first-boot.sh" ] && echo "✅ Encontrado" || echo "❌ Não encontrado")
 
-Status Geral: $([ -f "backend/dist/index.js" ] && [ -f "frontend/build/index.html" ] && [ -f "player-web/index.html" ] && echo "✅ PRONTO PARA INSTALAÇÃO" || echo "❌ NECESSITA CORREÇÕES")
+Status Geral: $([ -f "backend/dist/index.js" ] && [ -f "frontend/build/index.html" ] && [ -f "Player-AD/build.gradle" ] && echo "✅ PRONTO PARA INSTALAÇÃO" || echo "❌ NECESSITA CORREÇÕES")
 EOF
 
     log "Relatório gerado: $REPORT_FILE"
@@ -480,11 +455,11 @@ show_summary() {
     
     # Player
     TOTAL_COUNT=$((TOTAL_COUNT + 1))
-    if [[ -f "player-web/index.html" ]]; then
-        echo -e "${GREEN}✅ Player:${NC} Arquivo encontrado"
+    if [[ -f "Player-AD/build.gradle" ]]; then
+        echo -e "${GREEN}✅ Player-AD:${NC} projecto encontrado"
         SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
     else
-        echo -e "${RED}❌ Player:${NC} Arquivo não encontrado"
+        echo -e "${RED}❌ Player-AD:${NC} projecto não encontrado"
     fi
     
     # Configurações

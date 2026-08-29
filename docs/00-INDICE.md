@@ -224,7 +224,7 @@ Metodologia: [modulos/00-METODOLOGIA.md](./modulos/00-METODOLOGIA.md) · templat
 | [../Player-Linux/docs/PARITY-PLAYER-AD-2.13.md](../Player-Linux/docs/PARITY-PLAYER-AD-2.13.md) | Checklist de parity Android → Linux (alvo 2.15/115). |
 | [../Player-Linux/docs/ARQUITETURA.md](../Player-Linux/docs/ARQUITETURA.md) | Módulos C++, threads, storage. |
 | [../Player-Linux/docs/API-E-CONFIG.md](../Player-Linux/docs/API-E-CONFIG.md) | Endpoints e `player-config.json`. |
-| [players/EQUIVALENCIA-PLAYER-AD-2.15.md](./players/EQUIVALENCIA-PLAYER-AD-2.15.md) | Cruzamento de paridade: AD 2.15/115 vs Linux, webOS, Tizen, player-web. |
+| [players/EQUIVALENCIA-PLAYER-AD-2.15.md](./players/EQUIVALENCIA-PLAYER-AD-2.15.md) | Cruzamento de paridade: AD 2.15/115 vs Linux, webOS, Tizen. |
 
 ### Hardware / TV box
 
