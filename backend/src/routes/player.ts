@@ -1958,13 +1958,21 @@ router.post('/command-result',
   body('uin').isString().notEmpty().withMessage('UIN é obrigatório'),
   body('token').isString().notEmpty().withMessage('Token é obrigatório'),
   body('requestId').isString().notEmpty().withMessage('requestId é obrigatório'),
-  body('status').isIn(['completed', 'failed']).withMessage('status deve ser completed ou failed'),
+  body('status').isIn(['completed', 'failed', 'unsupported', 'ok', 'error']).withMessage('status deve ser completed, failed ou unsupported'),
   body('result').optional({ nullable: true }),
   body('error').optional({ nullable: true }).isString(),
   validateRequest,
   async (req: Request, res: Response) => {
     try {
       const { uin, token, requestId, status, result, error } = req.body;
+      const normalizedStatus =
+        status === 'failed' || status === 'error'
+          ? 'failed'
+          : 'completed';
+      const normalizedResult =
+        status === 'unsupported'
+          ? { ...(result && typeof result === 'object' ? result : {}), unsupported: true }
+          : result;
 
       // Validar token
       if (!validateTotemToken(uin, token)) {
@@ -1997,15 +2005,15 @@ router.post('/command-result',
       // Atualizar status do comando
       const remoteCommandService = getRemoteCommandService();
       
-      if (status === 'completed') {
-        await remoteCommandService.markCommandAsCompleted(command.id, result);
+      if (normalizedStatus === 'completed') {
+        await remoteCommandService.markCommandAsCompleted(command.id, normalizedResult);
         
         // Screenshot: preferir imageBase64 (ficheiro no servidor); legacy filePath Android é ignorado para disco
         if (command.command_type === 'screenshot' || command.command_type === 'capture_screen') {
           const { decodeScreenshotPayload, saveRemoteScreenshotFile } = await import(
             '../services/remoteScreenshotStorage'
           );
-          const decoded = decodeScreenshotPayload(result);
+          const decoded = decodeScreenshotPayload(normalizedResult);
           if (decoded) {
             const saved = await saveRemoteScreenshotFile({
               totemId: totem.totem_id,
@@ -2022,22 +2030,22 @@ router.post('/command-result',
               saved.format,
               command.id
             );
-          } else if (result?.filePath && !String(result.filePath).includes('/Android/') && !String(result.filePath).startsWith('/data/')) {
+          } else if (normalizedResult?.filePath && !String(normalizedResult.filePath).includes('/Android/') && !String(normalizedResult.filePath).startsWith('/data/')) {
             // Só aceitar path se já for path de servidor (não path do device)
             await remoteCommandService.saveScreenshot(
               totem.totem_id,
-              result.filePath,
-              result.fileSize || 0,
-              result.width || 0,
-              result.height || 0,
-              result.format || 'png',
+              normalizedResult.filePath,
+              normalizedResult.fileSize || 0,
+              normalizedResult.width || 0,
+              normalizedResult.height || 0,
+              normalizedResult.format || 'png',
               command.id
             );
           } else {
             await logWarn('Screenshot completado sem imageBase64 — ficheiro não gravado no servidor', {
               commandId: command.id,
               totemId: totem.totem_id,
-              hasFilePath: !!result?.filePath,
+              hasFilePath: !!normalizedResult?.filePath,
             });
           }
         }
@@ -2048,14 +2056,14 @@ router.post('/command-result',
       // Registrar evento
       const eventLogService = getEventLogService();
       await eventLogService.logEvent({
-        eventType: status === 'completed' ? EventType.TOTEM_COMMAND_COMPLETED : EventType.TOTEM_COMMAND_FAILED,
+        eventType: normalizedStatus === 'completed' ? EventType.TOTEM_COMMAND_COMPLETED : EventType.TOTEM_COMMAND_FAILED,
         entityType: 'totem',
         entityId: totem.totem_id,
         totemId: totem.totem_id,
         metadata: {
           commandType: command.command_type,
           requestId,
-          result,
+          result: normalizedResult,
           error
         }
       }).catch(e => logWarn('Erro ao registrar evento de comando', { error: e.message }));
@@ -2063,7 +2071,7 @@ router.post('/command-result',
       await logInfo('Resultado de comando reportado', {
         requestId,
         totemId: totem.totem_id,
-        status
+        status: normalizedStatus
       });
 
       return res.json({

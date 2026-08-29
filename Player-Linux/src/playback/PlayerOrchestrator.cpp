@@ -16,7 +16,8 @@ PlayerOrchestrator::PlayerOrchestrator(config::PlayerConfig cfg, util::DataLayou
       poll_(cfg_),
       client_(cfg_),
       cache_(cfg_, layout_.propagandasDir, layout_.metadataPath),
-      commands_(cfg_, schedule_, layout_.schedulePath, layout_.configPath, cache_, client_),
+      commands_(cfg_, schedule_, layout_.schedulePath, layout_.configPath, cache_, client_,
+                layout_.receiptsPath),
       backend_(createMediaBackend()) {
   commands_.setOnRefreshDispatch([this] { tickDispatch(true); });
   commands_.setOnRestart([this] {
@@ -110,7 +111,7 @@ void PlayerOrchestrator::tickHeartbeat() {
 
 void PlayerOrchestrator::tickDispatch(bool force) {
   if (!force && !plan_.mediaItems.empty()) {
-    // safety path still allowed by caller
+    return;
   }
   if (!ensureToken()) return;
   util::Logger::i("LIFECYCLE", "DispatchPlan + pré-cache");
@@ -123,22 +124,23 @@ void PlayerOrchestrator::tickDispatch(bool force) {
   const bool changed = dr.plan.planVersion.empty() || !knownPlanVersion_ ||
                        dr.plan.planVersion != *knownPlanVersion_;
   plan_ = std::move(dr.plan);
-  planSource_ = "ONLINE";
+  planSource_ = plan_.mediaItems.empty() ? "EMPTY_PLAN" : "ONLINE";
   if (!plan_.planVersion.empty()) knownPlanVersion_ = plan_.planVersion;
   index_ = 0;
   persistPlan();
   util::Logger::i("DISPATCH",
-                  "DispatchPlan recebido — playlist=\"" + plan_.playlistName + "\" itens=" +
-                      std::to_string(plan_.mediaItems.size()) + " source=ONLINE");
+                  std::string(plan_.mediaItems.empty() ? "EMPTY_PLAN — " : "") +
+                      "DispatchPlan recebido — playlist=\"" + plan_.playlistName + "\" itens=" +
+                      std::to_string(plan_.mediaItems.size()) + " source=" + planSource_);
   for (const auto& m : plan_.mediaItems) cache_.ensureLocal(m);
   poll_.onDispatchSuccess(!changed, !schedule_.isDisplayActiveNow());
 }
 
 void PlayerOrchestrator::playCurrent() {
   if (plan_.mediaItems.empty()) {
-    util::Logger::w("PLAYBACK", "Plano vazio — aguardar dispatch");
-    std::this_thread::sleep_for(std::chrono::seconds(5));
-    tickDispatch(true);
+    planSource_ = "EMPTY_PLAN";
+    util::Logger::i("PLAYBACK", "EMPTY_PLAN — aguardar needsDispatch (RN-PAD-001)");
+    std::this_thread::sleep_for(std::chrono::seconds(30));
     return;
   }
   if (index_ >= plan_.mediaItems.size()) {

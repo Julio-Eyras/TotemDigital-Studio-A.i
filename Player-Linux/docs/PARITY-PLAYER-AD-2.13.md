@@ -1,14 +1,16 @@
-# Parity — Player-Linux ↔ Player-AD 2.13 / 113
+# Parity — Player-Linux ↔ Player-AD 2.15 / 115
 
-**Fonte de verdade Android:** `Player-AD` (`versionName` 2.13, `versionCode` 113).  
+**Fonte de verdade Android:** `Player-AD` (`versionName` 2.15, `versionCode` 115).  
 **Este documento** define o contrato de parity que o Player-Linux deve cumprir.
+
+> O ficheiro antigo `PARITY-PLAYER-AD-2.13.md` foi retargetado para 2.15 (kiosk HOME persistente, escape 3× OK no Android — no Linux via compositor/systemd).
 
 ## 1. Identidade
 
 | | Player-AD | Player-Linux |
 |---|---|---|
 | App / binário | `br.com.smartchannel.playerad` | `player-linux` |
-| Versão alvo de regras | 2.13 / 113 | mesma regra de negócio; versão do binário própria (`PLAYER_LINUX_VERSION`) |
+| Versão alvo de regras | 2.15 / 115 | mesma regra de negócio; versão do binário própria (`PLAYER_LINUX_VERSION`) |
 | `platform` no heartbeat | `android` | **`linux`** |
 | Log de operações | `player-ad-operations.log` | `player-linux-operations.log` |
 | Tag log | `Player-AD` | `Player-Linux` |

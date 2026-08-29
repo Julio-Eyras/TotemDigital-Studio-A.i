@@ -119,12 +119,23 @@ HeartbeatResult DispatcherClient::heartbeatOrSync(const std::string& token,
     syncSupported_ = true;
   }
 
-  auto parseHb = [&](const nlohmann::json& j) {
+  auto parseHb = [&](const nlohmann::json& raw) {
+    nlohmann::json j = raw;
+    if (raw.contains("heartbeat") && raw["heartbeat"].is_object()) j = raw["heartbeat"];
+    else if (raw.contains("data") && raw["data"].is_object()) {
+      const auto& d = raw["data"];
+      if (d.contains("heartbeat") && d["heartbeat"].is_object()) j = d["heartbeat"];
+      else j = d;
+    }
     r.ok = true;
     if (j.contains("token")) r.token = j["token"].get<std::string>();
+    else if (raw.contains("token")) r.token = raw["token"].get<std::string>();
     else r.token = token;
-    if (j.contains("pendingCommands") && j["pendingCommands"].is_array()) {
-      for (const auto& c : j["pendingCommands"]) {
+    const auto& cmds = j.contains("pendingCommands") ? j["pendingCommands"]
+                      : j.contains("pending_commands") ? j["pending_commands"]
+                                                       : nlohmann::json::array();
+    if (cmds.is_array()) {
+      for (const auto& c : cmds) {
         PendingCommand pc;
         pc.id = c.value("id", c.value("requestId", ""));
         pc.type = c.value("type", "");
@@ -133,10 +144,14 @@ HeartbeatResult DispatcherClient::heartbeatOrSync(const std::string& token,
       }
     }
     if (j.contains("displaySchedule")) r.displaySchedule = j["displaySchedule"];
+    else if (j.contains("display_schedule")) r.displaySchedule = j["display_schedule"];
     if (j.contains("pollAdaptive")) r.pollAdaptive = j["pollAdaptive"];
     if (j.contains("otaUpdate")) r.otaUpdate = j["otaUpdate"];
     if (j.contains("planVersion")) r.planVersion = j["planVersion"].get<std::string>();
-    r.needsDispatch = j.value("needsDispatch", false);
+    else if (j.contains("plan_version")) r.planVersion = j["plan_version"].get<std::string>();
+    if (j.contains("needsDispatch")) r.needsDispatch = j["needsDispatch"].get<bool>();
+    else if (j.contains("needs_dispatch")) r.needsDispatch = j["needs_dispatch"].get<bool>();
+    else r.needsDispatch = false;
   };
 
   if (syncSupported_) {
@@ -274,11 +289,14 @@ bool DispatcherClient::reportCommandResult(const std::string& token,
                                            const std::string& status,
                                            const nlohmann::json& result,
                                            const std::string& error) {
+  std::string apiStatus = status;
+  if (status == "ok" || status == "unsupported") apiStatus = "completed";
+  if (status == "error") apiStatus = "failed";
   nlohmann::json body = {
       {"uin", cfg_.uin},
       {"token", token},
       {"requestId", requestId},
-      {"status", status},
+      {"status", apiStatus},
   };
   if (!result.is_null()) body["result"] = result;
   if (!error.empty()) body["error"] = error;

@@ -56,6 +56,17 @@ describe('contrato POST /api/player/sync', () => {
     ]);
   });
 
+  it('normaliza unsupported e ok para completed', () => {
+    expect(
+      validateSyncCommandResult({ requestId: '7', status: 'unsupported', result: { type: 'reboot' } }, 0)
+    ).toEqual({
+      command: { requestId: 7, status: 'completed', result: { type: 'reboot', unsupported: true } },
+    });
+    expect(validateSyncCommandResult({ requestId: 8, status: 'ok' }, 0)).toEqual({
+      command: { requestId: 8, status: 'completed' },
+    });
+  });
+
   it('valida commandResults item a item sem invalidar os demais', () => {
     expect(
       validateSyncCommandResult({ requestId: '42', status: 'completed', result: { ok: true } }, 0)

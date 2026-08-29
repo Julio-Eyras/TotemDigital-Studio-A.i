@@ -1,9 +1,14 @@
 class DispatcherApi {
-  constructor(serverUrl, uin, deviceId) {
+  constructor(serverUrl, uin, deviceId, platform) {
     this.serverUrl = String(serverUrl || "").replace(/\/$/, "");
     this.uin = uin;
-    this.deviceId = String(deviceId || "").trim().toUpperCase();
+    this.deviceId = window.PlayerProtocol
+      ? window.PlayerProtocol.canonicalDeviceId(deviceId)
+      : String(deviceId || "").trim().toUpperCase();
+    this.platform = platform || "webos";
     this.token = null;
+    this._syncUnsupported = false;
+    this.lastHeartbeat = null;
   }
 
   qs(obj) {
@@ -16,7 +21,12 @@ class DispatcherApi {
   }
 
   async getToken() {
-    const url = `${this.serverUrl}/api/player/token?${this.qs({ uin: this.uin, deviceId: this.deviceId })}`;
+    const url = `${this.serverUrl}/api/player/token?${this.qs({
+      uin: this.uin,
+      deviceId: this.deviceId,
+      platform: this.platform,
+      appVersion: "2.15.0"
+    })}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`token HTTP ${res.status}`);
     const data = await res.json();
@@ -25,23 +35,72 @@ class DispatcherApi {
     return this.token;
   }
 
-  async heartbeat() {
+  _parse(json) {
+    const proto = window.PlayerProtocol;
+    if (proto && proto.parseSyncOrHeartbeat) {
+      const parsed = proto.parseSyncOrHeartbeat(json);
+      if (parsed.token) this.token = parsed.token;
+      this.lastHeartbeat = parsed;
+      return parsed;
+    }
+    if (json.token) this.token = json.token;
+    return json;
+  }
+
+  async heartbeat(metrics, knownPlanVersion) {
     if (!this.token) await this.getToken();
-    const url = `${this.serverUrl}/api/player/heartbeat?${this.qs({ uin: this.uin, token: this.token, deviceId: this.deviceId })}`;
+    const hbBody = {
+      uin: this.uin,
+      deviceId: this.deviceId,
+      status: "online",
+      platform: this.platform,
+      version: "2.15.0",
+      metrics: metrics || {}
+    };
+    if (!this._syncUnsupported) {
+      const syncBody = {
+        schemaVersion: 1,
+        syncId: window.PlayerProtocol && window.PlayerProtocol.uuid
+          ? window.PlayerProtocol.uuid()
+          : String(Date.now()),
+        heartbeat: hbBody
+      };
+      if (knownPlanVersion) syncBody.knownPlanVersion = knownPlanVersion;
+      const url = `${this.serverUrl}/api/player/sync?${this.qs({
+        uin: this.uin, token: this.token, deviceId: this.deviceId
+      })}`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(syncBody)
+      });
+      if (res.status === 401) {
+        this.token = null;
+        await this.getToken();
+        return this.heartbeat(metrics, knownPlanVersion);
+      }
+      if (res.status === 404 || res.status === 405) {
+        this._syncUnsupported = true;
+      } else {
+        if (!res.ok) throw new Error(`sync HTTP ${res.status}`);
+        return this._parse(await res.json());
+      }
+    }
+    const url = `${this.serverUrl}/api/player/heartbeat?${this.qs({
+      uin: this.uin, token: this.token, deviceId: this.deviceId
+    })}`;
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uin: this.uin, deviceId: this.deviceId })
+      body: JSON.stringify(hbBody)
     });
     if (res.status === 401) {
       this.token = null;
       await this.getToken();
-      return this.heartbeat();
+      return this.heartbeat(metrics, knownPlanVersion);
     }
     if (!res.ok) throw new Error(`heartbeat HTTP ${res.status}`);
-    const data = await res.json();
-    this.token = data.token || this.token;
-    return this.token;
+    return this._parse(await res.json());
   }
 
   async getDispatchPlan() {
@@ -60,6 +119,24 @@ class DispatcherApi {
       return this.getDispatchPlan();
     }
     if (!res.ok) throw new Error(`dispatch HTTP ${res.status}`);
+    return res.json();
+  }
+
+  async reportCommandResult(requestId, status, result, error) {
+    const body = {
+      uin: this.uin,
+      token: this.token,
+      requestId: String(requestId),
+      status: status === "failed" || status === "error" ? "failed" : "completed"
+    };
+    if (result) body.result = result;
+    if (error) body.error = String(error);
+    const res = await fetch(`${this.serverUrl}/api/player/command-result`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error(`command-result HTTP ${res.status}`);
     return res.json();
   }
 }

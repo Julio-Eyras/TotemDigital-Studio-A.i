@@ -14,6 +14,7 @@ class APIClient {
         this.totemSecret = totemSecret || '';
         this.token = null;
         this.deviceId = null;
+        this._syncUnsupported = false;
     }
 
     /**
@@ -79,8 +80,8 @@ class APIClient {
         const q = new URLSearchParams({
             uin: uin || this.totemUIN,
             deviceId: normalizedDeviceId,
-            platform: platform || 'browser',
-            appVersion: appVersion || '2.2.0'
+            platform: platform || 'web',
+            appVersion: appVersion || '2.15.0'
         });
 
         const response = await this.request(`/api/player/token?${q}`);
@@ -176,7 +177,91 @@ class APIClient {
             this.token = response.token;
         }
 
+        return this._attachHeartbeatFields(response);
+    }
+
+    _attachHeartbeatFields(response) {
+        const proto = typeof window !== 'undefined' && window.PlayerProtocol;
+        if (proto && typeof proto.parseSyncOrHeartbeat === 'function') {
+            const parsed = proto.parseSyncOrHeartbeat(response);
+            if (parsed.token) this.token = parsed.token;
+            return Object.assign({}, response, parsed);
+        }
         return response;
+    }
+
+    /**
+     * POST /api/player/sync (preferido) com fallback heartbeat se 404/405.
+     */
+    async sendSyncOrHeartbeat(data) {
+        const uin = data.uin || this.totemUIN;
+        const token = data.token || this.token;
+        if (!uin || !token) {
+            throw new Error('UIN e token são obrigatórios para sync');
+        }
+        const normalizedDeviceId = normalizeDeviceId(data.deviceId || this.deviceId);
+        const queryParams = { uin, token };
+        if (normalizedDeviceId) queryParams.deviceId = normalizedDeviceId;
+
+        const heartbeat = {
+            executedCommands: data.executedCommands || [],
+            metrics: data.metrics || {},
+            status: data.status || 'online',
+            version: data.version,
+            platform: data.platform || 'web',
+            firmwareVersion: data.firmwareVersion,
+            config: data.config,
+            ipAddress: data.ipAddress
+        };
+
+        const proto = typeof window !== 'undefined' && window.PlayerProtocol;
+        const syncId = proto && proto.uuid ? proto.uuid() : ('sync-' + Date.now());
+        const syncBody = {
+            schemaVersion: 1,
+            syncId: syncId,
+            heartbeat: heartbeat
+        };
+        if (data.knownPlanVersion) syncBody.knownPlanVersion = data.knownPlanVersion;
+
+        if (this._syncUnsupported) {
+            return this.sendHeartbeat(data);
+        }
+
+        const params = new URLSearchParams(queryParams);
+        const url = `${this.baseURL}/api/player/sync?${params}`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(syncBody)
+        });
+        if (response.status === 404 || response.status === 405) {
+            this._syncUnsupported = true;
+            return this.sendHeartbeat(data);
+        }
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+            throw new Error(err.error || `HTTP ${response.status}`);
+        }
+        const json = await response.json();
+        return this._attachHeartbeatFields(json);
+    }
+
+    /**
+     * POST /api/player/command-result (completed | failed).
+     */
+    async reportCommandResult(requestId, status, result, error) {
+        const uin = this.totemUIN;
+        const token = this.token;
+        if (!uin || !token) throw new Error('UIN e token são obrigatórios para command-result');
+        const body = {
+            uin,
+            token,
+            requestId: String(requestId),
+            status: status === 'failed' || status === 'error' ? 'failed' : 'completed'
+        };
+        if (result && typeof result === 'object') body.result = result;
+        if (error) body.error = String(error);
+        return this.request('/api/player/command-result', 'POST', body);
     }
 
     /**

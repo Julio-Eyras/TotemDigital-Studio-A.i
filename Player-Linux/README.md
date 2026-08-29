@@ -1,10 +1,10 @@
 # Player-Linux
 
-Player de sinalização digital para **Linux** (totem / PC / painel), em **C++17**, com **parity funcional** face ao **Player-AD 2.13 (versionCode 113)**.
+Player de sinalização digital para **Linux** (totem / PC / painel), em **C++17**, com **parity funcional** face ao **Player-AD 2.15 (versionCode 115)**.
 
 | Campo | Valor |
 |-------|--------|
-| Paridade alvo | Player-AD **Vs2.13-build-113** (`br.com.smartchannel.playerad`) |
+| Paridade alvo | Player-AD **Vs2.15-build-115** (`br.com.smartchannel.playerad`) |
 | Linguagem | C++17 |
 | Build | CMake ≥ 3.16 |
 | Platform (API) | `"linux"` |

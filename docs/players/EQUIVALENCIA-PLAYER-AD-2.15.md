@@ -23,10 +23,10 @@ O player Linux de campo é **só** `Player-Linux/` (não há segunda linha Chrom
 | Código | Projecto | Papel | Alvo de paridade | Estado vs 2.15 |
 |--------|----------|--------|------------------|----------------|
 | **AD** | `Player-AD/` | TV box Android (campo) | — | **100%** referência |
-| **Linux** | `Player-Linux/` | Totem / PC Linux | Doc ainda 2.13/113 | **~40%** replicável; GStreamer/HTML/OTA/kiosk em falta |
-| **WOS** | `Player-WOS/` | LG webOS (Smart TV) | Mesmo contrato HTTP | **~30%** + N/D de campo Android |
-| **Tizen** | `player-client/platforms/tizen/` | Samsung Tizen (Smart TV) | Dispatch/HLS legado | **~25%** + N/D |
-| **Web** | `player-web/` | Browser / laboratório | Dispatch + cache | **~40%**; comandos recebidos e **não** executados |
+| **Linux** | `Player-Linux/` | Totem / PC Linux | Alvo 2.15/115 | **~50%** — sync/ACK/EMPTY_PLAN; GStreamer/HTML/OTA/kiosk em falta |
+| **WOS** | `Player-WOS/` | LG webOS (Smart TV) | Mesmo contrato HTTP | **~45%** + N/D de campo Android |
+| **Tizen** | `player-client/platforms/tizen/` | Samsung Tizen (Smart TV) | Contrato `/api/player/*` | **~40%** + N/D |
+| **Web** | `player-web/` | Browser / laboratório | Dispatch + cache + ACK | **~55%**; reboot/Wi‑Fi/OTA = N/D |
 | **MON** | `Player-iPhone/` · `Player-AD-MON/` | Monitor JWT (painel) | Telemetria web | **0%** playback; fora do kiosk |
 
 O Player-Linux tem de **retargetar 2.15/115** (hoje o README/parity citam 2.13). Deltas 2.14–2.15: escape de kiosk; HOME persistente.
@@ -38,11 +38,11 @@ O Player-Linux tem de **retargetar 2.15/115** (hoje o README/parity citam 2.13).
 | L3 contrato | AD | Linux | WOS | Tizen | Web |
 |-------------|----|-------|-----|-------|-----|
 | `GET /api/player/token` | Ref | Eq | Parc | Parc | Eq |
-| `POST /api/player/sync` (preferido) + fallback HB | Ref | Eq | Falta | Falta | Falta |
-| `POST /api/player/heartbeat` + métricas | Ref | Eq | Parc | Parc | Parc |
-| `GET /api/player/dispatch` condicionado (`needsDispatch`) | Ref | Eq | Parc | Parc | Parc |
+| `POST /api/player/sync` (preferido) + fallback HB | Ref | Eq | Eq | Eq | Eq |
+| `POST /api/player/heartbeat` + métricas | Ref | Eq | Eq | Eq | Eq |
+| `GET /api/player/dispatch` condicionado (`needsDispatch`) | Ref | Eq | Eq | Parc | Eq |
 | `GET /api/player/config` | Ref | Eq | Parc | Parc | Parc |
-| `POST /api/player/command-result` at-most-once | Ref | Eq | Falta | Falta | Falta |
+| `POST /api/player/command-result` at-most-once | Ref | Eq | Eq | Eq | Eq |
 | Telemetria events v2 / fila persistente | Ref | Parc (jsonl) | Parc | Parc | Parc |
 | OTA report no HB | Ref | Falta (.deb/AppImage) | **N/D** | **N/D** | **N/D** |
 
@@ -54,13 +54,13 @@ O Player-Linux tem de **retargetar 2.15/115** (hoje o README/parity citam 2.13).
 
 | Regra | AD | Linux | WOS | Tizen | Web |
 |-------|----|-------|-----|-------|-----|
-| RN-PAD-001 EMPTY_PLAN estável (sem reboot loop) | Ref | Parc | Falta | Falta | Falta |
-| RN-PAD-002 Recibo **antes** do efeito (comandos destrutivos) | Ref | Parc (seenIds RAM) | Falta | Falta | Falta |
-| RN-PAD-003 Duplicata = ACK sem reexecutar | Ref | Parc | Falta | Falta | Falta |
-| RN-PAD-004 Display idle (agenda; index=0) | Ref | Eq (lógica) | Falta | Falta | Falta |
-| RN-PAD-005 Dispatch só se needsDispatch / safety | Ref | Eq | Falta | Falta | Falta |
+| RN-PAD-001 EMPTY_PLAN estável (sem reboot loop) | Ref | Eq | Eq | Parc | Eq |
+| RN-PAD-002 Recibo **antes** do efeito (comandos destrutivos) | Ref | Eq | Eq | Eq | Eq |
+| RN-PAD-003 Duplicata = ACK sem reexecutar | Ref | Eq | Eq | Eq | Eq |
+| RN-PAD-004 Display idle (agenda; index=0) | Ref | Eq (lógica) | Parc (overlay) | Parc | Parc (overlay) |
+| RN-PAD-005 Dispatch só se needsDispatch / safety | Ref | Eq | Eq | Parc | Eq |
 | RN-PAD-006 HB fora do caminho crítico de render | Ref | Parc | Parc | Parc | Parc |
-| RN-PAD-007 `device_id` trim+uppercase | Ref | Verificar | Verificar | Verificar | Verificar |
+| RN-PAD-007 `device_id` trim+uppercase | Ref | Eq | Eq | Eq | Eq |
 | Plano ONLINE → PERSISTIDO → FALLBACK local | Ref | Eq (ficheiros) | Parc (localStorage) | Parc | Parc |
 | Vinhetas só no fallback mix N:1 | Ref | Eq (regra) | Falta | Falta | Falta |
 | Poll adaptativo + idle fora de horário | Ref | Eq (lógica) | Falta | Falta | Falta |
@@ -88,9 +88,9 @@ O Player-Linux tem de **retargetar 2.15/115** (hoje o README/parity citam 2.13).
 
 | type | AD | Linux | WOS | Tizen | Web |
 |------|----|-------|-----|-------|-----|
-| `refresh_dispatch` / `sync_now` | Ref | Eq | Falta | Falta | Falta |
-| `invalidate_*` / `purge_cache` | Ref | Eq | Falta | Falta | Falta |
-| `config` / `apply_player_config` | Ref | Eq | Falta | Falta | Falta |
+| `refresh_dispatch` / `sync_now` | Ref | Eq | Eq | Eq | Eq |
+| `invalidate_*` / `purge_cache` | Ref | Eq | Eq | Parc | Eq |
+| `config` / `apply_player_config` | Ref | Eq | Eq | Parc | Eq |
 | `restart` / `restart_app` | Ref | Eq | Parc (reload app) | Parc | **N/D** |
 | `reboot` / `reset_board` | Ref | Parc (`systemctl`) | **N/D** | **N/D** | **N/D** |
 | `configure_wifi` | Ref | Falta (NM fase 2) | **N/D** | **N/D** | **N/D** |

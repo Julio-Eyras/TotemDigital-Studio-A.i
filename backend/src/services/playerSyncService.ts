@@ -94,17 +94,29 @@ export function validateSyncCommandResult(
   const numericId =
     typeof requestId === 'number' ? requestId : Number.parseInt(String(requestId || ''), 10);
   if (!Number.isSafeInteger(numericId) || numericId < 1) return reject('requestId inválido');
-  if (value.status !== 'completed' && value.status !== 'failed') {
+  if (
+    value.status !== 'completed' &&
+    value.status !== 'failed' &&
+    value.status !== 'unsupported' &&
+    value.status !== 'ok' &&
+    value.status !== 'error'
+  ) {
     return reject('status deve ser completed ou failed');
   }
+  const status =
+    value.status === 'failed' || value.status === 'error' ? 'failed' : 'completed';
+  const result =
+    value.status === 'unsupported'
+      ? { ...(isObject(value.result) ? value.result : {}), unsupported: true }
+      : value.result;
   if (value.error !== undefined && typeof value.error !== 'string') {
     return reject('error deve ser uma string');
   }
   return {
     command: {
       requestId: numericId,
-      status: value.status,
-      ...(value.result !== undefined ? { result: value.result } : {}),
+      status,
+      ...(result !== undefined ? { result } : {}),
       ...(value.error !== undefined ? { error: value.error } : {}),
     },
   };

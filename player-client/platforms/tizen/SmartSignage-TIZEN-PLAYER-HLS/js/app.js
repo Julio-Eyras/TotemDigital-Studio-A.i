@@ -247,10 +247,17 @@ class SmartSignageApp {
       // Fallback: gerar ID baseado em hardware
       const hardwareInfo = await this.deviceInfo.collectHardwareInfo();
       this.deviceId = `TIZEN-${hardwareInfo.serial || Date.now()}`.trim().toUpperCase();
+      if (window.PlayerProtocol) {
+        this.deviceId = window.PlayerProtocol.canonicalDeviceId(this.deviceId);
+      } else {
+        this.deviceId = String(this.deviceId || '').trim().toUpperCase();
+      }
       return this.deviceId;
     } catch (error) {
       console.warn('[App] Erro ao obter deviceId:', error);
-      this.deviceId = `TIZEN-${Date.now()}`;
+      this.deviceId = window.PlayerProtocol
+        ? window.PlayerProtocol.canonicalDeviceId(`TIZEN-${Date.now()}`)
+        : `TIZEN-${Date.now()}`;
       return this.deviceId;
     }
   }
@@ -268,7 +275,7 @@ class SmartSignageApp {
         uin: this.uin,
         deviceId: this.deviceId || '',
         platform: 'tizen',
-        appVersion: '2.1.0'
+        appVersion: '2.15.0'
       });
 
       const response = await fetch(`${this.apiUrl}/player/token?${params}`);
@@ -436,11 +443,11 @@ class SmartSignageApp {
     );
     // Usar deviceToken se disponível, senão token legado
     this.heartbeatService.setToken(this.deviceToken || this.token);
-    
-    // Atualizar callbacks para incluir informações do dispositivo
+    this.heartbeatService.onRefreshDispatch = () => this.getDispatchPlan().catch((e) => {
+      console.warn('[App] refresh dispatch via HB:', e);
+    });
     const originalStatusCallback = () => this.player.getStatus();
     const originalStreamCallback = () => this.player.getCurrentStream();
-    
     this.heartbeatService.setCallbacks(
       () => {
         const status = originalStatusCallback();
@@ -448,7 +455,7 @@ class SmartSignageApp {
           ...status,
           deviceId: this.deviceId,
           platform: 'tizen',
-          appVersion: '2.1.0',
+          appVersion: '2.15.0',
           isOnline: navigator.onLine
         };
       },

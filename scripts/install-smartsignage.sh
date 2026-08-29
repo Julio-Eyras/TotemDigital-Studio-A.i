@@ -8471,6 +8471,7 @@ setup_nginx() {
             if [[ -f "/opt/smart-signage/player-web/js/activationCode.js" ]] && \
                [[ -f "/opt/smart-signage/player-web/js/app.js" ]] && \
                [[ -f "/opt/smart-signage/player-web/js/api/client.js" ]] && \
+               [[ -f "/opt/smart-signage/player-web/js/protocol/player-protocol.js" ]] && \
                [[ -f "/opt/smart-signage/player-web/js/cache/MediaCacheManager.js" ]] && \
                [[ -f "/opt/smart-signage/player-web/js/cache/PlaylistChangeDetector.js" ]]; then
                 log "✅ Arquivos JS do player verificados e presentes"
@@ -8549,7 +8550,7 @@ setup_nginx() {
             sudo chmod -R 755 "$PLAYER_DEST" 2>/dev/null || true
             log "✅ Player-web em $PLAYER_DEST (Nginx com location ^~ /player)"
             # Verificação: arquivos obrigatórios para o player (scripts carregam via /api/player-static/)
-            PLAYER_FILES=( "index.html" "js/activationCode.js" "js/app.js" "js/api/client.js" "js/cache/MediaCacheManager.js" "js/cache/PlaylistChangeDetector.js" "chromium-policies/managed-totemdigital-v3x.json" )
+            PLAYER_FILES=( "index.html" "js/activationCode.js" "js/app.js" "js/api/client.js" "js/protocol/player-protocol.js" "js/cache/MediaCacheManager.js" "js/cache/PlaylistChangeDetector.js" "chromium-policies/managed-totemdigital-v3x.json" )
             MISSING=()
             for f in "${PLAYER_FILES[@]}"; do
                 [[ -f "$PLAYER_DEST/$f" ]] || MISSING+=("$f")
@@ -10253,7 +10254,7 @@ validate_system_complete() {
     # Evitar `[[ -f ]] || arr+=` sob set -e/ERR (pode derrubar a validação no meio).
     if [[ "$INSTALL_MODE" == "single-server" ]]; then
         PLAYER_DIR="/opt/smart-signage/player-web"
-        PLAYER_FILES=( "index.html" "js/activationCode.js" "js/app.js" "js/api/client.js" "js/cache/MediaCacheManager.js" "js/cache/PlaylistChangeDetector.js" "chromium-policies/managed-totemdigital-v3x.json" )
+        PLAYER_FILES=( "index.html" "js/activationCode.js" "js/app.js" "js/api/client.js" "js/protocol/player-protocol.js" "js/cache/MediaCacheManager.js" "js/cache/PlaylistChangeDetector.js" "chromium-policies/managed-totemdigital-v3x.json" )
         PLAYER_MISSING=()
         for f in "${PLAYER_FILES[@]}"; do
             if [[ ! -f "$PLAYER_DIR/$f" ]]; then

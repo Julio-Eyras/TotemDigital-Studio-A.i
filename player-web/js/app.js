@@ -18,8 +18,8 @@ class SmartSignagePlayer {
             totemUIN,
             totemSecret: config.totemSecret || (typeof window !== 'undefined' && window.TOTEM_SECRET) || '',
             deviceId: String(config.deviceId || this.generateDeviceId()).trim().toUpperCase(),
-            platform: 'browser-cache',
-            appVersion: '2.2.0',
+            platform: 'web',
+            appVersion: '2.15.0',
             heartbeatInterval: config.heartbeatInterval || 30000,
             dispatchSyncInterval: config.dispatchSyncInterval || 900000,
             maxCacheSize: config.maxCacheSize || 500 * 1024 * 1024, // 500MB padrão
@@ -43,6 +43,12 @@ class SmartSignagePlayer {
         this.currentMediaItem = null;
         this.pendingCommands = [];
         this.lastDispatchUpdate = null;
+        this.planState = 'UNAVAILABLE';
+        this.knownPlanVersion = null;
+        this.needsDispatch = true;
+        this.forceMode = null;
+        this.commandRunner = null;
+        this._displayVeil = null;
 
         this.apiClient = null;
         this.mediaPlayer = null;
@@ -153,6 +159,7 @@ class SmartSignagePlayer {
             this.currentIndex = 0;
             this.failedMediaIds.clear();
             this.playlistChangeDetector.setLastPlan(plan);
+            this.planState = 'ACTIVE';
             console.log('[Player] Modo fallback: propagandas + vinhetas (' + plan.mediaItems.length + ' itens).');
         } catch (e) {
             console.warn('[Player] Fallback manifest falhou, usando vinheta padrão:', e);
@@ -163,6 +170,7 @@ class SmartSignagePlayer {
             this.currentIndex = 0;
             this.failedMediaIds.clear();
             this.playlistChangeDetector.setLastPlan(plan);
+            this.planState = 'ACTIVE';
         }
     }
 
@@ -252,6 +260,115 @@ class SmartSignagePlayer {
             this.config.totemSecret
         );
         this.apiClient.deviceId = this.config.deviceId;
+        this._ensureCommandRunner();
+    }
+
+    _protocol() {
+        return (typeof window !== 'undefined' && window.PlayerProtocol) || null;
+    }
+
+    _ensureCommandRunner() {
+        const proto = this._protocol();
+        if (!proto || this.commandRunner) return;
+        const self = this;
+        this.commandRunner = proto.createCommandRunner({
+            platform: 'web',
+            reportResult: (id, status, result, error) =>
+                this.apiClient.reportCommandResult(id, status, result, error),
+            hooks: {
+                refresh_dispatch: async () => {
+                    self.needsDispatch = true;
+                    await self.loadDispatchPlan(true);
+                    return { refreshed: true };
+                },
+                sync_now: async () => {
+                    self.needsDispatch = true;
+                    await self.loadDispatchPlan(true);
+                    return { refreshed: true };
+                },
+                purge_cache: async () => {
+                    if (self.mediaCacheManager && self.mediaCacheManager.purgeAll) {
+                        await self.mediaCacheManager.purgeAll();
+                    }
+                    return { purged: true };
+                },
+                invalidate_media: async () => {
+                    if (self.mediaCacheManager && self.mediaCacheManager.purgeAll) {
+                        await self.mediaCacheManager.purgeAll();
+                    }
+                    self.needsDispatch = true;
+                    await self.loadDispatchPlan(true);
+                    return { invalidated: true };
+                },
+                invalidate_playlist: async () => {
+                    if (self.mediaCacheManager && self.mediaCacheManager.purgeAll) {
+                        await self.mediaCacheManager.purgeAll();
+                    }
+                    self.needsDispatch = true;
+                    await self.loadDispatchPlan(true);
+                    return { invalidated: true };
+                },
+                invalidate_campaign: async () => {
+                    if (self.mediaCacheManager && self.mediaCacheManager.purgeAll) {
+                        await self.mediaCacheManager.purgeAll();
+                    }
+                    self.needsDispatch = true;
+                    await self.loadDispatchPlan(true);
+                    return { invalidated: true };
+                },
+                config: async (cmd) => self._applyRemoteConfig(cmd.data),
+                apply_player_config: async (cmd) => self._applyRemoteConfig(cmd.data),
+                display_force_on: async () => {
+                    self.forceMode = 'on';
+                    self._setDisplayIdle(false);
+                    return { forceMode: 'on' };
+                },
+                display_force_off: async () => {
+                    self.forceMode = 'off';
+                    self._setDisplayIdle(true);
+                    return { forceMode: 'off' };
+                },
+                display_force_clear: async () => {
+                    self.forceMode = null;
+                    self._setDisplayIdle(false);
+                    return { forceMode: null };
+                },
+                content_version_check: async () => {
+                    self.needsDispatch = true;
+                    await self.loadDispatchPlan(true);
+                    return { checked: true };
+                },
+            },
+        });
+    }
+
+    _applyRemoteConfig(data) {
+        if (!data || typeof data !== 'object') return { applied: false };
+        if (data.heartbeatInterval) this.config.heartbeatInterval = Number(data.heartbeatInterval);
+        if (data.dispatchSyncInterval) this.config.dispatchSyncInterval = Number(data.dispatchSyncInterval);
+        if (data.fallbackImageDuration != null) this.config.fallbackImageDuration = data.fallbackImageDuration;
+        if (data.fallbackPropagandasPerVinheta != null) {
+            this.config.fallbackPropagandasPerVinheta = data.fallbackPropagandasPerVinheta;
+        }
+        return { applied: true };
+    }
+
+    _setDisplayIdle(idle) {
+        let veil = document.getElementById('display-idle-veil');
+        if (!veil) {
+            veil = document.createElement('div');
+            veil.id = 'display-idle-veil';
+            veil.style.cssText =
+                'position:fixed;inset:0;background:#000;z-index:9999;display:none;';
+            document.body.appendChild(veil);
+        }
+        veil.style.display = idle ? 'block' : 'none';
+    }
+
+    async _handlePendingCommands(list) {
+        if (!list || !list.length) return;
+        this._ensureCommandRunner();
+        if (this.commandRunner) await this.commandRunner.handleAll(list);
     }
 
     async initCache() {
@@ -307,19 +424,22 @@ class SmartSignagePlayer {
             userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
             cacheSize: await this.mediaCacheManager.getCacheSize()
         };
-        const res = await this.apiClient.sendHeartbeat({
+        const res = await this.apiClient.sendSyncOrHeartbeat({
             status: 'online',
             version: this.config.appVersion,
             platform: this.config.platform,
             deviceId: this.config.deviceId,
             metrics,
-            executedCommands: []
+            executedCommands: [],
+            knownPlanVersion: this.knownPlanVersion
         });
         if (this.apiClient.token) {
             this.deviceToken = this.apiClient.token;
         }
-        if (res && Array.isArray(res.pendingCommands) && res.pendingCommands.length) {
-            this.pendingCommands = res.pendingCommands;
+        if (res) {
+            if (typeof res.needsDispatch === 'boolean') this.needsDispatch = res.needsDispatch;
+            if (res.planVersion) this.knownPlanVersion = res.planVersion;
+            await this._handlePendingCommands(res.pendingCommands);
         }
         console.log('[Player] Sessão Dispatcher pronta');
     }
@@ -348,6 +468,10 @@ class SmartSignagePlayer {
             throw new Error('Token não disponível para dispatch');
         }
 
+        if (!this.needsDispatch && this.currentDispatchPlan && this.planState === 'ACTIVE') {
+            return;
+        }
+
         const timestamp = new Date().toISOString();
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -363,7 +487,7 @@ class SmartSignagePlayer {
             );
         } catch (error) {
             console.warn('[Player] Erro ao obter DispatchPlan, usando cache offline:', error);
-            // Se falhar, tentar usar último plano do cache
+            this.planState = 'UNAVAILABLE';
             const lastPlan = this.mediaCacheManager.loadLastDispatchPlan();
             if (lastPlan) {
                 console.log('[Player] Usando plano do cache (modo offline)');
@@ -373,7 +497,6 @@ class SmartSignagePlayer {
                 this.playlistChangeDetector.setLastPlan(lastPlan);
                 return;
             }
-            // Sem cache: exibir modo fallback (propagandas + vinhetas)
             console.warn('[Player] Sem plano nem cache. Entrando em modo fallback.');
             await this.startFallbackMode();
             return;
@@ -381,18 +504,30 @@ class SmartSignagePlayer {
 
         if (!response || !response.success) {
             console.warn('[Player] API retornou sem plano:', response?.error || 'Falha ao obter DispatchPlan. Entrando em modo fallback.');
+            this.planState = 'UNAVAILABLE';
             await this.startFallbackMode();
             return;
         }
 
-        const plan = response.plan;
-        if (!plan || !plan.mediaItems || !plan.mediaItems.length) {
-            console.warn('[Player] DispatchPlan sem itens. Entrando em modo fallback.');
-            await this.startFallbackMode();
+        let plan = response.plan;
+        const proto = this._protocol();
+        if (proto && plan && this.planState !== 'FALLBACK') {
+            plan = proto.stripVinhetasFromOnlinePlan(plan);
+        }
+        const count = proto ? proto.mediaItemCount(plan) : (plan && plan.mediaItems ? plan.mediaItems.length : 0);
+        this.planState = proto ? proto.resolvePlanState(response, count) : (count > 0 ? 'ACTIVE' : 'EMPTY');
+        this.needsDispatch = false;
+        if (plan && plan.planVersion) this.knownPlanVersion = plan.planVersion;
+
+        if (this.planState === 'EMPTY' || !plan || !count) {
+            console.log('[Player] EMPTY_PLAN — plano válido sem itens (RN-PAD-001)');
+            this.currentDispatchPlan = plan || { mediaItems: [], playlistId: 0, playlistName: 'EMPTY' };
+            this.currentPlaylistId = this.currentDispatchPlan.playlistId || 0;
+            this.currentCampaignId = null;
+            this.failedMediaIds.clear();
             return;
         }
 
-        // Detectar mudança de playlist
         const hasChanged = this.playlistChangeDetector.hasPlanChanged(
             this.currentDispatchPlan,
             plan
@@ -425,6 +560,7 @@ class SmartSignagePlayer {
         this.failedMediaIds.clear();
         this.lastDispatchUpdate = Date.now();
         this.playlistChangeDetector.setLastPlan(plan);
+        this.planState = 'ACTIVE';
 
         console.log('[Player] DispatchPlan carregado:', plan.playlistName, '(' + plan.mediaItems.length + ' itens)');
         this.onDispatchPlanLoaded(plan);
@@ -440,6 +576,15 @@ class SmartSignagePlayer {
     }
 
     async playNext() {
+        if (this.forceMode === 'off') {
+            this._setDisplayIdle(true);
+            setTimeout(() => this.playNext(), 15000);
+            return;
+        }
+        if (this.planState === 'EMPTY') {
+            setTimeout(() => this.playNext(), 30000);
+            return;
+        }
         if (!this.currentDispatchPlan || !this.currentDispatchPlan.mediaItems.length) {
             await this.startFallbackMode();
             this.playNext();
@@ -657,20 +802,26 @@ class SmartSignagePlayer {
             cacheSize: await this.mediaCacheManager.getCacheSize()
         };
 
-        const res = await this.apiClient.sendHeartbeat({
+        const res = await this.apiClient.sendSyncOrHeartbeat({
             status: 'online',
             version: this.config.appVersion,
             platform: this.config.platform,
             deviceId: this.config.deviceId,
             metrics,
-            executedCommands: []
+            executedCommands: [],
+            knownPlanVersion: this.knownPlanVersion
         });
 
         if (this.apiClient.token) {
             this.deviceToken = this.apiClient.token;
         }
-        if (res && Array.isArray(res.pendingCommands) && res.pendingCommands.length) {
-            this.pendingCommands = res.pendingCommands;
+        if (res) {
+            if (typeof res.needsDispatch === 'boolean') this.needsDispatch = res.needsDispatch;
+            if (res.planVersion) this.knownPlanVersion = res.planVersion;
+            await this._handlePendingCommands(res.pendingCommands);
+            if (this.needsDispatch) {
+                this.loadDispatchPlan(true).catch((e) => console.warn('[Player] Dispatch pós-HB:', e));
+            }
         }
     }
 
@@ -779,11 +930,15 @@ class MediaPlayerHTML5 {
                     this._playVideo(url, duration, finish);
                     break;
                 case 'image':
-                    this._playImage(url, duration || 10, finish);
+                    this._playImage(url, (typeof window !== 'undefined' && window.PlayerProtocol)
+                        ? window.PlayerProtocol.imageDurationSeconds(duration)
+                        : (duration || 10), finish);
                     break;
                 case 'html':
                 case 'web':
-                    this._playHTML(url, duration || 30, finish);
+                    this._playHTML(url, (typeof window !== 'undefined' && window.PlayerProtocol)
+                        ? window.PlayerProtocol.htmlDurationSeconds(duration)
+                        : (duration || 60), finish);
                     break;
                 default:
                     reject(new Error('Tipo de mídia não suportado: ' + mt));

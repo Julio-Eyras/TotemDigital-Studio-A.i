@@ -19,6 +19,7 @@ DataLayout resolveDataLayout(const std::string& dataRoot) {
   L.vinhetasDir = dataRoot + "/vinhetas";
   L.metadataPath = L.propagandasDir + "/metadata.json";
   L.telemetryDir = dataRoot + "/telemetry";
+  L.receiptsPath = dataRoot + "/remote-command-receipts.json";
   return L;
 }
 

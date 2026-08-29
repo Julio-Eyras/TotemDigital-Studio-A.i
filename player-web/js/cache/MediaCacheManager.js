@@ -549,6 +549,23 @@ class MediaCacheManager {
             return false;
         }
     }
+
+    /** RN-PAD / comando purge_cache — apaga blobs, mantém último plano se existir. */
+    async purgeAll() {
+        if (this.db && this.db.objectStoreNames.contains('media')) {
+            await new Promise((resolve, reject) => {
+                const tx = this.db.transaction(['media'], 'readwrite');
+                const req = tx.objectStore('media').clear();
+                req.onsuccess = () => resolve();
+                req.onerror = () => reject(req.error);
+            });
+        }
+        try {
+            localStorage.setItem(this.metadataKey, '{}');
+        } catch (e) {}
+        this.metadata = {};
+        console.log('[MediaCacheManager] Cache purgado');
+    }
 }
 
 // Exportar para uso global
