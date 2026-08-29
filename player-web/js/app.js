@@ -49,6 +49,8 @@ class SmartSignagePlayer {
         this.forceMode = null;
         this.commandRunner = null;
         this._displayVeil = null;
+        this._poll = null;
+        this._hbTimer = null;
 
         this.apiClient = null;
         this.mediaPlayer = null;
@@ -759,9 +761,43 @@ class SmartSignagePlayer {
     }
 
     startServices() {
-        setInterval(() => {
-            this.sendHeartbeat().catch((e) => console.warn('[Player] Heartbeat:', e));
-        }, this.config.heartbeatInterval);
+        const proto = typeof window !== 'undefined' && window.PlayerProtocol;
+        if (proto && proto.createPollAdaptive) {
+            this._poll = proto.createPollAdaptive({ heartbeatMs: this.config.heartbeatInterval });
+        }
+        const armHb = () => {
+            if (this._hbTimer) clearTimeout(this._hbTimer);
+            const wait = this._poll ? this._poll.intervalMs() : this.config.heartbeatInterval;
+            this._hbTimer = setTimeout(() => {
+                this.sendHeartbeat()
+                    .catch((e) => {
+                        if (this._poll) this._poll.onFailure();
+                        console.warn('[Player] Heartbeat:', e);
+                    })
+                    .finally(() => armHb());
+            }, wait);
+        };
+        armHb();
+
+        if (proto && proto.installDebugTaps && !this._debugTaps) {
+            const self = this;
+            this._debugTaps = proto.installDebugTaps({
+                required: 3,
+                windowMs: 1200,
+                lines: function () {
+                    const plan = self.currentDispatchPlan;
+                    return {
+                        platform: self.config.platform || "web",
+                        uin: self.config.totemUIN || "",
+                        deviceId: self.config.deviceId || "",
+                        version: self.config.appVersion || "",
+                        planSource: plan && plan.source ? String(plan.source) : (plan ? "ONLINE" : "NONE"),
+                        planVersion: (plan && (plan.planVersion || plan.plan_version)) || "",
+                        playlistId: plan && plan.playlistId != null ? String(plan.playlistId) : ""
+                    };
+                }
+            });
+        }
 
         setInterval(() => {
             // Verificar se precisa atualizar baseado em intervalo
@@ -820,8 +856,11 @@ class SmartSignagePlayer {
             this.deviceToken = this.apiClient.token;
         }
         if (res) {
+            if (this._poll && res.pollAdaptive) this._poll.applyServer(res.pollAdaptive);
+            const prev = this.knownPlanVersion;
             if (typeof res.needsDispatch === 'boolean') this.needsDispatch = res.needsDispatch;
             if (res.planVersion) this.knownPlanVersion = res.planVersion;
+            if (this._poll) this._poll.onSuccess(!!(prev && res.planVersion === prev), this.forceMode === 'off');
             await this._handlePendingCommands(res.pendingCommands);
             if (this.needsDispatch) {
                 this.loadDispatchPlan(true).catch((e) => console.warn('[Player] Dispatch pós-HB:', e));

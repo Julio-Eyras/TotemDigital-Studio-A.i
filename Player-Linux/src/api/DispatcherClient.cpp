@@ -343,4 +343,19 @@ bool DispatcherClient::reportOtaStatus(const std::string& token,
          httpStatus < 300;
 }
 
+bool DispatcherClient::postEvent(const std::string& token, const nlohmann::json& event) {
+  nlohmann::json body = event.is_object() ? event : nlohmann::json::object();
+  body["uin"] = cfg_.uin;
+  if (!token.empty()) body["token"] = token;
+  if (!body.contains("metadata") || !body["metadata"].is_object()) body["metadata"] = nlohmann::json::object();
+  body["metadata"]["deviceId"] = cfg_.deviceId;
+  body["metadata"]["platform"] = PLAYER_LINUX_PLATFORM;
+  const std::string url =
+      urlJoin("/api/player/event?uin=" + cfg_.uin + "&token=" + token + "&deviceId=" + cfg_.deviceId);
+  long httpStatus = 0;
+  std::string resp;
+  return httpRequest("POST", url, body.dump(), 8, httpStatus, resp) && httpStatus >= 200 &&
+         httpStatus < 300;
+}
+
 }  // namespace player::api

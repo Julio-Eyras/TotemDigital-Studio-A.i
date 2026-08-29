@@ -14,7 +14,7 @@ if [[ ! -x "$BIN_SRC" ]]; then
 fi
 
 echo "Instalar Player-Linux em $PREFIX (dados $DATA)"
-install -d "$PREFIX/bin" "$PREFIX/share" "$DATA/propagandas" "$DATA/vinhetas" "$DATA/ota" "$DATA/screenshots" "$DATA/telemetry"
+install -d "$PREFIX/bin" "$PREFIX/share" "$DATA/propagandas" "$DATA/vinhetas" "$DATA/ota" "$DATA/screenshots" "$DATA/telemetry" "$DATA/branding"
 
 install -m 0755 "$BIN_SRC" "$PREFIX/bin/player-linux"
 if [[ -f "$ROOT/config/exemplo-player-config.json" ]]; then
@@ -49,9 +49,16 @@ fi
 if [[ -f "$ROOT/scripts/kiosk-escape.sh" ]]; then
   install -m 0755 "$ROOT/scripts/kiosk-escape.sh" "$PREFIX/bin/kiosk-escape.sh"
 fi
+if [[ -f "$ROOT/scripts/apply-branding.sh" ]]; then
+  install -m 0755 "$ROOT/scripts/apply-branding.sh" "$PREFIX/bin/apply-branding.sh"
+  if [[ -f "$ROOT/branding/logo.png" ]]; then
+    DATA="$DATA" "$ROOT/scripts/apply-branding.sh" "$ROOT/branding" || true
+  fi
+fi
 if [[ -d /etc/xdg/autostart && -f "$ROOT/scripts/player-linux.desktop" ]]; then
   install -m 0644 "$ROOT/scripts/player-linux.desktop" /etc/xdg/autostart/player-linux.desktop
 fi
 
 echo "Escape de kiosk (equiv. 3× OK): $PREFIX/bin/kiosk-escape.sh  ou  kill -USR1 \$(pidof player-linux)"
+echo "Branding splash: $DATA/branding/logo.png  (scripts/apply-branding.sh). Plymouth = SO, não o player."
 echo "OK. Paridade alvo Player-AD 2.15/115. platform=linux"

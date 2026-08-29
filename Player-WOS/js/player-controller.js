@@ -12,6 +12,11 @@ class PlayerControllerWOS {
     this.needsDispatch = true;
     this.forceMode = null;
     this.commandRunner = null;
+    this._poll = null;
+    this._hbTimer = null;
+    this.cache = typeof PlayerMediaCache !== "undefined"
+      ? new PlayerMediaCache({ maxBytes: 400 * 1024 * 1024 })
+      : null;
   }
 
   _ensureCommands() {
@@ -27,10 +32,12 @@ class PlayerControllerWOS {
         content_version_check: async () => { self.needsDispatch = true; await self.tryRefreshOnlinePlan(true); return { checked: true }; },
         purge_cache: async () => {
           localStorage.removeItem("player-wos.last-dispatch-plan");
+          if (self.cache && self.cache.purgeAll) await self.cache.purgeAll();
           return { purged: true };
         },
         invalidate_media: async () => {
           localStorage.removeItem("player-wos.last-dispatch-plan");
+          if (self.cache && self.cache.purgeAll) await self.cache.purgeAll();
           self.needsDispatch = true;
           await self.tryRefreshOnlinePlan(true);
           return { invalidated: true };
@@ -138,8 +145,29 @@ class PlayerControllerWOS {
     return { playlistId: 0, playlistName: `Fallback ${n}:1`, campaignId: null, mediaItems: items };
   }
 
+  _installDebugTaps() {
+    const proto = window.PlayerProtocol;
+    if (!proto || !proto.installDebugTaps || this._debugTaps) return;
+    const self = this;
+    this._debugTaps = proto.installDebugTaps({
+      required: 3,
+      windowMs: 1200,
+      lines: function () {
+        return {
+          platform: "webos",
+          uin: self.config.uin || "",
+          deviceId: (self.api && self.api.deviceId) || self.config.deviceId || "",
+          version: "2.15.0",
+          planSource: localStorage.getItem("player-wos.current-plan-source") || "",
+          planVersion: self.knownPlanVersion || ""
+        };
+      }
+    });
+  }
+
   async start() {
     this._ensureCommands();
+    this._installDebugTaps();
     try {
       const remoteCfg = await this.api.getPlayerConfig();
       if (remoteCfg && typeof remoteCfg === "object") {
@@ -164,6 +192,9 @@ class PlayerControllerWOS {
         this.planState = proto ? proto.resolvePlanState(json, count) : (count ? "ACTIVE" : "EMPTY");
         this.needsDispatch = false;
         if (this.plan.planVersion) this.knownPlanVersion = this.plan.planVersion;
+        if (this.cache && this.plan && this.plan.mediaItems) {
+          this.cache.prefetch(this.plan.mediaItems).catch(() => {});
+        }
       }
     } catch (err) {
       WosLogger.warn("DISPATCH", `Falha online, tentando persistido: ${err.message}`);
@@ -181,13 +212,32 @@ class PlayerControllerWOS {
     }
     if (this.planState === "EMPTY") {
       WosLogger.info("DISPATCH", "EMPTY_PLAN — sem fallback (RN-PAD-001)");
+      this._armHeartbeat();
       await this.playLoop();
       return;
     }
     if (!this.plan || !this.plan.mediaItems.length) {
       throw new Error("Sem plano para reproduzir (online/persistido/fallback)");
     }
+    this._armHeartbeat();
     await this.playLoop();
+  }
+
+  _armHeartbeat() {
+    const proto = window.PlayerProtocol;
+    const hbMs = Number(this.config.heartbeatInterval || this.config.heartbeatIntervalMs || 30000);
+    if (proto && proto.createPollAdaptive) {
+      this._poll = proto.createPollAdaptive({ heartbeatMs: hbMs > 120 ? hbMs : hbMs * 1000 });
+    }
+    const tick = async () => {
+      if (this.stopped) return;
+      try {
+        await this.tryRefreshOnlinePlan(false);
+      } catch (_) {}
+      const wait = this._poll ? this._poll.intervalMs() : hbMs;
+      this._hbTimer = setTimeout(tick, wait);
+    };
+    this._hbTimer = setTimeout(tick, this._poll ? this._poll.intervalMs() : hbMs);
   }
 
   async playLoop() {
@@ -215,11 +265,14 @@ class PlayerControllerWOS {
   async tryRefreshOnlinePlan(force) {
     try {
       const hb = await this.api.heartbeat(null, this.knownPlanVersion);
+      if (this._poll && hb && hb.pollAdaptive) this._poll.applyServer(hb.pollAdaptive);
       if (this.commandRunner && hb && hb.pendingCommands) {
         await this.commandRunner.handleAll(hb.pendingCommands);
       }
       if (hb && typeof hb.needsDispatch === "boolean") this.needsDispatch = hb.needsDispatch;
+      const prevPlan = this.knownPlanVersion;
       if (hb && hb.planVersion) this.knownPlanVersion = hb.planVersion;
+      if (this._poll) this._poll.onSuccess(!!(prevPlan && hb.planVersion === prevPlan), this.forceMode === "off");
       if (!force && !this.needsDispatch) return;
       const json = await this.api.getDispatchPlan();
       const next = this.parsePlan(json);
@@ -231,8 +284,11 @@ class PlayerControllerWOS {
         this.plan = next;
         localStorage.setItem("player-wos.last-dispatch-plan", JSON.stringify(json));
         localStorage.setItem("player-wos.current-plan-source", "ONLINE");
+        if (this.cache) this.cache.prefetch(next.mediaItems).catch(() => {});
       }
-    } catch (_) {}
+    } catch (_) {
+      if (this._poll) this._poll.onFailure();
+    }
   }
 
   async _veil() {
@@ -242,12 +298,16 @@ class PlayerControllerWOS {
   }
 
   async playItem(item) {
-    const type = String(item.mediaType || "").toLowerCase();
-    const isHtml = type.indexOf("html") >= 0 || type.indexOf("web") >= 0 || /\.html?(\?|$)/i.test(item.url || "");
-    if (isHtml) return this.playHtml(item);
-    const isImage = type.indexOf("image") >= 0 || /\.(png|jpe?g|webp|gif)$/i.test(item.url);
-    if (isImage) return this.playImage(item);
-    return this.playVideo(item);
+    let play = Object.assign({}, item);
+    if (this.cache) {
+      try { play.url = await this.cache.ensureLocal(item); } catch (_) {}
+    }
+    const type = String(play.mediaType || "").toLowerCase();
+    const isHtml = type.indexOf("html") >= 0 || type.indexOf("web") >= 0 || /\.html?(\?|$)/i.test(play.url || "");
+    if (isHtml) return this.playHtml(play);
+    const isImage = type.indexOf("image") >= 0 || /\.(png|jpe?g|webp|gif)$/i.test(play.url);
+    if (isImage) return this.playImage(play);
+    return this.playVideo(play);
   }
 
   async playHtml(item) {

@@ -75,7 +75,7 @@ ACK: `POST /api/player/command-result` — dedup at-most-once. Recibos em `remot
 - `user_rotation` Allwinner → xrandr.
 - Leanback / Android TV launcher → systemd `WantedBy=graphical.target`.
 - WebView Android → Chromium `--kiosk` (WebKitGTK continua opcional).
-- Logos / bootanimation do instalador APK 1.7 → kit Linux à parte.
+- Logos / bootanimation do instalador APK 1.7 → `scripts/apply-branding.sh` (splash no player). Plymouth/bootlogo de SoC = instalação de firmware, não clonar o APK.
 
 ## 6. Critério de “parity OK”
 

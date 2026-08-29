@@ -10,6 +10,7 @@ Player-Linux/
 ├── scripts/
 │   ├── install-player-linux.sh   # binário + systemd
 │   ├── kiosk-escape.sh           # SIGUSR1 (menu 3× OK)
+│   ├── apply-branding.sh         # copia logo.png → data/branding/
 │   ├── player-linux-xsession.sh  # xset / unclutter
 │   ├── player-linux.service
 │   └── player-linux.desktop
@@ -31,6 +32,7 @@ Player-Linux/
 ```text
 main
   ├─ carrega config + applyKiosk (xrandr / xset)
+  ├─ splash branding/logo.png (~3 s) se existir
   ├─ token + sync/heartbeat (OTA linux no HB)
   ├─ dispatch quando necessário (EMPTY_PLAN estável)
   ├─ pré-cache mídias

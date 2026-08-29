@@ -51,6 +51,7 @@ Kiosk 24/7 (systemd + autostart):
 ```bash
 sudo ./scripts/install-player-linux.sh
 # editar /var/lib/player-linux/player-config.json
+# logo de arranque (opcional): sudo ./scripts/apply-branding.sh /caminho/com/logo.png
 sudo systemctl start player-linux
 # escape (equivalente ao menu 3× OK): sudo ./scripts/kiosk-escape.sh
 ```
@@ -66,7 +67,7 @@ sudo systemctl start player-linux
   current-plan-source.txt
   remote-command-receipts.json
   telemetry/events-v2.jsonl
-  ota/  screenshots/
+  ota/  screenshots/  branding/logo.png
   propagandas/
     metadata.json
     {mediaId}.mp4|jpg|png|html|…
@@ -81,7 +82,8 @@ sudo systemctl start player-linux
 - [x] HTML via Chromium `--kiosk` (duração mín. 30 s / default 60 s)
 - [x] OTA `.deb` + SHA-256 + rollback; screenshot; Wi‑Fi `nmcli`
 - [x] Kiosk systemd + xrandr; escape SIGUSR1
-- [ ] Logos / bootanimation de kit (não é APK; outro instalador)
+- [x] Splash de branding (`<data>/branding/logo.png`, ~3 s) + `scripts/apply-branding.sh`
+- [ ] Plymouth / bootanimation de firmware (SO, não o binário; ver `docs/hardware/SOC-BOOT-PATHS.md`)
 - [ ] Cue Maestro no binário (fora do lab 0.1)
 
 Referência Android: `Player-AD/` e `Player-AD-Vs2.15-build-115.apk`.

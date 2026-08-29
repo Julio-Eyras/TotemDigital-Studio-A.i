@@ -74,4 +74,5 @@ install(PROGRAMS
   scripts/kiosk-escape.sh
   scripts/install-player-linux.sh
   scripts/player-linux-xsession.sh
+  scripts/apply-branding.sh
   DESTINATION share/player-linux)

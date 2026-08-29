@@ -74,6 +74,7 @@ public:
                        const std::string& updateStatus,
                        const std::string& availableVersion,
                        const std::string& error);
+  bool postEvent(const std::string& token, const nlohmann::json& event);
 
   const std::string& token() const { return token_; }
   void setToken(std::string t) { token_ = std::move(t); }

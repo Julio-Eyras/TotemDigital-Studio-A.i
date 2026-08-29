@@ -11,8 +11,10 @@
 
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
+#include <thread>
 
 namespace player::playback {
 
@@ -33,6 +35,7 @@ private:
   remote::CommandExecutor commands_;
   std::unique_ptr<IMediaBackend> backend_;
   std::atomic<bool> stop_{false};
+  std::recursive_mutex mu_;
   std::optional<std::string> knownPlanVersion_;
   api::DispatchPlan plan_;
   std::string planSource_ = "UNAVAILABLE";
@@ -45,6 +48,11 @@ private:
   void persistPlan();
   void loadPersistedPlan();
   void playCurrent();
+  void playBrandingSplash();
+  void netLoop();
+  void emitPlaybackEvent(const std::string& eventType,
+                         const api::MediaItem& item,
+                         const nlohmann::json& extra);
   void maybeApplyOta(const std::optional<nlohmann::json>& ota);
   api::DispatchPlan buildFallbackPlan() const;
 };

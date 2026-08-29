@@ -253,6 +253,21 @@ class MediaCacheManager {
         console.log(`[MediaCacheManager] Limpeza concluída: ${freedSpace} bytes liberados`);
     }
 
+    async purgeAll() {
+        try {
+            const all = await this.loadAllMediaMetadata();
+            const ids = Object.keys(all || {});
+            for (let i = 0; i < ids.length; i += 1) {
+                await this.removeCachedMedia(ids[i]);
+            }
+            console.log('[MediaCacheManager] Cache purgado');
+            return { purged: true, count: ids.length };
+        } catch (error) {
+            console.error('[MediaCacheManager] Erro ao purgar cache', error);
+            return { purged: false };
+        }
+    }
+
     /**
      * Salva último DispatchPlan para modo offline
      */

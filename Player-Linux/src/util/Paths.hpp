@@ -18,6 +18,7 @@ struct DataLayout {
   std::string receiptsPath;
   std::string otaDir;
   std::string screenshotsDir;
+  std::string brandingDir;
 };
 
 DataLayout resolveDataLayout(const std::string& dataRoot);

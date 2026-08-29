@@ -9,6 +9,7 @@
 #include <cctype>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
 #include <stdexcept>
 #include <thread>
 #include <vector>
@@ -222,31 +223,49 @@ void PlayerOrchestrator::tickDispatch(bool force) {
 }
 
 void PlayerOrchestrator::playCurrent() {
-  if (plan_.mediaItems.empty()) {
-    util::Logger::i("PLAYBACK", planSource_ + " — plano vazio; aguardar needsDispatch (RN-PAD-001)");
+  api::MediaItem item;
+  std::string source;
+  std::string playlistName;
+  {
+    std::lock_guard<std::recursive_mutex> lock(mu_);
+    source = planSource_;
+    playlistName = plan_.playlistName;
+    if (plan_.mediaItems.empty()) {
+      item.mediaId.clear();
+    } else {
+      if (index_ >= plan_.mediaItems.size()) {
+        util::Logger::i("PLAYBACK", "Ciclo completo — repetindo fila");
+        index_ = 0;
+      }
+      item = plan_.mediaItems[index_];
+      if (!cfg_.acceptImagesInPlaylist && item.mediaType.find("image") != std::string::npos) {
+        ++index_;
+        return;
+      }
+    }
+  }
+  if (item.mediaId.empty() && item.url.empty()) {
+    util::Logger::i("PLAYBACK", source + " — plano vazio; aguardar needsDispatch (RN-PAD-001)");
     std::this_thread::sleep_for(std::chrono::seconds(30));
-    return;
-  }
-  if (index_ >= plan_.mediaItems.size()) {
-    util::Logger::i("PLAYBACK", "Ciclo completo — repetindo fila");
-    index_ = 0;
-  }
-  auto item = plan_.mediaItems[index_];
-  if (!cfg_.acceptImagesInPlaylist && item.mediaType.find("image") != std::string::npos) {
-    ++index_;
     return;
   }
   const std::string path = cache_.ensureLocal(item);
   if (path.empty()) {
     util::Logger::w("PLAYBACK", "Sem ficheiro local mediaId=" + item.mediaId);
+    std::lock_guard<std::recursive_mutex> lock(mu_);
     ++index_;
     return;
   }
   if (cfg_.mediaTransitionEnabled) {
     backend_->playBlackVeil(300);
   }
-  util::Logger::i("PLAYBACK", "Início mediaId=" + item.mediaId + " playlist=\"" + plan_.playlistName +
-                                  "\" source=" + planSource_);
+  util::Logger::i("PLAYBACK", "Início mediaId=" + item.mediaId + " playlist=\"" + playlistName +
+                                  "\" source=" + source);
+  const bool isHtml = item.mediaType.find("html") != std::string::npos ||
+                      item.mediaType.find("web") != std::string::npos;
+  const bool isImage = item.mediaType.find("image") != std::string::npos;
+  const char* startType = isHtml ? "html_display" : (isImage ? "image_display" : "video_playback_start");
+  emitPlaybackEvent(startType, item, nlohmann::json::object());
   backend_->playFile(path, item.mediaType, item.durationSeconds, cfg_.allowPlaybackAudio);
   while (!stop_ && backend_->isPlaying()) {
     if (!schedule_.isDisplayActiveNow()) {
@@ -257,13 +276,33 @@ void PlayerOrchestrator::playCurrent() {
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
   }
   util::Logger::i("PLAYBACK", "Fim mediaId=" + item.mediaId);
+  if (!isHtml && !isImage) {
+    emitPlaybackEvent("video_playback_end", item, nlohmann::json{{"completed", true}});
+  }
+  std::lock_guard<std::recursive_mutex> lock(mu_);
   ++index_;
+}
+
+void PlayerOrchestrator::playBrandingSplash() {
+  const std::string logo = layout_.brandingDir + "/logo.png";
+  std::error_code ec;
+  if (!fs::exists(logo, ec) || !fs::is_regular_file(logo, ec)) {
+    util::Logger::i("BRANDING", "sem " + logo + " — splash omitido (copie com scripts/apply-branding.sh)");
+    return;
+  }
+  util::Logger::i("BRANDING", "splash 3s " + logo);
+  backend_->playFile(logo, "image", 3, false);
+  while (!stop_ && backend_->isPlaying()) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+  }
+  backend_->stop();
 }
 
 void PlayerOrchestrator::run() {
   util::Logger::i("WATCHDOG",
                   std::string("Loop Player-Linux ") + PLAYER_LINUX_VERSION_STR +
                       " parity AD " + PLAYER_LINUX_PARITY_STR);
+  playBrandingSplash();
   if (auto remote = client_.fetchPlayerConfig()) {
     if (remote->contains("heartbeatInterval") && (*remote)["heartbeatInterval"].is_number()) {
       int v = (*remote)["heartbeatInterval"].get<int>();
@@ -277,20 +316,8 @@ void PlayerOrchestrator::run() {
   tickHeartbeat();
   tickDispatch(true);
 
-  auto nextHb = std::chrono::steady_clock::now();
-  auto nextDp = std::chrono::steady_clock::now() + std::chrono::milliseconds(poll_.dispatchIntervalMs());
-
+  std::thread net([this] { netLoop(); });
   while (!stop_) {
-    const auto now = std::chrono::steady_clock::now();
-    if (now >= nextHb) {
-      tickHeartbeat();
-      nextHb = now + std::chrono::milliseconds(poll_.heartbeatIntervalMs());
-    }
-    if (now >= nextDp) {
-      tickDispatch(false);
-      nextDp = now + std::chrono::milliseconds(poll_.dispatchIntervalMs());
-    }
-
     if (!schedule_.isDisplayActiveNow()) {
       util::Logger::i("DISPLAY", "Idle preto — keep-alive");
       std::this_thread::sleep_for(std::chrono::seconds(
@@ -298,6 +325,58 @@ void PlayerOrchestrator::run() {
       continue;
     }
     playCurrent();
+  }
+  net.join();
+}
+
+void PlayerOrchestrator::netLoop() {
+  auto nextHb = std::chrono::steady_clock::now();
+  auto nextDp = std::chrono::steady_clock::now() + std::chrono::milliseconds(poll_.dispatchIntervalMs());
+  while (!stop_) {
+    const auto now = std::chrono::steady_clock::now();
+    if (now >= nextHb) {
+      std::lock_guard<std::recursive_mutex> lock(mu_);
+      tickHeartbeat();
+      nextHb = now + std::chrono::milliseconds(poll_.heartbeatIntervalMs());
+    }
+    if (now >= nextDp) {
+      std::lock_guard<std::recursive_mutex> lock(mu_);
+      tickDispatch(false);
+      nextDp = now + std::chrono::milliseconds(poll_.dispatchIntervalMs());
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+  }
+}
+
+void PlayerOrchestrator::emitPlaybackEvent(const std::string& eventType,
+                                           const api::MediaItem& item,
+                                           const nlohmann::json& extra) {
+  nlohmann::json body = extra.is_object() ? extra : nlohmann::json::object();
+  body["eventType"] = eventType;
+  bool numeric = !item.mediaId.empty() &&
+                 std::all_of(item.mediaId.begin(), item.mediaId.end(),
+                             [](unsigned char c) { return std::isdigit(c); });
+  if (numeric) {
+    try {
+      body["mediaId"] = std::stoll(item.mediaId);
+    } catch (...) {
+      numeric = false;
+    }
+  }
+  if (!body.contains("metadata") || !body["metadata"].is_object()) body["metadata"] = nlohmann::json::object();
+  body["metadata"]["mediaKey"] = item.mediaId;
+  body["metadata"]["mediaType"] = item.mediaType;
+  body["metadata"]["planSource"] = planSource_;
+  const std::string path = layout_.telemetryDir + "/events-v2.jsonl";
+  {
+    std::ofstream out(path, std::ios::app);
+    if (out) out << body.dump() << "\n";
+  }
+  const std::string tok = client_.token();
+  if (!tok.empty()) {
+    if (!client_.postEvent(tok, body)) {
+      util::Logger::w("TELEMETRY", std::string("POST /api/player/event falhou type=") + eventType);
+    }
   }
 }
 

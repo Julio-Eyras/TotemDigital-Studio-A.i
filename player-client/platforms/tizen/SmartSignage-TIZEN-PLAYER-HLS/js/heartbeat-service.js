@@ -20,6 +20,7 @@ class HeartbeatService {
     this.commandRunner = null;
     this.onHeartbeatResult = null;
     this.onRefreshDispatch = null;
+    this.onPurgeCache = null;
   }
 
   _dispatchApiBase() {
@@ -62,7 +63,10 @@ class HeartbeatService {
           if (self.onRefreshDispatch) await self.onRefreshDispatch();
           return { checked: true };
         },
-        purge_cache: async () => ({ purged: false, note: "cache tizen limitado" }),
+        purge_cache: async () => {
+          if (self.onPurgeCache) return (await self.onPurgeCache()) || { purged: true };
+          return { purged: false, note: "cache tizen limitado" };
+        },
         invalidate_media: async () => {
           if (self.onRefreshDispatch) await self.onRefreshDispatch();
           return { invalidated: true };
@@ -119,10 +123,19 @@ class HeartbeatService {
       return;
     }
     this._ensureCommands();
+    if (window.PlayerProtocol && window.PlayerProtocol.createPollAdaptive) {
+      this._poll = window.PlayerProtocol.createPollAdaptive({ heartbeatMs: this.interval });
+    }
     this.sendHeartbeat();
-    this.heartbeatInterval = setInterval(() => {
-      this.sendHeartbeat();
-    }, this.interval);
+    const arm = () => {
+      if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
+      const ms = this._poll ? this._poll.intervalMs() : this.interval;
+      this.heartbeatInterval = setInterval(() => {
+        this.sendHeartbeat();
+      }, ms);
+    };
+    arm();
+    this._rearmHb = arm;
   }
 
   stop() {
@@ -188,6 +201,12 @@ class HeartbeatService {
       const parsed = window.PlayerProtocol && window.PlayerProtocol.parseSyncOrHeartbeat
         ? window.PlayerProtocol.parseSyncOrHeartbeat(json)
         : json;
+      if (parsed.pollAdaptive && this._poll) this._poll.applyServer(parsed.pollAdaptive);
+      if (this._poll) {
+        this._poll.onSuccess(!!parsed.planVersion && parsed.planVersion === this.knownPlanVersion, false);
+        this.interval = this._poll.intervalMs();
+        if (this._rearmHb) this._rearmHb();
+      }
       if (parsed.token) this.token = parsed.token;
       if (parsed.planVersion) this.knownPlanVersion = parsed.planVersion;
       this._ensureCommands();
@@ -201,6 +220,7 @@ class HeartbeatService {
       return parsed;
     } catch (error) {
       console.warn("[Heartbeat] Erro ao enviar heartbeat:", error.message);
+      if (this._poll) this._poll.onFailure();
       return null;
     }
   }

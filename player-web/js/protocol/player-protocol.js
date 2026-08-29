@@ -187,6 +187,103 @@
     return n > 0 ? n : 10;
   }
 
+  function installDebugTaps(opts) {
+    opts = opts || {};
+    var required = Number(opts.required) > 0 ? Number(opts.required) : 3;
+    var windowMs = Number(opts.windowMs) > 0 ? Number(opts.windowMs) : 1200;
+    var lines = opts.lines || {};
+    var count = 0;
+    var last = 0;
+    var overlay = null;
+    function collectLines() {
+      try {
+        if (typeof opts.lines === "function") return opts.lines() || {};
+      } catch (e) {}
+      return lines && typeof lines === "object" ? lines : {};
+    }
+    function hide() {
+      if (overlay) overlay.style.display = "none";
+    }
+    function show() {
+      if (!overlay) {
+        overlay = document.createElement("div");
+        overlay.id = "player-ad-debug-overlay";
+        overlay.style.cssText =
+          "position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.88);color:#fff;" +
+          "font:18px/1.4 sans-serif;padding:32px;overflow:auto;";
+        document.body.appendChild(overlay);
+      }
+      var snap = collectLines();
+      var html = "<h2 style='margin:0 0 16px'>Player debug (3× OK / clique)</h2><pre style='white-space:pre-wrap'>";
+      Object.keys(snap).forEach(function (k) {
+        html += k + ": " + snap[k] + "\n";
+      });
+      html += "</pre><p>Clique / OK outra vez para fechar.</p>";
+      overlay.innerHTML = html;
+      overlay.style.display = "block";
+      overlay.onclick = function (ev) {
+        ev.stopPropagation();
+        hide();
+      };
+    }
+    function onTap(ev) {
+      if (overlay && overlay.style.display === "block") return;
+      var now = Date.now();
+      count = now - last > windowMs ? 1 : count + 1;
+      last = now;
+      if (count >= required) {
+        count = 0;
+        if (typeof opts.onOpen === "function") opts.onOpen();
+        show();
+        if (ev && ev.preventDefault) ev.preventDefault();
+      }
+    }
+    document.addEventListener("click", onTap, true);
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.keyCode === 13 || e.key === "OK") onTap(e);
+    }, true);
+    return { show: show, hide: hide };
+  }
+
+  function createPollAdaptive(opts) {
+    opts = opts || {};
+    var baseHb = Number(opts.heartbeatMs) > 0 ? Number(opts.heartbeatMs) : 30000;
+    var hbMs = baseHb;
+    var streak = 0;
+    var cfg = opts.pollAdaptive && typeof opts.pollAdaptive === "object" ? opts.pollAdaptive : {};
+    return {
+      applyServer: function (pa) {
+        if (pa && typeof pa === "object") cfg = pa;
+      },
+      intervalMs: function () {
+        return hbMs;
+      },
+      onSuccess: function (unchanged, idle) {
+        if (idle && cfg.idleHeartbeatSeconds) {
+          hbMs = Number(cfg.idleHeartbeatSeconds) * 1000;
+          streak = 0;
+          return;
+        }
+        if (unchanged) {
+          streak += 1;
+          if (streak >= (Number(cfg.unchangedStreakBeforeSleep) || 2)) {
+            var maxMs = (Number(cfg.maxHeartbeatSeconds) || 600) * 1000;
+            var factor = Number(cfg.sleepGrowthFactor) || 2;
+            hbMs = Math.min(hbMs * factor, maxMs);
+          }
+        } else {
+          streak = 0;
+          hbMs = baseHb;
+        }
+      },
+      onFailure: function () {
+        var maxMs = (Number(cfg.maxHeartbeatSeconds) || 600) * 1000;
+        hbMs = Math.min(hbMs * 2, maxMs);
+        streak = 0;
+      },
+    };
+  }
+
   /**
    * @param {{
    *   platform: 'web'|'webos'|'tizen',
@@ -254,6 +351,8 @@
     createCommandRunner: createCommandRunner,
     htmlDurationSeconds: htmlDurationSeconds,
     imageDurationSeconds: imageDurationSeconds,
+    createPollAdaptive: createPollAdaptive,
+    installDebugTaps: installDebugTaps,
     commandAvailability: commandAvailability,
   };
 })(typeof window !== "undefined" ? window : globalThis);
