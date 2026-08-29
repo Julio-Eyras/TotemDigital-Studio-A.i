@@ -29,7 +29,20 @@ class PlayerControllerWOS {
       hooks: {
         refresh_dispatch: async () => { self.needsDispatch = true; await self.tryRefreshOnlinePlan(true); return { refreshed: true }; },
         sync_now: async () => { self.needsDispatch = true; await self.tryRefreshOnlinePlan(true); return { refreshed: true }; },
-        content_version_check: async () => { self.needsDispatch = true; await self.tryRefreshOnlinePlan(true); return { checked: true }; },
+        content_version_check: async (cmd) => {
+          const items = (cmd && cmd.data && Array.isArray(cmd.data.items) && cmd.data.items.length)
+            ? cmd.data.items
+            : ((self.plan && self.plan.mediaItems) || []);
+          let stale = false;
+          if (self.cache && self.cache.hasStaleVersions) {
+            stale = await self.cache.hasStaleVersions(items);
+          }
+          if (stale) {
+            self.needsDispatch = true;
+            await self.tryRefreshOnlinePlan(true);
+          }
+          return { checked: true, stale: !!stale };
+        },
         purge_cache: async () => {
           localStorage.removeItem("player-wos.last-dispatch-plan");
           if (self.cache && self.cache.purgeAll) await self.cache.purgeAll();
@@ -109,6 +122,8 @@ class PlayerControllerWOS {
       url: this.api.resolveUrl(String(it.url || "")),
       duration: Number(it.duration || 0) || null,
       mediaType: String(it.mediaType || "").toLowerCase(),
+      contentVersion: String(it.contentVersion || it.content_version || (it.metadata && it.metadata.contentVersion) || "").trim(),
+      checksum: String(it.checksum || (it.metadata && it.metadata.checksum) || "").trim().toLowerCase(),
       tags: it.tags || []
     })).filter((it) => it.url) : [];
     const plan = {

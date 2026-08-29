@@ -1,6 +1,7 @@
 /**
- * Cache LRU de mídias no webOS (IndexedDB), paridade Player-AD / player-web.
+ * Cache LRU de mídias no webOS (IndexedDB), paridade Player-AD / Player-Linux.
  * HTML não é cacheado (iframe precisa da URL original).
+ * contentVersion diferente ou checksum SHA-256 falhado → re-descarregar.
  */
 class PlayerMediaCache {
   constructor(options) {
@@ -104,6 +105,47 @@ class PlayerMediaCache {
     }
   }
 
+  _expectedVersion(item) {
+    if (!item) return "";
+    const v = item.contentVersion || item.content_version ||
+      (item.metadata && (item.metadata.contentVersion || item.metadata.content_version));
+    return String(v || "").trim();
+  }
+
+  _expectedChecksum(item) {
+    if (!item) return "";
+    const c = item.checksum || (item.metadata && item.metadata.checksum);
+    return String(c || "").trim().toLowerCase();
+  }
+
+  async _sha256Hex(blob) {
+    if (!blob || !window.crypto || !crypto.subtle) return "";
+    const buf = await blob.arrayBuffer();
+    const hash = await crypto.subtle.digest("SHA-256", buf);
+    return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  async hasStaleVersions(items) {
+    const list = Array.isArray(items) ? items : [];
+    await this._ready;
+    if (!this.db) return false;
+    for (let i = 0; i < list.length; i += 1) {
+      const item = list[i];
+      const ver = this._expectedVersion(item);
+      if (!ver) continue;
+      const key = this._cacheKey(item);
+      if (!key) continue;
+      const rec = await new Promise((resolve, reject) => {
+        const tx = this.db.transaction(["media"], "readonly");
+        const req = tx.objectStore("media").get(key);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+      if (rec && rec.version !== ver) return true;
+    }
+    return false;
+  }
+
   async ensureLocal(item) {
     const url = item && item.url ? String(item.url) : "";
     if (!url || this._isHtml(item) || /^blob:|^file:/i.test(url)) return url;
@@ -118,22 +160,36 @@ class PlayerMediaCache {
         req.onsuccess = () => resolve(req.result || null);
         req.onerror = () => reject(req.error);
       });
-      const version = String((item && (item.contentVersion || item.checksum)) || "");
-      if (rec && rec.blob && (!version || rec.version === version)) {
+      const version = this._expectedVersion(item);
+      const wantChecksum = this._expectedChecksum(item);
+      const versionOk = !version || (rec && rec.version === version);
+      const checksumOk = !wantChecksum || (rec && rec.checksum && String(rec.checksum).toLowerCase() === wantChecksum);
+      if (rec && rec.blob && versionOk && checksumOk) {
         rec.lastAccessed = Date.now();
         await this._put(rec);
         return this._blobUrl(key, rec.blob);
+      }
+      if (rec && rec.blob && (!versionOk || !checksumOk)) {
+        await this._delete(key);
       }
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) return url;
       const blob = await res.blob();
       if (!blob || !blob.size) return url;
+      const gotChecksum = await this._sha256Hex(blob);
+      if (wantChecksum && gotChecksum && gotChecksum !== wantChecksum) {
+        if (typeof WosLogger !== "undefined") {
+          WosLogger.warn("CACHE", "checksum SHA-256 não bate mediaId=" + key + " — URL remota");
+        }
+        return url;
+      }
       await this._evictUntil(blob.size);
       await this._put({
         key: key,
         blob: blob,
         size: blob.size,
         version: version,
+        checksum: gotChecksum || wantChecksum,
         lastAccessed: Date.now()
       });
       return this._blobUrl(key, blob);

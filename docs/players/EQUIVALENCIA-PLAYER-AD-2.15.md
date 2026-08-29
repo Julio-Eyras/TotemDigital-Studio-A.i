@@ -26,8 +26,8 @@ O player Linux de campo é **só** `Player-Linux/`.
 |--------|----------|--------|------------------|----------------|
 | **AD** | `Player-AD/` | TV box Android (campo) | — | **100%** referência |
 | **Linux** | `Player-Linux/` | Totem / PC Linux | Alvo 2.15/115 | **~93%** do replicável |
-| **WOS** | `Player-WOS/` | LG webOS (Smart TV) | Mesmo contrato HTTP | **~95%** do replicável + N/D de campo Android |
-| **Tizen** | `player-client/platforms/tizen/` | Samsung Tizen (Smart TV) | Contrato `/api/player/*` | **~90%** do replicável + N/D |
+| **WOS** | `Player-WOS/` | LG webOS (Smart TV) | Mesmo contrato HTTP | **~96%** do replicável + N/D de campo Android |
+| **Tizen** | `player-client/platforms/tizen/` | Samsung Tizen (Smart TV) | Contrato `/api/player/*` | **~92%** do replicável + N/D |
 | **MON** | `Player-iPhone/` · `Player-AD-MON/` | Monitor JWT (painel) | Telemetria web | **0%** playback; fora do kiosk |
 
 Deltas 2.14–2.15 no AD: escape de kiosk; HOME persistente. No Linux: `scripts/kiosk-escape.sh` (SIGUSR1) + `player-linux.service`.
@@ -78,7 +78,7 @@ Deltas 2.14–2.15 no AD: escape de kiosk; HOME persistente. No Linux: `scripts/
 | HTML / WebView (default 60 s, mín 30) | Ref | Eq (Chromium kiosk) | Eq (iframe) | N/D / Parc |
 | Loop sem bloquear rede entre mídias | Ref | Eq | Parc | Parc |
 | Cache `{mediaId}.{ext}` + metadata + LRU | Ref | Eq | Eq (IndexedDB) | Eq (ficheiro LRU) |
-| Checksum / contentVersion | Ref | Eq | Parc | Parc |
+| Checksum / contentVersion | Ref | Eq | Eq (SHA-256 + contentVersion) | Eq (SHA-256 + contentVersion) |
 | Áudio mute por default | Ref | Eq | Eq | Verificar |
 | Transição véu preto | Ref | Eq | Eq | Eq |
 | Rotação viewport / `displayRotation` | Ref | Eq (xrandr) | **N/D** | **N/D** |
@@ -127,8 +127,8 @@ Percentagem = julgamento contra o **catálogo AD 2.15**, excluindo linhas N/D de
 |------------|------------------------|-------|-------|------------|
 | Player-AD 2.15 | 100% | 100% | 0 | Referência |
 | Player-Linux | ~90% (sem APK/ADB) | **~93%** | plymouth/bootanimation de firmware (SO, não o binário) | **P0** residual |
-| Player-WOS | ~55% (resto N/D) | **~95%** desse 55% | checksum rígido | **P1** Smart TV |
-| Tizen | ~55% | **~90%** desse 55% | checksum rígido | **P1** Smart TV |
+| Player-WOS | ~55% (resto N/D) | **~96%** desse 55% | HB no mesmo JS do vídeo | **P1** Smart TV |
+| Tizen | ~55% | **~92%** desse 55% | EMPTY_PLAN / needsDispatch parciais | **P1** Smart TV |
 | iPhone / AD-MON | 0% kiosk | monitor | fora deste plano | — |
 
 ---
