@@ -357,4 +357,33 @@ describe('ciclo de sistema lab (ACE + Maestro mock + TDEP mock)', () => {
     expect(replay.winnerLane).toBe('idle');
     expect(replay.proof).toBeNull();
   });
+
+  it('HANDSHAKE_REJECTED: segredo ou ts inválido; idle, sem proof', () => {
+    const idleAce = {
+      aceEnabled: false as const,
+      candidates: [{ id: 'fill-night', baseWeight: 10, commercialTier: 'remnant' }],
+    };
+    const rejected = runLabSystemTick({
+      ace: idleAce,
+      tdep: {
+        enabled: true,
+        flightAccepted: true,
+        partnerPayload: { schema: 'tdep/0.1', secret_ok: false },
+      },
+    });
+    expect(rejected.tdep.code).toBe('HANDSHAKE_REJECTED');
+    expect(rejected.winnerLane).toBe('idle');
+    expect(rejected.proof).toBeNull();
+
+    const badTs = runLabSystemTick({
+      ace: idleAce,
+      tdep: {
+        enabled: true,
+        flightAccepted: true,
+        partnerPayload: { schema: 'tdep/0.1', handshake_ts: 'not-a-date' },
+      },
+    });
+    expect(badTs.tdep.code).toBe('HANDSHAKE_REJECTED');
+    expect(badTs.proof).toBeNull();
+  });
 });

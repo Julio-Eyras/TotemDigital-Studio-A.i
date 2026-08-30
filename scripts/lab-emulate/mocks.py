@@ -65,40 +65,57 @@ def mock_maestro_player_accepts(
     return {"accepted": True, "code": None, "played_item": cue.get("item_id")}
 
 
-def mock_tdep_partner_accepts(payload: dict[str, Any]) -> dict[str, Any]:
-    if any(k in payload for k in TDEP_LEAK_KEYS):
-        return {"accepted": False, "code": "AUDIENCE_FORBIDDEN"}
-    if payload.get("refuse_code") == "NO_HANDSHAKE" or payload.get("handshake_ok") is False:
-        return {"accepted": False, "code": "NO_HANDSHAKE"}
+def _handshake_instant_ms(payload: dict[str, Any]) -> int | None | str:
     raw = payload.get("handshake_ts", payload.get("ts"))
-    age_ms = None
+    if raw is None or raw == "":
+        return None
+    if isinstance(raw, bool):
+        return "invalid"
     if isinstance(raw, (int, float)):
-        age_ms = int(raw)
-    elif isinstance(raw, str) and raw:
+        return int(raw)
+    if isinstance(raw, str):
         from datetime import datetime
 
         try:
             dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-            age_ms = int(dt.timestamp() * 1000)
+            return int(dt.timestamp() * 1000)
         except ValueError:
-            age_ms = None
+            return "invalid"
+    return "invalid"
+
+
+def mock_tdep_partner_accepts(payload: dict[str, Any]) -> dict[str, Any]:
+    """Espelho de tdep_nodes.handshake + seller_decide. Sem handshake_ok = fill de lab já ok."""
+    if any(k in payload for k in TDEP_LEAK_KEYS):
+        return {"accepted": False, "code": "AUDIENCE_FORBIDDEN"}
+    handshake_kind = payload.get("handshake")
+    instant = _handshake_instant_ms(payload)
+    if (
+        payload.get("refuse_code") == "HANDSHAKE_REJECTED"
+        or payload.get("secret_ok") is False
+        or (isinstance(handshake_kind, str) and handshake_kind != "hmac")
+        or instant == "invalid"
+    ):
+        return {"accepted": False, "code": "HANDSHAKE_REJECTED"}
+    if payload.get("refuse_code") == "NO_HANDSHAKE" or payload.get("handshake_ok") is False:
+        return {"accepted": False, "code": "NO_HANDSHAKE"}
     stale = False
-    if age_ms is not None:
+    if isinstance(instant, int):
         from time import time
 
-        stale = (time() * 1000) - age_ms > HANDSHAKE_MAX_MS
+        stale = abs((time() * 1000) - instant) > HANDSHAKE_MAX_MS
     if payload.get("refuse_code") == "HANDSHAKE_REPLAY" or stale:
         return {"accepted": False, "code": "HANDSHAKE_REPLAY"}
-    if payload.get("refuse_code") == "POLICY_AUDIO" or (
-        payload.get("audio") is True and payload.get("face_audio") is False
-    ):
-        return {"accepted": False, "code": "POLICY_AUDIO"}
+    if payload.get("refuse_code") == "NOT_CEDIBLE" or payload.get("cedible") is False:
+        return {"accepted": False, "code": "NOT_CEDIBLE"}
     brands = [str(x) for x in (payload.get("brand_categories") or [])] if isinstance(payload.get("brand_categories"), list) else []
     blocked = [str(x) for x in (payload.get("blocked_categories") or [])] if isinstance(payload.get("blocked_categories"), list) else []
     if payload.get("refuse_code") == "CATEGORY_BLOCKED" or any(c in blocked for c in brands):
         return {"accepted": False, "code": "CATEGORY_BLOCKED"}
-    if payload.get("refuse_code") == "NOT_CEDIBLE" or payload.get("cedible") is False:
-        return {"accepted": False, "code": "NOT_CEDIBLE"}
+    if payload.get("refuse_code") == "POLICY_AUDIO" or (
+        payload.get("audio") is True and payload.get("face_audio") is False
+    ):
+        return {"accepted": False, "code": "POLICY_AUDIO"}
     if payload.get("refuse_code") == "FORMAT_MISMATCH" or payload.get("status") == "rejected":
         return {"accepted": False, "code": "FORMAT_MISMATCH"}
     return {"accepted": True, "code": None}

@@ -290,18 +290,19 @@ export function mockMaestroPlayerAcceptsCue(
 
 export const LAB_TDEP_HANDSHAKE_MAX_MS = 60_000;
 
-function handshakeStale(payload: Record<string, unknown>): boolean {
+/** Espelho de `tdep_nodes.handshake` + `seller_decide`. Ausência de handshake_ok = fill de lab já com nós ok. */
+function handshakeInstantMs(payload: Record<string, unknown>): number | null | 'invalid' {
   const raw = payload.handshake_ts ?? payload.ts;
+  if (raw === undefined || raw === null || raw === '') {
+    return null;
+  }
   let at = NaN;
-  if (typeof raw === 'number') {
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
     at = raw;
-  } else if (typeof raw === 'string' && raw) {
+  } else if (typeof raw === 'string') {
     at = Date.parse(raw);
   }
-  if (!Number.isFinite(at)) {
-    return false;
-  }
-  return Date.now() - at > LAB_TDEP_HANDSHAKE_MAX_MS;
+  return Number.isFinite(at) ? at : 'invalid';
 }
 
 export function mockTdepPartnerAccepts(payload: Record<string, unknown>): {
@@ -312,22 +313,35 @@ export function mockTdepPartnerAccepts(payload: Record<string, unknown>): {
   if (leakKeys.some((k) => k in payload)) {
     return { accepted: false, code: 'AUDIENCE_FORBIDDEN' };
   }
+  const handshakeKind = payload.handshake;
+  const instant = handshakeInstantMs(payload);
+  if (
+    payload.refuse_code === 'HANDSHAKE_REJECTED' ||
+    payload.secret_ok === false ||
+    (typeof handshakeKind === 'string' && handshakeKind !== 'hmac') ||
+    instant === 'invalid'
+  ) {
+    return { accepted: false, code: 'HANDSHAKE_REJECTED' };
+  }
   if (payload.refuse_code === 'NO_HANDSHAKE' || payload.handshake_ok === false) {
     return { accepted: false, code: 'NO_HANDSHAKE' };
   }
-  if (payload.refuse_code === 'HANDSHAKE_REPLAY' || handshakeStale(payload)) {
+  if (
+    payload.refuse_code === 'HANDSHAKE_REPLAY' ||
+    (typeof instant === 'number' && Math.abs(Date.now() - instant) > LAB_TDEP_HANDSHAKE_MAX_MS)
+  ) {
     return { accepted: false, code: 'HANDSHAKE_REPLAY' };
   }
-  if (payload.refuse_code === 'POLICY_AUDIO' || (payload.audio === true && payload.face_audio === false)) {
-    return { accepted: false, code: 'POLICY_AUDIO' };
+  if (payload.refuse_code === 'NOT_CEDIBLE' || payload.cedible === false) {
+    return { accepted: false, code: 'NOT_CEDIBLE' };
   }
   const brands = Array.isArray(payload.brand_categories) ? payload.brand_categories.map(String) : [];
   const blocked = Array.isArray(payload.blocked_categories) ? payload.blocked_categories.map(String) : [];
   if (payload.refuse_code === 'CATEGORY_BLOCKED' || brands.some((c) => blocked.includes(c))) {
     return { accepted: false, code: 'CATEGORY_BLOCKED' };
   }
-  if (payload.refuse_code === 'NOT_CEDIBLE' || payload.cedible === false) {
-    return { accepted: false, code: 'NOT_CEDIBLE' };
+  if (payload.refuse_code === 'POLICY_AUDIO' || (payload.audio === true && payload.face_audio === false)) {
+    return { accepted: false, code: 'POLICY_AUDIO' };
   }
   if (payload.refuse_code === 'FORMAT_MISMATCH' || payload.status === 'rejected') {
     return { accepted: false, code: 'FORMAT_MISMATCH' };

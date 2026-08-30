@@ -200,5 +200,37 @@ describe('mocks Maestro + TDEP (sem Player-AD)', () => {
     expect(
       mockTdepPartnerAccepts({ schema: 'tdep/0.1', handshake_ts: '2020-01-01T00:00:00.000Z' }).code
     ).toBe('HANDSHAKE_REPLAY');
+    expect(
+      mockTdepPartnerAccepts({
+        schema: 'tdep/0.1',
+        handshake_ts: new Date(Date.now() + 120_000).toISOString(),
+      }).code
+    ).toBe('HANDSHAKE_REPLAY');
+    expect(mockTdepPartnerAccepts({ schema: 'tdep/0.1', handshake_ts: 'not-a-date' }).code).toBe(
+      'HANDSHAKE_REJECTED'
+    );
+    expect(mockTdepPartnerAccepts({ schema: 'tdep/0.1', secret_ok: false }).code).toBe(
+      'HANDSHAKE_REJECTED'
+    );
+    expect(mockTdepPartnerAccepts({ schema: 'tdep/0.1', handshake: 'none' }).code).toBe(
+      'HANDSHAKE_REJECTED'
+    );
+    expect(
+      mockTdepPartnerAccepts({
+        schema: 'tdep/0.1',
+        audio: true,
+        face_audio: false,
+        brand_categories: ['alcohol'],
+        blocked_categories: ['alcohol'],
+      }).code
+    ).toBe('CATEGORY_BLOCKED');
+    expect(
+      mockTdepPartnerAccepts({
+        schema: 'tdep/0.1',
+        cedible: false,
+        brand_categories: ['alcohol'],
+        blocked_categories: ['alcohol'],
+      }).code
+    ).toBe('NOT_CEDIBLE');
   });
 });

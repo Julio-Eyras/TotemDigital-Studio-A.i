@@ -97,12 +97,15 @@ describe('labSystemTick payloads (lab UI)', () => {
     expect(notCedible.tdep?.partnerPayload?.cedible).toBe(false);
   });
 
-  it('NO_HANDSHAKE e HANDSHAKE_REPLAY no payload', () => {
+  it('NO_HANDSHAKE, HANDSHAKE_REPLAY e HANDSHAKE_REJECTED no payload', () => {
     const noHs = buildLabTickBody('no_handshake', 41);
     expect(noHs.tdep?.partnerPayload?.handshake_ok).toBe(false);
 
     const replay = buildLabTickBody('handshake_replay', 41);
     expect(replay.tdep?.partnerPayload?.handshake_ts).toBe('2020-01-01T00:00:00.000Z');
+
+    const rejected = buildLabTickBody('handshake_rejected', 41);
+    expect(rejected.tdep?.partnerPayload?.secret_ok).toBe(false);
   });
 
   it('summarizeLabTick extrai proof e códigos', () => {

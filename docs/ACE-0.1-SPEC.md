@@ -288,8 +288,9 @@ Ordem. Cada passo espera decisão explícita antes de código.
 26. **Recusas STALE_CONTEXT e FORMAT_MISMATCH no tick (feito)** — context velho (>3 s) não gera hint. Parceiro sem variante → `FORMAT_MISMATCH`, idle, sem proof. Pitch 15 min não menciona.
 27. **Recusas LOW_CONFIDENCE e POLICY_AUDIO no tick (feito)** — `confidence` < 0.50 sem hint. Variante com som em face muda → `POLICY_AUDIO`, idle, sem proof. Direct default off.
 28. **Recusas CATEGORY_BLOCKED e NOT_CEDIBLE no tick (feito)** — categoria vetada ou `cedible: false` recusa o fill. Idle, sem proof. Pitch 15 min não menciona.
-29. **Recusas NO_HANDSHAKE e HANDSHAKE_REPLAY no tick (feito)** — `handshake_ok: false` ou timestamp > 60 s recusa o fill. Idle, sem proof. Payload default do fill (sem estes campos) continua a aceitar. Pitch 15 min não menciona.
+29. **Recusas NO_HANDSHAKE e HANDSHAKE_REPLAY no tick (feito)** — `handshake_ok: false` ou `|now − ts| > 60 s` (passado **ou** futuro, como `tdep_nodes.handshake`). Idle, sem proof. Payload default do fill (sem estes campos) continua a aceitar. Pitch 15 min não menciona.
 30. **SQL ACE no tick (feito, sem UPDATE Postgres no HTTP)** — `hydrateSql` faz SELECT na tabela lab (`totems.capabilities`). Sem ligação → `NO_DATABASE`; sem linha → `NO_TOTEM`. `ace_enabled: true` liga o hint; string `"true"` não. `POST /optin/:id/sql` só escreve a tabela lab com `apply: true`. SQL humano: `optin-totem-lab.sql`. Direct default off.
+31. **Recusa HANDSHAKE_REJECTED no tick (feito)** — `secret_ok: false`, `handshake` ≠ `hmac`, ou timestamp ilegível. Espelho de `tdep_nodes.handshake`. Idle, sem proof. Pitch 15 min não menciona.
 
 Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anónimos — sem `tag_id`.
 

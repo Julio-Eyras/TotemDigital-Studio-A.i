@@ -40,7 +40,8 @@ cap de % de ar da rede  >  guaranteed
 | `KILL_SWITCH` | Dono corta o parceiro/criativo |
 | `AUDIENCE_FORBIDDEN` | JSON traz `audience` / `ace` / `person_id` / `mood` |
 | `NO_HANDSHAKE` | Handshake HMAC em falta ou `handshake_ok: false` |
-| `HANDSHAKE_REPLAY` | Timestamp do handshake fora de 60 s |
+| `HANDSHAKE_REPLAY` | Timestamp do handshake com `|now − ts| > 60 s` |
+| `HANDSHAKE_REJECTED` | Tipo ≠ hmac, `secret_ok` false, ou ts ilegível |
 
 Proof **obrigatório** em `guaranteed`. Fill pode ser best-effort.
 

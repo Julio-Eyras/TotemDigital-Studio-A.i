@@ -19,6 +19,7 @@ export type LabTickScenarioId =
   | 'not_cedible'
   | 'no_handshake'
   | 'handshake_replay'
+  | 'handshake_rejected'
   | 'sql_ace'
   | 'sql_no_database'
   | 'sql_no_totem';
@@ -78,7 +79,8 @@ export const LAB_TICK_SCENARIOS: Array<{ id: LabTickScenarioId; label: string; h
   { id: 'category_blocked', label: 'CATEGORY_BLOCKED', hint: 'Categoria vetada na face. Idle, sem proof.' },
   { id: 'not_cedible', label: 'NOT_CEDIBLE', hint: 'Availability cedible false. Idle, sem proof.' },
   { id: 'no_handshake', label: 'NO_HANDSHAKE', hint: 'handshake_ok false. Idle, sem proof.' },
-  { id: 'handshake_replay', label: 'HANDSHAKE_REPLAY', hint: 'Timestamp > 60 s. Idle, sem proof.' },
+  { id: 'handshake_replay', label: 'HANDSHAKE_REPLAY', hint: '|ts| > 60 s (passado ou futuro). Idle, sem proof.' },
+  { id: 'handshake_rejected', label: 'HANDSHAKE_REJECTED', hint: 'secret_ok false ou ts inválido. Idle, sem proof.' },
   { id: 'fill_idle', label: 'Fill no idle', hint: 'Sem cardápio local. Fill mock + proof HMAC.' },
   { id: 'guaranteed_idle', label: 'Guaranteed', hint: 'Guaranteed no idle + proof.' },
   { id: 'no_capacity', label: 'Cap 10%', hint: 'want 15% → NO_CAPACITY. Sem proof.' },
@@ -245,6 +247,16 @@ export function buildLabTickBody(id: LabTickScenarioId, totemId = 41): LabSystem
           enabled: true,
           flightAccepted: true,
           partnerPayload: { schema: 'tdep/0.1', handshake_ts: '2020-01-01T00:00:00.000Z' },
+        },
+      };
+    case 'handshake_rejected':
+      return {
+        totemId: tid,
+        ace: IDLE_ACE,
+        tdep: {
+          enabled: true,
+          flightAccepted: true,
+          partnerPayload: { schema: 'tdep/0.1', secret_ok: false },
         },
       };
     case 'fill_idle':
