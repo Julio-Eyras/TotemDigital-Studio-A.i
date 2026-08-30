@@ -22,6 +22,8 @@ bool downloadFile(const std::string& url, const std::string& destPath, long time
 void applyKiosk(const std::string& kioskMode, int displayRotation);
 /** Escape de kiosk (SIGUSR1 / scripts/kiosk-escape.sh) — equivalente ao menu 3× OK. */
 void releaseKiosk();
+void requestKioskEscape();
+bool takeKioskEscape();
 
 nlohmann::json configureWifi(const nlohmann::json& data);
 nlohmann::json captureScreenshot(const std::string& shotsDir);
@@ -49,5 +51,16 @@ struct ChildProc {
 
 ChildProc spawnHtmlKiosk(const std::string& fileOrUrl);
 void killChild(ChildProc proc);
+/** true se o filho HTML ainda existe (reap WNOHANG). */
+bool childAlive(ChildProc& proc);
+
+/** Só download + SHA-256 para incoming.deb. Não instala. */
+void downloadOtaDeb(const OtaPackage& pkg,
+                    const std::string& serverUrl,
+                    const std::string& otaDir,
+                    const std::string& uin,
+                    const std::string& token);
+/** dpkg de incoming.deb (já validado). Playback deve estar parado. */
+nlohmann::json installIncomingDeb(const std::string& otaDir, const std::string& version);
 
 }  // namespace player::ops

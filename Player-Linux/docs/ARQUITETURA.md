@@ -32,14 +32,21 @@ Player-Linux/
 ```text
 main
   ├─ carrega config + applyKiosk (xrandr / xset)
+  ├─ SIGUSR1 só pede escape (atomic); SIGTERM pede stop
   ├─ splash branding/logo.png (~3 s) se existir
-  ├─ token + sync/heartbeat (OTA linux no HB)
+  ├─ systemd READY=1 + watchdog 30 s
+  ├─ token + sync/heartbeat (OTA: download na rede, dpkg após stop)
   ├─ dispatch quando necessário (EMPTY_PLAN estável)
   ├─ pré-cache mídias
-  └─ loop playback
-        ├─ se !schedule.active → idle preto + keep-alive
+  └─ loop playback  (thread A)
+        ├─ drain OTA/reboot/escape
+        ├─ se !schedule.active → idle preto + keep-alive + watchdog
         └─ senão véu 300ms + play item (vídeo FIT / imagem / HTML Chromium)
+  thread B netLoop
+        └─ HB/dispatch **sem** segurar mu_ durante curl
 ```
+
+GST `ERROR` → skip item (não aborta). HTML: grupo de processos + `waitpid`. Detalhe: [RELIABILITY-FASE1.md](./RELIABILITY-FASE1.md).
 
 Polls de heartbeat e dispatch são **independentes** do fim do ciclo de playlist (como no Android).
 

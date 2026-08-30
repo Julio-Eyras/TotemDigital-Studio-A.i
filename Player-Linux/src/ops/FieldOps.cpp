@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
@@ -30,6 +31,8 @@ namespace fs = std::filesystem;
 namespace player::ops {
 
 namespace {
+
+std::atomic<bool> gKioskEscape{false};
 
 size_t fileWrite(char* ptr, size_t size, size_t nmemb, void* stream) {
   auto* out = static_cast<std::ofstream*>(stream);
@@ -126,8 +129,11 @@ bool downloadFile(const std::string& url, const std::string& destPath, long time
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, fileWrite);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, &out);
   curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+  curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
   curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 20L);
   curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeoutSec);
+  curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 64L);
+  curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, 30L);
   const CURLcode res = curl_easy_perform(curl);
   long status = 0;
   curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
@@ -173,6 +179,10 @@ void releaseKiosk() {
   run("xset +dpms 2>/dev/null || true", 5);
 #endif
 }
+
+void requestKioskEscape() { gKioskEscape.store(true); }
+
+bool takeKioskEscape() { return gKioskEscape.exchange(false); }
 
 nlohmann::json configureWifi(const nlohmann::json& data) {
   nlohmann::json result;
@@ -235,8 +245,8 @@ std::optional<OtaPackage> parseOta(const nlohmann::json& j) {
   return p;
 }
 
-nlohmann::json applyOta(const OtaPackage& pkg, const std::string& serverUrl, const std::string& otaDir,
-                        const std::string& uin, const std::string& token) {
+void downloadOtaDeb(const OtaPackage& pkg, const std::string& serverUrl, const std::string& otaDir,
+                    const std::string& uin, const std::string& token) {
 #ifdef PLAYER_LINUX_NO_FIELD
   (void)pkg;
   (void)serverUrl;
@@ -253,7 +263,6 @@ nlohmann::json applyOta(const OtaPackage& pkg, const std::string& serverUrl, con
     url += "uin=" + uin + "&token=" + token;
   }
   const std::string dest = otaDir + "/incoming.deb";
-  const std::string last = otaDir + "/last.deb";
   util::Logger::i("OTA", "download " + url);
   if (!downloadFile(url, dest, 300)) throw std::runtime_error("download OTA falhou");
   if (!pkg.checksum.empty()) {
@@ -262,6 +271,18 @@ nlohmann::json applyOta(const OtaPackage& pkg, const std::string& serverUrl, con
       throw std::runtime_error("checksum OTA inválido");
     }
   }
+#endif
+}
+
+nlohmann::json installIncomingDeb(const std::string& otaDir, const std::string& version) {
+#ifdef PLAYER_LINUX_NO_FIELD
+  (void)otaDir;
+  (void)version;
+  throw std::runtime_error("OTA Linux não suportado neste SO de build");
+#else
+  const std::string dest = otaDir + "/incoming.deb";
+  const std::string last = otaDir + "/last.deb";
+  if (!fs::exists(dest)) throw std::runtime_error("incoming.deb ausente");
   if (fs::exists(last)) {
     std::error_code ec;
     fs::copy_file(last, otaDir + "/prev.deb", fs::copy_options::overwrite_existing, ec);
@@ -274,13 +295,19 @@ nlohmann::json applyOta(const OtaPackage& pkg, const std::string& serverUrl, con
                       " || apt-get install -f -y",
                   180);
   nlohmann::json result;
-  result["version"] = pkg.version;
+  result["version"] = version;
   result["exitCode"] = inst.exitCode;
   result["output"] = inst.out.substr(0, 800);
   if (inst.exitCode != 0) throw std::runtime_error("dpkg falhou: " + inst.out);
-  util::Logger::i("OTA", "instalado " + pkg.version);
+  util::Logger::i("OTA", "instalado " + version);
   return result;
 #endif
+}
+
+nlohmann::json applyOta(const OtaPackage& pkg, const std::string& serverUrl, const std::string& otaDir,
+                        const std::string& uin, const std::string& token) {
+  downloadOtaDeb(pkg, serverUrl, otaDir, uin, token);
+  return installIncomingDeb(otaDir, pkg.version);
 }
 
 ChildProc spawnHtmlKiosk(const std::string& fileOrUrl) {
@@ -294,6 +321,7 @@ ChildProc spawnHtmlKiosk(const std::string& fileOrUrl) {
   const pid_t pid = fork();
   if (pid < 0) throw std::runtime_error("fork HTML kiosk falhou");
   if (pid == 0) {
+    (void)setpgid(0, 0);
     const std::string appArg = "--app=" + uri;
     const char* browsers[] = {"chromium", "chromium-browser", "google-chrome-stable",
                               "google-chrome", nullptr};
@@ -306,6 +334,7 @@ ChildProc spawnHtmlKiosk(const std::string& fileOrUrl) {
     _exit(127);
   }
   p.pid = static_cast<long>(pid);
+  (void)setpgid(pid, pid);
   util::Logger::i("PLAYBACK", "HTML kiosk pid=" + std::to_string(p.pid) + " uri=" + uri);
   return p;
 #endif
@@ -317,10 +346,27 @@ void killChild(ChildProc proc) {
 #else
   if (proc.pid <= 0) return;
   const pid_t pid = static_cast<pid_t>(proc.pid);
-  kill(pid, SIGTERM);
-  run("pkill -P " + std::to_string(proc.pid) + " 2>/dev/null || true", 5);
+  (void)kill(-pid, SIGTERM);
+  (void)kill(pid, SIGTERM);
   usleep(400000);
-  kill(pid, SIGKILL);
+  (void)kill(-pid, SIGKILL);
+  (void)kill(pid, SIGKILL);
+  int st = 0;
+  (void)waitpid(pid, &st, 0);
+#endif
+}
+
+bool childAlive(ChildProc& proc) {
+#ifdef PLAYER_LINUX_NO_FIELD
+  (void)proc;
+  return false;
+#else
+  if (proc.pid <= 0) return false;
+  int st = 0;
+  const pid_t r = waitpid(static_cast<pid_t>(proc.pid), &st, WNOHANG);
+  if (r == 0) return true;
+  proc.pid = -1;
+  return false;
 #endif
 }
 

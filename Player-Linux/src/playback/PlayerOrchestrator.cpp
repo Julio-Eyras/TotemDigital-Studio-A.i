@@ -2,11 +2,13 @@
 
 #include "ops/FieldOps.hpp"
 #include "util/Logger.hpp"
+#include "util/SystemdWatchdog.hpp"
 #include "version.hpp"
 
 #include <algorithm>
 #include <chrono>
 #include <cctype>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <mutex>
@@ -91,6 +93,12 @@ PlayerOrchestrator::PlayerOrchestrator(config::PlayerConfig cfg, util::DataLayou
     util::Logger::w("WATCHDOG", "restart_app pedido");
     stop_ = true;
   });
+  commands_.setOnQueueOta([this](ops::OtaPackage pkg, bool rollback) { queueOtaInstall(pkg, rollback); });
+  commands_.setOnReboot([this] {
+    interruptPlayback_ = true;
+    std::lock_guard<std::recursive_mutex> lock(mu_);
+    pendingOp_ = PendingOp::Reboot;
+  });
   loadPersistedPlan();
 }
 
@@ -148,7 +156,12 @@ void PlayerOrchestrator::tickHeartbeat() {
     poll_.onFailure();
     return;
   }
-  auto hb = client_.heartbeatOrSync(client_.token(), knownPlanVersion_);
+  std::optional<std::string> known;
+  {
+    std::lock_guard<std::recursive_mutex> lock(mu_);
+    known = knownPlanVersion_;
+  }
+  auto hb = client_.heartbeatOrSync(client_.token(), known);
   if (!hb.ok) {
     if (hb.httpStatus == 401) {
       client_.setToken("");
@@ -158,42 +171,57 @@ void PlayerOrchestrator::tickHeartbeat() {
     util::Logger::w("HEARTBEAT", "falhou HTTP " + std::to_string(hb.httpStatus));
     return;
   }
-  if (hb.displaySchedule) {
-    schedule_ = config::mergeFromServer(schedule_, *hb.displaySchedule);
-    config::saveSchedule(layout_.schedulePath, schedule_);
-    util::Logger::i(
-        "DISPLAY",
-        "Schedule atualizado enabled=" + std::string(schedule_.enabled ? "true" : "false") + " " +
-            schedule_.onTime + "-" + schedule_.offTime +
-            (schedule_.forceMode ? (" force=" + *schedule_.forceMode) : ""));
+  bool needsDispatch = false;
+  bool idle = false;
+  {
+    std::lock_guard<std::recursive_mutex> lock(mu_);
+    if (hb.displaySchedule) {
+      schedule_ = config::mergeFromServer(schedule_, *hb.displaySchedule);
+      config::saveSchedule(layout_.schedulePath, schedule_);
+      util::Logger::i(
+          "DISPLAY",
+          "Schedule atualizado enabled=" + std::string(schedule_.enabled ? "true" : "false") + " " +
+              schedule_.onTime + "-" + schedule_.offTime +
+              (schedule_.forceMode ? (" force=" + *schedule_.forceMode) : ""));
+    }
+    if (hb.pollAdaptive) {
+      cfg_.mergePollAdaptive(*hb.pollAdaptive);
+      poll_.replaceConfig(cfg_);
+    }
+    idle = !schedule_.isDisplayActiveNow();
+    const bool unchanged =
+        hb.planVersion && knownPlanVersion_ && *hb.planVersion == *knownPlanVersion_;
+    poll_.onHeartbeatSuccess(unchanged, idle);
+    needsDispatch = hb.needsDispatch;
   }
   commands_.handleAll(hb.pendingCommands, client_.token());
-  maybeApplyOta(hb.otaUpdate);
-  if (hb.pollAdaptive) {
-    cfg_.mergePollAdaptive(*hb.pollAdaptive);
-    poll_.replaceConfig(cfg_);
-  }
-  const bool unchanged =
-      hb.planVersion && knownPlanVersion_ && *hb.planVersion == *knownPlanVersion_;
-  const bool idle = !schedule_.isDisplayActiveNow();
-  poll_.onHeartbeatSuccess(unchanged, idle);
+  maybeQueueOta(hb.otaUpdate);
   util::Logger::i("HEARTBEAT",
                   std::string("OK — próximo em ") + std::to_string(poll_.heartbeatIntervalMs() / 1000) +
-                      "s needsDispatch=" + (hb.needsDispatch ? "true" : "false") +
+                      "s needsDispatch=" + (needsDispatch ? "true" : "false") +
                       " idle=" + (idle ? "true" : "false"));
-  if (hb.needsDispatch) tickDispatch(true);
+  if (needsDispatch) tickDispatch(true);
 }
 
 void PlayerOrchestrator::tickDispatch(bool force) {
-  if (!force && !plan_.mediaItems.empty()) {
-    return;
+  {
+    std::lock_guard<std::recursive_mutex> lock(mu_);
+    if (!force && !plan_.mediaItems.empty()) {
+      return;
+    }
   }
   if (!ensureToken()) return;
+  std::string tz;
+  {
+    std::lock_guard<std::recursive_mutex> lock(mu_);
+    tz = schedule_.timezone;
+  }
   util::Logger::i("LIFECYCLE", "DispatchPlan + pré-cache");
-  auto dr = client_.getDispatchPlan(client_.token(), schedule_.timezone);
+  auto dr = client_.getDispatchPlan(client_.token(), tz);
   if (!dr.ok) {
     poll_.onFailure();
     util::Logger::w("DISPATCH", "falhou HTTP " + std::to_string(dr.httpStatus));
+    std::lock_guard<std::recursive_mutex> lock(mu_);
     if (plan_.mediaItems.empty() && planSource_ != "EMPTY_PLAN") {
       auto fb = buildFallbackPlan();
       if (!fb.mediaItems.empty()) {
@@ -207,19 +235,24 @@ void PlayerOrchestrator::tickDispatch(bool force) {
     }
     return;
   }
-  const bool changed = dr.plan.planVersion.empty() || !knownPlanVersion_ ||
-                       dr.plan.planVersion != *knownPlanVersion_;
-  plan_ = std::move(dr.plan);
-  planSource_ = plan_.mediaItems.empty() ? "EMPTY_PLAN" : "ONLINE";
-  if (!plan_.planVersion.empty()) knownPlanVersion_ = plan_.planVersion;
-  index_ = 0;
-  persistPlan();
-  util::Logger::i("DISPATCH",
-                  std::string(plan_.mediaItems.empty() ? "EMPTY_PLAN — " : "") +
-                      "DispatchPlan recebido — playlist=\"" + plan_.playlistName + "\" itens=" +
-                      std::to_string(plan_.mediaItems.size()) + " source=" + planSource_);
-  for (const auto& m : plan_.mediaItems) cache_.ensureLocal(m);
-  poll_.onDispatchSuccess(!changed, !schedule_.isDisplayActiveNow());
+  std::vector<api::MediaItem> toCache;
+  {
+    std::lock_guard<std::recursive_mutex> lock(mu_);
+    const bool changed = dr.plan.planVersion.empty() || !knownPlanVersion_ ||
+                         dr.plan.planVersion != *knownPlanVersion_;
+    plan_ = std::move(dr.plan);
+    planSource_ = plan_.mediaItems.empty() ? "EMPTY_PLAN" : "ONLINE";
+    if (!plan_.planVersion.empty()) knownPlanVersion_ = plan_.planVersion;
+    index_ = 0;
+    persistPlan();
+    toCache = plan_.mediaItems;
+    util::Logger::i("DISPATCH",
+                    std::string(plan_.mediaItems.empty() ? "EMPTY_PLAN — " : "") +
+                        "DispatchPlan recebido — playlist=\"" + plan_.playlistName + "\" itens=" +
+                        std::to_string(plan_.mediaItems.size()) + " source=" + planSource_);
+    poll_.onDispatchSuccess(!changed, !schedule_.isDisplayActiveNow());
+  }
+  for (const auto& m : toCache) cache_.ensureLocal(m);
 }
 
 void PlayerOrchestrator::playCurrent() {
@@ -266,8 +299,20 @@ void PlayerOrchestrator::playCurrent() {
   const bool isImage = item.mediaType.find("image") != std::string::npos;
   const char* startType = isHtml ? "html_display" : (isImage ? "image_display" : "video_playback_start");
   emitPlaybackEvent(startType, item, nlohmann::json::object());
-  backend_->playFile(path, item.mediaType, item.durationSeconds, cfg_.allowPlaybackAudio);
+  const bool started =
+      backend_->playFile(path, item.mediaType, item.durationSeconds, cfg_.allowPlaybackAudio);
+  if (!started) {
+    util::Logger::w("PLAYBACK", "skip item (backend falhou) mediaId=" + item.mediaId);
+    std::lock_guard<std::recursive_mutex> lock(mu_);
+    ++index_;
+    return;
+  }
   while (!stop_ && backend_->isPlaying()) {
+    util::systemdNotifyWatchdog();
+    if (interruptPlayback_) {
+      backend_->stop();
+      break;
+    }
     if (!schedule_.isDisplayActiveNow()) {
       util::Logger::i("DISPLAY", "Fora do horário — saída em preto (player activo)");
       backend_->stop();
@@ -302,6 +347,7 @@ void PlayerOrchestrator::run() {
   util::Logger::i("WATCHDOG",
                   std::string("Loop Player-Linux ") + PLAYER_LINUX_VERSION_STR +
                       " parity AD " + PLAYER_LINUX_PARITY_STR);
+  util::systemdNotifyReady();
   playBrandingSplash();
   if (auto remote = client_.fetchPlayerConfig()) {
     if (remote->contains("heartbeatInterval") && (*remote)["heartbeatInterval"].is_number()) {
@@ -318,10 +364,20 @@ void PlayerOrchestrator::run() {
 
   std::thread net([this] { netLoop(); });
   while (!stop_) {
+    util::systemdNotifyWatchdog();
+    if (ops::takeKioskEscape()) ops::releaseKiosk();
+    drainPendingOps();
+    if (stop_) break;
     if (!schedule_.isDisplayActiveNow()) {
       util::Logger::i("DISPLAY", "Idle preto — keep-alive");
-      std::this_thread::sleep_for(std::chrono::seconds(
-          std::max(5, schedule_.keepAliveIntervalMinutes * 60 / 12)));
+      const int idleSec = std::max(5, schedule_.keepAliveIntervalMinutes * 60 / 12);
+      for (int i = 0; i < idleSec && !stop_; ++i) {
+        util::systemdNotifyWatchdog();
+        if (ops::takeKioskEscape()) ops::releaseKiosk();
+        drainPendingOps();
+        if (interruptPlayback_) break;
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+      }
       continue;
     }
     playCurrent();
@@ -333,18 +389,88 @@ void PlayerOrchestrator::netLoop() {
   auto nextHb = std::chrono::steady_clock::now();
   auto nextDp = std::chrono::steady_clock::now() + std::chrono::milliseconds(poll_.dispatchIntervalMs());
   while (!stop_) {
+    util::systemdNotifyWatchdog();
     const auto now = std::chrono::steady_clock::now();
     if (now >= nextHb) {
-      std::lock_guard<std::recursive_mutex> lock(mu_);
       tickHeartbeat();
       nextHb = now + std::chrono::milliseconds(poll_.heartbeatIntervalMs());
     }
     if (now >= nextDp) {
-      std::lock_guard<std::recursive_mutex> lock(mu_);
       tickDispatch(false);
       nextDp = now + std::chrono::milliseconds(poll_.dispatchIntervalMs());
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
+  }
+}
+
+void PlayerOrchestrator::rotateTelemetryIfNeeded() {
+  const std::string path = layout_.telemetryDir + "/events-v2.jsonl";
+  std::error_code ec;
+  if (!fs::exists(path, ec)) return;
+  const auto sz = fs::file_size(path, ec);
+  if (ec || sz < 8ull * 1024ull * 1024ull) return;
+  fs::rename(path, path + ".1", ec);
+}
+
+void PlayerOrchestrator::queueOtaInstall(const ops::OtaPackage& pkg, bool rollback) {
+  interruptPlayback_ = true;
+  std::lock_guard<std::recursive_mutex> lock(mu_);
+  if (rollback) {
+    pendingOp_ = PendingOp::OtaRollback;
+    util::Logger::i("OTA", "rollback em fila — a parar playback");
+    return;
+  }
+  pendingOp_ = PendingOp::OtaInstall;
+  pendingOtaVersion_ = pkg.version;
+  lastOtaVersion_ = pkg.version;
+  util::Logger::i("OTA", "install em fila " + pkg.version + " — a parar playback");
+}
+
+void PlayerOrchestrator::drainPendingOps() {
+  if (ops::takeKioskEscape()) ops::releaseKiosk();
+  PendingOp op = PendingOp::None;
+  std::string ver;
+  {
+    std::lock_guard<std::recursive_mutex> lock(mu_);
+    if (pendingOp_ == PendingOp::None && !interruptPlayback_) return;
+    op = pendingOp_;
+    ver = pendingOtaVersion_;
+    pendingOp_ = PendingOp::None;
+    interruptPlayback_ = false;
+  }
+  if (op == PendingOp::None) {
+    backend_->stop();
+    return;
+  }
+  backend_->stop();
+  if (op == PendingOp::OtaInstall) {
+    try {
+      ops::installIncomingDeb(layout_.otaDir, ver);
+      client_.reportOtaStatus(client_.token(), ver, "up_to_date", ver, "");
+    } catch (const std::exception& ex) {
+      util::Logger::e("OTA", std::string("install falhou: ") + ex.what());
+      client_.reportOtaStatus(client_.token(), PLAYER_LINUX_VERSION_STR, "failed", ver,
+                              ex.what());
+      return;
+    }
+    util::Logger::i("OTA", "a sair para systemd relançar o binário novo");
+    std::_Exit(0);
+  }
+  if (op == PendingOp::OtaRollback) {
+    try {
+      ops::rollbackOta(layout_.otaDir);
+      client_.reportOtaStatus(client_.token(), PLAYER_LINUX_VERSION_STR, "rollback", "", "");
+    } catch (const std::exception& ex) {
+      util::Logger::e("OTA", std::string("rollback falhou: ") + ex.what());
+      return;
+    }
+    std::_Exit(0);
+  }
+  if (op == PendingOp::Reboot) {
+#ifndef _WIN32
+    util::Logger::w("REMOTE_CMD", "reboot após parar playback");
+    (void)std::system("systemctl reboot || reboot");
+#endif
   }
 }
 
@@ -367,6 +493,7 @@ void PlayerOrchestrator::emitPlaybackEvent(const std::string& eventType,
   body["metadata"]["mediaKey"] = item.mediaId;
   body["metadata"]["mediaType"] = item.mediaType;
   body["metadata"]["planSource"] = planSource_;
+  rotateTelemetryIfNeeded();
   const std::string path = layout_.telemetryDir + "/events-v2.jsonl";
   {
     std::ofstream out(path, std::ios::app);
@@ -380,22 +507,22 @@ void PlayerOrchestrator::emitPlaybackEvent(const std::string& eventType,
   }
 }
 
-void PlayerOrchestrator::maybeApplyOta(const std::optional<nlohmann::json>& ota) {
+void PlayerOrchestrator::maybeQueueOta(const std::optional<nlohmann::json>& ota) {
   if (!ota) return;
   auto pkg = ops::parseOta(*ota);
   if (!pkg) return;
   if (pkg->version == lastOtaVersion_ || pkg->version == PLAYER_LINUX_VERSION_STR) return;
-  lastOtaVersion_ = pkg->version;
   const std::string tok = client_.token();
   util::Logger::i("OTA", "heartbeat OTA " + pkg->version);
   client_.reportOtaStatus(tok, PLAYER_LINUX_VERSION_STR, "downloading", pkg->version, "");
   try {
-    ops::applyOta(*pkg, cfg_.serverUrl, layout_.otaDir, cfg_.uin, tok);
-    client_.reportOtaStatus(tok, pkg->version, "up_to_date", pkg->version, "");
+    ops::downloadOtaDeb(*pkg, cfg_.serverUrl, layout_.otaDir, cfg_.uin, tok);
   } catch (const std::exception& ex) {
-    util::Logger::e("OTA", std::string("falhou: ") + ex.what());
+    util::Logger::e("OTA", std::string("download falhou: ") + ex.what());
     client_.reportOtaStatus(tok, PLAYER_LINUX_VERSION_STR, "failed", pkg->version, ex.what());
+    return;
   }
+  queueOtaInstall(*pkg, false);
 }
 
 api::DispatchPlan PlayerOrchestrator::buildFallbackPlan() const {

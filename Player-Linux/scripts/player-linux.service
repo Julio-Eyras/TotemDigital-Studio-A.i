@@ -4,7 +4,9 @@ After=network-online.target graphical.target
 Wants=network-online.target
 
 [Service]
-Type=simple
+Type=notify
+NotifyAccess=main
+WatchdogSec=30
 User=playerlinux
 Group=playerlinux
 Environment=DISPLAY=:0
