@@ -4,6 +4,7 @@
 #include "config/PlayerConfig.hpp"
 #include "config/PollAdaptive.hpp"
 #include "remote/CommandReceipts.hpp"
+#include "ops/DebugOverlay.hpp"
 #include "util/TelemetryRotate.hpp"
 
 #include <chrono>
@@ -220,6 +221,28 @@ void testPollBackoff() {
   CHECK(poll.heartbeatIntervalMs() == 30000);
 }
 
+void testDebugOverlay() {
+  player::ops::TapState st;
+  CHECK(!player::ops::noteDebugTap(st, 1000));
+  CHECK(!player::ops::noteDebugTap(st, 1100));
+  CHECK(player::ops::noteDebugTap(st, 1200));
+  CHECK(!player::ops::noteDebugTap(st, 5000));
+  CHECK(!player::ops::noteDebugTap(st, 7000));
+  CHECK(!player::ops::noteDebugTap(st, 7100));
+  CHECK(player::ops::noteDebugTap(st, 7200));
+
+  player::ops::DebugSnapshot s;
+  s.version = "0.1.0";
+  s.uin = "U1";
+  s.deviceId = "DEV";
+  s.planSource = "ACTIVE";
+  const auto text = player::ops::formatDebugOverlay(s);
+  CHECK(text.find("0.1.0") != std::string::npos);
+  CHECK(text.find("U1") != std::string::npos);
+  CHECK(text.find("DEV") != std::string::npos);
+  CHECK(text.find("ACTIVE") != std::string::npos);
+}
+
 }  // namespace
 
 int main() {
@@ -230,6 +253,7 @@ int main() {
   testCommandDedup();
   testJsonlCap();
   testPollBackoff();
+  testDebugOverlay();
   if (gFails != 0) {
     std::cerr << gFails << " falha(s)\n";
     return 1;

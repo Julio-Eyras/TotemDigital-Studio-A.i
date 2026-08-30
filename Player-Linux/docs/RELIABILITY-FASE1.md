@@ -21,4 +21,4 @@ Contrato HTTP e RN-PAD **não mudam**. Objectivo: o processo sobrevive a GST, HT
 
 ## Fora desta fase
 
-Overlay X11, `.deb` reproduzível, soak, plymouth. Testes: [RELIABILITY-FASE2.md](./RELIABILITY-FASE2.md).
+Overlay X11, `.deb` reproduzível, soak: [RELIABILITY-FASE3.md](./RELIABILITY-FASE3.md). Testes: [RELIABILITY-FASE2.md](./RELIABILITY-FASE2.md).

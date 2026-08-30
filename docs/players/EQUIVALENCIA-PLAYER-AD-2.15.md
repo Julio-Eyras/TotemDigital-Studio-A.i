@@ -112,7 +112,7 @@ WOS: comandos N/D fazem ACK `unsupported` (servidor não reenvia em loop).
 | Boot completed / autostart 24/7 | Ref | Eq (systemd + xdg autostart) | Parc (app TV) | Parc |
 | Kit pendrive + ADB + instalador APK 1.7 | Ref | Outro kit (`install-player-linux.sh`) | **N/D** | **N/D** |
 | Logos / bootanimation | Ref | Eq splash `branding/logo.png`; plymouth = SO (doc) | **N/D** | **N/D** |
-| Debug 5 toques / 3 toques | Ref | Parc (SIGUSR1; sem overlay X11) | Eq (3× / 1200 ms) | Eq (3× / 1200 ms) |
+| Debug 5 toques / 3 toques | Ref | Eq (3× / 1200 ms zona OK + SIGUSR1 overlay) | Eq (3× / 1200 ms) | Eq (3× / 1200 ms) |
 | USB storage externo primeiro | Ref | Parc (`/proc/mounts`) | **N/D** / limitado | limitado |
 | `su` / reboot privilegiado | Ref | Eq (systemd) | **N/D** | **N/D** |
 | Cue Maestro no APK | Fora 0.1 lab | Fora | Fora | Fora |

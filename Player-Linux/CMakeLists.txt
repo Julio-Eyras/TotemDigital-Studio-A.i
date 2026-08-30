@@ -39,6 +39,7 @@ set(PLAYER_LINUX_SOURCES
   src/remote/CommandExecutor.cpp
   src/remote/CommandReceipts.cpp
   src/ops/FieldOps.cpp
+  src/ops/DebugOverlay.cpp
   src/util/SystemdWatchdog.cpp
   src/util/TelemetryRotate.cpp
 )
@@ -75,6 +76,13 @@ else()
   target_sources(player-linux PRIVATE src/playback/NullMediaBackend.cpp)
 endif()
 
+find_package(X11)
+if(X11_FOUND)
+  target_include_directories(player-linux PRIVATE ${X11_INCLUDE_DIR})
+  target_link_libraries(player-linux PRIVATE ${X11_LIBRARIES})
+  target_compile_definitions(player-linux PRIVATE PLAYER_LINUX_WITH_X11=1)
+endif()
+
 install(TARGETS player-linux RUNTIME DESTINATION bin)
 install(FILES config/exemplo-player-config.json DESTINATION share/player-linux)
 install(FILES scripts/player-linux.service DESTINATION lib/systemd/system)
@@ -84,6 +92,7 @@ install(PROGRAMS
   scripts/install-player-linux.sh
   scripts/player-linux-xsession.sh
   scripts/apply-branding.sh
+  scripts/soak-observe.sh
   DESTINATION share/player-linux)
 
 enable_testing()

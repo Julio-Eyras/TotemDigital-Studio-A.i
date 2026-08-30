@@ -105,6 +105,21 @@ PlayerOrchestrator::PlayerOrchestrator(config::PlayerConfig cfg, util::DataLayou
 
 void PlayerOrchestrator::requestStop() { stop_ = true; }
 
+ops::DebugSnapshot PlayerOrchestrator::debugSnapshot() {
+  std::lock_guard<std::recursive_mutex> lock(mu_);
+  ops::DebugSnapshot s;
+  s.version = PLAYER_LINUX_VERSION_STR;
+  s.parity = PLAYER_LINUX_PARITY_STR;
+  s.uin = cfg_.uin;
+  s.deviceId = cfg_.deviceId;
+  s.serverUrl = cfg_.serverUrl;
+  s.planSource = planSource_;
+  s.planVersion = plan_.planVersion;
+  s.itemCount = plan_.mediaItems.size();
+  s.lastOta = lastOtaVersion_;
+  return s;
+}
+
 bool PlayerOrchestrator::ensureToken() {
   if (!client_.token().empty()) return true;
   auto t = client_.getToken();
@@ -314,6 +329,7 @@ void PlayerOrchestrator::playCurrent() {
       backend_->stop();
       break;
     }
+    if (ops::takeKioskEscape()) ops::releaseKiosk();
     if (!schedule_.isDisplayActiveNow()) {
       util::Logger::i("DISPLAY", "Fora do horário — saída em preto (player activo)");
       backend_->stop();
@@ -363,6 +379,7 @@ void PlayerOrchestrator::run() {
   tickHeartbeat();
   tickDispatch(true);
 
+  debugUi_.start([this] { return debugSnapshot(); });
   std::thread net([this] { netLoop(); });
   while (!stop_) {
     util::systemdNotifyWatchdog();
@@ -383,6 +400,7 @@ void PlayerOrchestrator::run() {
     }
     playCurrent();
   }
+  debugUi_.stop();
   net.join();
 }
 

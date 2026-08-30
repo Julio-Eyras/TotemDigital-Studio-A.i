@@ -9,7 +9,7 @@ Player-Linux/
 ├── config/exemplo-player-config.json
 ├── scripts/
 │   ├── install-player-linux.sh   # binário + systemd
-│   ├── kiosk-escape.sh           # SIGUSR1 (menu 3× OK)
+│   ├── kiosk-escape.sh           # SIGUSR1 (menu 3× OK + overlay debug)
 │   ├── apply-branding.sh         # copia logo.png → data/branding/
 │   ├── player-linux-xsession.sh  # xset / unclutter
 │   ├── player-linux.service
@@ -46,7 +46,7 @@ main
         └─ HB/dispatch **sem** segurar mu_ durante curl
 ```
 
-GST `ERROR` → skip item (não aborta). HTML: grupo de processos + `waitpid`. Detalhe: [RELIABILITY-FASE1.md](./RELIABILITY-FASE1.md). Provas sem ecrã: [RELIABILITY-FASE2.md](./RELIABILITY-FASE2.md) (`ctest` + ASan).
+GST `ERROR` → skip item (não aborta). HTML: grupo de processos + `waitpid`. Detalhe: [RELIABILITY-FASE1.md](./RELIABILITY-FASE1.md). Provas sem ecrã: [RELIABILITY-FASE2.md](./RELIABILITY-FASE2.md) (`ctest` + ASan). Campo: [RELIABILITY-FASE3.md](./RELIABILITY-FASE3.md) (overlay 3× OK, `.deb`, soak).
 
 Polls de heartbeat e dispatch são **independentes** do fim do ciclo de playlist (como no Android).
 

@@ -2,6 +2,8 @@
 /build/
 /build-wsl/
 /build-test/
+/build-deb/
+*.deb
 /data/
 /cmake-build-*/
 *.o

@@ -22,6 +22,7 @@ Reproduzir no Linux as **mesmas regras de negócio, contratos de API, config JSO
 | [docs/ARQUITETURA.md](./docs/ARQUITETURA.md) | Módulos C++, threads, storage |
 | [docs/RELIABILITY-FASE1.md](./docs/RELIABILITY-FASE1.md) | Sobreviver: GST, Chromium, OTA, watchdog |
 | [docs/RELIABILITY-FASE2.md](./docs/RELIABILITY-FASE2.md) | Provar: `ctest` sem ecrã + ASan |
+| [docs/RELIABILITY-FASE3.md](./docs/RELIABILITY-FASE3.md) | Campo: overlay 3× OK, `.deb`, soak |
 | [docs/API-E-CONFIG.md](./docs/API-E-CONFIG.md) | Endpoints e schema `player-config.json` |
 | [../docs/players/EQUIVALENCIA-PLAYER-AD-2.15.md](../docs/players/EQUIVALENCIA-PLAYER-AD-2.15.md) | Mapa cruzado AD / Linux / WOS / Tizen |
 | [config/exemplo-player-config.json](./config/exemplo-player-config.json) | Modelo de configuração (igual ao kit Android) |
@@ -52,6 +53,12 @@ Testes C++ sem ecrã (ASan/UBSan, WSL):
 
 ```bash
 bash scripts/run-ctest.sh
+```
+
+Pacote `.deb` (timestamps fixos):
+
+```bash
+bash scripts/build-deb.sh
 ```
 
 Kiosk 24/7 (systemd + autostart):

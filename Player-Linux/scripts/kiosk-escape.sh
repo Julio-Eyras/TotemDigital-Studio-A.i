@@ -1,5 +1,5 @@
 #!/bin/sh
-# Equivalente Linux ao menu 3× OK do Player-AD: restaura cursor/DPMS (SIGUSR1).
+# Equivalente Linux ao menu 3× OK do Player-AD: overlay debug + cursor/DPMS (SIGUSR1).
 set -e
 if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet player-linux 2>/dev/null; then
   systemctl kill -s USR1 player-linux

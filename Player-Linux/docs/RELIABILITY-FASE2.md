@@ -29,4 +29,4 @@ ctest --test-dir build-test --output-on-failure
 
 ## Fora desta fase
 
-Overlay debug X11, `.deb` reproduzível, soak 8–24 h (Fase 3).
+Campo (overlay X11, `.deb`, soak): [RELIABILITY-FASE3.md](./RELIABILITY-FASE3.md).

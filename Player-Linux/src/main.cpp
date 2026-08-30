@@ -1,4 +1,5 @@
 #include "ops/FieldOps.hpp"
+#include "ops/DebugOverlay.hpp"
 #include "config/PlayerConfig.hpp"
 #include "playback/PlayerOrchestrator.hpp"
 #include "util/Logger.hpp"
@@ -21,6 +22,7 @@ player::playback::PlayerOrchestrator* gOrch = nullptr;
 #ifndef _WIN32
 void onSigUsr1(int) {
   player::ops::requestKioskEscape();
+  player::ops::requestDebugOverlay();
 }
 
 void onSigTerm(int) {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ops/FieldOps.hpp"
+#include "ops/DebugOverlay.hpp"
 #include "api/DispatcherClient.hpp"
 #include "cache/MediaCache.hpp"
 #include "config/DisplaySchedule.hpp"
@@ -25,6 +26,7 @@ public:
 
   void run();  // bloqueante
   void requestStop();
+  ops::DebugSnapshot debugSnapshot();
 
 private:
   config::PlayerConfig cfg_;
@@ -46,6 +48,7 @@ private:
   enum class PendingOp { None, OtaInstall, OtaRollback, Reboot };
   PendingOp pendingOp_{PendingOp::None};
   std::string pendingOtaVersion_;
+  ops::DebugUi debugUi_;
 
   bool ensureToken();
   void tickHeartbeat();
