@@ -1,8 +1,8 @@
 # Andamento do lab 0.1
 
 Plano ACE + Maestro + TDEP neste clone **TotemDigital-Studio-A.i**.  
-Checkout de referência: `main` @ `077f5823`.  
-Lote 28–30: ramo `cursor/lab-tdep-tick-refusals` (`c05122de`), ainda não em `main`.
+Checkout de referência: ramo `cursor/lab-tdep-tick-refusals` rebaseado em `main` @ `f6aaabe7` (players 2.15).  
+Lote 28–31 ainda **não** está em `origin/main`.
 
 Direct default **off**. Pitch de 15 min **não** cita TotemNet, TDEP, Maestro SSID nem `/lab/system`.
 
@@ -10,8 +10,8 @@ Direct default **off**. Pitch de 15 min **não** cita TotemNet, TDEP, Maestro SS
 
 | Superfície | Contagem |
 |------------|----------|
-| Passos do spec no `main` | 27 / 30 (falta o 9; 1–8 e 10–27 feitos) |
-| Passos no ramo (não merged) | 28, 29, 30 |
+| Passos de código no `origin/main` | 1–8 e 10–27 (**#9** = regras de ouro, não é passo de código) |
+| Passos neste ramo (não merged) | 28, 29, 30, 31 |
 | Lab ACE/TDEP/Maestro em produção | 0% de propósito |
 
 ## Plano (ACE 0.1 §8)
@@ -45,14 +45,15 @@ Direct default **off**. Pitch de 15 min **não** cita TotemNet, TDEP, Maestro SS
 | 26 | `STALE_CONTEXT` + `FORMAT_MISMATCH` | tick | Feito · main |
 | 27 | `LOW_CONFIDENCE` + `POLICY_AUDIO` | tick | Feito · main |
 | 28 | `CATEGORY_BLOCKED` + `NOT_CEDIBLE` | `mockTdepPartnerAccepts` | Ramo · não em main |
-| 29 | `NO_HANDSHAKE` + `HANDSHAKE_REPLAY` | `handshake_ok` / `handshake_ts` | Ramo · não em main |
+| 29 | `NO_HANDSHAKE` + `HANDSHAKE_REPLAY` | `handshake_ok` / `|Δt| > 60 s` | Ramo · não em main |
 | 30 | SELECT ACE lab (`NO_DATABASE`) | `labAceSql.ts` · `hydrateSql` | Ramo · não em main |
+| 31 | `HANDSHAKE_REJECTED` | `secret_ok` / `handshake` / ts ilegível | Ramo · não em main |
 
 ### Próximo (se avançar)
 
-1. Trazer o ramo `cursor/lab-tdep-tick-refusals` para `main`.
+1. Trazer o ramo `cursor/lab-tdep-tick-refusals` para `main` (rebase já feito sobre `f6aaabe7`).
 2. Correr `optin-totem-lab.sql` à mão num Postgres de lab (não no instalador nem na v6).
-3. Recusa `HANDSHAKE_REJECTED` no tick (já existe em `tdep_nodes.handshake`).
+3. NTP / SSID em 2 TV boxes, se existirem (`NO_HARDWARE` continua válido).
 
 ## Recusas
 
@@ -75,7 +76,7 @@ Direct default **off**. Pitch de 15 min **não** cita TotemNet, TDEP, Maestro SS
 | `NOT_CEDIBLE` | policy | Só no ramo |
 | `NO_HANDSHAKE` | nodes | Só no ramo |
 | `HANDSHAKE_REPLAY` | nodes | Só no ramo |
-| `HANDSHAKE_REJECTED` | nodes | Ainda não no tick |
+| `HANDSHAKE_REJECTED` | nodes | Só no ramo |
 | `NO_DATABASE` / `NO_TOTEM` | SQL ACE | Só no ramo |
 
 ## HTTP lab

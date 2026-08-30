@@ -20,6 +20,7 @@ import labSystemRouter from '../../../routes/lab-system';
 import { resetLabPlayerStoreForTests } from '../../../services/lab/labSystemTick';
 import { resetAceHintStoreForTests } from '../../../services/ace/aceHintStore';
 import { resetAceAuditRingForTests } from '../../../services/ace/aceAudit';
+import { putLabAceSqlRow } from '../../../services/lab/labAceSql';
 
 function app() {
   const server = express();
@@ -139,6 +140,68 @@ describe('HTTP lab sistema (auth mock, sem Postgres nem TV box)', () => {
     expect(tick.body.winnerId).toBe('direct-local');
   });
 
+  it('GET /optin postgres NO_DATABASE; POST /sql apply false não escreve; tick hydrateSql', async () => {
+    const server = app();
+    const get = await request(server).get('/api/lab/system/optin/41');
+    expect(get.body.postgres.code).toBe('NO_DATABASE');
+
+    const dry = await request(server).post('/api/lab/system/optin/41/sql').send({ aceEnabled: true });
+    expect(dry.body.code).toBe('NO_DATABASE');
+    expect(dry.body.applied).toBe(false);
+
+    putLabAceSqlRow(41, { wifi: true });
+    const preview = await request(server).post('/api/lab/system/optin/41/sql').send({ aceEnabled: true });
+    expect(preview.body.code).toBe('OK');
+    expect(preview.body.applied).toBe(false);
+    expect(preview.body.aceEnabled).toBe(true);
+    const stillOff = await request(server).get('/api/lab/system/optin/41');
+    expect(stillOff.body.postgres.aceEnabled).toBe(false);
+
+    const written = await request(server)
+      .post('/api/lab/system/optin/41/sql')
+      .send({ aceEnabled: true, apply: true });
+    expect(written.body.applied).toBe(true);
+    const on = await request(server).get('/api/lab/system/optin/41');
+    expect(on.body.postgres.aceEnabled).toBe(true);
+    expect(on.body.postgres.capabilities.wifi).toBe(true);
+
+    const tickOff = await request(server).post('/api/lab/system/tick').send({
+      totemId: 41,
+      ace: { hydrateSql: true, sqlConnected: false },
+    });
+    expect(tickOff.body.optIn.sqlCode).toBe('NO_DATABASE');
+    expect(tickOff.body.optIn.aceEnabled).toBe(false);
+
+    const tickOn = await request(server).post('/api/lab/system/tick').send({
+      totemId: 41,
+      ace: {
+        hydrateSql: true,
+        sqlRow: { ace_enabled: true },
+        context: {
+          schema: 'ace/0.1',
+          context_id: '8f42a1e2-4c1a-4b9e-9d3a-0c7e1b2a9f10',
+          observed_at: new Date().toISOString(),
+          totem_id: 41,
+          privacy: { gateway: 'ace/0.1', identity_dropped: true, image_dropped: true },
+          presence: true,
+          count: 3,
+          group: true,
+          density: 'medium',
+          motion: { approaching: 2, passing: 0, stopped: 1, leaving: 0 },
+          attention: 'high',
+          dwell_ms: 4200,
+          interaction: { touch: false, qr: false, nfc: false },
+          clock: { hour_local: 18, day_of_week: 0, store_open: true },
+          confidence: 0.91,
+        },
+      },
+    });
+    expect(tickOn.body.optIn.source).toBe('sql');
+    expect(tickOn.body.optIn.sqlCode).toBe('OK');
+    expect(tickOn.body.ace.hint.category).toBe('PREMIUM');
+    expect(tickOn.body.winnerId).toBe('direct-local');
+  });
+
   it('POST /tick STALE_CONTEXT e FORMAT_MISMATCH', async () => {
     const server = app();
     const stale = await request(server)
@@ -231,5 +294,71 @@ describe('HTTP lab sistema (auth mock, sem Postgres nem TV box)', () => {
       });
     expect(audio.body.tdep.code).toBe('POLICY_AUDIO');
     expect(audio.body.proof).toBeNull();
+  });
+
+  it('POST /tick CATEGORY_BLOCKED e NOT_CEDIBLE', async () => {
+    const server = app();
+    const remnant = {
+      aceEnabled: false,
+      candidates: [{ id: 'fill-night', baseWeight: 10, commercialTier: 'remnant' }],
+    };
+    const blocked = await request(server)
+      .post('/api/lab/system/tick')
+      .send({
+        ace: remnant,
+        tdep: {
+          enabled: true,
+          flightAccepted: true,
+          partnerPayload: {
+            schema: 'tdep/0.1',
+            brand_categories: ['alcohol'],
+            blocked_categories: ['alcohol'],
+          },
+        },
+      });
+    expect(blocked.body.tdep.code).toBe('CATEGORY_BLOCKED');
+    expect(blocked.body.proof).toBeNull();
+
+    const notCedible = await request(server)
+      .post('/api/lab/system/tick')
+      .send({
+        ace: remnant,
+        tdep: { enabled: true, flightAccepted: true, partnerPayload: { schema: 'tdep/0.1', cedible: false } },
+      });
+    expect(notCedible.body.tdep.code).toBe('NOT_CEDIBLE');
+    expect(notCedible.body.proof).toBeNull();
+  });
+
+  it('POST /tick NO_HANDSHAKE e HANDSHAKE_REPLAY', async () => {
+    const server = app();
+    const remnant = {
+      aceEnabled: false,
+      candidates: [{ id: 'fill-night', baseWeight: 10, commercialTier: 'remnant' }],
+    };
+    const noHs = await request(server)
+      .post('/api/lab/system/tick')
+      .send({
+        ace: remnant,
+        tdep: {
+          enabled: true,
+          flightAccepted: true,
+          partnerPayload: { schema: 'tdep/0.1', handshake_ok: false },
+        },
+      });
+    expect(noHs.body.tdep.code).toBe('NO_HANDSHAKE');
+    expect(noHs.body.proof).toBeNull();
+
+    const replay = await request(server)
+      .post('/api/lab/system/tick')
+      .send({
+        ace: remnant,
+        tdep: {
+          enabled: true,
+          flightAccepted: true,
+          partnerPayload: { schema: 'tdep/0.1', handshake_ts: '2020-01-01T00:00:00.000Z' },
+        },
+      });
+    expect(replay.body.tdep.code).toBe('HANDSHAKE_REPLAY');
+    expect(replay.body.proof).toBeNull();
   });
 });

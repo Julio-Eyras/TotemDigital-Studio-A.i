@@ -1,6 +1,7 @@
 # ACE 0.1 — Audience Context Engine
 
 **Tipo:** especificação de laboratório (papel) — **sem alteração de schema, player nem painel**  
+**Briefing para I.A. colaboradora:** [LAB-IA-COLABORADOR-0.1.md](./LAB-IA-COLABORADOR-0.1.md) (estado, invariantes, testes).  
 **Data:** 23 de agosto de 2026  
 **Repositório:** [Julio-Eyras/TotemDigital-Studio-A.i](https://github.com/Julio-Eyras/TotemDigital-Studio-A.i)  
 **Não é:** o produto operacional TotemDigital-Studio (`totemdigital.app.br`)  
@@ -286,6 +287,10 @@ Ordem. Cada passo espera decisão explícita antes de código.
 25. **Opt-in ACE mock SQL no tick (feito)** — `GET/PATCH /api/lab/system/optin/:totemId` replica o merge JSONB em RAM. Tick lê o store. `IDENTITY_LEAK` recusa o hint. Sem `UPDATE` Postgres. Direct default off.
 26. **Recusas STALE_CONTEXT e FORMAT_MISMATCH no tick (feito)** — context velho (>3 s) não gera hint. Parceiro sem variante → `FORMAT_MISMATCH`, idle, sem proof. Pitch 15 min não menciona.
 27. **Recusas LOW_CONFIDENCE e POLICY_AUDIO no tick (feito)** — `confidence` < 0.50 sem hint. Variante com som em face muda → `POLICY_AUDIO`, idle, sem proof. Direct default off.
+28. **Recusas CATEGORY_BLOCKED e NOT_CEDIBLE no tick (feito)** — categoria vetada ou `cedible: false` recusa o fill. Idle, sem proof. Pitch 15 min não menciona.
+29. **Recusas NO_HANDSHAKE e HANDSHAKE_REPLAY no tick (feito)** — `handshake_ok: false` ou `|now − ts| > 60 s` (passado **ou** futuro, como `tdep_nodes.handshake`). Idle, sem proof. Payload default do fill (sem estes campos) continua a aceitar. Pitch 15 min não menciona.
+30. **SQL ACE no tick (feito, sem UPDATE Postgres no HTTP)** — `hydrateSql` faz SELECT na tabela lab (`totems.capabilities`). Sem ligação → `NO_DATABASE`; sem linha → `NO_TOTEM`. `ace_enabled: true` liga o hint; string `"true"` não. `POST /optin/:id/sql` só escreve a tabela lab com `apply: true`. SQL humano: `optin-totem-lab.sql`. Direct default off.
+31. **Recusa HANDSHAKE_REJECTED no tick (feito)** — `secret_ok: false`, `handshake` ≠ `hmac`, ou timestamp ilegível. Espelho de `tdep_nodes.handshake`. Idle, sem proof. Pitch 15 min não menciona.
 
 Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anónimos — sem `tag_id`.
 
@@ -334,5 +339,8 @@ Não ligar face “para ter um demo”. NFC/QR entram no bus só como bools anó
 | Opt-in ACE no tick (mock SQL) | `GET/PATCH /api/lab/system/optin/:totemId` · [lab-ace/OPT-IN-0.1.md](./lab-ace/OPT-IN-0.1.md) |
 | Recusas no tick (stale / formato) | `STALE_CONTEXT` · `FORMAT_MISMATCH` · [lab-system/SYSTEM-0.1.md](./lab-system/SYSTEM-0.1.md) |
 | Recusas no tick (confiança / áudio) | `LOW_CONFIDENCE` · `POLICY_AUDIO` · [lab-system/SYSTEM-0.1.md](./lab-system/SYSTEM-0.1.md) |
+| Recusas no tick (categoria / cedible) | `CATEGORY_BLOCKED` · `NOT_CEDIBLE` · [lab-system/SYSTEM-0.1.md](./lab-system/SYSTEM-0.1.md) |
+| Recusas no tick (handshake) | `NO_HANDSHAKE` · `HANDSHAKE_REPLAY` · [lab-system/SYSTEM-0.1.md](./lab-system/SYSTEM-0.1.md) |
+| SQL ACE no tick (SELECT lab) | `NO_DATABASE` · `NO_TOTEM` · `hydrateSql` · [lab-ace/OPT-IN-0.1.md](./lab-ace/OPT-IN-0.1.md) |
 
-**Próximo (se avançar):** `CATEGORY_BLOCKED` / `NOT_CEDIBLE` no tick **ou** SQL ACE real num totem de lab. Player-AD, face, SKU B, CEC, `/tdep/v1` de produto e TV box reais continuam fora. Direct default off.
+**Próximo (se avançar):** SQL humano `optin-totem-lab.sql` num Postgres de lab (à mão; não no instalador) **ou** recusa `HANDSHAKE_REJECTED` no tick. Player-AD, face, SKU B, CEC, `/tdep/v1` de produto e TV box reais continuam fora. Direct default off.

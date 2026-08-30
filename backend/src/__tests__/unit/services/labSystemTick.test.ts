@@ -205,6 +205,41 @@ describe('ciclo de sistema lab (ACE + Maestro mock + TDEP mock)', () => {
     expect(leak.winnerLane).toBe('local');
   });
 
+  it('hydrate SQL: SELECT liga ACE; NO_DATABASE e NO_TOTEM ficam off', () => {
+    const ctx = labAcePremiumContext(41);
+    const noDb = runLabSystemTick({
+      totemId: 41,
+      ace: { hydrateSql: true, sqlConnected: false, context: ctx },
+    });
+    expect(noDb.optIn.sqlCode).toBe('NO_DATABASE');
+    expect(noDb.optIn.source).toBe('default_off');
+    expect(noDb.optIn.aceEnabled).toBe(false);
+    expect(noDb.ace.hint).toBeNull();
+    expect(noDb.winnerId).toBe('direct-local');
+
+    const missing = runLabSystemTick({
+      totemId: 41,
+      ace: { hydrateSql: true, sqlConnected: true, sqlRow: null, context: ctx },
+    });
+    expect(missing.optIn.sqlCode).toBe('NO_TOTEM');
+    expect(missing.optIn.aceEnabled).toBe(false);
+    expect(missing.ace.ranked[0].weight).toBe(100);
+
+    const on = runLabSystemTick({
+      totemId: 41,
+      ace: {
+        hydrateSql: true,
+        sqlRow: { ace_enabled: true },
+        context: labAcePremiumContext(41),
+      },
+    });
+    expect(on.optIn.sqlCode).toBe('OK');
+    expect(on.optIn.source).toBe('sql');
+    expect(on.optIn.aceEnabled).toBe(true);
+    expect(on.ace.hint?.category).toBe('PREMIUM');
+    expect(on.winnerId).toBe('direct-local');
+  });
+
   it('STALE_CONTEXT e FORMAT_MISMATCH: sem hint e sem fill', () => {
     const stale = runLabSystemTick({
       totemId: 41,
@@ -257,5 +292,98 @@ describe('ciclo de sistema lab (ACE + Maestro mock + TDEP mock)', () => {
     expect(audio.tdep.code).toBe('POLICY_AUDIO');
     expect(audio.winnerLane).toBe('idle');
     expect(audio.proof).toBeNull();
+  });
+
+  it('CATEGORY_BLOCKED e NOT_CEDIBLE: sem fill nem proof', () => {
+    const idleAce = {
+      aceEnabled: false as const,
+      candidates: [{ id: 'fill-night', baseWeight: 10, commercialTier: 'remnant' }],
+    };
+    const blocked = runLabSystemTick({
+      ace: idleAce,
+      tdep: {
+        enabled: true,
+        flightAccepted: true,
+        partnerPayload: {
+          schema: 'tdep/0.1',
+          brand_categories: ['alcohol'],
+          blocked_categories: ['alcohol'],
+        },
+      },
+    });
+    expect(blocked.tdep.code).toBe('CATEGORY_BLOCKED');
+    expect(blocked.winnerLane).toBe('idle');
+    expect(blocked.proof).toBeNull();
+
+    const notCedible = runLabSystemTick({
+      ace: idleAce,
+      tdep: {
+        enabled: true,
+        flightAccepted: true,
+        partnerPayload: { schema: 'tdep/0.1', cedible: false },
+      },
+    });
+    expect(notCedible.tdep.code).toBe('NOT_CEDIBLE');
+    expect(notCedible.winnerLane).toBe('idle');
+    expect(notCedible.proof).toBeNull();
+  });
+
+  it('NO_HANDSHAKE e HANDSHAKE_REPLAY: sem fill nem proof', () => {
+    const idleAce = {
+      aceEnabled: false as const,
+      candidates: [{ id: 'fill-night', baseWeight: 10, commercialTier: 'remnant' }],
+    };
+    const noHs = runLabSystemTick({
+      ace: idleAce,
+      tdep: {
+        enabled: true,
+        flightAccepted: true,
+        partnerPayload: { schema: 'tdep/0.1', handshake_ok: false },
+      },
+    });
+    expect(noHs.tdep.code).toBe('NO_HANDSHAKE');
+    expect(noHs.winnerLane).toBe('idle');
+    expect(noHs.proof).toBeNull();
+
+    const replay = runLabSystemTick({
+      ace: idleAce,
+      tdep: {
+        enabled: true,
+        flightAccepted: true,
+        partnerPayload: { schema: 'tdep/0.1', handshake_ts: '2020-01-01T00:00:00.000Z' },
+      },
+    });
+    expect(replay.tdep.code).toBe('HANDSHAKE_REPLAY');
+    expect(replay.winnerLane).toBe('idle');
+    expect(replay.proof).toBeNull();
+  });
+
+  it('HANDSHAKE_REJECTED: segredo ou ts inválido; idle, sem proof', () => {
+    const idleAce = {
+      aceEnabled: false as const,
+      candidates: [{ id: 'fill-night', baseWeight: 10, commercialTier: 'remnant' }],
+    };
+    const rejected = runLabSystemTick({
+      ace: idleAce,
+      tdep: {
+        enabled: true,
+        flightAccepted: true,
+        partnerPayload: { schema: 'tdep/0.1', secret_ok: false },
+      },
+    });
+    expect(rejected.tdep.code).toBe('HANDSHAKE_REJECTED');
+    expect(rejected.winnerLane).toBe('idle');
+    expect(rejected.proof).toBeNull();
+
+    const badTs = runLabSystemTick({
+      ace: idleAce,
+      tdep: {
+        enabled: true,
+        flightAccepted: true,
+        partnerPayload: { schema: 'tdep/0.1', handshake_ts: 'not-a-date' },
+      },
+    });
+    expect(badTs.tdep.code).toBe('HANDSHAKE_REJECTED');
+    expect(badTs.proof).toBeNull();
   });
 });

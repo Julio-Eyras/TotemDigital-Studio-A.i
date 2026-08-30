@@ -108,8 +108,8 @@ const LabSystem: React.FC = () => {
         Fora do pitch de 15 min. Direct default off. Sem <code>/tdep/v1</code> de produto.
       </Typography>
       <Alert severity="info" sx={{ mb: 2 }}>
-        Esta página não está no menu. URL de lab: <code>/lab/system</code>. Opt-in ACE é mock do SQL
-        (sem Postgres).
+        Esta página não está no menu. URL de lab: <code>/lab/system</code>. Opt-in ACE em RAM
+        (PATCH) ou SELECT lab (<code>hydrateSql</code>). HTTP não faz UPDATE em Postgres real.
       </Alert>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }} alignItems="center">
         <TextField
@@ -161,6 +161,7 @@ const LabSystem: React.FC = () => {
           <Typography variant="body2">
             ACE: {summary.aceEnabled ? 'on' : 'off'}
             {summary.optInSource ? ` (${summary.optInSource})` : ''}
+            {summary.sqlCode ? ` · SQL ${summary.sqlCode}` : ''}
             {summary.hintCategory ? ` · hint ${summary.hintCategory}` : ''}
             {summary.gatewayCode ? ` · ${summary.gatewayCode}` : ''}
             {summary.identityLeak ? ' · IDENTITY_LEAK' : ''}

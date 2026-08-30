@@ -3,8 +3,8 @@
 Rastreio de **falhas** do lab 0.1, não do que já está feito.  
 Irmão: [ANDAMENTO-0.1.md](./ANDAMENTO-0.1.md) (inventário do plano).
 
-Checkout: `main` @ `cec6cd1c` (andamento) / ciclo mock `077f5823`.  
-Código 28–30: ramo `cursor/lab-tdep-tick-refusals` (`c05122de`), **não** em `main`.
+Checkout: ramo `cursor/lab-tdep-tick-refusals` rebaseado em `main` @ `f6aaabe7`.  
+Passos 28–31 neste ramo, **não** em `origin/main`.
 
 | Tipo | Significado |
 |------|-------------|
@@ -77,8 +77,8 @@ No `main`, `mockTdepPartnerAccepts` só recusa leak, `POLICY_AUDIO` e `FORMAT_MI
 | L3 | Tipo | O que falta |
 |----|------|-------------|
 | `NO_HANDSHAKE` no tick | No ramo | Passo 29 |
-| `HANDSHAKE_REPLAY` no tick | No ramo | Passo 29 · ts > 60 s |
-| `HANDSHAKE_REJECTED` no tick | Falta em main | HMAC / segredo; já em `tdep_nodes.handshake`, **não** no tick (nem no ramo) |
+| `HANDSHAKE_REPLAY` no tick | No ramo | Passo 29 · `|now − ts| > 60 s` |
+| `HANDSHAKE_REJECTED` no tick | No ramo | Passo 31 · `secret_ok` / `handshake` ≠ hmac / ts ilegível |
 
 ### 3.2 HTTP de produto
 
@@ -117,8 +117,7 @@ No `main`, `mockTdepPartnerAccepts` só recusa leak, `POLICY_AUDIO` e `FORMAT_MI
 
 | L3 | Tipo | O que falta |
 |----|------|-------------|
-| Merge `cursor/lab-tdep-tick-refusals` → `main` | Falta em main | Fecha passos 28–30 neste checkout |
-| Push do andamento `cec6cd1c` | Falta em main | 1 commit local à frente de `origin/main` (se ainda não enviado) |
+| Push / merge `cursor/lab-tdep-tick-refusals` → `main` | Falta em main | Fecha passos 28–31; rebase já sobre `f6aaabe7` |
 
 ---
 
@@ -141,9 +140,8 @@ No `main`, `mockTdepPartnerAccepts` só recusa leak, `POLICY_AUDIO` e `FORMAT_MI
 
 ## Ordem sugerida (só o que ainda é 0.1)
 
-1. Merge do ramo (L3 4.2 + 1.1 + 1.2 + 3.1 parciais).
-2. `HANDSHAKE_REJECTED` no tick (L3 3.1).
-3. SQL humano num Postgres de lab, se existir (L3 1.1 / 5.2) — nunca no instalador.
-4. 2 boxes ADB, se existirem (L3 2.1 / 5.1) — senão o skip continua válido.
+1. Merge do ramo (L3 4.2 + 1.1 + 1.2 + 3.1).
+2. SQL humano num Postgres de lab, se existir (L3 1.1 / 5.2) — nunca no instalador.
+3. 2 boxes ADB, se existirem (L3 2.1 / 5.1) — senão o skip continua válido.
 
 Face, cue no APK, `/tdep/v1` de produto, SKU B e pitch 15 min **não** entram nesta ordem.

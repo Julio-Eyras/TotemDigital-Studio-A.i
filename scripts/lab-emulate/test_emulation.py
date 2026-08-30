@@ -82,6 +82,17 @@ def main() -> int:
     leak["audience"] = {"count": 1}
     if mock_tdep_partner_accepts(leak)["code"] != "AUDIENCE_FORBIDDEN":
         fail("tdep audience")
+    if mock_tdep_partner_accepts({**face, "handshake_ok": False})["code"] != "NO_HANDSHAKE":
+        fail("tdep no handshake")
+    if mock_tdep_partner_accepts({**face, "handshake_ts": "2020-01-01T00:00:00.000Z"})["code"] != "HANDSHAKE_REPLAY":
+        fail("tdep handshake replay")
+    if mock_tdep_partner_accepts({**face, "secret_ok": False})["code"] != "HANDSHAKE_REJECTED":
+        fail("tdep handshake rejected")
+    if mock_tdep_partner_accepts({**face, "handshake_ts": "not-a-date"})["code"] != "HANDSHAKE_REJECTED":
+        fail("tdep handshake ts invalid")
+    both = {**face, "audio": True, "face_audio": False, "brand_categories": ["alcohol"], "blocked_categories": ["alcohol"]}
+    if mock_tdep_partner_accepts(both)["code"] != "CATEGORY_BLOCKED":
+        fail("tdep order category before audio")
     print("PASS tdep partner mock")
 
     sys.path.insert(0, str(REPO / "scripts" / "lab-tdep"))

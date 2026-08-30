@@ -21,6 +21,7 @@ GET  /api/lab/system/proofs/:totemId
 POST /api/lab/system/revoke
 GET  /api/lab/system/optin/:totemId
 PATCH /api/lab/system/optin/:totemId
+POST /api/lab/system/optin/:totemId/sql
 POST /api/lab/system/maestro/preview
 ```
 
@@ -30,9 +31,9 @@ POST /api/lab/system/maestro/preview
 
 Flags no body: `ace.aceEnabled`, `tdep.enabled`, `tdep.killSwitch`, `tdep.revoked`, `tdep.flightPriority` (`fill` | `guaranteed`), `tdep.capSharePct` / `shareUsedPct` / `wantSharePct`, `maestro.offsetAMs` (480 → `CLOCK_DRIFT`).
 
-Se `ace.aceEnabled` vier omitido, o tick lê o store de opt-in (mock SQL). `PATCH /optin/:totemId` `{ aceEnabled: true }` replica `optin-totem-lab.sql` em RAM. Context com `person_id` → `IDENTITY_LEAK`; `observed_at` > 3 s → `STALE_CONTEXT`; `confidence` < 0.50 → `LOW_CONFIDENCE`. O ar continua o de sempre.
+Se `ace.aceEnabled` vier omitido, o tick lê o store de opt-in (mock SQL em RAM). Com `ace.hydrateSql: true` faz SELECT na tabela lab: sem ligação → `NO_DATABASE`; sem linha → `NO_TOTEM`; `ace_enabled: true` → source `sql`. `PATCH /optin/:totemId` replica `optin-totem-lab.sql` em RAM. `POST /optin/:id/sql` só escreve a tabela lab se `apply: true` — **não** faz UPDATE em Postgres. Context com `person_id` → `IDENTITY_LEAK`; `observed_at` > 3 s → `STALE_CONTEXT`; `confidence` < 0.50 → `LOW_CONFIDENCE`. O ar continua o de sempre.
 
-Parceiro TDEP com `refuse_code: FORMAT_MISMATCH`, áudio na variante (`audio: true`, `face_audio: false` → `POLICY_AUDIO`) ou `audience` no payload recusa o fill. Sem proof.
+Parceiro TDEP com `refuse_code: FORMAT_MISMATCH`, áudio (`POLICY_AUDIO`), categoria vetada (`CATEGORY_BLOCKED`), `cedible: false` (`NOT_CEDIBLE`), `handshake_ok: false` (`NO_HANDSHAKE`), `|now − ts| > 60 s` (`HANDSHAKE_REPLAY`), `secret_ok: false` / ts ilegível (`HANDSHAKE_REJECTED`) ou `audience` no payload recusa o fill. Sem proof. O payload default do fill (só `schema` + `face_id`) continua a aceitar.
 
 `POST /revoke` marca o flight lab; o próximo tick recusa `RIGHTS_REVOKED` (sem proof novo). Cap acima de 10% → `NO_CAPACITY`. Guaranteed no idle → proof obrigatório.
 
@@ -44,9 +45,10 @@ Parceiro TDEP com `refuse_code: FORMAT_MISMATCH`, áudio na variante (`audio: tr
 
 ```powershell
 cd backend
-npx jest --selectProjects unit --testPathPattern="labSystemTick|labSystem.routes|labCapabilitiesStore" --forceExit --coverage=false
+npx jest --selectProjects unit --testPathPattern="labSystemTick|labSystem.routes|labCapabilitiesStore|labAceSql" --forceExit --coverage=false
 cd ..
 python scripts/lab-system/test_ui.py
+python scripts/lab-ace/test_sql_optin.py
 cd frontend
 npx react-scripts test --watchAll=false --testPathPattern="labSystemTick|rolePermissions" --coverage=false
 ```
@@ -61,4 +63,4 @@ Já entra na lista de rotas compactas (`/api/lab/system`). Emulação Python con
 | TV box / ADB | offsets + dumpsys fixtures | 2 boxes no USB |
 | Câmara / face | `audience.context` sintético | **Não** neste 0.1 |
 | CMS parceiro | `tdep-fill-mock` + Proof HMAC | `/tdep/v1` de produto |
-| Postgres ACE | capabilities em RAM (`PATCH /optin`) | SQL humano `optin-totem-lab.sql` |
+| Postgres ACE | tabela lab em RAM (`SELECT` / `apply=true`) | SQL humano `optin-totem-lab.sql` num Postgres de lab |

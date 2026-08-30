@@ -52,6 +52,21 @@ describe('labSystemTick payloads (lab UI)', () => {
     expect(leak.ace?.context?.person_id).toBe(123);
   });
 
+  it('SQL ACE, NO_DATABASE e NO_TOTEM no payload', () => {
+    const on = buildLabTickBody('sql_ace', 41);
+    expect(on.ace?.hydrateSql).toBe(true);
+    expect(on.ace?.sqlRow).toEqual({ ace_enabled: true });
+    expect(on.ace?.aceEnabled).toBeUndefined();
+
+    const noDb = buildLabTickBody('sql_no_database', 41);
+    expect(noDb.ace?.hydrateSql).toBe(true);
+    expect(noDb.ace?.sqlConnected).toBe(false);
+
+    const missing = buildLabTickBody('sql_no_totem', 41);
+    expect(missing.ace?.sqlRow).toBeNull();
+    expect(missing.ace?.sqlConnected).toBe(true);
+  });
+
   it('STALE_CONTEXT e FORMAT_MISMATCH no payload', () => {
     const stale = buildLabTickBody('stale_context', 41);
     expect(stale.ace?.aceEnabled).toBe(true);
@@ -71,6 +86,26 @@ describe('labSystemTick payloads (lab UI)', () => {
     const audio = buildLabTickBody('policy_audio', 41);
     expect(audio.tdep?.partnerPayload?.audio).toBe(true);
     expect(audio.tdep?.partnerPayload?.face_audio).toBe(false);
+  });
+
+  it('CATEGORY_BLOCKED e NOT_CEDIBLE no payload', () => {
+    const blocked = buildLabTickBody('category_blocked', 41);
+    expect(blocked.tdep?.partnerPayload?.brand_categories).toEqual(['alcohol']);
+    expect(blocked.tdep?.partnerPayload?.blocked_categories).toEqual(['alcohol']);
+
+    const notCedible = buildLabTickBody('not_cedible', 41);
+    expect(notCedible.tdep?.partnerPayload?.cedible).toBe(false);
+  });
+
+  it('NO_HANDSHAKE, HANDSHAKE_REPLAY e HANDSHAKE_REJECTED no payload', () => {
+    const noHs = buildLabTickBody('no_handshake', 41);
+    expect(noHs.tdep?.partnerPayload?.handshake_ok).toBe(false);
+
+    const replay = buildLabTickBody('handshake_replay', 41);
+    expect(replay.tdep?.partnerPayload?.handshake_ts).toBe('2020-01-01T00:00:00.000Z');
+
+    const rejected = buildLabTickBody('handshake_rejected', 41);
+    expect(rejected.tdep?.partnerPayload?.secret_ok).toBe(false);
   });
 
   it('summarizeLabTick extrai proof e códigos', () => {

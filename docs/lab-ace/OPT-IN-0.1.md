@@ -18,7 +18,17 @@ Já entra em `python scripts/lab-ace/run_lab.py`.
 
 ## Mock no ciclo de sistema (sem Postgres)
 
-O tick de lab **não** faz `UPDATE`. `GET/PATCH /api/lab/system/optin/:totemId` replica o merge JSONB do SQL em RAM. O tick lê o store se o body **não** mandar `ace.aceEnabled`. String `"true"` **não** liga. Consola: `/lab/system`.
+O tick de lab **não** faz `UPDATE` em Postgres. `GET/PATCH /api/lab/system/optin/:totemId` replica o merge JSONB do SQL em RAM. O tick lê o store se o body **não** mandar `ace.aceEnabled`. String `"true"` **não** liga. Consola: `/lab/system`.
+
+## SELECT lab (tabela `totems.capabilities`)
+
+O tick com `ace.hydrateSql: true` faz SELECT na tabela lab (mesmo formato JSONB). Sem ligação → `NO_DATABASE`. Sem linha → `NO_TOTEM`. `POST /api/lab/system/optin/:totemId/sql` só escreve essa tabela se `apply: true`.
+
+```powershell
+python scripts/lab-ace/test_sql_optin.py
+```
+
+SELECT vivo (opcional): `LAB_ACE_DATABASE_URL` ou `DATABASE_URL`. Sem BD o script faz skip `NO_DATABASE` (exit 0). UPDATE ao vivo **não** corre daqui — só `optin-totem-lab.sql` à mão, ou `LAB_ACE_SQL_APPLY=1` (não usado pelo HTTP).
 
 ## Ligar num totem (lab, Postgres)
 

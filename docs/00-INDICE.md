@@ -14,6 +14,7 @@ Há centenas de ficheiros históricos em `docs/` (análises, resumos de sessão)
 
 | Precisa de… | Ir para |
 |-------------|--------|
+| I.A. colaborar no lab (implementar, melhorar, testar) | [LAB-IA-COLABORADOR-0.1.md](./LAB-IA-COLABORADOR-0.1.md) |
 | Instalar ou actualizar o servidor | [§2 Instalação](#2-instalação-do-servidor) |
 | Usar o painel pela primeira vez | [§3 Manuais](#3-manuais-de-utilização) |
 | Regras de um módulo (o que pode / não pode) | [§4 Módulos](#4-módulos-de-produto-regras-de-negócio) |
@@ -276,6 +277,7 @@ Documentação de evolução **só** em `TotemDigital-Studio-A.i`. Não substitu
 
 | Documento | Explicação |
 |-----------|------------|
+| [LAB-IA-COLABORADOR-0.1.md](./LAB-IA-COLABORADOR-0.1.md) | **Briefing para outra I.A.:** estado, invariantes, mapa de código, backlog 0.1, suite de testes. Ler primeiro. |
 | [ACE-0.1-SPEC.md](./ACE-0.1-SPEC.md) | **Spec** Audience Context Engine 0.1: contrato `audience.context`, Privacy Gateway, inventário real do código. Sem player/painel. |
 | [lab-ace/README.md](./lab-ace/README.md) | JSON Schema `ace/0.1`, exemplos válidos e fixture de recusa `IDENTITY_LEAK`. |
 | [lab-ace/PRIVACY-GATEWAY-0.1.md](./lab-ace/PRIVACY-GATEWAY-0.1.md) | Cortes e códigos de recusa do gateway (papel + lab local). |

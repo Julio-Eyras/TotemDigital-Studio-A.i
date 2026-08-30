@@ -19,7 +19,7 @@ TDEP quer partilhar campanha e inventário *entre empresas*. ACE descreve o ambi
 ## Consequências
 
 - Lab em `docs/lab-tdep/` + `scripts/lab-tdep/` (`tdep_policy`, `tdep_nodes`, `led_cms`, `tdep_lane`).
-- Recusa documentada: `FORMAT_MISMATCH`, `NO_CAPACITY`, `POLICY_AUDIO`, `CATEGORY_BLOCKED`, `RIGHTS_REVOKED`, `KILL_SWITCH`, `NOT_CEDIBLE`, `AUDIENCE_FORBIDDEN`, `NO_HANDSHAKE`, `TOTEMNET_OFF`.
+- Recusa documentada: `FORMAT_MISMATCH`, `NO_CAPACITY`, `POLICY_AUDIO`, `CATEGORY_BLOCKED`, `RIGHTS_REVOKED`, `KILL_SWITCH`, `NOT_CEDIBLE`, `AUDIENCE_FORBIDDEN`, `NO_HANDSHAKE`, `HANDSHAKE_REPLAY`, `TOTEMNET_OFF`.
 - Player-AD não muda. TotemNet default off; opt-in por face e accordion Direct ([lab-tdep/UI-0.1.md](../lab-tdep/UI-0.1.md)). CMS LED não importa o motor TotemDigital. Lane no Dispatcher: local > fill. Nota comercial: [lab-tdep/ONE-PAGER-PARCEIRO-0.1.md](../lab-tdep/ONE-PAGER-PARCEIRO-0.1.md).
 
 ## Alternativas rejeitadas
