@@ -18,6 +18,10 @@ public:
   void purgeAll();
   void invalidateMediaId(const std::string& mediaId);
 
+  /** Hit se o ficheiro existe e a contentVersion bate (ou o item não traz versão). */
+  static bool cacheVersionHit(bool fileExists, const std::string& itemVersion,
+                              const std::string& cachedVersion);
+
 private:
   config::PlayerConfig cfg_;
   std::string dir_;

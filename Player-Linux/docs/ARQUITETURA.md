@@ -46,7 +46,7 @@ main
         └─ HB/dispatch **sem** segurar mu_ durante curl
 ```
 
-GST `ERROR` → skip item (não aborta). HTML: grupo de processos + `waitpid`. Detalhe: [RELIABILITY-FASE1.md](./RELIABILITY-FASE1.md).
+GST `ERROR` → skip item (não aborta). HTML: grupo de processos + `waitpid`. Detalhe: [RELIABILITY-FASE1.md](./RELIABILITY-FASE1.md). Provas sem ecrã: [RELIABILITY-FASE2.md](./RELIABILITY-FASE2.md) (`ctest` + ASan).
 
 Polls de heartbeat e dispatch são **independentes** do fim do ciclo de playlist (como no Android).
 

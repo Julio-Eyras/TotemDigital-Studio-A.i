@@ -20,6 +20,8 @@ Reproduzir no Linux as **mesmas regras de negócio, contratos de API, config JSO
 |-----------|----------|
 | [docs/PARITY-PLAYER-AD-2.13.md](./docs/PARITY-PLAYER-AD-2.13.md) | Checklist de parity Android → Linux (alvo 2.15/115) |
 | [docs/ARQUITETURA.md](./docs/ARQUITETURA.md) | Módulos C++, threads, storage |
+| [docs/RELIABILITY-FASE1.md](./docs/RELIABILITY-FASE1.md) | Sobreviver: GST, Chromium, OTA, watchdog |
+| [docs/RELIABILITY-FASE2.md](./docs/RELIABILITY-FASE2.md) | Provar: `ctest` sem ecrã + ASan |
 | [docs/API-E-CONFIG.md](./docs/API-E-CONFIG.md) | Endpoints e schema `player-config.json` |
 | [../docs/players/EQUIVALENCIA-PLAYER-AD-2.15.md](../docs/players/EQUIVALENCIA-PLAYER-AD-2.15.md) | Mapa cruzado AD / Linux / WOS / Tizen |
 | [config/exemplo-player-config.json](./config/exemplo-player-config.json) | Modelo de configuração (igual ao kit Android) |
@@ -44,6 +46,12 @@ Sem GStreamer (só heartbeat/dispatch/cache — stub de vídeo):
 ```bash
 cmake -S . -B build -DPLAYER_LINUX_WITH_GSTREAMER=OFF
 cmake --build build -j"$(nproc)"
+```
+
+Testes C++ sem ecrã (ASan/UBSan, WSL):
+
+```bash
+bash scripts/run-ctest.sh
 ```
 
 Kiosk 24/7 (systemd + autostart):

@@ -6,6 +6,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(PLAYER_LINUX_WITH_GSTREAMER "Build with GStreamer video backend" ON)
+option(PLAYER_LINUX_SANITIZE "ASan + UBSan (gcc/clang, job local / WSL)" OFF)
+
+if(PLAYER_LINUX_SANITIZE AND NOT MSVC)
+  add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+  add_link_options(-fsanitize=address,undefined)
+endif()
 
 find_package(CURL REQUIRED)
 find_package(Threads REQUIRED)
@@ -31,8 +37,10 @@ set(PLAYER_LINUX_SOURCES
   src/cache/MediaCache.cpp
   src/playback/PlayerOrchestrator.cpp
   src/remote/CommandExecutor.cpp
+  src/remote/CommandReceipts.cpp
   src/ops/FieldOps.cpp
   src/util/SystemdWatchdog.cpp
+  src/util/TelemetryRotate.cpp
 )
 
 add_executable(player-linux ${PLAYER_LINUX_SOURCES})
@@ -77,3 +85,27 @@ install(PROGRAMS
   scripts/player-linux-xsession.sh
   scripts/apply-branding.sh
   DESTINATION share/player-linux)
+
+enable_testing()
+add_executable(player-linux-tests
+  tests/test_reliability_fase2.cpp
+  src/util/Logger.cpp
+  src/config/PlayerConfig.cpp
+  src/config/DisplaySchedule.cpp
+  src/config/PollAdaptive.cpp
+  src/api/DispatcherClient.cpp
+  src/cache/MediaCache.cpp
+  src/remote/CommandReceipts.cpp
+  src/util/TelemetryRotate.cpp
+)
+target_include_directories(player-linux-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_compile_definitions(player-linux-tests PRIVATE
+  PLAYER_LINUX_VERSION="${PROJECT_VERSION}"
+  PLAYER_LINUX_PARITY_AD="2.15/115"
+)
+target_link_libraries(player-linux-tests PRIVATE
+  CURL::libcurl
+  Threads::Threads
+  nlohmann_json::nlohmann_json
+)
+add_test(NAME player-linux-reliability-fase2 COMMAND player-linux-tests)

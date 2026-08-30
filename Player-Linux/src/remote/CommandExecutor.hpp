@@ -5,10 +5,10 @@
 #include "config/DisplaySchedule.hpp"
 #include "ops/FieldOps.hpp"
 #include "config/PlayerConfig.hpp"
+#include "remote/CommandReceipts.hpp"
 
 #include <functional>
 #include <string>
-#include <unordered_set>
 
 namespace player::remote {
 
@@ -45,15 +45,12 @@ private:
   std::string shotsDir_;
   cache::MediaCache& cache_;
   api::DispatcherClient& client_;
-  std::unordered_set<std::string> seenIds_;
+  CommandReceipts receipts_;
   std::function<void()> onRefreshDispatch_;
   RestartFn onRestart_;
   std::function<void(ops::OtaPackage, bool rollback)> onQueueOta_;
   std::function<void()> onReboot_;
 
-  void loadReceipts();
-  void saveReceipts();
-  void remember(const std::string& id);
   void handleOne(const api::PendingCommand& cmd, const std::string& token);
   static std::string apiStatus(const std::string& status);
 };
