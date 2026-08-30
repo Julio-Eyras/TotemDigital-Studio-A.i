@@ -5,7 +5,6 @@
 #include "util/Logger.hpp"
 #include "version.hpp"
 
-#include <fstream>
 #include <optional>
 #include <stdexcept>
 
@@ -44,41 +43,12 @@ CommandExecutor::CommandExecutor(config::PlayerConfig& cfg,
       schedule_(schedule),
       schedulePath_(schedulePath),
       configPath_(configPath),
-      receiptsPath_(std::move(receiptsPath)),
+      receiptsPath_(receiptsPath),
       otaDir_(std::move(otaDir)),
       shotsDir_(std::move(shotsDir)),
       cache_(cache),
-      client_(client) {
-  loadReceipts();
-}
-
-void CommandExecutor::loadReceipts() {
-  std::ifstream in(receiptsPath_);
-  if (!in) return;
-  try {
-    nlohmann::json j;
-    in >> j;
-    if (j.is_array()) {
-      for (const auto& v : j) {
-        if (v.is_string()) seenIds_.insert(v.get<std::string>());
-      }
-    }
-  } catch (...) {
-  }
-}
-
-void CommandExecutor::saveReceipts() {
-  nlohmann::json arr = nlohmann::json::array();
-  for (const auto& id : seenIds_) arr.push_back(id);
-  std::ofstream out(receiptsPath_);
-  if (out) out << arr.dump();
-}
-
-void CommandExecutor::remember(const std::string& id) {
-  seenIds_.insert(id);
-  if (seenIds_.size() > 200) seenIds_.clear();
-  saveReceipts();
-}
+      client_(client),
+      receipts_(std::move(receiptsPath)) {}
 
 std::string CommandExecutor::apiStatus(const std::string& status) {
   if (status == "failed" || status == "error") return "failed";
@@ -91,7 +61,7 @@ void CommandExecutor::handleAll(const std::vector<api::PendingCommand>& cmds, co
 
 void CommandExecutor::handleOne(const api::PendingCommand& cmd, const std::string& token) {
   if (cmd.id.empty()) return;
-  if (seenIds_.count(cmd.id)) {
+  if (receipts_.contains(cmd.id)) {
     client_.reportCommandResult(token, cmd.id, "completed",
                                 nlohmann::json{{"duplicate", true}, {"alreadyProcessed", true}}, "");
     return;
@@ -102,7 +72,7 @@ void CommandExecutor::handleOne(const api::PendingCommand& cmd, const std::strin
   std::string error;
   nlohmann::json result = nlohmann::json::object();
   const bool before = isNonRetryable(cmd.type);
-  if (before) remember(cmd.id);
+  if (before) receipts_.remember(cmd.id);
 
   try {
     if (cmd.type == "purge_cache") {
@@ -180,7 +150,7 @@ void CommandExecutor::handleOne(const api::PendingCommand& cmd, const std::strin
     error = ex.what();
   }
 
-  if (!before) remember(cmd.id);
+  if (!before) receipts_.remember(cmd.id);
   client_.reportCommandResult(token, cmd.id, apiStatus(status), result, error);
 }
 

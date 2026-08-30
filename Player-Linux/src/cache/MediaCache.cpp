@@ -98,7 +98,7 @@ std::string MediaCache::ensureLocal(const api::MediaItem& item) {
   if (metadata_.contains(item.mediaId) && metadata_[item.mediaId].contains("contentVersion"))
     cachedVersion = metadata_[item.mediaId]["contentVersion"].get<std::string>();
 
-  if (exists && (item.contentVersion.empty() || item.contentVersion == cachedVersion)) {
+  if (cacheVersionHit(exists, item.contentVersion, cachedVersion)) {
     return path;
   }
 
@@ -161,6 +161,11 @@ void MediaCache::evictIfNeeded(const std::string& keepPath) {
     util::Logger::i("CACHE", "LRU evict " + f.path.filename().string());
   }
   saveMetadata();
+}
+
+bool MediaCache::cacheVersionHit(bool fileExists, const std::string& itemVersion,
+                                 const std::string& cachedVersion) {
+  return fileExists && (itemVersion.empty() || itemVersion == cachedVersion);
 }
 
 void MediaCache::purgeAll() {

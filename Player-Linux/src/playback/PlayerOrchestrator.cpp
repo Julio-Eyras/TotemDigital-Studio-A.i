@@ -3,6 +3,7 @@
 #include "ops/FieldOps.hpp"
 #include "util/Logger.hpp"
 #include "util/SystemdWatchdog.hpp"
+#include "util/TelemetryRotate.hpp"
 #include "version.hpp"
 
 #include <algorithm>
@@ -405,11 +406,7 @@ void PlayerOrchestrator::netLoop() {
 
 void PlayerOrchestrator::rotateTelemetryIfNeeded() {
   const std::string path = layout_.telemetryDir + "/events-v2.jsonl";
-  std::error_code ec;
-  if (!fs::exists(path, ec)) return;
-  const auto sz = fs::file_size(path, ec);
-  if (ec || sz < 8ull * 1024ull * 1024ull) return;
-  fs::rename(path, path + ".1", ec);
+  (void)util::rotateJsonlIfNeeded(path, 8ull * 1024ull * 1024ull);
 }
 
 void PlayerOrchestrator::queueOtaInstall(const ops::OtaPackage& pkg, bool rollback) {
