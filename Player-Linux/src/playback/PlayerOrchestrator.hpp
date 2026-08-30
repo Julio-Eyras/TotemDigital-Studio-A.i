@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ops/FieldOps.hpp"
 #include "api/DispatcherClient.hpp"
 #include "cache/MediaCache.hpp"
 #include "config/DisplaySchedule.hpp"
@@ -41,6 +42,10 @@ private:
   std::string planSource_ = "UNAVAILABLE";
   size_t index_ = 0;
   std::string lastOtaVersion_;
+  std::atomic<bool> interruptPlayback_{false};
+  enum class PendingOp { None, OtaInstall, OtaRollback, Reboot };
+  PendingOp pendingOp_{PendingOp::None};
+  std::string pendingOtaVersion_;
 
   bool ensureToken();
   void tickHeartbeat();
@@ -50,10 +55,13 @@ private:
   void playCurrent();
   void playBrandingSplash();
   void netLoop();
+  void drainPendingOps();
+  void queueOtaInstall(const ops::OtaPackage& pkg, bool rollback);
+  void rotateTelemetryIfNeeded();
   void emitPlaybackEvent(const std::string& eventType,
                          const api::MediaItem& item,
                          const nlohmann::json& extra);
-  void maybeApplyOta(const std::optional<nlohmann::json>& ota);
+  void maybeQueueOta(const std::optional<nlohmann::json>& ota);
   api::DispatchPlan buildFallbackPlan() const;
 };
 

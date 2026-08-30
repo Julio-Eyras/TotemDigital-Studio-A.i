@@ -3,6 +3,7 @@
 #include "config/PlayerConfig.hpp"
 
 #include <cstdint>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -76,11 +77,12 @@ public:
                        const std::string& error);
   bool postEvent(const std::string& token, const nlohmann::json& event);
 
-  const std::string& token() const { return token_; }
-  void setToken(std::string t) { token_ = std::move(t); }
+  std::string token() const;
+  void setToken(std::string t);
 
 private:
   config::PlayerConfig cfg_;
+  mutable std::mutex mu_;
   std::string token_;
   bool syncSupported_ = true;
   std::int64_t lastSyncProbeMs_ = 0;

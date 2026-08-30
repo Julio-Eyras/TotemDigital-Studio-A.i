@@ -5,7 +5,6 @@
 #include "util/Logger.hpp"
 #include "version.hpp"
 
-#include <cstdlib>
 #include <fstream>
 #include <optional>
 #include <stdexcept>
@@ -141,12 +140,8 @@ void CommandExecutor::handleOne(const api::PendingCommand& cmd, const std::strin
       return;
     } else if (cmd.type == "reboot" || cmd.type == "reset_board") {
       client_.reportCommandResult(token, cmd.id, "completed", result, "");
-#ifdef _WIN32
-      util::Logger::w("REMOTE_CMD", "reboot não suportado neste SO de build");
-#else
-      util::Logger::w("REMOTE_CMD", "reboot solicitado");
-      std::system("systemctl reboot || reboot");
-#endif
+      util::Logger::w("REMOTE_CMD", "reboot solicitado — após parar playback");
+      if (onReboot_) onReboot_();
       return;
     } else if (cmd.type == "configure_wifi") {
       result = ops::configureWifi(cmd.data);
@@ -159,18 +154,22 @@ void CommandExecutor::handleOne(const api::PendingCommand& cmd, const std::strin
                                   nlohmann::json{{"accepted", true}, {"version", pkg->version}}, "");
       client_.reportOtaStatus(token, PLAYER_LINUX_VERSION_STR, "downloading", pkg->version, "");
       try {
-        result = ops::applyOta(*pkg, cfg_.serverUrl, otaDir_, cfg_.uin, token);
-        client_.reportOtaStatus(token, pkg->version, "up_to_date", pkg->version, "");
+        ops::downloadOtaDeb(*pkg, cfg_.serverUrl, otaDir_, cfg_.uin, token);
       } catch (const std::exception& ex) {
         client_.reportOtaStatus(token, PLAYER_LINUX_VERSION_STR, "failed", pkg->version, ex.what());
         throw;
       }
+      if (onQueueOta_) onQueueOta_(*pkg, false);
       return;
     } else if (cmd.type == "ota_rollback") {
       client_.reportCommandResult(token, cmd.id, "completed", nlohmann::json{{"accepted", true}}, "");
-      result = ops::rollbackOta(otaDir_);
-      client_.reportOtaStatus(token, PLAYER_LINUX_VERSION_STR, "rollback", "", "");
-      client_.reportCommandResult(token, cmd.id, "completed", result, "");
+      if (onQueueOta_) {
+        onQueueOta_(ops::OtaPackage{}, true);
+      } else {
+        result = ops::rollbackOta(otaDir_);
+        client_.reportOtaStatus(token, PLAYER_LINUX_VERSION_STR, "rollback", "", "");
+        client_.reportCommandResult(token, cmd.id, "completed", result, "");
+      }
       return;
     } else {
       error = "tipo desconhecido";

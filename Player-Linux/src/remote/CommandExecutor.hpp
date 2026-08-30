@@ -3,6 +3,7 @@
 #include "api/DispatcherClient.hpp"
 #include "cache/MediaCache.hpp"
 #include "config/DisplaySchedule.hpp"
+#include "ops/FieldOps.hpp"
 #include "config/PlayerConfig.hpp"
 
 #include <functional>
@@ -27,6 +28,10 @@ public:
 
   void setOnRefreshDispatch(std::function<void()> fn) { onRefreshDispatch_ = std::move(fn); }
   void setOnRestart(RestartFn fn) { onRestart_ = std::move(fn); }
+  void setOnQueueOta(std::function<void(ops::OtaPackage, bool rollback)> fn) {
+    onQueueOta_ = std::move(fn);
+  }
+  void setOnReboot(std::function<void()> fn) { onReboot_ = std::move(fn); }
 
   void handleAll(const std::vector<api::PendingCommand>& cmds, const std::string& token);
 
@@ -43,6 +48,8 @@ private:
   std::unordered_set<std::string> seenIds_;
   std::function<void()> onRefreshDispatch_;
   RestartFn onRestart_;
+  std::function<void(ops::OtaPackage, bool rollback)> onQueueOta_;
+  std::function<void()> onReboot_;
 
   void loadReceipts();
   void saveReceipts();

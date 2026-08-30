@@ -160,9 +160,23 @@ public:
                                std::chrono::steady_clock::now() - startedAt_)
                                .count();
       if (elapsed >= durationLimitSec_) return false;
-      if (holdUntilDuration_ || htmlProc_.pid > 0) return true;
+      if (htmlProc_.pid > 0) {
+        if (!ops::childAlive(htmlProc_)) {
+          playing_ = false;
+          return false;
+        }
+        if (holdUntilDuration_) return true;
+      } else if (holdUntilDuration_) {
+        return true;
+      }
     }
-    if (htmlProc_.pid > 0) return true;
+    if (htmlProc_.pid > 0) {
+      if (!ops::childAlive(htmlProc_)) {
+        playing_ = false;
+        return false;
+      }
+      return true;
+    }
     if (!pipeline_) return false;
     GstState state = GST_STATE_NULL;
     gst_element_get_state(pipeline_, &state, nullptr, 0);
@@ -171,11 +185,25 @@ public:
       GstMessage* msg =
           gst_bus_pop_filtered(bus, static_cast<GstMessageType>(GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
       if (msg) {
-        const bool eos = GST_MESSAGE_TYPE(msg) == GST_MESSAGE_EOS;
+        const GstMessageType typ = GST_MESSAGE_TYPE(msg);
+        if (typ == GST_MESSAGE_ERROR) {
+          GError* err = nullptr;
+          gchar* dbg = nullptr;
+          gst_message_parse_error(msg, &err, &dbg);
+          util::Logger::e("PLAYBACK",
+                          std::string("GStreamer ERROR: ") + (err ? err->message : "desconhecido") +
+                              (dbg ? std::string(" ") + dbg : ""));
+          if (err) g_error_free(err);
+          if (dbg) g_free(dbg);
+          gst_message_unref(msg);
+          gst_object_unref(bus);
+          playing_ = false;
+          return false;
+        }
         gst_message_unref(msg);
         gst_object_unref(bus);
-        if (eos && holdUntilDuration_) return true;
-        return !eos;
+        if (holdUntilDuration_) return true;
+        return false;
       }
       gst_object_unref(bus);
       return true;
@@ -242,8 +270,8 @@ private:
   }
 
   GstElement* pipeline_ = nullptr;
-  ops::ChildProc htmlProc_{};
-  std::atomic<bool> playing_{false};
+  mutable ops::ChildProc htmlProc_{};
+  mutable std::atomic<bool> playing_{false};
   bool holdUntilDuration_ = false;
   int durationLimitSec_ = 0;
   std::chrono::steady_clock::time_point startedAt_{};

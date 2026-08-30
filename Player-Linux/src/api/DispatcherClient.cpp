@@ -63,6 +63,9 @@ bool DispatcherClient::httpRequest(const std::string& method,
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, &outBody);
   curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 8L);
   curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeoutSec);
+  curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+  curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 32L);
+  curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, 15L);
   curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
   curl_easy_setopt(curl, CURLOPT_USERAGENT, "Player-Linux/" PLAYER_LINUX_VERSION_STR);
 
@@ -81,6 +84,16 @@ bool DispatcherClient::httpRequest(const std::string& method,
   return res == CURLE_OK;
 }
 
+std::string DispatcherClient::token() const {
+  std::lock_guard<std::mutex> lock(mu_);
+  return token_;
+}
+
+void DispatcherClient::setToken(std::string t) {
+  std::lock_guard<std::mutex> lock(mu_);
+  token_ = std::move(t);
+}
+
 std::optional<std::string> DispatcherClient::getToken() {
   const std::string url = urlJoin("/api/player/token?uin=" + cfg_.uin + "&deviceId=" + cfg_.deviceId);
   long status = 0;
@@ -92,6 +105,7 @@ std::optional<std::string> DispatcherClient::getToken() {
   try {
     const auto j = nlohmann::json::parse(body);
     if (j.contains("token")) {
+      std::lock_guard<std::mutex> lock(mu_);
       token_ = j["token"].get<std::string>();
       return token_;
     }
@@ -128,10 +142,20 @@ HeartbeatResult DispatcherClient::heartbeatOrSync(const std::string& token,
       {"updateStatus", "up_to_date"},
   };
 
+  std::int64_t lastProbe = 0;
+  bool trySync = true;
+  {
+    std::lock_guard<std::mutex> lock(mu_);
+    lastProbe = lastSyncProbeMs_;
+    trySync = syncSupported_;
+  }
+
   const auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
                          std::chrono::system_clock::now().time_since_epoch())
                          .count();
-  if (!syncSupported_ && (nowMs - lastSyncProbeMs_) > 6LL * 3600 * 1000) {
+  if (!trySync && (nowMs - lastProbe) > 6LL * 3600 * 1000) {
+    trySync = true;
+    std::lock_guard<std::mutex> lock(mu_);
     syncSupported_ = true;
   }
 
@@ -170,7 +194,7 @@ HeartbeatResult DispatcherClient::heartbeatOrSync(const std::string& token,
     else r.needsDispatch = false;
   };
 
-  if (syncSupported_) {
+  if (trySync) {
     nlohmann::json syncBody = {
         {"schemaVersion", 1},
         {"syncId", std::to_string(nowMs)},
@@ -184,6 +208,7 @@ HeartbeatResult DispatcherClient::heartbeatOrSync(const std::string& token,
     if (httpRequest("POST", url, syncBody.dump(), 8, status, body)) {
       r.httpStatus = static_cast<int>(status);
       if (status == 404 || status == 405) {
+        std::lock_guard<std::mutex> lock(mu_);
         syncSupported_ = false;
         lastSyncProbeMs_ = nowMs;
         util::Logger::w("HEARTBEAT", "sync indisponível; fallback heartbeat");
@@ -191,7 +216,7 @@ HeartbeatResult DispatcherClient::heartbeatOrSync(const std::string& token,
         r.usedSyncEndpoint = true;
         try {
           parseHb(nlohmann::json::parse(body));
-          if (!r.token.empty()) token_ = r.token;
+          if (!r.token.empty()) setToken(r.token);
           return r;
         } catch (...) {
         }
@@ -212,7 +237,7 @@ HeartbeatResult DispatcherClient::heartbeatOrSync(const std::string& token,
   if (status < 200 || status >= 300) return r;
   try {
     parseHb(nlohmann::json::parse(body));
-    if (!r.token.empty()) token_ = r.token;
+    if (!r.token.empty()) setToken(r.token);
   } catch (...) {
     r.ok = false;
   }

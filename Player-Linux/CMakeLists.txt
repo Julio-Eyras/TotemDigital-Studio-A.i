@@ -32,6 +32,7 @@ set(PLAYER_LINUX_SOURCES
   src/playback/PlayerOrchestrator.cpp
   src/remote/CommandExecutor.cpp
   src/ops/FieldOps.cpp
+  src/util/SystemdWatchdog.cpp
 )
 
 add_executable(player-linux ${PLAYER_LINUX_SOURCES})

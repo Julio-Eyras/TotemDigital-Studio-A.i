@@ -20,7 +20,7 @@ player::playback::PlayerOrchestrator* gOrch = nullptr;
 
 #ifndef _WIN32
 void onSigUsr1(int) {
-  player::ops::releaseKiosk();
+  player::ops::requestKioskEscape();
 }
 
 void onSigTerm(int) {
