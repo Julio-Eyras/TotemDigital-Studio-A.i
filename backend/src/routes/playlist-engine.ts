@@ -5,9 +5,11 @@
  */
 
 import { Router } from 'express';
+
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { getPlaylistEngineServiceInstance } from '../services/playlistEngineService';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -53,13 +55,13 @@ router.get('/totem-playlists', async (req, res) => {
       total: result.total,
       page: result.page,
       limit: result.limit
-    });
-  } catch (error: any) {
-    await logError('Erro ao listar playlists de totens', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao listar playlists de totens', e.error);
     return res.status(500).json({
       success: false,
       error: 'Erro ao listar playlists de totens'
-    });
+  });
   }
 });
 
@@ -92,11 +94,11 @@ router.get('/totem/:totemId', async (req, res) => {
     return res.json({
       success: true,
       data: playlist
-    });
-  } catch (error: any) {
-    await logError('Erro ao buscar playlist do totem', error, {
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar playlist do totem', e.error, {
       totemId: req.params.totemId
-    });
+  });
     return res.status(500).json({
       success: false,
       error: 'Erro ao buscar playlist do totem'
@@ -135,11 +137,11 @@ router.post('/totem/:totemId/regenerate', authorizeRole(['admin', 'admin_sql', '
     return res.json({
       success: true,
       data: result
-    });
-  } catch (error: any) {
-    await logError('Erro ao regenerar playlist do totem', error, {
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao regenerar playlist do totem', e.error, {
       totemId: req.params.totemId
-    });
+  });
     return res.status(500).json({
       success: false,
       error: 'Erro ao regenerar playlist do totem'
@@ -172,11 +174,11 @@ router.post('/publisher/:publisherId/regenerate', authorizeRole(['admin', 'admin
         publisherId,
         totemsRegenerated: count
       }
-    });
-  } catch (error: any) {
-    await logError('Erro ao regenerar playlists do publisher', error, {
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao regenerar playlists do publisher', e.error, {
       publisherId: req.params.publisherId
-    });
+  });
     return res.status(500).json({
       success: false,
       error: 'Erro ao regenerar playlists do publisher'
@@ -209,11 +211,11 @@ router.post('/campaign/:campaignId/regenerate', authorizeRole(['admin', 'admin_s
         campaignId,
         totemsRegenerated: count
       }
-    });
-  } catch (error: any) {
-    await logError('Erro ao regenerar playlists da campanha', error, {
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao regenerar playlists da campanha', e.error, {
       campaignId: req.params.campaignId
-    });
+  });
     return res.status(500).json({
       success: false,
       error: 'Erro ao regenerar playlists da campanha'
@@ -261,13 +263,13 @@ router.get('/stats', authorizeRole(['admin', 'admin_sql']), async (_req, res) =>
         totalItems: totalItems?.count || 0,
         recentGenerations: recentGenerations || []
       }
-    });
-  } catch (error: any) {
-    await logError('Erro ao buscar estatísticas do motor', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar estatísticas do motor', e.error);
     res.status(500).json({
       success: false,
       error: 'Erro ao buscar estatísticas do motor'
-    });
+  });
   }
 });
 

@@ -8,6 +8,7 @@ import { AuditService } from './auditService';
 import { getAdvancedScheduleQueue, AdvancedScheduleJobData } from '../config/queue';
 import { parseExpression } from 'cron-parser';
 import { logError, logInfo } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export interface CreateAdvancedScheduleRequest {
   name: string;
@@ -56,10 +57,10 @@ export class AdvancedScheduleService {
   
   // Lazy initialization
   private getAuditService(): AuditService {
-    if (!(global as any).auditServiceInstance) {
-      (global as any).auditServiceInstance = new AuditService();
+    if (!(global as unknown as Record<string, unknown>).auditServiceInstance) {
+      (global as unknown as Record<string, unknown>).auditServiceInstance = new AuditService();
     }
-    return (global as any).auditServiceInstance;
+    return (global as unknown as Record<string, unknown>).auditServiceInstance as AuditService;
   }
 
   /**
@@ -73,11 +74,11 @@ export class AdvancedScheduleService {
       return {
         valid: true,
         nextExecution
-      };
-    } catch (error: any) {
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
       return {
         valid: false,
-        error: `Expressão cron inválida: ${error.message}`
+        error: `Expressão cron inválida: ${e.message}`
       };
     }
   }
@@ -89,7 +90,7 @@ export class AdvancedScheduleService {
     try {
       const interval = parseExpression(cronExpression);
       return interval.next().toDate();
-    } catch (error) {
+} catch (error: unknown) {
       return null;
     }
   }
@@ -155,10 +156,10 @@ export class AdvancedScheduleService {
         targetId: data.targetId
       }).catch(e => logError('Erro ao registrar log de auditoria', e, { scheduleId: schedule.schedule_id }).catch(() => {}));
 
-      return this.mapToAdvancedSchedule(schedule);
-    } catch (error: any) {
-      await logError('Erro ao criar agendamento avançado', error, { data });
-      throw error;
+      return this.mapToAdvancedSchedule(schedule);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar agendamento avançado', e.error, { data });
+      throw e.error;
     }
   }
 
@@ -190,9 +191,10 @@ export class AdvancedScheduleService {
 
         default:
           throw new Error(`Tipo de agendamento não suportado: ${scheduleType}`);
-      }
-    } catch (error: any) {
-      throw error;
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      throw e.error;
     }
   }
 
@@ -224,10 +226,11 @@ export class AdvancedScheduleService {
         }
       );
 
-      await logInfo('Job registrado para agendamento', { scheduleId });
-    } catch (error: any) {
-      await logError('Erro ao registrar job', error, { scheduleId });
-      throw error;
+      await logInfo('Job registrado para agendamento', {
+        scheduleId });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao registrar job', e.error, { scheduleId });
+      throw e.error;
     }
   }
 
@@ -241,7 +244,7 @@ export class AdvancedScheduleService {
   } = {}): Promise<AdvancedSchedule[]> {
     try {
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (filters.scheduleType) {
         whereClause += ' AND schedule_type = ?';
@@ -264,10 +267,10 @@ export class AdvancedScheduleService {
         ORDER BY created_at DESC
       `, params);
 
-      return schedules.map(s => this.mapToAdvancedSchedule(s));
-    } catch (error: any) {
-      await logError('Erro ao buscar agendamentos', error, { filters });
-      throw error;
+      return schedules.map(s => this.mapToAdvancedSchedule(s));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar agendamentos', e.error, { filters });
+      throw e.error;
     }
   }
 
@@ -284,10 +287,10 @@ export class AdvancedScheduleService {
         return null;
       }
 
-      return this.mapToAdvancedSchedule(schedule);
-    } catch (error: any) {
-      await logError('Erro ao buscar agendamento', error, { scheduleId });
-      throw error;
+      return this.mapToAdvancedSchedule(schedule);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar agendamento', e.error, { scheduleId });
+      throw e.error;
     }
   }
 
@@ -313,10 +316,10 @@ export class AdvancedScheduleService {
         [scheduleId]
       )) as { subscriber_id: number | null } | null;
       const sid = row?.subscriber_id;
-      return sid != null && Number.isFinite(Number(sid)) ? Number(sid) : null;
-    } catch (error: any) {
-      await logError('Erro ao resolver subscriber do agendamento', error, { scheduleId });
-      throw error;
+      return sid != null && Number.isFinite(Number(sid)) ? Number(sid) : null;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao resolver subscriber do agendamento', e.error, { scheduleId });
+      throw e.error;
     }
   }
 
@@ -345,10 +348,10 @@ export class AdvancedScheduleService {
         [t, tid, tid, tid, tid]
       )) as { subscriber_id: number | null } | null;
       const sid = row?.subscriber_id;
-      return sid != null && Number.isFinite(Number(sid)) ? Number(sid) : null;
-    } catch (error: any) {
-      await logError('Erro ao resolver subscriber do alvo do agendamento', error, { scheduleType: t, targetId: tid });
-      throw error;
+      return sid != null && Number.isFinite(Number(sid)) ? Number(sid) : null;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao resolver subscriber do alvo do agendamento', e.error, { scheduleType: t, targetId: tid });
+      throw e.error;
     }
   }
 
@@ -363,7 +366,7 @@ export class AdvancedScheduleService {
       }
 
       const updates: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (data.name !== undefined) {
         // Validar nome único se mudou
@@ -447,10 +450,10 @@ export class AdvancedScheduleService {
         throw new Error('Erro ao buscar agendamento atualizado');
       }
 
-      return updated;
-    } catch (error: any) {
-      await logError('Erro ao atualizar agendamento', error, { scheduleId, data });
-      throw error;
+      return updated;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar agendamento', e.error, { scheduleId, data });
+      throw e.error;
     }
   }
 
@@ -465,9 +468,10 @@ export class AdvancedScheduleService {
       if (job) {
         await job.remove();
         await logInfo('Job removido para agendamento', { scheduleId });
-      }
-    } catch (error: any) {
-      await logError('Erro ao remover job', error, { scheduleId });
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao remover job', e.error, { scheduleId });
       // Não falhar se o job não existir
     }
   }
@@ -494,10 +498,11 @@ export class AdvancedScheduleService {
       await this.getAuditService().log('schedule', 'advanced_schedule_deleted', userId, {
         scheduleId,
         scheduleName: schedule.name
-      }).catch(e => logError('Erro ao registrar log de auditoria', e, { scheduleId: schedule.schedule_id }).catch(() => {}));
-    } catch (error: any) {
-      await logError('Erro ao excluir agendamento', error, { scheduleId });
-      throw error;
+      }).catch(e => logError('Erro ao registrar log de auditoria', e, {
+        scheduleId: schedule.schedule_id }).catch(() => {}));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao excluir agendamento', e.error, { scheduleId });
+      throw e.error;
     }
   }
 
@@ -530,5 +535,4 @@ export class AdvancedScheduleService {
 
 // Exportar instância singleton
 export const advancedScheduleService = new AdvancedScheduleService();
-
 

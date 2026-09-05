@@ -11,6 +11,7 @@
 import { getDatabase } from '../config/database';
 // import { AuditService } from './auditService'; // Não utilizado no momento
 import { logError, logDebug } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export interface CreatePublisherBillingRequest {
   publisherId: number;
@@ -33,7 +34,7 @@ export interface CreatePublisherBillingRequest {
   paymentStatus?: 'pending' | 'pending_payout' | 'paid' | 'failed' | 'refunded' | 'cancelled' | 'overdue';
   paymentMethod?: string;
   paymentReference?: string;
-  metadata?: any;
+  metadata: Record<string, unknown>;
 }
 
 export interface UpdatePublisherBillingRequest {
@@ -45,7 +46,7 @@ export interface UpdatePublisherBillingRequest {
   paymentMethod?: string;
   paymentReference?: string;
   approvedBy?: number; // Para aprovar payout
-  metadata?: any;
+  metadata: Record<string, unknown>;
 }
 
 export interface PublisherBillingResponse {
@@ -71,7 +72,7 @@ export interface PublisherBillingResponse {
   approvedAt?: string;
   paymentMethod?: string;
   paymentReference?: string;
-  metadata?: any;
+  metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
   publisherName?: string;
@@ -112,10 +113,10 @@ export class PublisherBillingService {
 
   // Audit service - comentado temporariamente (não utilizado)
   // private getAuditService(): AuditService {
-  //   if (!(global as any).auditServiceInstance) {
-  //     (global as any).auditServiceInstance = new AuditService();
+  //   if (!(global as unknown as Record<string, unknown>).auditServiceInstance) {
+  //     (global as unknown as Record<string, unknown>).auditServiceInstance = new AuditService();
   //   }
-  //   return (global as any).auditServiceInstance;
+  //   return (global as unknown as Record<string, unknown>).auditServiceInstance;
   // }
 
   /**
@@ -141,7 +142,7 @@ export class PublisherBillingService {
     try {
       const offset = (page - 1) * limit;
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (filters.publisherId) {
         whereClause += ' AND pb.publisher_id = $' + (params.length + 1);
@@ -286,9 +287,9 @@ export class PublisherBillingService {
         total: parseInt(totalResult?.total || '0'),
         page,
         limit
-      };
-    } catch (error: any) {
-      await logError('Erro ao listar faturas de publishers', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar faturas de publishers', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -352,9 +353,9 @@ export class PublisherBillingService {
         ...billing,
         isOverdue: billing.isOverdue || false,
         daysOverdue: billing.daysOverdue || 0
-      };
-    } catch (error: any) {
-      await logError('Erro ao obter fatura de publisher', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter fatura de publisher', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -470,10 +471,10 @@ export class PublisherBillingService {
         throw new Error('Erro ao buscar fatura criada');
       }
 
-      return billing;
-    } catch (error: any) {
-      await logError('Erro ao criar fatura de publisher', error);
-      throw error;
+      return billing;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar fatura de publisher', e.error);
+      throw e.error;
     }
   }
 
@@ -512,10 +513,10 @@ export class PublisherBillingService {
         throw new Error('Erro ao buscar fatura atualizada');
       }
 
-      return updatedBilling;
-    } catch (error: any) {
-      await logError('Erro ao aprovar payout', error);
-      throw error;
+      return updatedBilling;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao aprovar payout', e.error);
+      throw e.error;
     }
   }
 
@@ -599,10 +600,10 @@ export class PublisherBillingService {
         throw new Error('Erro ao buscar fatura atualizada');
       }
 
-      return updatedBilling;
-    } catch (error: any) {
-      await logError('Erro ao atualizar fatura de publisher', error);
-      throw error;
+      return updatedBilling;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar fatura de publisher', e.error);
+      throw e.error;
     }
   }
 
@@ -615,7 +616,7 @@ export class PublisherBillingService {
     try {
       const dueSoonDays = Math.min(Math.max(filters?.dueSoonDays ?? 30, 1), 365);
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (filters?.publisherId) {
         whereClause += ' AND pb.publisher_id = $' + (params.length + 1);
@@ -796,9 +797,9 @@ export class PublisherBillingService {
           totalPayouts: parseFloat(revenueShareStats?.totalPayouts || '0'),
           averagePercentage: parseFloat(revenueShareStats?.averagePercentage || '0')
         }
-      };
-    } catch (error: any) {
-      await logError('Erro ao buscar estatísticas de billing de publishers', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar estatísticas de billing de publishers', e.error);
       throw new Error('Erro interno do servidor');
     }
   }

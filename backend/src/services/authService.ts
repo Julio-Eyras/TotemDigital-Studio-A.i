@@ -11,6 +11,9 @@ import { AuditService } from './auditService';
 import { logInfo, logError, logWarn, logDebug } from '../utils/loggerHelper';
 import { config } from '../config/env';
 import { getAuditServiceInstance } from '../utils/globalInstances';
+import { Metadata } from '../types/shared';
+import { UserSmartFlags } from '../types/domain.shared';
+import { normalizeError } from '../utils/errors';
 
 export interface LoginRequest {
   username: string;
@@ -25,35 +28,34 @@ export interface RegisterRequest {
   subscriberId?: number; // clientId deprecated, usar subscriberId
 }
 
+export interface AuthResponseUser {
+  id: number;
+  username: string;
+  email: string;
+  name: string;
+  first_name?: string;
+  last_name?: string;
+  role: string;
+  user_type?: 'system_user' | 'subscriber_user' | 'publisher_user';
+  publisherId?: number;
+  subscriberId?: number;
+  publisher_id?: number;
+  subscriber_id?: number;
+  isActive?: boolean;
+  is_active?: boolean;
+  isTenantUser?: boolean;
+  flags?: Partial<UserSmartFlags>;
+  subscriberName?: string;
+  [key: string]: unknown;
+}
+
 export interface AuthResponse {
   success: boolean;
   token?: string;
   refreshToken?: string;
-  user?: {
-    id: number;
-    username: string;
-    email: string;
-    role: string;
-    subscriberId?: number;
-    publisherId?: number;
-    subscriberName?: string;
-    user_type?: 'system_user' | 'subscriber_user' | 'publisher_user';
-    isTenantUser?: boolean;
-    flags?: {
-      flag_smart_0: boolean;
-      flag_smart_1: boolean;
-      flag_smart_2: boolean;
-      flag_smart_3: boolean;
-      flag_smart_4: boolean;
-      flag_smart_5: boolean;
-      flag_smart_6: boolean;
-      flag_smart_7: boolean;
-      flag_smart_8: boolean;
-      flag_smart_9: boolean;
-    };
-  };
+  user?: AuthResponseUser;
   error?: string;
-  requiresTwoFactor?: boolean; // Indica se 2FA é necessário
+  requiresTwoFactor?: boolean;
 }
 
 export interface ChangePasswordRequest {
@@ -61,17 +63,44 @@ export interface ChangePasswordRequest {
   newPassword: string;
 }
 
+export interface DbUserRow {
+  id: number;
+  username: string;
+  email?: string;
+  name?: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  role: string;
+  user_type?: 'system_user' | 'subscriber_user' | 'publisher_user' | null;
+  publisher_id?: number | null;
+  publisherId?: number | null;
+  subscriber_id?: number | null;
+  subscriberId?: number | null;
+  client_id?: number | null;
+  clientId?: number | null;
+  password_hash?: string;
+  is_active?: boolean;
+  isActive?: boolean;
+  last_login?: string | Date | null;
+  created_at?: string | Date;
+  createdAt?: string | Date;
+  updated_at?: string | Date;
+  updatedAt?: string | Date;
+  client_name?: string | null;
+  [key: string]: unknown;
+}
+
 export class AuthService {
   private get db() {
     return getDatabase();
   }
-  
+
   // Lazy initialization - só criar quando necessário
   private getAuditService(): AuditService {
     return getAuditServiceInstance();
   }
 
-  private mapUserForClient(user: any, extras: Record<string, any> = {}) {
+  private mapUserForClient(user: DbUserRow, extras: Metadata = {}): AuthResponseUser {
     const first = String(user.first_name ?? '').trim();
     const last = String(user.last_name ?? '').trim();
     const fullFromParts = [first, last].filter(Boolean).join(' ').trim();
@@ -85,11 +114,12 @@ export class AuthService {
       first_name: first || undefined,
       last_name: last || undefined,
       role: user.role,
-      user_type: user.user_type,
-      publisherId: user.publisher_id ?? user.publisherId,
-      subscriberId: user.subscriber_id ?? user.subscriberId,
+      user_type: user.user_type ?? undefined,
+      publisherId: (user.publisher_id ?? user.publisherId) as number | undefined,
+      subscriberId: (user.subscriber_id ?? user.subscriberId) as number | undefined,
+      subscriberName: (user.client_name ?? undefined) as string | undefined,
       ...extras,
-    };
+    } as AuthResponseUser;
   }
 
   /**
@@ -116,10 +146,11 @@ export class AuthService {
             FROM users u 
             LEFT JOIN clients c ON u.client_id = c.client_id 
             WHERE u.username = $1 AND u.is_active = true
-          `, [username]);
-        } catch (error: unknown) {
+          `, [username]);} catch (error: unknown) {
+            const e = normalizeError(error);
+
           // Se falhar mesmo com a tabela existindo, tentar sem JOIN
-          const errorMessage = error instanceof Error ? error.message : String(error);
+          const errorMessage = error instanceof Error ? e.message : String(error);
           await logWarn(`[AUTH] Erro no JOIN com clients - buscando sem JOIN`, { error: errorMessage });
           user = await this.db.findFirst(`
             SELECT u.*
@@ -183,16 +214,16 @@ export class AuthService {
       }
 
       // Buscar flags efetivas do usuário
-      let effectiveFlags: any = null;
+      let effectiveFlags: Partial<UserSmartFlags> | null = null;
       try {
         const { getUserEffectiveFlags } = await import('../utils/flagChecker');
-        effectiveFlags = await getUserEffectiveFlags({
+        effectiveFlags = (await getUserEffectiveFlags({
           id: user.id,
           role: user.role,
           user_type: user.user_type,
           publisher_id: user.publisher_id
-        });
-      } catch (error) {
+        })) as Partial<UserSmartFlags>;
+} catch (error: unknown) {
         await logWarn(`[AUTH] Erro ao buscar flags do usuário`, { userId: user.id, error });
         // Continuar sem flags se houver erro
       }
@@ -213,23 +244,25 @@ export class AuthService {
         token,
         refreshToken,
         user: this.mapUserForClient(user, { flags: effectiveFlags }),
-      };
+      };} catch (error: unknown) {
+        const e = normalizeError(error);
 
-    } catch (error: any) {
-      await logError('[AUTH] Erro no login', error, { username: credentials.username });
+      await logError('[AUTH] Erro no login', e.error, { username: credentials.username });
+
+      const message = error instanceof Error ? e.message : String(error);
       
       // Verificar se é erro de banco de dados
-      if (error.message && error.message.includes('relation') && error.message.includes('does not exist')) {
-        await logError('[AUTH] ERRO CRÍTICO: Tabela users não existe no banco de dados', error);
+      if (message && message.includes('relation') && message.includes('does not exist')) {
+        await logError('[AUTH] ERRO CRÍTICO: Tabela users não existe no banco de dados', e.error);
         return { success: false, error: 'Erro interno: Tabela de usuários não encontrada. Verifique a instalação do banco de dados.' };
       }
       
-      if (error.message && error.message.includes('column') && error.message.includes('does not exist')) {
-        await logError(`[AUTH] ERRO CRÍTICO: Coluna não existe na tabela users`, error);
+      if (message && message.includes('column') && message.includes('does not exist')) {
+        await logError(`[AUTH] ERRO CRÍTICO: Coluna não existe na tabela users`, e.error);
         return { success: false, error: 'Erro interno: Estrutura do banco de dados incorreta. Aplique o schema master (smartchannel-db-v2-refactored-apply-all.sql) para criar as tabelas.' };
       }
       
-      return { success: false, error: `Erro interno do servidor: ${error.message}` };
+      return { success: false, error: `Erro interno do servidor: ${message}` };
     }
   }
 
@@ -303,10 +336,9 @@ export class AuthService {
         token,
         refreshToken,
         user: this.mapUserForClient(newUser),
-      };
-
-    } catch (error: any) {
-      await logError('Erro no registro', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro no registro', e.error);
       return { success: false, error: 'Erro interno do servidor' };
     }
   }
@@ -355,10 +387,9 @@ export class AuthService {
         success: true,
         token: newToken,
         user: this.mapUserForClient(user),
-      };
-
-    } catch (error: any) {
-      await logError('Erro no refresh token', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro no refresh token', e.error);
       return { success: false, error: 'Token inválido' };
     }
   }
@@ -500,17 +531,16 @@ export class AuthService {
           publisherId: publisher.publisher_id,
           subscriberName: subscriber.name,
         }),
-      };
-
-    } catch (error: any) {
-      await logError('[AUTH] Erro no login subscriber', error, { email: credentials.email });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('[AUTH] Erro no login subscriber', e.error, { email: credentials.email });
       
-      if (error.message && error.message.includes('relation') && error.message.includes('does not exist')) {
-        await logError('[AUTH] ERRO CRÍTICO: Tabela não existe no banco de dados', error);
+      if (e.message && e.message.includes('relation') && e.message.includes('does not exist')) {
+        await logError('[AUTH] ERRO CRÍTICO: Tabela não existe no banco de dados', e.error);
         return { success: false, error: 'Erro interno: Estrutura do banco de dados não encontrada.' };
       }
       
-      return { success: false, error: `Erro interno do servidor: ${error.message}` };
+      return { success: false, error: `Erro interno do servidor: ${e.message}` };
     }
   }
 
@@ -551,10 +581,10 @@ export class AuthService {
       // Log de alteração
       await this.getAuditService().log('auth', 'password_changed', userId, {});
 
-      return { success: true };
-
-    } catch (error: any) {
-      await logError('Erro ao alterar senha', error);
+      return {
+        success: true };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao alterar senha', e.error);
       return { success: false, error: 'Erro interno do servidor' };
     }
   }
@@ -629,10 +659,9 @@ export class AuthService {
       return {
         ...user,
         permissions: permissions.map(p => p.name)
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar dados do usuário', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar dados do usuário', e.error);
       return null;
     }
   }
@@ -645,10 +674,10 @@ export class AuthService {
       // Log de logout
       await this.getAuditService().log('auth', 'logout', userId, {});
 
-      return { success: true };
-
-    } catch (error: any) {
-      await logError('Erro no logout', error);
+      return {
+        success: true };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro no logout', e.error);
       return { success: false, error: 'Erro interno do servidor' };
     }
   }
@@ -656,17 +685,18 @@ export class AuthService {
   /**
    * Gera token JWT
    */
-  private generateToken(user: any): string {
+  private generateToken(user: unknown): string {
+    const u = user as Record<string, unknown>;
     const payload: any = {
-      userId: user.id,
-      username: user.username,
-      role: user.role,
+      userId: u.id,
+      username: u.username,
+      role: u.role,
       // clientId deprecated - usar subscriberId
     };
 
     // Adicionar subscriberId se disponível
-    if (user.subscriber_id) {
-      payload.subscriberId = user.subscriber_id;
+    if (u.subscriber_id) {
+      payload.subscriberId = u.subscriber_id;
     }
 
     return jwt.sign(payload, config.jwt.secret, {
@@ -677,9 +707,10 @@ export class AuthService {
   /**
    * Gera refresh token
    */
-  private generateRefreshToken(user: any): string {
+  private generateRefreshToken(user: unknown): string {
+    const u = user as Record<string, unknown>;
     const payload = {
-      userId: user.id,
+      userId: u.id,
       type: 'refresh'
     };
 
@@ -755,8 +786,8 @@ export class AuthService {
           await logInfo(`[PASSWORD RESET] Token gerado`, { email, expiresAt: expiresAt.toISOString() });
           await logDebug(`[PASSWORD RESET] Token details`, { token, link: `${process.env.FRONTEND_URL || 'http://localhost:3001'}/reset-password?token=${token}` });
         }
-      } catch (emailError: any) {
-        await logError('Erro ao enviar email de recuperação de senha', emailError, { email });
+ 
+} catch (emailError: unknown) {        await logError('Erro ao enviar email de recuperação de senha', emailError, { email });
         // Em desenvolvimento, mostrar token no log
         if (process.env.NODE_ENV === 'development') {
           await logInfo(`[PASSWORD RESET] Token gerado (modo desenvolvimento)`, { email, expiresAt: expiresAt.toISOString() });
@@ -768,10 +799,9 @@ export class AuthService {
         success: true,
         message: 'Se o email estiver cadastrado, você receberá um link de recuperação.',
         token: process.env.NODE_ENV === 'development' ? token : undefined // Apenas em dev
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao solicitar recuperação de senha', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao solicitar recuperação de senha', e.error);
       return {
         success: false,
         message: 'Erro ao processar solicitação de recuperação de senha'
@@ -837,10 +867,9 @@ export class AuthService {
       return {
         success: true,
         message: 'Senha redefinida com sucesso. Você já pode fazer login com a nova senha.'
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao redefinir senha', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao redefinir senha', e.error);
       return {
         success: false,
         message: 'Erro ao processar redefinição de senha'
@@ -866,9 +895,9 @@ export class AuthService {
         WHERE expires_at < CURRENT_TIMESTAMP OR used = true
       `);
 
-      return (result as any).rowCount || 0;
-    } catch (error: any) {
-      await logError('Erro ao limpar tokens expirados', error);
+      return Number((result as unknown as Record<string, unknown>).rowCount) || 0;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao limpar tokens expirados', e.error);
       return 0;
     }
   }
@@ -895,10 +924,9 @@ export class AuthService {
         VALUES ('admin', $1, 'admin', 1)
       `, [passwordHash]);
 
-      await logInfo('Usuário admin padrão criado (admin/admin)');
-
-    } catch (error: any) {
-      await logError('Erro ao criar admin padrão', error);
+      await logInfo('Usuário admin padrão criado (admin/admin)');} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar admin padrão', e.error);
     }
   }
 }

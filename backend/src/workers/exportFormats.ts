@@ -8,19 +8,20 @@ import PDFDocument from 'pdfkit';
 import * as createCsvWriter from 'csv-writer';
 import * as fs from 'fs';
 import * as path from 'path';
+import { normalizeError } from '../utils/errors';
 
 /**
  * Exporta dados para Excel
  */
 export async function exportToExcel(
-  data: any[],
-  exportConfig: any,
+  data: Record<string, unknown>[],
+  exportConfig: Record<string, unknown>,
   fileName: string,
   sheetName: string
 ): Promise<string> {
   try {
     // Criar diretório se não existir
-    const outputDir = exportConfig.outputDirectory || './exports';
+    const outputDir = String(exportConfig.outputDirectory ?? './exports');
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
@@ -79,7 +80,7 @@ export async function exportToExcel(
           if (rowNumber > 1) {
             row.eachCell((cell) => {
               if (cell.value instanceof Date) {
-                cell.numFmt = exportConfig.dateFormat || 'dd/mm/yyyy HH:mm:ss';
+                cell.numFmt = String(exportConfig.dateFormat ?? 'dd/mm/yyyy HH:mm:ss');
               } else if (typeof cell.value === 'number') {
                 cell.numFmt = '#,##0.00';
               }
@@ -98,9 +99,9 @@ export async function exportToExcel(
     // Salvar arquivo
     await workbook.xlsx.writeFile(filePath);
 
-    return filePath;
-  } catch (error: any) {
-    throw new Error(`Erro ao exportar para Excel: ${error.message}`);
+    return filePath;} catch (error: unknown) {
+    const e = normalizeError(error);
+    throw new Error(`Erro ao exportar para Excel: ${e.message}`);
   }
 }
 
@@ -108,13 +109,13 @@ export async function exportToExcel(
  * Exporta dados para PDF
  */
 export async function exportToPDF(
-  data: any[],
-  exportConfig: any,
+  data: Record<string, unknown>[],
+  exportConfig: Record<string, unknown>,
   fileName: string
 ): Promise<string> {
   try {
     // Criar diretório se não existir
-    const outputDir = exportConfig.outputDirectory || './exports';
+    const outputDir = String(exportConfig.outputDirectory ?? './exports');
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
@@ -211,9 +212,9 @@ export async function exportToPDF(
     return new Promise((resolve, reject) => {
       stream.on('finish', () => resolve(filePath));
       stream.on('error', (error) => reject(new Error(`Erro ao exportar para PDF: ${error.message}`)));
-    });
-  } catch (error: any) {
-    throw new Error(`Erro ao exportar para PDF: ${error.message}`);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    throw new Error(`Erro ao exportar para PDF: ${e.message}`);
   }
 }
 
@@ -221,13 +222,13 @@ export async function exportToPDF(
  * Exporta dados para CSV
  */
 export async function exportToCSV(
-  data: any[],
-  exportConfig: any,
+  data: Record<string, unknown>[],
+  exportConfig: Record<string, unknown>,
   fileName: string
 ): Promise<string> {
   try {
     // Criar diretório se não existir
-    const outputDir = exportConfig.outputDirectory || './exports';
+    const outputDir = String(exportConfig.outputDirectory ?? './exports');
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
@@ -265,9 +266,9 @@ export async function exportToCSV(
     // Escrever dados
     await csvWriter.writeRecords(data);
 
-    return filePath;
-  } catch (error: any) {
-    throw new Error(`Erro ao exportar para CSV: ${error.message}`);
+    return filePath;} catch (error: unknown) {
+    const e = normalizeError(error);
+    throw new Error(`Erro ao exportar para CSV: ${e.message}`);
   }
 }
 

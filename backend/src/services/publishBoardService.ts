@@ -73,7 +73,7 @@ async function notifyHtmlMediaTotems(
 function parseContent(raw: unknown): Record<string, string> {
   if (!raw || typeof raw !== 'object') return {};
   const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+  for (const [k, v] of Object.entries(raw as unknown as Record<string, unknown>)) {
     out[k] = String(v ?? '');
   }
   return out;

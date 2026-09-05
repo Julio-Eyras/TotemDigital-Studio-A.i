@@ -6,6 +6,7 @@
 import cron from 'node-cron';
 import { InvoiceService } from '../services/invoiceService';
 import { logInfo, logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export class InvoiceWorker {
   private invoiceService: InvoiceService;
@@ -28,9 +29,9 @@ export class InvoiceWorker {
       try {
         await logInfo('Iniciando geração de faturas mensais', {});
         const result = await this.invoiceService.generateMonthlyInvoices();
-        await logInfo('Geração de faturas mensais concluída', result);
-      } catch (error: any) {
-        await logError('Erro no worker de faturas mensais', error);
+        await logInfo('Geração de faturas mensais concluída', result);} catch (error: unknown) {
+        const e = normalizeError(error);
+        await logError('Erro no worker de faturas mensais', e.error);
       }
     });
 

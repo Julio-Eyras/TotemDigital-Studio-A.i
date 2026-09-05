@@ -5,6 +5,7 @@
 
 import { aiVideoConfig } from '../../config/env';
 import type { AiVideoGenerateInput, AiVideoGenerateOutput } from './aiVideoTypes';
+import { normalizeError } from '../../utils/errors';
 
 export async function generateVideoViaHttp(input: AiVideoGenerateInput): Promise<AiVideoGenerateOutput> {
   const apiUrl = String(aiVideoConfig.apiUrl || '').trim();
@@ -57,11 +58,11 @@ export async function generateVideoViaHttp(input: AiVideoGenerateInput): Promise
       message: 'Vídeo gerado pelo provedor externo.',
       videoUrl,
       provider: 'http',
-    };
-  } catch (error: any) {
-    const msg = error?.name === 'AbortError'
+    };} catch (error: unknown) {
+      const e = normalizeError(error);
+    const msg = ((e.raw as { name?: string })?.name) === 'AbortError'
       ? 'Timeout ao aguardar geração de vídeo IA.'
-      : (error?.message || 'Erro ao chamar provedor de vídeo IA');
+      : ((e.raw as { message?: string })?.message || 'Erro ao chamar provedor de vídeo IA');
     return { status: 'failed', message: msg, provider: 'http' };
   } finally {
     clearTimeout(timer);

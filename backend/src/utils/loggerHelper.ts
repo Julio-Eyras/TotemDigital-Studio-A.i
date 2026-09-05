@@ -37,27 +37,27 @@ const SENSITIVE_FIELDS = [
 /**
  * Sanitiza objeto removendo campos sensíveis antes de logar
  */
-export function sanitizeForLogging(data: any): any {
-  if (!data || typeof data !== 'object') {
+export function sanitizeForLogging<T>(data: T): T | string | number | boolean | null | undefined {
+  if (data == null || typeof data !== 'object') {
     return data;
   }
 
   if (Array.isArray(data)) {
-    return data.map(item => sanitizeForLogging(item));
+    return (data as unknown[]).map(item => sanitizeForLogging(item)) as unknown as T;
   }
 
-  const sanitized: any = {};
-  for (const [key, value] of Object.entries(data)) {
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
     const lowerKey = key.toLowerCase();
     if (SENSITIVE_FIELDS.some(field => lowerKey.includes(field))) {
       sanitized[key] = '[REDACTED]';
-    } else if (value && typeof value === 'object') {
+    } else if (value != null && typeof value === 'object') {
       sanitized[key] = sanitizeForLogging(value);
     } else {
       sanitized[key] = value;
     }
   }
-  return sanitized;
+  return sanitized as unknown as T;
 }
 
 // Cache do logger para evitar múltiplas inicializações
@@ -76,11 +76,11 @@ async function getCachedLogger() {
 /**
  * Log de informação (arquivo local)
  */
-export async function logInfo(message: string, meta?: any): Promise<void> {
+export async function logInfo(message: string, meta?: unknown): Promise<void> {
   try {
     const logger = await getCachedLogger();
     logger.info(message, meta);
-  } catch (error) {
+} catch (error: unknown) {
     // Fallback para console se logger não estiver disponível
     console.log(`[INFO] ${message}`, meta || '');
   }
@@ -89,11 +89,13 @@ export async function logInfo(message: string, meta?: any): Promise<void> {
 /**
  * Log de erro (arquivo local)
  */
-export async function logError(message: string, error?: any, meta?: any): Promise<void> {
+export async function logError(message: string, error?: unknown, meta?: unknown): Promise<void> {
   try {
     const logger = await getCachedLogger();
-    logger.error(message, { error: error?.message || error, stack: error?.stack, ...meta });
-  } catch (err) {
+    const errObj = error as Error | undefined;
+    const metaObj = (typeof meta === 'object' && meta !== null ? meta : {}) as Record<string, unknown>;
+    logger.error(message, { error: errObj?.message || error, stack: errObj?.stack, ...metaObj });
+  } catch (err: unknown) {
     // Fallback para console se logger não estiver disponível
     console.error(`[ERROR] ${message}`, error, meta || '');
   }
@@ -102,11 +104,11 @@ export async function logError(message: string, error?: any, meta?: any): Promis
 /**
  * Log de aviso (arquivo local)
  */
-export async function logWarn(message: string, meta?: any): Promise<void> {
+export async function logWarn(message: string, meta?: unknown): Promise<void> {
   try {
     const logger = await getCachedLogger();
     logger.warn(message, meta);
-  } catch (error) {
+} catch (error: unknown) {
     // Fallback para console se logger não estiver disponível
     console.warn(`[WARN] ${message}`, meta || '');
   }
@@ -115,11 +117,11 @@ export async function logWarn(message: string, meta?: any): Promise<void> {
 /**
  * Log de debug (arquivo local)
  */
-export async function logDebug(message: string, meta?: any): Promise<void> {
+export async function logDebug(message: string, meta?: unknown): Promise<void> {
   try {
     const logger = await getCachedLogger();
     logger.debug(message, meta);
-  } catch (error) {
+} catch (error: unknown) {
     // Fallback para console se logger não estiver disponível (apenas em dev)
     if (process.env.NODE_ENV === 'development') {
       console.debug(`[DEBUG] ${message}`, meta || '');
@@ -130,7 +132,7 @@ export async function logDebug(message: string, meta?: any): Promise<void> {
 /**
  * Log de debug síncrono (para casos onde não pode ser async)
  */
-export function logDebugSync(message: string, meta?: any): void {
+export function logDebugSync(message: string, meta?: unknown): void {
   if (process.env.NODE_ENV === 'development') {
     console.debug(`[DEBUG] ${message}`, meta || '');
   }
@@ -146,7 +148,7 @@ export function logDebugSync(message: string, meta?: any): void {
  * Log síncrono (para casos onde não pode ser async)
  * Usa console como fallback e tenta logger em background
  */
-export function logInfoSync(message: string, meta?: any): void {
+export function logInfoSync(message: string, meta?: unknown): void {
   console.log(`[INFO] ${message}`, meta || '');
   // Tentar logar em background (não esperar)
   getCachedLogger().then(logger => {
@@ -156,17 +158,19 @@ export function logInfoSync(message: string, meta?: any): void {
   });
 }
 
-export function logErrorSync(message: string, error?: any, meta?: any): void {
+export function logErrorSync(message: string, error?: unknown, meta?: unknown): void {
   console.error(`[ERROR] ${message}`, error, meta || '');
   // Tentar logar em background (não esperar)
   getCachedLogger().then(logger => {
-    logger.error(message, { error: error?.message || error, stack: error?.stack, ...meta });
+    const errObj = error as Error | undefined;
+    const metaObj = (typeof meta === 'object' && meta !== null ? meta : {}) as Record<string, unknown>;
+    logger.error(message, { error: errObj?.message || error, stack: errObj?.stack, ...metaObj });
   }).catch(() => {
     // Ignorar erros em background
   });
 }
 
-export function logWarnSync(message: string, meta?: any): void {
+export function logWarnSync(message: string, meta?: unknown): void {
   console.warn(`[WARN] ${message}`, meta || '');
   // Tentar logar em background (não esperar)
   getCachedLogger().then(logger => {

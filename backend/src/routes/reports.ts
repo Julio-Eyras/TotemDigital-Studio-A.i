@@ -4,6 +4,8 @@
  */
 
 import { Router } from 'express';
+import express from 'express';
+
 import { getReportsService, type ReportResponse } from '../services/reportsService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
@@ -13,6 +15,7 @@ import { logError, logWarn } from '../utils/loggerHelper';
 import { isMissingTableError } from '../utils/dbErrors';
 import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
 import { isAdminRole } from '../utils/tenantScope';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -21,7 +24,7 @@ const REPORTS_STAFF_ROLES = new Set(['gerente_marketing', 'visualizador']);
 /**
  * Leitura/alteração de relatório: staff global, ou assinante/publisher com vínculo aos filtros, ou criador do relatório.
  */
-async function assertReportAccess(req: any, res: any, report: ReportResponse): Promise<boolean> {
+async function assertReportAccess(req: express.Request, res: express.Response, report: ReportResponse): Promise<boolean> {
   if (isAdminRole(req.user?.role) || REPORTS_STAFF_ROLES.has(String(req.user?.role || ''))) {
     return true;
   }
@@ -35,7 +38,8 @@ async function assertReportAccess(req: any, res: any, report: ReportResponse): P
     try {
       await assertTenantClientParamAccess(req, filterSid);
       return true;
-    } catch (e: any) {
+} catch (rawErr: unknown) {
+  const e = normalizeError(rawErr);
       if (e?.statusCode === 403) {
         res.status(403).json({
           success: false,
@@ -100,17 +104,16 @@ router.get('/', authorizeRole(['admin', 'gerente_marketing', 'visualizador']), a
     return res.json({
       success: true,
       data: result
-    });
-
-  } catch (error: any) {
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
     if (isMissingTableError(error)) {
       return res.json({ success: true, data: [] });
-    }
-    await logError('Erro ao listar relatórios', error);
+  }
+    await logError('Erro ao listar relatórios', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
+      error: e.message
     });
   }
 });
@@ -127,15 +130,14 @@ router.get('/stats', authorizeRole(['admin', 'gerente_marketing', 'visualizador'
     return res.json({
       success: true,
       data: stats
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar estatísticas de relatórios', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar estatísticas de relatórios', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -194,15 +196,14 @@ router.get('/types', async (_req, res) => {
     return res.json({
       success: true,
       data: types
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar tipos de relatório', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar tipos de relatório', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message || 'Erro desconhecido'
-    });
+      error: e.message || 'Erro desconhecido'
+  });
   }
 });
 
@@ -211,7 +212,7 @@ router.get('/types', async (_req, res) => {
  * @desc Busca relatório por ID
  * @access Private (Admin, Manager, Client)
  */
-router.get('/:id', async (req: any, res) => {
+router.get('/:id', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { id } = req.params;
 
@@ -231,15 +232,14 @@ router.get('/:id', async (req: any, res) => {
     return res.json({
       success: true,
       data: report
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar relatório', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar relatório', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -248,10 +248,10 @@ router.get('/:id', async (req: any, res) => {
  * @desc Gera novo relatório
  * @access Private (Admin, Manager, Client)
  */
-router.post('/', async (req: any, res) => {
+router.post('/', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const reportRequest = req.body || {};
-    const user = req.user || {};
+    const user = (req.user || {}) as Record<string, unknown>;
 
     if (!reportRequest.type) {
       return res.status(400).json({
@@ -262,37 +262,36 @@ router.post('/', async (req: any, res) => {
     }
 
     const filters = reportRequest.filters || {};
-    const userSubscriberId = user.subscriberId || req.subscriberId;
-    if ((user.role === 'client' || user.role === 'subscriber') && filters.subscriberId && filters.subscriberId !== userSubscriberId) {
+    const userSubscriberId = (user.subscriberId as number | undefined) || req.subscriberId;
+    if ((user.role === 'client' || user.role === 'subscriber') && (filters as Record<string, unknown>).subscriberId && (filters as Record<string, unknown>).subscriberId !== userSubscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode gerar relatórios para seu próprio subscriber'
       });
     }
 
-    const userId = user.userId ?? user.id ?? 0;
+    const userId = Number(user.userId ?? user.id ?? 0);
     const report = await getReportsService().generateReport(reportRequest, userId);
 
     return res.status(201).json({
       success: true,
       message: 'Relatório gerado com sucesso',
       data: report
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao gerar relatório', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao gerar relatório', e.error);
     if (isMissingTableError(error)) {
       return res.status(503).json({
         success: false,
         message: 'Recurso de relatórios não disponível. Execute as migrações do banco.',
-        error: error.message
-      });
+        error: e.message
+  });
     }
-    const status = error.message && /obrigatório|inválido|required|invalid/i.test(error.message) ? 400 : 500;
+    const status = e.message && /obrigatório|inválido|required|invalid/i.test(e.message) ? 400 : 500;
     return res.status(status).json({
       success: false,
-      message: error.message || 'Erro ao gerar relatório',
-      error: error.message
+      message: e.message || 'Erro ao gerar relatório',
+      error: e.message
     });
   }
 });
@@ -302,24 +301,23 @@ router.post('/', async (req: any, res) => {
  * @desc Remove relatório
  * @access Private (Admin, Manager)
  */
-router.delete('/:id', authorizeRole(['admin', 'gerente_marketing']), async (req: any, res) => {
+router.delete('/:id', authorizeRole(['admin', 'gerente_marketing']), async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { id } = req.params;
 
-    await getReportsService().deleteReport(parseInt(id), req.user.userId);
+    await getReportsService().deleteReport(parseInt(id), req.user!.userId);
 
     return res.json({
       success: true,
       message: 'Relatório removido com sucesso'
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao remover relatório', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao remover relatório', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao remover relatório',
-      error: error.message
-    });
+      message: e.message || 'Erro ao remover relatório',
+      error: e.message
+  });
   }
 });
 
@@ -328,7 +326,7 @@ router.delete('/:id', authorizeRole(['admin', 'gerente_marketing']), async (req:
  * @desc Download de relatório
  * @access Private (Admin, Manager, Client)
  */
-router.get('/download/:id', async (req: any, res) => {
+router.get('/download/:id', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { id } = req.params;
 
@@ -383,19 +381,19 @@ router.get('/download/:id', async (req: any, res) => {
 
     // Incrementar contador de downloads
     try {
-      await getReportsService().incrementDownloadCount(parseInt(id));
-    } catch (error: any) {
-      await logWarn('Erro ao incrementar contador de downloads', { error: error.message });
+      await getReportsService().incrementDownloadCount(parseInt(id));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logWarn('Erro ao incrementar contador de downloads', { error: e.message });
       // Não falhar o download se o incremento falhar
-    }
-
-  } catch (error: any) {
-    await logError('Erro ao baixar relatório', error);
+ 
+}} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao baixar relatório', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -404,7 +402,7 @@ router.get('/download/:id', async (req: any, res) => {
  * @desc Regenera relatório
  * @access Private (Admin, Manager, Client)
  */
-router.post('/:id/regenerate', async (req: any, res) => {
+router.post('/:id/regenerate', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { id } = req.params;
 
@@ -440,15 +438,14 @@ router.post('/:id/regenerate', async (req: any, res) => {
       success: true,
       message: 'Relatório regenerado com sucesso',
       data: newReport
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao regenerar relatório', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao regenerar relatório', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao regenerar relatório',
-      error: error.message
-    });
+      message: e.message || 'Erro ao regenerar relatório',
+      error: e.message
+  });
   }
 });
 
@@ -464,15 +461,14 @@ router.get('/templates', authorizeRole(['admin', 'gerente_marketing', 'visualiza
     return res.json({
       success: true,
       data: templates
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar templates de relatório', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar templates de relatório', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -498,15 +494,14 @@ router.post('/templates', authorizeRole(['admin']), async (req, res) => {
       success: true,
       message: 'Template criado com sucesso',
       data: template
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao criar template de relatório', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao criar template de relatório', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao criar template',
-      error: error.message
-    });
+      message: e.message || 'Erro ao criar template',
+      error: e.message
+  });
   }
 });
 
@@ -551,15 +546,14 @@ router.get('/formats', async (_req, res) => {
     return res.json({
       success: true,
       data: formats
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar formatos de relatório', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar formatos de relatório', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -585,9 +579,10 @@ router.post('/bulk-generate', authorizeRole(['admin', 'gerente_marketing']), asy
     for (const reportRequest of reports) {
       try {
         const report = await getReportsService().generateReport(reportRequest, req.user?.id || req.user?.userId || 0);
-        results.push({ success: true, report });
-      } catch (error: any) {
-        errors.push({ success: false, error: error.message, request: reportRequest });
+        results.push({
+          success: true, report });} catch (error: unknown) {
+        const e = normalizeError(error);
+        errors.push({ success: false, error: e.message, request: reportRequest });
       }
     }
 
@@ -603,15 +598,14 @@ router.post('/bulk-generate', authorizeRole(['admin', 'gerente_marketing']), asy
           failed: errors.length
         }
       }
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao gerar relatórios em lote', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao gerar relatórios em lote', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -620,12 +614,12 @@ router.post('/bulk-generate', authorizeRole(['admin', 'gerente_marketing']), asy
  * @desc Exporta dados diretamente para Excel (sem salvar relatório)
  * @access Private (Admin, Manager, Client)
  */
-router.post('/export/excel', async (req: any, res) => {
+router.post('/export/excel', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { type, filters, title, description } = req.body;
 
     // Verificar permissão para clientes
-    if (req.user.role === 'client' && filters?.clientId !== req.user.clientId) {
+    if (req.user!.role === 'client' && filters?.clientId !== req.user!.clientId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode exportar dados do seu próprio cliente'
@@ -671,15 +665,14 @@ router.post('/export/excel', async (req: any, res) => {
         }
       }, 1000);
     });
-    return;
-
-  } catch (error: any) {
-    await logError('Erro ao exportar para Excel', error);
+    return;} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao exportar para Excel', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro ao exportar para Excel',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -688,12 +681,12 @@ router.post('/export/excel', async (req: any, res) => {
  * @desc Exporta dados diretamente para PDF (sem salvar relatório)
  * @access Private (Admin, Manager, Client)
  */
-router.post('/export/pdf', async (req: any, res) => {
+router.post('/export/pdf', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { type, filters, title, description } = req.body;
 
     // Verificar permissão para clientes
-    if (req.user.role === 'client' && filters?.clientId !== req.user.clientId) {
+    if (req.user!.role === 'client' && filters?.clientId !== req.user!.clientId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode exportar dados do seu próprio cliente'
@@ -739,15 +732,14 @@ router.post('/export/pdf', async (req: any, res) => {
         }
       }, 1000);
     });
-    return;
-
-  } catch (error: any) {
-    await logError('Erro ao exportar para PDF', error);
+    return;} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao exportar para PDF', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro ao exportar para PDF',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -756,12 +748,12 @@ router.post('/export/pdf', async (req: any, res) => {
  * @desc Exporta dados diretamente para CSV (sem salvar relatório)
  * @access Private (Admin, Manager, Client)
  */
-router.post('/export/csv', async (req: any, res) => {
+router.post('/export/csv', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { type, filters, title, description } = req.body;
 
     // Verificar permissão para clientes
-    if (req.user.role === 'client' && filters?.clientId !== req.user.clientId) {
+    if (req.user!.role === 'client' && filters?.clientId !== req.user!.clientId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode exportar dados do seu próprio cliente'
@@ -792,15 +784,14 @@ router.post('/export/csv', async (req: any, res) => {
     res.setHeader('Content-Encoding', 'utf-8');
 
     res.send(csvContent);
-    return;
-
-  } catch (error: any) {
-    await logError('Erro ao exportar para CSV', error);
+    return;} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao exportar para CSV', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro ao exportar para CSV',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 

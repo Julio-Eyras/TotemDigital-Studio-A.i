@@ -5,6 +5,7 @@
 
 import { getWebSocketService } from './websocketService';
 import { logInfo, logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export interface Notification {
   id: string;
@@ -74,10 +75,11 @@ export class NotificationService {
         clientId: notification.clientId
       });
 
-      return fullNotification;
-    } catch (error: unknown) {
+      return fullNotification;} catch (error: unknown) {
+        const e = normalizeError(error);
+
       await logError('Erro ao enviar notificação', error as Error, {});
-      throw error;
+      throw e.error;
     }
   }
 
@@ -115,12 +117,11 @@ export class NotificationService {
         message: row.message as string,
         userId: row.userId as number | undefined,
         clientId: row.clientId as number | undefined,
-        data: row.data as Record<string, unknown> | undefined,
+        data: row.data as unknown as Record<string, unknown> | undefined,
         createdAt: row.createdAt as Date,
         read: row.read as boolean
-      }));
-    } catch (error: unknown) {
-      await logError('Erro ao obter notificações', error as Error, { userId });
+      }));} catch (error: unknown) {
+await logError('Erro ao obter notificações', error as Error, { userId });
       return [];
     }
   }
@@ -139,9 +140,9 @@ export class NotificationService {
         WHERE notification_id = $1 AND user_id = $2
       `, [notificationId, userId]);
 
-      await logInfo('Notificação marcada como lida', { notificationId, userId });
-    } catch (error: unknown) {
-      await logError('Erro ao marcar notificação como lida', error as Error, {
+      await logInfo('Notificação marcada como lida', {
+        notificationId, userId });} catch (error: unknown) {
+await logError('Erro ao marcar notificação como lida', error as Error, {
         notificationId,
         userId
       });
@@ -189,12 +190,11 @@ export class NotificationService {
         message: result.message as string,
         userId: result.userId as number | undefined,
         clientId: result.clientId as number | undefined,
-        data: result.data as Record<string, unknown> | undefined,
+        data: result.data as unknown as Record<string, unknown> | undefined,
         createdAt: result.createdAt as Date,
         read: result.read as boolean
-      };
-    } catch (error: unknown) {
-      await logError('Erro ao obter notificação', error as Error, { notificationId, userId });
+      };} catch (error: unknown) {
+await logError('Erro ao obter notificação', error as Error, { notificationId, userId });
       return null;
     }
   }
@@ -264,12 +264,11 @@ export class NotificationService {
         message: row.message as string,
         userId: row.userId as number | undefined,
         clientId: row.clientId as number | undefined,
-        data: row.data as Record<string, unknown> | undefined,
+        data: row.data as unknown as Record<string, unknown> | undefined,
         createdAt: row.createdAt as Date,
         read: row.read as boolean
-      }));
-    } catch (error: unknown) {
-      await logError('Erro ao obter notificações', error as Error, { filters });
+      }));} catch (error: unknown) {
+await logError('Erro ao obter notificações', error as Error, { filters });
       return [];
     }
   }
@@ -288,9 +287,8 @@ export class NotificationService {
       `, [notificationId, userId]);
 
       await logInfo('Notificação deletada', { notificationId, userId });
-      return true;
-    } catch (error: unknown) {
-      await logError('Erro ao deletar notificação', error as Error, {
+      return true;} catch (error: unknown) {
+await logError('Erro ao deletar notificação', error as Error, {
         notificationId,
         userId
       });
@@ -322,9 +320,8 @@ export class NotificationService {
         notification.data ? JSON.stringify(notification.data) : null,
         notification.createdAt,
         notification.read
-      ]);
-    } catch (error: unknown) {
-      await logError('Erro ao salvar notificação', error as Error, {
+      ]);} catch (error: unknown) {
+await logError('Erro ao salvar notificação', error as Error, {
         notificationId: notification.id
       });
     }

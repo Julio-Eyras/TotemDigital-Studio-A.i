@@ -8,6 +8,7 @@ import * as os from 'os';
 import { logError, logInfo } from '../utils/loggerHelper';
 import { config } from '../config/env';
 import { APP_VERSION, APP_NAME, APP_DESCRIPTION } from '../config/version';
+import { normalizeError } from '../utils/errors';
 
 export interface SystemHealth {
   status: 'healthy' | 'unhealthy' | 'degraded';
@@ -77,10 +78,11 @@ export class SystemService {
    */
   async initialize(): Promise<void> {
     try {
-      await logInfo('SystemService inicializado', {});
-    } catch (error: any) {
-      await logError('Erro ao inicializar SystemService', error, {});
-      throw error;
+      await logInfo('SystemService inicializado', {
+        });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao inicializar SystemService', e.error, {});
+      throw e.error;
     }
   }
 
@@ -99,7 +101,7 @@ export class SystemService {
         await this.db.findFirst('SELECT 1 as test');
         dbStatus = 'connected';
         dbResponseTime = Date.now() - startTime;
-      } catch (error) {
+} catch (error: unknown) {
         dbStatus = 'error';
       }
 
@@ -136,11 +138,10 @@ export class SystemService {
         disk: diskInfo,
         uptime: process.uptime(),
         timestamp: new Date().toISOString()
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao verificar saúde do sistema', error, {});
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao verificar saúde do sistema', e.error, {});
+      throw e.error;
     }
   }
 
@@ -201,11 +202,10 @@ export class SystemService {
           nodeVersion: process.version,
           uptime: process.uptime()
         }
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao obter informações do sistema', error, {});
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter informações do sistema', e.error, {});
+      throw e.error;
     }
   }
 
@@ -225,11 +225,10 @@ export class SystemService {
         portrait: config.player.portrait,
         abandonPin: config.security.playerAbandonPin,
         storageUseExternalFirst: config.player.storageUseExternalFirst
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao obter configuração do player', error, {});
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter configuração do player', e.error, {});
+      throw e.error;
     }
   }
 
@@ -244,7 +243,7 @@ export class SystemService {
         total: 0,
         percentage: 0
       };
-    } catch (error) {
+} catch (error: unknown) {
       return {
         used: 0,
         total: 0,
@@ -261,7 +260,7 @@ export class SystemService {
       // Apenas PostgreSQL suportado na v2.1
       const result = await this.db.findFirst('SELECT version() as version');
       return result?.version;
-    } catch (error) {
+} catch (error: unknown) {
       return undefined;
     }
   }
@@ -298,7 +297,8 @@ export class SystemService {
         default:
           return 'unknown';
       }
-    } catch (error) {
+ 
+} catch (error: unknown) {
       return 'error';
     }
   }

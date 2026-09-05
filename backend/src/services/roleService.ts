@@ -1,5 +1,6 @@
 import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export interface Role {
   role_id: number;
@@ -92,10 +93,10 @@ export class RoleService {
         total,
         page,
         limit
-      };
-    } catch (error: any) {
-      await logError('Erro ao listar roles', error);
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar roles', e.error);
+      throw e.error;
     }
   }
 
@@ -119,10 +120,10 @@ export class RoleService {
         is_active: role.is_active,
         created_at: role.created_at,
         updated_at: role.updated_at
-      };
-    } catch (error: any) {
-      await logError('Erro ao buscar role', error, { roleId });
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar role', e.error, { roleId });
+      throw e.error;
     }
   }
 
@@ -146,10 +147,10 @@ export class RoleService {
         is_active: role.is_active,
         created_at: role.created_at,
         updated_at: role.updated_at
-      };
-    } catch (error: any) {
-      await logError('Erro ao buscar role por nome', error, { name });
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar role por nome', e.error, { name });
+      throw e.error;
     }
   }
 
@@ -180,10 +181,10 @@ export class RoleService {
         throw new Error('Erro ao buscar role criada');
       }
 
-      return newRole;
-    } catch (error: any) {
-      await logError('Erro ao criar role', error, { data });
-      throw error;
+      return newRole;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar role', e.error, { data });
+      throw e.error;
     }
   }
 
@@ -206,7 +207,7 @@ export class RoleService {
       }
 
       const updates: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (data.name !== undefined) {
         updates.push('name = ?');
@@ -241,10 +242,10 @@ export class RoleService {
         throw new Error('Erro ao buscar role atualizada');
       }
 
-      return updated;
-    } catch (error: any) {
-      await logError('Erro ao atualizar role', error, { roleId, data });
-      throw error;
+      return updated;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar role', e.error, { roleId, data });
+      throw e.error;
     }
   }
 
@@ -272,10 +273,10 @@ export class RoleService {
       await this.db.executeRaw(`
         DELETE FROM roles
         WHERE role_id = ?
-      `, [roleId]);
-    } catch (error: any) {
-      await logError('Erro ao deletar role', error, { roleId });
-      throw error;
+      `, [roleId]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao deletar role', e.error, { roleId });
+      throw e.error;
     }
   }
 
@@ -298,10 +299,10 @@ export class RoleService {
         ORDER BY p.resource, p.action
       `, [roleId]);
 
-      return permissions;
-    } catch (error: any) {
-      await logError('Erro ao buscar permissões da role', error, { roleId });
-      throw error;
+      return permissions;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar permissões da role', e.error, { roleId });
+      throw e.error;
     }
   }
 
@@ -324,10 +325,10 @@ export class RoleService {
       await this.db.executeRaw(`
         INSERT INTO role_permissions (role_id, permission_id)
         VALUES ($1, $2)
-      `, [roleId, permissionId]);
-    } catch (error: any) {
-      await logError('Erro ao atribuir permissão à role', error, { roleId, permissionId });
-      throw error;
+      `, [roleId, permissionId]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atribuir permissão à role', e.error, { roleId, permissionId });
+      throw e.error;
     }
   }
 
@@ -339,10 +340,10 @@ export class RoleService {
       await this.db.executeRaw(`
         DELETE FROM role_permissions
         WHERE role_id = ? AND permission_id = ?
-      `, [roleId, permissionId]);
-    } catch (error: any) {
-      await logError('Erro ao remover permissão da role', error, { roleId, permissionId });
-      throw error;
+      `, [roleId, permissionId]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao remover permissão da role', e.error, { roleId, permissionId });
+      throw e.error;
     }
   }
 
@@ -366,10 +367,11 @@ export class RoleService {
           INSERT INTO role_permissions (role_id, permission_id)
           VALUES ${values}
         `, params);
-      }
-    } catch (error: any) {
-      await logError('Erro ao definir permissões da role', error, { roleId, permissionIds });
-      throw error;
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao definir permissões da role', e.error, { roleId, permissionIds });
+      throw e.error;
     }
   }
 }

@@ -7,6 +7,7 @@ import { getDatabase } from '../config/database';
 import { logError, logInfo } from '../utils/loggerHelper';
 import { NotificationService } from './notificationService';
 import { emailService } from './emailService';
+import { normalizeError } from '../utils/errors';
 
 // Configuração de períodos de aviso (em dias)
 export const NOTIFICATION_PERIODS = [7, 15, 30] as const;
@@ -126,9 +127,9 @@ export class SubscriberAccessNotificationService {
             WHERE access_id = $2
           `, [new Date().toISOString(), access.access_id]);
 
-          notified++;
-        } catch (error: any) {
-          await logError('Erro ao enviar notificação de acesso expirando', error, {
+          notified++;} catch (error: unknown) {
+      const e = normalizeError(error);
+          await logError('Erro ao enviar notificação de acesso expirando', e.error, {
             accessId: access.access_id,
             subscriberId: access.subscriber_id,
             publisherId: access.publisher_id,
@@ -148,10 +149,10 @@ export class SubscriberAccessNotificationService {
         checked: expiringAccess.length,
         notified,
         errors,
-      };
-    } catch (error: any) {
-      await logError('Erro ao verificar acessos expirando', error);
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao verificar acessos expirando', e.error);
+      throw e.error;
     }
   }
 
@@ -176,9 +177,9 @@ export class SubscriberAccessNotificationService {
         results[period] = result;
         totalChecked += result.checked;
         totalNotified += result.notified;
-        totalErrors += result.errors;
-      } catch (error: any) {
-        await logError(`Erro ao verificar período de ${period} dias`, error);
+        totalErrors += result.errors;} catch (error: unknown) {
+      const e = normalizeError(error);
+        await logError(`Erro ao verificar período de ${period} dias`, e.error);
         results[period] = { checked: 0, notified: 0, errors: 1 };
         totalErrors++;
       }
@@ -325,8 +326,7 @@ Por favor, entre em contato imediatamente para renovar o acesso.
                 html: emailHtml,
                 text: emailText,
               });
-            } catch (emailError: any) {
-              await logError('Erro ao enviar email de notificação de acesso expirado', emailError, {
+} catch (emailError: unknown) {              await logError('Erro ao enviar email de notificação de acesso expirado', emailError, {
                 accessId: access.access_id,
                 recipients: emailRecipients,
               });
@@ -344,9 +344,9 @@ Por favor, entre em contato imediatamente para renovar o acesso.
             WHERE access_id = $2
           `, [new Date().toISOString(), access.access_id]);
 
-          notified++;
-        } catch (error: any) {
-          await logError('Erro ao enviar notificação de acesso expirado', error, {
+          notified++;} catch (error: unknown) {
+      const e = normalizeError(error);
+          await logError('Erro ao enviar notificação de acesso expirado', e.error, {
             accessId: access.access_id,
             subscriberId: access.subscriber_id,
             publisherId: access.publisher_id,
@@ -365,10 +365,10 @@ Por favor, entre em contato imediatamente para renovar o acesso.
         checked: expiredAccess.length,
         notified,
         errors,
-      };
-    } catch (error: any) {
-      await logError('Erro ao verificar acessos expirados', error);
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao verificar acessos expirados', e.error);
+      throw e.error;
     }
   }
 }

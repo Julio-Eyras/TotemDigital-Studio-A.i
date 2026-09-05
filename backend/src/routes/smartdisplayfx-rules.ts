@@ -4,18 +4,21 @@
  * @access Private (Admin, Admin SQL, Gerente Marketing)
  */
 
-import { Router, Response } from 'express';
+import { Router} from 'express';
+import express from 'express';
+
 import { body, query, param, validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { getFxRuleService } from '../services/fxRuleService';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
 // Middleware de autenticação para todas as rotas
 router.use(authMiddleware);
 
-const validateRequest = (req: any, res: any, next: any) => {
+const validateRequest = (req: express.Request, res: express.Response, next: express.NextFunction): express.Response | void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -39,7 +42,7 @@ router.get('/',
   query('isActive').optional().isBoolean(),
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const { page, limit, search, site_id, isActive } = req.query;
       
@@ -51,13 +54,13 @@ router.get('/',
         isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
       });
 
-      return res.json(result);
-    } catch (error: any) {
+      return res.json(result);} catch (error: unknown) {
+      const e = normalizeError(error);
       await logError('GET /api/smartdisplayfx/rules error', error, req.query);
       return res.status(500).json({
         error: 'Erro ao listar regras',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );
@@ -71,16 +74,17 @@ router.get('/site/:siteId',
   param('siteId').isString().notEmpty(),
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const rules = await getFxRuleService().getActiveRulesForSite(req.params.siteId);
-      return res.json({ data: rules });
-    } catch (error: any) {
-      await logError('GET /api/smartdisplayfx/rules/site/:siteId error', error, { siteId: req.params.siteId });
+      return res.json({
+        data: rules });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('GET /api/smartdisplayfx/rules/site/:siteId error', e.error, { siteId: req.params.siteId });
       return res.status(500).json({
         error: 'Erro ao listar regras do site',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );
@@ -94,7 +98,7 @@ router.get('/:id',
   param('id').isInt({ min: 1 }),
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const ruleId = parseInt(req.params.id);
       const rule = await getFxRuleService().getRuleById(ruleId);
@@ -105,13 +109,14 @@ router.get('/:id',
         });
       }
 
-      return res.json({ data: rule });
-    } catch (error: any) {
-      await logError('GET /api/smartdisplayfx/rules/:id error', error, { id: req.params.id });
+      return res.json({
+        data: rule });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('GET /api/smartdisplayfx/rules/:id error', e.error, { id: req.params.id });
       return res.status(500).json({
         error: 'Erro ao buscar regra',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );
@@ -131,16 +136,17 @@ router.post('/',
   body('is_active').optional({ nullable: true }).isBoolean(),
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const rule = await getFxRuleService().createRule(req.body);
-      return res.status(201).json({ data: rule });
-    } catch (error: any) {
+      return res.status(201).json({
+        data: rule });} catch (error: unknown) {
+      const e = normalizeError(error);
       await logError('POST /api/smartdisplayfx/rules error', error, req.body);
       return res.status(500).json({
         error: 'Erro ao criar regra',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );
@@ -161,21 +167,22 @@ router.put('/:id',
   body('is_active').optional({ nullable: true }).isBoolean(),
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const ruleId = parseInt(req.params.id);
       const rule = await getFxRuleService().updateRule(ruleId, req.body);
-      return res.json({ data: rule });
-    } catch (error: any) {
-      await logError('PUT /api/smartdisplayfx/rules/:id error', error, { id: req.params.id, body: req.body });
-      if (error.message.includes('não encontrada')) {
+      return res.json({
+        data: rule });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('PUT /api/smartdisplayfx/rules/:id error', e.error, { id: req.params.id, body: req.body });
+      if (e.message.includes('não encontrada')) {
         return res.status(404).json({
-          error: error.message
-        });
+          error: e.message
+    });
       }
       return res.status(500).json({
         error: 'Erro ao atualizar regra',
-        message: error.message
+        message: e.message
       });
     }
   }
@@ -190,21 +197,22 @@ router.delete('/:id',
   param('id').isInt({ min: 1 }),
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const ruleId = parseInt(req.params.id);
       await getFxRuleService().deleteRule(ruleId);
-      return res.json({ message: 'Regra deletada com sucesso' });
-    } catch (error: any) {
-      await logError('DELETE /api/smartdisplayfx/rules/:id error', error, { id: req.params.id });
-      if (error.message.includes('não encontrada')) {
+      return res.json({
+        message: 'Regra deletada com sucesso' });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('DELETE /api/smartdisplayfx/rules/:id error', e.error, { id: req.params.id });
+      if (e.message.includes('não encontrada')) {
         return res.status(404).json({
-          error: error.message
-        });
+          error: e.message
+    });
       }
       return res.status(500).json({
         error: 'Erro ao deletar regra',
-        message: error.message
+        message: e.message
       });
     }
   }

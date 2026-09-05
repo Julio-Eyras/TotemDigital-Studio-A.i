@@ -1,5 +1,6 @@
 import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export interface PlayerTransaction {
   transactionId: string;
@@ -17,7 +18,7 @@ export interface PlayerTransaction {
   ipAddress?: string;
   userAgent?: string;
   duration?: number;
-  metadata?: any;
+  metadata: Record<string, unknown>;
 }
 
 export class PlayerDebugService {
@@ -72,11 +73,10 @@ export class PlayerDebugService {
         transaction.userAgent || null,
         transaction.duration || null,
         transaction.metadata ? JSON.stringify(transaction.metadata) : null
-      ]);
-
-    } catch (error: any) {
+      ]);} catch (error: unknown) {
+      const e = normalizeError(error);
       // Não falhar silenciosamente, mas logar erro
-      await logError('[PlayerDebug] Erro ao registrar transação', error, { transaction });
+      await logError('[PlayerDebug] Erro ao registrar transação', e.error, { transaction });
     }
   }
 
@@ -115,7 +115,7 @@ export class PlayerDebugService {
         FROM player_debug_transactions
         WHERE 1=1
       `;
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (filters?.uin) {
         query += ` AND uin = ?`;
@@ -170,10 +170,9 @@ export class PlayerDebugService {
         userAgent: row.user_agent,
         duration: row.duration,
         metadata: row.metadata ? JSON.parse(row.metadata) : undefined
-      }));
-
-    } catch (error: any) {
-      await logError('[PlayerDebug] Erro ao buscar transações', error, { filters });
+      }));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('[PlayerDebug] Erro ao buscar transações', e.error, { filters });
       return [];
     }
   }
@@ -221,12 +220,12 @@ export class PlayerDebugService {
 
       await this.db.executeRaw(`
         CREATE INDEX IF NOT EXISTS idx_player_debug_status ON player_debug_transactions(status)
-      `).catch(() => {});
-
-    } catch (error: any) {
+      `).catch(() => {
+        });} catch (error: unknown) {
+      const e = normalizeError(error);
       // Se a tabela já existe, ignora o erro
-      if (!error.message?.includes('already exists')) {
-        await logError('[PlayerDebug] Erro ao criar tabela', error, {});
+      if (!e.message?.includes('already exists')) {
+        await logError('[PlayerDebug] Erro ao criar tabela', e.error, {});
       }
     }
   }
@@ -243,9 +242,9 @@ export class PlayerDebugService {
         WHERE timestamp < CURRENT_TIMESTAMP - INTERVAL '${daysToKeep} days'
       `);
 
-      return (result as any).rowCount || 0;
-    } catch (error: any) {
-      await logError('[PlayerDebug] Erro ao limpar transações antigas', error, { daysToKeep });
+      return Number((result as unknown as Record<string, unknown>).rowCount) || 0;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('[PlayerDebug] Erro ao limpar transações antigas', e.error, { daysToKeep });
       return 0;
     }
   }
@@ -259,5 +258,4 @@ export class PlayerDebugService {
 }
 
 export const playerDebugService = new PlayerDebugService();
-
 

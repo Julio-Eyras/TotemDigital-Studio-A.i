@@ -10,6 +10,7 @@ import { logError } from '../../utils/loggerHelper';
 import type { PublishBoardPresetType } from '../publishBoardRenderService';
 import { generateVideoViaHttp } from './httpAiVideoAdapter';
 import type { AiVideoJobResult, AiVideoProviderId } from './aiVideoTypes';
+import { normalizeError } from '../../utils/errors';
 
 export interface VideoAiProcessInput {
   subscriberId: number;
@@ -89,10 +90,10 @@ export class PublishVideoAiProcessorService {
         mediaId: media.id,
         mediaName: media.name,
         provider,
-      };
-    } catch (error: any) {
-      const message = error?.message || 'Erro ao importar vídeo gerado.';
-      await logError('publishVideoAiProcessor: importação falhou', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      const message = ((e.raw as { message?: string })?.message) || 'Erro ao importar vídeo gerado.';
+      await logError('publishVideoAiProcessor: importação falhou', e.error);
       await this.persistJob(jobId, input, provider, 'failed', { message });
       return { jobId, status: 'failed', message, provider };
     }

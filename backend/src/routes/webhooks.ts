@@ -3,18 +3,21 @@
  * Rotas para gerenciar webhooks configuráveis
  */
 
-import { Router, Response } from 'express';
+import { Router} from 'express';
+import express from 'express';
+
 import { body, param, query, validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { getWebhookService } from '../services/webhookService';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
 // Middleware de autenticação
 router.use(authMiddleware);
 
-const validateRequest = (req: any, res: any, next: any) => {
+const validateRequest = (req: express.Request, res: express.Response, next: express.NextFunction): express.Response | void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -36,9 +39,9 @@ router.get('/',
   query('event').optional().isString(),
   validateRequest,
   authorizeRole(['admin', 'admin_sql']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
-      const filters: any = {};
+      const filters: Record<string, unknown> = {};
       if (req.query.enabled !== undefined) {
         filters.enabled = req.query.enabled === 'true';
       }
@@ -49,12 +52,12 @@ router.get('/',
       return res.json({
         success: true,
         data: webhooks
-      });
-    } catch (error: any) {
-      await logError('Erro ao listar webhooks', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar webhooks', e.error);
       return res.status(500).json({
         success: false,
-        message: error.message || 'Erro ao listar webhooks'
+        message: e.message || 'Erro ao listar webhooks'
       });
     }
   }
@@ -69,7 +72,7 @@ router.get('/:id',
   param('id').isInt({ min: 1 }),
   validateRequest,
   authorizeRole(['admin', 'admin_sql']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const webhook = await getWebhookService().getWebhookById(parseInt(req.params.id));
       if (!webhook) {
@@ -81,12 +84,12 @@ router.get('/:id',
       return res.json({
         success: true,
         data: webhook
-      });
-    } catch (error: any) {
-      await logError('Erro ao buscar webhook', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar webhook', e.error);
       return res.status(500).json({
         success: false,
-        message: error.message || 'Erro ao buscar webhook'
+        message: e.message || 'Erro ao buscar webhook'
       });
     }
   }
@@ -108,18 +111,18 @@ router.post('/',
   body('timeoutMs').optional({ nullable: true }).isInt({ min: 1000, max: 30000 }),
   validateRequest,
   authorizeRole(['admin', 'admin_sql']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const webhook = await getWebhookService().createWebhook(req.body);
       return res.status(201).json({
         success: true,
         data: webhook
-      });
-    } catch (error: any) {
-      await logError('Erro ao criar webhook', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar webhook', e.error);
       return res.status(400).json({
         success: false,
-        message: error.message || 'Erro ao criar webhook'
+        message: e.message || 'Erro ao criar webhook'
       });
     }
   }
@@ -142,18 +145,18 @@ router.put('/:id',
   body('timeoutMs').optional({ nullable: true }).isInt({ min: 1000, max: 30000 }),
   validateRequest,
   authorizeRole(['admin', 'admin_sql']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const webhook = await getWebhookService().updateWebhook(parseInt(req.params.id), req.body);
       return res.json({
         success: true,
         data: webhook
-      });
-    } catch (error: any) {
-      await logError('Erro ao atualizar webhook', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar webhook', e.error);
       return res.status(400).json({
         success: false,
-        message: error.message || 'Erro ao atualizar webhook'
+        message: e.message || 'Erro ao atualizar webhook'
       });
     }
   }
@@ -168,18 +171,18 @@ router.delete('/:id',
   param('id').isInt({ min: 1 }),
   validateRequest,
   authorizeRole(['admin', 'admin_sql']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       await getWebhookService().deleteWebhook(parseInt(req.params.id));
       return res.json({
         success: true,
         message: 'Webhook deletado com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro ao deletar webhook', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao deletar webhook', e.error);
       return res.status(400).json({
         success: false,
-        message: error.message || 'Erro ao deletar webhook'
+        message: e.message || 'Erro ao deletar webhook'
       });
     }
   }
@@ -194,7 +197,7 @@ router.post('/:id/test',
   param('id').isInt({ min: 1 }),
   validateRequest,
   authorizeRole(['admin', 'admin_sql']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const webhook = await getWebhookService().getWebhookById(parseInt(req.params.id));
       if (!webhook) {
@@ -212,12 +215,12 @@ router.post('/:id/test',
       return res.json({
         success: true,
         message: 'Webhook testado com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro ao testar webhook', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao testar webhook', e.error);
       return res.status(500).json({
         success: false,
-        message: error.message || 'Erro ao testar webhook'
+        message: e.message || 'Erro ao testar webhook'
       });
     }
   }

@@ -5,6 +5,7 @@
 
 import { getRedisClient } from '../config/redis';
 import { logInfo, logError, logDebug } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export interface CacheOptions {
   ttl?: number; // Time to live em segundos
@@ -32,9 +33,9 @@ export class AnalyticsCacheService {
         return JSON.parse(cached) as T;
       }
       await logDebug('Cache miss', { key });
-      return null;
-    } catch (error: any) {
-      await logError('Erro ao buscar do cache', error, { key });
+      return null;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar do cache', e.error, { key });
       return null;
     }
   }
@@ -49,9 +50,10 @@ export class AnalyticsCacheService {
       }
       const serialized = JSON.stringify(value);
       await this.redis.setex(key, ttl, serialized);
-      await logDebug('Valor armazenado no cache', { key, ttl });
-    } catch (error: any) {
-      await logError('Erro ao armazenar no cache', error, { key });
+      await logDebug('Valor armazenado no cache', {
+        key, ttl });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao armazenar no cache', e.error, { key });
     }
   }
 
@@ -64,9 +66,10 @@ export class AnalyticsCacheService {
         return;
       }
       await this.redis.del(key);
-      await logDebug('Valor removido do cache', { key });
-    } catch (error: any) {
-      await logError('Erro ao remover do cache', error, { key });
+      await logDebug('Valor removido do cache', {
+        key });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao remover do cache', e.error, { key });
     }
   }
 
@@ -82,9 +85,10 @@ export class AnalyticsCacheService {
       if (keys.length > 0) {
         await this.redis.del(...keys);
         await logDebug('Chaves removidas do cache', { pattern, count: keys.length });
-      }
-    } catch (error: any) {
-      await logError('Erro ao remover padrão do cache', error, { pattern });
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao remover padrão do cache', e.error, { pattern });
     }
   }
 
@@ -203,9 +207,9 @@ export class AnalyticsCacheService {
       // Cache miss - buscar e armazenar
       const value = await fetcher();
       await this.set(key, value, ttl);
-      return value;
-    } catch (error: any) {
-      await logError('Erro no getOrSet', error, { key });
+      return value;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro no getOrSet', e.error, { key });
       // Em caso de erro no cache, retornar valor direto
       return await fetcher();
     }
@@ -241,9 +245,9 @@ export class AnalyticsCacheService {
       const allKeys = await this.redis.keys('analytics:*');
       stats.totalKeys = allKeys.length;
 
-      return stats;
-    } catch (error: any) {
-      await logError('Erro ao obter estatísticas do cache', error, {});
+      return stats;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter estatísticas do cache', e.error, {});
       return {
         hitRate: 0,
         totalKeys: 0,

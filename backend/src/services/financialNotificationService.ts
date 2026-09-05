@@ -8,6 +8,7 @@ import { emailService } from './emailService';
 import { buildPixCopyPaste } from '../utils/pixEmv';
 import { logError, logInfo } from '../utils/loggerHelper';
 import {
+
   DEFAULT_OVERDUE_BLOCK_EMAIL_BODY,
   DEFAULT_OVERDUE_BLOCK_EMAIL_SUBJECT,
   DEFAULT_OVERDUE_BLOCK_WHATSAPP_MESSAGE,
@@ -16,6 +17,7 @@ import {
 import { SettingsService } from './settingsService';
 import { getWhatsappMessagingService } from './whatsappMessagingService';
 import type { OverdueBillingSummary } from '../types/billingEnforcementTypes';
+import { normalizeError } from '../utils/errors';
 
 export class FinancialNotificationService {
   private settingsService = new SettingsService();
@@ -112,10 +114,11 @@ export class FinancialNotificationService {
         await logInfo('E-mail de fatura enviado', { billingId, to: row.subscriber_email });
         return { sent: true };
       }
-      return { sent: false, reason: result.error || 'Falha no envio SMTP' };
-    } catch (error: any) {
-      await logError('Erro ao enviar e-mail de fatura', error, { billingId });
-      return { sent: false, reason: error.message };
+      return {
+        sent: false, reason: result.error || 'Falha no envio SMTP' };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao enviar e-mail de fatura', e.error, { billingId });
+      return { sent: false, reason: e.message };
     }
   }
 
@@ -191,10 +194,11 @@ export class FinancialNotificationService {
         await logInfo('E-mail de repasse (organização) enviado', { billingId, to: row.publisher_email });
         return { sent: true };
       }
-      return { sent: false, reason: result.error || 'Falha no envio SMTP' };
-    } catch (error: any) {
-      await logError('Erro ao enviar e-mail de repasse', error, { billingId });
-      return { sent: false, reason: error.message };
+      return {
+        sent: false, reason: result.error || 'Falha no envio SMTP' };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao enviar e-mail de repasse', e.error, { billingId });
+      return { sent: false, reason: e.message };
     }
   }
 
@@ -278,10 +282,11 @@ export class FinancialNotificationService {
         await logInfo('E-mail de fatura (organização) enviado', { billingId, to: row.publisher_email });
         return { sent: true };
       }
-      return { sent: false, reason: result.error || 'Falha no envio SMTP' };
-    } catch (error: any) {
-      await logError('Erro ao enviar e-mail de fatura (organização)', error, { billingId });
-      return { sent: false, reason: error.message };
+      return {
+        sent: false, reason: result.error || 'Falha no envio SMTP' };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao enviar e-mail de fatura (organização)', e.error, { billingId });
+      return { sent: false, reason: e.message };
     }
   }
 
@@ -526,10 +531,11 @@ export class FinancialNotificationService {
         };
       }
 
-      return { sent: true, channels };
-    } catch (error: any) {
-      await logError('Erro ao enviar notificação de bloqueio financeiro', error, { subscriberId });
-      return { sent: false, channels: [], reason: error.message };
+      return {
+        sent: true, channels };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao enviar notificação de bloqueio financeiro', e.error, { subscriberId });
+      return { sent: false, channels: [], reason: e.message };
     }
   }
 }

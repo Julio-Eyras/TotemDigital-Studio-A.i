@@ -1,6 +1,7 @@
 import { getDatabase } from '../config/database';
 import { logError, logInfo } from '../utils/loggerHelper';
 import { getAlertService } from './alertService';
+import { normalizeError } from '../utils/errors';
 
 export class ContractAuditService {
   private get db() {
@@ -20,7 +21,7 @@ export class ContractAuditService {
         LIMIT $1
       `, [limit]);
 
-      const results: any[] = [];
+      const results: unknown[] = [];
 
       for (const row of pending) {
         try {
@@ -52,17 +53,18 @@ export class ContractAuditService {
           `, [row.id]);
 
           results.push({ id: row.id, status: 'processed' });
-        } catch (err: any) {
+} catch (err: unknown) {
+  const e = normalizeError(err);
           await logError('Erro ao processar contract_change_audit', err, { id: row.id });
-          results.push({ id: row.id, status: 'error', error: err.message });
+          results.push({ id: row.id, status: 'error', error: e.message });
         }
       }
 
       await logInfo('Processed contract_change_audit', { count: results.length });
-      return results;
-    } catch (error: any) {
-      await logError('processPending(contract_change_audit) failed', error);
-      throw error;
+      return results;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('processPending(contract_change_audit) failed', e.error);
+      throw e.error;
     }
   }
 }

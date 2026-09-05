@@ -38,6 +38,9 @@ import {
   Settings,
   ExpandLess,
   ExpandMore,
+  Assessment,
+  SmartToy,
+  AutoAwesome,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { authApi } from '../../services/api';
@@ -89,6 +92,16 @@ const SubscriberLayout: React.FC<SubscriberLayoutProps> = ({ children }) => {
     if (!user?.role) {
       return [
         { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+        {
+          text: 'Dashboards',
+          icon: <Assessment />,
+          path: '/dashboards/general',
+          children: [
+            { text: 'ACE Audiência', icon: <SmartToy />, path: '/dashboards/ace' },
+            { text: 'FX SmartDisplay', icon: <AutoAwesome />, path: '/dashboards/fx' },
+            { text: 'Geral / Analytics', icon: <Analytics />, path: '/dashboards/general' },
+          ],
+        },
         { text: 'Minhas Campanhas', icon: <Campaign />, path: '/campaigns' },
         { text: 'Minhas Mídias', icon: <VideoLibrary />, path: '/media' },
         { text: 'Minhas Playlists', icon: <QueueMusic />, path: '/playlists' },

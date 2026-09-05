@@ -1,8 +1,11 @@
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
+import express from 'express';
+
 import { getDatabase } from '../config/database';
 import fs from 'fs';
 import path from 'path';
 import { logError, logWarn } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -11,7 +14,7 @@ const router = Router();
  * @desc Obter logs de registro de totens
  * @access Private (Admin) ou Public para debug
  */
-router.get('/player-registration-logs', async (req: Request, res: Response) => {
+router.get('/player-registration-logs', async (req: express.Request, res: express.Response) => {
   try {
     const { limit = 50, since } = req.query;
     
@@ -52,13 +55,14 @@ router.get('/player-registration-logs', async (req: Request, res: Response) => {
           systemLogs.push(...lines);
         }
       }
-    } catch (logErr: any) {
+ 
+} catch (logErr: unknown) {
       await logWarn('Erro ao ler logs do sistema', { route: '/api/debug/player-registration-logs', error: logErr });
     }
     
     return res.json({
       success: true,
-      totems: totems.map((t: any) => ({
+      totems: totems.map((tRaw: unknown) => { const t = tRaw as Record<string, unknown>; return ({
         id: t.totem_id,
         identifier: t.identifier,
         uin: t.uin,
@@ -70,16 +74,16 @@ router.get('/player-registration-logs', async (req: Request, res: Response) => {
           return ni?.ip || ni?.ip_address || ni?.ipAddress || null;
         })(),
         hardware: t.network_info ? (typeof t.network_info === 'string' ? JSON.parse(t.network_info) : t.network_info)?.hardware : null
-      })),
+      }); }),
       systemLogs: systemLogs.slice(-200),
       count: totems.length
-    });
-  } catch (error: any) {
-    await logError('Erro ao obter logs de registro', error, { route: '/api/debug/player-registration-logs' });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao obter logs de registro', e.error, { route: '/api/debug/player-registration-logs' });
     return res.status(500).json({ 
       error: 'Erro ao obter logs',
-      message: error.message 
-    });
+      message: e.message 
+  });
   }
 });
 
@@ -88,7 +92,7 @@ router.get('/player-registration-logs', async (req: Request, res: Response) => {
  * @desc Obter informações detalhadas de um totem
  * @access Private (Admin) ou Public para debug
  */
-router.get('/totem/:id', async (req: Request, res: Response) => {
+router.get('/totem/:id', async (req: express.Request, res: express.Response) => {
   try {
     const { id } = req.params;
     const db = getDatabase();
@@ -110,13 +114,13 @@ router.get('/totem/:id', async (req: Request, res: Response) => {
         ...totem,
         config: typeof totem.network_info === 'string' ? JSON.parse(totem.network_info) : totem.network_info
       }
-    });
-  } catch (error: any) {
-    await logError('Erro ao obter totem', error, { route: '/api/debug/totem/:id', totemId: req.params.id });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao obter totem', e.error, { route: '/api/debug/totem/:id', totemId: req.params.id });
     return res.status(500).json({ 
       error: 'Erro ao obter totem',
-      message: error.message 
-    });
+      message: e.message 
+  });
   }
 });
 
@@ -125,7 +129,7 @@ router.get('/totem/:id', async (req: Request, res: Response) => {
  * @desc Obter informações do sistema
  * @access Private (Admin) ou Public para debug
  */
-router.get('/system-info', async (_req: Request, res: Response) => {
+router.get('/system-info', async (_req: express.Request, res: express.Response) => {
   try {
     const db = getDatabase();
     
@@ -148,7 +152,7 @@ router.get('/system-info', async (_req: Request, res: Response) => {
       LIMIT 10
     `);
     
-    const recentWithIp = (recentRegistrations || []).map((t: any) => {
+    const recentWithIp = (recentRegistrations || []).map((tRaw: unknown) => { const t = tRaw as Record<string, unknown>;
       const ni = t.network_info ? (typeof t.network_info === 'string' ? JSON.parse(t.network_info) : t.network_info) : null;
       return {
         totem_id: t.totem_id,
@@ -173,13 +177,13 @@ router.get('/system-info', async (_req: Request, res: Response) => {
         stats: totemStats,
         recentRegistrations: recentWithIp
       }
-    });
-  } catch (error: any) {
-    await logError('Erro ao obter informações do sistema', error, { route: '/api/debug/system-info' });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao obter informações do sistema', e.error, { route: '/api/debug/system-info' });
     return res.status(500).json({ 
       error: 'Erro ao obter informações',
-      message: error.message 
-    });
+      message: e.message 
+  });
   }
 });
 

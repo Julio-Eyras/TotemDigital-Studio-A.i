@@ -6,6 +6,7 @@
 
 import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export interface FxEffect {
   effect_id: number;
@@ -115,10 +116,10 @@ export class FxEffectService {
         total,
         page,
         limit,
-      };
-    } catch (error: any) {
-      await logError('FxEffectService.getAllEffects error', error, params);
-      throw new Error(`Erro ao listar efeitos: ${error.message}`);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxEffectService.getAllEffects error', e.error, params);
+      throw new Error(`Erro ao listar efeitos: ${e.message}`);
     }
   }
 
@@ -147,10 +148,10 @@ export class FxEffectService {
         return null;
       }
 
-      return this.mapRowToEffect(result);
-    } catch (error: any) {
-      await logError('FxEffectService.getEffectById error', error, { effectId });
-      throw new Error(`Erro ao buscar efeito: ${error.message}`);
+      return this.mapRowToEffect(result);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxEffectService.getEffectById error', e.error, { effectId });
+      throw new Error(`Erro ao buscar efeito: ${e.message}`);
     }
   }
 
@@ -179,10 +180,10 @@ export class FxEffectService {
         return null;
       }
 
-      return this.mapRowToEffect(result);
-    } catch (error: any) {
-      await logError('FxEffectService.getEffectByName error', error, { name });
-      throw new Error(`Erro ao buscar efeito por nome: ${error.message}`);
+      return this.mapRowToEffect(result);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxEffectService.getEffectByName error', e.error, { name });
+      throw new Error(`Erro ao buscar efeito por nome: ${e.message}`);
     }
   }
 
@@ -222,13 +223,13 @@ export class FxEffectService {
       ];
 
       const result = await this.db.executeRaw(query, params);
-      return this.mapRowToEffect(result.rows[0]);
-    } catch (error: any) {
-      await logError('FxEffectService.createEffect error', error, data);
-      if (error.code === '23505') {
+      return this.mapRowToEffect(result.rows[0]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxEffectService.createEffect error', e.error, data);
+      if (e.code === '23505') {
         throw new Error(`Efeito com nome "${data.name}" já existe`);
       }
-      throw new Error(`Erro ao criar efeito: ${error.message}`);
+      throw new Error(`Erro ao criar efeito: ${e.message}`);
     }
   }
 
@@ -238,7 +239,7 @@ export class FxEffectService {
   async updateEffect(effectId: number, data: UpdateFxEffectRequest): Promise<FxEffect> {
     try {
       const updates: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
       let paramIndex = 1;
 
       if (data.name !== undefined) {
@@ -306,10 +307,10 @@ export class FxEffectService {
         throw new Error(`Efeito com ID ${effectId} não encontrado`);
       }
 
-      return this.mapRowToEffect(result.rows[0]);
-    } catch (error: any) {
-      await logError('FxEffectService.updateEffect error', error, { effectId, data });
-      throw new Error(`Erro ao atualizar efeito: ${error.message}`);
+      return this.mapRowToEffect(result.rows[0]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxEffectService.updateEffect error', e.error, { effectId, data });
+      throw new Error(`Erro ao atualizar efeito: ${e.message}`);
     }
   }
 
@@ -327,10 +328,11 @@ export class FxEffectService {
 
       if (result.rowCount === 0) {
         throw new Error(`Efeito com ID ${effectId} não encontrado`);
-      }
-    } catch (error: any) {
-      await logError('FxEffectService.deleteEffect error', error, { effectId });
-      throw new Error(`Erro ao deletar efeito: ${error.message}`);
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxEffectService.deleteEffect error', e.error, { effectId });
+      throw new Error(`Erro ao deletar efeito: ${e.message}`);
     }
   }
 
@@ -346,10 +348,10 @@ export class FxEffectService {
         ORDER BY effect_type ASC
       `;
       const result = await this.db.findMany(query);
-      return result.map((row) => row.effect_type);
-    } catch (error: any) {
-      await logError('FxEffectService.getEffectTypes error', error, {});
-      throw new Error(`Erro ao listar tipos de efeitos: ${error.message}`);
+      return result.map((row) => row.effect_type);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxEffectService.getEffectTypes error', e.error, {});
+      throw new Error(`Erro ao listar tipos de efeitos: ${e.message}`);
     }
   }
 

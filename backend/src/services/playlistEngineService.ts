@@ -16,6 +16,7 @@ import { getDatabase } from '../config/database';
 import { logError, logDebug, logWarn } from '../utils/loggerHelper';
 import crypto from 'crypto';
 import { getMediaTotemSyncService } from './mediaTotemSyncService';
+import { normalizeError } from '../utils/errors';
 
 export interface TotemPlaylistItem {
   item_id?: number;
@@ -51,7 +52,7 @@ export interface TotemPlaylist {
   generated_at?: Date;
   last_updated_at?: Date;
   expires_at?: Date;
-  metadata?: any;
+  metadata: Record<string, unknown>;
   generation_log?: any;
   items: TotemPlaylistItem[];
 }
@@ -390,10 +391,11 @@ export class PlaylistEngineService {
       // marcar needsDispatch=true no próximo batimento.
       try {
         await getMediaTotemSyncService().invalidateTotemDispatchCaches([totemId]);
-      } catch (cacheErr) {
+} catch (cacheErr: unknown) {
+        const e = normalizeError(cacheErr);
         await logWarn('Falha ao invalidar cache dispatcher após gerar playlist', {
           totemId,
-          error: cacheErr instanceof Error ? cacheErr.message : String(cacheErr),
+          error: cacheErr instanceof Error ? e.message : String(cacheErr),
         });
       }
 
@@ -407,10 +409,9 @@ export class PlaylistEngineService {
         medias_included: sortedItems.length,
         subscribers_included: uniqueSubscribers.size,
         generation_time_ms: Date.now() - startTime
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao gerar playlist para totem', error, {
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar playlist para totem', e.error, {
         totemId,
         smartTvId
       });
@@ -437,11 +438,12 @@ export class PlaylistEngineService {
           `, [
             totemId,
             totem.publisher_id,
-            error.message || 'Erro desconhecido',
+            e.message || 'Erro desconhecido',
             Date.now() - startTime
           ]);
         }
-      } catch (logError) {
+ 
+} catch (logError: unknown) {
         // Ignorar erro ao registrar log
       }
 
@@ -453,7 +455,7 @@ export class PlaylistEngineService {
         playlists_included: 0,
         medias_included: 0,
         subscribers_included: 0,
-        error: error.message || 'Erro desconhecido',
+        error: e.message || 'Erro desconhecido',
         generation_time_ms: Date.now() - startTime
       };
     }
@@ -489,9 +491,9 @@ export class PlaylistEngineService {
         [publisherId]
       );
 
-      return rows.map((s: any) => Number(s.subscriber_id)).filter((id) => Number.isInteger(id) && id > 0);
-    } catch (error: any) {
-      await logError('Erro ao buscar subscribers acessíveis', error, { publisherId });
+      return rows.map((s: any) => Number(s.subscriber_id)).filter((id) => Number.isInteger(id) && id > 0);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar subscribers acessíveis', e.error, { publisherId });
       return [];
     }
   }
@@ -608,9 +610,9 @@ export class PlaylistEngineService {
         }
       }
 
-      return items;
-    } catch (error: any) {
-      await logError('Erro ao coletar itens de playlist', error, {
+      return items;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao coletar itens de playlist', e.error, {
         publisherId,
         subscriberIds,
         totemId
@@ -699,10 +701,11 @@ export class PlaylistEngineService {
           AND is_active = true
       `, [totemId, smartTvId || null]);
 
-      await logDebug('Playlist invalidada', { totemId, smartTvId });
-    } catch (error: any) {
-      await logError('Erro ao invalidar playlist', error, { totemId, smartTvId });
-      throw error;
+      await logDebug('Playlist invalidada', {
+        totemId, smartTvId });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao invalidar playlist', e.error, { totemId, smartTvId });
+      throw e.error;
     }
   }
 
@@ -802,9 +805,9 @@ export class PlaylistEngineService {
           days_of_week: item.days_of_week,
           is_active: item.is_active
         }))
-      };
-    } catch (error: any) {
-      await logError('Erro ao buscar playlist ativa', error, { totemId, smartTvId });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar playlist ativa', e.error, { totemId, smartTvId });
       return null;
     }
   }
@@ -897,10 +900,10 @@ export class PlaylistEngineService {
         total: parseInt(totalResult?.total || '0'),
         page,
         limit
-      };
-    } catch (error: any) {
-      await logError('Erro ao listar playlists de totens', error, { params });
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar playlists de totens', e.error, { params });
+      throw e.error;
     }
   }
 
@@ -931,10 +934,10 @@ export class PlaylistEngineService {
         successCount
       });
 
-      return successCount;
-    } catch (error: any) {
-      await logError('Erro ao regenerar playlists para publisher', error, { publisherId });
-      throw error;
+      return successCount;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao regenerar playlists para publisher', e.error, { publisherId });
+      throw e.error;
     }
   }
 
@@ -963,10 +966,10 @@ export class PlaylistEngineService {
         totalRegenerated
       });
 
-      return totalRegenerated;
-    } catch (error: any) {
-      await logError('Erro ao regenerar playlists para campanha', error, { campaignId });
-      throw error;
+      return totalRegenerated;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao regenerar playlists para campanha', e.error, { campaignId });
+      throw e.error;
     }
   }
 }

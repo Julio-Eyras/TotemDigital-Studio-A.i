@@ -2,6 +2,7 @@ import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
 import { getCacheService } from './cacheService';
 import { isVideoOrAudioMediaType } from '../utils/mediaTypeUtils';
+import { normalizeError } from '../utils/errors';
 
 export interface PlaylistItem {
   playlist_id: number;
@@ -231,9 +232,9 @@ export class PlaylistService {
         total: parseInt(totalResult?.total || '0'),
         page,
         limit,
-      };
-    } catch (error: any) {
-      await logError('Erro ao listar playlists', error, { params });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar playlists', e.error, { params });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -245,11 +246,11 @@ export class PlaylistService {
         `SELECT subscriber_id FROM playlists WHERE playlist_id = $1`,
         [playlistId]
       );
-      if (row == null || (row as any).subscriber_id == null) return null;
-      const n = Number((row as any).subscriber_id);
-      return Number.isFinite(n) && n > 0 ? n : null;
-    } catch (error: any) {
-      await logError('Erro ao resolver subscriber da playlist', error, { playlistId });
+      if (row == null || (row as unknown as Record<string, unknown>).subscriber_id == null) return null;
+      const n = Number((row as unknown as Record<string, unknown>).subscriber_id);
+      return Number.isFinite(n) && n > 0 ? n : null;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao resolver subscriber da playlist', e.error, { playlistId });
       return null;
     }
   }
@@ -315,9 +316,9 @@ export class PlaylistService {
       return {
         ...playlist,
         client_id: playlist.subscriber_id, // Compatibilidade
-      };
-    } catch (error: any) {
-      await logError('Erro ao obter playlist', error, { id });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter playlist', e.error, { id });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -388,10 +389,10 @@ export class PlaylistService {
       await getCacheService().invalidateEntity('playlist', playlistId).catch(() => {});
       await getCacheService().invalidateEntity('subscriber', subscriberId).catch(() => {});
 
-      return newPlaylist;
-    } catch (error: any) {
-      await logError('Erro ao criar playlist', error, { name: data.name, subscriberId: data.subscriberId });
-      throw error;
+      return newPlaylist;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar playlist', e.error, { name: data.name, subscriberId: data.subscriberId });
+      throw e.error;
     }
   }
 
@@ -489,10 +490,10 @@ export class PlaylistService {
       await getCacheService().invalidateEntity('playlist', id).catch(() => {});
       await getCacheService().invalidateEntity('subscriber', updatedPlaylist.subscriber_id).catch(() => {});
 
-      return updatedPlaylist;
-    } catch (error: any) {
-      await logError('Erro ao atualizar playlist', error, { id, updateData: data });
-      throw error;
+      return updatedPlaylist;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar playlist', e.error, { id, updateData: data });
+      throw e.error;
     }
   }
 
@@ -524,10 +525,11 @@ export class PlaylistService {
 
       // Invalidar cache
       await getCacheService().invalidateEntity('playlist', id).catch(() => {});
-      await getCacheService().invalidateEntity('subscriber', existingPlaylist.subscriber_id).catch(() => {});
-    } catch (error: any) {
-      await logError('Erro ao excluir playlist', error, { id });
-      throw error;
+      await getCacheService().invalidateEntity('subscriber', existingPlaylist.subscriber_id).catch(() => {
+        });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao excluir playlist', e.error, { id });
+      throw e.error;
     }
   }
 
@@ -597,9 +599,9 @@ export class PlaylistService {
             preview_url: item.preview_url,
           },
         };
-      });
-    } catch (error: any) {
-      await logError('Erro ao obter mídia da playlist', error, { playlistId });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter mídia da playlist', e.error, { playlistId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -686,10 +688,11 @@ export class PlaylistService {
       `, [playlistId, mediaId, orderIndex, durationSeconds]);
 
       // Invalidar cache
-      await getCacheService().invalidateEntity('playlist', playlistId).catch(() => {});
-    } catch (error: any) {
-      await logError('Erro ao adicionar mídia à playlist', error, { playlistId, mediaId, orderIndex, duration });
-      throw error;
+      await getCacheService().invalidateEntity('playlist', playlistId).catch(() => {
+        });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao adicionar mídia à playlist', e.error, { playlistId, mediaId, orderIndex, duration });
+      throw e.error;
     }
   }
 
@@ -733,10 +736,11 @@ export class PlaylistService {
       `, [itemId]);
 
       // Invalidar cache
-      await getCacheService().invalidateEntity('playlist', playlistId).catch(() => {});
-    } catch (error: any) {
-      await logError('Erro ao remover mídia da playlist', error, { itemId });
-      throw error;
+      await getCacheService().invalidateEntity('playlist', playlistId).catch(() => {
+        });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao remover mídia da playlist', e.error, { itemId });
+      throw e.error;
     }
   }
 
@@ -805,10 +809,11 @@ export class PlaylistService {
       `, [durationSeconds, itemId, playlistId]);
 
       // Invalidar cache
-      await getCacheService().invalidateEntity('playlist', playlistId).catch(() => {});
-    } catch (error: any) {
-      await logError('Erro ao atualizar duração do item da playlist', error, { playlistId, itemId, duration });
-      throw error;
+      await getCacheService().invalidateEntity('playlist', playlistId).catch(() => {
+        });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar duração do item da playlist', e.error, { playlistId, itemId, duration });
+      throw e.error;
     }
   }
 
@@ -843,10 +848,10 @@ export class PlaylistService {
         ORDER BY c.updated_at DESC NULLS LAST, c.campaign_id DESC
       `, [playlistId]);
 
-      return (rows || []) as any;
-    } catch (error: any) {
-      await logError('Erro ao listar campanhas por playlist', error, { playlistId });
-      throw error;
+      return (rows || []) as any;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar campanhas por playlist', e.error, { playlistId });
+      throw e.error;
     }
   }
 
@@ -971,10 +976,10 @@ export class PlaylistService {
         totems: Array.from(totemMap.values()),
         smartTvs: Array.from(tvMap.values()),
         playlistItemSchedules: (playlistItemSchedulesRaw || []) as any,
-      };
-    } catch (error: any) {
-      await logError('Erro ao listar exposição por playlist', error, { playlistId });
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar exposição por playlist', e.error, { playlistId });
+      throw e.error;
     }
   }
 
@@ -1013,10 +1018,11 @@ export class PlaylistService {
       }
 
       // Invalidar cache
-      await getCacheService().invalidateEntity('playlist', playlistId).catch(() => {});
-    } catch (error: any) {
-      await logError('Erro ao reordenar mídia da playlist', error, { playlistId, items });
-      throw error;
+      await getCacheService().invalidateEntity('playlist', playlistId).catch(() => {
+        });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao reordenar mídia da playlist', e.error, { playlistId, items });
+      throw e.error;
     }
   }
 }

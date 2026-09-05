@@ -6,6 +6,7 @@
 import { getDatabase } from '../config/database';
 import { DISABLE_DIRECT_CAMPAIGN_TOTEM } from '../config/featureFlags';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export class CampaignEligibilityService {
   private get db() {
@@ -71,9 +72,9 @@ export class CampaignEligibilityService {
             `,
         [campaignId, totemId]
       );
-      return !!result;
-    } catch (error: any) {
-      await logError('Erro ao validar campanha ativa (eligibility)', error, { campaignId, totemId });
+      return !!result;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao validar campanha ativa (eligibility)', e.error, { campaignId, totemId });
       return false;
     }
   }

@@ -5,6 +5,7 @@
 
 import { getDatabase } from '../config/database';
 import { logInfo, logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export interface DashboardLayout {
   id: number;
@@ -79,10 +80,10 @@ export class DashboardLayoutService {
 
       const layout = this.mapRowToLayout(result.rows[0]);
       await logInfo('Layout de dashboard criado', { layoutId: layout.id, userId: data.userId });
-      return layout;
-    } catch (error: any) {
-      await logError('Erro ao criar layout de dashboard', error, data);
-      throw new Error(`Erro ao criar layout: ${error.message}`);
+      return layout;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar layout de dashboard', e.error, data);
+      throw new Error(`Erro ao criar layout: ${e.message}`);
     }
   }
 
@@ -95,7 +96,7 @@ export class DashboardLayoutService {
         SELECT * FROM dashboard_layouts
         WHERE user_id = $1
       `;
-      const params: any[] = [userId];
+      const params: unknown[] = [userId];
 
       if (includeShared) {
         query += ` OR is_shared = true`;
@@ -104,10 +105,10 @@ export class DashboardLayoutService {
       query += ` ORDER BY is_default DESC, created_at DESC`;
 
       const result = await this.db.findMany(query, params);
-      return result.map(row => this.mapRowToLayout(row));
-    } catch (error: any) {
-      await logError('Erro ao listar layouts', error, { userId });
-      throw new Error(`Erro ao listar layouts: ${error.message}`);
+      return result.map(row => this.mapRowToLayout(row));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar layouts', e.error, { userId });
+      throw new Error(`Erro ao listar layouts: ${e.message}`);
     }
   }
 
@@ -120,10 +121,10 @@ export class DashboardLayoutService {
         'SELECT * FROM dashboard_layouts WHERE layout_id = $1',
         [layoutId]
       );
-      return result ? this.mapRowToLayout(result) : null;
-    } catch (error: any) {
-      await logError('Erro ao buscar layout', error, { layoutId });
-      throw new Error(`Erro ao buscar layout: ${error.message}`);
+      return result ? this.mapRowToLayout(result) : null;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar layout', e.error, { layoutId });
+      throw new Error(`Erro ao buscar layout: ${e.message}`);
     }
   }
 
@@ -138,9 +139,9 @@ export class DashboardLayoutService {
         ORDER BY updated_at DESC
         LIMIT 1
       `, [userId]);
-      return result ? this.mapRowToLayout(result) : null;
-    } catch (error: any) {
-      await logError('Erro ao buscar layout padrão', error, { userId });
+      return result ? this.mapRowToLayout(result) : null;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar layout padrão', e.error, { userId });
       return null;
     }
   }
@@ -165,7 +166,7 @@ export class DashboardLayoutService {
       }
 
       const updates: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
       let paramIndex = 1;
 
       if (data.name !== undefined) {
@@ -209,10 +210,10 @@ export class DashboardLayoutService {
       const result = await this.db.executeRaw(query, params);
       const updatedLayout = this.mapRowToLayout(result.rows[0]);
       await logInfo('Layout de dashboard atualizado', { layoutId });
-      return updatedLayout;
-    } catch (error: any) {
-      await logError('Erro ao atualizar layout', error, { layoutId, data });
-      throw new Error(`Erro ao atualizar layout: ${error.message}`);
+      return updatedLayout;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar layout', e.error, { layoutId, data });
+      throw new Error(`Erro ao atualizar layout: ${e.message}`);
     }
   }
 
@@ -228,10 +229,11 @@ export class DashboardLayoutService {
       if (result.rowCount === 0) {
         throw new Error(`Layout com ID ${layoutId} não encontrado`);
       }
-      await logInfo('Layout de dashboard deletado', { layoutId });
-    } catch (error: any) {
-      await logError('Erro ao deletar layout', error, { layoutId });
-      throw new Error(`Erro ao deletar layout: ${error.message}`);
+      await logInfo('Layout de dashboard deletado', {
+        layoutId });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao deletar layout', e.error, { layoutId });
+      throw new Error(`Erro ao deletar layout: ${e.message}`);
     }
   }
 

@@ -1,8 +1,11 @@
-import express from 'express';
+
+
+import express, { Request, Response } from 'express';
 import { body } from 'express-validator';
 import { validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import {
+
   getInstallationModulesAdminView,
   saveInstallationModules,
   setMultiAgencyMode,
@@ -29,21 +32,23 @@ import {
 } from '../services/commercialPurgeService';
 import { logError } from '../utils/loggerHelper';
 import { createDatabaseWrapper } from '../config/database-pg';
+import { normalizeError } from '../utils/errors';
 
 const router = express.Router();
 
 router.use(authMiddleware);
 
-const validateRequest = (req: any, res: any, next: any) => {
+const validateRequest = (req: Request, res: Response, next: express.NextFunction) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({
+    res.status(400).json({
       success: false,
       error: 'Dados inválidos',
       details: errors.array(),
     });
+    return;
   }
-  next();
+  return next();
 };
 
 /**
@@ -53,7 +58,7 @@ const validateRequest = (req: any, res: any, next: any) => {
 router.get(
   '/portal',
   authorizeRole(['owner_system', 'admin_sql']),
-  async (_req: any, res: any) => {
+  async (_req: Request, res: Response): Promise<express.Response | void> => {
     try {
       const db = createDatabaseWrapper();
       const settings = await getPortalSettings(db);
@@ -80,10 +85,10 @@ router.get(
             roleSubscriber: settings.roleHosts.subscriber,
           },
         },
-      });
-    } catch (error: any) {
-      await logError('Erro ao listar portal hosts', error);
-      res.status(500).json({ success: false, error: error.message || 'Erro ao listar portal' });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar portal hosts', e.error);
+      res.status(500).json({ success: false, error: e.message || 'Erro ao listar portal' });
     }
   }
 );
@@ -105,7 +110,7 @@ router.put(
   body('sslEmail').optional().isString(),
   body('seedSecondAgency').optional().isBoolean(),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const db = createDatabaseWrapper();
       const settings = await savePortalSettings(db, {
@@ -123,11 +128,11 @@ router.put(
         success: true,
         message: 'Definições de portal guardadas',
         data: { settings },
-      });
-    } catch (error: any) {
-      await logError('Erro ao guardar portal settings', error);
-      const status = error?.message?.includes('inválido') ? 400 : 500;
-      res.status(status).json({ success: false, error: error.message || 'Erro ao guardar portal' });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao guardar portal settings', e.error);
+      const status = e.message?.includes('inválido') ? 400 : 500;
+      res.status(status).json({ success: false, error: e.message || 'Erro ao guardar portal' });
     }
   }
 );
@@ -142,7 +147,7 @@ router.post(
   body('dryRunDns').optional().isBoolean(),
   body('applyCloudflare').optional().isBoolean(),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const db = createDatabaseWrapper();
       const result = await syncPortalHosts(db, {
@@ -153,10 +158,10 @@ router.post(
         success: result.ok,
         message: result.message,
         data: result,
-      });
-    } catch (error: any) {
-      await logError('Erro ao sincronizar portal hosts', error);
-      res.status(500).json({ success: false, error: error.message || 'Erro no sync de portal' });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao sincronizar portal hosts', e.error);
+      res.status(500).json({ success: false, error: e.message || 'Erro no sync de portal' });
     }
   }
 );
@@ -170,7 +175,7 @@ router.post(
   authorizeRole(['owner_system', 'admin_sql']),
   body('dryRun').optional().isBoolean(),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const db = createDatabaseWrapper();
       const dryRun =
@@ -181,10 +186,10 @@ router.post(
         success: result.ok,
         message: result.message,
         data: result,
-      });
-    } catch (error: any) {
-      await logError('Erro Cloudflare portal DNS', error);
-      res.status(500).json({ success: false, error: error.message || 'Erro Cloudflare' });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro Cloudflare portal DNS', e.error);
+      res.status(500).json({ success: false, error: e.message || 'Erro Cloudflare' });
     }
   }
 );
@@ -198,7 +203,7 @@ router.post(
   authorizeRole(['owner_system', 'admin_sql']),
   body('dryRun').optional().isBoolean(),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const db = createDatabaseWrapper();
       // Por segurança: dryRun=true por defeito; dryRun=false explícito para emissão real
@@ -208,10 +213,10 @@ router.post(
         success: result.ok,
         message: result.message,
         data: result,
-      });
-    } catch (error: any) {
-      await logError('Erro ao emitir SSL portal', error);
-      res.status(500).json({ success: false, error: error.message || 'Erro SSL portal' });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao emitir SSL portal', e.error);
+      res.status(500).json({ success: false, error: e.message || 'Erro SSL portal' });
     }
   }
 );
@@ -223,7 +228,7 @@ router.post(
 router.post(
   '/portal/seed-second-agency',
   authorizeRole(['owner_system', 'admin_sql']),
-  async (_req: any, res: any) => {
+  async (_req: Request, res: Response): Promise<express.Response | void> => {
     try {
       const db = createDatabaseWrapper();
       const result = await ensureDemoSecondAgencyIfNeeded(db);
@@ -231,10 +236,10 @@ router.post(
         success: true,
         message: result.detail,
         data: result,
-      });
-    } catch (error: any) {
-      await logError('Erro seed 2ª agência', error);
-      res.status(500).json({ success: false, error: error.message || 'Erro no seed' });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro seed 2ª agência', e.error);
+      res.status(500).json({ success: false, error: e.message || 'Erro no seed' });
     }
   }
 );
@@ -247,7 +252,7 @@ router.post(
 router.get(
   '/modules',
   authorizeRole(['owner_system', 'admin_sql']),
-  async (_req: any, res: any) => {
+  async (_req: Request, res: Response): Promise<express.Response | void> => {
     try {
       const db = createDatabaseWrapper();
       const view = await getInstallationModulesAdminView(db);
@@ -269,13 +274,13 @@ router.get(
           phase: 'multi_agency_master',
           enforcement: 'menu_and_api',
         },
-      });
-    } catch (error: any) {
-      await logError('Erro ao listar módulos da instalação', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar módulos da instalação', e.error);
       res.status(500).json({
         success: false,
-        error: error.message || 'Erro ao listar módulos',
-      });
+        error: e.message || 'Erro ao listar módulos',
+    });
     }
   }
 );
@@ -291,7 +296,7 @@ router.put(
   body('mode').optional().isIn(['off', 'lite', 'full']),
   body('enabled').optional().isBoolean(),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const db = createDatabaseWrapper();
       const mode =
@@ -311,15 +316,15 @@ router.put(
         success: true,
         message: result.message,
         data: result,
-      });
-    } catch (error: any) {
-      await logError('Erro ao alterar modo multi-agência', error);
-      const msg = error?.message || 'Erro ao alterar modo multi-agência';
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao alterar modo multi-agência', e.error);
+      const msg = e.message || 'Erro ao alterar modo multi-agência';
       const status = msg.includes('requer') ? 400 : 500;
       res.status(status).json({
         success: false,
         error: msg,
-      });
+    });
     }
   }
 );
@@ -334,7 +339,7 @@ router.put(
   authorizeRole(['owner_system', 'admin_sql']),
   body('modules').isObject().withMessage('modules deve ser um objeto'),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const db = createDatabaseWrapper();
       const result = await saveInstallationModules(db, req.body.modules || {}, req.user?.id);
@@ -346,15 +351,15 @@ router.put(
             ? 'Complementos guardados. Workers aplicados em runtime; recarregue a aplicação para o menu.'
             : 'Complementos guardados. O menu e a API passam a respeitar os módulos (recarregue a aplicação).',
         data: result,
-      });
-    } catch (error: any) {
-      await logError('Erro ao guardar módulos da instalação', error);
-      const msg = error?.message || 'Erro ao guardar módulos';
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao guardar módulos da instalação', e.error);
+      const msg = e.message || 'Erro ao guardar módulos';
       const status = msg.includes('requer') ? 400 : 500;
       res.status(status).json({
         success: false,
         error: msg,
-      });
+    });
     }
   }
 );
@@ -370,7 +375,7 @@ router.post(
   body('keepMediaFiles').optional().isBoolean(),
   body('keepPublishers').optional().isBoolean(),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const db = createDatabaseWrapper();
       const result = await previewCommercialPurge(db, {
@@ -379,10 +384,11 @@ router.post(
         keepMediaFiles: req.body.keepMediaFiles,
         keepPublishers: req.body.keepPublishers,
       });
-      res.json({ success: true, data: result, confirmPhraseHint: PURGE_CONFIRM_PHRASE });
-    } catch (error: any) {
-      await logError('Erro preview purge comercial', error);
-      res.status(500).json({ success: false, error: error.message || 'Erro no preview' });
+      res.json({
+        success: true, data: result, confirmPhraseHint: PURGE_CONFIRM_PHRASE });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro preview purge comercial', e.error);
+      res.status(500).json({ success: false, error: e.message || 'Erro no preview' });
     }
   }
 );
@@ -401,7 +407,7 @@ router.post(
   body('keepMediaFiles').optional().isBoolean(),
   body('keepPublishers').optional().isBoolean(),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const db = createDatabaseWrapper();
       const dryRun = req.body.dryRun !== false;
@@ -420,10 +426,10 @@ router.post(
         message: result.message,
         data: result,
         availableScopes: ALL_PURGE_SCOPES,
-      });
-    } catch (error: any) {
-      await logError('Erro purge comercial', error);
-      res.status(500).json({ success: false, error: error.message || 'Erro no purge' });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro purge comercial', e.error);
+      res.status(500).json({ success: false, error: e.message || 'Erro no purge' });
     }
   }
 );
@@ -434,14 +440,15 @@ router.post(
 router.get(
   '/commercial-purge/last',
   authorizeRole(['owner_system', 'admin_sql']),
-  async (_req: any, res: any) => {
+  async (_req: Request, res: Response): Promise<express.Response | void> => {
     try {
       const db = createDatabaseWrapper();
       const last = await getLastPurgeRun(db);
-      res.json({ success: true, data: { last } });
-    } catch (error: any) {
-      await logError('Erro ao ler último purge', error);
-      res.status(500).json({ success: false, error: error.message || 'Erro' });
+      res.json({
+        success: true, data: { last } });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao ler último purge', e.error);
+      res.status(500).json({ success: false, error: e.message || 'Erro' });
     }
   }
 );
@@ -452,14 +459,15 @@ router.get(
 router.get(
   '/commercial-purge/schedule',
   authorizeRole(['owner_system', 'admin_sql']),
-  async (_req: any, res: any) => {
+  async (_req: Request, res: Response): Promise<express.Response | void> => {
     try {
       const db = createDatabaseWrapper();
       const schedule = await getPurgeSchedule(db);
-      res.json({ success: true, data: { schedule } });
-    } catch (error: any) {
-      await logError('Erro ao ler schedule purge', error);
-      res.status(500).json({ success: false, error: error.message || 'Erro' });
+      res.json({
+        success: true, data: { schedule } });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao ler schedule purge', e.error);
+      res.status(500).json({ success: false, error: e.message || 'Erro' });
     }
   }
 );
@@ -477,7 +485,7 @@ router.put(
   body('keepPublishers').optional().isBoolean(),
   body('enabled').optional().isBoolean(),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const db = createDatabaseWrapper();
       const schedule = await upsertPurgeSchedule(db, {
@@ -492,11 +500,11 @@ router.put(
         success: true,
         message: 'Agendamento de purge guardado',
         data: { schedule },
-      });
-    } catch (error: any) {
-      await logError('Erro ao guardar schedule purge', error);
-      const status = error?.message?.includes('em falta') ? 400 : 500;
-      res.status(status).json({ success: false, error: error.message || 'Erro' });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao guardar schedule purge', e.error);
+      const status = e.message?.includes('em falta') ? 400 : 500;
+      res.status(status).json({ success: false, error: e.message || 'Erro' });
     }
   }
 );

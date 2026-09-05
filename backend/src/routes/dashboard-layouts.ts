@@ -3,18 +3,21 @@
  * Rotas para gerenciar layouts customizáveis de dashboard
  */
 
-import { Router, Response } from 'express';
+import { Router} from 'express';
+import express from 'express';
+
 import { body, param, query, validationResult } from 'express-validator';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { getDashboardLayoutService } from '../services/dashboardLayoutService';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
 // Middleware de autenticação
 router.use(authMiddleware);
 
-const validateRequest = (req: any, res: any, next: any) => {
+const validateRequest = (req: express.Request, res: express.Response, next: express.NextFunction): express.Response | void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -33,23 +36,23 @@ const validateRequest = (req: any, res: any, next: any) => {
 router.get('/',
   query('includeShared').optional().isBoolean(),
   validateRequest,
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const includeShared = req.query.includeShared === 'true';
       const layouts = await getDashboardLayoutService().getUserLayouts(
-        req.user.id,
+        req.user!.id,
         includeShared
       );
       res.json({
         success: true,
         data: layouts
-      });
-    } catch (error: any) {
-      await logError('Erro ao listar layouts', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar layouts', e.error);
       res.status(500).json({
         success: false,
-        message: error.message || 'Erro ao listar layouts'
-      });
+        message: e.message || 'Erro ao listar layouts'
+    });
     }
   }
 );
@@ -60,9 +63,9 @@ router.get('/',
  * @access Private
  */
 router.get('/default',
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
-      const layout = await getDashboardLayoutService().getDefaultLayout(req.user.id);
+      const layout = await getDashboardLayoutService().getDefaultLayout(req.user!.id);
       if (!layout) {
         return res.status(404).json({
           success: false,
@@ -72,13 +75,13 @@ router.get('/default',
       return res.json({
         success: true,
         data: layout
-      });
-    } catch (error: any) {
-      await logError('Erro ao buscar layout padrão', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar layout padrão', e.error);
       return res.status(500).json({
         success: false,
-        message: error.message || 'Erro ao buscar layout padrão'
-      });
+        message: e.message || 'Erro ao buscar layout padrão'
+    });
     }
   }
 );
@@ -91,7 +94,7 @@ router.get('/default',
 router.get('/:id',
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const layout = await getDashboardLayoutService().getLayoutById(parseInt(req.params.id));
       if (!layout) {
@@ -101,7 +104,7 @@ router.get('/:id',
         });
       }
       // Verificar se usuário tem acesso (seu layout ou compartilhado)
-      if (layout.userId !== req.user.id && !layout.isShared) {
+      if (layout.userId !== req.user!.id && !layout.isShared) {
         return res.status(403).json({
           success: false,
           message: 'Acesso negado'
@@ -110,13 +113,13 @@ router.get('/:id',
       return res.json({
         success: true,
         data: layout
-      });
-    } catch (error: any) {
-      await logError('Erro ao buscar layout', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar layout', e.error);
       return res.status(500).json({
         success: false,
-        message: error.message || 'Erro ao buscar layout'
-      });
+        message: e.message || 'Erro ao buscar layout'
+    });
     }
   }
 );
@@ -132,10 +135,10 @@ router.post('/',
   body('isDefault').optional({ nullable: true }).isBoolean(),
   body('isShared').optional({ nullable: true }).isBoolean(),
   validateRequest,
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const layout = await getDashboardLayoutService().createLayout({
-        userId: req.user.id,
+        userId: req.user!.id,
         name: req.body.name,
         layoutData: req.body.layoutData,
         isDefault: req.body.isDefault,
@@ -144,13 +147,13 @@ router.post('/',
       return res.status(201).json({
         success: true,
         data: layout
-      });
-    } catch (error: any) {
-      await logError('Erro ao criar layout', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar layout', e.error);
       return res.status(400).json({
         success: false,
-        message: error.message || 'Erro ao criar layout'
-      });
+        message: e.message || 'Erro ao criar layout'
+    });
     }
   }
 );
@@ -167,7 +170,7 @@ router.put('/:id',
   body('isDefault').optional({ nullable: true }).isBoolean(),
   body('isShared').optional({ nullable: true }).isBoolean(),
   validateRequest,
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const layout = await getDashboardLayoutService().getLayoutById(parseInt(req.params.id));
       if (!layout) {
@@ -177,7 +180,7 @@ router.put('/:id',
         });
       }
       // Verificar se usuário tem acesso
-      if (layout.userId !== req.user.id) {
+      if (layout.userId !== req.user!.id) {
         return res.status(403).json({
           success: false,
           message: 'Acesso negado'
@@ -190,13 +193,13 @@ router.put('/:id',
       return res.json({
         success: true,
         data: updated
-      });
-    } catch (error: any) {
-      await logError('Erro ao atualizar layout', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar layout', e.error);
       return res.status(400).json({
         success: false,
-        message: error.message || 'Erro ao atualizar layout'
-      });
+        message: e.message || 'Erro ao atualizar layout'
+    });
     }
   }
 );
@@ -209,7 +212,7 @@ router.put('/:id',
 router.delete('/:id',
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const layout = await getDashboardLayoutService().getLayoutById(parseInt(req.params.id));
       if (!layout) {
@@ -219,7 +222,7 @@ router.delete('/:id',
         });
       }
       // Verificar se usuário tem acesso
-      if (layout.userId !== req.user.id) {
+      if (layout.userId !== req.user!.id) {
         return res.status(403).json({
           success: false,
           message: 'Acesso negado'
@@ -229,13 +232,13 @@ router.delete('/:id',
       return res.json({
         success: true,
         message: 'Layout deletado com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro ao deletar layout', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao deletar layout', e.error);
       return res.status(400).json({
         success: false,
-        message: error.message || 'Erro ao deletar layout'
-      });
+        message: e.message || 'Erro ao deletar layout'
+    });
     }
   }
 );

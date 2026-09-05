@@ -10,6 +10,7 @@ import { logError } from '../utils/loggerHelper';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import { dateToYmd } from '../utils/businessDate';
+import { normalizeError } from '../utils/errors';
 
 export interface FxAnalyticsOverview {
   totalExecutions: number;
@@ -124,10 +125,11 @@ export class FxAnalyticsService {
 
       const overview = await this._fetchOverview(params);
       await this.analyticsCache.set(cacheKey, overview, 300); // 5 minutos
-      return overview;
-    } catch (error: unknown) {
+      return overview;} catch (error: unknown) {
+        const e = normalizeError(error);
+
       await logError('Erro ao obter overview FX', error as Error, params);
-      throw error;
+      throw e.error;
     }
   }
 
@@ -198,10 +200,11 @@ export class FxAnalyticsService {
         current,
         previous,
         changes
-      };
-    } catch (error: unknown) {
+      };} catch (error: unknown) {
+        const e = normalizeError(error);
+
       await logError('Erro ao comparar períodos FX', error as Error, params);
-      throw error;
+      throw e.error;
     }
   }
 
@@ -475,10 +478,11 @@ export class FxAnalyticsService {
         durationDistribution,
         performanceByHour,
         performanceByDay
-      };
-    } catch (error: unknown) {
+      };} catch (error: unknown) {
+        const e = normalizeError(error);
+
       await logError('Erro ao obter métricas de performance FX', error as Error, params);
-      throw error;
+      throw e.error;
     }
   }
 
@@ -537,10 +541,11 @@ export class FxAnalyticsService {
         success_rate: (s.total_executions as number) > 0 
           ? Number((((s.successful as number) || 0) / ((s.total_executions as number) || 1) * 100).toFixed(2))
           : 0,
-      }));
-    } catch (error: unknown) {
+      }));} catch (error: unknown) {
+        const e = normalizeError(error);
+
       await logError('Erro em FxAnalyticsService.getSiteAnalytics', error as Error, params);
-      throw error;
+      throw e.error;
     }
   }
 
@@ -598,10 +603,11 @@ export class FxAnalyticsService {
         ]);
       });
 
-      return Buffer.from(await workbook.xlsx.writeBuffer());
-    } catch (error: unknown) {
+      return Buffer.from(await workbook.xlsx.writeBuffer());} catch (error: unknown) {
+        const e = normalizeError(error);
+
       await logError('Erro ao exportar overview para Excel', error as Error, params);
-      throw error;
+      throw e.error;
     }
   }
 
@@ -660,10 +666,11 @@ export class FxAnalyticsService {
           resolve(Buffer.concat(chunks));
         });
         doc.on('error', reject);
-      });
-    } catch (error: unknown) {
+      });} catch (error: unknown) {
+        const e = normalizeError(error);
+
       await logError('Erro ao exportar overview para PDF', error as Error, params);
-      throw error;
+      throw e.error;
     }
   }
 }

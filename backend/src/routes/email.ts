@@ -3,16 +3,19 @@
  * Rotas para testar e gerenciar envio de emails
  */
 
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
+import express from 'express';
+
 import { body, validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { emailService } from '../services/emailService';
 import { logError, sanitizeForLogging } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
 // Middleware de validação
-const validateRequest = (req: Request, res: Response, next: any) => {
+const validateRequest = (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -31,7 +34,7 @@ router.use(authMiddleware);
  * @desc Verifica status do Email Service
  * @access Private (Admin)
  */
-router.get('/status', authorizeRole(['admin']), async (_req: Request, res: Response) => {
+router.get('/status', authorizeRole(['admin']), async (_req: express.Request, res: express.Response) => {
   try {
     const isEnabled = emailService.isServiceEnabled();
     const isConnected = await emailService.testConnection();
@@ -43,14 +46,14 @@ router.get('/status', authorizeRole(['admin']), async (_req: Request, res: Respo
         connected: isConnected,
         configured: isEnabled && isConnected
       }
-    });
-  } catch (error: any) {
-    await logError('Erro ao verificar status do email', error, { route: '/api/email/status' });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao verificar status do email', e.error, { route: '/api/email/status' });
     return res.status(500).json({
       success: false,
       error: 'Erro interno do servidor',
-      message: error.message
-    });
+      message: e.message
+  });
   }
 });
 
@@ -65,7 +68,7 @@ router.post('/test',
   body('subject').optional({ nullable: true }).isString(),
   body('message').optional({ nullable: true }).isString(),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const { to, subject, message } = req.body;
 
@@ -95,16 +98,16 @@ router.post('/test',
         data: {
           messageId: result.messageId
         }
-      });
-    } catch (error: any) {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
       // Sanitizar dados antes de logar (email pode ser considerado sensível)
       const sanitizedBody = req.body ? sanitizeForLogging(req.body) : null;
-      await logError('Erro ao enviar email de teste', error, { route: '/api/email/test', to: sanitizedBody?.to });
+      await logError('Erro ao enviar email de teste', e.error, { route: '/api/email/test', to: sanitizedBody?.to });
       return res.status(500).json({
         success: false,
         error: 'Erro interno do servidor',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );

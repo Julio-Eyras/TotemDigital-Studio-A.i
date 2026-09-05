@@ -1,9 +1,12 @@
+
+
 import express from 'express';
 import { body, query, param } from 'express-validator';
 import { validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { getUserService } from '../services/userService';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const router = express.Router();
 
@@ -58,13 +61,14 @@ const createUserValidator = [
   body('flags').optional({ nullable: true }).isObject(),
 ];
 
-const validateRequest = (req: any, res: any, next: any) => {
+const validateRequest = (req: express.Request, res: express.Response, next: express.NextFunction): express.Response | void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'Dados inválidos',
       details: errors.array()
     });
+    return;
   }
   next();
 };
@@ -84,7 +88,7 @@ router.get('/',
   query('publisherId').optional().isInt({ min: 1 }),
   query('subscriberId').optional().isInt({ min: 1 }),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { page = 1, limit = 10, search, role, userType, publisherId, subscriberId } = req.query;
       
@@ -99,7 +103,7 @@ router.get('/',
       });
       
       res.json(result);
-    } catch (error) {
+} catch (error: unknown) {
       await logError('Erro ao listar usuários', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
@@ -115,7 +119,7 @@ router.get('/:id',
   authorizeRole(['admin', 'admin_sql', 'owner_system']),
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       
@@ -126,7 +130,7 @@ router.get('/:id',
       }
 
       res.json(user);
-    } catch (error) {
+} catch (error: unknown) {
       await logError('Erro ao obter usuário', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
@@ -142,7 +146,7 @@ router.post('/',
   authorizeRole(['admin', 'admin_sql', 'owner_system']),
   createUserValidator,
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { 
         username, 
@@ -170,10 +174,10 @@ router.post('/',
         flags,
       });
 
-      res.status(201).json(newUser);
-    } catch (error: any) {
-      await logError('Erro ao criar usuário', error);
-      const msg = error?.message || '';
+      res.status(201).json(newUser);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar usuário', e.error);
+      const msg = e.message || '';
       const isValidation = msg.includes('obrigatório') || msg.includes('já existe') || msg.includes('inválido') || msg.includes('não encontrado') || msg.includes('requer ');
       res.status(isValidation ? 400 : 500).json({ error: msg || 'Erro interno do servidor' });
     }
@@ -199,7 +203,7 @@ router.put('/:id',
   body('isActive').optional({ nullable: true }).isBoolean(),
   body('flags').optional({ nullable: true }).isObject(),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const { 
@@ -230,9 +234,9 @@ router.put('/:id',
         flags,
       });
 
-      res.json(updatedUser);
-    } catch (error) {
-      await logError('Erro ao atualizar usuário', error);
+      res.json(updatedUser);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar usuário', e.error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -247,13 +251,13 @@ router.delete('/:id',
   authorizeRole(['admin', 'admin_sql', 'owner_system']),
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       await getUserService().deleteUser(parseInt(id));
-      res.status(204).send();
-    } catch (error) {
-      await logError('Erro ao excluir usuário', error);
+      res.status(204).send();} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao excluir usuário', e.error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -268,7 +272,7 @@ router.get('/:id/roles',
   authorizeRole(['admin', 'admin_sql', 'owner_system']),
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const roles = await getUserService().getUserRoles(parseInt(id));
@@ -276,9 +280,9 @@ router.get('/:id/roles',
       res.json({
         success: true,
         data: roles
-      });
-    } catch (error) {
-      await logError('Erro ao listar roles do usuário', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar roles do usuário', e.error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -295,12 +299,12 @@ router.post('/:id/roles',
   body('roleIds').isArray().withMessage('roleIds deve ser um array'),
   body('roleIds.*').isInt({ min: 1 }).withMessage('Cada roleId deve ser um número inteiro'),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const { roleIds } = req.body;
 
-      await getUserService().setUserRoles(parseInt(id), roleIds, req.user.id);
+      await getUserService().setUserRoles(parseInt(id), roleIds, req.user!.id);
 
       const roles = await getUserService().getUserRoles(parseInt(id));
 
@@ -308,13 +312,13 @@ router.post('/:id/roles',
         success: true,
         message: 'Roles atribuídas com sucesso',
         data: roles
-      });
-    } catch (error: any) {
-      await logError('Erro ao atribuir roles ao usuário', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atribuir roles ao usuário', e.error);
       res.status(400).json({
         success: false,
-        message: error.message || 'Erro ao atribuir roles',
-        error: error.message
+        message: e.message || 'Erro ao atribuir roles',
+        error: e.message
       });
     }
   }
@@ -330,22 +334,22 @@ router.post('/:id/roles/:roleId',
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   param('roleId').isInt({ min: 1 }).withMessage('Role ID inválido'),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id, roleId } = req.params;
 
-      await getUserService().assignRoleToUser(parseInt(id), parseInt(roleId), req.user.id);
+      await getUserService().assignRoleToUser(parseInt(id), parseInt(roleId), req.user!.id);
 
       res.json({
         success: true,
         message: 'Role atribuída com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro ao atribuir role ao usuário', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atribuir role ao usuário', e.error);
       res.status(400).json({
         success: false,
-        message: error.message || 'Erro ao atribuir role',
-        error: error.message
+        message: e.message || 'Erro ao atribuir role',
+        error: e.message
       });
     }
   }
@@ -361,7 +365,7 @@ router.delete('/:id/roles/:roleId',
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   param('roleId').isInt({ min: 1 }).withMessage('Role ID inválido'),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id, roleId } = req.params;
 
@@ -370,13 +374,13 @@ router.delete('/:id/roles/:roleId',
       res.json({
         success: true,
         message: 'Role removida com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro ao remover role do usuário', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao remover role do usuário', e.error);
       res.status(400).json({
         success: false,
-        message: error.message || 'Erro ao remover role',
-        error: error.message
+        message: e.message || 'Erro ao remover role',
+        error: e.message
       });
     }
   }
@@ -391,7 +395,7 @@ router.get('/:id/flags',
   authorizeRole(['admin', 'admin_sql', 'owner_system']),
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const flags = await getUserService().getUserFlags(parseInt(id));
@@ -399,13 +403,13 @@ router.get('/:id/flags',
       res.json({
         success: true,
         data: flags
-      });
-    } catch (error: any) {
-      await logError('Erro ao obter flags do usuário', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter flags do usuário', e.error);
       res.status(500).json({
         success: false,
-        message: error.message || 'Erro interno do servidor',
-        error: error.message
+        message: e.message || 'Erro interno do servidor',
+        error: e.message
       });
     }
   }
@@ -421,12 +425,12 @@ router.put('/:id/flags',
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   body('flags').isObject().withMessage('Flags deve ser um objeto'),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const { flags } = req.body;
 
-      await getUserService().updateUserFlags(parseInt(id), flags, req.user.id);
+      await getUserService().updateUserFlags(parseInt(id), flags, req.user!.id);
 
       const updatedFlags = await getUserService().getUserFlags(parseInt(id));
 
@@ -434,13 +438,13 @@ router.put('/:id/flags',
         success: true,
         message: 'Flags atualizadas com sucesso',
         data: updatedFlags
-      });
-    } catch (error: any) {
-      await logError('Erro ao atualizar flags do usuário', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar flags do usuário', e.error);
       res.status(400).json({
         success: false,
-        message: error.message || 'Erro ao atualizar flags',
-        error: error.message
+        message: e.message || 'Erro ao atualizar flags',
+        error: e.message
       });
     }
   }
@@ -456,22 +460,22 @@ router.post('/:id/flags/:flagName',
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   param('flagName').isIn(VALID_FLAGS).withMessage('Flag inválida'),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id, flagName } = req.params;
 
-      await getUserService().setUserFlag(parseInt(id), flagName as any, true, req.user.id);
+      await getUserService().setUserFlag(parseInt(id), flagName as any, true, req.user!.id);
 
       res.json({
         success: true,
         message: `Flag ${flagName} ativada com sucesso`
-      });
-    } catch (error: any) {
-      await logError('Erro ao ativar flag do usuário', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao ativar flag do usuário', e.error);
       res.status(400).json({
         success: false,
-        message: error.message || 'Erro ao ativar flag',
-        error: error.message
+        message: e.message || 'Erro ao ativar flag',
+        error: e.message
       });
     }
   }
@@ -487,22 +491,22 @@ router.delete('/:id/flags/:flagName',
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   param('flagName').isIn(VALID_FLAGS).withMessage('Flag inválida'),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id, flagName } = req.params;
 
-      await getUserService().setUserFlag(parseInt(id), flagName as any, false, req.user.id);
+      await getUserService().setUserFlag(parseInt(id), flagName as any, false, req.user!.id);
 
       res.json({
         success: true,
         message: `Flag ${flagName} desativada com sucesso`
-      });
-    } catch (error: any) {
-      await logError('Erro ao desativar flag do usuário', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao desativar flag do usuário', e.error);
       res.status(400).json({
         success: false,
-        message: error.message || 'Erro ao desativar flag',
-        error: error.message
+        message: e.message || 'Erro ao desativar flag',
+        error: e.message
       });
     }
   }

@@ -1,4 +1,6 @@
-import { Router, type Request } from 'express';
+import { Router } from 'express';
+import express from 'express';
+
 import { body, param, validationResult } from 'express-validator';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
@@ -9,6 +11,7 @@ import { getAutoPublishOrchestratorService } from '../services/autoPublishOrches
 import { getAIServiceInstance } from '../utils/globalInstances';
 import { logError } from '../utils/loggerHelper';
 import { assertSubscriberParamAccess } from '../middleware/subscriberParamAccess.middleware';
+import { normalizeError } from '../utils/errors';
 
 type PublishBoardParams = { subscriberId: string; preset: string };
 
@@ -28,7 +31,7 @@ router.use(authenticateToken);
 router.use(blockClientDataAccess);
 router.use(assertSubscriberParamAccess);
 
-const validate = (req: any, res: any, next: any) => {
+const validate = (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ success: false, error: 'Dados inválidos', details: errors.array() });
@@ -51,9 +54,9 @@ router.get('/ai-assist-status', async (_req, res) => {
           ? `Assistente de textos ativo (${status.provider}).`
           : status.message || 'Configure AI_PROVIDER e credenciais no servidor para usar sugestões de texto.',
       },
-    });
-  } catch (error: any) {
-    await logError('Erro ao verificar status da IA para publicação', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao verificar status da IA para publicação', e.error);
     return res.json({
       success: true,
       data: {
@@ -62,7 +65,7 @@ router.get('/ai-assist-status', async (_req, res) => {
         provider: 'none',
         status: 'offline',
         message: 'Assistente de textos indisponível. Configure AI_PROVIDER no servidor.',
-      },
+  },
     });
   }
 });
@@ -76,9 +79,10 @@ router.get(
     try {
       const { subscriberId, preset } = parsePublishBoardRoute(req);
       const data = await getPublishBoardService().getLayout(subscriberId, preset);
-      return res.json({ success: true, data });
-    } catch (error: any) {
-      await logError('Erro ao carregar layout do quadro', error);
+      return res.json({
+        success: true, data });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao carregar layout do quadro', e.error);
       return res.status(500).json({ success: false, error: 'Erro ao carregar layout' });
     }
   }
@@ -114,9 +118,10 @@ router.put(
           : current.productOrder,
         showPrices: req.body.showPrices ?? current.showPrices,
       });
-      return res.json({ success: true, data });
-    } catch (error: any) {
-      await logError('Erro ao salvar layout do quadro', error);
+      return res.json({
+        success: true, data });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao salvar layout do quadro', e.error);
       return res.status(500).json({ success: false, error: 'Erro ao salvar layout' });
     }
   }
@@ -128,7 +133,7 @@ router.post(
   param('subscriberId').isInt({ min: 1 }),
   param('preset').isIn(PRESETS),
   validate,
-  async (req: Request & { user?: { id?: number; userId?: number; role?: string } }, res) => {
+  async (req: express.Request & { user?: { id?: number; userId?: number; role?: string } }, res) => {
     try {
       const { subscriberId, preset } = parsePublishBoardRoute(req);
       const role = String(req.user?.role || '');
@@ -143,13 +148,13 @@ router.post(
         success: true,
         message: 'Mídia gerada com sucesso',
         data,
-      });
-    } catch (error: any) {
-      await logError('Erro ao gerar mídia do quadro', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar mídia do quadro', e.error);
       return res.status(400).json({
         success: false,
-        error: error.message || 'Erro ao gerar mídia',
-      });
+        error: e.message || 'Erro ao gerar mídia',
+    });
     }
   }
 );
@@ -184,10 +189,11 @@ router.post(
         showPrices: req.body.showPrices ?? current.showPrices,
       });
       const html = await getPublishBoardService().previewHtml(subscriberId, preset);
-      return res.json({ success: true, data: { html } });
-    } catch (error: any) {
-      await logError('Erro ao pré-visualizar HTML', error);
-      return res.status(400).json({ success: false, error: error.message || 'Erro na pré-visualização' });
+      return res.json({
+        success: true, data: { html } });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao pré-visualizar HTML', e.error);
+      return res.status(400).json({ success: false, error: e.message || 'Erro na pré-visualização' });
     }
   }
 );
@@ -199,7 +205,7 @@ router.post(
   param('preset').isIn(PRESETS),
   body('replaceMediaId').optional({ nullable: true }).isInt({ min: 1 }),
   validate,
-  async (req: Request & { user?: { id?: number; userId?: number; role?: string } }, res) => {
+  async (req: express.Request & { user?: { id?: number; userId?: number; role?: string } }, res) => {
     try {
       const { subscriberId, preset } = parsePublishBoardRoute(req);
       const role = String(req.user?.role || '');
@@ -215,13 +221,13 @@ router.post(
         success: true,
         message: 'Animação HTML gerada com sucesso',
         data,
-      });
-    } catch (error: any) {
-      await logError('Erro ao gerar animação HTML do quadro', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar animação HTML do quadro', e.error);
       return res.status(400).json({
         success: false,
-        error: error.message || 'Erro ao gerar animação HTML',
-      });
+        error: e.message || 'Erro ao gerar animação HTML',
+    });
     }
   }
 );
@@ -237,7 +243,7 @@ router.post(
   body('boardTitle').optional().isString(),
   body('content').optional().isObject(),
   validate,
-  async (req: Request & { user?: { id?: number; userId?: number } }, res) => {
+  async (req: express.Request & { user?: { id?: number; userId?: number } }, res) => {
     try {
       const { subscriberId, preset } = parsePublishBoardRoute(req);
       const data = await getPublishBriefAiService().suggestCopy({
@@ -250,13 +256,14 @@ router.post(
         boardTitle: req.body.boardTitle,
         currentContent: req.body.content,
       });
-      return res.json({ success: true, data });
-    } catch (error: any) {
-      await logError('Erro ao sugerir textos com IA', error);
+      return res.json({
+        success: true, data });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao sugerir textos com IA', e.error);
       return res.status(400).json({
         success: false,
-        error: error.message || 'Erro ao sugerir textos',
-      });
+        error: e.message || 'Erro ao sugerir textos',
+    });
     }
   }
 );
@@ -286,7 +293,7 @@ router.post(
   body('showPrices').optional().isBoolean(),
   body('replaceMediaId').optional({ nullable: true }).isInt({ min: 1 }),
   validate,
-  async (req: Request & { user?: { id?: number; userId?: number; role?: string } }, res) => {
+  async (req: express.Request & { user?: { id?: number; userId?: number; role?: string } }, res) => {
     try {
       const { subscriberId, preset } = parsePublishBoardRoute(req);
       const role = String(req.user?.role || '');
@@ -327,10 +334,10 @@ router.post(
         success: true,
         message: result.message,
         data: result,
-      });
-    } catch (error: any) {
-      await logError('Erro no auto-publish orquestrado', error);
-      const message = error?.message || 'Erro ao gerar e publicar propaganda';
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro no auto-publish orquestrado', e.error);
+      const message = e.message || 'Erro ao gerar e publicar propaganda';
       const status = message.includes('Acesso negado') ? 403 : 400;
       return res.status(status).json({ success: false, error: message, message });
     }
@@ -344,7 +351,7 @@ router.post(
   param('preset').isIn(PRESETS),
   body('briefSummary').optional().isString(),
   validate,
-  async (req: Request & { user?: { id?: number; userId?: number } }, res) => {
+  async (req: express.Request & { user?: { id?: number; userId?: number } }, res) => {
     try {
       const { subscriberId, preset } = parsePublishBoardRoute(req);
       const data = await getPublishVideoAiQueueService().enqueue({
@@ -365,13 +372,13 @@ router.post(
         success: data.status === 'completed' || data.status === 'queued',
         message: data.message,
         data,
-      });
-    } catch (error: any) {
-      await logError('Erro ao enfileirar vídeo IA', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao enfileirar vídeo IA', e.error);
       return res.status(400).json({
         success: false,
-        error: error.message || 'Erro ao enfileirar vídeo IA',
-      });
+        error: e.message || 'Erro ao enfileirar vídeo IA',
+    });
     }
   }
 );
@@ -390,9 +397,10 @@ router.get(
       if (!data) {
         return res.status(404).json({ success: false, error: 'Job de vídeo IA não encontrado' });
       }
-      return res.json({ success: true, data });
-    } catch (error: any) {
-      await logError('Erro ao consultar job de vídeo IA', error);
+      return res.json({
+        success: true, data });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao consultar job de vídeo IA', e.error);
       return res.status(500).json({ success: false, error: 'Erro ao consultar job de vídeo IA' });
     }
   }

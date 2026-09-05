@@ -58,7 +58,7 @@ export const errorHandler = async (
             url: req.url,
             method: req.method
           });
-        } catch (auditError) {
+} catch (auditError: unknown) {
           await logError('Erro ao registrar auditoria no error handler', auditError, { 
             originalError: err.message,
             statusCode 
@@ -92,7 +92,8 @@ export const errorHandler = async (
       });
     }
 
-  } catch (error) {
+ 
+} catch (error: unknown) {
     // Se o error handler falhar, usar console.error como último recurso
     console.error('❌ Erro crítico no error handler:', error);
     try {

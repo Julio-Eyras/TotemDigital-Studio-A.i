@@ -7,6 +7,7 @@ import { getDatabase } from '../config/database';
 import { DISABLE_DIRECT_CAMPAIGN_TOTEM } from '../config/featureFlags';
 import { logError, logDebug } from '../utils/loggerHelper';
 import { getCampaignEligibilityService } from './campaignEligibilityService';
+import { normalizeError } from '../utils/errors';
 
 export interface MixedCampaign {
     campaign_id: number;
@@ -80,7 +81,7 @@ export class PublisherCampaignMixService {
                   AND c.status = 'active'
                   AND c.is_active = true
             `;
-            const params: any[] = [publisherId];
+            const params: unknown[] = [publisherId];
             let paramIndex = 2;
 
             if (useDirectTotem) {
@@ -206,7 +207,8 @@ export class PublisherCampaignMixService {
             
             // Buscar playlists para cada campanha
             const campaignsWithPlaylists = await Promise.all(
-                campaigns.map(async (campaign: any) => {
+                campaigns.map(async (campaignRaw: unknown) => {
+                    const campaign = campaignRaw as unknown as Record<string, unknown>;
                     // Não expor campos auxiliares usados apenas para ordenação
                     const { campaign_created_at: _campaignCreatedAt, ...campaignPublic } = campaign;
                     const playlists = await this.db.findMany(`
@@ -261,16 +263,22 @@ export class PublisherCampaignMixService {
                     
                     return {
                         ...campaignPublic,
-                        playlists: playlists.map((pl: any) => ({
-                            playlist_id: pl.playlist_id,
-                            name: pl.name,
-                            priority: pl.priority
-                        })),
-                        medias: medias.map((m: any) => ({
-                            media_id: m.media_id,
-                            name: m.media_name,
-                            source: m.source,
-                        })),
+                        playlists: playlists.map((plRaw: unknown) => {
+                            const pl = plRaw as unknown as Record<string, unknown>;
+                            return {
+                                playlist_id: pl.playlist_id,
+                                name: pl.name,
+                                priority: pl.priority
+                            };
+                        }),
+                        medias: medias.map((mRaw: unknown) => {
+                            const m = mRaw as unknown as Record<string, unknown>;
+                            return {
+                                media_id: m.media_id,
+                                name: m.media_name,
+                                source: m.source,
+                            };
+                        }),
                     };
                 })
             );
@@ -279,31 +287,39 @@ export class PublisherCampaignMixService {
                 publisher: publisherContext,
                 totem: totemContext,
                 count: campaignsWithPlaylists.length,
-                campaigns: campaignsWithPlaylists.map((campaign: any) => ({
-                    id: campaign.campaign_id,
-                    title: campaign.title,
-                    subscriber: {
-                        id: campaign.subscriber_id,
-                        name: campaign.subscriber_name,
-                    },
-                    playlists: (campaign.playlists || []).map((pl: any) => ({
-                        id: pl.playlist_id,
-                        name: pl.name,
-                    })),
-                    medias: (campaign.medias || []).map((m: any) => ({
-                        id: m.media_id,
-                        name: m.name,
-                        source: m.source,
-                    })),
-                })),
+                campaigns: campaignsWithPlaylists.map((campaignRaw: unknown) => {
+                    const campaign = campaignRaw as unknown as Record<string, unknown>;
+                    return {
+                        id: campaign.campaign_id,
+                        title: campaign.title,
+                        subscriber: {
+                            id: campaign.subscriber_id,
+                            name: campaign.subscriber_name,
+                        },
+                        playlists: ((campaign.playlists as unknown[]) || []).map((plRaw: unknown) => {
+                            const pl = plRaw as unknown as Record<string, unknown>;
+                            return {
+                                id: pl.playlist_id,
+                                name: pl.name,
+                            };
+                        }),
+                        medias: ((campaign.medias as unknown[]) || []).map((mRaw: unknown) => {
+                            const m = mRaw as unknown as Record<string, unknown>;
+                            return {
+                                id: m.media_id,
+                                name: m.name,
+                                source: m.source,
+                            };
+                        }),
+                    };
+                }),
             });
             
-            return campaignsWithPlaylists;
-            
-        } catch (error: any) {
+            return campaignsWithPlaylists as unknown as MixedCampaign[];} catch (error: unknown) {
+      const e = normalizeError(error);
             const publisherContext = await this.getPublisherContextForLogs(filters.publisherId);
             const totemContext = filters.totemId != null ? await this.getTotemContextForLogs(filters.totemId) : undefined;
-            await logError('Erro ao obter campanhas mixadas', error, {
+            await logError('Erro ao obter campanhas mixadas', e.error, {
                 publisher: publisherContext,
                 totem: totemContext,
                 filters,

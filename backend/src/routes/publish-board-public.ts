@@ -1,11 +1,14 @@
 import { Router } from 'express';
+import express from 'express';
+
 import { param, validationResult } from 'express-validator';
 import { getMenuCatalogService } from '../services/menuCatalogService';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
-const validate = (req: any, res: any, next: any) => {
+const validate = (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ success: false, error: 'Dados inválidos', details: errors.array() });
@@ -46,9 +49,9 @@ router.get(
           refreshSeconds: menuService.getLiveRefreshSeconds(),
           productCount: revision.productCount,
         },
-      });
-    } catch (error: any) {
-      await logError('Erro ao carregar cardápio público', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao carregar cardápio público', e.error);
       return res.status(500).json({ success: false, error: 'Erro ao carregar cardápio' });
     }
   }

@@ -6,13 +6,13 @@
 /**
  * Formata resposta de sucesso padronizada
  */
-export function successResponse<T = any>(
+export function successResponse<T = unknown>(
   data: T,
   meta?: {
     page?: number;
     limit?: number;
     total?: number;
-    [key: string]: any;
+    [key: string]: unknown;
   }
 ) {
   return {
@@ -28,21 +28,24 @@ export function successResponse<T = any>(
 export function errorResponse(
   message: string,
   error?: string,
-  details?: any,
+  details?: unknown,
   _statusCode?: number // Parâmetro reservado para uso futuro
 ) {
+  const detailsObj = details && typeof details === 'object' && details !== null
+    ? details as Record<string, unknown>
+    : undefined;
   return {
     success: false,
     error: message,
     message: error || message,
-    ...(details && Object.keys(details).length > 0 ? { details } : {})
+    ...(detailsObj && Object.keys(detailsObj).length > 0 ? { details } : {})
   };
 }
 
 /**
  * Formata resposta paginada padronizada
  */
-export function paginatedResponse<T = any>(
+export function paginatedResponse<T = unknown>(
   items: T[],
   pagination: {
     page: number;

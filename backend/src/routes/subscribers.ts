@@ -1,4 +1,6 @@
-import express from 'express';
+
+
+import express, { Request, Response } from 'express';
 import { body, query, param } from 'express-validator';
 import { validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
@@ -9,6 +11,7 @@ import { isDatabaseError, isUniqueViolationError } from '../utils/dbErrors';
 import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
 import { assertResourceMatchesPortalTenant } from '../utils/portalTenantAccess';
 import { 
+
   paginationValidators, 
   searchValidators, 
   sortValidators, 
@@ -20,6 +23,7 @@ import {
   // descriptionValidators removido - não utilizado
 } from '../validators/common.validators';
 import { planLimitsValidators, storageValidators, totemAccessValidators } from '../validators/plan.validators';
+import { normalizeError } from '../utils/errors';
 
 const router = express.Router();
 
@@ -38,7 +42,7 @@ const createSubscriberValidator = [
   body('address').optional({ nullable: true }).isString(),
 ];
 
-const validateRequest = (req: any, res: any, next: any) => {
+const validateRequest = (req: Request, res: Response, next: express.NextFunction) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -49,7 +53,7 @@ const validateRequest = (req: any, res: any, next: any) => {
   return next();
 };
 
-async function ensureSubscriberResourceAccess(req: any, res: any, subscriberId: number): Promise<boolean> {
+async function ensureSubscriberResourceAccess(req: Request, res: Response, subscriberId: number): Promise<boolean> {
   const portalCheck = assertResourceMatchesPortalTenant(req.portalTenant, { subscriberId });
   if (!portalCheck.ok) {
     res.status(portalCheck.status).json({
@@ -62,7 +66,8 @@ async function ensureSubscriberResourceAccess(req: any, res: any, subscriberId: 
   try {
     await assertTenantClientParamAccess(req, subscriberId);
     return true;
-  } catch (e: any) {
+} catch (rawErr: unknown) {
+  const e = normalizeError(rawErr);
     if (e?.statusCode === 403) {
       res.status(403).json({
         success: false,
@@ -76,7 +81,7 @@ async function ensureSubscriberResourceAccess(req: any, res: any, subscriberId: 
 }
 
 /** Normaliza body para validação: quando enviar subscriber + contracts, expõe subscriber.name como name para o nameValidator. */
-const normalizeSubscriberCreateBody = (req: any, _res: any, next: any) => {
+const normalizeSubscriberCreateBody = (req: Request, _res: Response, next: express.NextFunction) => {
   if (Array.isArray(req.body.contracts) && req.body.subscriber && req.body.name === undefined) {
     req.body.name = req.body.subscriber.name;
   }
@@ -95,7 +100,7 @@ router.get('/',
   query('is_active').optional().isIn(['true', 'false', '1', '0']).withMessage('is_active deve ser "true" ou "false"'),
   query('active_only').optional().isIn(['true', 'false', '1', '0']).withMessage('active_only deve ser "true" ou "false"'),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { 
         page = 1, 
@@ -139,7 +144,7 @@ router.get('/',
       });
       
       return res.json(result);
-    } catch (error) {
+} catch (error: unknown) {
       await logError('Erro ao listar subscribers', error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
@@ -153,7 +158,7 @@ router.get('/',
 router.get('/:id',
   ...idParamValidatorDefault,
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const sid = parseInt(id, 10);
@@ -168,7 +173,7 @@ router.get('/:id',
       }
 
       return res.json(subscriber);
-    } catch (error) {
+} catch (error: unknown) {
       await logError('Erro ao obter subscriber', error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
@@ -188,7 +193,7 @@ router.post('/',
   createSubscriberValidator,
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       // Se vier contracts (array), criar subscriber + contratos numa única transação (procedure)
       if (Array.isArray(req.body.contracts)) {
@@ -218,11 +223,11 @@ router.post('/',
         contract_id,
       });
 
-      return res.status(201).json(newSubscriber);
-    } catch (error: any) {
-      await logError('Erro ao criar subscriber', error);
-      const status = isUniqueViolationError(error) || !isDatabaseError(error) ? 400 : 500;
-      return res.status(status).json({ error: error.message || 'Erro ao criar subscriber' });
+      return res.status(201).json(newSubscriber);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar subscriber', e.error);
+      const status = isUniqueViolationError(e.raw) || !isDatabaseError(e.raw) ? 400 : 500;
+      return res.status(status).json({ error: e.message || 'Erro ao criar subscriber' });
     }
   }
 );
@@ -242,7 +247,7 @@ router.put('/:id',
   body('address').optional({ nullable: true, checkFalsy: true }).isString(),
   body('category_segment').optional({ nullable: true, checkFalsy: true }).isString(),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const sid = parseInt(id, 10);
@@ -264,10 +269,10 @@ router.put('/:id',
         isActive: isActive !== undefined ? isActive : is_active,
       });
 
-      return res.json(updatedSubscriber);
-    } catch (error: any) {
-      await logError('Erro ao atualizar subscriber', error);
-      return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      return res.json(updatedSubscriber);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar subscriber', e.error);
+      return res.status(400).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -279,7 +284,7 @@ router.put('/:id',
 router.delete('/:id',
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const sid = parseInt(id, 10);
@@ -289,10 +294,10 @@ router.delete('/:id',
 
       await getSubscriberService().deleteSubscriber(sid);
       
-      return res.status(204).send();
-    } catch (error: any) {
-      await logError('Erro ao excluir subscriber', error);
-      return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      return res.status(204).send();} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao excluir subscriber', e.error);
+      return res.status(400).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -304,7 +309,7 @@ router.delete('/:id',
 router.get('/:id/locals',
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const sid = parseInt(id, 10);
@@ -312,9 +317,10 @@ router.get('/:id/locals',
         return;
       }
       const locals = await getSubscriberService().getLocalsBySubscriber(sid);
-      return res.json({ success: true, data: locals });
-    } catch (error: any) {
-      await logError('Erro ao listar locals do subscriber', error);
+      return res.json({
+        success: true, data: locals });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar locals do subscriber', e.error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -328,7 +334,7 @@ router.get('/:id/totems',
   param('id').isInt({ min: 1 }),
   query('contractId').optional().isInt({ min: 1 }).withMessage('contractId inválido'),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const subscriberId = parseInt(id, 10);
@@ -344,9 +350,10 @@ router.get('/:id/totems',
         contractId !== undefined && !Number.isNaN(contractId)
           ? await getSubscriberService().getTotemsBySubscriberContract(subscriberId, contractId)
           : await getSubscriberService().getTotemsBySubscriber(subscriberId);
-      return res.json({ success: true, data: totems });
-    } catch (error: any) {
-      await logError('Erro ao listar totems do subscriber', error);
+      return res.json({
+        success: true, data: totems });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar totems do subscriber', e.error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -359,7 +366,7 @@ router.get('/:id/totems',
 router.get('/:id/smart-tvs',
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const sid = parseInt(id, 10);
@@ -367,9 +374,10 @@ router.get('/:id/smart-tvs',
         return;
       }
       const smartTvs = await getSubscriberService().getSmartTvsBySubscriber(sid);
-      return res.json({ success: true, data: smartTvs });
-    } catch (error: any) {
-      await logError('Erro ao listar smart TVs do subscriber', error);
+      return res.json({
+        success: true, data: smartTvs });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar smart TVs do subscriber', e.error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -382,7 +390,7 @@ router.get('/:id/smart-tvs',
 router.get('/:id/stats',
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const sid = parseInt(id, 10);
@@ -390,9 +398,10 @@ router.get('/:id/stats',
         return;
       }
       const stats = await getSubscriberService().getSubscriberStats(sid);
-      return res.json({ success: true, data: stats });
-    } catch (error: any) {
-      await logError('Erro ao obter estatísticas do subscriber', error);
+      return res.json({
+        success: true, data: stats });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter estatísticas do subscriber', e.error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -406,7 +415,7 @@ router.get('/:id/contracts',
   ...idParamValidatorDefault,
   validateRequest,
   protectContractValues,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const sid = parseInt(id, 10);
@@ -416,9 +425,10 @@ router.get('/:id/contracts',
       const activeOnly = req.query.activeOnly !== 'false';
 
       const contracts = await getSubscriberService().getSubscriberContracts(sid, activeOnly);
-      return res.json({ success: true, data: contracts });
-    } catch (error: any) {
-      await logError('Erro ao listar contratos do subscriber', error);
+      return res.json({
+        success: true, data: contracts });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar contratos do subscriber', e.error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -432,7 +442,7 @@ router.get('/:id/validate/plan-limits',
   ...idParamValidatorDefault,
   ...planLimitsValidators,
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const sid = parseInt(id, 10);
@@ -463,10 +473,10 @@ router.get('/:id/validate/plan-limits',
         message: canCreate 
           ? `Você pode criar ${maxLimit !== undefined ? maxLimit - currentCount : 'ilimitados'} ${resourceType === 'media' ? 'mídia(s)' : resourceType === 'playlist' ? 'playlist(s)' : 'campanha(s)'}`
           : `Limite atingido: você já possui ${currentCount} ${resourceType === 'media' ? 'mídia(s)' : resourceType === 'playlist' ? 'playlist(s)' : 'campanha(s)'} de ${maxLimit} permitidas`
-      });
-    } catch (error: any) {
-      await logError('Erro ao validar limites de plano', error);
-      return res.status(500).json({ error: error.message || 'Erro interno do servidor' });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao validar limites de plano', e.error);
+      return res.status(500).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -479,7 +489,7 @@ router.get('/:id/validate/storage',
   ...idParamValidatorDefault,
   ...storageValidators,
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const sid = parseInt(id, 10);
@@ -516,10 +526,10 @@ router.get('/:id/validate/storage',
         message: canUpload
           ? `Upload permitido. Storage disponível: ${maxStorageBytes !== null ? ((maxStorageBytes - currentStorage) / (1024 * 1024 * 1024)).toFixed(2) : 'ilimitado'} GB`
           : `Limite de storage excedido. Você tem ${(currentStorage / (1024 * 1024 * 1024)).toFixed(2)} GB de ${maxStorageBytes !== null ? (maxStorageBytes / (1024 * 1024 * 1024)).toFixed(2) : 'ilimitado'} GB permitidos`
-      });
-    } catch (error: any) {
-      await logError('Erro ao validar storage', error);
-      return res.status(500).json({ error: error.message || 'Erro interno do servidor' });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao validar storage', e.error);
+      return res.status(500).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -532,7 +542,7 @@ router.get('/:id/validate/totem-access',
   ...idParamValidatorDefault,
   ...totemAccessValidators,
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const sid = parseInt(id, 10);
@@ -551,10 +561,10 @@ router.get('/:id/validate/totem-access',
         message: hasAccess
           ? 'Acesso ao totem permitido'
           : 'Acesso negado: você não tem permissão para acessar este totem através de seus contratos/planos'
-      });
-    } catch (error: any) {
-      await logError('Erro ao validar acesso a totem', error);
-      return res.status(500).json({ error: error.message || 'Erro interno do servidor' });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao validar acesso a totem', e.error);
+      return res.status(500).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );

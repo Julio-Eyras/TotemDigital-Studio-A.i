@@ -6,17 +6,20 @@
  *  - endpoints para receber eventos de interação/IA via REST.
  */
 
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
+import express from 'express';
+
 import { body, validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { getFxOrchestratorService, FxAiEvent, FxInteractionEvent } from '../services/fxOrchestratorService';
 import { logError } from '../utils/loggerHelper';
 import { getDatabase } from '../config/database';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
 // Middleware de validação simples
-const validateRequest = (req: Request, res: Response, next: any): void => {
+const validateRequest = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     res.status(400).json({
@@ -48,7 +51,7 @@ router.post(
   body('contentId').optional({ nullable: true }).isInt(),
   body('durationMs').optional({ nullable: true }).isInt({ min: 100 }),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const { siteId, fromTotemId, toTotemId, effectId, contentId, durationMs, params } = req.body;
       const fxService = getFxOrchestratorService();
@@ -66,16 +69,16 @@ router.post(
       return res.json({
         success: true,
         message: 'Efeito FX disparado (debug)',
-      });
-    } catch (error: any) {
-      await logError('Erro em /api/smartdisplayfx/debug/trigger-effect', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro em /api/smartdisplayfx/debug/trigger-effect', e.error, {
         route: '/api/smartdisplayfx/debug/trigger-effect',
-      }).catch(() => {});
+    }).catch(() => {});
 
       return res.status(500).json({
         success: false,
         error: 'Erro ao disparar efeito FX',
-        details: error?.message,
+        details: e.message,
       });
     }
   }
@@ -97,7 +100,7 @@ router.post(
   body('contentId').optional({ nullable: true }).isInt(),
   body('timestamp').optional({ nullable: true }).isISO8601(),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const fxService = getFxOrchestratorService();
 
@@ -116,16 +119,16 @@ router.post(
       res.json({
         success: true,
         message: 'Evento de interação recebido e processado',
-      });
-    } catch (error: any) {
-      await logError('Erro em /api/smartdisplayfx/events/interaction', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro em /api/smartdisplayfx/events/interaction', e.error, {
         route: '/api/smartdisplayfx/events/interaction',
-      }).catch(() => {});
+    }).catch(() => {});
 
       res.status(500).json({
         success: false,
         error: 'Erro ao processar evento de interação',
-        details: error?.message,
+        details: e.message,
       });
     }
   }
@@ -145,7 +148,7 @@ router.post(
   body('payload').notEmpty().withMessage('payload é obrigatório'),
   body('timestamp').optional({ nullable: true }).isISO8601(),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const fxService = getFxOrchestratorService();
 
@@ -163,16 +166,16 @@ router.post(
       return res.json({
         success: true,
         message: 'Evento de IA recebido e processado',
-      });
-    } catch (error: any) {
-      await logError('Erro em /api/smartdisplayfx/events/ai', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro em /api/smartdisplayfx/events/ai', e.error, {
         route: '/api/smartdisplayfx/events/ai',
-      }).catch(() => {});
+    }).catch(() => {});
 
       return res.status(500).json({
         success: false,
         error: 'Erro ao processar evento de IA',
-        details: error?.message,
+        details: e.message,
       });
     }
   }
@@ -186,7 +189,7 @@ router.post(
 router.get(
   '/logs',
   authorizeRole(['admin', 'gerente_marketing', 'visualizador']),
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const db = getDatabase();
       const siteId = (req.query.siteId as string) || undefined;
@@ -194,7 +197,7 @@ router.get(
       const limitParam = parseInt((req.query.limit as string) || '50', 10);
       const limit = Number.isNaN(limitParam) ? 50 : Math.min(Math.max(limitParam, 1), 200);
 
-      const params: any[] = [];
+      const params: unknown[] = [];
       let where = "WHERE entity_type IN ('smartdisplayfx_rule','smartdisplayfx_effect')";
 
       if (type === 'rule') {
@@ -229,16 +232,16 @@ router.get(
       return res.json({
         success: true,
         data: result.rows,
-      });
-    } catch (error: any) {
-      await logError('Erro em /api/smartdisplayfx/logs', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro em /api/smartdisplayfx/logs', e.error, {
         route: '/api/smartdisplayfx/logs',
-      }).catch(() => {});
+    }).catch(() => {});
 
       return res.status(500).json({
         success: false,
         error: 'Erro ao buscar logs SmartDisplayFX',
-        details: error?.message,
+        details: e.message,
       });
     }
   }
@@ -255,7 +258,7 @@ router.post(
   body('siteId').notEmpty().withMessage('siteId é obrigatório'),
   body('durationMinutes').optional({ nullable: true }).isInt({ min: 1, max: 1440 }),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const { siteId, durationMinutes } = req.body;
       const fxService = getFxOrchestratorService();
@@ -266,16 +269,16 @@ router.post(
         success: true,
         data: timeline,
         message: 'Timeline FX gerada com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro em /api/smartdisplayfx/timelines/generate', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro em /api/smartdisplayfx/timelines/generate', e.error, {
         route: '/api/smartdisplayfx/timelines/generate',
-      }).catch(() => {});
+    }).catch(() => {});
 
       return res.status(500).json({
         success: false,
         error: 'Erro ao gerar timeline FX',
-        details: error?.message,
+        details: e.message,
       });
     }
   }
@@ -291,7 +294,7 @@ router.post(
   authorizeRole(['admin', 'admin_sql']),
   body('siteId').notEmpty().withMessage('siteId é obrigatório'),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const { siteId } = req.body;
       const { getFxMessageBridge } = await import('../services/fxMessageBridge');
@@ -302,21 +305,20 @@ router.post(
       return res.json({
         success: true,
         message: 'Mensagem de sincronização de tempo publicada'
-      });
-    } catch (error: any) {
-      await logError('Erro em /api/smartdisplayfx/sync-time', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro em /api/smartdisplayfx/sync-time', e.error, {
         route: '/api/smartdisplayfx/sync-time',
-      }).catch(() => {});
+    }).catch(() => {});
 
       return res.status(500).json({
         success: false,
         error: 'Erro ao publicar sincronização de tempo',
-        details: error?.message,
+        details: e.message,
       });
     }
   }
 );
 
 export default router;
-
 

@@ -9,6 +9,7 @@ import { logError, logInfo } from '../utils/loggerHelper';
 import { buildPixCopyPaste } from '../utils/pixEmv';
 import { financialConfig, stripeConfig } from '../config/env';
 import {
+
   getPlanPriceForInterval,
   normalizeBillingInterval,
   resolveInvoicePeriodBounds,
@@ -16,20 +17,21 @@ import {
 import { addCalendarDaysYmd } from '../utils/businessDate';
 import { StripeService } from './stripeService';
 import { getFinancialNotificationService } from './financialNotificationService';
+import { normalizeError } from '../utils/errors';
 function getSubscriberBillingServiceInstance() {
-  if (!(global as any).subscriberBillingServiceInstance) {
+  if (!(global as unknown as Record<string, unknown>).subscriberBillingServiceInstance) {
     const { SubscriberBillingService } = require('./subscriberBillingService');
-    (global as any).subscriberBillingServiceInstance = new SubscriberBillingService();
+    (global as unknown as Record<string, unknown>).subscriberBillingServiceInstance = new SubscriberBillingService();
   }
-  return (global as any).subscriberBillingServiceInstance;
+  return (global as unknown as Record<string, unknown>).subscriberBillingServiceInstance as any;
 }
 
 function getPublisherBillingServiceInstance() {
-  if (!(global as any).publisherBillingServiceInstance) {
+  if (!(global as unknown as Record<string, unknown>).publisherBillingServiceInstance) {
     const { PublisherBillingService } = require('./publisherBillingService');
-    (global as any).publisherBillingServiceInstance = new PublisherBillingService();
+    (global as unknown as Record<string, unknown>).publisherBillingServiceInstance = new PublisherBillingService();
   }
-  return (global as any).publisherBillingServiceInstance;
+  return (global as unknown as Record<string, unknown>).publisherBillingServiceInstance as any;
 }
 
 export type FinancialAlertLevel = 'error' | 'warning' | 'success' | 'neutral';
@@ -247,7 +249,8 @@ export class FinancialAdminService {
             contractId,
             invoiceNumber,
           });
-        } catch (e: any) {
+} catch (eCatch: unknown) {
+          const e = normalizeError(eCatch);
           result.errors.push({ contractId, message: e?.message || 'Erro ao emitir fatura' });
         }
       }
@@ -258,10 +261,10 @@ export class FinancialAdminService {
         errors: result.errors.length,
       });
 
-      return result;
-    } catch (error: any) {
-      await logError('Erro na emissão de faturas por contrato (anunciante)', error);
-      throw error;
+      return result;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro na emissão de faturas por contrato (anunciante)', e.error);
+      throw e.error;
     }
   }
 
@@ -381,7 +384,9 @@ export class FinancialAdminService {
             contractId,
             invoiceNumber,
           });
-        } catch (e: any) {
+} catch (eCatch: unknown) {
+
+          const e = normalizeError(eCatch);
           result.errors.push({ contractId, message: e?.message || 'Erro ao emitir fatura da organização' });
         }
       }
@@ -392,10 +397,10 @@ export class FinancialAdminService {
         errors: result.errors.length,
       });
 
-      return result;
-    } catch (error: any) {
-      await logError('Erro na emissão de faturas por contrato (organização)', error);
-      throw error;
+      return result;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro na emissão de faturas por contrato (organização)', e.error);
+      throw e.error;
     }
   }
 
@@ -522,7 +527,10 @@ export class FinancialAdminService {
               .sendPublisherRevenueSharePayoutEmail(billing.billingId)
               .catch(() => undefined);
           }
-        } catch (e: any) {
+ 
+} catch (eCatch: unknown) {
+
+          const e = normalizeError(eCatch);
           result.errors.push({
             contractId,
             message: e?.message || `Erro repasse campanha ${campaignId}`,
@@ -536,10 +544,10 @@ export class FinancialAdminService {
         errors: result.errors.length,
       });
 
-      return result;
-    } catch (error: any) {
-      await logError('Erro na emissão de repasses revenue share', error);
-      throw error;
+      return result;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro na emissão de repasses revenue share', e.error);
+      throw e.error;
     }
   }
 
@@ -600,9 +608,10 @@ export class FinancialAdminService {
         }
         if (merged.created > 0 || merged.errors.length > 0) {
           revenueSharePayout = merged;
-        }
-      } catch (error: any) {
-        await logError('Repasse revenue share após pagamento de campanha', error, {
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+        await logError('Repasse revenue share após pagamento de campanha', e.error, {
           billingId,
           campaignId,
         });
@@ -639,7 +648,9 @@ export class FinancialAdminService {
       qrDataUrl,
       amount: Number(billing.amount),
       currency: billing.currency || 'BRL',
-      invoiceNumber: (billing as any).invoiceNumber,
+      invoiceNumber: (billing as unknown as Record<string, unknown>).invoiceNumber != null
+        ? String((billing as unknown as Record<string, unknown>).invoiceNumber)
+        : undefined,
       dueDate: billing.dueDate,
       pixConfigured,
     };

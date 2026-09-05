@@ -1,6 +1,8 @@
 import express from 'express';
 import request from 'supertest';
 
+import * as express from 'express';
+
 const mockFindFirst = jest.fn();
 const mockFindMany = jest.fn();
 const mockExecuteRaw = jest.fn();
@@ -21,7 +23,7 @@ jest.mock('../../../services/otaUpdateService', () => ({
 }));
 
 jest.mock('../../../middleware/validation.middleware', () => ({
-  validateRequest: (_req: any, _res: any, next: any) => next(),
+  validateRequest: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
 }));
 
 jest.mock('../../../utils/loggerHelper', () => ({
@@ -31,7 +33,7 @@ jest.mock('../../../utils/loggerHelper', () => ({
 
 jest.mock('../../../middleware/auth.middleware', () => {
   const actual = jest.requireActual('../../../middleware/auth.middleware');
-  const authMiddleware = (req: any, res: any, next: any) => {
+  const authMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const token = String(req.headers.authorization || '').replace('Bearer ', '');
     const users: Record<string, { id: number; role: string }> = {
       admin: { id: 1, role: 'admin' },

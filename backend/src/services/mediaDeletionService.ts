@@ -225,7 +225,7 @@ export class MediaDeletionService {
         [pl.id]
       );
       for (const row of camps || []) {
-        affectedCampaignIds.add(Number((row as any).campaign_id));
+        affectedCampaignIds.add(Number((row as unknown as Record<string, unknown>).campaign_id));
       }
     }
 
@@ -246,7 +246,7 @@ export class MediaDeletionService {
         `SELECT COUNT(*)::int AS count FROM playlist_items WHERE playlist_id = $1`,
         [playlistId]
       );
-      const count = Number((remaining as any)?.count || 0);
+      const count = Number((remaining as unknown as Record<string, unknown>)?.count || 0);
       if (count === 0) {
         const pl = usageBefore.playlistDetails.find((p) => p.id === playlistId);
         const linkedCampaigns = await this.db.findMany(
@@ -254,7 +254,7 @@ export class MediaDeletionService {
           [playlistId]
         );
         for (const row of linkedCampaigns || []) {
-          campaignsToRecompactPlaylists.add(Number((row as any).campaign_id));
+          campaignsToRecompactPlaylists.add(Number((row as unknown as Record<string, unknown>).campaign_id));
         }
         await this.hardDeleteEmptyPlaylist(playlistId);
         if (pl) playlistsDeleted.push(pl);

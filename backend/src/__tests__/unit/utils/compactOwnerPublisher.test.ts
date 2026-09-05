@@ -20,7 +20,7 @@ import {
 
 describe('resolveCompactOwnerPublisherId', () => {
   const findFirst = jest.fn();
-  const db = { findFirst };
+  const db = { findFirst } as unknown as Parameters<typeof resolveCompactOwnerPublisherId>[0];
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -44,7 +44,7 @@ describe('resolveCompactOwnerPublisherId', () => {
 
 describe('resolveInventoryPublisherScope', () => {
   const findFirst = jest.fn();
-  const db = { findFirst };
+  const db = { findFirst } as unknown as Parameters<typeof resolveInventoryPublisherScope>[0];
 
   beforeEach(() => {
     jest.clearAllMocks();

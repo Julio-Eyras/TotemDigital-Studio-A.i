@@ -1,4 +1,6 @@
-import express from 'express';
+
+
+import express, { Request, Response } from 'express';
 import { param, validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
@@ -9,6 +11,7 @@ import { logError } from '../utils/loggerHelper';
 import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
 import { isAdminRole } from '../utils/tenantScope';
 import { 
+
   paginationValidators, 
   searchValidators, 
   sortValidators, 
@@ -23,6 +26,7 @@ import {
   reorderPlaylistItemsValidators,
   playlistFilterValidators
 } from '../validators/playlist.validators';
+import { normalizeError } from '../utils/errors';
 
 const router = express.Router();
 
@@ -42,24 +46,25 @@ const updatePlaylistValidator = [
   ...updatePlaylistValidators,
 ];
 
-const validateRequest = (req: any, res: any, next: any) => {
+const validateRequest = (req: Request, res: Response, next: express.NextFunction) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    logError('Erro de validação ao criar playlist', undefined, {
+    void logError('Erro de validação ao criar playlist', undefined, {
       errors: errors.array(),
       body: req.body
     }).catch(() => {});
-    return res.status(400).json({
+    res.status(400).json({
       error: 'Dados inválidos',
       message: 'Verifique os dados enviados',
       details: errors.array()
     });
+    return;
   }
-  next();
+  return next();
 };
 
 /** Escopo de leitura pela subscriber_id da playlist; responde 404/403 e retorna false se não puder continuar. */
-async function assertPlaylistReadScope(req: any, res: any, playlistId: number): Promise<boolean> {
+async function assertPlaylistReadScope(req: Request, res: Response, playlistId: number): Promise<boolean> {
   const sid = await getPlaylistService().getSubscriberIdForPlaylist(playlistId);
   if (sid == null) {
     res.status(404).json({ error: 'Playlist não encontrada' });
@@ -68,7 +73,8 @@ async function assertPlaylistReadScope(req: any, res: any, playlistId: number): 
   if (!isAdminRole(req.user?.role)) {
     try {
       await assertTenantClientParamAccess(req, sid);
-    } catch (e: any) {
+} catch (rawErr: unknown) {
+  const e = normalizeError(rawErr);
       if (e?.statusCode === 403) {
         res.status(403).json({ error: e.message || 'Acesso negado' });
         return false;
@@ -90,7 +96,7 @@ router.get('/',
   ...dateRangeValidators,
   ...playlistFilterValidators,
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { page = 1, limit = 10, search, subscriberId } = req.query;
       const userSubscriberId = req.user?.subscriberId;
@@ -116,7 +122,7 @@ router.get('/',
       }, userSubscriberId, isAdmin);
       
       res.json(result);
-    } catch (error) {
+} catch (error: unknown) {
       await logError('Erro ao listar playlists', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
@@ -130,7 +136,7 @@ router.get('/',
 router.get('/:id',
   ...idParamValidatorDefault,
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const pid = parseInt(id, 10);
@@ -145,12 +151,12 @@ router.get('/:id',
         return res.status(404).json({ error: 'Playlist não encontrada' });
       }
 
-      res.json(playlist);
-    } catch (error: any) {
-      await logError('Erro ao obter playlist', error);
-      if (error.message?.includes('Acesso negado')) {
-        return res.status(403).json({ error: error.message });
-      }
+      res.json(playlist);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter playlist', e.error);
+      if (e.message?.includes('Acesso negado')) {
+        return res.status(403).json({ error: e.message });
+    }
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -163,7 +169,7 @@ router.get('/:id',
 router.get('/:id/preview',
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const pid = parseInt(id, 10);
@@ -187,25 +193,29 @@ router.get('/:id/preview',
         playlistName: playlist.name,
         playlistDescription: playlist.description,
         mediaCount: items.length,
-        items: items.map((item: any) => ({
-          itemId: item.item_id,
-          orderIndex: item.order_index,
-          displaySeconds: item.duration,
-          media: item.media ? {
-            id: item.media.media_id,
-            name: item.media.name,
-            type: item.media.media_type,
-            durationSeconds: item.media.duration_seconds,
-            sizeBytes: item.media.size_bytes,
-            mimeType: item.media.mime_type,
-            downloadUrl: `/api/media/${item.media.media_id}/download`,
-            thumbnailUrl: `/api/media/${item.media.media_id}/thumbnail`
-          } : null
-        }))
+        items: items.map((itemRaw: unknown) => {
+          const item = itemRaw as Record<string, unknown>;
+          const media = item.media as (Record<string, unknown> | undefined);
+          return {
+            itemId: item.item_id,
+            orderIndex: item.order_index,
+            displaySeconds: item.duration,
+            media: media ? {
+              id: media.media_id,
+              name: media.name,
+              type: media.media_type,
+              durationSeconds: media.duration_seconds,
+              sizeBytes: media.size_bytes,
+              mimeType: media.mime_type,
+              downloadUrl: `/api/media/${media.media_id}/download`,
+              thumbnailUrl: `/api/media/${media.media_id}/thumbnail`
+            } : null
+          };
+        })
       };
 
       res.json(preview);
-    } catch (error) {
+} catch (error: unknown) {
       await logError('Erro ao obter preview da playlist', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
@@ -219,7 +229,7 @@ router.get('/:id/preview',
 router.get('/:id/campaigns',
   ...idParamValidatorDefault,
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const pid = parseInt(id, 10);
@@ -229,12 +239,13 @@ router.get('/:id/campaigns',
       }
 
       const campaigns = await getPlaylistService().getCampaignsByPlaylist(pid, undefined, true);
-      return res.json({ data: campaigns });
-    } catch (error: any) {
-      await logError('Erro ao listar campanhas da playlist', error);
-      if (error.message?.includes('Acesso negado')) {
-        return res.status(403).json({ error: error.message });
-      }
+      return res.json({
+        data: campaigns });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar campanhas da playlist', e.error);
+      if (e.message?.includes('Acesso negado')) {
+        return res.status(403).json({ error: e.message });
+    }
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -247,7 +258,7 @@ router.get('/:id/campaigns',
 router.get('/:id/exposure',
   ...idParamValidatorDefault,
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const pid = parseInt(id, 10);
@@ -257,12 +268,12 @@ router.get('/:id/exposure',
       }
 
       const exposure = await getPlaylistService().getExposureByPlaylist(pid, undefined, true);
-      return res.json(exposure);
-    } catch (error: any) {
-      await logError('Erro ao obter exposição da playlist', error);
-      if (error.message?.includes('Acesso negado')) {
-        return res.status(403).json({ error: error.message });
-      }
+      return res.json(exposure);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter exposição da playlist', e.error);
+      if (e.message?.includes('Acesso negado')) {
+        return res.status(403).json({ error: e.message });
+    }
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -277,7 +288,7 @@ router.post('/',
   authorizeRole(['admin', 'gerente_marketing', 'subscriber']), // Adicionado 'subscriber'
   createPlaylistValidator,
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { name, categorySegment, description, subscriberId, clientId } = req.body; // Aceita subscriberId e clientId (deprecated)
       const userSubscriberId = req.user?.subscriberId || req.user?.clientId;
@@ -289,10 +300,11 @@ router.post('/',
         try {
           const subscriberService = getSubscriberService();
           await subscriberService.validatePlanLimits(finalSubscriberId, 'playlist');
-        } catch (limitError: any) {
+} catch (limitError: unknown) {
+  const e = normalizeError(limitError);
           return res.status(400).json({
             error: 'Limite do plano excedido',
-            message: limitError.message || 'Limite de playlists do plano foi excedido'
+            message: e.message || 'Limite de playlists do plano foi excedido'
           });
         }
       }
@@ -305,13 +317,13 @@ router.post('/',
         clientId, // Deprecated, mantido para compatibilidade
       }, userSubscriberId, isAdmin);
 
-      res.status(201).json(newPlaylist);
-    } catch (error: any) {
-      await logError('Erro ao criar playlist', error);
-      if (error.message?.includes('Acesso negado')) {
-        return res.status(403).json({ error: error.message });
-      }
-      res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      res.status(201).json(newPlaylist);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar playlist', e.error);
+      if (e.message?.includes('Acesso negado')) {
+        return res.status(403).json({ error: e.message });
+    }
+      res.status(400).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -325,7 +337,7 @@ router.put('/:id',
   authorizeRole(['admin', 'gerente_marketing', 'subscriber']), // Adicionado 'subscriber'
   updatePlaylistValidator,
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const { name, categorySegment, description, subscriberId, clientId, isActive } = req.body;
@@ -341,13 +353,13 @@ router.put('/:id',
         isActive,
       }, userSubscriberId, isAdmin);
 
-      res.json(updatedPlaylist);
-    } catch (error: any) {
-      await logError('Erro ao atualizar playlist', error);
-      if (error.message?.includes('Acesso negado')) {
-        return res.status(403).json({ error: error.message });
-      }
-      res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      res.json(updatedPlaylist);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar playlist', e.error);
+      if (e.message?.includes('Acesso negado')) {
+        return res.status(403).json({ error: e.message });
+    }
+      res.status(400).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -361,7 +373,7 @@ router.delete('/:id',
   authorizeRole(['admin', 'gerente_marketing', 'subscriber']), // Adicionado 'subscriber'
   ...idParamValidatorDefault,
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const userSubscriberId = req.user?.subscriberId || req.user?.clientId;
@@ -369,13 +381,13 @@ router.delete('/:id',
       
       await getPlaylistService().deletePlaylist(parseInt(id), userSubscriberId, isAdmin);
       
-      res.status(204).send();
-    } catch (error: any) {
-      await logError('Erro ao excluir playlist', error);
-      if (error.message?.includes('Acesso negado')) {
-        return res.status(403).json({ error: error.message });
-      }
-      res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      res.status(204).send();} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao excluir playlist', e.error);
+      if (e.message?.includes('Acesso negado')) {
+        return res.status(403).json({ error: e.message });
+    }
+      res.status(400).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -387,7 +399,7 @@ router.delete('/:id',
 router.get('/:id/media',
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const pid = parseInt(id, 10);
@@ -399,7 +411,7 @@ router.get('/:id/media',
       const playlistMedia = await getPlaylistService().getPlaylistMedia(pid);
 
       res.json(playlistMedia);
-    } catch (error) {
+} catch (error: unknown) {
       await logError('Erro ao obter mídia da playlist', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
@@ -414,7 +426,7 @@ router.post('/:id/media',
   ...idParamValidatorDefault,
   ...addMediaToPlaylistValidators,
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const { mediaId, orderIndex, duration } = req.body;
@@ -432,13 +444,13 @@ router.post('/:id/media',
       
       res.status(201).json({
         message: 'Mídia adicionada à playlist com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro ao adicionar mídia à playlist', error);
-      if (error.message?.includes('Acesso negado') || error.message?.includes('pertence a outro subscriber')) {
-        return res.status(403).json({ error: error.message });
-      }
-      res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao adicionar mídia à playlist', e.error);
+      if (e.message?.includes('Acesso negado') || e.message?.includes('pertence a outro subscriber')) {
+        return res.status(403).json({ error: e.message });
+    }
+      res.status(400).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -452,7 +464,7 @@ router.patch('/:id/media/:itemId',
   param('itemId').isInt({ min: 1 }).withMessage('ID do item inválido'),
   ...updatePlaylistItemDurationValidators,
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id, itemId } = req.params;
       const { duration } = req.body;
@@ -461,13 +473,14 @@ router.patch('/:id/media/:itemId',
       
       await getPlaylistService().updatePlaylistItemDuration(parseInt(id), parseInt(itemId), duration, userSubscriberId, isAdmin);
       
-      res.json({ message: 'Duração do item atualizada com sucesso' });
-    } catch (error: any) {
-      await logError('Erro ao atualizar duração do item da playlist', error);
-      if (error.message?.includes('Acesso negado')) {
-        return res.status(403).json({ error: error.message });
-      }
-      res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      res.json({
+        message: 'Duração do item atualizada com sucesso' });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar duração do item da playlist', e.error);
+      if (e.message?.includes('Acesso negado')) {
+        return res.status(403).json({ error: e.message });
+    }
+      res.status(400).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -480,7 +493,7 @@ router.delete('/:id/media/:itemId',
   param('id').isInt({ min: 1 }).withMessage('ID da playlist inválido'),
   param('itemId').isInt({ min: 1 }).withMessage('ID do item inválido'),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id, itemId } = req.params;
       const userSubscriberId = req.user?.subscriberId || req.user?.clientId;
@@ -488,13 +501,13 @@ router.delete('/:id/media/:itemId',
       
       await getPlaylistService().removeMediaFromPlaylist(parseInt(id), parseInt(itemId), userSubscriberId, isAdmin);
       
-      res.status(204).send();
-    } catch (error: any) {
-      await logError('Erro ao remover mídia da playlist', error);
-      if (error.message?.includes('Acesso negado')) {
-        return res.status(403).json({ error: error.message });
-      }
-      res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      res.status(204).send();} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao remover mídia da playlist', e.error);
+      if (e.message?.includes('Acesso negado')) {
+        return res.status(403).json({ error: e.message });
+    }
+      res.status(400).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -508,7 +521,7 @@ router.put('/:id/reorder',
   ...idParamValidatorDefault,
   ...reorderPlaylistItemsValidators,
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const { items } = req.body;
@@ -522,13 +535,14 @@ router.put('/:id/reorder',
         isAdmin
       );
       
-      res.json({ message: 'Itens da playlist reordenados com sucesso' });
-    } catch (error: any) {
-      await logError('Erro ao reordenar itens da playlist', error);
-      if (error.message?.includes('Acesso negado')) {
-        return res.status(403).json({ error: error.message });
-      }
-      res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      res.json({
+        message: 'Itens da playlist reordenados com sucesso' });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao reordenar itens da playlist', e.error);
+      if (e.message?.includes('Acesso negado')) {
+        return res.status(403).json({ error: e.message });
+    }
+      res.status(400).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );

@@ -1,17 +1,19 @@
 import express from 'express';
 import request from 'supertest';
 
+import * as express from 'express';
+
 const mockGetContractById = jest.fn();
 const mockGetSubscriberIdForContract = jest.fn();
 const mockGetContractPublishers = jest.fn();
 const mockPublisherGetContractById = jest.fn();
 
 jest.mock('../../../middleware/contractValuesProtection.middleware', () => ({
-  protectContractValues: (_req: any, _res: any, next: any) => next(),
+  protectContractValues: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
 }));
 
 jest.mock('../../../middleware/auth.middleware', () => {
-  const authFn = (req: any, res: any, next: any) => {
+  const authFn = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const h = String(req.headers.authorization || '');
     if (!h.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -34,7 +36,7 @@ jest.mock('../../../middleware/auth.middleware', () => {
   };
   return {
     authMiddleware: authFn,
-    authorizeRole: () => (_req: any, _res: any, next: any) => next(),
+    authorizeRole: () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
   };
 });
 

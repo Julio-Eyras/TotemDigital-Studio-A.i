@@ -74,7 +74,7 @@ export class SimplePublishService {
       `,
         [JSON.stringify(simpleMeta), result.playlistId]
       );
-    } catch (error) {
+} catch (error: unknown) {
       await logError('Erro ao marcar campanha/playlist como simple_publish', error, {
         campaignId: result.campaignId,
         playlistId: result.playlistId,

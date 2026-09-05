@@ -3,13 +3,16 @@
  * Rotas para gerenciamento de locals (locais físicos dos publishers)
  */
 
-import { Router, Response } from 'express';
+import { Router } from 'express';
+import express from 'express';
+
 import { getLocalService } from '../services/localService';
 import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
 import { param, query, body, validationResult } from 'express-validator';
 import { logError } from '../utils/loggerHelper';
 import { errorResponse } from '../utils/apiResponse';
 import { isStudioRuntime } from '../config/installationRuntime';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -87,7 +90,7 @@ const updateLocalValidator = [
   body('is_active').optional({ nullable: true }).isBoolean(),
 ];
 
-const validateRequest = (req: any, res: any, next: any) => {
+const validateRequest = (req: express.Request, res: express.Response, next: express.NextFunction): express.Response | void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -111,7 +114,7 @@ router.get('/',
   query('publisherId').optional().isInt({ min: 1 }),
   query('active_only').optional().isBoolean(),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const { page = 1, limit = 10, search, publisherId, active_only } = req.query;
       
@@ -127,13 +130,13 @@ router.get('/',
         active_only: active_only === 'true' || active_only === undefined,
       }, requestPublisherId, isAdmin);
       
-      return res.json(result);
-    } catch (error: any) {
-      await logError('Erro ao listar locals', error);
-      if ((error?.message || '').includes('Acesso negado') || (error?.message || '').includes('Modo compacto')) {
-        return res.status(403).json(errorResponse(error.message || 'Acesso negado'));
-      }
-      return res.status(500).json(errorResponse('Erro interno do servidor', error.message));
+      return res.json(result);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar locals', e.error);
+      if ((e.message || '').includes('Acesso negado') || (e.message || '').includes('Modo compacto')) {
+        return res.status(403).json(errorResponse(e.message || 'Acesso negado'));
+    }
+      return res.status(500).json(errorResponse('Erro interno do servidor', e.message));
     }
   }
 );
@@ -145,7 +148,7 @@ router.get('/',
 router.get('/stats',
   query('localIds').notEmpty().withMessage('localIds é obrigatório (ex: 1,2,3)'),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const localIdsStr = req.query.localIds as string;
       const localIds = localIdsStr.split(',').map((id) => parseInt(id.trim(), 10)).filter((n) => !isNaN(n));
@@ -153,13 +156,13 @@ router.get('/stats',
       const isAdmin = isAdminRole(req.user?.role);
       const requestPublisherId = req.user?.publisherId || undefined;
       const stats = await getLocalService().getLocalStats(localIds, requestPublisherId, isAdmin);
-      return res.json(stats);
-    } catch (error: any) {
-      logError('Erro ao buscar stats dos locais', error);
-      if ((error?.message || '').includes('Acesso negado') || (error?.message || '').includes('Modo compacto')) {
-        return res.status(403).json(errorResponse(error.message || 'Acesso negado'));
-      }
-      return res.status(500).json(errorResponse('Erro ao buscar estatísticas', error.message));
+      return res.json(stats);} catch (error: unknown) {
+      const e = normalizeError(error);
+      logError('Erro ao buscar stats dos locais', e.error);
+      if ((e.message || '').includes('Acesso negado') || (e.message || '').includes('Modo compacto')) {
+        return res.status(403).json(errorResponse(e.message || 'Acesso negado'));
+    }
+      return res.status(500).json(errorResponse('Erro ao buscar estatísticas', e.message));
     }
   }
 );
@@ -172,7 +175,7 @@ router.get('/stats',
 router.get('/:id',
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const { id } = req.params;
       
@@ -185,13 +188,14 @@ router.get('/:id',
         return res.status(404).json(errorResponse('Local não encontrado'));
       }
 
-      return res.json({ success: true, data: local });
-    } catch (error: any) {
-      await logError('Erro ao obter local', error);
-      if (error.message.includes('Acesso negado')) {
-        return res.status(403).json(errorResponse(error.message || 'Acesso negado'));
-      }
-      return res.status(500).json(errorResponse('Erro interno do servidor', error.message));
+      return res.json({
+        success: true, data: local });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter local', e.error);
+      if (e.message.includes('Acesso negado')) {
+        return res.status(403).json(errorResponse(e.message || 'Acesso negado'));
+    }
+      return res.status(500).json(errorResponse('Erro interno do servidor', e.message));
     }
   }
 );
@@ -205,7 +209,7 @@ router.post('/',
   authorizeRole(getLocalsWriteRoles()),
   createLocalValidator,
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const { publisher_id, contract_id, name, category_segment, address, city, state, zip_code, country, latitude, longitude, timezone, description } = req.body;
       
@@ -238,15 +242,16 @@ router.post('/',
         longitude,
         timezone,
         description,
-      }, req.user.id, requestPublisherId, isAdmin);
+      }, req.user!.id, requestPublisherId, isAdmin);
       
-      return res.status(201).json({ success: true, data: newLocal });
-    } catch (error: any) {
-      await logError('Erro ao criar local', error);
-      if (error.message.includes('Acesso negado')) {
-        return res.status(403).json(errorResponse(error.message || 'Acesso negado'));
-      }
-      return res.status(400).json(errorResponse('Erro na operação', error.message));
+      return res.status(201).json({
+        success: true, data: newLocal });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar local', e.error);
+      if (e.message.includes('Acesso negado')) {
+        return res.status(403).json(errorResponse(e.message || 'Acesso negado'));
+    }
+      return res.status(400).json(errorResponse('Erro na operação', e.message));
     }
   }
 );
@@ -261,7 +266,7 @@ router.put('/:id',
   param('id').isInt({ min: 1 }),
   updateLocalValidator,
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const { id } = req.params;
       const { name, category_segment, address, city, state, zip_code, country, latitude, longitude, timezone, description, is_active } = req.body;
@@ -289,18 +294,19 @@ router.put('/:id',
           description,
           is_active,
         },
-        req.user.id,
+        req.user!.id,
         requestPublisherId,
         isAdmin
       );
       
-      return res.json({ success: true, data: updatedLocal });
-    } catch (error: any) {
-      await logError('Erro ao atualizar local', error);
-      if (error.message.includes('Acesso negado')) {
-        return res.status(403).json(errorResponse(error.message || 'Acesso negado'));
-      }
-      return res.status(400).json(errorResponse('Erro na operação', error.message));
+      return res.json({
+        success: true, data: updatedLocal });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar local', e.error);
+      if (e.message.includes('Acesso negado')) {
+        return res.status(403).json(errorResponse(e.message || 'Acesso negado'));
+    }
+      return res.status(400).json(errorResponse('Erro na operação', e.message));
     }
   }
 );
@@ -314,7 +320,7 @@ router.delete('/:id',
   authorizeRole(getLocalsWriteRoles()),
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const { id } = req.params;
       
@@ -325,15 +331,16 @@ router.delete('/:id',
       const isAdmin = isAdminRole(req.user?.role);
       const requestPublisherId = req.user?.publisherId || undefined;
 
-      await getLocalService().deleteLocal(parseInt(id), req.user.id, requestPublisherId, isAdmin);
+      await getLocalService().deleteLocal(parseInt(id), req.user!.id, requestPublisherId, isAdmin);
       
-      return res.json({ success: true, message: 'Local deletado com sucesso' });
-    } catch (error: any) {
-      await logError('Erro ao deletar local', error);
-      if (error.message.includes('Acesso negado')) {
-        return res.status(403).json(errorResponse(error.message || 'Acesso negado'));
-      }
-      return res.status(400).json(errorResponse('Erro na operação', error.message));
+      return res.json({
+        success: true, message: 'Local deletado com sucesso' });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao deletar local', e.error);
+      if (e.message.includes('Acesso negado')) {
+        return res.status(403).json(errorResponse(e.message || 'Acesso negado'));
+    }
+      return res.status(400).json(errorResponse('Erro na operação', e.message));
     }
   }
 );
@@ -346,7 +353,7 @@ router.delete('/:id',
 router.get('/:id/totems',
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const { id } = req.params;
       
@@ -355,13 +362,14 @@ router.get('/:id/totems',
 
       const totems = await getLocalService().getTotemsByLocal(parseInt(id), requestPublisherId, isAdmin);
       
-      return res.json({ success: true, data: totems });
-    } catch (error: any) {
-      await logError('Erro ao listar totens do local', error);
-      if (error.message.includes('Acesso negado')) {
-        return res.status(403).json(errorResponse(error.message || 'Acesso negado'));
-      }
-      return res.status(500).json(errorResponse('Erro interno do servidor', error.message));
+      return res.json({
+        success: true, data: totems });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar totens do local', e.error);
+      if (e.message.includes('Acesso negado')) {
+        return res.status(403).json(errorResponse(e.message || 'Acesso negado'));
+    }
+      return res.status(500).json(errorResponse('Erro interno do servidor', e.message));
     }
   }
 );

@@ -6,6 +6,8 @@
  */
 
 import { Router } from 'express';
+import express from 'express';
+
 import { getCampaignService } from '../services/campaignService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
@@ -16,6 +18,7 @@ import { getSubscriberService } from '../services/subscriberService';
 import { determineSubscriberId, normalizeCampaignData } from '../utils/subscriberHelper';
 import { paginatedResponse } from '../utils/apiResponse';
 import { 
+
   paginationValidators, 
   searchValidators, 
   sortValidators, 
@@ -38,6 +41,7 @@ import {
 import { assertTotemReadAccess } from '../utils/totemReadAccess';
 import { isAdminRole } from '../utils/tenantScope';
 import { resolvePublishGuardHttpStatus } from '../utils/publishGuardHttp';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -62,7 +66,7 @@ router.get('/',
   ...dateRangeValidators,
   ...campaignFilterValidators,
   validateRequest,
-  async (req: any, res) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const {
       page = 1,
@@ -110,7 +114,7 @@ router.get('/',
       }
     }
 
-    const filters: any = {
+    const filters: Record<string, unknown> = {
       subscriberId: finalSubscriberId,
       scopedPublisherId,
       status: status as string,
@@ -134,20 +138,19 @@ router.get('/',
       page: result.page,
       limit: result.limit,
       total: result.total
-    }));
-
-  } catch (error: any) {
-    if (error?.statusCode === 403) {
+    }));} catch (error: unknown) {
+    const e = normalizeError(error);
+    if ((e.raw as { statusCode?: number })?.statusCode === 403) {
       return res.status(403).json({
         success: false,
-        message: error.message || 'Acesso negado'
-      });
+        message: e.message || 'Acesso negado'
+  });
     }
-    await logError('Erro ao listar campanhas', error, { filters: req.query });
+    await logError('Erro ao listar campanhas', e.error, { filters: req.query });
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
+      error: e.message
     });
   }
 });
@@ -164,15 +167,14 @@ router.get('/stats', authorizeRole(['admin', 'gerente_marketing', 'visualizador'
     return res.json({
       success: true,
       data: stats
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar estatísticas', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar estatísticas', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -181,7 +183,7 @@ router.get('/stats', authorizeRole(['admin', 'gerente_marketing', 'visualizador'
  * @desc Lista campanhas de um subscriber específico (antes cliente)
  * @access Private (Admin, Manager, Client)
  */
-router.get('/client/:clientId', async (req: any, res) => {
+router.get('/client/:clientId', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   const { clientId } = req.params;
   try {
     const { limit = 50 } = req.query;
@@ -204,20 +206,19 @@ router.get('/client/:clientId', async (req: any, res) => {
     return res.json({
       success: true,
       data: campaigns
-    });
-
-  } catch (error: any) {
-    if (error?.statusCode === 403) {
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    if ((e.raw as { statusCode?: number })?.statusCode === 403) {
       return res.status(403).json({
         success: false,
-        message: error.message || 'Acesso negado'
-      });
+        message: e.message || 'Acesso negado'
+  });
     }
-    await logError('Erro ao buscar campanhas do cliente', error, { clientId: parseInt(clientId, 10) });
+    await logError('Erro ao buscar campanhas do cliente', e.error, { clientId: parseInt(clientId, 10) });
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
+      error: e.message
     });
   }
 });
@@ -227,7 +228,7 @@ router.get('/client/:clientId', async (req: any, res) => {
  * @desc Lista campanhas ativas para um totem
  * @access Private (Admin, Manager, Client)
  */
-router.get('/totem/:totemId', async (req: any, res) => {
+router.get('/totem/:totemId', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   const { totemId } = req.params;
   try {
     const tid = parseInt(totemId, 10);
@@ -245,26 +246,25 @@ router.get('/totem/:totemId', async (req: any, res) => {
     return res.json({
       success: true,
       data: campaigns
-    });
-
-  } catch (error: any) {
-    if (error?.statusCode === 403) {
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    if ((e.raw as { statusCode?: number })?.statusCode === 403) {
       return res.status(403).json({
         success: false,
-        message: error.message || 'Acesso negado'
-      });
+        message: e.message || 'Acesso negado'
+  });
     }
-    if (error?.statusCode === 404) {
+    if ((e.raw as { statusCode?: number })?.statusCode === 404) {
       return res.status(404).json({
         success: false,
-        message: error.message || 'Não encontrado'
+        message: e.message || 'Não encontrado'
       });
     }
-    await logError('Erro ao buscar campanhas do totem', error, { totemId: parseInt(totemId, 10) });
+    await logError('Erro ao buscar campanhas do totem', e.error, { totemId: parseInt(totemId, 10) });
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
+      error: e.message
     });
   }
 });
@@ -277,7 +277,7 @@ router.get('/totem/:totemId', async (req: any, res) => {
 router.get('/:id',
   ...idParamValidatorDefault,
   validateRequest,
-  async (req: any, res) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   const { id } = req.params;
   try {
     const campaign = await getCampaignService().getCampaignById(parseInt(id));
@@ -300,7 +300,8 @@ router.get('/:id',
     if (!isAdminRole(req.user?.role)) {
       try {
         await assertTenantClientParamAccess(req, sid);
-      } catch (e: any) {
+} catch (rawErr: unknown) {
+  const e = normalizeError(rawErr);
         if (e?.statusCode === 403) {
           return res.status(403).json({
             success: false,
@@ -314,15 +315,14 @@ router.get('/:id',
     return res.json({
       success: true,
       data: campaign
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar campanha', error, { id: parseInt(id) });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar campanha', e.error, { id: parseInt(id) });
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -335,7 +335,7 @@ router.post('/',
   authorizeRole(['admin', 'gerente_marketing']),
   ...createCampaignValidators,
   validateRequest,
-  async (req: any, res) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const campaignData = req.body;
     
@@ -358,11 +358,11 @@ router.post('/',
     const mappedData = normalizeCampaignData(campaignData);
 
     // Determinar subscriberId usando helper centralizado
-    const isAdmin = req.user.role === 'admin' || req.user.role === 'admin_sql' || req.user.userType === 'system_user';
+    const isAdmin = req.user!.role === 'admin' || req.user!.role === 'admin_sql' || req.user!.userType === 'system_user';
     const determinedSubscriberId = await determineSubscriberId({
       bodySubscriberId: mappedData.subscriberId,
-      userSubscriberId: req.user.subscriberId,
-      userClientId: req.user.clientId,
+      userSubscriberId: req.user!.subscriberId,
+      userClientId: req.user!.clientId,
       requestSubscriberId: req.subscriberId,
       isAdmin,
       fallbackToFirstActive: isAdmin // Admin pode usar primeiro ativo como fallback
@@ -379,7 +379,7 @@ router.post('/',
     mappedData.subscriberId = determinedSubscriberId as number;
 
     // Verificar permissão
-    if (req.user.role === 'client' && req.user.subscriberId !== mappedData.subscriberId) {
+    if (req.user!.role === 'client' && req.user!.subscriberId !== mappedData.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode criar campanhas para seu próprio cliente'
@@ -390,11 +390,12 @@ router.post('/',
     try {
       const subscriberService = getSubscriberService();
       await subscriberService.validatePlanLimits(mappedData.subscriberId, 'campaign');
-    } catch (limitError: any) {
+} catch (limitError: unknown) {
+  const e = normalizeError(limitError);
       return res.status(400).json({
         success: false,
         error: 'Limite do plano excedido',
-        message: limitError.message || 'Limite de campanhas do plano foi excedido'
+        message: e.message || 'Limite de campanhas do plano foi excedido'
       });
     }
 
@@ -432,8 +433,8 @@ router.post('/',
             { createdBy: userId, title: campaign.title }
           );
         }
-      } catch (eventError: any) {
-        // Não falhar a criação se o log de evento falhar
+ 
+} catch (eventError: unknown) {        // Não falhar a criação se o log de evento falhar
         await logError('Erro ao registrar evento de criação de campanha', eventError, { campaignId: campaign.id });
       }
     }
@@ -442,17 +443,16 @@ router.post('/',
       success: true,
       message: 'Campanha criada com sucesso',
       data: campaign
-    });
-
-  } catch (error: any) {
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
     // Sanitizar dados antes de logar (campaignData pode não estar definido se erro ocorrer antes)
     const sanitizedData = req.body ? sanitizeForLogging(req.body) : null;
-    await logError('Erro ao criar campanha', error, { campaignData: sanitizedData });
+    await logError('Erro ao criar campanha', e.error, { campaignData: sanitizedData });
     return res.status(resolvePublishGuardHttpStatus(error)).json({
       success: false,
-      message: error.message || 'Erro ao criar campanha',
-      error: error.message || 'Erro desconhecido'
-    });
+      message: e.message || 'Erro ao criar campanha',
+      error: e.message || 'Erro desconhecido'
+  });
   }
 });
 
@@ -466,7 +466,7 @@ router.put('/:id',
   ...idParamValidatorDefault,
   ...updateCampaignValidators,
   validateRequest,
-  async (req: any, res) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   const { id } = req.params;
   try {
     // Normalizar dados de atualização usando helper centralizado
@@ -483,8 +483,8 @@ router.put('/:id',
 
     // Verificar se usuário do tipo client/subscriber tem acesso ao cliente da campanha.
     // Admin e gerente_marketing (já filtrados no authorizeRole) podem editar qualquer campanha.
-    if ((req.user.role === 'client' || req.user.role === 'subscriber') &&
-        req.user.subscriberId !== existingCampaign.subscriberId) {
+    if ((req.user!.role === 'client' || req.user!.role === 'subscriber') &&
+        req.user!.subscriberId !== existingCampaign.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode editar campanhas do seu cliente'
@@ -494,7 +494,7 @@ router.put('/:id',
     const campaign = await getCampaignService().updateCampaign(
       parseInt(id),
       mappedUpdateData,
-      req.user.userId,
+      req.user!.userId,
       { userRole: req.user?.role }
     );
 
@@ -502,18 +502,17 @@ router.put('/:id',
       success: true,
       message: 'Campanha atualizada com sucesso',
       data: campaign
-    });
-
-  } catch (error: any) {
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
     // Usar req.body diretamente, pois updateData pode não estar definido se erro ocorrer antes
-    await logError('Erro ao atualizar campanha', error, { 
+    await logError('Erro ao atualizar campanha', e.error, { 
       id, 
       updateData: req.body || null 
-    });
+  });
     return res.status(resolvePublishGuardHttpStatus(error)).json({
       success: false,
-      message: error.message || 'Erro ao atualizar campanha',
-      error: error.message
+      message: e.message || 'Erro ao atualizar campanha',
+      error: e.message
     });
   }
 });
@@ -527,23 +526,22 @@ router.delete('/:id',
   authorizeRole(['admin', 'gerente_marketing']),
   ...idParamValidatorDefault,
   validateRequest,
-  async (req: any, res) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   const { id } = req.params;
   try {
-    await getCampaignService().deleteCampaign(parseInt(id), req.user.userId);
+    await getCampaignService().deleteCampaign(parseInt(id), req.user!.userId);
 
     return res.json({
       success: true,
       message: 'Campanha removida com sucesso'
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao remover campanha', error, { id });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao remover campanha', e.error, { id });
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao remover campanha',
-      error: error.message
-    });
+      message: e.message || 'Erro ao remover campanha',
+      error: e.message
+  });
   }
 });
 
@@ -554,7 +552,7 @@ router.delete('/:id',
  */
 router.post('/:id/activate', 
   authorizeRole(['admin', 'gerente_marketing']),
-  async (req: any, res) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   const { id } = req.params;
   try {
     // Verificar se campanha existe e permissão
@@ -566,14 +564,14 @@ router.post('/:id/activate',
       });
     }
 
-    if (req.user.role === 'client' && req.user.subscriberId !== campaign.subscriberId) {
+    if (req.user!.role === 'client' && req.user!.subscriberId !== campaign.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode ativar suas próprias campanhas'
       });
     }
 
-    await getCampaignService().activateCampaign(parseInt(id), req.user.userId, {
+    await getCampaignService().activateCampaign(parseInt(id), req.user!.userId, {
       userRole: req.user?.role,
     });
 
@@ -589,27 +587,25 @@ router.post('/:id/activate',
         await eventLogService.logCampaignStart(
           parseInt(id),
           totem.totem_id,
-          { activatedBy: req.user.userId, title: campaign.title }
+          { activatedBy: req.user!.userId, title: campaign.title }
         );
       }
       
       await logInfo('[Campaign] Eventos de início registrados', { campaignId: id, totemCount: totems.length });
-    } catch (eventError: any) {
-      await logError('Erro ao registrar eventos de início de campanha', eventError, { campaignId: id });
+} catch (eventError: unknown) {      await logError('Erro ao registrar eventos de início de campanha', eventError, { campaignId: id });
     }
 
     return res.json({
       success: true,
       message: 'Campanha ativada com sucesso'
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao ativar campanha', error, { id });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao ativar campanha', e.error, { id });
     return res.status(resolvePublishGuardHttpStatus(error)).json({
       success: false,
-      message: error.message || 'Erro ao ativar campanha',
-      error: error.message
-    });
+      message: e.message || 'Erro ao ativar campanha',
+      error: e.message
+  });
   }
 });
 
@@ -620,7 +616,7 @@ router.post('/:id/activate',
  */
 router.post('/:id/pause', 
   authorizeRole(['admin', 'gerente_marketing']),
-  async (req: any, res) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   const { id } = req.params;
   try {
     // Verificar se campanha existe e permissão
@@ -632,14 +628,14 @@ router.post('/:id/pause',
       });
     }
 
-    if (req.user.role === 'client' && req.user.subscriberId !== campaign.subscriberId) {
+    if (req.user!.role === 'client' && req.user!.subscriberId !== campaign.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode pausar suas próprias campanhas'
       });
     }
 
-    await getCampaignService().pauseCampaign(parseInt(id), req.user.userId);
+    await getCampaignService().pauseCampaign(parseInt(id), req.user!.userId);
 
     // Registrar evento de pausa de campanha
     try {
@@ -656,25 +652,24 @@ router.post('/:id/pause',
           entityId: parseInt(id),
           campaignId: parseInt(id),
           totemId: totem.totem_id,
-          metadata: { pausedBy: req.user.userId, title: campaign.title }
+          metadata: { pausedBy: req.user!.userId, title: campaign.title }
         });
       }
-    } catch (eventError: any) {
-      await logError('Erro ao registrar eventos de pausa de campanha', eventError, { campaignId: id });
+ 
+} catch (eventError: unknown) {      await logError('Erro ao registrar eventos de pausa de campanha', eventError, { campaignId: id });
     }
 
     return res.json({
       success: true,
       message: 'Campanha pausada com sucesso'
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao pausar campanha', error, { id });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao pausar campanha', e.error, { id });
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao pausar campanha',
-      error: error.message
-    });
+      message: e.message || 'Erro ao pausar campanha',
+      error: e.message
+  });
   }
 });
 
@@ -685,7 +680,7 @@ router.post('/:id/pause',
  */
 router.post('/:id/finish', 
   authorizeRole(['admin', 'gerente_marketing']),
-  async (req: any, res) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   const { id } = req.params;
   try {
     // Verificar se campanha existe e permissão
@@ -697,14 +692,14 @@ router.post('/:id/finish',
       });
     }
 
-    if (req.user.role === 'client' && req.user.subscriberId !== campaign.subscriberId) {
+    if (req.user!.role === 'client' && req.user!.subscriberId !== campaign.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode finalizar suas próprias campanhas'
       });
     }
 
-    await getCampaignService().finishCampaign(parseInt(id), req.user.userId);
+    await getCampaignService().finishCampaign(parseInt(id), req.user!.userId);
 
     // Registrar evento de fim de campanha para todos os totems associados
     try {
@@ -718,27 +713,25 @@ router.post('/:id/finish',
         await eventLogService.logCampaignEnd(
           parseInt(id),
           totem.totem_id,
-          { finishedBy: req.user.userId, title: campaign.title }
+          { finishedBy: req.user!.userId, title: campaign.title }
         );
       }
       
       await logInfo('[Campaign] Eventos de fim registrados', { campaignId: id, totemCount: totems.length });
-    } catch (eventError: any) {
-      await logError('Erro ao registrar eventos de fim de campanha', eventError, { campaignId: id });
+} catch (eventError: unknown) {      await logError('Erro ao registrar eventos de fim de campanha', eventError, { campaignId: id });
     }
 
     return res.json({
       success: true,
       message: 'Campanha finalizada com sucesso'
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao finalizar campanha', error, { id });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao finalizar campanha', e.error, { id });
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao finalizar campanha',
-      error: error.message
-    });
+      message: e.message || 'Erro ao finalizar campanha',
+      error: e.message
+  });
   }
 });
 
@@ -747,7 +740,7 @@ router.post('/:id/finish',
  * @desc Adiciona totem à campanha
  * @access Private (Admin, Manager, Client)
  */
-router.post('/:id/totems', async (req: any, res) => {
+router.post('/:id/totems', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   const { id } = req.params;
   const totemData = req.body;
   try {
@@ -761,14 +754,14 @@ router.post('/:id/totems', async (req: any, res) => {
       });
     }
 
-    if (req.user.role === 'client' && req.user.subscriberId !== campaign.subscriberId) {
+    if (req.user!.role === 'client' && req.user!.subscriberId !== campaign.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode gerenciar totems de suas próprias campanhas'
       });
     }
 
-    await getCampaignService().addTotemToCampaign(parseInt(id), totemData, req.user.userId);
+    await getCampaignService().addTotemToCampaign(parseInt(id), totemData, req.user!.userId);
 
     // Se a campanha estiver ativa, registrar evento de início para o totem
     if (campaign.status === 'active' && campaign.isActive) {
@@ -779,11 +772,11 @@ router.post('/:id/totems', async (req: any, res) => {
           await eventLogService.logCampaignStart(
             parseInt(id),
             totemId,
-            { addedBy: req.user.userId, title: campaign.title }
+            { addedBy: req.user!.userId, title: campaign.title }
           );
         }
-      } catch (eventError: any) {
-        await logError('Erro ao registrar evento de início de campanha para totem', eventError, {
+ 
+} catch (eventError: unknown) {        await logError('Erro ao registrar evento de início de campanha para totem', eventError, {
           campaignId: id,
           totemId: totemData.totemId || totemData.totem_id
         });
@@ -793,15 +786,14 @@ router.post('/:id/totems', async (req: any, res) => {
     return res.json({
       success: true,
       message: 'Totem adicionado à campanha com sucesso'
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao adicionar totem à campanha', error, { id, totemData });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao adicionar totem à campanha', e.error, { id, totemData });
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao adicionar totem à campanha',
-      error: error.message
-    });
+      message: e.message || 'Erro ao adicionar totem à campanha',
+      error: e.message
+  });
   }
 });
 
@@ -810,7 +802,7 @@ router.post('/:id/totems', async (req: any, res) => {
  * @desc Remove totem da campanha
  * @access Private (Admin, Manager, Client)
  */
-router.delete('/:id/totems/:totemId', async (req: any, res) => {
+router.delete('/:id/totems/:totemId', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   const { id, totemId } = req.params;
   try {
 
@@ -823,7 +815,7 @@ router.delete('/:id/totems/:totemId', async (req: any, res) => {
       });
     }
 
-    if (req.user.role === 'client' && req.user.subscriberId !== campaign.subscriberId) {
+    if (req.user!.role === 'client' && req.user!.subscriberId !== campaign.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode gerenciar totems de suas próprias campanhas'
@@ -833,7 +825,7 @@ router.delete('/:id/totems/:totemId', async (req: any, res) => {
     await getCampaignService().removeTotemFromCampaign(
       parseInt(id),
       parseInt(totemId),
-      req.user.userId
+      req.user!.userId
     );
 
     // Registrar evento de fim de campanha para o totem removido (se campanha estava ativa)
@@ -843,10 +835,9 @@ router.delete('/:id/totems/:totemId', async (req: any, res) => {
         await eventLogService.logCampaignEnd(
           parseInt(id),
           parseInt(totemId),
-          { removedBy: req.user.userId, title: campaign.title, reason: 'totem_removed' }
+          { removedBy: req.user!.userId, title: campaign.title, reason: 'totem_removed' }
         );
-      } catch (eventError: any) {
-        await logError('Erro ao registrar evento de fim de campanha para totem removido', eventError, {
+} catch (eventError: unknown) {        await logError('Erro ao registrar evento de fim de campanha para totem removido', eventError, {
           campaignId: id,
           totemId
         });
@@ -856,15 +847,14 @@ router.delete('/:id/totems/:totemId', async (req: any, res) => {
     return res.json({
       success: true,
       message: 'Totem removido da campanha com sucesso'
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao remover totem da campanha', error, { id, totemId });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao remover totem da campanha', e.error, { id, totemId });
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao remover totem da campanha',
-      error: error.message
-    });
+      message: e.message || 'Erro ao remover totem da campanha',
+      error: e.message
+  });
   }
 });
 
@@ -873,7 +863,7 @@ router.delete('/:id/totems/:totemId', async (req: any, res) => {
  * @desc Lista totems da campanha
  * @access Private (Admin, Manager, Client)
  */
-router.get('/:id/totems', async (req: any, res) => {
+router.get('/:id/totems', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   const { id } = req.params;
   try {
 
@@ -886,7 +876,7 @@ router.get('/:id/totems', async (req: any, res) => {
       });
     }
 
-    if (req.user.role === 'client' && req.user.subscriberId !== campaign.subscriberId) {
+    if (req.user!.role === 'client' && req.user!.subscriberId !== campaign.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode ver totems de suas próprias campanhas'
@@ -899,15 +889,14 @@ router.get('/:id/totems', async (req: any, res) => {
     return res.json({
       success: true,
       data: totems
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar totems da campanha', error, { id });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar totems da campanha', e.error, { id });
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -921,7 +910,7 @@ router.put('/:id/medias/reorder',
   ...idParamValidatorDefault,
   ...reorderCampaignMediasValidators,
   validateRequest,
-  async (req: any, res) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { id } = req.params;
     const { mediaIds } = req.body;
@@ -943,17 +932,16 @@ router.put('/:id/medias/reorder',
     return res.json({
       success: true,
       message: 'Mídias reordenadas com sucesso'
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao reordenar mídias da campanha', error, { 
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao reordenar mídias da campanha', e.error, { 
       id: req.params.id,
       mediaIds: req.body.mediaIds 
-    });
+  });
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao reordenar mídias',
-      error: error.message
+      message: e.message || 'Erro ao reordenar mídias',
+      error: e.message
     });
   }
 });
@@ -968,7 +956,7 @@ router.put('/:id/playlists/reorder',
   ...idParamValidatorDefault,
   ...reorderCampaignPlaylistsValidators,
   validateRequest,
-  async (req: any, res) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { id } = req.params;
     const { playlistIds } = req.body;
@@ -990,17 +978,16 @@ router.put('/:id/playlists/reorder',
     return res.json({
       success: true,
       message: 'Playlists reordenadas com sucesso'
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao reordenar playlists da campanha', error, { 
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao reordenar playlists da campanha', e.error, { 
       id: req.params.id,
       playlistIds: req.body.playlistIds 
-    });
+  });
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao reordenar playlists',
-      error: error.message
+      message: e.message || 'Erro ao reordenar playlists',
+      error: e.message
     });
   }
 });

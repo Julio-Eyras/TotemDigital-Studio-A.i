@@ -11,6 +11,7 @@ import { config } from '../config/env';
 import { UserFlags } from '../utils/flagChecker';
 import { enforcePortalTenantAccess, validateSubdomainAccess } from './subdomain.middleware';
 import type { PortalTenantResolved } from '../utils/portalTenantAccess';
+import { normalizeError } from '../utils/errors';
 
 // Declaração de módulo para estender tipos do Express
 declare global {
@@ -180,7 +181,8 @@ export const authMiddleware = async (
               publisher_id: user.publisher_id
             });
           }
-        } catch (sqlError) {
+ 
+} catch (sqlError: unknown) {
           // Se função SQL não existir, usar função TypeScript
           const { getUserEffectiveFlags } = await import('../utils/flagChecker');
           userFlags = await getUserEffectiveFlags({
@@ -191,11 +193,13 @@ export const authMiddleware = async (
           });
         }
       }
-    } catch (error) {
+ 
+} catch (error: unknown) {
+      const e = normalizeError(error);
       // Se tabela não existir ainda, continuar sem flags
       // Usar logWarn de forma não-bloqueante (não esperar)
       import('../utils/loggerHelper').then(({ logWarn }) => {
-        logWarn('Sistema de flags não disponível, continuando sem flags', { error: error instanceof Error ? error.message : String(error) }).catch(() => {});
+        logWarn('Sistema de flags não disponível, continuando sem flags', { error: error instanceof Error ? e.message : String(error) }).catch(() => {});
       }).catch(() => {});
     }
 
@@ -215,13 +219,12 @@ export const authMiddleware = async (
     };
 
     // Host com portal_slug força o tenant; portal de papel valida userType
-    enforcePortalTenantAccess(req as any, res, (err?: any) => {
+    enforcePortalTenantAccess(req as any, res, ((err?: unknown) => {
       if (err) return next(err);
       validateSubdomainAccess(req as any, res, next);
-    });
-
-  } catch (error: any) {
-    if (error.name === 'JsonWebTokenError') {
+    }) as NextFunction);} catch (error: unknown) {
+    const e = normalizeError(error);
+    if (e.error.name === 'JsonWebTokenError') {
       res.status(401).json({
         error: 'Token inválido',
         code: 'INVALID_TOKEN'
@@ -229,7 +232,7 @@ export const authMiddleware = async (
       return;
     }
 
-    if (error.name === 'TokenExpiredError') {
+    if (e.error.name === 'TokenExpiredError') {
       res.status(401).json({
         error: 'Token expirado',
         code: 'TOKEN_EXPIRED'
@@ -237,8 +240,8 @@ export const authMiddleware = async (
       return;
     }
 
-    await logError('Erro no middleware de auth', error, {
-      errorName: error.name,
+    await logError('Erro no middleware de auth', e.error, {
+      errorName: e.error.name,
       url: req.url,
       method: req.method
     });
@@ -364,16 +367,15 @@ export const requirePermission = (resource: string, action: string) => {
         return;
       }
 
-      next();
-
-    } catch (error: any) {
-      await logError('Erro no middleware de permissão', error, {
+      next();} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro no middleware de permissão', e.error, {
         resource,
         action,
         userId: req.user?.id,
         url: req.url,
         method: req.method
-      });
+    });
       res.status(500).json({
         error: 'Erro interno do servidor',
         code: 'INTERNAL_ERROR'
@@ -498,15 +500,14 @@ export const optionalAuth = async (
         isTenantUser: user.is_tenant_user || false
       };
 
-      return enforcePortalTenantAccess(req as any, _res, (err?: any) => {
+      return enforcePortalTenantAccess(req as any, _res, ((err?: unknown) => {
         if (err) return next(err);
         validateSubdomainAccess(req as any, _res, next);
-      });
+      }) as NextFunction);
     }
 
     next();
-
-  } catch (error) {
+} catch (error: unknown) {
     // Em caso de erro, continua sem autenticação
     next();
   }

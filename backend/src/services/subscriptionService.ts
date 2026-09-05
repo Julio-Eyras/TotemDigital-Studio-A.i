@@ -8,10 +8,12 @@ import { StripeService } from './stripeService';
 import { PlanService } from './planService';
 import { logError, logInfo } from '../utils/loggerHelper';
 import {
+
   getStripePriceIdForInterval,
   monthsForBillingInterval,
   normalizeBillingInterval,
 } from '../utils/billingIntervals';
+import { normalizeError } from '../utils/errors';
 
 /** Intervalo efetivo: coluna da assinatura, metadata ou plano. */
 const SUBSCRIPTION_INTERVAL_SQL = `COALESCE(
@@ -44,12 +46,12 @@ export interface Subscription {
   canceledAt?: string;
   trialStart?: string;
   trialEnd?: string;
-  metadata: any;
+  metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
-  plan?: any;
-  publisher?: any; // NOVO: Dados do publisher
-  client?: any; // DEPRECADO: Mantido para compatibilidade
+  plan?: Record<string, unknown>;
+  publisher?: Record<string, unknown>; // NOVO: Dados do publisher
+  client?: Record<string, unknown>; // DEPRECADO: Mantido para compatibilidade
 }
 
 export interface CreateSubscriptionRequest {
@@ -93,7 +95,7 @@ export class SubscriptionService {
   ): Promise<Subscription[]> {
     try {
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       // NOVO: Filtrar por publisher_id
       if (filters.publisherId !== undefined) {
@@ -165,19 +167,20 @@ export class SubscriptionService {
 
       // Adicionar informações do plano (quando disponível)
       const subscriptionsWithPlan = await Promise.all(
-        subscriptions.map(async (sub: any) => {
-          const plan = await this.planService.getPlanById(sub.plan_id);
+        subscriptions.map(async (subRaw: unknown) => {
+          const sub = subRaw as unknown as Record<string, unknown>;
+          const planId = sub.plan_id != null ? Number(sub.plan_id) : undefined;
+          const plan = planId != null ? await this.planService.getPlanById(planId) : null;
           return {
-            ...sub,
+            ...(sub as object),
             plan,
           };
         })
       );
 
-      return subscriptionsWithPlan as any;
-
-    } catch (error: any) {
-      await logError('Erro ao buscar assinaturas', error, { filters });
+      return subscriptionsWithPlan as unknown as Subscription[];} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar assinaturas', e.error, { filters });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -244,10 +247,9 @@ export class SubscriptionService {
         plan,
         publisher: subscription.publisher_name ? { name: subscription.publisher_name } : undefined,
         client: subscription.publisher_name ? { name: subscription.publisher_name } : undefined // Compatibilidade
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar assinatura', error, { subscriptionId });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar assinatura', e.error, { subscriptionId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -316,10 +318,9 @@ export class SubscriptionService {
         plan,
         publisher: subscription.publisher_name ? { name: subscription.publisher_name } : undefined,
         client: subscription.publisher_name ? { name: subscription.publisher_name } : undefined // Compatibilidade
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar assinatura do publisher', error, { publisherId });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar assinatura do publisher', e.error, { publisherId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -412,16 +413,18 @@ export class SubscriptionService {
             );
 
             stripeSubscriptionId = stripeSubscription.id;
-            currentPeriodStart = new Date((stripeSubscription as any).current_period_start * 1000);
-            currentPeriodEnd = new Date((stripeSubscription as any).current_period_end * 1000);
+            const ss = stripeSubscription as unknown as Record<string, unknown>;
+            currentPeriodStart = new Date(Number(ss.current_period_start) * 1000);
+            currentPeriodEnd = new Date(Number(ss.current_period_end) * 1000);
 
             if (stripeSubscription.trial_start && stripeSubscription.trial_end) {
               trialStart = new Date(stripeSubscription.trial_start * 1000);
               trialEnd = new Date(stripeSubscription.trial_end * 1000);
             }
-          }
-        } catch (error: any) {
-          await logError('Erro ao criar subscription no Stripe (continuando sem Stripe)', error, { publisherId, planId });
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+          await logError('Erro ao criar subscription no Stripe (continuando sem Stripe)', e.error, { publisherId, planId });
           // Continuar sem Stripe se falhar
         }
       }
@@ -474,13 +477,12 @@ export class SubscriptionService {
         throw new Error('Erro ao buscar assinatura criada');
       }
 
-      await logInfo('Assinatura criada com sucesso', { subscriptionId: (newSubscription as any).subscriptionId ?? (newSubscription as any).subscription_id, publisherId, planId });
+      await logInfo('Assinatura criada com sucesso', { subscriptionId: (newSubscription as unknown as Record<string, unknown>).subscriptionId ?? (newSubscription as unknown as Record<string, unknown>).subscription_id, publisherId, planId });
 
-      return newSubscription;
-
-    } catch (error: any) {
-      await logError('Erro ao criar assinatura', error, { publisherId: data.publisherId, planId: data.planId });
-      throw error;
+      return newSubscription;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar assinatura', e.error, { publisherId: data.publisherId, planId: data.planId });
+      throw e.error;
     }
   }
 
@@ -495,7 +497,7 @@ export class SubscriptionService {
       }
 
       const updates: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (data.planId !== undefined) {
         // Upgrade/downgrade de plano
@@ -526,9 +528,10 @@ export class SubscriptionService {
                   proration_behavior: 'always_invoice',
                 }
               );
-            }
-          } catch (error: any) {
-            await logError('Erro ao atualizar subscription no Stripe', error, { subscriptionId });
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+            await logError('Erro ao atualizar subscription no Stripe', e.error, { subscriptionId });
           }
         }
       }
@@ -549,9 +552,10 @@ export class SubscriptionService {
               await this.stripeService.cancelSubscription(existingSubscription.stripeSubscriptionId, true);
             } else {
               await this.stripeService.resumeSubscription(existingSubscription.stripeSubscriptionId);
-            }
-          } catch (error: any) {
-            await logError('Erro ao atualizar cancelamento no Stripe', error, { subscriptionId });
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+            await logError('Erro ao atualizar cancelamento no Stripe', e.error, { subscriptionId });
           }
         }
       }
@@ -585,11 +589,10 @@ export class SubscriptionService {
 
       await logInfo('Assinatura atualizada com sucesso', { subscriptionId });
 
-      return updatedSubscription;
-
-    } catch (error: any) {
-      await logError('Erro ao atualizar assinatura', error, { subscriptionId });
-      throw error;
+      return updatedSubscription;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar assinatura', e.error, { subscriptionId });
+      throw e.error;
     }
   }
 
@@ -606,9 +609,9 @@ export class SubscriptionService {
       // Cancelar no Stripe
       if (this.stripeService.isEnabled() && subscription.stripeSubscriptionId) {
         try {
-          await this.stripeService.cancelSubscription(subscription.stripeSubscriptionId, cancelAtPeriodEnd);
-        } catch (error: any) {
-          await logError('Erro ao cancelar subscription no Stripe', error, { subscriptionId });
+          await this.stripeService.cancelSubscription(subscription.stripeSubscriptionId, cancelAtPeriodEnd);} catch (error: unknown) {
+      const e = normalizeError(error);
+          await logError('Erro ao cancelar subscription no Stripe', e.error, { subscriptionId });
         }
       }
 
@@ -631,39 +634,39 @@ export class SubscriptionService {
 
       await logInfo('Assinatura cancelada com sucesso', { subscriptionId, cancelAtPeriodEnd });
 
-      return updatedSubscription;
-
-    } catch (error: any) {
-      await logError('Erro ao cancelar assinatura', error, { subscriptionId });
-      throw error;
+      return updatedSubscription;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao cancelar assinatura', e.error, { subscriptionId });
+      throw e.error;
     }
   }
 
   /**
    * Processa webhook do Stripe
    */
-  async processStripeWebhook(event: any): Promise<void> {
+  async processStripeWebhook(event: Record<string, unknown>): Promise<void> {
     try {
+      const evData = (event.data || {}) as unknown as Record<string, unknown>;
       switch (event.type) {
         case 'customer.subscription.created':
         case 'customer.subscription.updated':
-          await this.syncSubscriptionFromStripe(event.data.object);
+          await this.syncSubscriptionFromStripe(evData.object as unknown as Record<string, unknown>);
           break;
 
         case 'customer.subscription.deleted':
-          await this.handleSubscriptionDeleted(event.data.object);
+          await this.handleSubscriptionDeleted(evData.object as unknown as Record<string, unknown>);
           break;
 
         case 'invoice.paid':
-          await this.handleInvoicePaid(event.data.object);
+          await this.handleInvoicePaid(evData.object as unknown as Record<string, unknown>);
           break;
 
         case 'invoice.payment_failed':
-          await this.handleInvoicePaymentFailed(event.data.object);
+          await this.handleInvoicePaymentFailed(evData.object as unknown as Record<string, unknown>);
           break;
 
         case 'checkout.session.completed': {
-          const session = event.data.object;
+          const session = evData.object as unknown as Record<string, unknown>;
           const meta = (session.metadata || {}) as Record<string, string>;
           if (
             (meta.source === 'subscriber_billing' || meta.source === 'publisher_billing') &&
@@ -672,12 +675,12 @@ export class SubscriptionService {
             const { getFinancialAdminService } = await import('./financialAdminService');
             await getFinancialAdminService().handleStripeCheckoutCompleted({
               ...meta,
-              sessionId: session.id,
+              sessionId: String(session.id),
             });
             await logInfo('Fatura paga via Stripe Checkout', {
               source: meta.source,
               billingId: meta.billingId,
-              sessionId: session.id,
+              sessionId: String(session.id),
             });
           }
           break;
@@ -685,25 +688,26 @@ export class SubscriptionService {
 
         default:
           await logInfo('Webhook do Stripe não processado', { type: event.type });
-      }
-    } catch (error: any) {
-      await logError('Erro ao processar webhook do Stripe', error, { eventType: event.type });
-      throw error;
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao processar webhook do Stripe', e.error, { eventType: event.type });
+      throw e.error;
     }
   }
 
   /**
    * Sincroniza subscription do Stripe
    */
-  private async syncSubscriptionFromStripe(stripeSubscription: any): Promise<void> {
+  private async syncSubscriptionFromStripe(stripeSubscription: Record<string, unknown>): Promise<void> {
     try {
       const subscription = await this.db.findFirst(`
         SELECT subscription_id FROM subscriptions 
         WHERE stripe_subscription_id = $1
-      `, [stripeSubscription.id]);
+      `, [String(stripeSubscription.id)]);
 
       if (!subscription) {
-        await logInfo('Subscription do Stripe não encontrada localmente', { stripeSubscriptionId: stripeSubscription.id });
+        await logInfo('Subscription do Stripe não encontrada localmente', { stripeSubscriptionId: String(stripeSubscription.id) });
         return;
       }
 
@@ -716,25 +720,25 @@ export class SubscriptionService {
             updated_at = CURRENT_TIMESTAMP
         WHERE subscription_id = $5
       `, [
-        stripeSubscription.status,
-        new Date(stripeSubscription.current_period_start * 1000),
-        new Date(stripeSubscription.current_period_end * 1000),
-        stripeSubscription.cancel_at_period_end || false,
-        subscription.subscription_id
+        String(stripeSubscription.status),
+        new Date(Number(stripeSubscription.current_period_start) * 1000),
+        new Date(Number(stripeSubscription.current_period_end) * 1000),
+        Boolean(stripeSubscription.cancel_at_period_end || false),
+        Number((subscription as unknown as Record<string, unknown>).subscription_id)
       ]);
 
-      await logInfo('Subscription sincronizada do Stripe', { subscriptionId: subscription.subscription_id });
-
-    } catch (error: any) {
-      await logError('Erro ao sincronizar subscription do Stripe', error);
-      throw error;
+      await logInfo('Subscription sincronizada do Stripe', {
+        subscriptionId: subscription.subscription_id });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao sincronizar subscription do Stripe', e.error);
+      throw e.error;
     }
   }
 
   /**
    * Handle subscription deleted
    */
-  private async handleSubscriptionDeleted(stripeSubscription: any): Promise<void> {
+  private async handleSubscriptionDeleted(stripeSubscription: Record<string, unknown>): Promise<void> {
     try {
       await this.db.executeRaw(`
         UPDATE subscriptions 
@@ -744,18 +748,18 @@ export class SubscriptionService {
         WHERE stripe_subscription_id = $1
       `, [stripeSubscription.id]);
 
-      await logInfo('Subscription cancelada via webhook', { stripeSubscriptionId: stripeSubscription.id });
-
-    } catch (error: any) {
-      await logError('Erro ao processar subscription deletada', error);
-      throw error;
+      await logInfo('Subscription cancelada via webhook', {
+        stripeSubscriptionId: stripeSubscription.id });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao processar subscription deletada', e.error);
+      throw e.error;
     }
   }
 
   /**
    * Handle invoice paid
    */
-  private async handleInvoicePaid(invoice: any): Promise<void> {
+  private async handleInvoicePaid(invoice: Record<string, unknown>): Promise<void> {
     try {
       // Buscar billing relacionado
       const billing = await this.db.findFirst(`
@@ -773,18 +777,18 @@ export class SubscriptionService {
         `, [billing.billing_id]);
 
         await logInfo('Billing atualizado via webhook', { billingId: billing.billing_id, invoiceId: invoice.id });
-      }
-
-    } catch (error: any) {
-      await logError('Erro ao processar invoice pago', error);
-      throw error;
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao processar invoice pago', e.error);
+      throw e.error;
     }
   }
 
   /**
    * Handle invoice payment failed
    */
-  private async handleInvoicePaymentFailed(invoice: any): Promise<void> {
+  private async handleInvoicePaymentFailed(invoice: Record<string, unknown>): Promise<void> {
     try {
       const billing = await this.db.findFirst(`
         SELECT billing_id FROM billing 
@@ -800,11 +804,11 @@ export class SubscriptionService {
         `, [billing.billing_id]);
 
         await logInfo('Billing marcado como overdue via webhook', { billingId: billing.billing_id, invoiceId: invoice.id });
-      }
-
-    } catch (error: any) {
-      await logError('Erro ao processar falha de pagamento', error);
-      throw error;
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao processar falha de pagamento', e.error);
+      throw e.error;
     }
   }
 }

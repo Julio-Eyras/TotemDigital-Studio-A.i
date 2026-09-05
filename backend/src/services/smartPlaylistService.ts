@@ -10,6 +10,7 @@ import { logError } from '../utils/loggerHelper';
 import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import { normalizeError } from '../utils/errors';
 
 export interface SmartPlaylistRequest {
   subscriberId: number;
@@ -35,7 +36,7 @@ export interface SmartPlaylistRule {
   type: 'time' | 'weather' | 'audience' | 'content' | 'performance' | 'custom';
   condition: string;
   action: 'include' | 'exclude' | 'prioritize' | 'deprioritize';
-  value: any;
+  value: unknown;
   weight?: number;
 }
 
@@ -125,9 +126,10 @@ export class SmartPlaylistService {
         ORDER BY subscriber_id ASC 
         LIMIT 1
       `);
-      return subscriber ? { subscriber_id: subscriber.subscriber_id } : null;
-    } catch (error: any) {
-      await logError('Erro ao buscar primeiro subscriber', error, { service: 'SmartPlaylistService' });
+      return subscriber ? {
+        subscriber_id: subscriber.subscriber_id } : null;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar primeiro subscriber', e.error, { service: 'SmartPlaylistService' });
       return null;
     }
   }
@@ -161,7 +163,7 @@ export class SmartPlaylistService {
     try {
       const offset = (page - 1) * limit;
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
       let paramIndex = 1;
 
       // Aplicar filtros (placeholders $1, $2, ... para compatibilidade com pg)
@@ -259,8 +261,8 @@ export class SmartPlaylistService {
               if (trimmed && trimmed !== 'null' && trimmed !== '') {
                 parsedRules = JSON.parse(trimmed);
               }
-            } catch (parseError: any) {
-              logError('Erro ao fazer parse de rules', parseError, { playlistId: playlist.id || playlist.smart_playlist_id }).catch(() => {});
+ 
+} catch (parseError: unknown) {              logError('Erro ao fazer parse de rules', parseError, { playlistId: playlist.id || playlist.smart_playlist_id }).catch(() => {});
               parsedRules = [];
             }
           } else if (Array.isArray(playlist.rules)) {
@@ -280,10 +282,9 @@ export class SmartPlaylistService {
         total,
         page,
         limit
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar smart playlists', error, { filters });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar smart playlists', e.error, { filters });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -345,8 +346,8 @@ export class SmartPlaylistService {
             if (trimmed && trimmed !== 'null' && trimmed !== '') {
               parsedRules = JSON.parse(trimmed);
             }
-          } catch (parseError: any) {
-            await logError('Erro ao fazer parse de rules', parseError, { playlistId, rulesValue: playlist.rules });
+ 
+} catch (parseError: unknown) {            await logError('Erro ao fazer parse de rules', parseError, { playlistId, rulesValue: playlist.rules });
             parsedRules = [];
           }
         } else if (Array.isArray(playlist.rules)) {
@@ -360,10 +361,9 @@ export class SmartPlaylistService {
         smart_playlist_id: playlist.smart_playlist_id || playlist.id,
         id: playlist.id || playlist.smart_playlist_id,
         rules: parsedRules
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar smart playlist', error, { playlistId });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar smart playlist', e.error, { playlistId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -480,11 +480,10 @@ export class SmartPlaylistService {
         aiEnabled: newPlaylist.aiEnabled
       });
 
-      return newPlaylist;
-
-    } catch (error: any) {
-      await logError('Erro ao criar smart playlist', error, { data });
-      throw error;
+      return newPlaylist;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar smart playlist', e.error, { data });
+      throw e.error;
     }
   }
 
@@ -501,7 +500,7 @@ export class SmartPlaylistService {
 
       // Construir query de atualização
       const updates: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (data.name !== undefined) {
         updates.push('name = ?');
@@ -594,11 +593,10 @@ export class SmartPlaylistService {
         changes: data
       });
 
-      return updatedPlaylist;
-
-    } catch (error: any) {
-      await logError('Erro ao atualizar smart playlist', error, { playlistId, data });
-      throw error;
+      return updatedPlaylist;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar smart playlist', e.error, { playlistId, data });
+      throw e.error;
     }
   }
 
@@ -623,11 +621,10 @@ export class SmartPlaylistService {
         playlistId,
         name: playlist.name,
         subscriberId: playlist.subscriberId
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao remover smart playlist', error, { playlistId });
-      throw error;
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao remover smart playlist', e.error, { playlistId });
+      throw e.error;
     }
   }
 
@@ -687,9 +684,8 @@ export class SmartPlaylistService {
           effectiveness: result.effectiveness
         });
 
-        return result;
-
-      } catch (error: any) {
+        return result;} catch (error: unknown) {
+      const e = normalizeError(error);
         // Atualizar status para erro
         await this.db.executeRaw(`
           UPDATE smart_playlists 
@@ -697,12 +693,12 @@ export class SmartPlaylistService {
           WHERE smart_playlist_id = ?
         `, [playlistId]);
 
-        throw error;
-      }
-
-    } catch (error: any) {
-      await logError('Erro ao gerar smart playlist', error, { playlistId });
-      throw error;
+        throw e.error;
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar smart playlist', e.error, { playlistId });
+      throw e.error;
     }
   }
 
@@ -742,19 +738,21 @@ export class SmartPlaylistService {
       return {
         playlistId: playlist.id,
         generatedItems: result.items.length,
-        totalDuration: result.items.reduce((sum, item) => sum + item.duration, 0),
+        totalDuration: result.items.reduce((sum: number, itemRaw: unknown) => {
+          const item = itemRaw as unknown as Record<string, unknown>;
+          return sum + Number(item.duration || 0);
+        }, 0),
         effectiveness: result.effectiveness,
-        items: result.items,
+        items: result.items as unknown as PlaylistGenerationResult['items'],
         metadata: {
           generationTime: Date.now() - Date.now(),
           rulesApplied: playlist.rules.length,
           aiSuggestions: result.items.length,
           pythonScriptUsed: false
         }
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao gerar playlist com IA', error, { playlistId: playlist.id, playlistName: playlist.name });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar playlist com IA', e.error, { playlistId: playlist.id, playlistName: playlist.name });
       throw new Error('Erro ao gerar playlist com IA');
     }
   }
@@ -772,10 +770,9 @@ export class SmartPlaylistService {
       }
 
       // Fallback para regras simples
-      return await this.generateWithSimpleRules(playlist);
-
-    } catch (error: any) {
-      await logError('Erro ao gerar playlist com regras', error, { playlistId: playlist.id, rules: playlist.rules });
+      return await this.generateWithSimpleRules(playlist);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar playlist com regras', e.error, { playlistId: playlist.id, rules: playlist.rules });
       throw new Error('Erro ao gerar playlist com regras');
     }
   }
@@ -816,7 +813,7 @@ export class SmartPlaylistService {
             try {
               const result = JSON.parse(output);
               resolve({ success: true, result });
-            } catch (parseError) {
+} catch (parseError: unknown) {
               resolve({ success: false, error: 'Erro ao processar resultado do Python' });
             }
           } else {
@@ -827,10 +824,9 @@ export class SmartPlaylistService {
         python.on('error', (err) => {
           resolve({ success: false, error: err.message });
         });
-      });
-
-    } catch (error: any) {
-      return { success: false, error: error.message };
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      return { success: false, error: e.message };
     }
   }
 
@@ -853,17 +849,17 @@ export class SmartPlaylistService {
         WHERE COALESCE(m.is_active, true) = true AND m.subscriber_id = ?
       `;
 
-      const params = [playlist.subscriberId];
+      const params: unknown[] = [playlist.subscriberId];
 
       // Aplicar filtros básicos
       if (playlist.contentType) {
         query += ' AND m.media_type = ?';
-        params.push(playlist.contentType as any);
+        params.push(String(playlist.contentType));
       }
 
       if (playlist.duration) {
         query += ' AND m.duration_seconds <= ?';
-        params.push(playlist.duration);
+        params.push(Number(playlist.duration));
       }
 
       query += ' ORDER BY m.created_at DESC';
@@ -913,10 +909,9 @@ export class SmartPlaylistService {
           aiSuggestions: 0,
           pythonScriptUsed: false
         }
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao gerar playlist com regras simples', error, { playlistId: playlist.id });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar playlist com regras simples', e.error, { playlistId: playlist.id });
       throw new Error('Erro ao gerar playlist com regras simples');
     }
   }
@@ -924,7 +919,8 @@ export class SmartPlaylistService {
   /**
    * Constrói prompt para IA
    */
-  private buildAIPrompt(playlist: SmartPlaylistResponse, media: any[]): string {
+  private buildAIPrompt(playlist: SmartPlaylistResponse, media: unknown[]): string {
+    const mediaRec = media as unknown as Record<string, unknown>[];
     return `
     Gere uma playlist inteligente para digital signage com base nos seguintes critérios:
     
@@ -942,7 +938,7 @@ export class SmartPlaylistService {
     - Máximo de itens: ${playlist.maxItems || 'Sem limite'}
     
     Mídia Disponível:
-    ${media.map(m => `- ${m.title || m.name} (${m.duration_seconds || 0}s, ${m.media_type || 'unknown'})`).join('\n')}
+    ${mediaRec.map(m => `- ${m.title || m.name} (${m.duration_seconds || 0}s, ${m.media_type || 'unknown'})`).join('\n')}
     
     Regras:
     ${playlist.rules.map(r => `- ${r.type}: ${r.condition} -> ${r.action}`).join('\n')}
@@ -959,36 +955,37 @@ export class SmartPlaylistService {
   /**
    * Processa resposta da IA
    */
-  private parseAIResponse(response: string, availableMedia: any[]): {
-    items: any[];
+  private parseAIResponse(response: string, availableMedia: unknown[]): {
+    items: unknown[];
     effectiveness: number;
   } {
     try {
-      // Extrair JSON da resposta
       const jsonMatch = response.match(/\[[\s\S]*\]/);
       if (!jsonMatch) {
         throw new Error('Resposta da IA não contém JSON válido');
       }
 
-      const items = JSON.parse(jsonMatch[0]);
+      const items = JSON.parse(jsonMatch[0]) as unknown[];
+      const avMedia = availableMedia as unknown as Record<string, unknown>[];
       
-      // Validar e filtrar itens
-      const validItems = items.filter((item: any) => {
-        return availableMedia.some(media => media.media_id === item.mediaId);
+      const validItems = items.filter((itemRaw: unknown) => {
+        const item = itemRaw as unknown as Record<string, unknown>;
+        return avMedia.some(media => media.media_id === item.mediaId);
       });
 
-      // Calcular efetividade
       const effectiveness = validItems.length > 0 
-        ? validItems.reduce((sum: number, item: any) => sum + item.score, 0) / validItems.length
+        ? validItems.reduce((sum: number, itemRaw: unknown) => {
+            const item = itemRaw as unknown as Record<string, unknown>;
+            return sum + (typeof item.score === 'number' ? item.score : 0);
+          }, 0) / validItems.length
         : 0;
 
       return {
         items: validItems,
         effectiveness
-      };
-
-    } catch (error: any) {
-      logError('Erro ao processar resposta da IA', error, { rawResponse: response }).catch(() => {});
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      logError('Erro ao processar resposta da IA', e.error, { rawResponse: response }).catch(() => {});
       return {
         items: [],
         effectiveness: 0
@@ -999,21 +996,21 @@ export class SmartPlaylistService {
   /**
    * Calcula score para item de mídia
    */
-  private calculateScore(item: any, playlist: SmartPlaylistResponse, index: number): number {
-    let score = 100 - index; // Score baseado na posição
+  private calculateScore(itemRaw: unknown, playlist: SmartPlaylistResponse, index: number): number {
+    let score = 100 - index;
+    const item = itemRaw as unknown as Record<string, unknown>;
 
-    // Ajustar baseado no tipo de conteúdo
     if (playlist.contentType && item.media_type === playlist.contentType) {
       score += 20;
     }
 
     // Ajustar baseado na duração
-    if (playlist.duration && item.duration_seconds <= playlist.duration) {
+    if (playlist.duration && Number(item.duration_seconds || 0) <= playlist.duration) {
       score += 10;
     }
 
     // Ajustar baseado nas visualizações (view_count não existe no schema v2 - usar 0)
-    score += Math.min((item.view_count || 0) / 100, 20);
+    score += Math.min(Number(item.view_count || 0) / 100, 20);
 
     return Math.max(0, Math.min(100, score));
   }
@@ -1021,21 +1018,17 @@ export class SmartPlaylistService {
   /**
    * Obtém razão da seleção
    */
-  private getSelectionReason(item: any, playlist: SmartPlaylistResponse): string {
-    const reasons = [];
+  private getSelectionReason(itemRaw: unknown, playlist: SmartPlaylistResponse): string {
+    const reasons: string[] = [];
+    const item = itemRaw as unknown as Record<string, unknown>;
 
     if (playlist.contentType && item.media_type === playlist.contentType) {
       reasons.push('Tipo de conteúdo adequado');
     }
 
-    if (playlist.duration && item.duration_seconds <= playlist.duration) {
+    if (playlist.duration && typeof item.duration_seconds === 'number' && item.duration_seconds <= playlist.duration) {
       reasons.push('Duração adequada');
     }
-
-    // view_count não existe no schema v2 - remover verificação
-    // if (item.view_count > 100) {
-    //   reasons.push('Alto engajamento');
-    // }
 
     return reasons.join(', ') || 'Seleção baseada em regras gerais';
   }
@@ -1043,11 +1036,17 @@ export class SmartPlaylistService {
   /**
    * Calcula efetividade da playlist
    */
-  private calculateEffectiveness(items: any[]): number {
+  private calculateEffectiveness(items: unknown[]): number {
     if (items.length === 0) return 0;
     
-    const avgScore = items.reduce((sum, item) => sum + item.score, 0) / items.length;
-    const diversity = new Set(items.map(item => item.media_type)).size;
+    const avgScore = items.reduce((sum: number, itemRaw: unknown) => {
+      const item = itemRaw as unknown as Record<string, unknown>;
+      return sum + (typeof item.score === 'number' ? item.score : 0);
+    }, 0) / items.length;
+    const diversity = new Set(items.map(itemRaw => {
+      const item = itemRaw as unknown as Record<string, unknown>;
+      return item.media_type;
+    })).size;
     
     return Math.min(100, avgScore + (diversity * 5));
   }
@@ -1152,10 +1151,9 @@ export class SmartPlaylistService {
           activated: activatedResult?.count || 0,
           deactivated: deactivatedResult?.count || 0
         }
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar estatísticas de smart playlists', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar estatísticas de smart playlists', e.error);
       throw new Error('Erro interno do servidor');
     }
   }

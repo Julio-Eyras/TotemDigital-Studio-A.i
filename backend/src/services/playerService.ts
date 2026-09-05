@@ -2,6 +2,7 @@ import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
 import { isStudioRuntime } from '../config/installationRuntime';
 import { userMayCreateTotem } from '../utils/totemCreateRoles';
+import { normalizeError } from '../utils/errors';
 
 export interface Player {
   totem_id: number;
@@ -115,9 +116,9 @@ export class PlayerService {
         total: parseInt(totalResult?.total || '0'),
         page,
         limit,
-      };
-    } catch (error: any) {
-      await logError('Erro ao listar players', error, { params });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar players', e.error, { params });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -151,9 +152,9 @@ export class PlayerService {
         WHERE t.totem_id = $1
       `, [id]);
 
-      return player;
-    } catch (error: any) {
-      await logError('Erro ao obter player', error, { id });
+      return player;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter player', e.error, { id });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -226,10 +227,10 @@ export class PlayerService {
         throw new Error('Erro ao buscar player criado');
       }
 
-      return newPlayer;
-    } catch (error: any) {
-      await logError('Erro ao criar player', error, { data });
-      throw error;
+      return newPlayer;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar player', e.error, { data });
+      throw e.error;
     }
   }
 
@@ -317,10 +318,10 @@ export class PlayerService {
         throw new Error('Erro ao buscar player atualizado');
       }
 
-      return updatedPlayer;
-    } catch (error: any) {
-      await logError('Erro ao atualizar player', error, { id, data });
-      throw error;
+      return updatedPlayer;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar player', e.error, { id, data });
+      throw e.error;
     }
   }
 
@@ -340,10 +341,10 @@ export class PlayerService {
         UPDATE totems 
         SET is_active = false, updated_at = CURRENT_TIMESTAMP
         WHERE totem_id = $1
-      `, [id]);
-    } catch (error: any) {
-      await logError('Erro ao excluir player', error, { id });
-      throw error;
+      `, [id]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao excluir player', e.error, { id });
+      throw e.error;
     }
   }
 
@@ -372,10 +373,10 @@ export class PlayerService {
         UPDATE totems 
         SET current_playlist_id = $1, updated_at = CURRENT_TIMESTAMP
         WHERE totem_id = $2
-      `, [playlistId, playerId]);
-    } catch (error: any) {
-      await logError('Erro ao atribuir playlist', error, { playerId, playlistId });
-      throw error;
+      `, [playlistId, playerId]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atribuir playlist', e.error, { playerId, playlistId });
+      throw e.error;
     }
   }
 
@@ -406,10 +407,10 @@ export class PlayerService {
         status: player.status,
         lastHeartbeat: player.last_heartbeat || '',
         currentPlaylist,
-      };
-    } catch (error: any) {
-      await logError('Erro ao obter status do player', error, { id });
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter status do player', e.error, { id });
+      throw e.error;
     }
   }
 }

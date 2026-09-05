@@ -7,19 +7,20 @@ import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
 import { SubscriberBillingService } from './subscriberBillingService';
 import { PublisherBillingService } from './publisherBillingService';
+import { normalizeError } from '../utils/errors';
 
 function getSubscriberBillingService(): SubscriberBillingService {
-  if (!(global as any).subscriberBillingServiceInstance) {
-    (global as any).subscriberBillingServiceInstance = new SubscriberBillingService();
+  if (!(global as unknown as Record<string, unknown>).subscriberBillingServiceInstance) {
+    (global as unknown as Record<string, unknown>).subscriberBillingServiceInstance = new SubscriberBillingService();
   }
-  return (global as any).subscriberBillingServiceInstance;
+  return (global as unknown as Record<string, unknown>).subscriberBillingServiceInstance as SubscriberBillingService;
 }
 
 function getPublisherBillingService(): PublisherBillingService {
-  if (!(global as any).publisherBillingServiceInstance) {
-    (global as any).publisherBillingServiceInstance = new PublisherBillingService();
+  if (!(global as unknown as Record<string, unknown>).publisherBillingServiceInstance) {
+    (global as unknown as Record<string, unknown>).publisherBillingServiceInstance = new PublisherBillingService();
   }
-  return (global as any).publisherBillingServiceInstance;
+  return (global as unknown as Record<string, unknown>).publisherBillingServiceInstance as PublisherBillingService;
 }
 
 export interface BillingControlDashboard {
@@ -113,9 +114,9 @@ export class BillingControlService {
         contractsExpired,
         revenueShare,
         publisherContracts,
-      };
-    } catch (error: any) {
-      await logError('Erro ao montar painel de faturamento', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao montar painel de faturamento', e.error);
       throw new Error('Erro interno do servidor');
     }
   }

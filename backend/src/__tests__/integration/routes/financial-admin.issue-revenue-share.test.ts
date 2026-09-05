@@ -1,10 +1,12 @@
 import express from 'express';
 import request from 'supertest';
 
+import * as express from 'express';
+
 const mockIssueRevenueSharePayouts = jest.fn();
 
 jest.mock('../../../middleware/auth.middleware', () => {
-  const authFn = (req: any, res: any, next: any) => {
+  const authFn = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const h = String(req.headers.authorization || '');
     if (!h.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -20,7 +22,7 @@ jest.mock('../../../middleware/auth.middleware', () => {
     next();
   };
   const authorizeRole =
-    (roles: string[]) => (req: any, res: any, next: any) => {
+    (roles: string[]) => (req: express.Request, res: express.Response, next: express.NextFunction) => {
       if (!req.user || !roles.includes(req.user.role)) {
         return res.status(403).json({ success: false, error: 'Forbidden' });
       }

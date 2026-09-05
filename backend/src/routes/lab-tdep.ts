@@ -4,11 +4,13 @@
  */
 
 import { Router, Response } from 'express';
+
 import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
 import { isStudioRuntime } from '../config/installationRuntime';
 import { logError } from '../utils/loggerHelper';
 import { applyTdepLane, TdepLaneCandidate } from '../services/lab/tdepDispatchLane';
 import { getTdepFillStore } from '../services/lab/tdepFillStore';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 router.use(authMiddleware);
@@ -39,10 +41,11 @@ router.patch('/fill/:totemId', async (req: AuthenticatedRequest, res: Response) 
       killSwitch: body.killSwitch === undefined ? undefined : body.killSwitch === true,
       capSharePct: body.capSharePct != null ? Number(body.capSharePct) : undefined,
     });
-    return res.json({ success: true, totem_id: totemId, ...saved });
-  } catch (error: any) {
-    await logError('[lab-tdep] PATCH /fill', error);
-    return res.status(500).json({ success: false, error: error.message });
+    return res.json({
+      success: true, totem_id: totemId, ...saved });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('[lab-tdep] PATCH /fill', e.error);
+    return res.status(500).json({ success: false, error: e.message });
   }
 });
 

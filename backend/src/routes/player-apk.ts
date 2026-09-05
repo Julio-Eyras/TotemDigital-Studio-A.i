@@ -1,9 +1,12 @@
-import { Router, Response } from 'express';
+import { Router} from 'express';
+
+import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
 import { body, query, param } from 'express-validator';
 import {
+
   authMiddleware,
   AuthenticatedRequest,
   authorizeRole,
@@ -12,6 +15,7 @@ import { validateRequest } from '../middleware/validation.middleware';
 import { getDatabase } from '../config/database';
 import { getOTAUpdateService } from '../services/otaUpdateService';
 import { logError, logInfo } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -205,7 +209,7 @@ router.get(
   authorizeRole(DOWNLOAD_ROLES),
   query('channel').optional().isIn(['production', 'testing']),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const channel = channelFrom(req.query.channel);
       const release = await designatedRelease(channel);
@@ -235,18 +239,18 @@ router.get(
               downloadUrl: `/api/player-apk/download?channel=${channel}`,
             }
           : null,
-      });
-    } catch (error: any) {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
       if (isSchemaGap(error)) {
-        await logError('Schema APK desatualizado (player_release_channels / ota_updates)', error);
+        await logError('Schema APK desatualizado (player_release_channels / ota_updates)', e.error);
         return res.json({
           success: true,
           schemaReady: false,
           installer: installerMeta(),
           data: null,
-        });
+    });
       }
-      await logError('Erro ao consultar APK designado', error);
+      await logError('Erro ao consultar APK designado', e.error);
       return res.status(500).json({ success: false, error: 'Erro ao consultar APK designado' });
     }
   },
@@ -255,7 +259,7 @@ router.get(
 router.get(
   '/candidates',
   authorizeRole(DESIGNATE_ROLES),
-  async (_req: AuthenticatedRequest, res: Response) => {
+  async (_req: AuthenticatedRequest, res: express.Response) => {
     try {
       const rows = await getDatabase().findMany(
         `
@@ -280,7 +284,7 @@ router.get(
       return res.json({
         success: true,
         schemaReady: true,
-        data: (rows || []).map((row: any) => ({
+        data: (rows || []).map((rowRaw: unknown) => { const row = rowRaw as Record<string, unknown>; return ({
           id: row.id,
           version: row.version,
           versionCode: row.version_code,
@@ -290,13 +294,13 @@ router.get(
           originalFilename: row.original_filename,
           createdAt: row.created_at,
           releasedAt: row.released_at,
-        })),
-      });
-    } catch (error: any) {
+        }); }),
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
       if (isSchemaGap(error)) {
         return res.json({ success: true, schemaReady: false, data: [] });
-      }
-      await logError('Erro ao listar candidatos APK', error);
+    }
+      await logError('Erro ao listar candidatos APK', e.error);
       return res.status(500).json({ success: false, error: 'Erro ao listar candidatos APK' });
     }
   },
@@ -309,7 +313,7 @@ router.post(
   body('version').isString().notEmpty(),
   body('versionCode').optional({ nullable: true }).isInt({ min: 1 }),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       if (!req.file) {
         return res.status(400).json({ success: false, error: 'Ficheiro .apk é obrigatório' });
@@ -335,19 +339,20 @@ router.post(
         version,
         userId: req.user!.id,
       });
-      return res.json({ success: true, updateId: created.id, version, channel: 'production' });
-    } catch (error: any) {
+      return res.json({
+        success: true, updateId: created.id, version, channel: 'production' });} catch (error: unknown) {
+      const e = normalizeError(error);
       if (isSchemaGap(error)) {
         return res.status(503).json({
           success: false,
           error:
             'Schema desatualizado: falta player_release_channels ou colunas OTA. Actualize a instalação (--modo atualizar).',
-        });
+    });
       }
-      await logError('Erro ao enviar Player-AD', error);
+      await logError('Erro ao enviar Player-AD', e.error);
       return res.status(500).json({
         success: false,
-        error: error?.message || 'Erro ao enviar Player-AD',
+        error: e.message || 'Erro ao enviar Player-AD',
       });
     }
   },
@@ -359,7 +364,7 @@ router.post(
   body('updateId').isInt({ min: 1 }),
   body('channel').optional().isIn(['production', 'testing']),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const channel = channelFrom(req.body.channel);
       const updateId = Number(req.body.updateId);
@@ -408,16 +413,17 @@ router.post(
         });
       }
       await logInfo('APK Player-AD designado', { updateId, channel, userId: req.user!.id });
-      return res.json({ success: true, updateId, channel });
-    } catch (error: any) {
+      return res.json({
+        success: true, updateId, channel });} catch (error: unknown) {
+      const e = normalizeError(error);
       if (isSchemaGap(error)) {
         return res.status(503).json({
           success: false,
           error:
             'Schema desatualizado: falta player_release_channels. Actualize a instalação (--modo atualizar).',
-        });
+    });
       }
-      await logError('Erro ao designar APK Player-AD', error);
+      await logError('Erro ao designar APK Player-AD', e.error);
       return res.status(500).json({ success: false, error: 'Erro ao designar APK Player-AD' });
     }
   },
@@ -429,7 +435,7 @@ router.get(
   query('channel').optional().isIn(['production', 'testing']),
   query('kind').optional().isIn(['player', 'installer']),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       if (req.query.kind === 'installer') {
         const installerPath = resolveInstallerApkPath();
@@ -460,15 +466,15 @@ router.get(
       return res.download(
         filePath,
         release.original_filename || `Player-AD-${release.version}.apk`,
-      );
-    } catch (error: any) {
-      await logError('Erro no download do APK designado', error);
+      );} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro no download do APK designado', e.error);
       return res.status(500).json({ success: false, error: 'Erro no download do APK' });
     }
   },
 );
 
-router.get('/documents', authorizeRole(VIEW_ROLES), (_req: AuthenticatedRequest, res: Response) => {
+router.get('/documents', authorizeRole(VIEW_ROLES), (_req: AuthenticatedRequest, res: express.Response) => {
   return res.json({
     success: true,
     data: DOCUMENTS.map(({ filename: _filename, ...document }) => ({
@@ -483,7 +489,7 @@ router.get(
   authorizeRole(VIEW_ROLES),
   param('slug').isIn(DOCUMENTS.map((document) => document.slug)),
   validateRequest,
-  (req: AuthenticatedRequest, res: Response) => {
+  (req: AuthenticatedRequest, res: express.Response) => {
     const document = DOCUMENTS.find((item) => item.slug === req.params.slug);
     if (!document) {
       return res.status(404).json({ success: false, error: 'Documento não encontrado' });

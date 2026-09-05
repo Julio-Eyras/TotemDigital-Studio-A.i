@@ -11,6 +11,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
+import { normalizeError } from '../utils/errors';
 
 export interface ReportRequest {
   type: 'campaign' | 'totem' | 'client' | 'subscriber' | 'media' | 'billing' | 'analytics' | 'custom';
@@ -47,10 +48,10 @@ export interface ReportResponse {
   generatedAt?: string;
   expiresAt?: string;
   metadata: {
-    filters: any;
+    filters: Record<string, unknown>;
     recordCount: number;
     generationTime: number;
-    aiAnalysis?: any;
+    aiAnalysis?: unknown;
   };
   createdAt: string;
   createdBy: number;
@@ -61,7 +62,7 @@ export interface ReportTemplate {
   name: string;
   description: string;
   type: string;
-  template: any;
+  template: Record<string, unknown>;
   isDefault: boolean;
   isPublic: boolean;
   createdAt: string;
@@ -88,17 +89,17 @@ export class ReportsService {
   
   // Lazy initialization - só criar quando necessário
   private getAuditService(): AuditService {
-    if (!(global as any).auditServiceInstance) {
-      (global as any).auditServiceInstance = new AuditService();
+    if (!(global as unknown as Record<string, unknown>).auditServiceInstance) {
+      (global as unknown as Record<string, unknown>).auditServiceInstance = new AuditService();
     }
-    return (global as any).auditServiceInstance;
+    return (global as unknown as Record<string, unknown>).auditServiceInstance as AuditService;
   }
   
   private getAIService(): AIService {
-    if (!(global as any).aiServiceInstance) {
-      (global as any).aiServiceInstance = new AIService();
+    if (!(global as unknown as Record<string, unknown>).aiServiceInstance) {
+      (global as unknown as Record<string, unknown>).aiServiceInstance = new AIService();
     }
-    return (global as any).aiServiceInstance;
+    return (global as unknown as Record<string, unknown>).aiServiceInstance as AIService;
   }
   private reportsDir = path.join(__dirname, '../../reports');
 
@@ -203,22 +204,21 @@ export class ReportsService {
           format: request.filters.format
         });
 
-        return report;
-
-      } catch (error: any) {
+        return report;} catch (error: unknown) {
+      const e = normalizeError(error);
         // Atualizar status para falha
         await this.db.executeRaw(`
           UPDATE reports 
           SET status = 'failed', metadata = ?
           WHERE report_id = ?
-        `, [JSON.stringify({ error: error.message }), reportId]);
+        `, [JSON.stringify({ error: e.message }), reportId]);
 
-        throw error;
-      }
-
-    } catch (error: any) {
-      await logError('Erro ao gerar relatório', error);
-      throw error;
+        throw e.error;
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar relatório', e.error);
+      throw e.error;
     }
   }
 
@@ -254,10 +254,9 @@ export class ReportsService {
       return {
         ...report,
         metadata: report.metadata ? JSON.parse(report.metadata) : {}
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar relatório', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar relatório', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -280,7 +279,7 @@ export class ReportsService {
     try {
       const offset = (page - 1) * limit;
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       // Aplicar filtros
       if (filters.type) {
@@ -354,10 +353,9 @@ export class ReportsService {
         total,
         page,
         limit
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar relatórios', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar relatórios', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -388,11 +386,10 @@ export class ReportsService {
         reportId,
         type: report.type,
         title: report.title
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao remover relatório', error);
-      throw error;
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao remover relatório', e.error);
+      throw e.error;
     }
   }
 
@@ -403,7 +400,7 @@ export class ReportsService {
     const startTime = Date.now();
 
     try {
-      let data: any = {};
+      let data: Record<string, unknown> = {};
 
       switch (request.type) {
         case 'campaign':
@@ -443,21 +440,20 @@ export class ReportsService {
         ...data,
         generationTime: Date.now() - startTime,
         recordCount: this.countRecords(data)
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao gerar dados do relatório', error);
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar dados do relatório', e.error);
+      throw e.error;
     }
   }
 
   /**
    * Gera dados de relatório de campanha
    */
-  private async generateCampaignReportData(filters: any): Promise<any> {
+  private async generateCampaignReportData(filters: Record<string, unknown>): Promise<Record<string, unknown>> {
     try {
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       // Construir WHERE clause com placeholders PostgreSQL ($1, $2, ...)
       let paramIndex = 1;
@@ -516,21 +512,20 @@ export class ReportsService {
           active: campaigns.filter(c => c.is_active).length,
           inactive: campaigns.filter(c => !c.is_active).length
         }
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao gerar dados de relatório de campanha', error);
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar dados de relatório de campanha', e.error);
+      throw e.error;
     }
   }
 
   /**
    * Gera dados de relatório de totem
    */
-  private async generateTotemReportData(filters: any): Promise<any> {
+  private async generateTotemReportData(filters: Record<string, unknown>): Promise<Record<string, unknown>> {
     try {
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       // Totem não tem client_id mais - usar publisher_id via local_id
       // Se clientId fornecido, mapear para publisher_id (compatibilidade)
@@ -588,21 +583,20 @@ export class ReportsService {
           inactive: totems.filter(t => !t.is_active).length,
           averageUptime: totems.reduce((sum, t) => sum + t.uptime_percentage, 0) / totems.length
         }
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao gerar dados de relatório de totem', error);
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar dados de relatório de totem', e.error);
+      throw e.error;
     }
   }
 
   /**
    * Gera dados de relatório de subscriber (anunciante)
    */
-  private async generateSubscriberReportData(filters: any): Promise<any> {
+  private async generateSubscriberReportData(filters: Record<string, unknown>): Promise<Record<string, unknown>> {
     try {
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       const subscriberId = filters.subscriberId;
       if (subscriberId) {
@@ -639,21 +633,20 @@ export class ReportsService {
           active: subscribers.filter(s => s.is_active).length,
           inactive: subscribers.filter(s => !s.is_active).length
         }
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao gerar dados de relatório de cliente', error);
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar dados de relatório de cliente', e.error);
+      throw e.error;
     }
   }
 
   /**
    * Gera dados de relatório de mídia
    */
-  private async generateMediaReportData(filters: any): Promise<any> {
+  private async generateMediaReportData(filters: Record<string, unknown>): Promise<Record<string, unknown>> {
     try {
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       const subscriberId = filters.subscriberId;
       if (subscriberId) {
@@ -698,21 +691,20 @@ export class ReportsService {
           totalSize: media.reduce((sum, m) => sum + m.file_size, 0),
           totalViews: media.reduce((sum, m) => sum + m.view_count, 0)
         }
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao gerar dados de relatório de mídia', error);
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar dados de relatório de mídia', e.error);
+      throw e.error;
     }
   }
 
   /**
    * Gera dados de relatório de faturamento
    */
-  private async generateBillingReportData(filters: any): Promise<any> {
+  private async generateBillingReportData(filters: Record<string, unknown>): Promise<Record<string, unknown>> {
     try {
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       const subscriberId = filters.subscriberId;
       if (subscriberId) {
@@ -760,21 +752,20 @@ export class ReportsService {
           pending: billing.filter(b => b.status === 'pending').length,
           overdue: billing.filter(b => b.status === 'overdue').length
         }
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao gerar dados de relatório de faturamento', error);
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar dados de relatório de faturamento', e.error);
+      throw e.error;
     }
   }
 
   /**
    * Gera dados de relatório de analytics
    */
-  private async generateAnalyticsReportData(filters: any): Promise<any> {
+  private async generateAnalyticsReportData(filters: Record<string, unknown>): Promise<Record<string, unknown>> {
     try {
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (filters.startDate) {
         whereClause += ' AND DATE(executed_at) >= ?';
@@ -851,28 +842,34 @@ export class ReportsService {
       return {
         type: 'analytics',
         data: {
-          executionLogs: executionLogs.map((log: any) => ({
-            logId: log.log_id,
-            totemId: log.totem_id,
-            totemIdentifier: log.totem_identifier,
-            campaignId: log.campaign_id,
-            campaignTitle: log.campaign_title,
-            mediaId: log.media_id,
-            mediaName: log.media_name,
-            executedAt: log.executed_at,
-            durationSeconds: log.duration_seconds,
-            status: log.status,
-            playSuccess: log.play_success
-          })),
-          sessions: sessions.map((session: any) => ({
-            sessionId: session.id,
-            totemId: session.totem_id,
-            sessionStart: session.session_start,
-            sessionEnd: session.session_end,
-            totalInteractions: session.total_interactions,
-            avgEmotionScore: session.avg_emotion_score,
-            dominantEmotion: session.dominant_emotion
-          }))
+          executionLogs: executionLogs.map((logRaw: unknown) => {
+            const log = logRaw as unknown as Record<string, unknown>;
+            return {
+              logId: log.log_id,
+              totemId: log.totem_id,
+              totemIdentifier: log.totem_identifier,
+              campaignId: log.campaign_id,
+              campaignTitle: log.campaign_title,
+              mediaId: log.media_id,
+              mediaName: log.media_name,
+              executedAt: log.executed_at,
+              durationSeconds: log.duration_seconds,
+              status: log.status,
+              playSuccess: log.play_success
+            };
+          }),
+          sessions: sessions.map((sessionRaw: unknown) => {
+            const session = sessionRaw as unknown as Record<string, unknown>;
+            return {
+              sessionId: session.id,
+              totemId: session.totem_id,
+              sessionStart: session.session_start,
+              sessionEnd: session.session_end,
+              totalInteractions: session.total_interactions,
+              avgEmotionScore: session.avg_emotion_score,
+              dominantEmotion: session.dominant_emotion
+            };
+          })
         },
         summary: {
           totalViews: stats?.totalViews || 0,
@@ -885,11 +882,10 @@ export class ReportsService {
             ? ((stats.successfulPlays || 0) / stats.totalViews * 100).toFixed(2)
             : 0
         }
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao gerar dados de relatório de analytics', error);
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar dados de relatório de analytics', e.error);
+      throw e.error;
     }
   }
 
@@ -904,18 +900,17 @@ export class ReportsService {
         type: 'custom',
         data: [],
         summary: {}
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao gerar dados de relatório customizado', error);
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar dados de relatório customizado', e.error);
+      throw e.error;
     }
   }
 
   /**
    * Gera arquivo do relatório
    */
-  private async generateReportFile(reportData: any, request: ReportRequest, reportId: number): Promise<{
+  private async generateReportFile(reportData: Record<string, unknown>, request: ReportRequest, reportId: number): Promise<{
     filePath: string;
     fileSize: number;
     downloadUrl: string;
@@ -960,18 +955,17 @@ export class ReportsService {
         filePath,
         fileSize,
         downloadUrl: `/api/reports/download/${reportId}`
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao gerar arquivo do relatório', error);
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar arquivo do relatório', e.error);
+      throw e.error;
     }
   }
 
   /**
    * Converte dados para CSV (público para uso em rotas)
    */
-  convertToCSV(data: any): string {
+  convertToCSV(data: Record<string, unknown>): string {
     try {
       if (!data.data || !Array.isArray(data.data) || data.data.length === 0) {
         return 'Nenhum dado encontrado';
@@ -980,15 +974,15 @@ export class ReportsService {
       const headers = Object.keys(data.data[0]);
       const csvContent = [
         headers.join(','),
-        ...data.data.map((row: any) => 
-          headers.map(header => `"${row[header] || ''}"`).join(',')
-        )
+        ...data.data.map((rowRaw: unknown) => {
+          const row = rowRaw as unknown as Record<string, unknown>;
+          return headers.map(header => `"${row[header] || ''}"`).join(',');
+        })
       ].join('\n');
 
-      return csvContent;
-
-    } catch (error: any) {
-      logError('Erro ao converter para CSV', error).catch(() => {});
+      return csvContent;} catch (error: unknown) {
+      const e = normalizeError(error);
+      logError('Erro ao converter para CSV', e.error).catch(() => {});
       return 'Erro ao converter dados para CSV';
     }
   }
@@ -996,7 +990,7 @@ export class ReportsService {
   /**
    * Converte dados para Excel (público para uso em rotas)
    */
-  async convertToExcel(data: any, filePath: string): Promise<void> {
+  async convertToExcel(data: Record<string, unknown>, filePath: string): Promise<void> {
     try {
       await logInfo('Iniciando conversão para Excel', { filePath });
 
@@ -1013,7 +1007,7 @@ export class ReportsService {
       if (data.title) {
         worksheet.mergeCells('A1:Z1');
         const titleRow = worksheet.getRow(1);
-        titleRow.getCell(1).value = data.title;
+        titleRow.getCell(1).value = String(data.title);
         titleRow.getCell(1).font = { size: 16, bold: true };
         titleRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
         titleRow.height = 25;
@@ -1023,7 +1017,7 @@ export class ReportsService {
       if (data.description) {
         worksheet.mergeCells(`A2:Z2`);
         const descRow = worksheet.getRow(2);
-        descRow.getCell(1).value = data.description;
+        descRow.getCell(1).value = String(data.description);
         descRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
         descRow.height = 20;
       }
@@ -1047,29 +1041,45 @@ export class ReportsService {
       });
 
       // Ajustar largura das colunas
-      worksheet.columns.forEach((column: any) => {
+      worksheet.columns.forEach((column_: unknown) => {
+        const column = column_ as {
+          header?: unknown;
+          width?: number;
+          eachCell?: (opts: { includeEmpty: boolean }, cb: (cell: unknown) => void) => void;
+        };
         if (column.header) {
           let maxLength = 10;
-          column.eachCell({ includeEmpty: true }, (cell: any) => {
-            const cellValue = cell.value ? String(cell.value) : '';
-            if (cellValue.length > maxLength) {
-              maxLength = cellValue.length;
-            }
-          });
+          if (typeof column.eachCell === 'function') {
+            column.eachCell({ includeEmpty: true }, (cell_: unknown) => {
+              const cell = cell_ as { value?: unknown };
+              const cellValue = cell.value ? String(cell.value) : '';
+              if (cellValue.length > maxLength) {
+                maxLength = cellValue.length;
+              }
+            });
+          }
           column.width = Math.min(maxLength + 2, 50);
         }
       });
 
       // Adicionar bordas
-      worksheet.eachRow((row: any) => {
-        row.eachCell((cell: any) => {
-          cell.border = {
-            top: { style: 'thin' },
-            left: { style: 'thin' },
-            bottom: { style: 'thin' },
-            right: { style: 'thin' }
-          };
-        });
+      worksheet.eachRow((row_: unknown) => {
+        const row = row_ as {
+          eachCell?: (cb: (cell: unknown) => void) => void;
+        };
+        if (typeof row.eachCell === 'function') {
+          row.eachCell((cell_: unknown) => {
+            const cell = cell_ as {
+              border?: unknown;
+            };
+            cell.border = {
+              top: { style: 'thin' },
+              left: { style: 'thin' },
+              bottom: { style: 'thin' },
+              right: { style: 'thin' }
+            };
+          });
+        }
       });
 
       // Adicionar data de geração
@@ -1081,18 +1091,18 @@ export class ReportsService {
       footerRow.getCell(1).alignment = { horizontal: 'right' };
 
       await workbook.xlsx.writeFile(filePath);
-      await logInfo('Arquivo Excel gerado com sucesso', { filePath });
-
-    } catch (error: any) {
-      await logError('Erro ao converter para Excel', error, { filePath });
-      throw error;
+      await logInfo('Arquivo Excel gerado com sucesso', {
+        filePath });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao converter para Excel', e.error, { filePath });
+      throw e.error;
     }
   }
 
   /**
    * Converte dados para PDF (público para uso em rotas)
    */
-  async convertToPDF(data: any, filePath: string, request: ReportRequest): Promise<void> {
+  async convertToPDF(data: Record<string, unknown>, filePath: string, request: ReportRequest): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
         const doc = new PDFDocument({ margin: 50 });
@@ -1100,12 +1110,12 @@ export class ReportsService {
         doc.pipe(stream);
 
         // Título
-        doc.fontSize(20).font('Helvetica-Bold').text(data.title || request.title, { align: 'center' });
+        doc.fontSize(20).font('Helvetica-Bold').text(String(data.title ?? request.title ?? ''), { align: 'center' });
         doc.moveDown();
 
         // Descrição
         if (data.description || request.description) {
-          doc.fontSize(12).font('Helvetica').text(data.description || request.description || '', { align: 'center' });
+          doc.fontSize(12).font('Helvetica').text(String(data.description ?? request.description ?? ''), { align: 'center' });
           doc.moveDown();
         }
 
@@ -1142,7 +1152,8 @@ export class ReportsService {
 
         // Dados
         doc.fontSize(9).font('Helvetica');
-        data.data.forEach((row: any) => {
+        data.data.forEach((rowRaw: unknown) => {
+          const row = rowRaw as unknown as Record<string, unknown>;
           // Verificar se precisa de nova página
           if (doc.y > doc.page.height - 100) {
             doc.addPage();
@@ -1171,10 +1182,10 @@ export class ReportsService {
           logError('Erro ao gerar PDF', error, { filePath }).catch(() => {});
           reject(error);
         });
-
-      } catch (error: any) {
-        logError('Erro ao converter para PDF', error, { filePath }).catch(() => {});
-        reject(error);
+      } catch (error: unknown) {
+        const e = normalizeError(error);
+        logError('Erro ao converter para PDF', e.error, { filePath }).catch(() => {});
+        reject(e.error);
       }
     });
   }
@@ -1182,7 +1193,7 @@ export class ReportsService {
   /**
    * Gera análise com IA
    */
-  private async generateAIAnalysis(reportData: any, request: ReportRequest): Promise<any> {
+  private async generateAIAnalysis(reportData: Record<string, unknown>, request: ReportRequest): Promise<Record<string, unknown>> {
     try {
       const prompt = `
         Analise os seguintes dados de relatório e forneça insights:
@@ -1210,13 +1221,12 @@ export class ReportsService {
         generatedAt: new Date().toISOString(),
         tokensUsed: response.tokensUsed,
         cost: response.cost
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao gerar análise com IA', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar análise com IA', e.error);
       return {
         analysis: 'Erro ao gerar análise com IA',
-        error: error.message
+        error: e.message
       };
     }
   }
@@ -1224,7 +1234,7 @@ export class ReportsService {
   /**
    * Conta registros nos dados
    */
-  private countRecords(data: any): number {
+  private countRecords(data: Record<string, unknown>): number {
     if (data.data && Array.isArray(data.data)) {
       return data.data.length;
     }
@@ -1298,10 +1308,9 @@ export class ReportsService {
           failed: failedResult?.count || 0
         },
         storageUsed: storageResult?.total || 0
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar estatísticas de relatórios', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar estatísticas de relatórios', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -1322,10 +1331,9 @@ export class ReportsService {
       await this.getAuditService().log('reports', 'download', reportId, {
         reportId,
         action: 'download'
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao incrementar contador de downloads', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao incrementar contador de downloads', e.error);
       throw new Error('Erro ao incrementar contador de downloads');
     }
   }
@@ -1338,7 +1346,7 @@ export class ReportsService {
       name: string;
       description?: string;
       type: string;
-      templateConfig: any;
+      templateConfig: Record<string, unknown>;
       isDefault?: boolean;
       isPublic?: boolean;
     },
@@ -1408,10 +1416,9 @@ export class ReportsService {
       return {
         ...template,
         template: template.template ? JSON.parse(template.template) : {}
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao criar template de relatório', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar template de relatório', e.error);
       throw new Error('Erro ao criar template de relatório');
     }
   }
@@ -1426,7 +1433,7 @@ export class ReportsService {
   } = {}): Promise<ReportTemplate[]> {
     try {
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       // Construir WHERE clause com placeholders PostgreSQL ($1, $2, ...)
       let paramIndex = 1;
@@ -1461,13 +1468,16 @@ export class ReportsService {
         ORDER BY is_default DESC, created_at DESC
       `, params);
 
-      return templates.map(t => ({
-        ...t,
-        template: t.template ? JSON.parse(t.template) : {}
-      }));
-
-    } catch (error: any) {
-      await logError('Erro ao buscar templates de relatório', error);
+      return templates.map((tRaw: unknown) => {
+        const t = tRaw as unknown as Record<string, unknown>;
+        return {
+          ...(t as object),
+          template: t.template ? JSON.parse(String(t.template)) : {}
+        };
+      }) as unknown as ReportTemplate[];
+    } catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar templates de relatório', e.error);
       throw new Error('Erro ao buscar templates de relatório');
     }
   }
@@ -1497,12 +1507,12 @@ export class ReportsService {
       }
 
       return {
-        ...template,
-        template: template.template ? JSON.parse(template.template) : {}
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar template de relatório', error);
+        ...(template as object),
+        template: (template as unknown as Record<string, unknown>).template ? JSON.parse(String((template as unknown as Record<string, unknown>).template)) : {}
+      } as unknown as ReportTemplate;
+    } catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar template de relatório', e.error);
       throw new Error('Erro ao buscar template de relatório');
     }
   }

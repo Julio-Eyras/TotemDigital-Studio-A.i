@@ -1,6 +1,7 @@
 import { getDatabase } from '../config/database';
 import { logError, logDebugSync, logErrorSync } from '../utils/loggerHelper';
 import {
+
   assertContractEndDateValid,
   billingIntervalLabel,
   getPlanAvailableIntervals,
@@ -11,6 +12,7 @@ import {
   resolveContractBillingInterval,
 } from '../utils/billingIntervals';
 import { todayYmd } from '../utils/businessDate';
+import { normalizeError } from '../utils/errors';
 
 export interface Contract {
   contract_id: number;
@@ -33,7 +35,7 @@ export interface Contract {
   status: 'draft' | 'active' | 'expired' | 'terminated' | 'cancelled';
   signed_by_subscriber_at?: string;
   signed_by_tenant_at?: string;
-  metadata?: any;
+  metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
   // created_before_subscriber removed from schema
@@ -62,7 +64,7 @@ export interface CreateContractRequest {
   status?: 'draft' | 'active' | 'expired' | 'terminated' | 'cancelled';
   signed_by_subscriber_at?: string;
   signed_by_tenant_at?: string;
-  metadata?: any;
+  metadata: Record<string, unknown>;
   publisherIds?: number[]; // Publishers a serem associados ao contrato
   // created_before_subscriber removed from API
 }
@@ -86,7 +88,7 @@ export interface UpdateContractRequest {
   status?: 'draft' | 'active' | 'expired' | 'terminated' | 'cancelled';
   signed_by_subscriber_at?: string;
   signed_by_tenant_at?: string;
-  metadata?: any;
+  metadata: Record<string, unknown>;
   publisherIds?: number[]; // Publishers a serem associados ao contrato
 }
 
@@ -205,10 +207,10 @@ export class ContractService {
         total: parseInt(totalResult?.total || '0'),
         page,
         limit,
-      };
-    } catch (error: any) {
-      await logError('Erro ao listar contratos', error, { params });
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar contratos', e.error, { params });
+      throw e.error;
     }
   }
 
@@ -250,10 +252,10 @@ export class ContractService {
         WHERE sc.contract_id = $1
       `, [id]);
 
-      return contract || null;
-    } catch (error: any) {
-      await logError('Erro ao buscar contrato', error, { id });
-      throw error;
+      return contract || null;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar contrato', e.error, { id });
+      throw e.error;
     }
   }
 
@@ -264,10 +266,10 @@ export class ContractService {
         `SELECT subscriber_id FROM subscriber_contracts WHERE contract_id = $1`,
         [contractId]
       )) as { subscriber_id: number } | null;
-      return row?.subscriber_id != null ? Number(row.subscriber_id) : null;
-    } catch (error: any) {
-      await logError('Erro ao resolver subscriber do contrato', error, { contractId });
-      throw error;
+      return row?.subscriber_id != null ? Number(row.subscriber_id) : null;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao resolver subscriber do contrato', e.error, { contractId });
+      throw e.error;
     }
   }
 
@@ -315,7 +317,6 @@ export class ContractService {
           throw new Error('Subscriber não encontrado');
         }
       }
-
 
       const startYmd = String(start_date).split('T')[0];
       let contractEndDate = end_date ? String(end_date).split('T')[0] : undefined;
@@ -418,14 +419,13 @@ export class ContractService {
       try {
         const fs = require('fs');
         fs.appendFileSync('/tmp/sql-debug.log', JSON.stringify({ sql: insertSql.replace(/\s+/g, ' '), params: insertParams }) + '\\n');
-      } catch (e) {
+} catch (e: unknown) {
         // ignore
       }
       let result;
       try {
         result = await this.db.executeRaw(insertSql, insertParams);
-      } catch (err: any) {
-        logErrorSync('Erro ao executar INSERT subscriber_contracts', err, { sql: insertSql.replace(/\s+/g, ' '), params: insertParams });
+} catch (err: unknown) {        logErrorSync('Erro ao executar INSERT subscriber_contracts', err, { sql: insertSql.replace(/\s+/g, ' '), params: insertParams });
         throw err;
       }
 
@@ -478,10 +478,10 @@ export class ContractService {
         throw new Error('Erro ao buscar contrato criado');
       }
 
-      return newContract;
-    } catch (error: any) {
-      await logError('Erro ao criar contrato', error, { data });
-      throw error;
+      return newContract;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar contrato', e.error, { data });
+      throw e.error;
     }
   }
 
@@ -560,10 +560,11 @@ export class ContractService {
           throw new Error('Plano não encontrado');
         }
 
+        const billingInterv = (existingContract as unknown as Record<string, unknown>).billing_interval;
         const preferredInterval =
           billingIntervalInput ||
           payment_terms ||
-          (existingContract as any).billing_interval ||
+          (billingInterv != null ? String(billingInterv) : undefined) ||
           existingContract.payment_terms;
         contractBillingInterval = resolveContractBillingInterval(plan, preferredInterval);
 
@@ -610,7 +611,7 @@ export class ContractService {
             : undefined;
       const effectiveBillingInterval = normalizeBillingInterval(
         contractBillingInterval ??
-          (existingContract as any).billing_interval ??
+          String((existingContract as unknown as Record<string, unknown>).billing_interval) ??
           existingContract.payment_terms ??
           'month'
       );
@@ -778,10 +779,10 @@ export class ContractService {
         throw new Error('Erro ao buscar contrato atualizado');
       }
 
-      return updatedContract;
-    } catch (error: any) {
-      await logError('Erro ao atualizar contrato', error, { id, data });
-      throw error;
+      return updatedContract;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar contrato', e.error, { id, data });
+      throw e.error;
     }
   }
 
@@ -808,10 +809,10 @@ export class ContractService {
         UPDATE subscriber_publisher_access 
         SET is_active = false, updated_at = CURRENT_TIMESTAMP
         WHERE contract_id = $1
-      `, [id]);
-    } catch (error: any) {
-      await logError('Erro ao excluir contrato', error, { id });
-      throw error;
+      `, [id]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao excluir contrato', e.error, { id });
+      throw e.error;
     }
   }
 
@@ -834,10 +835,10 @@ export class ContractService {
         ORDER BY p.name
       `, [contractId]);
 
-      return publishers;
-    } catch (error: any) {
-      await logError('Erro ao buscar publishers do contrato', error, { contractId });
-      throw error;
+      return publishers;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar publishers do contrato', e.error, { contractId });
+      throw e.error;
     }
   }
 }

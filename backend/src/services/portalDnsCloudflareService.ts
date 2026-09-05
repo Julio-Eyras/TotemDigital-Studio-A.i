@@ -3,6 +3,7 @@
  * Token NUNCA em BD: só env CLOUDFLARE_API_TOKEN / PORTAL_CLOUDFLARE_API_TOKEN.
  */
 import { logError, logInfo, logWarn } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export type PortalDnsProvider = 'off' | 'manual' | 'cloudflare';
 
@@ -230,16 +231,16 @@ export async function syncCloudflarePortalDns(opts: {
         ? `Cloudflare: ${applied.length} registo(s) aplicados.`
         : `Cloudflare sync incompleto (${errors.length} erro(s)).`,
       errors,
-    };
-  } catch (error: any) {
-    await logError('Falha Cloudflare portal DNS', error);
+    };} catch (error: unknown) {
+      const e = normalizeError(error);
+    await logError('Falha Cloudflare portal DNS', e.error);
     return {
       ok: false,
       dryRun: false,
       planned,
       applied,
-      message: error?.message || 'Falha na API Cloudflare',
-      errors: [error?.message || String(error)],
+      message: ((e.raw as { message?: string })?.message) || 'Falha na API Cloudflare',
+      errors: [((e.raw as { message?: string })?.message) || String(e.error)],
     };
   }
 }

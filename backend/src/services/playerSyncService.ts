@@ -1,5 +1,6 @@
 import { getDatabase } from '../config/database';
 import { getRemoteCommandService } from './remoteCommandService';
+import { normalizeError } from '../utils/errors';
 
 export interface PlayerSyncEnvelope {
   schemaVersion: string;
@@ -64,7 +65,7 @@ export function validatePlayerSyncEnvelope(value: unknown): SyncValidationResult
     value: {
       schemaVersion: String(schemaVersion),
       syncId: String(value.syncId),
-      ...(value.heartbeat !== undefined ? { heartbeat: value.heartbeat as Record<string, unknown> } : {}),
+      ...(value.heartbeat !== undefined ? { heartbeat: value.heartbeat as unknown as Record<string, unknown> } : {}),
       ...(value.events !== undefined ? { events: value.events as unknown[] } : {}),
       ...(value.commandResults !== undefined ? { commandResults: value.commandResults as unknown[] } : {}),
       ...(typeof value.knownPlanVersion === 'string'
@@ -165,12 +166,12 @@ export async function processSyncCommandResults(totemId: number, values: unknown
       } else {
         await service.markCommandAsFailed(command.requestId, command.error || 'Comando falhou');
       }
-      accepted.push(command.requestId);
-    } catch (error: any) {
+      accepted.push(command.requestId);} catch (error: unknown) {
+      const e = normalizeError(error);
       rejected.push({
         index,
         requestId: command.requestId,
-        reason: error?.message || 'falha ao processar resultado',
+        reason: ((e.raw as { message?: string })?.message) || 'falha ao processar resultado',
       });
     }
   }

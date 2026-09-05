@@ -9,12 +9,14 @@ import { StripeService } from './stripeService';
 import { logError, logInfo } from '../utils/loggerHelper';
 import { getFinancialNotificationService } from './financialNotificationService';
 import {
+
   billingIntervalLabel,
   getPlanPriceForInterval,
   normalizeBillingInterval,
   resolveInvoicePeriodBounds,
 } from '../utils/billingIntervals';
 import { dateToYmd } from '../utils/businessDate';
+import { normalizeError } from '../utils/errors';
 
 export class InvoiceService {
   private get db() {
@@ -51,8 +53,8 @@ export class InvoiceService {
 
       for (const subscription of activeSubscriptions) {
         try {
-          const subId = subscription.subscriptionId ?? (subscription as any).subscription_id;
-          const publisherId = subscription.publisherId ?? (subscription as any).publisher_id;
+          const subId = subscription.subscriptionId ?? (subscription as unknown as Record<string, unknown>).subscription_id;
+          const publisherId = subscription.publisherId ?? (subscription as unknown as Record<string, unknown>).publisher_id;
 
           if (subscription.stripeSubscriptionId && this.stripeService.isEnabled()) {
             await logInfo('Assinatura com Stripe ativo: fatura recorrente tratada pelo Stripe', {
@@ -62,13 +64,13 @@ export class InvoiceService {
           }
 
           const interval = normalizeBillingInterval(
-            subscription.billingInterval ?? (subscription as any).billing_interval ?? 'month'
+            subscription.billingInterval ?? (subscription as unknown as Record<string, unknown>).billing_interval ?? 'month'
           );
 
           const periodAnchor =
             subscription.currentPeriodStart ??
-            (subscription as any).current_period_start ??
-            (subscription as any).start_date;
+            (subscription as unknown as Record<string, unknown>).current_period_start ??
+            (subscription as unknown as Record<string, unknown>).start_date;
 
           const period = resolveInvoicePeriodBounds(
             interval,
@@ -118,13 +120,14 @@ export class InvoiceService {
             continue;
           }
 
+          const planRec = plan as unknown as Record<string, unknown>;
           const amount =
             getPlanPriceForInterval(
               {
-                price_monthly: plan.priceMonthly ?? plan.price_monthly,
-                price_four_month: plan.priceFourMonth ?? plan.price_four_month,
-                price_semester: plan.priceSemester ?? plan.price_semester,
-                price_yearly: plan.priceYearly ?? plan.price_yearly,
+                price_monthly: (planRec.priceMonthly ?? planRec.price_monthly) as number | null | undefined,
+                price_four_month: (planRec.priceFourMonth ?? planRec.price_four_month) as number | null | undefined,
+                price_semester: (planRec.priceSemester ?? planRec.price_semester) as number | null | undefined,
+                price_yearly: (planRec.priceYearly ?? planRec.price_yearly) as number | null | undefined,
               },
               interval
             ) ?? 0;
@@ -187,10 +190,10 @@ export class InvoiceService {
             amount,
             interval,
             period,
-          });
-        } catch (error: any) {
+          });} catch (error: unknown) {
+      const e = normalizeError(error);
           errors++;
-          await logError('Erro ao gerar fatura para assinatura', error, {
+          await logError('Erro ao gerar fatura para assinatura', e.error, {
             subscriptionId: subscription.subscriptionId,
           });
         }
@@ -202,10 +205,11 @@ export class InvoiceService {
         total: activeSubscriptions.length,
       });
 
-      return { created, errors };
-    } catch (error: any) {
-      await logError('Erro ao gerar faturas de assinatura', error);
-      throw error;
+      return {
+        created, errors };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar faturas de assinatura', e.error);
+      throw e.error;
     }
   }
 
@@ -230,10 +234,10 @@ export class InvoiceService {
 
       const total = (subscriberResult.rowCount || 0) + (publisherResult.rowCount || 0);
       await logInfo('Faturas vencidas marcadas', { count: total });
-      return total;
-    } catch (error: any) {
-      await logError('Erro ao marcar faturas vencidas', error);
-      throw error;
+      return total;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao marcar faturas vencidas', e.error);
+      throw e.error;
     }
   }
 
@@ -245,10 +249,10 @@ export class InvoiceService {
     try {
       const result = await getFinancialNotificationService().sendPendingInvoiceReminders();
       await logInfo('Lembretes de fatura enviados', result);
-      return result.sent;
-    } catch (error: any) {
-      await logError('Erro ao enviar notificações de faturas', error);
-      throw error;
+      return result.sent;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao enviar notificações de faturas', e.error);
+      throw e.error;
     }
   }
 }

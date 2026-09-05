@@ -1,4 +1,6 @@
-import { Router, Response } from 'express';
+import { Router} from 'express';
+
+import express from 'express';
 import { getMediaService, MediaInUseError, type ForceDeleteMediaResult } from '../services/mediaService';
 import { StorageService } from '../services/storageService';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
@@ -15,6 +17,7 @@ import { isAdminRole } from '../utils/tenantScope';
 import { isDirectTotemMode } from '../config/directTotemMode';
 import { resolveSinglePublisherId } from '../services/directTotemOrgService';
 import { 
+
   paginationValidators, 
   searchValidators, 
   sortValidators, 
@@ -27,6 +30,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { getMediaConfig, getAllowedMimeTypes, getStoragePath } from '../config/mediaConfig';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -43,7 +47,7 @@ function truncateMediaDisplayName(raw: string): string {
 router.get('/:id/thumbnail',
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const mediaId = parseInt(req.params.id);
       const regenerate = String(req.query.regenerate || '') === '1';
@@ -52,7 +56,7 @@ router.get('/:id/thumbnail',
         return res.status(404).json({ error: 'Thumbnail não encontrado' });
       }
       return res.sendFile(thumbnail);
-    } catch (_error: any) {
+} catch (_error: unknown) {
       return res.status(500).json({ error: 'Erro ao obter thumbnail' });
     }
   }
@@ -77,10 +81,10 @@ function createMulterConfig() {
   // Se não conseguir criar, usar valores padrão e tentar novamente na próxima requisição
   if (!fs.existsSync(storagePath)) {
     try {
-      fs.mkdirSync(storagePath, { recursive: true });
-      // Diretório criado - log será feito pelo StorageService
-    } catch (error: any) {
-      if (error.code === 'EACCES') {
+      fs.mkdirSync(storagePath, { recursive: true }); // Diretório criado - log será feito pelo StorageService
+    } catch (error: unknown) {
+      const e = normalizeError(error);
+      if (e.code === 'EACCES') {
         // Log será feito pelo StorageService
         // Não falhar aqui - tentar usar o diretório mesmo assim (pode já existir)
         // Se realmente não existir, o erro será capturado na verificação de escrita abaixo
@@ -94,12 +98,13 @@ function createMulterConfig() {
   // Verificar se o diretório é gravável (se não for, falhar aqui)
   try {
     fs.accessSync(storagePath, fs.constants.W_OK);
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const e = normalizeError(error);
     // Log será feito pelo StorageService
-    throw new Error(`Diretório de uploads não é gravável. Verifique permissões: ${error.message}`);
+    throw new Error(`Diretório de uploads não é gravável. Verifique permissões: ${e.message}`);
   }
 
-    const storage = multer.diskStorage({
+  const storage = multer.diskStorage({
     destination: (_req, _file, cb) => {
       cb(null, storagePath);
     },
@@ -148,13 +153,13 @@ function getMulterUpload() {
   // Isso evita erros de permissão e banco não inicializado durante o startup
   try {
     upload = createMulterConfig();
-    return upload;
-  } catch (error: any) {
+    return upload;} catch (error: unknown) {
+    const e = normalizeError(error);
     // Se falhar, tentar novamente na próxima requisição
     // Isso permite que o diretório seja criado durante a instalação
     // Usar versão síncrona pois esta função não é async
-    logWarnSync('Erro ao criar configuração do multer', { error: error.message });
-    throw error;
+    logWarnSync('Erro ao criar configuração do multer', { error: e.message });
+    throw e.error;
   }
 }
 
@@ -170,7 +175,7 @@ router.get('/',
   ...dateRangeValidators,
   ...mediaFilterValidators,
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const { page = 1, limit = 10, search, type, subscriberId } = req.query;
       
@@ -206,13 +211,13 @@ router.get('/',
         isAdmin
       );
       
-      return res.json(result);
-    } catch (error: any) {
-      await logError('Erro ao listar mídia', error);
+      return res.json(result);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar mídia', e.error);
       return res.status(500).json({ 
         error: 'Erro ao listar mídia',
-        message: error.message || 'Erro desconhecido'
-      });
+        message: e.message || 'Erro desconhecido'
+    });
     }
   }
 );
@@ -225,7 +230,7 @@ router.get('/',
 router.get('/:id',
   ...idParamValidatorDefault,
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const mediaId = parseInt(req.params.id);
 
@@ -243,7 +248,8 @@ router.get('/:id',
         }
         try {
           await assertTenantClientParamAccess(req, scope.subscriberId);
-        } catch (e: any) {
+} catch (rawErr: unknown) {
+  const e = normalizeError(rawErr);
           if (e?.statusCode === 403) {
             return res.status(403).json({ error: e.message || 'Acesso negado' });
           }
@@ -260,11 +266,11 @@ router.get('/:id',
       if (!media) {
         return res.status(404).json({ error: 'Arquivo de mídia não encontrado' });
       }
-      return res.json(media);
-    } catch (error: any) {
-      if (error.message?.includes('Acesso negado')) {
-        return res.status(403).json({ error: error.message });
-      }
+      return res.json(media);} catch (error: unknown) {
+      const e = normalizeError(error);
+      if (e.message?.includes('Acesso negado')) {
+        return res.status(403).json({ error: e.message });
+    }
       return res.status(500).json({ error: 'Erro ao obter arquivo de mídia' });
     }
   }
@@ -276,7 +282,7 @@ router.get('/:id',
  * @access Private
  */
 router.post('/upload', uploadLimiter,
-  async (req: AuthenticatedRequest, res: Response, next) => {
+  async (req: AuthenticatedRequest, res: express.Response, next) => {
     // Log detalhado antes do multer processar (apenas em desenvolvimento)
     if (process.env.NODE_ENV === 'development') {
       const sanitizedBody = sanitizeForLogging(req.body);
@@ -287,9 +293,10 @@ router.post('/upload', uploadLimiter,
     
     // Tratar erros do multer antes de passar para validação
     try {
-      getMulterUpload().single('file')(req as any, res, async (err: any) => {
-      if (err) {
-        await logError('Erro no multer', err, { code: err.code }).catch(() => {
+      getMulterUpload().single('file')(req as any, res, async (errRaw: unknown) => {
+      if (errRaw) {
+        const err = errRaw as Record<string, unknown>;
+        await logError('Erro no multer', errRaw, { code: err.code as string | undefined }).catch(() => {
           // Silenciosamente falhar - logging não disponível
         });
         if (err.code === 'LIMIT_FILE_SIZE') {
@@ -298,13 +305,13 @@ router.post('/upload', uploadLimiter,
             message: `Tamanho máximo permitido: ${err.limit} bytes`
           });
         }
-        if (err.message && err.message.includes('Tipo de arquivo não permitido')) {
+        if (typeof err.message === 'string' && err.message.includes('Tipo de arquivo não permitido')) {
           return res.status(400).json({ 
             error: 'Tipo de arquivo não permitido',
             message: err.message
           });
         }
-        if (err.message && err.message.includes('Diretório de uploads')) {
+        if (typeof err.message === 'string' && err.message.includes('Diretório de uploads')) {
           return res.status(500).json({ 
             error: 'Erro de configuração do servidor',
             message: 'Diretório de uploads não está configurado corretamente'
@@ -312,7 +319,7 @@ router.post('/upload', uploadLimiter,
         }
         return res.status(400).json({ 
           error: 'Erro ao processar arquivo',
-          message: err.message || 'Erro desconhecido no upload'
+          message: (typeof err.message === 'string' ? err.message : undefined) || 'Erro desconhecido no upload'
         });
       }
       
@@ -326,12 +333,12 @@ router.post('/upload', uploadLimiter,
       return next();
     });
       return;
-    } catch (multerSetupErr: any) {
+} catch (multerSetupErr: unknown) {      const e = normalizeError(multerSetupErr);
       await logError('Falha ao inicializar multer no upload', multerSetupErr).catch(() => {});
       return res.status(500).json({
         success: false,
         error: 'Erro de configuração do servidor',
-        message: multerSetupErr?.message || 'Diretório de uploads indisponível',
+        message: e.message || 'Diretório de uploads indisponível',
       });
     }
   },
@@ -344,7 +351,7 @@ router.post('/upload', uploadLimiter,
   body('tags').optional({ nullable: true, checkFalsy: true }).isString(),
   body('subscriberId').optional({ nullable: true, checkFalsy: true }).isInt({ min: 1 }),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       // Log detalhado no handler principal (apenas em desenvolvimento)
       if (process.env.NODE_ENV === 'development') {
@@ -361,7 +368,7 @@ router.post('/upload', uploadLimiter,
       }
 
       // Verificar se usuário está autenticado
-      if (!req.user || !req.user.id) {
+      if (!req.user || !req.user!.id) {
         return res.status(401).json({ 
           error: 'Usuário não autenticado',
           message: 'É necessário estar autenticado para fazer upload'
@@ -400,8 +407,8 @@ router.post('/upload', uploadLimiter,
                 message: 'É necessário fornecer subscriberId ou ter pelo menos um subscriber ativo',
               });
             }
-          } catch (dbError: any) {
-            await logError('Erro ao buscar subscriber', dbError);
+ 
+} catch (dbError: unknown) {            await logError('Erro ao buscar subscriber', dbError);
             return res.status(400).json({
               success: false,
               error: 'subscriberId é obrigatório',
@@ -425,7 +432,8 @@ router.post('/upload', uploadLimiter,
           const subscriberService = getSubscriberService();
           await subscriberService.validateStorageLimit(finalSubscriberId, req.file.size);
           await subscriberService.validatePlanLimits(finalSubscriberId, 'media');
-        } catch (limitError: any) {
+} catch (limitError: unknown) {
+  const e = normalizeError(limitError);
           try {
             fs.unlinkSync(req.file.path);
           } catch {
@@ -434,7 +442,7 @@ router.post('/upload', uploadLimiter,
           return res.status(400).json({
             success: false,
             error: 'Limite do plano excedido',
-            message: limitError.message || 'Limite do plano foi excedido',
+            message: e.message || 'Limite do plano foi excedido',
           });
         }
       }
@@ -476,28 +484,28 @@ router.post('/upload', uploadLimiter,
       return res.status(201).json({
         success: true,
         data: media
-      });
-    } catch (error: any) {
-      await logError('Erro ao fazer upload do arquivo', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao fazer upload do arquivo', e.error, {
         fileName: req.file?.originalname,
         fileSize: req.file?.size,
         mimeType: req.file?.mimetype,
         subscriberId: req.body.subscriberId,
         userId: req.user?.id
-      });
+    });
       
-      if (error.message?.includes('Acesso negado')) {
+      if (e.message?.includes('Acesso negado')) {
         return res.status(403).json({
           success: false,
-          error: error.message
+          error: e.message
         });
       }
       
       return res.status(400).json({ 
         success: false,
         error: 'Erro ao fazer upload do arquivo',
-        message: error.message || 'Erro desconhecido ao processar upload',
-        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        message: e.message || 'Erro desconhecido ao processar upload',
+        details: process.env.NODE_ENV === 'development' ? e.error.stack : undefined
       });
     }
   }
@@ -513,7 +521,7 @@ router.post('/upload-multiple',
   (req, res, next) => getMulterUpload().array('files', 10)(req, res, next), // Máximo 10 arquivos
   body('subscriberId').optional({ nullable: true }).isInt({ min: 1 }),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const files = req.files as Express.Multer.File[];
       if (!files || files.length === 0) {
@@ -521,7 +529,7 @@ router.post('/upload-multiple',
       }
 
       // Verificar se usuário está autenticado
-      if (!req.user || !req.user.id) {
+      if (!req.user || !req.user!.id) {
         return res.status(401).json({ 
           error: 'Usuário não autenticado',
           message: 'É necessário estar autenticado para fazer upload'
@@ -568,7 +576,9 @@ router.post('/upload-multiple',
               `Limite de mídias excedido. Você pode criar no máximo ${maxMedias} mídias. Você já possui ${currentCount} e está tentando criar ${files.length} adicionais.`
             );
           }
-        } catch (limitError: any) {
+ 
+} catch (limitError: unknown) {
+   const e = normalizeError(limitError);
           files.forEach((file) => {
             try {
               if (file.path && fs.existsSync(file.path)) {
@@ -581,7 +591,7 @@ router.post('/upload-multiple',
           return res.status(400).json({
             success: false,
             error: 'Limite do plano excedido',
-            message: limitError.message || 'Limite de storage ou mídias do plano foi excedido',
+            message: e.message || 'Limite de storage ou mídias do plano foi excedido',
           });
         }
       }
@@ -612,12 +622,12 @@ router.post('/upload-multiple',
         }
       });
       
-      return res.status(201).json(created);
-    } catch (error: any) {
-      if (error.message?.includes('Acesso negado')) {
-        return res.status(403).json({ error: error.message });
-      }
-      return res.status(400).json({ error: error.message || 'Erro ao fazer upload dos arquivos' });
+      return res.status(201).json(created);} catch (error: unknown) {
+      const e = normalizeError(error);
+      if (e.message?.includes('Acesso negado')) {
+        return res.status(403).json({ error: e.message });
+    }
+      return res.status(400).json({ error: e.message || 'Erro ao fazer upload dos arquivos' });
     }
   }
 );
@@ -631,7 +641,7 @@ router.put('/:id',
   ...idParamValidatorDefault,
   ...updateMediaValidators,
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const mediaId = parseInt(req.params.id);
       
@@ -652,7 +662,7 @@ router.put('/:id',
       if (req.body.tags !== undefined && req.body.tags !== null) {
         if (Array.isArray(req.body.tags)) {
           // Se já é array, usar diretamente (filtrando vazios)
-          processedTags = req.body.tags.map((t: any) => String(t).trim()).filter(Boolean);
+          processedTags = req.body.tags.map((tRaw: unknown) => String(tRaw).trim()).filter(Boolean);
         } else {
           // Se é string, converter para array
           const tagsStr = String(req.body.tags).trim();
@@ -678,20 +688,20 @@ router.put('/:id',
       if (!media) {
         return res.status(404).json({ error: 'Arquivo de mídia não encontrado' });
       }
-      return res.json(media);
-    } catch (error: any) {
-      if (error.message?.includes('Acesso negado')) {
-        return res.status(403).json({ error: error.message });
-      }
+      return res.json(media);} catch (error: unknown) {
+      const e = normalizeError(error);
+      if (e.message?.includes('Acesso negado')) {
+        return res.status(403).json({ error: e.message });
+    }
       // Log detalhado do erro para debug
-      logError('Erro ao atualizar mídia', error, { 
+      logError('Erro ao atualizar mídia', e.error, { 
         mediaId: req.params.id, 
         body: sanitizeForLogging(req.body),
         userId: req.user?.id 
       });
       return res.status(400).json({ 
-        error: error.message || 'Erro ao atualizar arquivo de mídia',
-        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        error: e.message || 'Erro ao atualizar arquivo de mídia',
+        details: process.env.NODE_ENV === 'development' ? e.error.stack : undefined
       });
     }
   }
@@ -707,7 +717,7 @@ router.post('/:id/transform',
   body('rotationDegrees').isInt({ min: -270, max: 270 }).withMessage('rotationDegrees deve ser múltiplo de 90'),
   body('fit').optional({ nullable: true }).isIn(['9:16']).withMessage('fit inválido'),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const mediaId = parseInt(req.params.id);
       const rotationDegrees = Number(req.body.rotationDegrees);
@@ -730,12 +740,13 @@ router.post('/:id/transform',
         isAdmin
       );
 
-      return res.json({ success: true, data: media });
-    } catch (error: any) {
-      const msg = error.message || '';
+      return res.json({
+        success: true, data: media });} catch (error: unknown) {
+      const e = normalizeError(error);
+      const msg = e.message || '';
       if (msg.includes('Acesso negado')) {
         return res.status(403).json({ error: msg });
-      }
+    }
       if (msg.includes('não encontrada') || msg.includes('não encontrado')) {
         return res.status(404).json({ error: msg });
       }
@@ -752,7 +763,7 @@ router.post('/:id/transform',
 router.post('/:id/reprocess-delivery',
   ...idParamValidatorDefault,
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const mediaId = parseInt(req.params.id);
       const isAdmin = req.user?.role === 'admin' || req.user?.userType === 'system_user';
@@ -769,12 +780,13 @@ router.post('/:id/reprocess-delivery',
         isAdmin
       );
 
-      return res.json({ success: true, data: media });
-    } catch (error: any) {
-      const msg = error.message || '';
+      return res.json({
+        success: true, data: media });} catch (error: unknown) {
+      const e = normalizeError(error);
+      const msg = e.message || '';
       if (msg.includes('Acesso negado')) {
         return res.status(403).json({ error: msg });
-      }
+    }
       if (msg.includes('não encontrada') || msg.includes('não encontrado')) {
         return res.status(404).json({ error: msg });
       }
@@ -791,7 +803,7 @@ router.post('/:id/reprocess-delivery',
 router.delete('/:id',
   ...idParamValidatorDefault,
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const mediaId = parseInt(req.params.id);
       const forceDetach =
@@ -818,12 +830,13 @@ router.delete('/:id',
         return res.json(result as ForceDeleteMediaResult);
       }
 
-      return res.json({ message: 'Arquivo de mídia deletado com sucesso' });
-    } catch (error: any) {
+      return res.json({
+        message: 'Arquivo de mídia deletado com sucesso' });} catch (error: unknown) {
+      const e = normalizeError(error);
       if (error instanceof MediaInUseError) {
-        return res.status(409).json(error.payload);
+      return res.status(409).json(error.payload);
       }
-      const msg = error.message || '';
+      const msg = e.message || '';
       if (msg.includes('Acesso negado')) {
         return res.status(403).json({ error: msg });
       }
@@ -843,7 +856,7 @@ router.delete('/:id',
 router.get('/:id/download',
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const mediaId = parseInt(req.params.id);
       const media = await getMediaService().getMediaById(mediaId);
@@ -863,9 +876,9 @@ router.get('/:id/download',
         }
       }
 
-      return res.download(filePath, media.name);
-    } catch (error: any) {
-      logError('Erro ao fazer download do arquivo', error, { mediaId: req.params.id });
+      return res.download(filePath, media.name);} catch (error: unknown) {
+      const e = normalizeError(error);
+      logError('Erro ao fazer download do arquivo', e.error, { mediaId: req.params.id });
       return res.status(500).json({ error: 'Erro ao fazer download do arquivo' });
     }
   }
@@ -885,7 +898,7 @@ router.post('/:id/process',
   body('resize.height').optional({ nullable: true }).isInt({ min: 1 }),
   body('resize.fit').optional({ nullable: true }).isIn(['cover', 'contain', 'fill', 'inside', 'outside']),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const mediaId = parseInt(req.params.id);
       const processOptions = req.body;
@@ -910,14 +923,14 @@ router.post('/:id/process',
         return res.status(400).json(result);
       }
 
-      return res.json(result);
-    } catch (error: any) {
-      await logError('Erro ao processar mídia', error);
+      return res.json(result);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao processar mídia', e.error);
       return res.status(500).json({ 
         success: false,
         error: 'Erro ao processar arquivo de mídia',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );
@@ -927,7 +940,7 @@ router.post('/:id/process',
  * @desc Obter estatísticas de mídia
  * @access Private
  */
-router.get('/stats/overview', async (req: AuthenticatedRequest, res: Response) => {
+router.get('/stats/overview', async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     // Determinar se é admin
     const isAdmin = req.user?.role === 'admin' || req.user?.userType === 'system_user';
@@ -940,7 +953,7 @@ router.get('/stats/overview', async (req: AuthenticatedRequest, res: Response) =
     
     const stats = await getMediaService().getMediaStats(subscriberId, requestSubscriberId, isAdmin);
     return res.json(stats);
-  } catch (error) {
+} catch (error: unknown) {
     return res.status(500).json({ error: 'Erro ao obter estatísticas' });
   }
 });
@@ -950,11 +963,11 @@ router.get('/stats/overview', async (req: AuthenticatedRequest, res: Response) =
  * @desc Obter estatísticas de armazenamento
  * @access Private
  */
-router.get('/stats/storage', async (_req: AuthenticatedRequest, res: Response) => {
+router.get('/stats/storage', async (_req: AuthenticatedRequest, res: express.Response) => {
   try {
     const stats = await getMediaService().getStorageStats();
     return res.json(stats);
-  } catch (error) {
+} catch (error: unknown) {
     return res.status(500).json({ error: 'Erro ao obter estatísticas de armazenamento' });
   }
 });
@@ -967,7 +980,7 @@ router.get('/stats/storage', async (_req: AuthenticatedRequest, res: Response) =
 router.get('/quota/:subscriberId',
   param('subscriberId').isInt({ min: 1 }),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const subscriberId = parseInt(req.params.subscriberId);
       const storageService = new StorageService();
@@ -987,9 +1000,9 @@ router.get('/quota/:subscriberId',
         quotaFormatted: storageService.formatBytes(quota),
         currentUsageFormatted: storageService.formatBytes(currentUsage),
         availableFormatted: storageService.formatBytes(available)
-      });
-    } catch (error: any) {
-      await logError('Erro ao verificar quota do subscriber', error, { subscriberId: req.params.subscriberId });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao verificar quota do subscriber', e.error, { subscriberId: req.params.subscriberId });
       return res.status(500).json({ error: 'Erro ao verificar quota de armazenamento' });
     }
   }

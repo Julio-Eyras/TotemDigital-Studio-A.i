@@ -227,6 +227,39 @@ function getBillingMenuBlock(includePublisher: boolean): HierarchicalMenuItem {
   };
 }
 
+/**
+ * Bloco Dashboards (Sprint 9/10) — 3 dashboards tipados:
+ *   - ACE (reconhecimento facial / audiência direcionada)
+ *   - FX (SmartDisplayFX / efeitos multi-telas)
+ *   - Geral (Analytics + Billing + Fleet)
+ */
+function getDashboardsMenuBlock(): HierarchicalMenuItem {
+  return {
+    text: 'Dashboards',
+    icon: <Assessment />,
+    path: '/dashboards/general',
+    children: [
+      {
+        text: 'ACE Audiência',
+        icon: <SmartToy />,
+        path: '/dashboards/ace',
+        requiredFlag: 'flag_smart_6',
+      },
+      {
+        text: 'FX SmartDisplay',
+        icon: <AutoAwesome />,
+        path: '/dashboards/fx',
+        requiredFlag: 'flag_smart_4',
+      },
+      {
+        text: 'Geral / Analytics',
+        icon: <Analytics />,
+        path: '/dashboards/general',
+      },
+    ],
+  };
+}
+
 /** Submenus Playlist Mix (mix por totem, regras, analytics) — agrupados sob Dispatcher para debug. */
 function getDispatcherPlaylistMixChildren(): HierarchicalMenuItem[] {
   return [
@@ -265,6 +298,7 @@ function getCompactReorganizedAdminMenu(): HierarchicalMenuItem[] {
 
   return [
     { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+    getDashboardsMenuBlock(),
     {
       text: 'Complementos do sistema',
       icon: <Extension />,
@@ -320,6 +354,7 @@ function getDirectTotemMenu(role: UserRole): HierarchicalMenuItem[] {
   const items: HierarchicalMenuItem[] = [
     { text: 'Publicar em Totem', icon: <Tv />, path: '/publish-totem' },
     { text: 'Biblioteca Mídias', icon: <VideoLibrary />, path: '/media' },
+    getDashboardsMenuBlock(),
     { text: 'Sua organização', icon: <Business />, path: '/publishers' },
   ];
 
@@ -467,6 +502,7 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
     const t = getProductTerminology();
     return [
       { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+      getDashboardsMenuBlock(),
       { text: 'Planos', icon: <Assignment />, path: '/plan-publisher-access' },
       getBillingMenuBlock(true),
       { text: t.yourOrganization, icon: <Business />, path: '/publishers' },
@@ -511,6 +547,7 @@ function getSystemAdminMenu(role?: UserRole | string): HierarchicalMenuItem[] {
 
   return [
     { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+    getDashboardsMenuBlock(),
     ...(role === 'owner_system' || role === 'admin_sql'
       ? [
           {
@@ -614,6 +651,7 @@ function getAdminMenu(): HierarchicalMenuItem[] {
 function getOperadorTecnicoMenu(): HierarchicalMenuItem[] {
   return [
     { text: 'Dashboard Técnico', icon: <Dashboard />, path: '/dashboard' },
+    getDashboardsMenuBlock(),
     {
       text: 'Totens',
       icon: <Tv />,
@@ -680,6 +718,7 @@ function getOperadorTecnicoMenu(): HierarchicalMenuItem[] {
 function getOperadorFaturamentoMenu(): HierarchicalMenuItem[] {
   return [
     { text: 'Dashboard Faturamento', icon: <Dashboard />, path: '/dashboard' },
+    getDashboardsMenuBlock(),
     {
       text: 'Financeiro',
       icon: <AdminPanelSettings />,
@@ -712,6 +751,7 @@ function getOperadorFaturamentoMenu(): HierarchicalMenuItem[] {
 function getOperadorComercialMenu(): HierarchicalMenuItem[] {
   return [
     { text: 'Dashboard Comercial', icon: <Dashboard />, path: '/dashboard' },
+    getDashboardsMenuBlock(),
     {
       text: 'Comercial',
       icon: <AdminPanelSettings />,
@@ -762,6 +802,7 @@ function getPublisherUserMenu(): HierarchicalMenuItem[] {
   const t = getProductTerminology();
   return [
     { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+    getDashboardsMenuBlock(),
     { text: t.yourOrganization, icon: <Business />, path: '/publishers' },
     { text: t.units, icon: <LocationOn />, path: '/locals' },
     {
@@ -792,6 +833,7 @@ function getPublisherUserMenu(): HierarchicalMenuItem[] {
 function getMarketingTeamMenu(): HierarchicalMenuItem[] {
   return [
     { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+    getDashboardsMenuBlock(),
     { text: 'Publicar em tela', icon: <Add />, path: '/quick-publish' },
     { text: 'Criar conteúdo', icon: <AutoAwesome />, path: '/quick-publish?mode=create' },
     { text: 'Cardápio', icon: <Storefront />, path: '/menu-catalog' },
@@ -805,6 +847,7 @@ function getMarketingTeamMenu(): HierarchicalMenuItem[] {
 function getSubscriberUserMenu(): HierarchicalMenuItem[] {
   return [
     { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+    getDashboardsMenuBlock(),
     { text: 'Publicar', icon: <Add />, path: '/quick-publish' },
     { text: 'Criar', icon: <AutoAwesome />, path: '/quick-publish?mode=create' },
     { text: 'Cardápio', icon: <Storefront />, path: '/menu-catalog' },
@@ -839,6 +882,7 @@ function getSubscriberUserMenu(): HierarchicalMenuItem[] {
 function getDefaultMenu(): HierarchicalMenuItem[] {
   return [
     { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+    getDashboardsMenuBlock(),
     { text: 'Mídia', icon: <VideoLibrary />, path: '/media' },
     { text: 'Vinhetas', icon: <VideoLibrary />, path: '/vinhetas' },
     { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },

@@ -8,6 +8,7 @@ import { logInfo, logError } from '../utils/loggerHelper';
 import fs from 'fs';
 import crypto from 'crypto';
 import { compareSemver, isNewerVersion } from '../utils/semverCompare';
+import { normalizeError } from '../utils/errors';
 
 export interface OTAUpdate {
   id: number;
@@ -148,13 +149,13 @@ export class OTAUpdateService {
         version: request.version
       });
 
-      return this.mapToOTAUpdate(update);
-    } catch (error: any) {
-      await logError('Erro ao criar atualização OTA', error, {
+      return this.mapToOTAUpdate(update);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar atualização OTA', e.error, {
         version: request.version,
         platform: request.platform
       });
-      throw error;
+      throw e.error;
     }
   }
 
@@ -198,10 +199,11 @@ export class OTAUpdateService {
           updated_at = CURRENT_TIMESTAMP
       `, [updateId, userId]);
 
-      await logInfo('Atualização OTA ativada', { updateId, version: update.version });
-    } catch (error: any) {
-      await logError('Erro ao ativar atualização OTA', error, { updateId });
-      throw error;
+      await logInfo('Atualização OTA ativada', {
+        updateId, version: update.version });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao ativar atualização OTA', e.error, { updateId });
+      throw e.error;
     }
   }
 
@@ -216,10 +218,11 @@ export class OTAUpdateService {
         WHERE id = $1
       `, [updateId]);
 
-      await logInfo('Atualização OTA pausada', { updateId });
-    } catch (error: any) {
-      await logError('Erro ao pausar atualização OTA', error, { updateId });
-      throw error;
+      await logInfo('Atualização OTA pausada', {
+        updateId });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao pausar atualização OTA', e.error, { updateId });
+      throw e.error;
     }
   }
 
@@ -231,10 +234,11 @@ export class OTAUpdateService {
         SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
         WHERE id = $1
       `, [updateId]);
-      await logInfo('Atualização OTA cancelada', { updateId });
-    } catch (error: any) {
-      await logError('Erro ao cancelar atualização OTA', error, { updateId });
-      throw error;
+      await logInfo('Atualização OTA cancelada', {
+        updateId });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao cancelar atualização OTA', e.error, { updateId });
+      throw e.error;
     }
   }
 
@@ -303,9 +307,9 @@ export class OTAUpdateService {
         }
       }
 
-      return this.mapToOTAUpdate(update);
-    } catch (error: any) {
-      await logError('Erro ao obter atualização disponível', error, { totemId });
+      return this.mapToOTAUpdate(update);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter atualização disponível', e.error, { totemId });
       return null;
     }
   }
@@ -337,9 +341,9 @@ export class OTAUpdateService {
         status.lastCheck || new Date(),
         status.lastUpdate || null,
         status.error || null
-      ]);
-    } catch (error: any) {
-      await logError('Erro ao atualizar status de atualização do totem', error, { totemId });
+      ]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar status de atualização do totem', e.error, { totemId });
     }
   }
 
@@ -355,10 +359,10 @@ export class OTAUpdateService {
         LIMIT $1
       `, [limit]);
 
-      return updates.map(update => this.mapToOTAUpdate(update));
-    } catch (error: any) {
-      await logError('Erro ao obter histórico de atualizações', error);
-      throw error;
+      return updates.map(update => this.mapToOTAUpdate(update));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter histórico de atualizações', e.error);
+      throw e.error;
     }
   }
 
@@ -383,10 +387,10 @@ export class OTAUpdateService {
         ORDER BY tus.updated_at DESC
         LIMIT $1
       `, [limit]);
-      return rows;
-    } catch (error: any) {
-      await logError('Erro ao listar status OTA por totem', error);
-      throw error;
+      return rows;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar status OTA por totem', e.error);
+      throw e.error;
     }
   }
 
@@ -428,10 +432,10 @@ export class OTAUpdateService {
           installing: totemStats?.installing_count || 0,
           failed: totemStats?.failed_count || 0
         }
-      };
-    } catch (error: any) {
-      await logError('Erro ao obter estatísticas de atualizações', error);
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter estatísticas de atualizações', e.error);
+      throw e.error;
     }
   }
 

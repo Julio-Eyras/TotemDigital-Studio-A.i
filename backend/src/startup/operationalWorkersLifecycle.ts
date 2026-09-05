@@ -4,6 +4,7 @@
  */
 import cron, { ScheduledTask } from 'node-cron';
 import {
+
   initializeExportQueue,
   initializeAdvancedScheduleQueue,
   closeExportQueue,
@@ -23,6 +24,7 @@ import { getAlertService } from '../services/alertService';
 import { logInfo, logWarn, logError } from '../utils/loggerHelper';
 import { buildOperationalWorkerFlags } from '../policy/installationPolicy';
 import type { InstallationCapabilities } from '../policy/installationPolicy';
+import { normalizeError } from '../utils/errors';
 
 export type WorkerRuntimeFlags = ReturnType<typeof buildOperationalWorkerFlags>;
 
@@ -44,8 +46,18 @@ let alertCronTask: ScheduledTask | null = null;
 let purgeCronTask: ScheduledTask | null = null;
 let reconcileLock: Promise<void> = Promise.resolve();
 
-function g(): any {
-  return global as any;
+type WorkersGlobal = typeof globalThis & {
+  invoiceWorker?: { stop?: () => void };
+  financialBillingWorker?: { stop?: () => void };
+  subscriberAccessNotificationWorker?: { stop?: () => void };
+  playlistEngineWorker?: { stop?: () => void };
+  playlistMixWorker?: { stop?: () => void };
+  alertCronTask?: unknown;
+  purgeCronTask?: unknown;
+};
+
+function g(): WorkersGlobal {
+  return global as WorkersGlobal;
 }
 
 function normalizeFlags(options: OperationalWorkersOptions): AppliedFlags {
@@ -67,10 +79,10 @@ async function startBull(logLabel: string): Promise<void> {
   initializeAdvancedScheduleQueue();
   registerAdvancedScheduleWorker();
   try {
-    await exportScheduleService.loadAllActiveSchedules();
-  } catch (error: any) {
+    await exportScheduleService.loadAllActiveSchedules();} catch (error: unknown) {
+    const e = normalizeError(error);
     await logWarn(
-      `${logLabel}: não foi possível carregar agendamentos de export (continuando): ${error.message || error}`
+      `${logLabel}: não foi possível carregar agendamentos de export (continuando): ${e.message || error}`
     );
   }
 }
@@ -81,9 +93,10 @@ async function stopBull(logLabel: string): Promise<void> {
     resetExportWorkerRegistration();
     await closeAdvancedScheduleQueue();
     resetAdvancedScheduleWorkerRegistration();
-    await logInfo(`${logLabel}: filas Bull fechadas`);
-  } catch (error: any) {
-    await logWarn(`${logLabel}: erro ao fechar filas Bull`, { error: error?.message });
+    await logInfo(`${
+      logLabel}: filas Bull fechadas`);} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logWarn(`${logLabel}: erro ao fechar filas Bull`, { error: e.message });
   }
 }
 
@@ -173,18 +186,22 @@ function startAlertCron(logLabel: string): void {
       const alertService = getAlertService();
       const alerts = await alertService.checkAllAlerts();
       for (const alert of alerts) {
-        const rule = (alertService as any).alertRules?.find((r: any) => r.id === alert.ruleId);
-        if (rule && rule.enabled && rule.channels.length > 0) {
-          await alertService.sendAlert(alert, rule.channels);
+        const svc = alertService as unknown as {
+          alertRules?: Array<{ id?: string | number; enabled?: boolean; channels?: unknown[] }>;
+        };
+        const rule = svc.alertRules?.find((r) => r.id === alert.ruleId);
+        if (rule && rule.enabled && rule.channels && rule.channels.length > 0) {
+          await alertService.sendAlert(alert, rule.channels as string[]);
         }
       }
       if (alerts.length > 0) {
         await logInfo(`${logLabel}: ${alerts.length} alerta(s) na verificação periódica`, {
           count: alerts.length,
         });
-      }
-    } catch (error: any) {
-      await logError(`${logLabel}: erro na verificação automática de alertas`, error, {});
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError(`${logLabel}: erro na verificação automática de alertas`, e.error, {});
     }
   });
   g().alertCronTask = alertCronTask;
@@ -211,9 +228,9 @@ function ensurePurgeScheduleCron(logLabel: string): void {
     try {
       const { createDatabaseWrapper } = await import('../config/database-pg');
       const { tickPurgeSchedule } = await import('../services/commercialPurgeService');
-      await tickPurgeSchedule(createDatabaseWrapper());
-    } catch (error: any) {
-      await logError(`${logLabel}: erro no tick de purge agendado`, error, {});
+      await tickPurgeSchedule(createDatabaseWrapper());} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError(`${logLabel}: erro no tick de purge agendado`, e.error, {});
     }
   });
   g().purgeCronTask = purgeCronTask;
@@ -305,11 +322,11 @@ export async function reconcileOperationalWorkers(
     // START
     if (!prev?.enableBullQueues && next.enableBullQueues) {
       try {
-        await startBull(logLabel);
-      } catch (error: any) {
+        await startBull(logLabel);} catch (error: unknown) {
+        const e = normalizeError(error);
         await logWarn(`${logLabel}: erro ao inicializar filas Bull (continuando)`, {
-          error: error?.message,
-        });
+          error: e.message,
+      });
       }
     } else if (!next.enableBullQueues && next.redisEnabled && !prev) {
       await logInfo(`${logLabel}: Redis ativo; filas Bull não solicitadas neste perfil`);
@@ -377,9 +394,10 @@ export async function reconcileWorkersFromCapabilities(
       },
       logLabel
     );
-    return { ...result, ok: true };
-  } catch (error: any) {
-    await logError('Falha no hot-reload de workers', error);
+    return {
+      ...result, ok: true };} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Falha no hot-reload de workers', e.error);
     return {
       changed: false,
       applied: applied || {
@@ -390,9 +408,9 @@ export async function reconcileWorkersFromCapabilities(
         enablePlaylistEngine: false,
         enableAlertCron: false,
         enableSubscriberAccessWorker: false,
-      },
+  },
       ok: false,
-      error: error?.message || 'Erro no reconcile de workers',
+      error: e.message || 'Erro no reconcile de workers',
     };
   }
 }

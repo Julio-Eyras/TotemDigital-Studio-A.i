@@ -3,12 +3,15 @@
  * Rotas para debug online do dispatcher, Redis, queries e mensagens
  */
 
-import { Router, Response } from 'express';
+import { Router } from 'express';
+import express from 'express';
+
 import { query, validationResult } from 'express-validator';
 import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
 import { dispatcherDebugService } from '../services/dispatcherDebugService';
 import { logError } from '../utils/loggerHelper';
 import { isStudioRuntime } from '../config/installationRuntime';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -22,7 +25,7 @@ const DISPATCHER_DEBUG_ROLES = isStudioRuntime()
 // Apenas admins e operadores técnicos podem aceder ao debug; em modo compacto também a organização dona
 router.use(authorizeRole([...DISPATCHER_DEBUG_ROLES]) as any);
 
-const validateRequest = (req: any, res: any, next: any) => {
+const validateRequest = (req: express.Request, res: express.Response, next: express.NextFunction): express.Response | void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -38,19 +41,19 @@ const validateRequest = (req: any, res: any, next: any) => {
  * @desc Obter status do Redis
  * @access Private (Admin, Operador Técnico)
  */
-router.get('/redis-status', async (_req: AuthenticatedRequest, res: Response) => {
+router.get('/redis-status', async (_req: AuthenticatedRequest, res: express.Response) => {
   try {
     const status = await dispatcherDebugService.getRedisStatus();
     return res.json({
       success: true,
       data: status,
-    });
-  } catch (error: any) {
-    await logError('Erro ao obter status do Redis', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao obter status do Redis', e.error);
     return res.status(500).json({
       success: false,
-      error: error.message || 'Erro interno do servidor'
-    });
+      error: e.message || 'Erro interno do servidor'
+  });
   }
 });
 
@@ -63,7 +66,7 @@ router.get('/queries',
   query('limit').optional().isInt({ min: 1, max: 1000 }).withMessage('limit deve ser entre 1 e 1000'),
   query('since').optional().isISO8601().withMessage('since deve ser uma data ISO8601 válida'),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
       const since = req.query.since ? new Date(req.query.since as string) : undefined;
@@ -74,13 +77,13 @@ router.get('/queries',
         success: true,
         data: logs,
         count: logs.length,
-      });
-    } catch (error: any) {
-      await logError('Erro ao buscar logs de queries', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar logs de queries', e.error);
       return res.status(500).json({
         success: false,
-        error: error.message || 'Erro interno do servidor'
-      });
+        error: e.message || 'Erro interno do servidor'
+    });
     }
   }
 );
@@ -104,7 +107,7 @@ router.get('/messages',
   query('statusCode').optional().isInt({ min: 100, max: 599 }),
   query('hasError').optional().isBoolean(),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
       const since = req.query.since ? new Date(req.query.since as string) : undefined;
@@ -128,13 +131,13 @@ router.get('/messages',
         success: true,
         data: logs,
         count: logs.length,
-      });
-    } catch (error: any) {
-      await logError('Erro ao buscar logs de mensagens', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar logs de mensagens', e.error);
       return res.status(500).json({
         success: false,
-        error: error.message || 'Erro interno do servidor'
-      });
+        error: e.message || 'Erro interno do servidor'
+    });
     }
   }
 );
@@ -149,7 +152,7 @@ router.get('/logs',
   query('since').optional().isISO8601().withMessage('since deve ser uma data ISO8601 válida'),
   query('type').optional().isIn(['redis', 'query', 'message', 'cache']).withMessage('type inválido'),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
       const since = req.query.since ? new Date(req.query.since as string) : undefined;
@@ -161,13 +164,13 @@ router.get('/logs',
         success: true,
         data: logs,
         count: logs.length,
-      });
-    } catch (error: any) {
-      await logError('Erro ao buscar logs de debug', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar logs de debug', e.error);
       return res.status(500).json({
         success: false,
-        error: error.message || 'Erro interno do servidor'
-      });
+        error: e.message || 'Erro interno do servidor'
+    });
     }
   }
 );
@@ -177,7 +180,7 @@ router.get('/logs',
  * @desc Obter estatísticas de debug
  * @access Private (Admin, Operador Técnico)
  */
-router.get('/stats', async (_req: AuthenticatedRequest, res: Response) => {
+router.get('/stats', async (_req: AuthenticatedRequest, res: express.Response) => {
   try {
     const stats = dispatcherDebugService.getStats();
     const redisStatus = await dispatcherDebugService.getRedisStatus();
@@ -188,13 +191,13 @@ router.get('/stats', async (_req: AuthenticatedRequest, res: Response) => {
         ...stats,
         redis: redisStatus,
       },
-    });
-  } catch (error: any) {
-    await logError('Erro ao obter estatísticas', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao obter estatísticas', e.error);
     return res.status(500).json({
       success: false,
-      error: error.message || 'Erro interno do servidor'
-    });
+      error: e.message || 'Erro interno do servidor'
+  });
   }
 });
 
@@ -206,7 +209,7 @@ router.get('/stats', async (_req: AuthenticatedRequest, res: Response) => {
 router.post('/clear',
   query('olderThan').optional().isISO8601().withMessage('olderThan deve ser uma data ISO8601 válida'),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const olderThan = req.query.olderThan ? new Date(req.query.olderThan as string) : undefined;
       dispatcherDebugService.clearLogs(olderThan);
@@ -214,13 +217,13 @@ router.post('/clear',
       return res.json({
         success: true,
         message: 'Logs limpos com sucesso',
-      });
-    } catch (error: any) {
-      await logError('Erro ao limpar logs', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao limpar logs', e.error);
       return res.status(500).json({
         success: false,
-        error: error.message || 'Erro interno do servidor'
-      });
+        error: e.message || 'Erro interno do servidor'
+    });
     }
   }
 );

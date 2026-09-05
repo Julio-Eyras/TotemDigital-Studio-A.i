@@ -9,6 +9,7 @@
 
 import { getDatabase } from '../config/database';
 import { getLogger } from '../config/logger';
+import { normalizeError } from '../utils/errors';
 
 export interface EventLogEntry {
   logId?: number; // Schema V2: log_id BIGSERIAL
@@ -19,7 +20,7 @@ export interface EventLogEntry {
   campaignId?: number;
   playlistId?: number;
   mediaId?: number;
-  metadata?: any;
+  metadata?: unknown;
   timestamp?: Date;
 }
 
@@ -117,15 +118,15 @@ export class EventLogService {
         totemId: event.totemId
       });
 
-      return eventId;
-    } catch (error: any) {
+      return eventId;} catch (error: unknown) {
+      const e = normalizeError(error);
       // Em caso de erro, registrar no arquivo de log operacional
       const logger = await getLogger();
       logger.error('Failed to log event to database', {
-        error: error.message,
+        error: e.message,
         event: event
-      });
-      throw error;
+    });
+      throw e.error;
     }
   }
 
@@ -137,7 +138,7 @@ export class EventLogService {
     totemId: number,
     playlistId?: number,
     campaignId?: number,
-    metadata?: any
+    metadata?: Record<string, unknown>
   ): Promise<number> {
     return this.logEvent({
       eventType: EventType.VIDEO_PLAYBACK_START,
@@ -163,7 +164,7 @@ export class EventLogService {
     totemId: number,
     duration: number,
     completed: boolean = true,
-    metadata?: any
+    metadata?: Record<string, unknown>
   ): Promise<number> {
     return this.logEvent({
       eventType: EventType.VIDEO_PLAYBACK_END,
@@ -197,7 +198,7 @@ export class EventLogService {
     campaignId: number,
     startTime: Date,
     endTime?: Date,
-    metadata?: any
+    metadata?: Record<string, unknown>
   ): Promise<number> {
     const eventType = endTime ? EventType.AD_DISPLAY_END : EventType.AD_DISPLAY_START;
     const durationSeconds = endTime ? Math.floor((endTime.getTime() - startTime.getTime()) / 1000) : null;
@@ -230,7 +231,7 @@ export class EventLogService {
   async logQRCodeScan(
     qrCodeId: number,
     totemId?: number,
-    metadata?: any
+    metadata?: Record<string, unknown>
   ): Promise<number> {
     return this.logEvent({
       eventType: EventType.QR_CODE_SCAN,
@@ -253,7 +254,7 @@ export class EventLogService {
   async logCampaignStart(
     campaignId: number,
     totemId: number,
-    metadata?: any
+    metadata?: Record<string, unknown>
   ): Promise<number> {
     return this.logEvent({
       eventType: EventType.CAMPAIGN_START,
@@ -274,7 +275,7 @@ export class EventLogService {
   async logCampaignEnd(
     campaignId: number,
     totemId: number,
-    metadata?: any
+    metadata?: Record<string, unknown>
   ): Promise<number> {
     return this.logEvent({
       eventType: EventType.CAMPAIGN_END,
@@ -305,7 +306,7 @@ export class EventLogService {
   }): Promise<EventLogEntry[]> {
     try {
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
       let paramIndex = 1;
 
       if (filters.eventType) {
@@ -364,22 +365,25 @@ export class EventLogService {
         LIMIT $${paramIndex++} OFFSET $${paramIndex++}
       `, [...params, limit, offset]);
 
-      return results.map((row: any) => ({
-        logId: row.logId,
-        eventType: row.eventType,
-        entityType: row.entityType,
-        entityId: row.entityId,
-        totemId: row.totemId,
-        campaignId: row.campaignId,
-        playlistId: row.playlistId,
-        mediaId: row.mediaId,
-        metadata: row.metadata ? JSON.parse(row.metadata) : null,
-        timestamp: row.timestamp
-      }));
-    } catch (error: any) {
+      return results.map((rowRaw: unknown) => {
+        const row = rowRaw as unknown as Record<string, unknown>;
+        return {
+          logId: row.log_id as number | undefined,
+          eventType: row.event_type as EventType,
+          entityType: row.entity_type as string,
+          entityId: row.entity_id as number | undefined,
+          totemId: row.totem_id as number | undefined,
+          campaignId: row.campaign_id as number | undefined,
+          playlistId: row.playlist_id as number | undefined,
+          mediaId: row.media_id as number | undefined,
+          metadata: row.metadata ? JSON.parse(row.metadata as string) : null,
+          timestamp: row.timestamp as Date | undefined
+        };
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
       const logger = await getLogger();
-      logger.error('Failed to get events', { error: error.message, filters });
-      throw error;
+      logger.error('Failed to get events', { error: e.message, filters });
+      throw e.error;
     }
   }
 
@@ -402,7 +406,7 @@ export class EventLogService {
   }> {
     try {
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
       let paramIndex = 1;
 
       if (filters.totemId) {
@@ -481,18 +485,21 @@ export class EventLogService {
       `, params);
 
       const eventsByType: { [key: string]: number } = {};
-      byTypeResult.forEach((row: any) => {
-        eventsByType[row.event_type] = parseInt(row.count);
+      byTypeResult.forEach((rowRaw: unknown) => {
+        const row = rowRaw as unknown as Record<string, unknown>;
+        eventsByType[row.event_type as string] = parseInt(row.count as string);
       });
 
       const eventsByTotem: { [key: number]: number } = {};
-      byTotemResult.forEach((row: any) => {
-        eventsByTotem[row.totem_id] = parseInt(row.count);
+      byTotemResult.forEach((rowRaw: unknown) => {
+        const row = rowRaw as unknown as Record<string, unknown>;
+        eventsByTotem[row.totem_id as number] = parseInt(row.count as string);
       });
 
       const eventsByCampaign: { [key: number]: number } = {};
-      byCampaignResult.forEach((row: any) => {
-        eventsByCampaign[row.campaign_id] = parseInt(row.count);
+      byCampaignResult.forEach((rowRaw: unknown) => {
+        const row = rowRaw as unknown as Record<string, unknown>;
+        eventsByCampaign[row.campaign_id as number] = parseInt(row.count as string);
       });
 
       return {
@@ -503,11 +510,11 @@ export class EventLogService {
         totalPlaybacks: parseInt(playbacksResult?.total || '0'),
         totalAdDisplays: parseInt(adDisplaysResult?.total || '0'),
         averageViewTime: parseFloat(viewTimeResult?.avg_duration || '0')
-      };
-    } catch (error: any) {
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
       const logger = await getLogger();
-      logger.error('Failed to get event statistics', { error: error.message, filters });
-      throw error;
+      logger.error('Failed to get event statistics', { error: e.message, filters });
+      throw e.error;
     }
   }
 }

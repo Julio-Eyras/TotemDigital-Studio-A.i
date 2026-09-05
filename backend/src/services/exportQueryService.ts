@@ -6,6 +6,7 @@
 import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export interface CreateExportQueryRequest {
   name: string;
@@ -15,7 +16,7 @@ export interface CreateExportQueryRequest {
   databaseConfig?: {
     // Configuração opcional específica por provider
     // Se não informado, usa configuração do sistema
-    [key: string]: any;
+    [key: string]: unknown;
   };
   exportConfig: {
     outputDirectory: string;
@@ -35,8 +36,8 @@ export interface UpdateExportQueryRequest {
   description?: string;
   provider?: 'PostgreSQL' | 'Redis' | 'Grafana' | 'Prometheus';
   sqlQuery?: string;
-  databaseConfig?: any;
-  exportConfig?: any;
+  databaseConfig?: Record<string, unknown>;
+  exportConfig?: Record<string, unknown>;
   enabled?: boolean;
 }
 
@@ -46,8 +47,8 @@ export interface ExportQuery {
   description: string | null;
   provider: string;
   sql_query: string;
-  database_config: any;
-  export_config: any;
+  database_config: unknown;
+  export_config: unknown;
   enabled: boolean;
   created_at: Date;
   updated_at: Date;
@@ -61,10 +62,11 @@ export class ExportQueryService {
   
   // Lazy initialization
   private getAuditService(): AuditService {
-    if (!(global as any).auditServiceInstance) {
-      (global as any).auditServiceInstance = new AuditService();
+    const g = global as typeof globalThis & { auditServiceInstance?: AuditService };
+    if (!g.auditServiceInstance) {
+      g.auditServiceInstance = new AuditService();
     }
-    return (global as any).auditServiceInstance;
+    return g.auditServiceInstance;
   }
 
   /**
@@ -108,10 +110,10 @@ export class ExportQueryService {
         queryName: data.name
       }).catch(e => logError('Erro ao registrar log de auditoria', e, { queryId: query.query_id || query.id }).catch(() => {}));
 
-      return this.mapToExportQuery(query);
-    } catch (error: any) {
-      await logError('Erro ao criar query', error, { data });
-      throw error;
+      return this.mapToExportQuery(query);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar query', e.error, { data });
+      throw e.error;
     }
   }
 
@@ -128,10 +130,10 @@ export class ExportQueryService {
         return null;
       }
 
-      return this.mapToExportQuery(query);
-    } catch (error: any) {
-      await logError('Erro ao buscar query', error, { queryId });
-      throw error;
+      return this.mapToExportQuery(query);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar query', e.error, { queryId });
+      throw e.error;
     }
   }
 
@@ -153,8 +155,8 @@ export class ExportQueryService {
     try {
       let sql = 'SELECT * FROM export_queries WHERE 1=1';
       let countSql = 'SELECT COUNT(*) as total FROM export_queries WHERE 1=1';
-      const params: any[] = [];
-      const countParams: any[] = [];
+      const params: unknown[] = [];
+      const countParams: unknown[] = [];
 
       // Construir WHERE clause com placeholders PostgreSQL ($1, $2, ...)
       let paramIndex = 1;
@@ -203,10 +205,10 @@ export class ExportQueryService {
         total,
         page,
         limit
-      };
-    } catch (error: any) {
-      await logError('Erro ao buscar queries', error, { filters });
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar queries', e.error, { filters });
+      throw e.error;
     }
   }
 
@@ -234,7 +236,7 @@ export class ExportQueryService {
 
       // Construir query de atualização dinâmica
       const updates: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
       let paramIndex = 1;
 
       if (data.name !== undefined) {
@@ -288,10 +290,10 @@ export class ExportQueryService {
         changes: Object.keys(data)
       }).catch(e => logError('Erro ao registrar log de auditoria', e, { queryId: query.query_id }).catch(() => {}));
 
-      return this.mapToExportQuery(query);
-    } catch (error: any) {
-      await logError('Erro ao atualizar query', error, { queryId, data });
-      throw error;
+      return this.mapToExportQuery(query);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar query', e.error, { queryId, data });
+      throw e.error;
     }
   }
 
@@ -324,17 +326,18 @@ export class ExportQueryService {
       await this.getAuditService().log('export', 'query_deleted', userId, {
         queryId: queryId,
         queryName: existing.name
-      }).catch(e => logError('Erro ao registrar log de auditoria', e, { queryId }).catch(() => {}));
-    } catch (error: any) {
-      await logError('Erro ao excluir query', error, { queryId });
-      throw error;
+      }).catch(e => logError('Erro ao registrar log de auditoria', e, {
+        queryId }).catch(() => {}));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao excluir query', e.error, { queryId });
+      throw e.error;
     }
   }
 
   /**
    * Testa conexão com banco de dados
    */
-  async testConnection(provider: string, databaseConfig?: any): Promise<boolean> {
+  async testConnection(provider: string, databaseConfig?: Record<string, unknown>): Promise<boolean> {
     try {
       switch (provider) {
         case 'PostgreSQL':
@@ -360,9 +363,10 @@ export class ExportQueryService {
 
         default:
           return false;
-      }
-    } catch (error: any) {
-      await logError('Erro ao testar conexão', error, { provider, databaseConfig });
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao testar conexão', e.error, { provider, databaseConfig });
       return false;
     }
   }
@@ -370,28 +374,28 @@ export class ExportQueryService {
   /**
    * Mapeia resultado do banco para ExportQuery
    */
-  private mapToExportQuery(row: any): ExportQuery {
+  private mapToExportQuery(rowRaw: unknown): ExportQuery {
+    const row = rowRaw as unknown as Record<string, unknown>;
     return {
-      query_id: row.query_id,
-      name: row.name,
-      description: row.description,
-      provider: row.provider,
-      sql_query: row.sql_query,
+      query_id: row.query_id as number,
+      name: row.name as string,
+      description: row.description as string | null,
+      provider: row.provider as string,
+      sql_query: row.sql_query as string,
       database_config: typeof row.database_config === 'string' 
         ? JSON.parse(row.database_config) 
         : row.database_config || {},
       export_config: typeof row.export_config === 'string'
         ? JSON.parse(row.export_config)
         : row.export_config || {},
-      enabled: row.enabled,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-      created_by: row.created_by
+      enabled: row.enabled as boolean,
+      created_at: row.created_at as Date,
+      updated_at: row.updated_at as Date,
+      created_by: row.created_by as number | null
     };
   }
 }
 
 // Exportar instância singleton
 export const exportQueryService = new ExportQueryService();
-
 

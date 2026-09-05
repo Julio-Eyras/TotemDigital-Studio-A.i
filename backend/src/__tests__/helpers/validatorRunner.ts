@@ -8,7 +8,7 @@ import { Request, Response } from 'express';
 export type ValidationMiddleware = (req: Request, res: Response, next: () => void) => Promise<void> | void;
 
 export async function runValidators(
-  req: Partial<Request> & { body?: any; query?: any; params?: any },
+  req: Partial<Request> & { body?: Record<string, unknown>; query?: Record<string, unknown>; params?: Record<string, unknown> },
   middlewares: ValidationMiddleware[]
 ): Promise<void> {
   const r = req as Request;

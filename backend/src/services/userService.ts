@@ -1,6 +1,7 @@
 import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
 import { Role } from '../types/roles';
+import { normalizeError } from '../utils/errors';
 
 export interface User {
   user_id: number;
@@ -90,10 +91,10 @@ export class UserService {
         ORDER BY r.name
       `, [userId]);
 
-      return roles;
-    } catch (error: any) {
-      await logError('Erro ao buscar roles do usuário', error, { userId });
-      throw error;
+      return roles;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar roles do usuário', e.error, { userId });
+      throw e.error;
     }
   }
 
@@ -116,10 +117,10 @@ export class UserService {
       await this.db.executeRaw(`
         INSERT INTO user_roles (user_id, role_id, granted_by)
         VALUES ($1, $2, $3)
-      `, [userId, roleId, grantedBy]);
-    } catch (error: any) {
-      await logError('Erro ao atribuir role ao usuário', error, { userId, roleId });
-      throw error;
+      `, [userId, roleId, grantedBy]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atribuir role ao usuário', e.error, { userId, roleId });
+      throw e.error;
     }
   }
 
@@ -131,10 +132,10 @@ export class UserService {
       await this.db.executeRaw(`
         DELETE FROM user_roles
         WHERE user_id = $1 AND role_id = $2
-      `, [userId, roleId]);
-    } catch (error: any) {
-      await logError('Erro ao remover role do usuário', error, { userId, roleId });
-      throw error;
+      `, [userId, roleId]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao remover role do usuário', e.error, { userId, roleId });
+      throw e.error;
     }
   }
 
@@ -163,10 +164,11 @@ export class UserService {
           INSERT INTO user_roles (user_id, role_id, granted_by)
           VALUES ${values}
         `, params);
-      }
-    } catch (error: any) {
-      await logError('Erro ao definir roles do usuário', error, { userId, roleIds });
-      throw error;
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao definir roles do usuário', e.error, { userId, roleIds });
+      throw e.error;
     }
   }
 
@@ -261,9 +263,9 @@ export class UserService {
         total: parseInt(totalResult?.total || '0'),
         page,
         limit,
-      };
-    } catch (error: any) {
-      await logError('Erro ao listar usuários', error, { params });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar usuários', e.error, { params });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -294,9 +296,9 @@ export class UserService {
         WHERE u.id = $1
       `, [id]);
 
-      return user;
-    } catch (error: any) {
-      await logError('Erro ao obter usuário', error, { id });
+      return user;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter usuário', e.error, { id });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -490,10 +492,10 @@ export class UserService {
         throw new Error('Erro ao buscar usuário criado');
       }
 
-      return newUser;
-    } catch (error: any) {
-      await logError('Erro ao criar usuário', error, { data });
-      throw error;
+      return newUser;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar usuário', e.error, { data });
+      throw e.error;
     }
   }
 
@@ -607,11 +609,11 @@ export class UserService {
       // (Regra do domínio) Não existe user "both".
       // Se não for tenant, precisa ter exatamente um vínculo (publisher OU subscriber) e user_type coerente.
       // Para evitar estados inválidos, normalizamos sempre que for possível a partir do role/userType/publisherId/subscriberId.
-      const nextIsTenant = isTenantUser !== undefined ? isTenantUser : (existingUser as any).is_tenant_user;
-      const nextRole = role || (existingUser as any).role;
-      const nextPublisherId = publisherId !== undefined ? publisherId : (existingUser as any).publisher_id ?? null;
-      const nextSubscriberId = subscriberId !== undefined ? subscriberId : (existingUser as any).subscriber_id ?? null;
-      const nextUserType = userType || (existingUser as any).user_type || null;
+      const nextIsTenant = isTenantUser !== undefined ? isTenantUser : (existingUser as unknown as Record<string, unknown>).is_tenant_user;
+      const nextRole = role || (existingUser as unknown as Record<string, unknown>).role;
+      const nextPublisherId = publisherId !== undefined ? publisherId : (existingUser as unknown as Record<string, unknown>).publisher_id ?? null;
+      const nextSubscriberId = subscriberId !== undefined ? subscriberId : (existingUser as unknown as Record<string, unknown>).subscriber_id ?? null;
+      const nextUserType = userType || (existingUser as unknown as Record<string, unknown>).user_type || null;
 
       if (nextIsTenant === false) {
         // Proibir vínculo duplo
@@ -658,10 +660,10 @@ export class UserService {
         throw new Error('Erro ao buscar usuário atualizado');
       }
 
-      return updatedUser;
-    } catch (error: any) {
-      await logError('Erro ao atualizar usuário', error, { id, data });
-      throw error;
+      return updatedUser;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar usuário', e.error, { id, data });
+      throw e.error;
     }
   }
 
@@ -681,10 +683,10 @@ export class UserService {
         UPDATE users 
         SET is_active = false, updated_at = CURRENT_TIMESTAMP
         WHERE id = $1
-      `, [id]);
-    } catch (error: any) {
-      await logError('Erro ao excluir usuário', error, { id });
-      throw error;
+      `, [id]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao excluir usuário', e.error, { id });
+      throw e.error;
     }
   }
 
@@ -729,10 +731,10 @@ export class UserService {
         };
       }
 
-      return userFlags as UserFlags;
-    } catch (error: any) {
-      await logError('Erro ao buscar flags do usuário', error, { userId });
-      throw error;
+      return userFlags as UserFlags;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar flags do usuário', e.error, { userId });
+      throw e.error;
     }
   }
 
@@ -801,10 +803,11 @@ export class UserService {
           flags.flag_smart_9 ?? false,
           updatedBy,
         ]);
-      }
-    } catch (error: any) {
-      await logError('Erro ao atualizar flags do usuário', error, { userId, flags });
-      throw error;
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar flags do usuário', e.error, { userId, flags });
+      throw e.error;
     }
   }
 
@@ -813,10 +816,11 @@ export class UserService {
    */
   async setUserFlag(userId: number, flagName: keyof UserFlags, value: boolean, updatedBy: number): Promise<void> {
     try {
-      await this.updateUserFlags(userId, { [flagName]: value }, updatedBy);
-    } catch (error: any) {
-      await logError('Erro ao definir flag do usuário', error, { userId, flagName, value });
-      throw error;
+      await this.updateUserFlags(userId, {
+        [flagName]: value }, updatedBy);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao definir flag do usuário', e.error, { userId, flagName, value });
+      throw e.error;
     }
   }
 }

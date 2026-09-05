@@ -6,6 +6,7 @@
 
 import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export interface FxTelemetry {
   id: number;
@@ -147,10 +148,10 @@ export class FxTelemetryService {
         total,
         page,
         limit,
-      };
-    } catch (error: any) {
-      await logError('FxTelemetryService.getAllTelemetry error', error, params);
-      throw new Error(`Erro ao listar telemetria: ${error.message}`);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxTelemetryService.getAllTelemetry error', e.error, params);
+      throw new Error(`Erro ao listar telemetria: ${e.message}`);
     }
   }
 
@@ -184,10 +185,10 @@ export class FxTelemetryService {
         return null;
       }
 
-      return this.mapRowToTelemetry(result);
-    } catch (error: any) {
-      await logError('FxTelemetryService.getTelemetryById error', error, { id });
-      throw new Error(`Erro ao buscar telemetria: ${error.message}`);
+      return this.mapRowToTelemetry(result);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxTelemetryService.getTelemetryById error', e.error, { id });
+      throw new Error(`Erro ao buscar telemetria: ${e.message}`);
     }
   }
 
@@ -244,10 +245,10 @@ export class FxTelemetryService {
       ];
 
       const result = await this.db.executeRaw(query, params);
-      return this.mapRowToTelemetry(result.rows[0]);
-    } catch (error: any) {
-      await logError('FxTelemetryService.createTelemetry error', error, data);
-      throw new Error(`Erro ao criar telemetria: ${error.message}`);
+      return this.mapRowToTelemetry(result.rows[0]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxTelemetryService.createTelemetry error', e.error, data);
+      throw new Error(`Erro ao criar telemetria: ${e.message}`);
     }
   }
 
@@ -319,10 +320,10 @@ export class FxTelemetryService {
         avg_duration_ms: parseFloat(row.avg_duration_ms || '0'),
         avg_fps: parseFloat(row.avg_fps || '0'),
         success_rate: parseFloat(row.success_rate || '0'),
-      };
-    } catch (error: any) {
-      await logError('FxTelemetryService.getTelemetryStats error', error, params);
-      throw new Error(`Erro ao obter estatísticas: ${error.message}`);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxTelemetryService.getTelemetryStats error', e.error, params);
+      throw new Error(`Erro ao obter estatísticas: ${e.message}`);
     }
   }
 
@@ -336,10 +337,10 @@ export class FxTelemetryService {
         WHERE created_at < NOW() - INTERVAL '${olderThanDays} days'
       `;
       const result = await this.db.executeRaw(query);
-      return result.rowCount || 0;
-    } catch (error: any) {
-      await logError('FxTelemetryService.deleteOldTelemetry error', error, { olderThanDays });
-      throw new Error(`Erro ao deletar telemetria antiga: ${error.message}`);
+      return result.rowCount || 0;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxTelemetryService.deleteOldTelemetry error', e.error, { olderThanDays });
+      throw new Error(`Erro ao deletar telemetria antiga: ${e.message}`);
     }
   }
 

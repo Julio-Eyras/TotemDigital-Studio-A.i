@@ -4,6 +4,7 @@
  */
 
 import { Router, Response } from 'express';
+
 import { getOTAUpdateService } from '../services/otaUpdateService';
 import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
@@ -12,6 +13,7 @@ import { logError } from '../utils/loggerHelper';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -80,13 +82,13 @@ router.get('/',
       return res.json({
         success: true,
         data: filtered
-      });
-    } catch (error: any) {
-      await logError('Erro ao listar atualizações OTA', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar atualizações OTA', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao listar atualizações OTA'
-      });
+    });
     }
   }
 );
@@ -161,13 +163,13 @@ router.post('/',
         success: true,
         message: 'Atualização OTA criada com sucesso',
         data: update
-      });
-    } catch (error: any) {
-      await logError('Erro ao criar atualização OTA', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar atualização OTA', e.error);
       return res.status(500).json({
         success: false,
-        error: error.message || 'Erro ao criar atualização OTA'
-      });
+        error: e.message || 'Erro ao criar atualização OTA'
+    });
     }
   }
 );
@@ -190,13 +192,13 @@ router.post('/:id/activate',
       return res.json({
         success: true,
         message: 'Atualização OTA ativada com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro ao ativar atualização OTA', error, { updateId: req.params.id });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao ativar atualização OTA', e.error, { updateId: req.params.id });
       return res.status(500).json({
         success: false,
-        error: error.message || 'Erro ao ativar atualização OTA'
-      });
+        error: e.message || 'Erro ao ativar atualização OTA'
+    });
     }
   }
 );
@@ -219,13 +221,13 @@ router.post('/:id/pause',
       return res.json({
         success: true,
         message: 'Atualização OTA pausada com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro ao pausar atualização OTA', error, { updateId: req.params.id });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao pausar atualização OTA', e.error, { updateId: req.params.id });
       return res.status(500).json({
         success: false,
-        error: error.message || 'Erro ao pausar atualização OTA'
-      });
+        error: e.message || 'Erro ao pausar atualização OTA'
+    });
     }
   }
 );
@@ -242,10 +244,11 @@ router.post('/:id/cancel',
     try {
       const updateId = parseInt(req.params.id);
       await getOTAUpdateService().cancelUpdate(updateId);
-      return res.json({ success: true, message: 'Atualização OTA cancelada com sucesso' });
-    } catch (error: any) {
-      await logError('Erro ao cancelar atualização OTA', error, { updateId: req.params.id });
-      return res.status(500).json({ success: false, error: error.message || 'Erro ao cancelar atualização OTA' });
+      return res.json({
+        success: true, message: 'Atualização OTA cancelada com sucesso' });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao cancelar atualização OTA', e.error, { updateId: req.params.id });
+      return res.status(500).json({ success: false, error: e.message || 'Erro ao cancelar atualização OTA' });
     }
   }
 );
@@ -265,13 +268,13 @@ router.get('/stats',
       return res.json({
         success: true,
         data: stats
-      });
-    } catch (error: any) {
-      await logError('Erro ao obter estatísticas de atualizações', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter estatísticas de atualizações', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao obter estatísticas de atualizações'
-      });
+    });
     }
   }
 );
@@ -286,9 +289,10 @@ router.get('/totems',
     try {
       const otaService = getOTAUpdateService();
       const data = await otaService.listTotemStatuses();
-      return res.json({ success: true, data });
-    } catch (error: any) {
-      await logError('Erro ao listar totens OTA', error);
+      return res.json({
+        success: true, data });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar totens OTA', e.error);
       return res.status(500).json({ success: false, error: 'Erro ao listar totens' });
     }
   }
@@ -336,14 +340,13 @@ router.get('/:id/download',
 
       const fileStream = fs.createReadStream(update.file_path);
       fileStream.pipe(res);
-      return;
-
-    } catch (error: any) {
-      await logError('Erro ao fazer download de atualização', error, { updateId: req.params.id });
+      return;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao fazer download de atualização', e.error, { updateId: req.params.id });
       return res.status(500).json({
         success: false,
         error: 'Erro ao fazer download de atualização'
-      });
+    });
     }
   }
 );

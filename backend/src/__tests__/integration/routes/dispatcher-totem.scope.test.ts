@@ -1,11 +1,13 @@
 import express from 'express';
 import request from 'supertest';
 
+import * as express from 'express';
+
 const mockDispatch = jest.fn();
 const mockIsSimpleMode = jest.fn();
 
 jest.mock('../../../middleware/auth.middleware', () => ({
-  authMiddleware: (req: any, res: any, next: any) => {
+  authMiddleware: (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const h = String(req.headers.authorization || '');
     if (!h.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -20,7 +22,7 @@ jest.mock('../../../middleware/auth.middleware', () => ({
     }
     next();
   },
-  authorizeRole: () => (_req: any, _res: any, next: any) => next(),
+  authorizeRole: () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
 }));
 
 jest.mock('../../../services/dispatcherTotemService', () => ({
@@ -81,11 +83,11 @@ describe('GET /api/dispatcher-totem/:totemId/dispatch — escopo', () => {
     const { assertDispatcherTotemScope } = await import(
       '../../../middleware/dispatcherTotemScope.middleware'
     );
-    const req: any = {
+    const req: Partial<express.Request> & Record<string, unknown> = {
       params: { totemId: '99' },
       user: { role: 'subscriber_user', subscriberId: 10 },
     };
-    const res: any = {
+    const res: Partial<express.Response> & Record<string, unknown> = {
       statusCode: 200,
       status(code: number) {
         this.statusCode = code;

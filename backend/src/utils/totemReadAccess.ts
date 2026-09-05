@@ -1,11 +1,16 @@
 /**
  * Autorização de leitura por totem_id (campanhas/QR codes ligados ao totem).
  */
+import { Request } from 'express';
 import { getTotemService } from '../services/totemService';
 import { isAdminRole } from './tenantScope';
 import { isSubscriberTenantRole, resolvePublisherIdFromRequest } from './tenantClientAccess';
 
-export async function assertTotemReadAccess(req: any, totemId: number): Promise<void> {
+interface AccessControlError extends Error {
+  statusCode?: number;
+}
+
+export async function assertTotemReadAccess(req: Request, totemId: number): Promise<void> {
   if (isAdminRole(req.user?.role)) {
     return;
   }
@@ -14,13 +19,13 @@ export async function assertTotemReadAccess(req: any, totemId: number): Promise<
 
   if (isSubscriberTenantRole(req)) {
     if (subId == null || Number.isNaN(Number(subId))) {
-      const err: any = new Error('Acesso negado');
+      const err = new Error('Acesso negado') as AccessControlError;
       err.statusCode = 403;
       throw err;
     }
     const ok = await getTotemService().isTotemAccessibleToSubscriber(totemId, Number(subId));
     if (!ok) {
-      const err: any = new Error('Acesso negado: totem fora do seu escopo');
+      const err = new Error('Acesso negado: totem fora do seu escopo') as AccessControlError;
       err.statusCode = 403;
       throw err;
     }
@@ -34,12 +39,12 @@ export async function assertTotemReadAccess(req: any, totemId: number): Promise<
 
   const totem = await getTotemService().getTotemById(totemId);
   if (!totem) {
-    const err: any = new Error('Totem não encontrado');
+    const err = new Error('Totem não encontrado') as AccessControlError;
     err.statusCode = 404;
     throw err;
   }
   if (!totem.publisherId || Number(totem.publisherId) !== Number(publisherId)) {
-    const err: any = new Error('Acesso negado: totem não pertence ao seu publisher');
+    const err = new Error('Acesso negado: totem não pertence ao seu publisher') as AccessControlError;
     err.statusCode = 403;
     throw err;
   }

@@ -3,6 +3,8 @@
  * Tipos e interfaces para o módulo Dispatcher-Totem
  */
 
+import { Metadata } from './shared';
+
 export interface DispatchRequest {
   totemId: number;
   timestamp?: Date | string; // Se não fornecido, usa NOW()
@@ -57,8 +59,19 @@ export interface DispatchPlan {
     emptyExplanation?: DispatchEmptyExplanation;
     [key: string]: unknown;
   };
+  /** Detalhes estruturados de validação (dedup content-hash, avisos não-fatais). */
+  validationDetails?: Metadata;
   cacheKey?: string;
   cacheExpiresAt?: Date;
+  /**
+   * Hash estável (SHA-256 truncado em 16 hex) da lista de mídias + ordem + duração.
+   * Utilizado pelo DEDUP: se dois planos do mesmo totem gerarem o mesmo versionHash,
+   * o último enviado é repetido (não publica MQTT/WebSocket, não grava log duplicado).
+   * É mais estável do que timestamp/cacheKey porque ignora metadata transient.
+   */
+  versionHash?: string;
+  /** true se este plano é idêntico ao último enviado para este totem (foi dedupado). */
+  duplicateOfPrevious?: boolean;
 }
 
 export interface DispatchMediaItem {
@@ -79,8 +92,10 @@ export interface DispatchMediaItem {
     mimeType?: string;
     /** Duração do ficheiro (vídeo/áudio) — só para totalDuration do plano, não para cortar no player. */
     durationSeconds?: number;
-    [key: string]: any;
+    [key: string]: unknown;
   };
+  /** SHA-256 do conteúdo binário da mídia (só preenchido se ACE/FX instalados). */
+  contentHash?: string;
 }
 
 export interface CandidateSchedule {
@@ -131,12 +146,14 @@ export interface DispatchLogEntry {
   temporalValidation: boolean;
   technicalValidation: boolean;
   integrityValidation: boolean;
-  validationDetails?: any;
+  validationDetails?: Metadata;
   fromCache: boolean;
   cacheKey?: string;
   dispatchPlan: DispatchPlan;
   executionTimeMs: number;
   createdAt: Date;
+  /** Preenchido quando dispatcher detectou duplicata via versionHash. */
+  skippedAsDuplicate?: boolean;
 }
 
 export interface CacheConfig {
@@ -149,6 +166,8 @@ export interface DispatchOptions {
   skipCache?: boolean; // Forçar recalcular (ignorar cache)
   includeCandidates?: boolean; // Incluir lista de candidatos na resposta
   validateOnly?: boolean; // Apenas validar, não gerar plano
+  /** Se false, desliga o dedup (força publicar / gravar log mesmo que idêntico). Default true. */
+  enableDedup?: boolean;
 }
 
 export interface DispatchResponse {
@@ -158,6 +177,8 @@ export interface DispatchResponse {
   planVersion?: string;
   candidates?: CandidateSchedule[];
   fromCache?: boolean;
+  /** true quando o plano já havia sido enviado antes (dedup poupou MQTT/WS/log). */
+  deduplicated?: boolean;
   executionTimeMs: number;
   error?: string;
 }

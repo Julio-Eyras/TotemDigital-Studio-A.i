@@ -1,5 +1,6 @@
 import { isStudioRuntime } from '../config/installationRuntime';
 import { isDirectTotemMode } from '../config/directTotemMode';
+import type { DatabaseWrapper } from '../config/database-pg';
 
 let cachedOwnerPublisherId: number | null | undefined;
 
@@ -12,7 +13,7 @@ export function isOwnerInventoryMode(): boolean {
   return isDirectTotemMode() || isStudioRuntime();
 }
 
-export async function resolveCompactOwnerPublisherId(db: any): Promise<number | undefined> {
+export async function resolveCompactOwnerPublisherId(db: DatabaseWrapper): Promise<number | undefined> {
   if (!isOwnerInventoryMode()) return undefined;
   if (cachedOwnerPublisherId !== undefined) return cachedOwnerPublisherId ?? undefined;
 
@@ -73,7 +74,7 @@ export async function resolveCompactOwnerPublisherId(db: any): Promise<number | 
  * inclusive para admin. Fora disso, admin vê tudo; demais users o publisher do token.
  */
 export async function resolveInventoryPublisherScope(
-  db: any,
+  db: DatabaseWrapper,
   requestPublisherId?: number,
   isAdmin: boolean = false
 ): Promise<number | undefined> {
@@ -91,7 +92,7 @@ export async function resolveInventoryPublisherScope(
   return requestPublisherId;
 }
 
-export async function assertCompactOwnerPublisher(db: any, publisherId: number, context: string): Promise<void> {
+export async function assertCompactOwnerPublisher(db: DatabaseWrapper, publisherId: number, context: string): Promise<void> {
   if (!isOwnerInventoryMode()) return;
 
   const ownerPublisherId = await resolveCompactOwnerPublisherId(db);

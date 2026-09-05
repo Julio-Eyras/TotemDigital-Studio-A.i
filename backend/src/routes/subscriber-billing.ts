@@ -3,7 +3,9 @@
  * Rotas para gerenciamento de billing de subscribers (anunciantes)
  */
 
-import { Router, Response } from 'express';
+import { Router} from 'express';
+
+import express from 'express';
 import { SubscriberBillingService } from '../services/subscriberBillingService';
 import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
 import { subscriberIsolationMiddleware } from '../middleware/subscriberIsolation.middleware';
@@ -14,6 +16,7 @@ import { assertTenantClientParamAccess, resolvePublisherIdFromRequest } from '..
 import { isAdminRole } from '../utils/tenantScope';
 import { authorizeBillingManagement } from '../middleware/billingAuthorization.middleware';
 import { isStudioRuntime } from '../config/installationRuntime';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -48,7 +51,7 @@ router.get('/',
   query('dueFilter').optional({ checkFalsy: true }).isIn(['overdue', 'due_soon']),
   query('dueSoonDays').optional({ checkFalsy: true }).isInt({ min: 1, max: 365 }),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const {
         page = 1,
@@ -73,13 +76,13 @@ router.get('/',
       let linkedPublisherId: number | undefined;
 
       const isPortalSubscriber =
-        req.user.role === 'subscriber' ||
-        req.user.role === 'subscriber_user' ||
-        req.user.userType === 'subscriber_user' ||
-        req.user.role === 'client';
+        req.user!.role === 'subscriber' ||
+        req.user!.role === 'subscriber_user' ||
+        req.user!.userType === 'subscriber_user' ||
+        req.user!.role === 'client';
 
       if (isPortalSubscriber) {
-        finalSubscriberId = req.subscriberId || req.user.subscriberId;
+        finalSubscriberId = req.subscriberId || req.user!.subscriberId;
         if (!finalSubscriberId) {
           return res.status(403).json({
             success: false,
@@ -87,7 +90,7 @@ router.get('/',
             message: 'Subscriber ID não identificado'
           });
         }
-      } else if (isAdminRole(req.user.role)) {
+      } else if (isAdminRole(req.user!.role)) {
         finalSubscriberId = subscriberId ? parseInt(subscriberId as string) : undefined;
       } else {
         const pubId = await resolvePublisherIdFromRequest(req);
@@ -103,7 +106,8 @@ router.get('/',
         if (finalSubscriberId != null) {
           try {
             await assertTenantClientParamAccess(req, finalSubscriberId);
-          } catch (e: any) {
+} catch (rawErr: unknown) {
+  const e = normalizeError(rawErr);
             if (e?.statusCode === 403) {
               return res.status(403).json({
                 success: false,
@@ -135,7 +139,7 @@ router.get('/',
 
       // Mapear camelCase (service) -> snake_case (frontend)
       const mapped = {
-        billings: (result.billings || []).map((b: any) => ({
+        billings: (result.billings || []).map((bRaw: unknown) => { const b = bRaw as Record<string, unknown>; return ({
           billing_id: b.billingId,
           subscriber_id: b.subscriberId,
           subscriber_name: b.subscriberName,
@@ -158,20 +162,21 @@ router.get('/',
           days_overdue: b.daysOverdue,
           is_due_soon: b.isDueSoon,
           days_until_due: b.daysUntilDue,
-        })),
+        }); }),
         total: result.total || 0,
         page: result.page || parseInt(page as string) || 1,
         limit: result.limit || parseInt(limit as string) || 20
       };
 
-      return res.json({ success: true, data: mapped });
-    } catch (error: any) {
-      await logError('Erro ao listar faturas de subscribers', error);
+      return res.json({
+        success: true, data: mapped });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar faturas de subscribers', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao listar faturas',
-        message: error.message || 'Erro interno do servidor'
-      });
+        message: e.message || 'Erro interno do servidor'
+    });
     }
   }
 );
@@ -184,7 +189,7 @@ router.get('/stats',
   authorizeRole(['admin', 'admin_sql', 'operador_faturamento', 'gerente_financeiro']),
   query('subscriberId').optional().isInt({ min: 1 }),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const { subscriberId, startDate, endDate, dueSoonDays } = req.query;
 
@@ -198,14 +203,14 @@ router.get('/stats',
       return res.json({
         success: true,
         data: stats
-      });
-    } catch (error: any) {
-      await logError('Erro ao obter estatísticas de billing', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter estatísticas de billing', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao obter estatísticas',
-        message: error.message || 'Erro interno do servidor'
-      });
+        message: e.message || 'Erro interno do servidor'
+    });
     }
   }
 );
@@ -217,7 +222,7 @@ router.get('/stats',
 router.get('/:id',
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const billingId = parseInt(req.params.id);
       
@@ -236,7 +241,8 @@ router.get('/:id',
 
       try {
         await assertTenantClientParamAccess(req, Number(billing.subscriberId));
-      } catch (e: any) {
+} catch (rawErr: unknown) {
+  const e = normalizeError(rawErr);
         if (e?.statusCode === 403) {
           return res.status(403).json({
             success: false,
@@ -250,14 +256,14 @@ router.get('/:id',
       return res.json({
         success: true,
         data: billing
-      });
-    } catch (error: any) {
-      await logError('Erro ao obter fatura', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter fatura', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao obter fatura',
-        message: error.message || 'Erro interno do servidor'
-      });
+        message: e.message || 'Erro interno do servidor'
+    });
     }
   }
 );
@@ -274,12 +280,13 @@ router.post('/',
   body('currency').optional({ nullable: true }).isString(),
   body('description').optional({ nullable: true }).isString(),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       if (isStudioRuntime() && normRole(req.user?.role) === 'publisher_user') {
         try {
           await assertTenantClientParamAccess(req, Number(req.body.subscriberId));
-        } catch (e: any) {
+} catch (rawErr: unknown) {
+  const e = normalizeError(rawErr);
           if (e?.statusCode === 403) {
             return res.status(403).json({
               success: false,
@@ -297,14 +304,14 @@ router.post('/',
         success: true,
         data: billing,
         message: 'Fatura criada com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro ao criar fatura', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar fatura', e.error);
       return res.status(400).json({
         success: false,
         error: 'Erro ao criar fatura',
-        message: error.message || 'Erro interno do servidor'
-      });
+        message: e.message || 'Erro interno do servidor'
+    });
     }
   }
 );
@@ -317,7 +324,7 @@ router.put('/:id',
   authorizeBillingManagement,
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const billingId = parseInt(req.params.id);
 
@@ -332,7 +339,8 @@ router.put('/:id',
       if (isStudioRuntime() && normRole(req.user?.role) === 'publisher_user') {
         try {
           await assertTenantClientParamAccess(req, Number(existing.subscriberId));
-        } catch (e: any) {
+} catch (rawErr: unknown) {
+  const e = normalizeError(rawErr);
           if (e?.statusCode === 403) {
             return res.status(403).json({
               success: false,
@@ -350,14 +358,14 @@ router.put('/:id',
         success: true,
         data: billing,
         message: 'Fatura atualizada com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro ao atualizar fatura', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar fatura', e.error);
       return res.status(400).json({
         success: false,
         error: 'Erro ao atualizar fatura',
-        message: error.message || 'Erro interno do servidor'
-      });
+        message: e.message || 'Erro interno do servidor'
+    });
     }
   }
 );

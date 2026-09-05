@@ -6,6 +6,7 @@ import { logError, logInfo } from '../utils/loggerHelper';
 import { getMediaService } from './mediaService';
 import { getMediaTotemSyncService } from './mediaTotemSyncService';
 import { getRemoteCommandService } from './remoteCommandService';
+import { normalizeError } from '../utils/errors';
 
 export interface TotemDirectMediaItem {
   item_id: number;
@@ -378,10 +379,10 @@ export class TotemDirectMediaService {
     await transaction(async (client) => {
       const run = async (sql: string, params: unknown[] = []) => {
         try {
-          await client.query(sql, params);
-        } catch (error: any) {
-          if (error?.code === '42P01') return; // tabela opcional ausente
-          throw error;
+          await client.query(sql, params);} catch (error: unknown) {
+          const e = normalizeError(error);
+          if ((e.raw as { code?: string })?.code === '42P01') return; // tabela opcional ausente
+          throw e.error;
         }
       };
 
@@ -450,15 +451,15 @@ export class TotemDirectMediaService {
           if (!deleted.rowCount) {
             throw new Error('Totem não encontrado');
           }
-          return;
-        } catch (error: any) {
-          if (error?.code !== '23503' || attempts >= 29) {
-            throw error;
+          return;} catch (error: unknown) {
+          const e = normalizeError(error);
+          if ((e.raw as { code?: string })?.code !== '23503' || attempts >= 29) {
+            throw e.error;
           }
-          const table = this.parseFkReferencingTable(error?.detail);
+          const table = this.parseFkReferencingTable((e.raw as { detail?: string })?.detail);
           if (!table) {
             throw new Error(
-              `Falha ao remover totem: ainda existem registros vinculados (${error?.detail || error?.message})`
+              `Falha ao remover totem: ainda existem registros vinculados (${(e.raw as { detail?: string })?.detail || e.message})`
             );
           }
           const quoted = this.quoteSqlIdent(table);
@@ -513,9 +514,9 @@ export class TotemDirectMediaService {
         WHERE totem_id = $1
       `,
         [totemId]
-      );
-    } catch (error) {
-      await logError('[DirectTotem] Falha ao limpar now_playing com inventário vazio', error, { totemId });
+      );} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('[DirectTotem] Falha ao limpar now_playing com inventário vazio', e.error, { totemId });
     }
   }
 
@@ -630,13 +631,15 @@ export class TotemDirectMediaService {
             },
             0
           );
-        } catch (cmdError: any) {
-          await logError('[DirectTotem] Falha ao enfileirar refresh_dispatch após reorder', cmdError, { totemId });
+} catch (cmdError: unknown) {
+          const ec = normalizeError(cmdError);
+          await logError('[DirectTotem] Falha ao enfileirar refresh_dispatch após reorder', ec.error, { totemId });
         }
         await logInfo('[DirectTotem] Playlist reordenada — cache dispatch invalidado', { totemId });
-      }
-    } catch (error) {
-      await logError('[DirectTotem] Falha ao notificar totem', error, { totemId, mediaId });
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('[DirectTotem] Falha ao notificar totem', e.error, { totemId, mediaId });
     }
   }
 }

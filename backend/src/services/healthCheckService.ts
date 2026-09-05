@@ -132,9 +132,8 @@ export class HealthCheckService {
           connections: connections?.count || 0,
           responseTimeMs: responseTime
         }
-      };
-    } catch (error: unknown) {
-      return {
+      };} catch (error: unknown) {
+return {
         status: 'unhealthy',
         responseTime: Date.now() - startTime,
         message: (error as Error).message,
@@ -175,9 +174,8 @@ export class HealthCheckService {
           connected: true,
           responseTimeMs: responseTime
         }
-      };
-    } catch (error: unknown) {
-      return {
+      };} catch (error: unknown) {
+return {
         status: 'unhealthy',
         responseTime: Date.now() - startTime,
         message: 'Redis não disponível',
@@ -232,9 +230,8 @@ export class HealthCheckService {
           percentage: Math.round(percentage * 100) / 100,
           note: 'Para verificação precisa, instale biblioteca diskusage ou use comando do sistema'
         }
-      };
-    } catch (error: unknown) {
-      return {
+      };} catch (error: unknown) {
+return {
         status: 'degraded',
         message: 'Não foi possível verificar disco',
         details: { error: (error as Error).message }
@@ -317,9 +314,8 @@ export class HealthCheckService {
         details: {
           online: onlineTotems?.count || 0
         }
-      });
-    } catch (error: unknown) {
-      services.push({
+      });} catch (error: unknown) {
+services.push({
         name: 'totems',
         status: 'error',
         details: { error: (error as Error).message }
@@ -349,9 +345,8 @@ export class HealthCheckService {
       return {
         status: 'healthy',
         message: 'Sistema operacional'
-      };
-    } catch (error: unknown) {
-      return {
+      };} catch (error: unknown) {
+return {
         status: 'unhealthy',
         message: (error as Error).message
       };

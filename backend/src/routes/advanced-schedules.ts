@@ -3,17 +3,20 @@
  * Rotas para gerenciar agendamentos avançados
  */
 
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
+import express from 'express';
+
 import { body, param, query, validationResult } from 'express-validator';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { advancedScheduleService } from '../services/advancedScheduleService';
 import { logError, sanitizeForLogging } from '../utils/loggerHelper';
 import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
 import { isAdminRole } from '../utils/tenantScope';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
-async function assertAdvancedScheduleScope(req: any, res: any, scheduleId: number): Promise<boolean> {
+async function assertAdvancedScheduleScope(req: express.Request, res: express.Response, scheduleId: number): Promise<boolean> {
   const sid = await advancedScheduleService.getSubscriberIdForSchedule(scheduleId);
   if (sid == null) {
     res.status(404).json({
@@ -25,7 +28,8 @@ async function assertAdvancedScheduleScope(req: any, res: any, scheduleId: numbe
   if (!isAdminRole(req.user?.role)) {
     try {
       await assertTenantClientParamAccess(req, sid);
-    } catch (e: any) {
+} catch (rawErr: unknown) {
+  const e = normalizeError(rawErr);
       if (e?.statusCode === 403) {
         res.status(403).json({
           success: false,
@@ -40,7 +44,7 @@ async function assertAdvancedScheduleScope(req: any, res: any, scheduleId: numbe
 }
 
 // Middleware de validação
-const validateRequest = (req: Request, res: Response, next: any) => {
+const validateRequest = (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -64,9 +68,9 @@ router.get('/',
   query('targetId').optional().isInt({ min: 1 }),
   query('enabled').optional().isBoolean(),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
-      const filters: any = {};
+      const filters: Record<string, unknown> = {};
 
       if (req.query.scheduleType) {
         filters.scheduleType = req.query.scheduleType;
@@ -86,14 +90,14 @@ router.get('/',
         success: true,
         data: schedules,
         count: schedules.length
-      });
-    } catch (error: any) {
-      await logError('Erro ao listar agendamentos', error, { route: '/api/advanced-schedules', filters: req.query });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar agendamentos', e.error, { route: '/api/advanced-schedules', filters: req.query });
       res.status(500).json({
         success: false,
         error: 'Erro interno do servidor',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );
@@ -106,7 +110,7 @@ router.get('/',
 router.get('/:id',
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const scheduleId = parseInt(req.params.id, 10);
       const schedule = await advancedScheduleService.getScheduleById(scheduleId);
@@ -125,14 +129,14 @@ router.get('/:id',
       return res.json({
         success: true,
         data: schedule
-      });
-    } catch (error: any) {
-      await logError('Erro ao buscar agendamento', error, { route: '/api/advanced-schedules/:id', scheduleId: parseInt(req.params.id) });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar agendamento', e.error, { route: '/api/advanced-schedules/:id', scheduleId: parseInt(req.params.id) });
       return res.status(500).json({
         success: false,
         error: 'Erro interno do servidor',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );
@@ -150,7 +154,7 @@ router.post('/',
   body('scheduleConfig').optional({ nullable: true }).isObject(),
   body('enabled').optional({ nullable: true }).isBoolean(),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const sid = await advancedScheduleService.getSubscriberIdForScheduleTarget(
         req.body.scheduleType,
@@ -165,7 +169,8 @@ router.post('/',
       if (!isAdminRole(req.user?.role)) {
         try {
           await assertTenantClientParamAccess(req, sid);
-        } catch (e: any) {
+} catch (rawErr: unknown) {
+  const e = normalizeError(rawErr);
           if (e?.statusCode === 403) {
             return res.status(403).json({
               success: false,
@@ -190,16 +195,16 @@ router.post('/',
         success: true,
         message: 'Agendamento criado com sucesso',
         data: schedule
-      });
-    } catch (error: any) {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
       // Sanitizar dados antes de logar
       const sanitizedBody = req.body ? sanitizeForLogging(req.body) : null;
-      await logError('Erro ao criar agendamento', error, { route: '/api/advanced-schedules', scheduleType: sanitizedBody?.scheduleType });
+      await logError('Erro ao criar agendamento', e.error, { route: '/api/advanced-schedules', scheduleType: sanitizedBody?.scheduleType });
       return res.status(400).json({
         success: false,
         error: 'Erro ao criar agendamento',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );
@@ -216,7 +221,7 @@ router.put('/:id',
   body('scheduleConfig').optional({ nullable: true }).isObject(),
   body('enabled').optional({ nullable: true }).isBoolean(),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     const scheduleId = parseInt(req.params.id, 10);
     try {
       if (!(await assertAdvancedScheduleScope(req, res, scheduleId))) {
@@ -234,14 +239,14 @@ router.put('/:id',
         success: true,
         message: 'Agendamento atualizado com sucesso',
         data: schedule
-      });
-    } catch (error: any) {
-      await logError('Erro ao atualizar agendamento', error, { route: '/api/advanced-schedules/:id', scheduleId });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar agendamento', e.error, { route: '/api/advanced-schedules/:id', scheduleId });
       res.status(400).json({
         success: false,
         error: 'Erro ao atualizar agendamento',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );
@@ -254,7 +259,7 @@ router.put('/:id',
 router.delete('/:id',
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     const scheduleId = parseInt(req.params.id, 10);
     try {
       if (!(await assertAdvancedScheduleScope(req, res, scheduleId))) {
@@ -265,14 +270,14 @@ router.delete('/:id',
       res.json({
         success: true,
         message: 'Agendamento excluído com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro ao excluir agendamento', error, { route: '/api/advanced-schedules/:id', scheduleId });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao excluir agendamento', e.error, { route: '/api/advanced-schedules/:id', scheduleId });
       res.status(400).json({
         success: false,
         error: 'Erro ao excluir agendamento',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );
@@ -286,7 +291,7 @@ router.post('/:id/validate',
   param('id').optional().isInt({ min: 1 }),
   body('cronExpression').notEmpty().withMessage('Expressão cron é obrigatória'),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const cronExpression = req.body.cronExpression;
       const validation = advancedScheduleService.validateCronExpression(cronExpression);
@@ -296,16 +301,16 @@ router.post('/:id/validate',
         valid: validation.valid,
         error: validation.error,
         nextExecution: validation.nextExecution
-      });
-    } catch (error: any) {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
       // Sanitizar dados antes de logar
       const sanitizedBody = req.body ? sanitizeForLogging(req.body) : null;
-      await logError('Erro ao validar expressão cron', error, { route: '/api/advanced-schedules/:id/validate', cronExpression: sanitizedBody?.cronExpression });
+      await logError('Erro ao validar expressão cron', e.error, { route: '/api/advanced-schedules/:id/validate', cronExpression: sanitizedBody?.cronExpression });
       res.status(500).json({
         success: false,
         error: 'Erro interno do servidor',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );

@@ -14,6 +14,7 @@ import { getRedisClient } from '../config/redis';
 import { executeGrafanaQuery } from '../config/grafana';
 import { executePrometheusQuery, executePrometheusInstantQuery } from '../config/prometheus';
 import { logInfo, logError, logWarn, logInfoSync } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const getDb = () => getDatabase();
 
@@ -52,7 +53,10 @@ export async function processExportJob(job: Job<ExportJobData>): Promise<ExportJ
     }
 
     // Executar query SQL
-    const data = await executeQuery(query.sql_query, query.database_config, query.provider);
+    const dbCfg = (typeof query.database_config === 'string'
+      ? JSON.parse(query.database_config)
+      : query.database_config) as Record<string, unknown>;
+    const data = await executeQuery(query.sql_query, dbCfg, String(query.provider));
 
     if (data.length === 0) {
       await logWarn('Nenhum dado encontrado para exportação', {
@@ -165,15 +169,14 @@ export async function processExportJob(job: Job<ExportJobData>): Promise<ExportJ
       filePath,
       fileSize,
       executionLog: `Exportação concluída: ${data.length} registros em ${duration.toFixed(2)}s`
-    };
-
-  } catch (error: any) {
-    await logError('Erro ao processar exportação', error, {
+    };} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao processar exportação', e.error, {
       scheduleId,
       queryId,
       executionId,
       jobId: job.id
-    });
+  });
 
     // Atualizar execução com erro
     if (executionId) {
@@ -183,8 +186,8 @@ export async function processExportJob(job: Job<ExportJobData>): Promise<ExportJ
             error_message = ?, execution_log = ?
         WHERE execution_id = ?
       `, [
-        error.message,
-        `Erro: ${error.message}`,
+        e.message,
+        `Erro: ${e.message}`,
         executionId
       ]);
     }
@@ -210,8 +213,8 @@ export async function processExportJob(job: Job<ExportJobData>): Promise<ExportJ
     return {
       success: false,
       recordsExported: 0,
-      error: error.message,
-      executionLog: `Erro: ${error.message}`
+      error: e.message,
+      executionLog: `Erro: ${e.message}`
     };
   }
 }
@@ -221,9 +224,9 @@ export async function processExportJob(job: Job<ExportJobData>): Promise<ExportJ
  */
 async function executeQuery(
   sql: string,
-  databaseConfig: any,
+  databaseConfig: Record<string, unknown>,
   provider: string
-): Promise<any[]> {
+): Promise<Record<string, unknown>[]> {
   try {
     switch (provider) {
       case 'PostgreSQL':
@@ -238,7 +241,7 @@ async function executeQuery(
 
       case 'Grafana':
         // Executar query no Grafana (PromQL ou SQL)
-        return await executeGrafanaQuery(sql, databaseConfig?.datasourceId);
+        return await executeGrafanaQuery(sql, databaseConfig.datasourceId as string | undefined);
 
       case 'Prometheus':
         // Executar query PromQL no Prometheus
@@ -246,31 +249,23 @@ async function executeQuery(
 
       default:
         throw new Error(`Provider não suportado: ${provider}`);
-    }
-  } catch (error: any) {
-    throw new Error(`Erro ao executar query: ${error.message}`);
+ 
+}} catch (error: unknown) {
+    const e = normalizeError(error);
+    throw new Error(`Erro ao executar query: ${e.message}`);
   }
 }
 
 /**
  * Executa query Redis
  */
-async function executeRedisQuery(query: string, _databaseConfig: any): Promise<any[]> {
+async function executeRedisQuery(query: string, _databaseConfig: Record<string, unknown>): Promise<Record<string, unknown>[]> {
   try {
     const redis = getRedisClient();
     if (!redis) {
       throw new Error('Redis não está disponível (CACHE_ENABLED=false)');
     }
-    const results: any[] = [];
-
-    // Parse da query Redis (formato simplificado: comando chave padrão)
-    // Exemplos:
-    // - "KEYS *" -> retorna todas as chaves
-    // - "GET key" -> retorna valor da chave
-    // - "HGETALL key" -> retorna todos os campos de um hash
-    // - "SMEMBERS key" -> retorna todos os membros de um set
-    // - "LRANGE key 0 -1" -> retorna todos os elementos de uma lista
-    // - "ZRANGE key 0 -1" -> retorna todos os elementos de um sorted set
+    const results: Record<string, unknown>[] = [];
 
     const parts = query.trim().split(/\s+/);
     const command = parts[0].toUpperCase();
@@ -278,15 +273,13 @@ async function executeRedisQuery(query: string, _databaseConfig: any): Promise<a
 
     switch (command) {
       case 'KEYS':
-        // KEYS pattern -> retorna lista de chaves
         const pattern = args[0] || '*';
         const keys = await redis.keys(pattern);
-        
-        // Para cada chave, buscar tipo e valor
+
         for (const key of keys) {
           const type = await redis.type(key);
-          let value: any = null;
-          
+          let value: unknown = null;
+
           switch (type) {
             case 'string':
               value = await redis.get(key);
@@ -304,7 +297,7 @@ async function executeRedisQuery(query: string, _databaseConfig: any): Promise<a
               value = await redis.zrange(key, 0, -1, 'WITHSCORES');
               break;
           }
-          
+
           results.push({
             key,
             type,
@@ -397,25 +390,25 @@ async function executeRedisQuery(query: string, _databaseConfig: any): Promise<a
         break;
 
       case 'INFO':
-        // INFO [section] -> retorna informações do servidor
         const section = args[0] || 'all';
         const info = await redis.info(section);
-        // Parse INFO response
         const infoLines = info.split('\r\n');
-        const infoObj: any = {};
+        const infoObj: Record<string, string> = {};
         let currentSection = '';
-        
+
         for (const line of infoLines) {
           if (line.startsWith('#')) {
             currentSection = line.substring(1).trim();
             continue;
           }
           if (line.includes(':')) {
-            const [key, value] = line.split(':');
-            infoObj[`${currentSection}_${key.trim()}`] = value.trim();
+            const colonPos = line.indexOf(':');
+            const key = line.substring(0, colonPos).trim();
+            const value = line.substring(colonPos + 1).trim();
+            infoObj[`${currentSection}_${key}`] = value;
           }
         }
-        
+
         results.push({
           key: 'info',
           type: 'info',
@@ -427,17 +420,16 @@ async function executeRedisQuery(query: string, _databaseConfig: any): Promise<a
         throw new Error(`Comando Redis não suportado: ${command}. Comandos suportados: KEYS, GET, HGETALL, SMEMBERS, LRANGE, ZRANGE, INFO`);
     }
 
-    return results;
-
-  } catch (error: any) {
-    throw new Error(`Erro ao executar query Redis: ${error.message}`);
+    return results;} catch (error: unknown) {
+    const e = normalizeError(error);
+    throw new Error(`Erro ao executar query Redis: ${e.message}`);
   }
 }
 
 /**
  * Executa query Prometheus (wrapper para range ou instant)
  */
-async function executePrometheusQueryWrapper(query: string, databaseConfig: any): Promise<any[]> {
+async function executePrometheusQueryWrapper(query: string, databaseConfig: Record<string, unknown>): Promise<Record<string, unknown>[]> {
   try {
     // Determinar se é query range ou instant baseado na query
     // Se a query contém funções de range (rate, increase, etc.), usar range query
@@ -445,26 +437,27 @@ async function executePrometheusQueryWrapper(query: string, databaseConfig: any)
     
     const isRangeQuery = /rate|increase|delta|deriv|predict_linear|avg_over_time|sum_over_time|min_over_time|max_over_time|quantile_over_time|stddev_over_time|stdvar_over_time/.test(query);
     
-    if (isRangeQuery || databaseConfig?.useRange !== false) {
+    if (isRangeQuery || databaseConfig.useRange !== false) {
       // Range query (última hora por padrão)
-      const startTime = databaseConfig?.startTime 
-        ? Math.floor(new Date(databaseConfig.startTime).getTime() / 1000)
+      const startTime = databaseConfig.startTime !== undefined && databaseConfig.startTime !== null
+        ? Math.floor(new Date(databaseConfig.startTime as string | number | Date).getTime() / 1000)
         : undefined;
-      const endTime = databaseConfig?.endTime
-        ? Math.floor(new Date(databaseConfig.endTime).getTime() / 1000)
+      const endTime = databaseConfig.endTime !== undefined && databaseConfig.endTime !== null
+        ? Math.floor(new Date(databaseConfig.endTime as string | number | Date).getTime() / 1000)
         : undefined;
-      
+
       return await executePrometheusQuery(query, startTime, endTime);
     } else {
       // Instant query
-      const time = databaseConfig?.time
-        ? Math.floor(new Date(databaseConfig.time).getTime() / 1000)
+      const time = databaseConfig.time !== undefined && databaseConfig.time !== null
+        ? Math.floor(new Date(databaseConfig.time as string | number | Date).getTime() / 1000)
         : undefined;
       
       return await executePrometheusInstantQuery(query, time);
-    }
-  } catch (error: any) {
-    throw new Error(`Erro ao executar query Prometheus: ${error.message}`);
+ 
+}} catch (error: unknown) {
+    const e = normalizeError(error);
+    throw new Error(`Erro ao executar query Prometheus: ${e.message}`);
   }
 }
 

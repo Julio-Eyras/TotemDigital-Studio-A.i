@@ -5,6 +5,7 @@
 
 import axios from 'axios';
 import dotenv from 'dotenv';
+import { normalizeError } from '../utils/errors';
 
 dotenv.config();
 
@@ -17,7 +18,7 @@ export const prometheusConfig = {
 /**
  * Executa query PromQL no Prometheus
  */
-export async function executePrometheusQuery(query: string, startTime?: number, endTime?: number): Promise<any> {
+export async function executePrometheusQuery(query: string, startTime?: number, endTime?: number): Promise<Record<string, unknown>[]> {
   try {
     const start = startTime || Math.floor((Date.now() - 3600000) / 1000); // Última hora por padrão
     const end = endTime || Math.floor(Date.now() / 1000);
@@ -42,23 +43,23 @@ export async function executePrometheusQuery(query: string, startTime?: number, 
     const data = response.data;
     
     // Converter resposta do Prometheus para formato tabular
-    return convertPrometheusResponseToTable(data);
-
-  } catch (error: any) {
-    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+    return convertPrometheusResponseToTable(data);} catch (error: unknown) {
+      const e = normalizeError(error);
+    if (e.code === 'ECONNABORTED' || e.message.includes('timeout')) {
       throw new Error('Timeout ao executar query no Prometheus');
     }
-    if (error.response) {
-      throw new Error(`Prometheus API error: ${error.response.status} - ${error.response.data?.error || error.response.statusText}`);
+    const rawResp1 = (e.raw as { response?: { status?: number; data?: { error?: string }; statusText?: string } })?.response;
+    if (rawResp1) {
+      throw new Error(`Prometheus API error: ${rawResp1.status} - ${rawResp1.data?.error || rawResp1.statusText}`);
     }
-    throw new Error(`Erro ao executar query no Prometheus: ${error.message}`);
+    throw new Error(`Erro ao executar query no Prometheus: ${e.message}`);
   }
 }
 
 /**
  * Executa query instantânea no Prometheus
  */
-export async function executePrometheusInstantQuery(query: string, time?: number): Promise<any> {
+export async function executePrometheusInstantQuery(query: string, time?: number): Promise<Record<string, unknown>[]> {
   try {
     const queryTime = time || Math.floor(Date.now() / 1000);
     
@@ -80,45 +81,46 @@ export async function executePrometheusInstantQuery(query: string, time?: number
     const data = response.data;
     
     // Converter resposta do Prometheus para formato tabular
-    return convertPrometheusInstantResponseToTable(data);
-
-  } catch (error: any) {
-    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+    return convertPrometheusInstantResponseToTable(data);} catch (error: unknown) {
+      const e = normalizeError(error);
+    if (e.code === 'ECONNABORTED' || e.message.includes('timeout')) {
       throw new Error('Timeout ao executar query no Prometheus');
     }
-    if (error.response) {
-      throw new Error(`Prometheus API error: ${error.response.status} - ${error.response.data?.error || error.response.statusText}`);
+    const rawResp2 = (e.raw as { response?: { status?: number; data?: { error?: string }; statusText?: string } })?.response;
+    if (rawResp2) {
+      throw new Error(`Prometheus API error: ${rawResp2.status} - ${rawResp2.data?.error || rawResp2.statusText}`);
     }
-    throw new Error(`Erro ao executar query no Prometheus: ${error.message}`);
+    throw new Error(`Erro ao executar query no Prometheus: ${e.message}`);
   }
 }
 
 /**
  * Converte resposta do Prometheus (range query) para formato tabular
  */
-function convertPrometheusResponseToTable(prometheusResponse: any): any[] {
+function convertPrometheusResponseToTable(prometheusResponse: unknown): Record<string, unknown>[] {
   try {
-    const results: any[] = [];
+    const results: Record<string, unknown>[] = [];
 
-    if (!prometheusResponse.data || !prometheusResponse.data.result) {
+    const resp = prometheusResponse as Record<string, unknown>;
+    const dataObj = resp.data as Record<string, unknown> | undefined;
+    const resultList = dataObj?.result as Array<Record<string, unknown>> | undefined;
+    if (!resultList) {
       return [];
     }
 
-    const result = prometheusResponse.data.result;
-
-    for (const metric of result) {
-      const metricName = metric.metric?.__name__ || 'metric';
-      const labels = metric.metric || {};
-      const values = metric.values || [];
+    for (const metric of resultList) {
+      const metricObj = metric.metric as Record<string, unknown> | undefined || {};
+      const metricName = (metricObj.__name__ as string | undefined) || 'metric';
+      const labels = metricObj as Record<string, unknown>;
+      const values = (metric.values as Array<[number, string | number]> | undefined) || [];
 
       for (const [timestamp, value] of values) {
-        const row: any = {
+        const row: Record<string, unknown> = {
           timestamp: new Date(timestamp * 1000).toISOString(),
           metric: metricName,
-          value: parseFloat(value) || 0
+          value: parseFloat(String(value)) || 0
         };
 
-        // Adicionar labels como colunas
         Object.keys(labels).forEach(key => {
           if (key !== '__name__') {
             row[key] = labels[key];
@@ -129,10 +131,8 @@ function convertPrometheusResponseToTable(prometheusResponse: any): any[] {
       }
     }
 
-    return results;
-
-  } catch (error: any) {
-    const { logErrorSync } = require('../utils/loggerHelper');
+    return results;} catch (error: unknown) {
+const { logErrorSync } = require('../utils/loggerHelper');
     logErrorSync('Erro ao converter resposta do Prometheus', error, {});
     return [];
   }
@@ -141,28 +141,30 @@ function convertPrometheusResponseToTable(prometheusResponse: any): any[] {
 /**
  * Converte resposta do Prometheus (instant query) para formato tabular
  */
-function convertPrometheusInstantResponseToTable(prometheusResponse: any): any[] {
+function convertPrometheusInstantResponseToTable(prometheusResponse: unknown): Record<string, unknown>[] {
   try {
-    const results: any[] = [];
+    const results: Record<string, unknown>[] = [];
 
-    if (!prometheusResponse.data || !prometheusResponse.data.result) {
+    const resp = prometheusResponse as Record<string, unknown>;
+    const dataObj = resp.data as Record<string, unknown> | undefined;
+    const resultList = dataObj?.result as Array<Record<string, unknown>> | undefined;
+    if (!resultList) {
       return [];
     }
 
-    const result = prometheusResponse.data.result;
+    for (const metric of resultList) {
+      const metricObj = metric.metric as Record<string, unknown> | undefined || {};
+      const metricName = (metricObj.__name__ as string | undefined) || 'metric';
+      const labels = metricObj as Record<string, unknown>;
+      const valueArr = (metric.value as [number, string | number] | undefined) || [Date.now() / 1000, 0];
+      const [timestamp, value] = valueArr;
 
-    for (const metric of result) {
-      const metricName = metric.metric?.__name__ || 'metric';
-      const labels = metric.metric || {};
-      const [timestamp, value] = metric.value || [Date.now() / 1000, 0];
-
-      const row: any = {
+      const row: Record<string, unknown> = {
         timestamp: new Date(timestamp * 1000).toISOString(),
         metric: metricName,
-        value: parseFloat(value) || 0
+        value: parseFloat(String(value)) || 0
       };
 
-      // Adicionar labels como colunas
       Object.keys(labels).forEach(key => {
         if (key !== '__name__') {
           row[key] = labels[key];
@@ -172,10 +174,8 @@ function convertPrometheusInstantResponseToTable(prometheusResponse: any): any[]
       results.push(row);
     }
 
-    return results;
-
-  } catch (error: any) {
-    const { logErrorSync } = require('../utils/loggerHelper');
+    return results;} catch (error: unknown) {
+const { logErrorSync } = require('../utils/loggerHelper');
     logErrorSync('Erro ao converter resposta do Prometheus (instant)', error, {});
     return [];
   }
@@ -196,8 +196,7 @@ export async function testPrometheusConnection(): Promise<boolean> {
     });
 
     return response.status === 200;
-
-  } catch (error) {
+} catch (error: unknown) {
     const { logErrorSync } = require('../utils/loggerHelper');
     logErrorSync('Erro ao testar conexão Prometheus', error, {});
     return false;

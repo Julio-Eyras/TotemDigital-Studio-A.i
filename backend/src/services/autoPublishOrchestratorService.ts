@@ -9,6 +9,7 @@ import { getQuickPublishService, type QuickPublishPreset, type QuickPublishResul
 import { subscriberHasAiTextAssist } from '../utils/publishPlanFeatures';
 import { logError } from '../utils/loggerHelper';
 import type { PublishBoardPresetType } from './publishBoardRenderService';
+import { normalizeError } from '../utils/errors';
 
 export interface AutoPublishLayoutInput {
   boardTitle?: string;
@@ -94,10 +95,10 @@ export class AutoPublishOrchestratorService {
             ...layout,
             content: { ...layout.content, ...suggested.content },
           };
-          aiApplied = true;
-        } catch (error: any) {
-          aiWarning = error?.message || 'IA indisponível; publicação segue com textos atuais.';
-          await logError('Auto-publish: falha IA textos (continua sem IA)', error);
+          aiApplied = true;} catch (error: unknown) {
+      const e = normalizeError(error);
+          aiWarning = ((e.raw as { message?: string })?.message) || 'IA indisponível; publicação segue com textos atuais.';
+          await logError('Auto-publish: falha IA textos (continua sem IA)', e.error);
         }
       } else {
         aiWarning = 'Assistente de textos não disponível no plano atual.';

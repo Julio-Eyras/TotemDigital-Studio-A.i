@@ -7,10 +7,12 @@ import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import { logError } from '../utils/loggerHelper';
 import {
+
   isOwnerInventoryMode,
   resolveCompactOwnerPublisherId,
   resolveInventoryPublisherScope,
 } from '../utils/compactOwnerPublisher';
+import { normalizeError } from '../utils/errors';
 
 export interface Local {
   local_id: number;
@@ -85,10 +87,10 @@ export class LocalService {
   }
 
   private getAuditService(): AuditService {
-    if (!(global as any).auditServiceInstance) {
-      (global as any).auditServiceInstance = new AuditService();
+    if (!(global as unknown as Record<string, unknown>).auditServiceInstance) {
+      (global as unknown as Record<string, unknown>).auditServiceInstance = new AuditService();
     }
-    return (global as any).auditServiceInstance;
+    return (global as unknown as Record<string, unknown>).auditServiceInstance as AuditService;
   }
 
   /**
@@ -196,11 +198,11 @@ export class LocalService {
         total: parseInt(totalResult?.total || '0'),
         page,
         limit,
-      };
-    } catch (error: any) {
-      await logError('Erro ao listar locals', error, { params });
-      if ((error?.message || '').includes('Acesso negado') || (error?.message || '').includes('Modo compacto')) {
-        throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar locals', e.error, { params });
+      if (((e.raw as { message?: string })?.message || '').includes('Acesso negado') || ((e.raw as { message?: string })?.message || '').includes('Modo compacto')) {
+        throw e.error;
       }
       throw new Error('Erro interno do servidor');
     }
@@ -248,10 +250,10 @@ export class LocalService {
         throw new Error('Acesso negado: Local não pertence ao seu publisher');
       }
 
-      return local;
-    } catch (error: any) {
-      await logError('Erro ao obter local', error, { id });
-      throw error;
+      return local;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter local', e.error, { id });
+      throw e.error;
     }
   }
 
@@ -366,10 +368,10 @@ export class LocalService {
         publisher_id: targetPublisherId,
       });
 
-      return newLocal;
-    } catch (error: any) {
-      await logError('Erro ao criar local', error, { data });
-      throw error;
+      return newLocal;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar local', e.error, { data });
+      throw e.error;
     }
   }
 
@@ -503,10 +505,10 @@ export class LocalService {
         changes: data,
       });
 
-      return updatedLocal;
-    } catch (error: any) {
-      await logError('Erro ao atualizar local', error, { id, data });
-      throw error;
+      return updatedLocal;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar local', e.error, { id, data });
+      throw e.error;
     }
   }
 
@@ -568,10 +570,10 @@ export class LocalService {
       await this.getAuditService().log('local', 'deleted', deletedBy, {
         localId: id,
         name: existingLocal.name,
-      });
-    } catch (error: any) {
-      await logError('Erro ao deletar local', error, { id });
-      throw error;
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao deletar local', e.error, { id });
+      throw e.error;
     }
   }
 
@@ -610,10 +612,10 @@ export class LocalService {
         ORDER BY t.name, t.identifier
       `, [localId]);
 
-      return totems;
-    } catch (error: any) {
-      await logError('Erro ao buscar totens do local', error, { localId });
-      throw error;
+      return totems;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar totens do local', e.error, { localId });
+      throw e.error;
     }
   }
 
@@ -653,11 +655,11 @@ export class LocalService {
       for (const id of allowedIds) result[id] = { totens: 0, smartTvs: 0 };
       for (const r of totemRows) result[r.local_id].totens = r.cnt;
       for (const r of tvRows) result[r.local_id].smartTvs = r.cnt;
-      return result;
-    } catch (error: any) {
-      await logError('Erro ao buscar stats dos locais', error, { localIds });
-      if ((error?.message || '').includes('Acesso negado') || (error?.message || '').includes('Modo compacto')) {
-        throw error;
+      return result;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar stats dos locais', e.error, { localIds });
+      if (((e.raw as { message?: string })?.message || '').includes('Acesso negado') || ((e.raw as { message?: string })?.message || '').includes('Modo compacto')) {
+        throw e.error;
       }
       return {};
     }

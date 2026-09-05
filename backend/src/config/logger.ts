@@ -12,6 +12,7 @@ import os from 'os';
 import { getDatabase } from './database';
 import { NotificationService } from '../services/notificationService';
 import { logWarnSync, logErrorSync, logInfoSync } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 // Diretório de instalação (padrão: /opt/smart-signage)
 const INSTALL_DIR = process.env.INSTALL_DIR || '/opt/smart-signage';
@@ -28,13 +29,13 @@ function ensureLogsDirectory(): string {
     // Tentar ajustar permissões se possível
     try {
       fs.chmodSync(LOGS_DIR, 0o755);
-    } catch (permError) {
+} catch (permError: unknown) {
       // Ignorar erro de permissão - diretório foi criado
     }
-    return LOGS_DIR;
-  } catch (error: any) {
+    return LOGS_DIR;} catch (error: unknown) {
+      const e = normalizeError(error);
     // Se não conseguir criar em /opt/smart-signage, usar diretório alternativo
-    if (error.code === 'EACCES' || error.code === 'EPERM') {
+    if (e.code === 'EACCES' || e.code === 'EPERM') {
       const fallbackLogsDir = path.join(os.homedir(), '.smart-signage', 'logs');
       logWarnSync('Não foi possível criar diretório de logs', { 
         originalDir: LOGS_DIR, 
@@ -44,7 +45,7 @@ function ensureLogsDirectory(): string {
         fs.mkdirSync(fallbackLogsDir, { recursive: true });
         LOGS_DIR = fallbackLogsDir;
         return LOGS_DIR;
-      } catch (fallbackError: any) {
+} catch (fallbackError: unknown) {
         logErrorSync('Não foi possível criar diretório de logs alternativo', fallbackError, {
           originalDir: LOGS_DIR,
           fallbackDir: fallbackLogsDir
@@ -57,7 +58,7 @@ function ensureLogsDirectory(): string {
         return LOGS_DIR;
       }
     } else {
-      throw error;
+      throw e.error;
     }
   }
 }
@@ -110,8 +111,9 @@ async function getLogConfig(): Promise<{
     `);
 
     const config: { [key: string]: string } = {};
-    settings.forEach((s: any) => {
-      config[s.setting_key] = s.setting_value;
+    settings.forEach((sRaw: unknown) => {
+      const s = sRaw as Record<string, unknown>;
+      config[String(s.setting_key)] = String(s.setting_value);
     });
 
     return {
@@ -120,7 +122,7 @@ async function getLogConfig(): Promise<{
       minFreeSpace: parseSize(config['log.rotation.min_free_space'] || '1GB'),
       level: config['log.level'] || 'info'
     };
-  } catch (error) {
+} catch (error: unknown) {
     // Se não conseguir ler do banco, usar valores padrão
     return {
       maxSize: 100 * 1024 * 1024, // 100MB
@@ -198,7 +200,7 @@ async function checkLogRotation(): Promise<boolean> {
     }
 
     return false;
-  } catch (error) {
+} catch (error: unknown) {
     logErrorSync('Erro ao verificar rotação de logs', error, {});
     return false;
   }
@@ -207,7 +209,7 @@ async function checkLogRotation(): Promise<boolean> {
 /**
  * Enviar alerta administrativo sobre rotação de logs
  */
-async function sendRotationAlert(type: string, details: any): Promise<void> {
+async function sendRotationAlert(type: string, details: Record<string, unknown>): Promise<void> {
   try {
     const notificationService = new NotificationService();
     const db = getDatabase();
@@ -251,17 +253,20 @@ async function sendRotationAlert(type: string, details: any): Promise<void> {
       }); // Sistema
 
       // Log no banco de auditoria
-      const auditService = (global as any).auditServiceInstance || 
+      const g = global as typeof globalThis & { auditServiceInstance?: unknown };
+      const auditService = g.auditServiceInstance || 
         (await import('../services/auditService')).AuditService;
       if (auditService) {
-        const audit = new auditService();
+        const AuditClass = auditService as new () => { log: (...a: unknown[]) => Promise<unknown> };
+        const audit = new AuditClass();
         await audit.log('system', 'log_rotation_alert', admin.id, {
           type: type,
           details: details
         }).catch(() => {});
       }
     }
-  } catch (error) {
+ 
+} catch (error: unknown) {
     logErrorSync('Erro ao enviar alerta de rotação', error, { type });
   }
 }

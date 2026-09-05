@@ -1,6 +1,8 @@
 import express from 'express';
 import request from 'supertest';
 
+import * as express from 'express';
+
 describe('POST /api/players — política de criação (compact)', () => {
   it('retorna 403 para publisher_user quando TOTEMDIGITAL_COMPACT=true', async () => {
     jest.resetModules();
@@ -20,7 +22,7 @@ describe('POST /api/players — política de criação (compact)', () => {
         '../../../middleware/auth.middleware'
       ) as typeof import('../../../middleware/auth.middleware');
       return {
-        authMiddleware: (req: any, _res: any, next: any) => {
+        authMiddleware: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
           req.user = { id: 1, role: 'publisher_user', publisherId: 10 };
           next();
         },

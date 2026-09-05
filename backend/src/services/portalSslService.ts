@@ -6,6 +6,7 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { logError, logInfo, logWarn } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export type PortalSslPlan = {
   domains: string[];
@@ -194,17 +195,17 @@ export async function issuePortalWildcardCertificate(opts: {
       scriptRan: true,
       output,
       message: `Certificado ${plan.certName} emitido/renovado via DNS-01.`,
-    };
-  } catch (error: any) {
-    await logWarn('Falha ao emitir wildcard portal', { error: error?.message });
-    await logError('issuePortalWildcardCertificate', error);
+    };} catch (error: unknown) {
+      const e = normalizeError(error);
+    await logWarn('Falha ao emitir wildcard portal', { error: ((e.raw as { message?: string })?.message) });
+    await logError('issuePortalWildcardCertificate', e.error);
     return {
       ok: false,
       dryRun: false,
       plan,
       scriptRan: true,
-      output: error?.message,
-      message: error?.message || 'Falha no script de certificado',
+      output: ((e.raw as { message?: string })?.message),
+      message: ((e.raw as { message?: string })?.message) || 'Falha no script de certificado',
     };
   }
 }

@@ -6,6 +6,7 @@
 
 import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export interface FxRule {
   rule_id: number;
@@ -119,10 +120,10 @@ export class FxRuleService {
         total,
         page,
         limit,
-      };
-    } catch (error: any) {
-      await logError('FxRuleService.getAllRules error', error, params);
-      throw new Error(`Erro ao listar regras: ${error.message}`);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxRuleService.getAllRules error', e.error, params);
+      throw new Error(`Erro ao listar regras: ${e.message}`);
     }
   }
 
@@ -152,10 +153,10 @@ export class FxRuleService {
         return null;
       }
 
-      return this.mapRowToRule(result);
-    } catch (error: any) {
-      await logError('FxRuleService.getRuleById error', error, { ruleId });
-      throw new Error(`Erro ao buscar regra: ${error.message}`);
+      return this.mapRowToRule(result);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxRuleService.getRuleById error', e.error, { ruleId });
+      throw new Error(`Erro ao buscar regra: ${e.message}`);
     }
   }
 
@@ -179,7 +180,7 @@ export class FxRuleService {
         FROM fx_rules
         WHERE is_active = true
       `;
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (siteId) {
         query += ` AND (site_id = $1 OR site_id IS NULL)`;
@@ -191,10 +192,10 @@ export class FxRuleService {
       query += ` ORDER BY priority DESC, name ASC`;
 
       const result = await this.db.findMany(query, params);
-      return result.map(this.mapRowToRule);
-    } catch (error: any) {
-      await logError('FxRuleService.getActiveRulesForSite error', error, { siteId });
-      throw new Error(`Erro ao buscar regras ativas: ${error.message}`);
+      return result.map(this.mapRowToRule);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxRuleService.getActiveRulesForSite error', e.error, { siteId });
+      throw new Error(`Erro ao buscar regras ativas: ${e.message}`);
     }
   }
 
@@ -237,10 +238,10 @@ export class FxRuleService {
       ];
 
       const result = await this.db.executeRaw(query, params);
-      return this.mapRowToRule(result.rows[0]);
-    } catch (error: any) {
-      await logError('FxRuleService.createRule error', error, data);
-      throw new Error(`Erro ao criar regra: ${error.message}`);
+      return this.mapRowToRule(result.rows[0]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxRuleService.createRule error', e.error, data);
+      throw new Error(`Erro ao criar regra: ${e.message}`);
     }
   }
 
@@ -250,7 +251,7 @@ export class FxRuleService {
   async updateRule(ruleId: number, data: UpdateFxRuleRequest): Promise<FxRule> {
     try {
       const updates: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
       let paramIndex = 1;
 
       if (data.name !== undefined) {
@@ -325,10 +326,10 @@ export class FxRuleService {
         throw new Error(`Regra com ID ${ruleId} não encontrada`);
       }
 
-      return this.mapRowToRule(result.rows[0]);
-    } catch (error: any) {
-      await logError('FxRuleService.updateRule error', error, { ruleId, data });
-      throw new Error(`Erro ao atualizar regra: ${error.message}`);
+      return this.mapRowToRule(result.rows[0]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxRuleService.updateRule error', e.error, { ruleId, data });
+      throw new Error(`Erro ao atualizar regra: ${e.message}`);
     }
   }
 
@@ -346,10 +347,11 @@ export class FxRuleService {
 
       if (result.rowCount === 0) {
         throw new Error(`Regra com ID ${ruleId} não encontrada`);
-      }
-    } catch (error: any) {
-      await logError('FxRuleService.deleteRule error', error, { ruleId });
-      throw new Error(`Erro ao deletar regra: ${error.message}`);
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxRuleService.deleteRule error', e.error, { ruleId });
+      throw new Error(`Erro ao deletar regra: ${e.message}`);
     }
   }
 

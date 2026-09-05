@@ -8,19 +8,19 @@ const mockUpdateCategory = jest.fn();
 const mockDeleteCategory = jest.fn();
 
 jest.mock('../../../middleware/auth.middleware', () => ({
-  authenticateToken: (req: any, _res: any, next: any) => {
+  authenticateToken: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
     req.user = { id: 1, role: 'admin' };
     next();
   },
-  authorizeRole: () => (_req: any, _res: any, next: any) => next(),
+  authorizeRole: () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
 }));
 
 jest.mock('../../../middleware/operatorProtection.middleware', () => ({
-  blockClientDataAccess: (_req: any, _res: any, next: any) => next(),
+  blockClientDataAccess: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
 }));
 
 jest.mock('../../../middleware/subscriberParamAccess.middleware', () => ({
-  assertSubscriberParamAccess: (_req: any, _res: any, next: any) => next(),
+  assertSubscriberParamAccess: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
 }));
 
 jest.mock('../../../utils/loggerHelper', () => ({
@@ -39,6 +39,8 @@ jest.mock('../../../services/menuCatalogService', () => ({
 }));
 
 import menuCatalogRoutes from '../../../routes/menu-catalog';
+
+import * as express from 'express';
 
 describe('menu-catalog routes', () => {
   let app: express.Application;

@@ -3,6 +3,7 @@ import { normalizeTotemUin } from '../utils/normalizeTotemUin';
 import { normalizeDeviceId } from '../utils/normalizeDeviceId';
 import { logError } from '../utils/loggerHelper';
 import crypto from 'crypto';
+import { normalizeError } from '../utils/errors';
 
 export interface CreateDeviceTokenParams {
   totemId?: number | null;
@@ -108,9 +109,10 @@ export class DeviceTokenService {
         [totemId, smartTvId, normalizedUin, normalizedDeviceId, platform, appVersion, token, ipAddress, userAgent, expiresAt],
       );
 
-      return { token, expiresAt };
-    } catch (error: any) {
-      await logError('Erro ao criar/atualizar device_token', error, {
+      return {
+        token, expiresAt };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar/atualizar device_token', e.error, {
         totemId,
         smartTvId,
         uin,
@@ -188,9 +190,9 @@ export class DeviceTokenService {
         [row.device_token_id, ipAddress, userAgent],
       );
 
-      return true;
-    } catch (error: any) {
-      await logError('Erro ao validar device_token', error, { uin, deviceId: normalizedDeviceId });
+      return true;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao validar device_token', e.error, { uin, deviceId: normalizedDeviceId });
       return false;
     }
   }

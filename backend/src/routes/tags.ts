@@ -4,12 +4,14 @@
  */
 
 import { Router, Response } from 'express';
+
 import { getTagService } from '../services/tagService';
 import { AuthenticatedRequest, authorizeRole, authMiddleware } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
 import { body, param, query } from 'express-validator';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -63,13 +65,13 @@ router.get('/:tagId/content',
             name: tag.name
           } : null
         }
-      });
-    } catch (error: any) {
-      await logError('Erro ao obter conteúdo da tag', error, { tagId: req.params.tagId });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter conteúdo da tag', e.error, { tagId: req.params.tagId });
       return res.status(500).json({
         success: false,
         error: 'Erro ao obter conteúdo da tag'
-      });
+    });
     }
   }
 );
@@ -98,13 +100,13 @@ router.get('/',
       return res.json({
         success: true,
         data: tags
-      });
-    } catch (error: any) {
-      await logError('Erro ao listar tags', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar tags', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao listar tags'
-      });
+    });
     }
   }
 );
@@ -140,13 +142,13 @@ router.post('/',
         success: true,
         message: 'Tag criada/atualizada com sucesso',
         data: tag
-      });
-    } catch (error: any) {
-      await logError('Erro ao criar/atualizar tag', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar/atualizar tag', e.error);
       return res.status(500).json({
         success: false,
-        error: error.message || 'Erro ao criar/atualizar tag'
-      });
+        error: e.message || 'Erro ao criar/atualizar tag'
+    });
     }
   }
 );
@@ -169,13 +171,13 @@ router.delete('/:tagId',
       return res.json({
         success: true,
         message: 'Tag desativada com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro ao desativar tag', error, { tagId: req.params.tagId });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao desativar tag', e.error, { tagId: req.params.tagId });
       return res.status(500).json({
         success: false,
-        error: error.message || 'Erro ao desativar tag'
-      });
+        error: e.message || 'Erro ao desativar tag'
+    });
     }
   }
 );

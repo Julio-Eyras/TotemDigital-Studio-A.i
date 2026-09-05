@@ -1,4 +1,6 @@
-import express from 'express';
+
+
+import express, { Request, Response } from 'express';
 import { body, query, param } from 'express-validator';
 import { validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
@@ -6,6 +8,7 @@ import { getTotemCreateRoles } from '../utils/totemCreateRoles';
 import { getPlayerService } from '../services/playerService';
 import { logError } from '../utils/loggerHelper';
 import { assertTotemReadAccess } from '../utils/totemReadAccess';
+import { normalizeError } from '../utils/errors';
 
 const router = express.Router();
 
@@ -19,18 +22,19 @@ const createPlayerValidator = [
   body('clientId').optional({ nullable: true }).isInt({ min: 1 }),
 ];
 
-const validateRequest = (req: any, res: any, next: any) => {
+const validateRequest = (req: Request, res: Response, next: express.NextFunction) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'Dados inválidos',
       details: errors.array()
     });
+    return;
   }
   return next();
 };
 
-function respondTotemAccessError(res: any, e: any): boolean {
+function respondTotemAccessError(res: Response, e: ReturnType<typeof normalizeError>): boolean {
   if (e?.statusCode === 403) {
     res.status(403).json({ error: e.message || 'Acesso negado' });
     return true;
@@ -53,7 +57,7 @@ router.get('/',
   query('clientId').optional().isInt({ min: 1 }),
   query('status').optional().isString(),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { page = 1, limit = 10, search, clientId, status } = req.query;
       
@@ -66,7 +70,7 @@ router.get('/',
       });
       
       return res.json(result);
-    } catch (error) {
+} catch (error: unknown) {
       await logError('Erro ao listar players', error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
@@ -80,13 +84,14 @@ router.get('/',
 router.get('/:id',
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const totemId = parseInt(id, 10);
       try {
         await assertTotemReadAccess(req, totemId);
-      } catch (e: any) {
+} catch (rawErr: unknown) {
+        const e = normalizeError(rawErr);
         if (respondTotemAccessError(res, e)) return;
         throw e;
       }
@@ -98,7 +103,7 @@ router.get('/:id',
       }
 
       return res.json(player);
-    } catch (error) {
+} catch (error: unknown) {
       await logError('Erro ao obter player', error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
@@ -113,7 +118,7 @@ router.post('/',
   authorizeRole(getTotemCreateRoles()),
   createPlayerValidator,
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { name, location, clientId } = req.body;
       
@@ -126,13 +131,13 @@ router.post('/',
         String(req.user?.role ?? '')
       );
 
-      return res.status(201).json(newPlayer);
-    } catch (error: any) {
-      await logError('Erro ao criar player', error);
-      if ((error?.message || '').includes('Acesso negado')) {
-        return res.status(403).json({ error: error.message });
-      }
-      return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      return res.status(201).json(newPlayer);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar player', e.error);
+      if ((e.message || '').includes('Acesso negado')) {
+        return res.status(403).json({ error: e.message });
+    }
+      return res.status(400).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -147,13 +152,14 @@ router.put('/:id',
   body('location').optional({ nullable: true }).isString(),
   body('clientId').optional({ nullable: true }).isInt({ min: 1 }),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const totemId = parseInt(id, 10);
       try {
         await assertTotemReadAccess(req, totemId);
-      } catch (e: any) {
+} catch (rawErr: unknown) {
+        const e = normalizeError(rawErr);
         if (respondTotemAccessError(res, e)) return;
         throw e;
       }
@@ -166,10 +172,10 @@ router.put('/:id',
         isActive,
       });
 
-      return res.json(updatedPlayer);
-    } catch (error: any) {
-      await logError('Erro ao atualizar player', error);
-      return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      return res.json(updatedPlayer);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar player', e.error);
+      return res.status(400).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -181,23 +187,24 @@ router.put('/:id',
 router.delete('/:id',
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const totemId = parseInt(id, 10);
       try {
         await assertTotemReadAccess(req, totemId);
-      } catch (e: any) {
+} catch (rawErr: unknown) {
+        const e = normalizeError(rawErr);
         if (respondTotemAccessError(res, e)) return;
         throw e;
       }
 
       await getPlayerService().deletePlayer(totemId);
       
-      return res.status(204).send();
-    } catch (error: any) {
-      await logError('Erro ao excluir player', error);
-      return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      return res.status(204).send();} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao excluir player', e.error);
+      return res.status(400).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -210,13 +217,14 @@ router.post('/:id/playlist',
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   body('playlistId').isInt({ min: 1 }).withMessage('ID da playlist é obrigatório'),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const totemId = parseInt(id, 10);
       try {
         await assertTotemReadAccess(req, totemId);
-      } catch (e: any) {
+} catch (rawErr: unknown) {
+        const e = normalizeError(rawErr);
         if (respondTotemAccessError(res, e)) return;
         throw e;
       }
@@ -224,10 +232,11 @@ router.post('/:id/playlist',
 
       await getPlayerService().assignPlaylist(totemId, playlistId);
       
-      return res.json({ message: 'Playlist atribuída com sucesso' });
-    } catch (error: any) {
-      await logError('Erro ao atribuir playlist ao player', error);
-      return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      return res.json({
+        message: 'Playlist atribuída com sucesso' });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atribuir playlist ao player', e.error);
+      return res.status(400).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -239,22 +248,23 @@ router.post('/:id/playlist',
 router.get('/:id/status',
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const totemId = parseInt(id, 10);
       try {
         await assertTotemReadAccess(req, totemId);
-      } catch (e: any) {
+} catch (rawErr: unknown) {
+        const e = normalizeError(rawErr);
         if (respondTotemAccessError(res, e)) return;
         throw e;
       }
 
       const status = await getPlayerService().getPlayerStatus(totemId);
       
-      return res.json(status);
-    } catch (error: any) {
-      await logError('Erro ao obter status do player', error);
+      return res.json(status);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter status do player', e.error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }

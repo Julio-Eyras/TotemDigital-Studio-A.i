@@ -16,6 +16,7 @@ import cron from 'node-cron';
 import { getPlaylistEngineServiceInstance } from '../services/playlistEngineService';
 import { logDebug, logError, logWarn } from '../utils/loggerHelper';
 import { getDatabase } from '../config/database';
+import { normalizeError } from '../utils/errors';
 
 export class PlaylistEngineWorker {
   private isRunning: boolean = false;
@@ -36,9 +37,9 @@ export class PlaylistEngineWorker {
     // Executar a cada 5 minutos para verificar mudanças
     this.cronJob = cron.schedule('*/5 * * * *', async () => {
       try {
-        await this.checkAndRegeneratePlaylists();
-      } catch (error: any) {
-        await logError('Erro no PlaylistEngineWorker', error);
+        await this.checkAndRegeneratePlaylists();} catch (error: unknown) {
+        const e = normalizeError(error);
+        await logError('Erro no PlaylistEngineWorker', e.error);
       }
     });
 
@@ -160,10 +161,10 @@ export class PlaylistEngineWorker {
           campaignId: item.campaign_id
         });
         await engine.regeneratePlaylistsForCampaign(item.campaign_id);
-      }
-
-    } catch (error: any) {
-      await logError('Erro ao verificar e regenerar playlists', error);
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao verificar e regenerar playlists', e.error);
     }
   }
 
@@ -174,10 +175,11 @@ export class PlaylistEngineWorker {
     try {
       const engine = getPlaylistEngineServiceInstance();
       await engine.generatePlaylistForTotem(totemId, smartTvId, true);
-      await logDebug('Playlist regenerada manualmente para totem', { totemId, smartTvId });
-    } catch (error: any) {
-      await logError('Erro ao regenerar playlist para totem', error, { totemId, smartTvId });
-      throw error;
+      await logDebug('Playlist regenerada manualmente para totem', {
+        totemId, smartTvId });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao regenerar playlist para totem', e.error, { totemId, smartTvId });
+      throw e.error;
     }
   }
 
@@ -188,10 +190,11 @@ export class PlaylistEngineWorker {
     try {
       const engine = getPlaylistEngineServiceInstance();
       await engine.regeneratePlaylistsForPublisher(publisherId);
-      await logDebug('Playlists regeneradas manualmente para publisher', { publisherId });
-    } catch (error: any) {
-      await logError('Erro ao regenerar playlists para publisher', error, { publisherId });
-      throw error;
+      await logDebug('Playlists regeneradas manualmente para publisher', {
+        publisherId });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao regenerar playlists para publisher', e.error, { publisherId });
+      throw e.error;
     }
   }
 
@@ -202,10 +205,11 @@ export class PlaylistEngineWorker {
     try {
       const engine = getPlaylistEngineServiceInstance();
       await engine.regeneratePlaylistsForCampaign(campaignId);
-      await logDebug('Playlists regeneradas manualmente para campanha', { campaignId });
-    } catch (error: any) {
-      await logError('Erro ao regenerar playlists para campanha', error, { campaignId });
-      throw error;
+      await logDebug('Playlists regeneradas manualmente para campanha', {
+        campaignId });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao regenerar playlists para campanha', e.error, { campaignId });
+      throw e.error;
     }
   }
 }

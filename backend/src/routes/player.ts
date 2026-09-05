@@ -1,3 +1,5 @@
+
+
 import express, { Request, Response } from 'express';
 import { query, body, validationResult } from 'express-validator';
 import { TotemService } from '../services/totemService';
@@ -21,9 +23,11 @@ import { normalizeTotemUin } from '../utils/normalizeTotemUin';
 import { normalizeDeviceId } from '../utils/normalizeDeviceId';
 import { getPlaybackTelemetryService } from '../services/playbackTelemetryService';
 import {
+
   processSyncCommandResults,
   validatePlayerSyncEnvelope,
 } from '../services/playerSyncService';
+import { normalizeError } from '../utils/errors';
 
 const execAsync = promisify(exec);
 
@@ -147,8 +151,8 @@ async function handleApprovalRequest(
             requestId: requestId
           });
         }
-      } catch (hardwareCheckError: any) {
-        await logError(`[${requestId}] Erro ao verificar hardware duplicado`, hardwareCheckError, { requestId });
+ 
+} catch (hardwareCheckError: unknown) {        await logError(`[${requestId}] Erro ao verificar hardware duplicado`, hardwareCheckError, { requestId });
       }
     }
 
@@ -254,8 +258,7 @@ async function handleApprovalRequest(
           configGenerated
         }
       });
-    } catch (eventError: any) {
-      await logError(`[${requestId}] Erro ao registrar evento`, eventError, { totemId, requestId });
+} catch (eventError: unknown) {      await logError(`[${requestId}] Erro ao registrar evento`, eventError, { totemId, requestId });
     }
 
     const responseData = {
@@ -290,14 +293,14 @@ async function handleApprovalRequest(
       requestId 
     });
 
-    return res.json(responseData);
-  } catch (error: any) {
-    await logError(`[${requestId}] Erro ao processar solicitação de aprovação via heartbeat`, error, { uin, requestId });
+    return res.json(responseData);} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError(`[${requestId}] Erro ao processar solicitação de aprovação via heartbeat`, e.error, { uin, requestId });
     return res.status(500).json({ 
       error: 'Erro ao processar solicitação de aprovação',
-      message: error.message || 'Erro interno do servidor',
+      message: e.message || 'Erro interno do servidor',
       requestId: requestId
-    });
+  });
   }
 }
 
@@ -347,9 +350,10 @@ router.get('/config', async (_req: Request, res: Response) => {
     const systemService = new SystemService();
     const playerConfig = await systemService.getPlayerConfig();
     return res.json(playerConfig);
-  } catch (err: any) {
+} catch (err: unknown) {
+  const e = normalizeError(err);
     await logError('Erro ao obter config do player', err);
-    return res.status(500).json({ error: err.message || 'Erro ao obter config' });
+    return res.status(500).json({ error: e.message || 'Erro ao obter config' });
   }
 });
 
@@ -360,9 +364,10 @@ router.get('/config', async (_req: Request, res: Response) => {
 router.get('/fallback-manifest', async (_req: Request, res: Response) => {
   try {
     return res.json({ propagandas: [] as string[], vinhetas: [] as string[] });
-  } catch (err: any) {
+} catch (err: unknown) {
+  const e = normalizeError(err);
     await logError('Erro ao listar manifest de fallback', err);
-    return res.status(500).json({ error: err.message || 'Erro ao listar fallback' });
+    return res.status(500).json({ error: e.message || 'Erro ao listar fallback' });
   }
 });
 
@@ -376,7 +381,7 @@ router.get('/fallback-manifest', async (_req: Request, res: Response) => {
 router.get('/validate',
   query('uin').isString().isLength({ min: 1, max: 100 }),
   query('token').optional().isString(),
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     // Validação de entrada
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -465,8 +470,7 @@ router.get('/validate',
           WHERE t.identifier = ? OR t.uin = ?
           LIMIT 1
         `, [uin, uin]);
-      } catch (queryError: any) {
-        await logError(`[${transactionId}] Erro ao buscar totem completo`, queryError, { uin, transactionId });
+} catch (queryError: unknown) {        await logError(`[${transactionId}] Erro ao buscar totem completo`, queryError, { uin, transactionId });
         // Continuar sem totemFull se houver erro na query
       }
 
@@ -532,8 +536,7 @@ router.get('/validate',
           created_at: cmd.createdAt,
           status: cmd.status,
         }));
-      } catch (cmdError: any) {
-        await logError(`[${transactionId}] Erro ao buscar comandos remotos`, cmdError, { totemId, transactionId });
+} catch (cmdError: unknown) {        await logError(`[${transactionId}] Erro ao buscar comandos remotos`, cmdError, { totemId, transactionId });
         // Continuar mesmo se houver erro ao buscar comandos
       }
 
@@ -563,8 +566,7 @@ router.get('/validate',
           ORDER BY c.priority DESC, ct.start_date DESC
           LIMIT 1
         `, [totemId]);
-      } catch (playlistError: any) {
-        await logError(`[${transactionId}] Erro ao buscar playlist ativa`, playlistError, { totemId, transactionId });
+} catch (playlistError: unknown) {        await logError(`[${transactionId}] Erro ao buscar playlist ativa`, playlistError, { totemId, transactionId });
       }
 
       // Se não tiver playlist via campanha, buscar playlist direta do totem
@@ -642,10 +644,11 @@ router.get('/validate',
               updateStatus: 'up_to_date',
               lastCheck: new Date()
             });
-          }
-        } catch (error: any) {
+ 
+}} catch (error: unknown) {
+          const e = normalizeError(error);
           // Não falhar o heartbeat se OTA falhar
-          await logError('Erro ao verificar atualização OTA', error, { totemId });
+          await logError('Erro ao verificar atualização OTA', e.error, { totemId });
         }
       }
 
@@ -675,7 +678,7 @@ router.get('/validate',
           active: totem.active,
           config: totemFull?.config || {}
         },
-        pendingCommands: pendingCommands.map((cmd: any) => ({
+        pendingCommands: pendingCommands.map((cmdRaw: unknown) => { const cmd = cmdRaw as Record<string, unknown>; return ( => ({
           id: cmd.request_id,
           type: cmd.command_type,
           data: cmd.command_data,
@@ -688,7 +691,7 @@ router.get('/validate',
           description: playlist.description,
           campaignId: playlist.campaign_id,
           campaignTitle: playlist.campaign_title,
-          items: playlistItems.map((item: any) => ({
+          items: playlistItems.map((itemRaw: unknown) => { const item = itemRaw as Record<string, unknown>; return ( => ({
             id: item.item_id,
             order: item.order_index,
             duration: item.duration,
@@ -716,17 +719,17 @@ router.get('/validate',
         } : null,
         token: newToken,
         expiresIn: 3600, // 1 hora
-      });
-    } catch (error: any) {
-      const errorMessage = error?.message || 'Erro desconhecido';
-      const errorStack = error?.stack || '';
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      const errorMessage = e.message || 'Erro desconhecido';
+      const errorStack = e.error.stack || '';
       
-      await logError(`[${transactionId}] Erro ao validar totem`, error, { 
+      await logError(`[${transactionId}] Erro ao validar totem`, e.error, { 
         uin: req.query.uin as string, 
         transactionId,
         errorMessage,
         errorStack: errorStack.substring(0, 500) // Limitar tamanho do stack
-      });
+    });
       
       // Logar erro no debug
       dispatcherDebugService.logMessage('outgoing', {
@@ -781,7 +784,7 @@ router.get('/token',
   query('deviceId').optional().isString().isLength({ min: 1, max: 255 }),
   query('platform').optional().isString().isLength({ min: 1, max: 100 }),
   query('appVersion').optional().isString().isLength({ min: 1, max: 100 }),
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     // Validação de entrada
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -803,7 +806,7 @@ router.post('/heartbeat',
   query('uin').isString().isLength({ min: 1, max: 100 }),
   query('token').isString(),
   query('deviceId').optional().isString().isLength({ min: 1, max: 255 }),
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     // Validação de entrada
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -834,7 +837,7 @@ router.get(
   query('timestamp').optional().isString(),
   query('timezone').optional().isString(),
   query('deviceId').optional().isString().isLength({ min: 1, max: 255 }),
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     // Validação de entrada
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -857,7 +860,7 @@ router.post('/decrypt-config',
   body('encryptedConfig.data').isString(),
   body('encryptedConfig.mac').isString(),
   body('currentMac').optional({ nullable: true }).isString(),
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -942,15 +945,15 @@ router.post('/decrypt-config',
           mac: configMac || encryptedConfig.mac,
           timestamp: timestamp ? parseInt(timestamp) : null
         });
-      } catch (decryptError: any) {
-        await logError('Erro ao desencriptar configuração', decryptError);
+} catch (decryptError: unknown) {        await logError('Erro ao desencriptar configuração', decryptError);
         return res.status(400).json({ 
           valid: false,
           error: 'Falha ao desencriptar configuração. Verifique a chave secreta.' 
         });
-      }
-    } catch (error: any) {
-      await logError('Erro ao processar configuração do player', error);
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao processar configuração do player', e.error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -984,9 +987,9 @@ router.get('/hardware-info', async (_req: Request, res: Response) => {
       hostname: os.hostname(),
       platform: os.platform(),
       arch: os.arch()
-    });
-  } catch (error: any) {
-    await logError('Erro ao obter informações de hardware', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao obter informações de hardware', e.error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
@@ -1006,7 +1009,7 @@ router.post('/register',
   body('hardware.deviceId').optional({ nullable: true }).isString(),
   body('hardware.hardwareHash').optional({ nullable: true }).isString(),
   body('hardware.userAgent').optional({ nullable: true }).isString(),
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     // Logar mensagem recebida no debug
     dispatcherDebugService.logMessage('incoming', {
       totemId: undefined,
@@ -1057,7 +1060,8 @@ router.post('/register',
           }
         },
         ipAddress: req.ip,
-        userAgent: req.get('user-agent')
+        userAgent: req.get('user-agent'),
+        metadata: {}
       });
 
       const errors = validationResult(req);
@@ -1088,11 +1092,11 @@ router.post('/register',
         
         return res.status(400).json({ 
           error: 'Parâmetros inválidos', 
-          details: errorDetails.map((e: any) => ({
+          details: errorDetails.map((eRaw: unknown) => { const e = eRaw as Record<string, unknown>; return ({
             field: e.path || e.param,
             message: e.msg,
             value: e.value
-          })),
+          }); }),
           received: {
             uin: req.body?.uin,
             uinType: typeof req.body?.uin,
@@ -1170,8 +1174,7 @@ router.post('/register',
             });
           }
           await logDebug(`[${requestId}] Hardware não está vinculado a outro totem`, { requestId });
-        } catch (hardwareCheckError: any) {
-          await logError(`[${requestId}] Erro ao verificar hardware duplicado`, hardwareCheckError, { requestId });
+} catch (hardwareCheckError: unknown) {          await logError(`[${requestId}] Erro ao verificar hardware duplicado`, hardwareCheckError, { requestId });
           // Continuar mesmo se houver erro na verificação de hardware
         }
       } else {
@@ -1239,8 +1242,7 @@ router.post('/register',
           uin
         ]);
         await logDebug(`[${requestId}] Totem atualizado com hardware vinculado`, { totemId, uin, requestId });
-      } catch (updateError: any) {
-        await logError(`[${requestId}] Erro ao atualizar totem`, updateError, { totemId, uin, requestId });
+} catch (updateError: unknown) {        await logError(`[${requestId}] Erro ao atualizar totem`, updateError, { totemId, uin, requestId });
         throw updateError;
       }
 
@@ -1329,8 +1331,7 @@ router.post('/register',
             }
           }
         });
-      } catch (eventError: any) {
-        await logError(`[${requestId}] Erro ao registrar evento de vinculação de hardware`, eventError, {
+} catch (eventError: unknown) {        await logError(`[${requestId}] Erro ao registrar evento de vinculação de hardware`, eventError, {
           totemId,
           requestId
         });
@@ -1360,10 +1361,11 @@ router.post('/register',
         metadata: { totemId: (updatedTotem as any).id || totemId }
       });
       
-      return res.status(200).json(responseData);  // Mudado de 201 para 200
-    } catch (error: any) {
+      return res.status(200).json(responseData); // Mudado de 201 para 200
+    } catch (error: unknown) {
+      const e = normalizeError(error);
       const duration = Date.now() - startTime;
-      await logError(`[${requestId}] Erro ao vincular hardware ao totem`, error, { duration, requestId });
+      await logError(`[${requestId}] Erro ao vincular hardware ao totem`, e.error, { duration, requestId });
       
       // Registrar transação de erro
       await playerDebugService.logTransaction({
@@ -1381,8 +1383,9 @@ router.post('/register',
             hardwareHash: req.body.hardware?.hardwareHash ? 'HASH_PRESENTE' : 'AUSENTE'
           }
         },
+        metadata: {},
         responseStatus: 500,
-        errorMessage: error.message,
+        errorMessage: e.message,
         ipAddress: req.ip,
         userAgent: req.get('user-agent'),
         duration: duration
@@ -1390,10 +1393,10 @@ router.post('/register',
       
       return res.status(500).json({ 
         error: 'Erro interno do servidor',
-        message: error.message,
+        message: e.message,
         requestId: requestId,
         duration: `${duration}ms`,
-        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        details: process.env.NODE_ENV === 'development' ? e.error.stack : undefined
       });
     }
   }
@@ -1431,7 +1434,7 @@ router.post('/event',
   body('duration').optional({ nullable: true }).isInt({ min: 0 }),
   body('completed').optional({ nullable: true }).isBoolean(),
   body('metadata').optional({ nullable: true }).isObject(),
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     // Validação de entrada
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -1452,7 +1455,7 @@ router.post('/events/batch',
   query('uin').isString().isLength({ min: 1, max: 100 }),
   query('token').isString().notEmpty(),
   body('events').isArray({ min: 1, max: 50 }),
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
@@ -1544,8 +1547,8 @@ router.post('/events/batch',
           highestSequence: result.highestSequence,
         },
       });
-      return res.json(result);
-    } catch (error: any) {
+      return res.json(result);} catch (error: unknown) {
+      const e = normalizeError(error);
       dispatcherDebugService.logMessage('outgoing', {
         traceId,
         uin,
@@ -1555,9 +1558,9 @@ router.post('/events/batch',
         mediaName: firstEvent.media?.name,
         statusCode: 500,
         duration: Date.now() - startTime,
-        error: error?.message || 'Erro interno',
-      });
-      await logError('Erro ao ingerir lote de playback', error, { traceId, uin });
+        error: e.message || 'Erro interno',
+    });
+      await logError('Erro ao ingerir lote de playback', e.error, { traceId, uin });
       return res.status(500).json({ error: 'Erro ao ingerir eventos', traceId });
     }
   }
@@ -1572,7 +1575,7 @@ router.post('/sync',
   query('uin').isString().isLength({ min: 1, max: 100 }),
   query('token').isString().notEmpty(),
   query('deviceId').optional().isString().isLength({ min: 1, max: 255 }),
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     const queryErrors = validationResult(req);
     const envelopeValidation = validatePlayerSyncEnvelope(req.body);
     if (!queryErrors.isEmpty() || !envelopeValidation.value) {
@@ -1727,8 +1730,8 @@ router.post('/sync',
           hasHeartbeat: Boolean(response.heartbeat),
         },
       });
-      return res.json(response);
-    } catch (error: any) {
+      return res.json(response);} catch (error: unknown) {
+      const e = normalizeError(error);
       dispatcherDebugService.logMessage('outgoing', {
         traceId,
         uin,
@@ -1736,9 +1739,9 @@ router.post('/sync',
         method: 'POST',
         statusCode: 500,
         duration: Date.now() - startTime,
-        error: error?.message || 'Erro interno',
-      });
-      await logError('Erro ao sincronizar player', error, { traceId, syncId: envelope.syncId, uin });
+        error: e.message || 'Erro interno',
+    });
+      await logError('Erro ao sincronizar player', e.error, { traceId, syncId: envelope.syncId, uin });
       return res.status(500).json({
         error: 'Erro ao sincronizar player',
         traceId,
@@ -1756,7 +1759,7 @@ router.post('/sync',
 router.post('/exit-kiosk',
   body('uin').optional({ nullable: true }).isString(),
   body('token').optional({ nullable: true }).isString(),
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const { uin, token } = req.body;
 
@@ -1789,7 +1792,7 @@ router.post('/exit-kiosk',
           executed = true;
           await logDebug(`Comando executado para sair do kiosk`, { cmd });
           // Não parar aqui, tentar executar todos os comandos possíveis
-        } catch (error: any) {
+        } catch {
           // Continuar tentando outros comandos mesmo se este falhar
           continue;
         }
@@ -1807,9 +1810,10 @@ router.post('/exit-kiosk',
           message: 'Não foi possível executar comando de saída automaticamente',
           instructions: 'Você pode fechar o navegador manualmente ou fazer logout do usuário'
         });
-      }
-    } catch (error: any) {
-      await logError('Erro ao executar saída do kiosk', error);
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao executar saída do kiosk', e.error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -1823,7 +1827,7 @@ router.get('/ota-download/:id',
   query('uin').isString().notEmpty(),
   query('token').isString().notEmpty(),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const uin = String(req.query.uin);
       const token = String(req.query.token);
@@ -1864,8 +1868,7 @@ router.get('/ota-download/:id',
       res.setHeader('X-Update-Checksum', update.checksum);
       fs.createReadStream(update.file_path).pipe(res);
       return;
-    } catch (err: any) {
-      await logError('Erro no download OTA do player', err);
+} catch (err: unknown) {      await logError('Erro no download OTA do player', err);
       return res.status(500).json({ error: 'Erro interno' });
     }
   }
@@ -1884,7 +1887,7 @@ router.post('/ota-status',
   body('availableVersion').optional({ nullable: true }).isString(),
   body('error').optional({ nullable: true }).isString(),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const { uin, token, currentVersion, updateStatus, availableVersion, error } = req.body;
       if (!validateTotemToken(uin, token)) {
@@ -1913,8 +1916,7 @@ router.post('/ota-status',
       });
 
       return res.json({ success: true });
-    } catch (err: any) {
-      await logError('Erro ao registrar status OTA do player', err);
+} catch (err: unknown) {      await logError('Erro ao registrar status OTA do player', err);
       return res.status(500).json({ error: 'Erro interno' });
     }
   }
@@ -1933,7 +1935,7 @@ router.post('/command-result',
   body('result').optional({ nullable: true }),
   body('error').optional({ nullable: true }).isString(),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const { uin, token, requestId, status, result, error } = req.body;
       const normalizedStatus =
@@ -2048,14 +2050,13 @@ router.post('/command-result',
       return res.json({
         success: true,
         message: 'Resultado do comando registrado com sucesso'
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao processar resultado de comando', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao processar resultado de comando', e.error);
       return res.status(500).json({
         error: 'Erro ao processar resultado do comando',
-        details: error.message
-      });
+        details: e.message
+    });
     }
   }
 );

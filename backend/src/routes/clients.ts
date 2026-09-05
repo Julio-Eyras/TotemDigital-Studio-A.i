@@ -1,3 +1,5 @@
+
+
 import express from 'express';
 import { body, query, param } from 'express-validator';
 import { validationResult } from 'express-validator';
@@ -5,6 +7,7 @@ import { authMiddleware } from '../middleware/auth.middleware';
 import { getClientService } from '../services/clientService';
 import { logError } from '../utils/loggerHelper';
 import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
+import { normalizeError } from '../utils/errors';
 
 const router = express.Router();
 
@@ -19,7 +22,7 @@ const createClientValidator = [
   body('address').optional({ nullable: true }).isString(),
 ];
 
-const validateRequest = (req: any, res: any, next: any) => {
+const validateRequest = (req: express.Request, res: express.Response, next: express.NextFunction): express.Response | void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -39,7 +42,7 @@ router.get('/',
   query('limit').optional().isInt({ min: 1, max: 10000 }),
   query('search').optional().isString(),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { page = 1, limit = 10, search } = req.query;
       
@@ -50,7 +53,7 @@ router.get('/',
       });
       
       return res.json(result);
-    } catch (error) {
+} catch (error: unknown) {
       await logError('Erro ao listar clientes', error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
@@ -64,13 +67,14 @@ router.get('/',
 router.get('/:id',
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const sid = parseInt(id, 10);
       try {
         await assertTenantClientParamAccess(req, sid);
-      } catch (e: any) {
+} catch (rawErr: unknown) {
+  const e = normalizeError(rawErr);
         if (e?.statusCode === 403) {
           return res.status(403).json({ error: e.message || 'Acesso negado' });
         }
@@ -84,7 +88,7 @@ router.get('/:id',
       }
 
       return res.json(client);
-    } catch (error) {
+} catch (error: unknown) {
       await logError('Erro ao obter cliente', error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
@@ -98,7 +102,7 @@ router.get('/:id',
 router.post('/',
   createClientValidator,
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { name, email, phone, address } = req.body;
       
@@ -109,10 +113,10 @@ router.post('/',
         address,
       });
 
-      return res.status(201).json(newClient);
-    } catch (error: any) {
-      await logError('Erro ao criar cliente', error);
-      return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      return res.status(201).json(newClient);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar cliente', e.error);
+      return res.status(400).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -128,13 +132,14 @@ router.put('/:id',
   body('phone').optional({ nullable: true }).isString(),
   body('address').optional({ nullable: true }).isString(),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const sid = parseInt(id, 10);
       try {
         await assertTenantClientParamAccess(req, sid);
-      } catch (e: any) {
+} catch (rawErr: unknown) {
+  const e = normalizeError(rawErr);
         if (e?.statusCode === 403) {
           return res.status(403).json({ error: e.message || 'Acesso negado' });
         }
@@ -149,10 +154,10 @@ router.put('/:id',
         address,
       });
 
-      return res.json(updatedClient);
-    } catch (error: any) {
-      await logError('Erro ao atualizar cliente', error);
-      return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      return res.json(updatedClient);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar cliente', e.error);
+      return res.status(400).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -164,13 +169,14 @@ router.put('/:id',
 router.delete('/:id',
   param('id').isInt({ min: 1 }).withMessage('ID inválido'),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const sid = parseInt(id, 10);
       try {
         await assertTenantClientParamAccess(req, sid);
-      } catch (e: any) {
+} catch (rawErr: unknown) {
+  const e = normalizeError(rawErr);
         if (e?.statusCode === 403) {
           return res.status(403).json({ error: e.message || 'Acesso negado' });
         }
@@ -179,10 +185,10 @@ router.delete('/:id',
 
       await getClientService().deleteClient(sid);
       
-      return res.status(204).send();
-    } catch (error: any) {
-      await logError('Erro ao excluir cliente', error);
-      return res.status(400).json({ error: error.message || 'Erro interno do servidor' });
+      return res.status(204).send();} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao excluir cliente', e.error);
+      return res.status(400).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );

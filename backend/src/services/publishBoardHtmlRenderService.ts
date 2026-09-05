@@ -195,7 +195,8 @@ function buildMenuHtml(
       if(rev&&LAST_REV!==null&&rev!==LAST_REV){LAST_REV=rev;schedule(2000);return;}
       LAST_REV=rev||LAST_REV;
       schedule(wait);
-    }).catch(function(){renderProducts(INITIAL);schedule(BASE_MS);});
+    }).catch(function(){
+      renderProducts(INITIAL);schedule(BASE_MS);});
   }
   renderProducts(INITIAL);schedule(BASE_MS);
 })();`;

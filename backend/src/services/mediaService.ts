@@ -22,6 +22,7 @@ import { isDirectTotemMode } from '../config/directTotemMode';
 import { resolveSinglePublisherId } from './directTotemOrgService';
 import { getMediaTotemSyncService } from './mediaTotemSyncService';
 import {
+
   htmlBoardThumbPathForFile,
   writeHtmlBoardThumbnail,
 } from './htmlBoardThumbnail';
@@ -33,6 +34,8 @@ import {
   type ForceDeleteMediaResult,
   type MediaInUseConflictPayload,
 } from './mediaDeletionService';
+import { Metadata } from '../types/shared';
+import { normalizeError } from '../utils/errors';
 
 export type { ForceDeleteMediaResult, MediaInUseConflictPayload };
 export { MediaInUseError };
@@ -117,7 +120,7 @@ export interface MediaResponse {
   approvedByName?: string; // Nome do usuário que aprovou
   approvedAt?: string; // Timestamp de aprovação
   
-  metadata?: any; // JSONB metadados adicionais
+  metadata?: Metadata; // JSONB metadados adicionais
   isActive: boolean;
   
   createdAt: string;
@@ -179,17 +182,17 @@ export class MediaService {
 
   // Lazy initialization - só criar quando necessário
   private getAuditService(): AuditService {
-    if (!(global as any).auditServiceInstance) {
-      (global as any).auditServiceInstance = new AuditService();
+    if (!(global as unknown as Record<string, unknown>).auditServiceInstance) {
+      (global as unknown as Record<string, unknown>).auditServiceInstance = new AuditService();
     }
-    return (global as any).auditServiceInstance;
+    return (global as unknown as Record<string, unknown>).auditServiceInstance as AuditService;
   }
   
   private getStorageService(): StorageService {
-    if (!(global as any).storageServiceInstance) {
-      (global as any).storageServiceInstance = new StorageService();
+    if (!(global as unknown as Record<string, unknown>).storageServiceInstance) {
+      (global as unknown as Record<string, unknown>).storageServiceInstance = new StorageService();
     }
-    return (global as any).storageServiceInstance;
+    return (global as unknown as Record<string, unknown>).storageServiceInstance as StorageService;
   }
 
   /**
@@ -255,7 +258,7 @@ export class MediaService {
       const includeInactiveSubscribers = !!filters.includeInactiveSubscribers;
       const directMode = isDirectTotemMode();
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (directMode) {
         const publisherId = await resolveSinglePublisherId();
@@ -447,7 +450,7 @@ export class MediaService {
         }
 
         // Processar metadata (JSONB)
-        let processedMetadata: any = null;
+        let processedMetadata: unknown = null;
         if (item.metadata) {
           if (typeof item.metadata === 'string') {
             try {
@@ -550,10 +553,9 @@ export class MediaService {
         total,
         page,
         limit
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar mídia', error, { filters });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar mídia', e.error, { filters });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -565,11 +567,11 @@ export class MediaService {
         `SELECT subscriber_id FROM medias WHERE media_id = $1`,
         [mediaId]
       );
-      if (row == null || (row as any).subscriber_id == null) return null;
-      const n = Number((row as any).subscriber_id);
-      return Number.isFinite(n) && n > 0 ? n : null;
-    } catch (error: any) {
-      await logError('Erro ao resolver subscriber da mídia', error, { mediaId });
+      if (row == null || (row as unknown as Record<string, unknown>).subscriber_id == null) return null;
+      const n = Number((row as unknown as Record<string, unknown>).subscriber_id);
+      return Number.isFinite(n) && n > 0 ? n : null;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao resolver subscriber da mídia', e.error, { mediaId });
       return null;
     }
   }
@@ -584,8 +586,8 @@ export class MediaService {
         [mediaId]
       );
       if (row == null) return null;
-      const sidRaw = (row as any).subscriber_id;
-      const pidRaw = (row as any).publisher_id;
+      const sidRaw = (row as unknown as Record<string, unknown>).subscriber_id;
+      const pidRaw = (row as unknown as Record<string, unknown>).publisher_id;
       const subscriberId =
         sidRaw != null && Number.isFinite(Number(sidRaw)) && Number(sidRaw) > 0
           ? Number(sidRaw)
@@ -594,9 +596,10 @@ export class MediaService {
         pidRaw != null && Number.isFinite(Number(pidRaw)) && Number(pidRaw) > 0
           ? Number(pidRaw)
           : null;
-      return { subscriberId, publisherId };
-    } catch (error: any) {
-      await logError('Erro ao resolver escopo da mídia', error, { mediaId });
+      return {
+        subscriberId, publisherId };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao resolver escopo da mídia', e.error, { mediaId });
       return null;
     }
   }
@@ -679,7 +682,7 @@ export class MediaService {
       }
 
       // Processar metadata (JSONB)
-      let processedMetadata: any = null;
+      let processedMetadata: unknown = null;
       if (media.metadata) {
         if (typeof media.metadata === 'string') {
           try {
@@ -734,11 +737,10 @@ export class MediaService {
         thumbnailUrlComputed: thumbnailUrl,
         deliveryRotation: deliveryPreview.deliveryRotation,
         deliveryPreviewRotation: deliveryPreview.deliveryPreviewRotation,
-      } as MediaResponse;
-
-    } catch (error: any) {
-      await logError('Erro ao buscar mídia por ID', error, { mediaId });
-      throw error.message?.includes('Acesso negado') ? error : new Error('Erro interno do servidor');
+      } as MediaResponse;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar mídia por ID', e.error, { mediaId });
+      throw e.message?.includes('Acesso negado') ? error : new Error('Erro interno do servidor');
     }
   }
 
@@ -751,7 +753,7 @@ export class MediaService {
    * @param isAdmin Se true, ignora validação de ownership
    */
   async createMultipleMedia(
-    files: any[],
+    files: unknown[],
     createdBy: number,
     options: {
       subscriberId?: number;
@@ -775,7 +777,8 @@ export class MediaService {
 
       const results: MediaResponse[] = [];
 
-      for (const file of files) {
+      for (const fileRaw of files) {
+        const file = fileRaw as { buffer?: Buffer; diskPath?: string; originalname: string; mimetype: string; size: number };
         const mediaData: CreateMediaRequest = {
           name: file.originalname,
           description: '',
@@ -790,14 +793,14 @@ export class MediaService {
         results.push(media);
       }
 
-      return results;
-    } catch (error: any) {
-      await logError('Erro ao criar múltiplas mídias', error, {
+      return results;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar múltiplas mídias', e.error, {
         count: files.length,
         subscriberId: options.subscriberId,
         publisherId: options.publisherId,
-      });
-      throw error;
+    });
+      throw e.error;
     }
   }
 
@@ -892,11 +895,12 @@ export class MediaService {
           filePath = normalized.filePath;
           storedMimeType = normalized.mimeType ?? storedMimeType;
           uploadDeliveryRotation = normalized.deliveryRotation;
-        } catch (normErr: any) {
+} catch (normErr: unknown) {
+          const e = normalizeError(normErr);
           await logWarn('Normalização 9:16 no upload falhou; mantém ficheiro original', {
             filePath,
             mediaType,
-            error: normErr?.message,
+            error: e.message,
           });
         }
       }
@@ -917,10 +921,10 @@ export class MediaService {
       if (mediaType === 'video') {
         try {
           await this.generatePortraitThumbnailFromVideoFile(filePath, processedTags);
-        } catch (thumbErr: any) {
-          await logWarn('Thumbnail de vídeo no upload falhou', {
+} catch (thumbErr: unknown) {          const e = normalizeError(thumbErr);
+    await logWarn('Thumbnail de vídeo no upload falhou', {
             filePath,
-            error: thumbErr?.message,
+            error: e.message,
           });
         }
         if (directMode) {
@@ -1021,11 +1025,10 @@ export class MediaService {
         );
       }
 
-      return newMedia;
-
-    } catch (error: any) {
-      await logError('Erro ao criar mídia', error, { name: data.name, subscriberId: data.subscriberId });
-      throw error;
+      return newMedia;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar mídia', e.error, { name: data.name, subscriberId: data.subscriberId });
+      throw e.error;
     }
   }
 
@@ -1058,7 +1061,7 @@ export class MediaService {
 
       // Construir query de atualização
       const updates: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
       let paramIndex = 1;
 
       if (data.name !== undefined) {
@@ -1128,11 +1131,10 @@ export class MediaService {
       await getCacheService().invalidateEntity('media', mediaId).catch(() => {});
       await getCacheService().invalidateEntity('subscriber', existingMedia.subscriberId).catch(() => {});
 
-      return updatedMedia;
-
-    } catch (error: any) {
-      await logError('Erro ao atualizar mídia', error, { mediaId, updateData: data });
-      throw error;
+      return updatedMedia;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar mídia', e.error, { mediaId, updateData: data });
+      throw e.error;
     }
   }
 
@@ -1152,14 +1154,14 @@ export class MediaService {
     if (!isAdmin && requestSubscriberId && existingMedia.subscriberId !== requestSubscriberId) {
       throw new Error('Acesso negado: mídia não pertence a este subscriber');
     }
-    const rawPath = existingMedia.filePath || (existingMedia as any).file_path;
-    if (!rawPath || !fs.existsSync(rawPath)) {
+    const rawPath = existingMedia.filePath || String((existingMedia as unknown as Record<string, unknown>).file_path) || undefined;
+    if (!rawPath || !fs.existsSync(rawPath as any)) {
       throw new Error('Ficheiro da mídia não encontrado no servidor');
     }
 
-    await fs.promises.writeFile(rawPath, file.buffer);
+    await fs.promises.writeFile(rawPath as any, file.buffer);
     try {
-      fs.chmodSync(rawPath, 0o644);
+      fs.chmodSync(rawPath as any, 0o644);
     } catch {
       /* noop */
     }
@@ -1186,7 +1188,7 @@ export class MediaService {
     await getMediaTotemSyncService()
       .notifyAffectedTotems(mediaId, {
         reason: 'file_content',
-        filePath: rawPath,
+        filePath: rawPath as string,
         fileSizeBytes: file.size,
         updatedAt: updated.updatedAt,
       })
@@ -1358,12 +1360,12 @@ export class MediaService {
         })
         .catch((e) => logError('Falha ao notificar totens após transformar mídia', e, { mediaId }));
 
-      return updatedMedia;
-    } catch (error: any) {
+      return updatedMedia;} catch (error: unknown) {
+      const e = normalizeError(error);
       await this.removeFileIfExists(outputPath);
       await this.removeFileIfExists(thumbnailPath);
-      await logError('Erro ao transformar mídia para 9:16', error, { mediaId, mediaType, sourcePath });
-      throw error.message?.includes('ffmpeg')
+      await logError('Erro ao transformar mídia para 9:16', e.error, { mediaId, mediaType, sourcePath });
+      throw e.message?.includes('ffmpeg')
         ? new Error('Não foi possível processar o vídeo. Verifique se o ffmpeg está instalado no servidor.')
         : error;
     }
@@ -1793,13 +1795,14 @@ export class MediaService {
           filePath: newPath,
           fileSizeBytes: stats.size,
         })
-        .catch((e) => logError('Falha ao notificar totens após normalizar vídeo', e, { mediaId }));
-    } catch (error: any) {
+        .catch((e) => logError('Falha ao notificar totens após normalizar vídeo', e, {
+          mediaId }));} catch (error: unknown) {
+      const e = normalizeError(error);
       await logWarn('Normalização 9:16 de vídeo em background falhou; mantém original', {
         mediaId,
         filePath,
-        error: error?.message,
-      });
+        error: e.message,
+    });
       try {
         const current = await this.getMediaById(mediaId);
         const cleared = this.withoutTotemDeliveryPendingTag(current?.tags);
@@ -2034,7 +2037,7 @@ export class MediaService {
         width: dimensions.width,
         height: dimensions.height,
       };
-    } catch (error) {
+} catch (error: unknown) {
       await this.removeFileIfExists(tempOut);
       await this.removeFileIfExists(tempOut.replace(/\.[^/.]+$/, '_thumb.jpg'));
       throw error;
@@ -2420,14 +2423,14 @@ export class MediaService {
         return deletionService.forceDetachAndDelete({
           mediaId,
           mediaName: media.name,
-          filePath: media.filePath || (media as any).file_path,
+          filePath: media.filePath || String((media as unknown as Record<string, unknown>).file_path) || undefined,
           subscriberId: media.subscriberId,
           deletedBy,
         });
       }
 
       // Sem referências — exclusão simples
-      const filePathToDelete = media.filePath || (media as any).file_path;
+      const filePathToDelete = media.filePath || String((media as unknown as Record<string, unknown>).file_path) || undefined;
       if (filePathToDelete) {
         await this.getStorageService().deleteMediaFile(filePathToDelete);
       }
@@ -2444,14 +2447,14 @@ export class MediaService {
       });
 
       await getCacheService().invalidateEntity('media', mediaId).catch(() => {});
-      await getCacheService().invalidateEntity('subscriber', media.subscriberId).catch(() => {});
-
-    } catch (error: any) {
+      await getCacheService().invalidateEntity('subscriber', media.subscriberId).catch(() => {
+        });} catch (error: unknown) {
+      const e = normalizeError(error);
       if (error instanceof MediaInUseError) {
-        throw error;
-      }
-      await logError('Erro ao remover mídia', error, { mediaId });
-      throw error;
+        throw e.error;
+    }
+      await logError('Erro ao remover mídia', e.error, { mediaId });
+      throw e.error;
     }
   }
 
@@ -2470,7 +2473,7 @@ export class MediaService {
     previewUrl?: string;
   }> {
     try {
-      const result: any = {};
+      const result: Record<string, unknown> = {};
 
       if (mimetype.startsWith('image/')) {
         const meta = await (sharp as any)(filePath).metadata().catch(async () =>
@@ -2518,10 +2521,9 @@ export class MediaService {
         result.durationSeconds = probed.durationSeconds ?? 0;
       }
 
-      return result;
-
-    } catch (error: any) {
-      await logError('Erro ao processar mídia', error, { filePath, mimetype });
+      return result;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao processar mídia', e.error, { filePath, mimetype });
       return {};
     }
   }
@@ -2552,9 +2554,11 @@ export class MediaService {
       const dur = Math.round(Number(String(stdout).trim()));
       if (Number.isFinite(dur) && dur > 0) {
         result.durationSeconds = dur;
-      }
-    } catch (error: any) {
-      await logWarn('ffprobe não extraiu duração do arquivo', { filePath, error: error?.message });
+ 
+}} catch (error: unknown) {
+
+      const e = normalizeError(error);
+      await logWarn('ffprobe não extraiu duração do arquivo', { filePath, error: e.message });
     }
 
     if (mimetype.startsWith('video/')) {
@@ -2590,9 +2594,9 @@ export class MediaService {
    */
   private async generateVideoThumbnail(_buffer: Buffer, filePath: string): Promise<string> {
     try {
-      return await this.generatePortraitThumbnailFromVideoFile(filePath);
-    } catch (error: any) {
-      await logError('Erro ao gerar thumbnail de vídeo', error, { filePath });
+      return await this.generatePortraitThumbnailFromVideoFile(filePath);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar thumbnail de vídeo', e.error, { filePath });
       return filePath;
     }
   }
@@ -2689,12 +2693,13 @@ export class MediaService {
             if (thumbPath && fs.existsSync(thumbPath)) {
               return thumbPath;
             }
-          }
-        } catch (error: any) {
+ 
+}} catch (error: unknown) {
+          const e = normalizeError(error);
           await logWarn('Falha ao gerar thumbnail de vídeo on-demand', {
             mediaId,
-            error: error?.message,
-          });
+            error: e.message,
+        });
         }
       }
 
@@ -2764,9 +2769,9 @@ export class MediaService {
       }
 
       // 4) Fallback: placeholder
-      return await this.ensurePlaceholderImage(placeholderPath);
-    } catch (error: any) {
-      await logError('Erro ao buscar thumbnail', error, { mediaId });
+      return await this.ensurePlaceholderImage(placeholderPath);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar thumbnail', e.error, { mediaId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -2864,7 +2869,19 @@ export class MediaService {
         throw new Error('Arquivo de mídia não encontrado no sistema de arquivos');
       }
 
-      const result: any = {
+      interface ProcessMediaResult {
+        success: boolean;
+        message: string;
+        thumbnailUrl?: string;
+        optimized?: boolean;
+        resized?: boolean;
+        metadata?: {
+          width?: number;
+          height?: number;
+          size?: number;
+        };
+      }
+      const result: ProcessMediaResult = {
         success: true,
         message: 'Mídia processada com sucesso',
         optimized: false,
@@ -2998,14 +3015,14 @@ export class MediaService {
           success: false,
           message: `Processamento não suportado para tipo de mídia: ${media.mediaType}`
         };
-      }
-
-    } catch (error: any) {
-      await logError('Erro ao processar mídia', error, { mediaId });
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao processar mídia', e.error, { mediaId });
       return {
         success: false,
-        message: `Erro ao processar mídia: ${error.message}`
-      };
+        message: `Erro ao processar mídia: ${e.message}`
+    };
     }
   }
 
@@ -3032,9 +3049,9 @@ export class MediaService {
         averageSize: Number(stats?.averageSize || 0),
         maxSize: Number(stats?.maxSize || 0),
         minSize: Number(stats?.minSize || 0)
-      };
-    } catch (error: any) {
-      await logError('Erro ao buscar estatísticas de armazenamento', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar estatísticas de armazenamento', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -3052,7 +3069,7 @@ export class MediaService {
   ): Promise<MediaStats> {
     try {
       let whereClause = '';
-      const params: any[] = [];
+      const params: unknown[] = [];
       let paramIndex = 1;
 
       // Aplicar isolamento por subscriber (exceto para admin)
@@ -3118,10 +3135,9 @@ export class MediaService {
           published: publishedResult?.count || 0,
           archived: archivedResult?.count || 0
         }
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar estatísticas de mídia', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar estatísticas de mídia', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -3133,7 +3149,7 @@ export class MediaService {
   async getMediaByTags(tags: string[], subscriberId?: number): Promise<MediaResponse[]> {
     try {
       let whereClause = 'WHERE COALESCE(m.is_active, true) = true';
-      const params: any[] = [];
+      const params: unknown[] = [];
       let paramIndex = 1;
 
       if (subscriberId) {
@@ -3182,10 +3198,9 @@ export class MediaService {
         tags: item.tags ? (Array.isArray(item.tags) ? item.tags : (typeof item.tags === 'string' ? (() => { try { return JSON.parse(item.tags); } catch { return item.tags.includes(',') ? item.tags.split(',').map((t: string) => t.trim()) : [item.tags]; } })() : [])) : [],
         downloadUrl: item.filePath ? normalizeDownloadUrl(item.filePath) : '',
         thumbnailUrl: item.filePath ? generateThumbnailUrl(item.filePath, item.mediaType || 'image') : ''
-      }));
-
-    } catch (error: any) {
-      await logError('Erro ao buscar mídia por tags', error, { tags });
+      }));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar mídia por tags', e.error, { tags });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -3193,10 +3208,9 @@ export class MediaService {
 
 // Lazy singleton accessor (padroniza com outros serviços e facilita testes/mocks)
 export function getMediaService(): MediaService {
-  if (!(global as any).mediaServiceInstance) {
-    (global as any).mediaServiceInstance = new MediaService();
+  if (!(global as unknown as Record<string, unknown>).mediaServiceInstance) {
+    (global as unknown as Record<string, unknown>).mediaServiceInstance = new MediaService();
   }
-  return (global as any).mediaServiceInstance;
+  return (global as unknown as Record<string, unknown>).mediaServiceInstance as MediaService;
 }
-
 

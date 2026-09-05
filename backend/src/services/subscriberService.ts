@@ -5,6 +5,7 @@ import { StorageService } from './storageService';
 import { SettingsService } from './settingsService';
 import { LIMITS_DEFAULT_SETTING_KEYS } from '../constants/limitsSettingsKeys';
 import {
+
   mergeNumericPlanLimit,
   normalizeLimitInt,
   resolveLimitWithDefault,
@@ -13,6 +14,7 @@ import {
   assertPortalSlugAvailable,
   maybeSyncPortalHostsAfterSlugChange,
 } from './portalHostService';
+import { normalizeError } from '../utils/errors';
 
 /** Campanha considerada activa para totais comerciais (alinhado a getSubscriberStats / dispatcher). */
 const ACTIVE_CAMPAIGN_SQL = `
@@ -585,9 +587,9 @@ export class SubscriberService {
         total: parseInt(totalResult?.total || '0'),
         page,
         limit,
-      };
-    } catch (error: any) {
-      await logError('Erro ao listar subscribers', error, { params });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar subscribers', e.error, { params });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -634,10 +636,10 @@ export class SubscriberService {
         ORDER BY sc.start_date DESC
       `, [subscriberId]);
 
-      return contracts || [];
-    } catch (error: any) {
-      await logError('Erro ao buscar contratos ativos do subscriber', error);
-      throw error;
+      return contracts || [];} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar contratos ativos do subscriber', e.error);
+      throw e.error;
     }
   }
 
@@ -684,10 +686,10 @@ export class SubscriberService {
         ORDER BY sc.start_date DESC, sc.contract_id DESC
       `, [subscriberId]);
 
-      return contracts || [];
-    } catch (error: any) {
-      await logError('Erro ao buscar contratos do subscriber', error);
-      throw error;
+      return contracts || [];} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar contratos do subscriber', e.error);
+      throw e.error;
     }
   }
 
@@ -715,9 +717,9 @@ export class SubscriberService {
         WHERE s.subscriber_id = $1
       `, [id]);
 
-      return subscriber;
-    } catch (error: any) {
-      await logError('Erro ao obter subscriber', error, { id });
+      return subscriber;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter subscriber', e.error, { id });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -819,8 +821,7 @@ export class SubscriberService {
       try {
         const storage = new StorageService();
         await storage.ensureSubscriberUploadDirs(subscriberId);
-      } catch (dirError: any) {
-        await logError('Erro ao criar diretório de uploads do assinante (assinante foi criado)', dirError, { subscriberId });
+} catch (dirError: unknown) {        await logError('Erro ao criar diretório de uploads do assinante (assinante foi criado)', dirError, { subscriberId });
         // Não falhar a criação do assinante; o diretório pode ser criado depois ou manualmente
       }
 
@@ -834,11 +835,11 @@ export class SubscriberService {
         await maybeSyncPortalHostsAfterSlugChange(this.db as any);
       }
 
-      return newSubscriber;
-    } catch (error: any) {
+      return newSubscriber;} catch (error: unknown) {
+      const e = normalizeError(error);
       // Capturar unique constraint violation (nome/email duplicado)
-      if (error && (error.code === '23505' || (error.message && error.message.includes('duplicate key')))) {
-        const msg = error.detail || error.message || '';
+      if (error && (e.code === '23505' || (e.message && e.message.includes('duplicate key')))) {
+        const msg = (e.raw as { detail?: string })?.detail || e.message || '';
         if (msg.includes('name')) {
           throw new Error('Subscriber com este nome já existe');
         }
@@ -847,8 +848,8 @@ export class SubscriberService {
         }
         throw new Error('Subscriber com valores duplicados (nome/email) já existe');
       }
-      await logError('Erro ao criar subscriber', error, { data });
-      throw error;
+      await logError('Erro ao criar subscriber', e.error, { data });
+      throw e.error;
     }
   }
 
@@ -875,7 +876,7 @@ export class SubscriberService {
     for (const field of optionalTextFields) {
       const value = subscriber[field];
       if (value !== undefined && value !== null && String(value).trim() === '') {
-        (subscriber as Record<string, unknown>)[field] = null;
+        (subscriber as unknown as Record<string, unknown>)[field] = null;
       }
     }
 
@@ -887,10 +888,10 @@ export class SubscriberService {
       row = await db.findFirst(
         `SELECT create_subscriber_with_contracts($1::jsonb, $2::jsonb) AS data`,
         [pSubscriber, pContracts]
-      );
-    } catch (error: any) {
-      if (error && (error.code === '23505' || String(error.message || '').includes('duplicate key'))) {
-        const msg = String(error.detail || error.message || '');
+      );} catch (error: unknown) {
+      const e = normalizeError(error);
+      if (error && (e.code === '23505' || String(e.message || '').includes('duplicate key'))) {
+        const msg = String((e.raw as { detail?: string })?.detail || e.message || '');
         if (msg.includes('email')) {
           throw new Error('Subscriber com este email já existe');
         }
@@ -899,7 +900,7 @@ export class SubscriberService {
         }
         throw new Error('Subscriber com valores duplicados (nome/email) já existe');
       }
-      throw error;
+      throw e.error;
     }
     if (!row?.data) {
       throw new Error('Erro ao criar subscriber com contratos: procedimento não retornou dados');
@@ -1051,10 +1052,10 @@ export class SubscriberService {
         await maybeSyncPortalHostsAfterSlugChange(this.db as any);
       }
 
-      return updatedSubscriber;
-    } catch (error: any) {
-      await logError('Erro ao atualizar subscriber', error, { id, data });
-      throw error;
+      return updatedSubscriber;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar subscriber', e.error, { id, data });
+      throw e.error;
     }
   }
 
@@ -1073,10 +1074,10 @@ export class SubscriberService {
       await this.db.executeRaw(
         `SELECT deactivate_subscriber_cascade($1)`,
         [id]
-      );
-    } catch (error: any) {
-      await logError('Erro ao excluir subscriber', error, { id });
-      throw error;
+      );} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao excluir subscriber', e.error, { id });
+      throw e.error;
     }
   }
 
@@ -1121,9 +1122,9 @@ export class SubscriberService {
         ORDER BY l.name
       `, [subscriberId]);
 
-      return locals;
-    } catch (error: any) {
-      await logError('Erro ao buscar locals acessíveis do subscriber', error, { subscriberId });
+      return locals;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar locals acessíveis do subscriber', e.error, { subscriberId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -1171,9 +1172,9 @@ export class SubscriberService {
         ORDER BY l.name, t.name
       `, [subscriberId]);
 
-      return totems;
-    } catch (error: any) {
-      await logError('Erro ao buscar totems do subscriber', error, { subscriberId });
+      return totems;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar totems do subscriber', e.error, { subscriberId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -1263,9 +1264,9 @@ export class SubscriberService {
         [contractId, subscriberId]
       );
 
-      return totems;
-    } catch (error: any) {
-      await logError('Erro ao buscar totems do subscriber por contrato', error, { subscriberId, contractId });
+      return totems;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar totems do subscriber por contrato', e.error, { subscriberId, contractId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -1316,9 +1317,9 @@ export class SubscriberService {
         ORDER BY l.name, t.name, st.name
       `, [subscriberId]);
 
-      return smartTvs;
-    } catch (error: any) {
-      await logError('Erro ao buscar smart TVs do subscriber', error, { subscriberId });
+      return smartTvs;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar smart TVs do subscriber', e.error, { subscriberId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -1350,9 +1351,9 @@ export class SubscriberService {
         ORDER BY sc.start_date DESC
       `, [subscriberId]);
 
-      return plans;
-    } catch (error: any) {
-      await logError('Erro ao buscar planos ativos do subscriber', error, { subscriberId });
+      return plans;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar planos ativos do subscriber', e.error, { subscriberId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -1426,9 +1427,9 @@ export class SubscriberService {
       // Armazenar no cache por 5 minutos (300 segundos)
       await this.cache.set(cacheKey, limits, 300);
 
-      return limits;
-    } catch (error: any) {
-      await logError('Erro ao obter limites máximos', error, { subscriberId });
+      return limits;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter limites máximos', e.error, { subscriberId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -1484,12 +1485,13 @@ export class SubscriberService {
           `Limite de ${resourceType === 'media' ? 'mídias' : resourceType === 'playlist' ? 'playlists' : 'campanhas'} excedido. ` +
           `Limite do plano: ${maxLimit}, utilizado: ${currentCount}`
         );
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      if (e.message.includes('Limite')) {
+        throw e.error;
       }
-    } catch (error: any) {
-      if (error.message.includes('Limite')) {
-        throw error;
-      }
-      await logError('Erro ao validar limites do plano', error, { subscriberId, resourceType });
+      await logError('Erro ao validar limites do plano', e.error, { subscriberId, resourceType });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -1526,12 +1528,13 @@ export class SubscriberService {
           `Disponível: ${availableGB.toFixed(2)} GB, ` +
           `Tentativa de upload: ${(newFileSizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
         );
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      if (e.message.includes('Limite')) {
+        throw e.error;
       }
-    } catch (error: any) {
-      if (error.message.includes('Limite')) {
-        throw error;
-      }
-      await logError('Erro ao validar limite de armazenamento', error, { subscriberId, newFileSizeBytes });
+      await logError('Erro ao validar limite de armazenamento', e.error, { subscriberId, newFileSizeBytes });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -1581,9 +1584,9 @@ export class SubscriberService {
       // Armazenar no cache por 1 minuto (60 segundos)
       await this.cache.set(cacheKey, currentCount, 60);
 
-      return currentCount;
-    } catch (error: any) {
-      await logError('Erro ao obter contagem de recursos', error, { subscriberId, resourceType });
+      return currentCount;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter contagem de recursos', e.error, { subscriberId, resourceType });
       return 0;
     }
   }
@@ -1613,9 +1616,9 @@ export class SubscriberService {
       // Armazenar no cache por 1 minuto (60 segundos)
       await this.cache.set(cacheKey, storageBytes, 60);
 
-      return storageBytes;
-    } catch (error: any) {
-      await logError('Erro ao obter storage atual', error, { subscriberId });
+      return storageBytes;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter storage atual', e.error, { subscriberId });
       return 0;
     }
   }
@@ -1634,10 +1637,11 @@ export class SubscriberService {
 
       for (const pattern of patterns) {
         await this.cache.deletePattern(pattern);
-      }
-    } catch (error: any) {
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
       // Não falhar se cache não estiver disponível
-      await logError('Erro ao invalidar cache do subscriber', error, { subscriberId }).catch(() => {});
+      await logError('Erro ao invalidar cache do subscriber', e.error, { subscriberId }).catch(() => {});
     }
   }
 
@@ -1671,9 +1675,9 @@ export class SubscriberService {
           AND spa.revoked_at IS NULL
       `, [subscriberId, publisherId]);
 
-      return !!hasAccess;
-    } catch (error: any) {
-      await logError('Erro ao validar acesso a totem', error, { subscriberId, totemId });
+      return !!hasAccess;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao validar acesso a totem', e.error, { subscriberId, totemId });
       return false;
     }
   }
@@ -1878,9 +1882,9 @@ export class SubscriberService {
           storage_gb: maxLimits.storage_gb,
           totems: maxLimits.totems,
         },
-      };
-    } catch (error: any) {
-      await logError('Erro ao buscar estatísticas do subscriber', error, { subscriberId });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar estatísticas do subscriber', e.error, { subscriberId });
       throw new Error('Erro interno do servidor');
     }
   }

@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+
 import { getTotemService } from '../services/totemService';
 import { getRemoteCommandService } from '../services/remoteCommandService';
 import { getTotemLogService } from '../services/totemLogService';
@@ -6,6 +7,7 @@ import { getSmartTvService } from '../services/smartTvService';
 import { getTotemDirectMediaService } from '../services/totemDirectMediaService';
 import { isDirectTotemMode } from '../config/directTotemMode';
 import {
+
   ensureDefaultLocalForPublisher,
   resolveSinglePublisherId,
 } from '../services/directTotemOrgService';
@@ -17,14 +19,15 @@ import { body, param, query } from 'express-validator';
 import { logError, logWarn, logInfo } from '../utils/loggerHelper';
 import { getDatabase } from '../config/database';
 import { isStudioRuntime } from '../config/installationRuntime';
-import { getTotemSecretKey } from '../config/totemSecurity';
 import { getTotemCreateRoles } from '../utils/totemCreateRoles';
 import { getPlaybackTelemetryService } from '../services/playbackTelemetryService';
+import { normalizeError, detectAccessDenied } from '../utils/errors';
 
 const router = Router();
 
-function isTotemRowActive(t: any): boolean {
-  const active = t?.is_active ?? t?.active;
+function isTotemRowActive(t: unknown): boolean {
+  const r = t as Record<string, unknown>;
+  const active = r?.is_active ?? r?.active;
   return active !== false && active !== 0 && active !== 'false' && active !== '0';
 }
 
@@ -39,7 +42,7 @@ async function requireScopedTotem(
   totemId: number,
   req: AuthenticatedRequest
 ): Promise<
-  | { ok: true; totem: any }
+  | { ok: true; totem: Record<string, unknown> }
   | { ok: false; status: number; body: Record<string, unknown> }
 > {
   const isAdmin = isAdminRole(req.user?.role);
@@ -49,13 +52,13 @@ async function requireScopedTotem(
     if (!totem) {
       return { ok: false, status: 404, body: { success: false, error: 'Totem não encontrado' } };
     }
-    return { ok: true, totem };
-  } catch (error: any) {
-    const message = error?.message || 'Acesso negado';
-    if (message.includes('Acesso negado') || message.includes('Modo compacto')) {
-      return { ok: false, status: 403, body: { success: false, error: message } };
+    return {
+      ok: true, totem: totem as unknown as Record<string, unknown> };} catch (error: unknown) {
+    const e = normalizeError(error);
+    if (detectAccessDenied(error)) {
+      return { ok: false, status: 403, body: { success: false, error: e.message } };
     }
-    throw error;
+    throw e.error;
   }
 }
 
@@ -63,7 +66,7 @@ async function requireActiveScopedTotem(
   totemId: number,
   req: AuthenticatedRequest
 ): Promise<
-  | { ok: true; totem: any }
+  | { ok: true; totem: Record<string, unknown> }
   | { ok: false; status: number; body: Record<string, unknown> }
 > {
   const scoped = await requireScopedTotem(totemId, req);
@@ -78,13 +81,14 @@ async function requireActiveScopedTotem(
   return scoped;
 }
 
-function playbackDisplayState(totem: any): {
+function playbackDisplayState(totem: unknown): {
   displayIdle: boolean;
   deviceClock: unknown;
 } {
-  const settings = totem?.playerSettings ?? totem?.player_settings ?? {};
+  const t = totem as Record<string, unknown>;
+  const settings = t?.playerSettings ?? t?.player_settings ?? {};
   const playerSettings =
-    settings && typeof settings === 'object' && !Array.isArray(settings) ? settings : {};
+    settings && typeof settings === 'object' && !Array.isArray(settings) ? (settings as Record<string, unknown>) : {};
   return {
     displayIdle: playerSettings.displayIdle === true,
     deviceClock:
@@ -146,11 +150,14 @@ router.get('/',
       const includeInactive = String(req.query.includeInactive || '') === '1';
       const onlyActive = String(req.query.onlyActive || '') === '1';
       if (isDirectTotemMode() && onlyActive && !includeInactive) {
-        totems = totems.filter((t: any) => isTotemRowActive(t));
+        totems = totems.filter((t: unknown) => isTotemRowActive(t));
       }
       if (isDirectTotemMode() && totems.length > 0) {
         const db = getDatabase();
-        const ids = totems.map((t: any) => Number(t.totem_id ?? t.id)).filter((id: number) => id > 0);
+        const ids = totems.map((t: unknown) => {
+          const r = t as Record<string, unknown>;
+          return Number(r.totem_id ?? r.id);
+        }).filter((id: number) => id > 0);
         // media_count = vão ao player (tpi + media activos);
         // media_count_total = todas as ligações na playlist do totem (incl. desabilitadas).
         const counts = await db.findMany(
@@ -173,19 +180,23 @@ router.get('/',
           [ids]
         );
         const byTotem = new Map(
-          counts.map((r: any) => [
-            Number(r.totem_id),
-            {
-              media_count: Number(r.media_count) || 0,
-              media_count_total: Number(r.media_count_total) || 0,
-            },
-          ])
+          counts.map((rRaw: unknown) => {
+            const r = rRaw as Record<string, unknown>;
+            return [
+              Number(r.totem_id),
+              {
+                media_count: Number(r.media_count) || 0,
+                media_count_total: Number(r.media_count_total) || 0,
+              },
+            ];
+          })
         );
-        totems = totems.map((t: any) => {
+        totems = totems.map((tRaw: unknown) => {
+          const t = tRaw as Record<string, unknown>;
           const id = Number(t.totem_id ?? t.id);
           const c = byTotem.get(id) || { media_count: 0, media_count_total: 0 };
           const base = {
-            ...t,
+            ...(t as Record<string, unknown>),
             media_count: c.media_count,
             media_count_total: c.media_count_total,
           };
@@ -206,19 +217,19 @@ router.get('/',
         total: isDirectTotemMode() && onlyActive && !includeInactive ? totems.length : result.total || 0,
         page: result.page || 1,
         limit: result.limit || 10
-      });
-    } catch (error: any) {
-      await logError('Erro ao listar totems', error);
-      if ((error?.message || '').includes('Acesso negado') || (error?.message || '').includes('Modo compacto')) {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar totems', e.error);
+      if (detectAccessDenied(error)) {
         return res.status(403).json({
           success: false,
-          error: error.message || 'Acesso negado'
+          error: e.message || 'Acesso negado'
         });
       }
       return res.status(500).json({ 
         success: false,
         error: 'Erro ao listar totems',
-        message: error.message || 'Erro interno do servidor'
+        message: e.message || 'Erro interno do servidor'
       });
     }
   }
@@ -251,19 +262,19 @@ router.get('/pending',
         total: result.total || 0,
         page: result.page || 1,
         limit: result.limit || 10
-      });
-    } catch (error: any) {
-      await logError('Erro ao listar totems pendentes', error);
-      if ((error?.message || '').includes('Acesso negado') || (error?.message || '').includes('Modo compacto')) {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar totems pendentes', e.error);
+      if (detectAccessDenied(error)) {
         return res.status(403).json({
           success: false,
-          error: error.message || 'Acesso negado'
+          error: e.message || 'Acesso negado'
         });
       }
       return res.status(500).json({ 
         success: false,
         error: 'Erro ao listar totems pendentes',
-        message: error.message || 'Erro interno do servidor'
+        message: e.message || 'Erro interno do servidor'
       });
     }
   }
@@ -278,13 +289,13 @@ router.get('/stats/overview', async (_req: AuthenticatedRequest, res: Response):
   try {
     const stats = await getTotemService().getTotemStats(1); // Default totem
     res.json(stats);
-    return;
-  } catch (error: any) {
-    await logError('Erro ao obter estatísticas', error);
+    return;} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao obter estatísticas', e.error);
     res.status(500).json({ 
       success: false,
       error: 'Erro ao obter estatísticas',
-      message: error.message || 'Erro interno do servidor'
+      message: e.message || 'Erro interno do servidor'
     });
     return;
   }
@@ -299,13 +310,13 @@ router.get('/stats/offline', async (_req: AuthenticatedRequest, res: Response): 
   try {
     const offlineTotems = await getTotemService().getOfflineTotems();
     res.json(offlineTotems);
-    return;
-  } catch (error: any) {
-    await logError('Erro ao obter totems offline', error);
+    return;} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao obter totems offline', e.error);
     res.status(500).json({ 
       success: false,
       error: 'Erro ao obter totems offline',
-      message: error.message || 'Erro interno do servidor'
+      message: e.message || 'Erro interno do servidor'
     });
     return;
   }
@@ -326,10 +337,11 @@ router.get('/:id/medias',
         return res.status(scoped.status).json(scoped.body);
       }
       const items = await getTotemDirectMediaService().listTotemMedias(totemId);
-      return res.json({ success: true, data: items });
-    } catch (error: any) {
-      await logError('Erro ao listar mídias do totem', error, { totemId: req.params.id });
-      return res.status(400).json({ success: false, error: error.message || 'Erro ao listar mídias' });
+      return res.json({
+        success: true, data: items });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar mídias do totem', e.error, { totemId: req.params.id });
+      return res.status(400).json({ success: false, error: e.message || 'Erro ao listar mídias' });
     }
   }
 );
@@ -351,10 +363,11 @@ router.post('/:id/medias',
       }
       const mediaId = parseInt(req.body.mediaId, 10);
       const items = await getTotemDirectMediaService().addMediaToTotem(totemId, mediaId);
-      return res.status(201).json({ success: true, data: items });
-    } catch (error: any) {
-      await logError('Erro ao adicionar mídia ao totem', error, { totemId: req.params.id });
-      return res.status(400).json({ success: false, error: error.message || 'Erro ao adicionar mídia' });
+      return res.status(201).json({
+        success: true, data: items });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao adicionar mídia ao totem', e.error, { totemId: req.params.id });
+      return res.status(400).json({ success: false, error: e.message || 'Erro ao adicionar mídia' });
     }
   }
 );
@@ -377,10 +390,11 @@ router.put('/:id/medias/reorder',
       }
       const mediaIds = (req.body.mediaIds as unknown[]).map((v) => parseInt(String(v), 10));
       const items = await getTotemDirectMediaService().reorderTotemMedias(totemId, mediaIds);
-      return res.json({ success: true, data: items });
-    } catch (error: any) {
-      await logError('Erro ao reordenar mídias do totem', error, { totemId: req.params.id });
-      return res.status(400).json({ success: false, error: error.message || 'Erro ao reordenar' });
+      return res.json({
+        success: true, data: items });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao reordenar mídias do totem', e.error, { totemId: req.params.id });
+      return res.status(400).json({ success: false, error: e.message || 'Erro ao reordenar' });
     }
   }
 );
@@ -404,10 +418,11 @@ router.put('/:id/medias/:mediaId/active',
       const mediaId = parseInt(req.params.mediaId, 10);
       const isActive = Boolean(req.body.isActive);
       const items = await getTotemDirectMediaService().setTotemMediaActive(totemId, mediaId, isActive);
-      return res.json({ success: true, data: items });
-    } catch (error: any) {
-      await logError('Erro ao alterar status da mídia no totem', error, { totemId: req.params.id });
-      return res.status(400).json({ success: false, error: error.message || 'Erro ao alterar mídia' });
+      return res.json({
+        success: true, data: items });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao alterar status da mídia no totem', e.error, { totemId: req.params.id });
+      return res.status(400).json({ success: false, error: e.message || 'Erro ao alterar mídia' });
     }
   }
 );
@@ -434,10 +449,10 @@ router.delete('/:id/medias/:mediaId',
         data: result.items,
         mediaUsageCount: result.mediaUsageCount,
         orphan: result.mediaUsageCount === 0,
-      });
-    } catch (error: any) {
-      await logError('Erro ao remover mídia do totem', error, { totemId: req.params.id });
-      return res.status(400).json({ success: false, error: error.message || 'Erro ao remover mídia' });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao remover mídia do totem', e.error, { totemId: req.params.id });
+      return res.status(400).json({ success: false, error: e.message || 'Erro ao remover mídia' });
     }
   }
 );
@@ -467,10 +482,10 @@ router.get(
         totemId,
         playbackState,
         ...playbackDisplayState(scoped.totem),
-      });
-    } catch (error: any) {
-      await logError('Erro ao consultar estado de playback', error);
-      return res.status(500).json({ error: 'Erro ao consultar estado de playback' });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao consultar estado de playback', e.error);
+      return res.status(500).json({ error: e.message || 'Erro ao consultar estado de playback' });
     }
   }
 );
@@ -486,10 +501,11 @@ async function upsertTelemetryObservation(req: AuthenticatedRequest, res: Respon
       Number(req.body.ttlSeconds || 90),
       Number(req.body.intervalSeconds || 5)
     );
-    return res.json({ totemId, telemetryObservation });
-  } catch (error: any) {
-    await logError('Erro ao iniciar/renovar observação de telemetria', error);
-    return res.status(500).json({ error: 'Erro ao atualizar observação de telemetria' });
+    return res.json({
+      totemId, telemetryObservation });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao iniciar/renovar observação de telemetria', e.error);
+    return res.status(500).json({ error: e.message || 'Erro ao atualizar observação de telemetria' });
   }
 }
 
@@ -522,9 +538,9 @@ router.delete(
       return res.json({
         totemId,
         telemetryObservation: { active: false, expiresAt: null, intervalSeconds: 30 },
-      });
-    } catch (error: any) {
-      await logError('Erro ao parar observação de telemetria', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao parar observação de telemetria', e.error);
       return res.status(500).json({ error: 'Erro ao parar observação de telemetria' });
     }
   }
@@ -547,13 +563,13 @@ router.get('/:id',
       if (!totem) {
         return res.status(404).json({ error: 'Totem não encontrado' });
       }
-      return res.json(totem);
-    } catch (error: any) {
-      await logError('Erro ao obter totem', error);
-      if ((error?.message || '').includes('Acesso negado') || (error?.message || '').includes('Modo compacto')) {
-        return res.status(403).json({ error: error.message || 'Acesso negado' });
+      return res.json(totem);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter totem', e.error);
+      if (((e.raw as { message?: string })?.message || '').includes('Acesso negado') || ((e.raw as { message?: string })?.message || '').includes('Modo compacto')) {
+        return res.status(403).json({ error: e.message || 'Acesso negado' });
       }
-      return res.status(500).json({ error: 'Erro ao obter totem', message: error.message });
+      return res.status(500).json({ error: 'Erro ao obter totem', message: e.message });
     }
   }
 );
@@ -581,13 +597,13 @@ router.get('/:id/smart-tvs',
         data: smartTvs,
         count: smartTvs.length,
         totem_id: totemId
-      });
-    } catch (error: any) {
-      await logError('Erro ao listar Smart TVs do totem', error);
-      if (error.message.includes('Acesso negado') || error.message.includes('não encontrado')) {
-        return res.status(403).json({ error: error.message });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar Smart TVs do totem', e.error);
+      if (e.message.includes('Acesso negado') || e.message.includes('não encontrado')) {
+        return res.status(403).json({ error: e.message });
       }
-      return res.status(500).json({ error: error.message || 'Erro interno do servidor' });
+      return res.status(500).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -609,13 +625,13 @@ router.get('/uin/:uin',
       if (!totem) {
         return res.status(404).json({ error: 'Totem não encontrado' });
       }
-      return res.json(totem);
-    } catch (error: any) {
-      await logError('Erro ao obter totem por UIN', error);
-      if ((error?.message || '').includes('Acesso negado') || (error?.message || '').includes('Modo compacto')) {
-        return res.status(403).json({ error: error.message || 'Acesso negado' });
+      return res.json(totem);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter totem por UIN', e.error);
+      if (((e.raw as { message?: string })?.message || '').includes('Acesso negado') || ((e.raw as { message?: string })?.message || '').includes('Modo compacto')) {
+        return res.status(403).json({ error: e.message || 'Acesso negado' });
       }
-      return res.status(500).json({ error: 'Erro ao obter totem', message: error?.message });
+      return res.status(500).json({ error: 'Erro ao obter totem', message: ((e.raw as { message?: string })?.message) });
     }
   }
 );
@@ -717,15 +733,15 @@ router.post('/',
         isAdmin,
         String(userRole ?? '')
       );
-      return res.status(201).json(totem);
-    } catch (error: any) {
-      await logError('Erro ao criar totem', error);
-      if (error.message.includes('Acesso negado')) {
-        return res.status(403).json({ error: error.message });
+      return res.status(201).json(totem);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar totem', e.error);
+      if (e.message.includes('Acesso negado')) {
+        return res.status(403).json({ error: e.message });
       }
       return res.status(400).json({ 
-        error: error.message || 'Erro ao criar totem',
-        details: error.message ? [{ msg: error.message }] : undefined
+        error: e.message || 'Erro ao criar totem',
+        details: e.message ? [{ msg: e.message }] : undefined
       });
     }
   }
@@ -776,13 +792,13 @@ router.put('/:id',
       if (!totem) {
         return res.status(404).json({ error: 'Totem não encontrado' });
       }
-      return res.json(totem);
-    } catch (error: any) {
-      await logError('Erro ao atualizar totem', error, {
+      return res.json(totem);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar totem', e.error, {
         totemId: req.params.id,
         userId: req.user?.id || req.user?.userId,
       });
-      return res.status(400).json({ error: error?.message || 'Erro ao atualizar totem' });
+      return res.status(400).json({ error: ((e.raw as { message?: string })?.message) || 'Erro ao atualizar totem' });
     }
   }
 );
@@ -810,14 +826,15 @@ router.delete('/:id',
       }
 
       await getTotemService().deleteTotem(totemId, userId);
-      return res.json({ message: 'Totem deletado com sucesso' });
-    } catch (error: any) {
-      await logError('Erro ao deletar totem', error, {
+      return res.json({
+        message: 'Totem deletado com sucesso' });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao deletar totem', e.error, {
         totemId: req.params.id,
         userId: req.user?.id || req.user?.userId,
       });
 
-      const message = error?.message || 'Erro ao deletar totem';
+      const message = e.message || 'Erro ao deletar totem';
       // Erros de domínio conhecidos do TotemService
       if (message.includes('Totem não encontrado')) {
         return res.status(404).json({ error: message });
@@ -830,9 +847,9 @@ router.delete('/:id',
         return res.status(400).json({ error: message });
       }
 
-      if (error?.code === '23503') {
+      if (e.code === '23503') {
         return res.status(400).json({
-          error: `Falha ao remover totem: ainda existem registros vinculados (${error?.detail || message})`,
+          error: `Falha ao remover totem: ainda existem registros vinculados (${(e.raw as { detail?: string })?.detail || message})`,
         });
       }
 
@@ -864,7 +881,7 @@ router.put('/:id/activate',
         await getTotemService().deactivateTotem(totemId, userId);
       }
       return res.json({ success: true });
-    } catch (error) {
+} catch (error: unknown) {
       return res.status(500).json({ error: 'Erro ao alterar status do totem' });
     }
   }
@@ -889,10 +906,11 @@ router.put('/:id/force-online',
 
       const totemService = getTotemService();
       await totemService.forceOnlineTotem(totemId, minutes, userId);
-      return res.json({ success: true, message: `Totem forçado online por ${minutes} minutos` });
-    } catch (error: any) {
-      await logError('Erro ao forçar totem online', error, { totemId: req.params.id });
-      return res.status(500).json({ success: false, error: error.message || 'Erro ao forçar totem online' });
+      return res.json({
+        success: true, message: `Totem forçado online por ${minutes} minutos` });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao forçar totem online', e.error, { totemId: req.params.id });
+      return res.status(500).json({ success: false, error: e.message || 'Erro ao forçar totem online' });
     }
   }
 );
@@ -918,7 +936,7 @@ router.post('/:id/heartbeat',
       const heartbeatData = req.body;
       const heartbeat = await getTotemService().registerHeartbeat(totemId, heartbeatData);
       return res.json(heartbeat);
-    } catch (error) {
+} catch (error: unknown) {
       return res.status(400).json({ error: 'Erro ao registrar heartbeat' });
     }
   }
@@ -945,7 +963,7 @@ router.get('/:id/heartbeat',
         limit: Number(limit)
       });
       return res.json(heartbeats);
-    } catch (error) {
+} catch (error: unknown) {
       return res.status(500).json({ error: 'Erro ao obter histórico de heartbeats' });
     }
   }
@@ -964,7 +982,7 @@ router.get('/:id/playlist',
       const totemId = parseInt(req.params.id);
       const playlist = await getTotemService().getCurrentPlaylist(totemId);
       return res.json(playlist);
-    } catch (error) {
+} catch (error: unknown) {
       return res.status(500).json({ error: 'Erro ao obter playlist do totem' });
     }
   }
@@ -989,7 +1007,7 @@ router.get('/:id/analytics',
         endDate: endDate as string
       });
       return res.json(analytics);
-    } catch (error) {
+} catch (error: unknown) {
       return res.status(500).json({ error: 'Erro ao obter analytics do totem' });
     }
   }
@@ -1013,7 +1031,7 @@ router.put('/:id/approve',
         });
       }
       const totemId = parseInt(req.params.id);
-      const { generateEncryptedConfig = false } = req.body;
+      void req.body?.generateEncryptedConfig; // param legado, não mais usado
       const userId = req.user?.id || req.user?.userId;
       if (!userId) {
         return res.status(401).json({ error: 'Usuário não autenticado' });
@@ -1066,7 +1084,7 @@ router.put('/:id/approve',
           uin: totemFull.uin,
           identifier: totemFull.identifier
         });
-      } catch (auditError) {
+} catch (auditError: unknown) {
         await logWarn('Erro ao registrar log de auditoria', { error: auditError });
       }
 
@@ -1077,13 +1095,13 @@ router.put('/:id/approve',
         success: true,
         message: 'Totem aprovado com sucesso',
         totem: approvedTotem
-      });
-    } catch (error: any) {
-      await logError('Erro ao aprovar totem', error);
-      if ((error?.message || '').includes('Acesso negado') || (error?.message || '').includes('Modo compacto')) {
-        return res.status(403).json({ error: error.message || 'Acesso negado' });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao aprovar totem', e.error);
+      if (((e.raw as { message?: string })?.message || '').includes('Acesso negado') || ((e.raw as { message?: string })?.message || '').includes('Modo compacto')) {
+        return res.status(403).json({ error: e.message || 'Acesso negado' });
       }
-      return res.status(500).json({ error: 'Erro ao aprovar totem', details: error.message });
+      return res.status(500).json({ error: 'Erro ao aprovar totem', details: e.message });
     }
   }
 );
@@ -1129,15 +1147,14 @@ router.post('/:id/restart',
           status: command.status,
           createdAt: command.createdAt
         }
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao enviar comando de reinício', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao enviar comando de reinício', e.error, {
         totemId: req.params.id
       });
       return res.status(500).json({
         success: false,
-        error: error.message || 'Erro ao enviar comando de reinício'
+        error: e.message || 'Erro ao enviar comando de reinício'
       });
     }
   }
@@ -1180,15 +1197,14 @@ router.post('/:id/screenshot',
           status: command.status,
           createdAt: command.createdAt
         }
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao enviar comando de screenshot', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao enviar comando de screenshot', e.error, {
         totemId: req.params.id
       });
       return res.status(500).json({
         success: false,
-        error: error.message || 'Erro ao enviar comando de screenshot'
+        error: e.message || 'Erro ao enviar comando de screenshot'
       });
     }
   }
@@ -1267,15 +1283,15 @@ router.post('/:id/commands',
           status: command.status,
           createdAt: command.createdAt,
         },
-      });
-    } catch (error: any) {
-      await logError('Erro ao enfileirar comando remoto genérico', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao enfileirar comando remoto genérico', e.error, {
         totemId: req.params.id,
         commandType: req.body?.type,
       });
       return res.status(500).json({
         success: false,
-        error: error.message || 'Erro ao enfileirar comando remoto',
+        error: e.message || 'Erro ao enfileirar comando remoto',
       });
     }
   }
@@ -1302,10 +1318,9 @@ router.get('/:id/commands',
       return res.json({
         success: true,
         data: commands
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao obter histórico de comandos', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter histórico de comandos', e.error, {
         totemId: req.params.id
       });
       return res.status(500).json({
@@ -1337,10 +1352,9 @@ router.get('/:id/screenshots',
       return res.json({
         success: true,
         data: screenshots
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao obter screenshots', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter screenshots', e.error, {
         totemId: req.params.id
       });
       return res.status(500).json({
@@ -1395,9 +1409,9 @@ router.get('/:id/screenshots/:screenshotId/download',
       const fileStream = fs.createReadStream(screenshot.file_path);
       fileStream.pipe(res);
       return; // pipe já envia a resposta
-
-    } catch (error: any) {
-      await logError('Erro ao fazer download de screenshot', error);
+    } catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao fazer download de screenshot', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao fazer download de screenshot'
@@ -1439,10 +1453,9 @@ router.get('/:id/logs',
         success: true,
         data: logs,
         count: logs.length
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao obter logs do totem', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter logs do totem', e.error, {
         totemId: req.params.id
       });
       return res.status(500).json({
@@ -1496,14 +1509,13 @@ router.get('/:id/logs/download',
       // pipe já envia a resposta, não precisa return explícito
       // mas adicionamos para satisfazer TypeScript
       fileStream.on('close', () => {
-        fs.unlink(filePath, (err: any) => {
+        fs.unlink(filePath, (err: unknown) => {
           if (err) logError('Erro ao remover arquivo temporário de log', err, { filePath });
         });
       });
-      return;
-
-    } catch (error: any) {
-      await logError('Erro ao fazer download de logs', error, {
+      return;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao fazer download de logs', e.error, {
         totemId: req.params.id
       });
       return res.status(500).json({
@@ -1537,15 +1549,15 @@ router.get('/:id/playlist/mix',
       return res.json({
         success: true,
         data: playlist
-      });
-    } catch (error: any) {
-      await logError('Erro ao obter playlist mixada', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter playlist mixada', e.error, {
         totemId: req.params.id
       });
       return res.status(500).json({
         success: false,
         error: 'Erro ao obter playlist mixada',
-        message: error.message
+        message: e.message
       });
     }
   }
@@ -1569,15 +1581,15 @@ router.post('/:id/playlist/mix/generate',
         success: true,
         data: mix,
         message: 'Playlist mixada gerada com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro ao gerar playlist mixada', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar playlist mixada', e.error, {
         totemId: req.params.id
       });
       return res.status(500).json({
         success: false,
         error: 'Erro ao gerar playlist mixada',
-        message: error.message
+        message: e.message
       });
     }
   }

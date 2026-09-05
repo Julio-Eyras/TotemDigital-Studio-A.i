@@ -85,9 +85,8 @@ export const rateLimitByUser = (config: Partial<RateLimitConfig> = {}) => {
       res.setHeader('X-RateLimit-Remaining', Math.max(0, finalConfig.maxRequests - count - 1).toString());
       res.setHeader('X-RateLimit-Reset', new Date(Date.now() + finalConfig.windowMs).toISOString());
 
-      next();
-    } catch (error: unknown) {
-      // Em caso de erro no Redis, permitir requisição mas logar
+      next();} catch (error: unknown) {
+// Em caso de erro no Redis, permitir requisição mas logar
       await logWarn('Erro ao verificar rate limit', {
         error: (error as Error).message,
         userId

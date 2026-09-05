@@ -1,15 +1,17 @@
 import express from 'express';
 import request from 'supertest';
 
+import * as express from 'express';
+
 const mockGetMediaScopeIds = jest.fn();
 const mockGetMediaById = jest.fn();
 
 jest.mock('../../../middleware/operatorProtection.middleware', () => ({
-  blockClientDataAccess: (_req: any, _res: any, next: any) => next(),
+  blockClientDataAccess: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
 }));
 
 jest.mock('../../../middleware/subscriberIsolation.middleware', () => ({
-  subscriberIsolationMiddleware: (_req: any, _res: any, next: any) => next(),
+  subscriberIsolationMiddleware: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
 }));
 
 jest.mock('../../../config/directTotemMode', () => ({
@@ -17,7 +19,7 @@ jest.mock('../../../config/directTotemMode', () => ({
 }));
 
 jest.mock('../../../middleware/auth.middleware', () => {
-  const authFn = (req: any, res: any, next: any) => {
+  const authFn = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const h = String(req.headers.authorization || '');
     if (!h.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -45,7 +47,7 @@ jest.mock('../../../services/mediaService', () => ({
 }));
 
 jest.mock('../../../middleware/validation.middleware', () => ({
-  validateRequest: (_req: any, _res: any, next: any) => next(),
+  validateRequest: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
 }));
 
 jest.mock('../../../validators/common.validators', () => ({

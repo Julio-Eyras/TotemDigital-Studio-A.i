@@ -4,9 +4,12 @@
  */
 
 import { Router } from 'express';
+import express from 'express';
+
 import { AIService } from '../services/aiService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -33,15 +36,14 @@ router.get('/status', authorizeRole(['admin', 'gerente_marketing']) as any, asyn
     return res.json({
       success: true,
       data: status
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao verificar status da IA', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao verificar status da IA', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -50,7 +52,7 @@ router.get('/status', authorizeRole(['admin', 'gerente_marketing']) as any, asyn
  * @desc Processa requisição de IA
  * @access Private (Admin, Manager, Client)
  */
-router.post('/process', async (req: any, res) => {
+router.post('/process', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { prompt, context, maxTokens, temperature, model, systemPrompt } = req.body;
 
@@ -68,25 +70,24 @@ router.post('/process', async (req: any, res) => {
       temperature,
       model,
       systemPrompt
-    }, req.user.id);
+    }, req.user!.id);
 
     return res.json({
       success: true,
       data: response
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao processar requisição de IA', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao processar requisição de IA', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao processar requisição de IA',
-      error: error.message
-    });
+      message: e.message || 'Erro ao processar requisição de IA',
+      error: e.message
+  });
   }
 });
 
 /** Alias FE: POST /api/ai/generate → processRequest (mesmo contrato de /process) */
-router.post('/generate', async (req: any, res) => {
+router.post('/generate', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { prompt, context, maxTokens, temperature, model, systemPrompt } = req.body;
     if (!prompt) {
@@ -94,16 +95,17 @@ router.post('/generate', async (req: any, res) => {
     }
     const response = await getAIService().processRequest(
       { prompt, context, maxTokens, temperature, model, systemPrompt },
-      req.user.id
+      req.user!.id
     );
-    return res.json({ success: true, data: response });
-  } catch (error: any) {
-    await logError('Erro ao processar requisição de IA (generate)', error);
+    return res.json({
+      success: true, data: response });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao processar requisição de IA (generate)', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao processar requisição de IA',
-      error: error.message,
-    });
+      message: e.message || 'Erro ao processar requisição de IA',
+      error: e.message,
+  });
   }
 });
 
@@ -143,7 +145,7 @@ router.get('/stats', authorizeRole(['admin', 'gerente_marketing']) as any, async
  * @desc Gera sugestões de conteúdo
  * @access Private (Admin, Manager, Client)
  */
-router.post('/suggestions', async (req: any, res) => {
+router.post('/suggestions', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { context } = req.body;
 
@@ -154,20 +156,19 @@ router.post('/suggestions', async (req: any, res) => {
       });
     }
 
-    const suggestions = await getAIService().generateContentSuggestions(context, req.user.userId);
+    const suggestions = await getAIService().generateContentSuggestions(context, req.user!.userId);
 
     return res.json({
       success: true,
       data: suggestions
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao gerar sugestões com IA', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao gerar sugestões com IA', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao gerar sugestões',
-      error: error.message
-    });
+      message: e.message || 'Erro ao gerar sugestões',
+      error: e.message
+  });
   }
 });
 
@@ -176,7 +177,7 @@ router.post('/suggestions', async (req: any, res) => {
  * @desc Analisa performance de campanha
  * @access Private (Admin, Manager, Client)
  */
-router.post('/analyze-campaign', async (req: any, res) => {
+router.post('/analyze-campaign', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { campaignData } = req.body;
 
@@ -187,20 +188,19 @@ router.post('/analyze-campaign', async (req: any, res) => {
       });
     }
 
-    const analysis = await getAIService().analyzeCampaignPerformance(campaignData, req.user.userId);
+    const analysis = await getAIService().analyzeCampaignPerformance(campaignData, req.user!.userId);
 
     return res.json({
       success: true,
       data: { analysis }
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao analisar campanha com IA', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao analisar campanha com IA', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao analisar campanha',
-      error: error.message
-    });
+      message: e.message || 'Erro ao analisar campanha',
+      error: e.message
+  });
   }
 });
 
@@ -209,7 +209,7 @@ router.post('/analyze-campaign', async (req: any, res) => {
  * @desc Gera relatório inteligente
  * @access Private (Admin, Manager, Client)
  */
-router.post('/generate-report', async (req: any, res) => {
+router.post('/generate-report', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { data } = req.body;
 
@@ -220,20 +220,19 @@ router.post('/generate-report', async (req: any, res) => {
       });
     }
 
-    const report = await getAIService().generateIntelligentReport(data, req.user.userId);
+    const report = await getAIService().generateIntelligentReport(data, req.user!.userId);
 
     return res.json({
       success: true,
       data: { report }
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao gerar relatório com IA', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao gerar relatório com IA', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao gerar relatório',
-      error: error.message
-    });
+      message: e.message || 'Erro ao gerar relatório',
+      error: e.message
+  });
   }
 });
 
@@ -242,7 +241,7 @@ router.post('/generate-report', async (req: any, res) => {
  * @desc Chat com IA para suporte
  * @access Private (Admin, Manager, Client)
  */
-router.post('/chat', async (req: any, res) => {
+router.post('/chat', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { message, conversationHistory = [] } = req.body;
 
@@ -255,7 +254,7 @@ router.post('/chat', async (req: any, res) => {
 
     // Construir contexto da conversa
     const context = conversationHistory
-      .map((msg: any) => `${msg.role}: ${msg.content}`)
+      .map((msgRaw: unknown) => { const msg = msgRaw as Record<string, unknown>; return `${msg.role}: ${msg.content}`; })
       .join('\n');
 
     const systemPrompt = `Você é um assistente especializado em digital signage. 
@@ -268,7 +267,7 @@ router.post('/chat', async (req: any, res) => {
       systemPrompt,
       maxTokens: 500,
       temperature: 0.7
-    }, req.user.id);
+    }, req.user!.id);
 
     return res.json({
       success: true,
@@ -276,15 +275,14 @@ router.post('/chat', async (req: any, res) => {
         response: response.response,
         conversationId: response.id
       }
-    });
-
-  } catch (error: any) {
-    await logError('Erro no chat com IA', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro no chat com IA', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro no chat com IA',
-      error: error.message
-    });
+      message: e.message || 'Erro no chat com IA',
+      error: e.message
+  });
   }
 });
 
@@ -293,7 +291,7 @@ router.post('/chat', async (req: any, res) => {
  * @desc Otimiza conteúdo para digital signage
  * @access Private (Admin, Manager, Client)
  */
-router.post('/optimize-content', async (req: any, res) => {
+router.post('/optimize-content', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { content, contentType, targetAudience, duration } = req.body;
 
@@ -322,20 +320,19 @@ router.post('/optimize-content', async (req: any, res) => {
       prompt,
       maxTokens: 800,
       temperature: 0.7
-    }, req.user.id);
+    }, req.user!.id);
 
     return res.json({
       success: true,
       data: { optimization: response.response }
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao otimizar conteúdo com IA', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao otimizar conteúdo com IA', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao otimizar conteúdo',
-      error: error.message
-    });
+      message: e.message || 'Erro ao otimizar conteúdo',
+      error: e.message
+  });
   }
 });
 
@@ -344,7 +341,7 @@ router.post('/optimize-content', async (req: any, res) => {
  * @desc Analisa dados de audiência
  * @access Private (Admin, Manager, Client)
  */
-router.post('/analyze-audience', async (req: any, res) => {
+router.post('/analyze-audience', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { audienceData } = req.body;
 
@@ -370,20 +367,19 @@ router.post('/analyze-audience', async (req: any, res) => {
       prompt,
       maxTokens: 1000,
       temperature: 0.6
-    }, req.user.id);
+    }, req.user!.id);
 
     return res.json({
       success: true,
       data: { analysis: response.response }
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao analisar audiência com IA', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao analisar audiência com IA', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao analisar audiência',
-      error: error.message
-    });
+      message: e.message || 'Erro ao analisar audiência',
+      error: e.message
+  });
   }
 });
 
@@ -422,15 +418,14 @@ router.get('/models', authorizeRole(['admin', 'gerente_marketing']) as any, asyn
     return res.json({
       success: true,
       data: models
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao listar modelos de IA', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao listar modelos de IA', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -439,7 +434,7 @@ router.get('/models', authorizeRole(['admin', 'gerente_marketing']) as any, asyn
  * @desc Testa conexão com IA
  * @access Private (Admin, Manager)
  */
-router.post('/test', authorizeRole(['admin', 'gerente_marketing']) as any, async (req: any, res) => {
+router.post('/test', authorizeRole(['admin', 'gerente_marketing']) as any, async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const testPrompt = 'Responda apenas "OK" se você está funcionando corretamente.';
 
@@ -458,15 +453,14 @@ router.post('/test', authorizeRole(['admin', 'gerente_marketing']) as any, async
         tokensUsed: response.tokensUsed,
         cost: response.cost
       }
-    });
-
-  } catch (error: any) {
-    await logError('Erro no teste de IA', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro no teste de IA', e.error);
     res.status(400).json({
       success: false,
-      message: error.message || 'Erro no teste de IA',
-      error: error.message
-    });
+      message: e.message || 'Erro no teste de IA',
+      error: e.message
+  });
   }
 });
 

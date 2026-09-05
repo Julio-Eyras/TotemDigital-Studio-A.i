@@ -1,6 +1,8 @@
 import express from 'express';
 import request from 'supertest';
 
+import * as express from 'express';
+
 const mockCapabilities = {
   profile: 'single_publisher' as const,
   totemDigitalCompact: true,
@@ -20,7 +22,7 @@ const mockCapabilities = {
 const mockResolveInstallationCapabilities = jest.fn().mockResolvedValue(mockCapabilities);
 
 jest.mock('../../../middleware/auth.middleware', () => ({
-  authMiddleware: (_req: any, res: any) =>
+  authMiddleware: (_req: express.Request, res: express.Response) =>
     res.status(401).json({ error: 'Unauthorized' }),
 }));
 

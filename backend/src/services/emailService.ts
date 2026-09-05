@@ -6,6 +6,7 @@
 import nodemailer from 'nodemailer';
 import { logError, logInfo, logWarn } from '../utils/loggerHelper';
 import { resolveEmailIntegrationConfig } from './financialIntegrationConfigService';
+import { normalizeError } from '../utils/errors';
 
 export interface EmailOptions {
   to: string | string[];
@@ -89,14 +90,15 @@ export class EmailService {
 
       this.transporter.verify().then(() => {
         logInfo('Email Service configurado e pronto', {}).catch(() => {});
-      }).catch((error: any) => {
-        logError('Erro ao verificar conexão SMTP', error, {}).catch(() => {});
+      }).catch((error: unknown) => {
+        const e = normalizeError(error);
+        logError('Erro ao verificar conexão SMTP', e.error, {}).catch(() => {});
         this.isEnabled = false;
       });
 
-      return true;
-    } catch (error: any) {
-      logError('Erro ao inicializar Email Service', error, {}).catch(() => {});
+      return true;} catch (error: unknown) {
+      const e = normalizeError(error);
+      logError('Erro ao inicializar Email Service', e.error, {}).catch(() => {});
       this.isEnabled = false;
       this.transporter = null;
       return false;
@@ -153,14 +155,13 @@ export class EmailService {
       return {
         success: true,
         messageId: info.messageId
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao enviar email', error, { to: options.to, subject: options.subject });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao enviar email', e.error, { to: options.to, subject: options.subject });
       return {
         success: false,
-        error: error.message
-      };
+        error: e.message
+    };
     }
   }
 
@@ -179,14 +180,13 @@ export class EmailService {
         subject: template.subject,
         html: template.html,
         text: template.text
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao enviar email de recuperação de senha', error, { to });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao enviar email de recuperação de senha', e.error, { to });
       return {
         success: false,
-        error: error.message
-      };
+        error: e.message
+    };
     }
   }
 
@@ -203,14 +203,13 @@ export class EmailService {
         subject: template.subject,
         html: template.html,
         text: template.text
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao enviar email de boas-vindas', error, { to, username });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao enviar email de boas-vindas', e.error, { to, username });
       return {
         success: false,
-        error: error.message
-      };
+        error: e.message
+    };
     }
   }
 
@@ -226,14 +225,13 @@ export class EmailService {
         subject: template.subject,
         html: template.html,
         text: template.text
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao enviar email de notificação', error, { to, notification });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao enviar email de notificação', e.error, { to, notification });
       return {
         success: false,
-        error: error.message
-      };
+        error: e.message
+    };
     }
   }
 
@@ -470,10 +468,9 @@ Smart Signage Pro - Sistema de Sinalização Digital
       }
 
       await this.transporter.verify();
-      return true;
-
-    } catch (error: any) {
-      await logError('Erro ao testar conexão SMTP', error, {});
+      return true;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao testar conexão SMTP', e.error, {});
       return false;
     }
   }

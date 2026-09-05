@@ -9,6 +9,7 @@ import { getFinancialNotificationService } from './financialNotificationService'
 import { getPlaylistEngineServiceInstance } from './playlistEngineService';
 import { logError, logInfo } from '../utils/loggerHelper';
 import type { OverdueBillingItem, OverdueBillingSummary } from '../types/billingEnforcementTypes';
+import { normalizeError } from '../utils/errors';
 
 export class BillingOverduePublishError extends Error {
   readonly code = 'BILLING_OVERDUE';
@@ -241,7 +242,7 @@ export class BillingEnforcementService {
     );
     const meta = row?.metadata;
     if (!meta || typeof meta !== 'object') return false;
-    return Boolean((meta as any).block_notified_at);
+    return Boolean((meta as unknown as Record<string, unknown>).block_notified_at);
   }
 
   private async markBlockNotificationSent(billingId: number, extra: Record<string, unknown>): Promise<void> {
@@ -275,10 +276,10 @@ export class BillingEnforcementService {
       if (!Number.isInteger(campaignId) || campaignId <= 0) continue;
       try {
         await campaignService.pauseCampaign(campaignId, SYSTEM_ENFORCEMENT_USER_ID);
-        paused += 1;
-      } catch (error: any) {
-        if (!String(error?.message || '').includes('já está inativa')) {
-          await logError('Erro ao pausar campanha por inadimplência', error, { campaignId, subscriberId });
+        paused += 1;} catch (error: unknown) {
+      const e = normalizeError(error);
+        if (!String((e.raw as { message?: string })?.message || '').includes('já está inativa')) {
+          await logError('Erro ao pausar campanha por inadimplência', e.error, { campaignId, subscriberId });
         }
       }
     }
@@ -305,8 +306,9 @@ export class BillingEnforcementService {
       try {
         await engine.generatePlaylistForTotem(totemId, undefined, true);
         count += 1;
-      } catch (error) {
-        await logError('Erro ao regenerar mix após bloqueio financeiro', error, { totemId, subscriberId });
+} catch (error: unknown) {
+        const e = normalizeError(error);
+        await logError('Erro ao regenerar mix após bloqueio financeiro', e.error, { totemId, subscriberId });
       }
     }
     return count;

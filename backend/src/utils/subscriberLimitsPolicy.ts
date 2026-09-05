@@ -22,7 +22,10 @@ export function normalizeLimitInt(raw: unknown): number | undefined {
 /**
  * Agrega uma métrica numérica entre os planos (campo em limits, ex.: storage_gb).
  */
-export function mergeNumericPlanLimit(plans: any[], jsonKey: string): PlanLimitMerge {
+export function mergeNumericPlanLimit(
+  plans: Array<Record<string, unknown> & { limits?: Record<string, unknown> }>,
+  jsonKey: string
+): PlanLimitMerge {
   let sawKey = false;
   let maxVal = -Infinity;
 

@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { logError, logInfo, logWarn } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const execAsync = promisify(exec);
 
@@ -25,10 +26,10 @@ export interface MediaConfigApplyResult {
 
 export class MediaConfigService {
   private get settingsService(): SettingsService {
-    if (!(global as any).settingsServiceInstance) {
-      (global as any).settingsServiceInstance = new SettingsService();
+    if (!(global as unknown as Record<string, unknown>).settingsServiceInstance) {
+      (global as unknown as Record<string, unknown>).settingsServiceInstance = new SettingsService();
     }
-    return (global as any).settingsServiceInstance;
+    return (global as unknown as Record<string, unknown>).settingsServiceInstance as SettingsService;
   }
 
   // Helpers de conversão (conversão para bytes e formato Express) podem ser
@@ -112,17 +113,17 @@ export class MediaConfigService {
       try {
         await execAsync('sudo nginx -t');
         await logInfo('Configuração do Nginx atualizada e validada');
-        return true;
-      } catch (error: any) {
+        return true;} catch (error: unknown) {
+      const e = normalizeError(error);
         // Restaurar backup se teste falhar
         fs.writeFileSync(nginxConfigPath, fs.readFileSync(backupPath));
-        await logError('Configuração do Nginx inválida, backup restaurado', error, { nginxConfigPath });
-        throw new Error(`Configuração do Nginx inválida: ${error.message}`);
-      }
-
-    } catch (error: any) {
-      await logError('Erro ao atualizar configuração do Nginx', error);
-      throw error;
+        await logError('Configuração do Nginx inválida, backup restaurado', e.error, { nginxConfigPath });
+        throw new Error(`Configuração do Nginx inválida: ${e.message}`);
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar configuração do Nginx', e.error);
+      throw e.error;
     }
   }
 
@@ -139,9 +140,9 @@ export class MediaConfigService {
       // Recriar instância do multer nas rotas de mídia
       // Isso será feito automaticamente na próxima requisição
       await logInfo('Configurações do Express/Multer recarregadas do banco de dados');
-      return true;
-    } catch (error: any) {
-      await logError('Erro ao recarregar configurações do Express/Multer', error);
+      return true;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao recarregar configurações do Express/Multer', e.error);
       return false;
     }
   }
@@ -178,8 +179,9 @@ export class MediaConfigService {
             maxSize: config.nginxMaxSize,
             timeout: config.timeout
           });
-        } catch (error: any) {
-          errors.push(`Nginx: ${error.message}`);
+        } catch (error: unknown) {
+          const e = normalizeError(error);
+          errors.push(`Nginx: ${e.message}`);
           changes.nginx = false;
         }
 
@@ -187,8 +189,9 @@ export class MediaConfigService {
         try {
           changes.express = await this.reloadExpressMulterConfig();
           changes.multer = changes.express; // Mesmo processo
-        } catch (error: any) {
-          errors.push(`Express/Multer: ${error.message}`);
+        } catch (error: unknown) {
+          const e = normalizeError(error);
+          errors.push(`Express/Multer: ${e.message}`);
           changes.express = false;
           changes.multer = false;
         }
@@ -200,14 +203,15 @@ export class MediaConfigService {
             await execAsync('sudo systemctl reload nginx');
             await logInfo('Nginx recarregado');
             changes.servicesRestarted = true;
-          } catch (error: any) {
-            await logWarn('Erro ao recarregar Nginx', { error: error.message });
+          } catch (error: unknown) {
+            const e = normalizeError(error);
+            await logWarn('Erro ao recarregar Nginx', { error: e.message });
             // Tentar restart completo
             try {
               await execAsync('sudo systemctl restart nginx');
               await logInfo('Nginx reiniciado');
               changes.servicesRestarted = true;
-            } catch (restartError: any) {
+            } catch (restartError: unknown) {
               errors.push('Falha ao reiniciar Nginx');
               changes.servicesRestarted = false;
             }
@@ -226,15 +230,14 @@ export class MediaConfigService {
           : 'Configurações preparadas (não aplicadas)',
         changes,
         errors: errors.length > 0 ? errors : undefined
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao aplicar configurações de mídia', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao aplicar configurações de mídia', e.error);
       return {
         success: false,
-        message: error.message || 'Erro ao aplicar configurações',
+        message: e.message || 'Erro ao aplicar configurações',
         changes: {},
-        errors: [error.message]
+        errors: [e.message]
       };
     }
   }
@@ -251,12 +254,12 @@ export class MediaConfigService {
       return {
         success: true,
         message: 'Configurações de mídia recarregadas do banco de dados'
-      };
-    } catch (error: any) {
-      await logError('Erro ao recarregar configurações de mídia', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao recarregar configurações de mídia', e.error);
       return {
         success: false,
-        message: error.message || 'Erro ao recarregar configurações'
+        message: e.message || 'Erro ao recarregar configurações'
       };
     }
   }

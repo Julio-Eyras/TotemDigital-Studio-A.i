@@ -1,18 +1,20 @@
 import express from 'express';
 import request from 'supertest';
 
+import * as express from 'express';
+
 const mockGetCampaignById = jest.fn();
 
 jest.mock('../../../middleware/operatorProtection.middleware', () => ({
-  blockClientDataAccess: (_req: any, _res: any, next: any) => next(),
+  blockClientDataAccess: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
 }));
 
 jest.mock('../../../middleware/subscriberIsolation.middleware', () => ({
-  subscriberIsolationMiddleware: (_req: any, _res: any, next: any) => next(),
+  subscriberIsolationMiddleware: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
 }));
 
 jest.mock('../../../middleware/auth.middleware', () => ({
-  authenticateToken: (req: any, res: any, next: any) => {
+  authenticateToken: (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const h = String(req.headers.authorization || '');
     if (!h.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -29,7 +31,7 @@ jest.mock('../../../middleware/auth.middleware', () => ({
     }
     next();
   },
-  authorizeRole: () => (_req: any, _res: any, next: any) => next(),
+  authorizeRole: () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
 }));
 
 jest.mock('../../../services/campaignService', () => ({
@@ -39,7 +41,7 @@ jest.mock('../../../services/campaignService', () => ({
 }));
 
 jest.mock('../../../middleware/validation.middleware', () => ({
-  validateRequest: (_req: any, _res: any, next: any) => next(),
+  validateRequest: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
 }));
 
 jest.mock('../../../validators/common.validators', () => ({

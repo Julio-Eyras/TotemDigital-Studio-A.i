@@ -37,6 +37,9 @@ import {
   Settings,
   Analytics,
   Computer,
+  Assessment,
+  SmartToy,
+  AutoAwesome,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { authApi } from '../../services/api';
@@ -89,6 +92,16 @@ const PublisherLayout: React.FC<PublisherLayoutProps> = ({ children }) => {
     if (!user?.role) {
       return [
         { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+        {
+          text: 'Dashboards',
+          icon: <Assessment />,
+          path: '/dashboards/general',
+          children: [
+            { text: 'ACE Audiência', icon: <SmartToy />, path: '/dashboards/ace' },
+            { text: 'FX SmartDisplay', icon: <AutoAwesome />, path: '/dashboards/fx' },
+            { text: 'Geral / Analytics', icon: <Analytics />, path: '/dashboards/general' },
+          ],
+        },
         { text: 'Locais', icon: <LocationOn />, path: '/locals' },
         { text: 'Totens', icon: <Computer />, path: '/totems' },
         { text: 'Smart TVs', icon: <Tv />, path: '/smart-tvs' },

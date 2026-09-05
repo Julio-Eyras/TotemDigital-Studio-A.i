@@ -5,6 +5,7 @@
 import fs from 'fs';
 import path from 'path';
 import { logError, logInfo, logWarn } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export const PURGE_CONFIRM_PHRASE = 'APAGAR DADOS COMERCIAIS DESTA INSTALAÇÃO';
 
@@ -412,7 +413,7 @@ export async function runCommercialPurge(
     if (scopes.includes('media_files') && (await tableExists(db, 'medias'))) {
       const findMany =
         db.findMany ||
-        (async () => [] as Record<string, unknown>[]);
+        (async () => [] as unknown as Record<string, unknown>[]);
       const mediaRows = await findMany.call(
         db,
         publisherId == null
@@ -474,11 +475,14 @@ export async function runCommercialPurge(
           try {
             await storage.deleteMediaFile(fp);
             filesDeleted.push(fp);
-          } catch (e: any) {
+} catch (eCatch: unknown) {
+            const e = normalizeError(eCatch);
             warnings.push(`Falha ao apagar ficheiro ${fp}: ${e?.message || e}`);
           }
         }
-      } catch (e: any) {
+ 
+} catch (eCatch: unknown) {
+   const e = normalizeError(eCatch);
         warnings.push(`StorageService indisponível: ${e?.message || e}`);
       }
     }
@@ -568,9 +572,9 @@ export async function runCommercialPurge(
       warnings,
       message: `Purge concluído. Ficheiros apagados: ${filesDeleted.length}. Export: ${exportDir}`,
       runId,
-    };
-  } catch (error: any) {
-    await logError('Falha no purge comercial', error);
+    };} catch (error: unknown) {
+      const e = normalizeError(error);
+    await logError('Falha no purge comercial', e.error);
     return {
       ...preview,
       ok: false,
@@ -579,7 +583,7 @@ export async function runCommercialPurge(
       filesDeleted,
       exportDir,
       warnings,
-      message: error?.message || 'Falha no purge comercial',
+      message: ((e.raw as { message?: string })?.message) || 'Falha no purge comercial',
     };
   }
 }
@@ -686,8 +690,9 @@ export async function tickPurgeSchedule(db: DbLike): Promise<void> {
       await db.executeRaw(
         `UPDATE installation_purge_schedules SET last_run_at = CURRENT_TIMESTAMP WHERE schedule_id = 1`
       );
-    }
-  } catch (error: any) {
-    await logError('tickPurgeSchedule falhou', error);
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+    await logError('tickPurgeSchedule falhou', e.error);
   }
 }

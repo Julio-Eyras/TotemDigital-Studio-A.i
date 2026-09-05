@@ -58,7 +58,8 @@ describe('apiResponse', () => {
       const result = paginatedResponse(items, pagination);
       expect(result.success).toBe(true);
       expect(result.data).toEqual(items);
-      expect(result.meta?.pagination).toEqual({
+      const meta = result.meta as { pagination: { page: number; limit: number; total: number; totalPages: number; hasNext: boolean; hasPrev: boolean } };
+      expect(meta.pagination).toEqual({
         page: 1,
         limit: 10,
         total: 25,
@@ -71,15 +72,17 @@ describe('apiResponse', () => {
     it('deve calcular hasNext e hasPrev corretamente', () => {
       const items: unknown[] = [];
       const result = paginatedResponse(items, { page: 2, limit: 10, total: 25 });
-      expect(result.meta?.pagination.hasNext).toBe(true);
-      expect(result.meta?.pagination.hasPrev).toBe(true);
+      const meta = result.meta as { pagination: { hasNext: boolean; hasPrev: boolean } };
+      expect(meta.pagination.hasNext).toBe(true);
+      expect(meta.pagination.hasPrev).toBe(true);
     });
 
     it('deve indicar última página', () => {
       const items = [{ id: 1 }];
       const result = paginatedResponse(items, { page: 3, limit: 10, total: 25 });
-      expect(result.meta?.pagination.hasNext).toBe(false);
-      expect(result.meta?.pagination.totalPages).toBe(3);
+      const meta = result.meta as { pagination: { hasNext: boolean; totalPages: number } };
+      expect(meta.pagination.hasNext).toBe(false);
+      expect(meta.pagination.totalPages).toBe(3);
     });
   });
 });

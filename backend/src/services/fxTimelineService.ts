@@ -1,31 +1,59 @@
 /**
  * FxTimelineService - Gerenciamento de Timelines FX
- * 
+ *
  * CRUD completo para timelines globais de efeitos FX para sites
  */
 
+import * as crypto from 'crypto';
 import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
+
+export type FxEffectType = 'fade' | 'rotate' | 'split' | 'pan' | 'zoom' | 'transition' | 'custom';
+export type FxTargetScope = 'single_totem' | 'site_all' | 'group';
+export type FxTriggerType = 'schedule' | 'dispatch' | 'ace' | 'manual' | 'mqtt';
+
+export interface FxEvent {
+  event_id?: string;
+  effect_type: FxEffectType;
+  target_scope: FxTargetScope;
+  target_ids?: string[];
+  trigger_type: FxTriggerType;
+  at_ms?: number;
+  duration_ms?: number;
+  /** Payload arbitrário (estruturado, dependendo do effect_type). */
+  payload?: Record<string, unknown>;
+  /** Identificador estável da versão do conteúdo (DispatchPlan.versionHash quando trigger=dispatch). */
+  dispatch_version_hash?: string;
+  [key: string]: unknown;
+}
 
 export interface FxTimeline {
   timeline_id: number;
   site_id: string;
   name?: string;
   version: number;
-  events: any[];
+  /**
+   * Eventos do FX timeline — schema flexível para compatibilidade retroativa com
+   * o FxOrchestrator (FxTimelineEvent camelCase legado) e com o schema
+   * estruturado FxEvent (snake_case) definido acima.
+   */
+  events: unknown[];
   generated_at: string;
   starts_at?: string;
   ends_at?: string;
   is_active: boolean;
   created_at: string;
   updated_at?: string;
+  /** Hash estável (SHA-256 16 hex) dos eventos (sem transient fields) para dedup FX. */
+  version_hash?: string;
 }
 
 export interface CreateFxTimelineRequest {
   site_id: string;
   name?: string;
   version?: number;
-  events: any[];
+  events: unknown[];
   generated_at?: string;
   starts_at?: string;
   ends_at?: string;
@@ -36,7 +64,7 @@ export interface UpdateFxTimelineRequest {
   site_id?: string;
   name?: string;
   version?: number;
-  events?: any[];
+  events?: unknown[];
   generated_at?: string;
   starts_at?: string;
   ends_at?: string;
@@ -48,6 +76,35 @@ export interface FxTimelineListResponse {
   total: number;
   page: number;
   limit: number;
+}
+
+/** Campos de evento transient que NÃO devem afetar o versionHash (datas, log, tracing). */
+const FX_EVENT_TRANSIENT_KEYS = new Set([
+  'generated_at',
+  'created_at',
+  'updated_at',
+  'event_id',
+  'trace_id',
+  'span_id',
+]);
+
+/**
+ * Gera um versionHash estável (SHA-256 truncado em 16 hex) para uma lista de eventos.
+ * — Ignora fields transient (datas, tracing) em cada evento
+ * — Ordenação é preservada (FX timeline SÍ depende da ordem dos eventos)
+ * — Suporta tanto FxEvent (snake_case novo) quanto FxTimelineEvent (camelCase legado do Orchestrator)
+ */
+export function computeFxTimelineVersionHash(events: unknown[]): string {
+  const stable = events.map((item) => {
+    if (!item || typeof item !== 'object') return JSON.stringify(item);
+    const ev = item as unknown as Record<string, unknown>;
+    const normalized: Record<string, unknown> = {};
+    const keys = Object.keys(ev).filter((k) => !FX_EVENT_TRANSIENT_KEYS.has(k)).sort();
+    for (const k of keys) normalized[k] = ev[k];
+    return JSON.stringify(normalized);
+  });
+  const payload = stable.join('|');
+  return crypto.createHash('sha256').update(payload, 'utf8').digest('hex').slice(0, 16);
 }
 
 export class FxTimelineService {
@@ -119,14 +176,16 @@ export class FxTimelineService {
       const dataResult = await this.db.findMany(dataQuery, queryParams);
 
       return {
-        data: dataResult.map(this.mapRowToTimeline),
+        data: dataResult.map((r) => this.mapRowToTimeline(r)),
         total,
         page,
         limit,
-      };
-    } catch (error: any) {
-      await logError('FxTimelineService.getAllTimelines error', error, params);
-      throw new Error(`Erro ao listar timelines: ${error.message}`);
+      };} catch (error: unknown) {
+        const e = normalizeError(error);
+
+      const message = error instanceof Error ? e.message : String(error);
+      await logError('FxTimelineService.getAllTimelines error', message, params);
+      throw new Error(`Erro ao listar timelines: ${message}`);
     }
   }
 
@@ -157,10 +216,12 @@ export class FxTimelineService {
         return null;
       }
 
-      return this.mapRowToTimeline(result);
-    } catch (error: any) {
-      await logError('FxTimelineService.getTimelineById error', error, { timelineId });
-      throw new Error(`Erro ao buscar timeline: ${error.message}`);
+      return this.mapRowToTimeline(result);} catch (error: unknown) {
+        const e = normalizeError(error);
+
+      const message = error instanceof Error ? e.message : String(error);
+      await logError('FxTimelineService.getTimelineById error', message, { timelineId });
+      throw new Error(`Erro ao buscar timeline: ${message}`);
     }
   }
 
@@ -193,10 +254,12 @@ export class FxTimelineService {
         return null;
       }
 
-      return this.mapRowToTimeline(result);
-    } catch (error: any) {
-      await logError('FxTimelineService.getActiveTimelineForSite error', error, { siteId });
-      throw new Error(`Erro ao buscar timeline ativa: ${error.message}`);
+      return this.mapRowToTimeline(result);} catch (error: unknown) {
+        const e = normalizeError(error);
+
+      const message = error instanceof Error ? e.message : String(error);
+      await logError('FxTimelineService.getActiveTimelineForSite error', message, { siteId });
+      throw new Error(`Erro ao buscar timeline ativa: ${message}`);
     }
   }
 
@@ -242,10 +305,12 @@ export class FxTimelineService {
       ];
 
       const result = await this.db.executeRaw(query, params);
-      return this.mapRowToTimeline(result.rows[0]);
-    } catch (error: any) {
-      await logError('FxTimelineService.createTimeline error', error, data);
-      throw new Error(`Erro ao criar timeline: ${error.message}`);
+      return this.mapRowToTimeline(result.rows[0]);} catch (error: unknown) {
+        const e = normalizeError(error);
+
+      const message = error instanceof Error ? e.message : String(error);
+      await logError('FxTimelineService.createTimeline error', message, data);
+      throw new Error(`Erro ao criar timeline: ${message}`);
     }
   }
 
@@ -255,7 +320,7 @@ export class FxTimelineService {
   async updateTimeline(timelineId: number, data: UpdateFxTimelineRequest): Promise<FxTimeline> {
     try {
       const updates: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
       let paramIndex = 1;
 
       if (data.site_id !== undefined) {
@@ -307,7 +372,9 @@ export class FxTimelineService {
       }
 
       if (updates.length === 0) {
-        return await this.getTimelineById(timelineId) as FxTimeline;
+        const t = await this.getTimelineById(timelineId);
+        if (!t) throw new Error(`Timeline com ID ${timelineId} não encontrada`);
+        return t;
       }
 
       updates.push(`updated_at = CURRENT_TIMESTAMP`);
@@ -337,10 +404,12 @@ export class FxTimelineService {
         throw new Error(`Timeline com ID ${timelineId} não encontrada`);
       }
 
-      return this.mapRowToTimeline(result.rows[0]);
-    } catch (error: any) {
-      await logError('FxTimelineService.updateTimeline error', error, { timelineId, data });
-      throw new Error(`Erro ao atualizar timeline: ${error.message}`);
+      return this.mapRowToTimeline(result.rows[0]);} catch (error: unknown) {
+        const e = normalizeError(error);
+
+      const message = error instanceof Error ? e.message : String(error);
+      await logError('FxTimelineService.updateTimeline error', message, { timelineId, data });
+      throw new Error(`Erro ao atualizar timeline: ${message}`);
     }
   }
 
@@ -358,31 +427,45 @@ export class FxTimelineService {
 
       if (result.rowCount === 0) {
         throw new Error(`Timeline com ID ${timelineId} não encontrada`);
-      }
-    } catch (error: any) {
-      await logError('FxTimelineService.deleteTimeline error', error, { timelineId });
-      throw new Error(`Erro ao deletar timeline: ${error.message}`);
+ 
+}} catch (error: unknown) {
+        const e = normalizeError(error);
+
+      const message = error instanceof Error ? e.message : String(error);
+      await logError('FxTimelineService.deleteTimeline error', message, { timelineId });
+      throw new Error(`Erro ao deletar timeline: ${message}`);
     }
   }
 
   /**
    * Mapear row do banco para objeto FxTimeline
    */
-  private mapRowToTimeline(row: any): FxTimeline {
+  private mapRowToTimeline(row: Record<string, unknown>): FxTimeline {
+    let events: unknown[] = [];
+    if (typeof row.events === 'string') {
+      try {
+        const parsed = JSON.parse(row.events);
+        if (Array.isArray(parsed)) events = parsed;
+      } catch {
+        events = [];
+      }
+    } else if (Array.isArray(row.events)) {
+      events = row.events;
+    }
+
     return {
-      timeline_id: row.timeline_id,
-      site_id: row.site_id,
-      name: row.name || undefined,
-      version: row.version,
-      events: typeof row.events === 'string' 
-        ? JSON.parse(row.events) 
-        : (row.events || []),
-      generated_at: row.generated_at,
-      starts_at: row.starts_at || undefined,
-      ends_at: row.ends_at || undefined,
-      is_active: row.is_active,
-      created_at: row.created_at,
-      updated_at: row.updated_at || undefined,
+      timeline_id: Number(row.timeline_id),
+      site_id: String(row.site_id),
+      name: row.name ? String(row.name) : undefined,
+      version: Number(row.version),
+      events,
+      generated_at: String(row.generated_at),
+      starts_at: row.starts_at ? String(row.starts_at) : undefined,
+      ends_at: row.ends_at ? String(row.ends_at) : undefined,
+      is_active: row.is_active === true,
+      created_at: String(row.created_at),
+      updated_at: row.updated_at ? String(row.updated_at) : undefined,
+      version_hash: computeFxTimelineVersionHash(events),
     };
   }
 }

@@ -3,7 +3,9 @@
  * Rotas para publishers (CRUD + visualização de campanhas mixadas)
  */
 
-import { Router, Response } from 'express';
+import { Router } from 'express';
+import express from 'express';
+
 import { PublisherService } from '../services/publisherService';
 import { PublisherCampaignMixService } from '../services/publisherCampaignMixService';
 import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
@@ -14,6 +16,7 @@ import { errorResponse } from '../utils/apiResponse';
 import { isDatabaseError } from '../utils/dbErrors';
 import { assertResourceMatchesPortalTenant } from '../utils/portalTenantAccess';
 import { 
+
   paginationValidators, 
   searchValidators, 
   sortValidators, 
@@ -22,6 +25,7 @@ import {
   // contractIdValidators removido - não utilizado
 } from '../validators/common.validators';
 import { isDirectTotemMode } from '../config/directTotemMode';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -30,7 +34,7 @@ router.use(authMiddleware);
 
 function rejectIfPortalTenantMismatch(
   req: AuthenticatedRequest,
-  res: Response,
+  res: express.Response,
   resource: { publisherId?: number; subscriberId?: number }
 ): boolean {
   const check = assertResourceMatchesPortalTenant(req.portalTenant, resource);
@@ -50,7 +54,7 @@ function rejectIfPortalTenantMismatch(
  * Retorna true se a resposta já foi enviada (acesso negado).
  */
 async function rejectIfHiddenInDirectTotemMode(
-  res: Response,
+  res: express.Response,
   publisherId: number
 ): Promise<boolean> {
   if (!isDirectTotemMode()) {
@@ -99,7 +103,7 @@ const createPublisherValidator = [
   // Regra do domínio: Publisher NUNCA é Subscriber/ambos. Esses campos são ignorados/removidos.
 ];
 
-const validateRequest = (req: any, res: any, next: any) => {
+const validateRequest = (req: express.Request, res: express.Response, next: express.NextFunction): express.Response | void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -121,7 +125,7 @@ router.get('/',
   ...dateRangeValidators,
   query('active_only').optional().isBoolean(),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const { 
         page = 1, 
@@ -171,9 +175,9 @@ router.get('/',
         success: true,
         ...result,
         ...(directMode ? { residual_organizations: residualOrganizations } : {}),
-      });
-    } catch (error: any) {
-      await logError('Erro ao listar publishers', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar publishers', e.error);
       return res.status(500).json(errorResponse('Erro interno do servidor'));
     }
   }
@@ -188,7 +192,7 @@ router.post('/',
   createPublisherValidator,
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       if (isDirectTotemMode()) {
         return res.status(403).json({
@@ -227,15 +231,15 @@ router.post('/',
         contract_id, // Opcional - vincula publisher ao contrato (para rastreabilidade)
       });
 
-      return res.status(201).json(newPublisher);
-    } catch (error: any) {
-      await logError('Erro ao criar publisher', error, { body: req.body });
-      const message = error?.message || 'Erro interno ao criar organização';
-      const status = isDatabaseError(error) ? 500 : 400;
+      return res.status(201).json(newPublisher);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar publisher', e.error, { body: req.body });
+      const message = e.message || 'Erro interno ao criar organização';
+      const status = isDatabaseError(e.raw) ? 500 : 400;
       return res.status(status).json({
         ...errorResponse('Erro ao criar publisher', message),
-        details: process.env.NODE_ENV !== 'production' ? (error?.detail || error?.code) : undefined,
-      });
+        details: process.env.NODE_ENV !== 'production' ? ((e.raw as { detail?: string })?.detail || e.code) : undefined,
+    });
     }
   }
 );
@@ -254,7 +258,7 @@ router.get('/:id/totems/:totemId/campaigns/mixed',
   query('time').optional().matches(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/),
   query('dayOfWeek').optional().isIn(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']),
   validateRequestMiddleware,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const publisherId = parseInt(req.params.id);
       const totemId = parseInt(req.params.totemId);
@@ -265,7 +269,7 @@ router.get('/:id/totems/:totemId/campaigns/mixed',
       }
       
       // Validar acesso
-      if (req.user.role !== 'admin' && req.user.publisherId !== publisherId) {
+      if (req.user!.role !== 'admin' && req.user!.publisherId !== publisherId) {
         return res.status(403).json({
           success: false,
           error: 'Acesso negado',
@@ -291,15 +295,15 @@ router.get('/:id/totems/:totemId/campaigns/mixed',
           publisherId,
           totemId
         }
-      });
-      
-    } catch (error: any) {
-      await logError('Erro ao obter campanhas mixadas para totem', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter campanhas mixadas para totem', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao obter campanhas mixadas',
-        message: error.message || 'Erro interno do servidor'
-      });
+        message: e.message || 'Erro interno do servidor'
+      
+    });
     }
   }
 );
@@ -318,7 +322,7 @@ router.get('/:id/campaigns/mixed',
   query('time').optional().matches(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/),
   query('dayOfWeek').optional().isIn(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']),
   validateRequestMiddleware,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       if (!req.user) {
         return res.status(401).json(errorResponse('Não autenticado'));
@@ -328,7 +332,7 @@ router.get('/:id/campaigns/mixed',
       const { totemId, date, time, dayOfWeek } = req.query;
       
       // Validar acesso: admin pode ver qualquer publisher, publisher só vê o seu
-      if (req.user.role !== 'admin' && req.user.publisherId !== publisherId) {
+      if (req.user!.role !== 'admin' && req.user!.publisherId !== publisherId) {
         return res.status(403).json({
           success: false,
           error: 'Acesso negado',
@@ -357,15 +361,15 @@ router.get('/:id/campaigns/mixed',
           total: mixedCampaigns.length,
           publisherId
         }
-      });
-      
-    } catch (error: any) {
-      await logError('Erro ao obter campanhas mixadas', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter campanhas mixadas', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao obter campanhas mixadas',
-        message: error.message || 'Erro interno do servidor'
-      });
+        message: e.message || 'Erro interno do servidor'
+      
+    });
     }
   }
 );
@@ -377,7 +381,7 @@ router.get('/:id/campaigns/mixed',
 router.get('/:id/locals',
   ...idParamValidatorDefault,
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const { id } = req.params;
       const pid = parseInt(id, 10);
@@ -385,9 +389,10 @@ router.get('/:id/locals',
         return;
       }
       const locals = await getPublisherService().getLocalsByPublisher(pid);
-      return res.json({ success: true, data: locals });
-    } catch (error: any) {
-      await logError('Erro ao listar locals do publisher', error);
+      return res.json({
+        success: true, data: locals });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar locals do publisher', e.error);
       return res.status(500).json(errorResponse('Erro interno do servidor'));
     }
   }
@@ -400,7 +405,7 @@ router.get('/:id/locals',
 router.get('/:id/totems',
   ...idParamValidatorDefault,
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const { id } = req.params;
       const pid = parseInt(id, 10);
@@ -408,9 +413,10 @@ router.get('/:id/totems',
         return;
       }
       const totems = await getPublisherService().getTotemsByPublisher(pid);
-      return res.json({ success: true, data: totems });
-    } catch (error: any) {
-      await logError('Erro ao listar totems do publisher', error);
+      return res.json({
+        success: true, data: totems });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar totems do publisher', e.error);
       return res.status(500).json(errorResponse('Erro interno do servidor'));
     }
   }
@@ -423,7 +429,7 @@ router.get('/:id/totems',
 router.get('/:id/smart-tvs',
   ...idParamValidatorDefault,
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const { id } = req.params;
       const pid = parseInt(id, 10);
@@ -431,9 +437,10 @@ router.get('/:id/smart-tvs',
         return;
       }
       const smartTvs = await getPublisherService().getSmartTvsByPublisher(pid);
-      return res.json({ success: true, data: smartTvs });
-    } catch (error: any) {
-      await logError('Erro ao listar smart TVs do publisher', error);
+      return res.json({
+        success: true, data: smartTvs });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar smart TVs do publisher', e.error);
       return res.status(500).json(errorResponse('Erro interno do servidor'));
     }
   }
@@ -446,7 +453,7 @@ router.get('/:id/smart-tvs',
 router.get('/:id/stats',
   ...idParamValidatorDefault,
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const { id } = req.params;
       const pid = parseInt(id, 10);
@@ -454,9 +461,10 @@ router.get('/:id/stats',
         return;
       }
       const stats = await getPublisherService().getPublisherStats(pid);
-      return res.json({ success: true, data: stats });
-    } catch (error: any) {
-      await logError('Erro ao obter estatísticas do publisher', error);
+      return res.json({
+        success: true, data: stats });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter estatísticas do publisher', e.error);
       return res.status(500).json(errorResponse('Erro interno do servidor'));
     }
   }
@@ -471,7 +479,7 @@ router.get('/:id/stats',
 router.get('/:id',
   ...idParamValidatorDefault,
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const { id } = req.params;
       const pid = parseInt(id, 10);
@@ -488,9 +496,10 @@ router.get('/:id',
         return res.status(404).json(errorResponse('Publisher não encontrado'));
       }
 
-      return res.json({ success: true, data: publisher });
-    } catch (error: any) {
-      await logError('Erro ao obter publisher', error);
+      return res.json({
+        success: true, data: publisher });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter publisher', e.error);
       return res.status(500).json(errorResponse('Erro interno do servidor'));
     }
   }
@@ -503,7 +512,7 @@ router.get('/:id',
 router.put('/:id',
   ...idParamValidatorDefault,
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const { id } = req.params;
       const pid = parseInt(id, 10);
@@ -529,10 +538,10 @@ router.put('/:id',
         is_active: activeValue
       });
       
-      return res.json(updatedPublisher);
-    } catch (error: any) {
-      await logError('Erro ao atualizar publisher', error);
-      return res.status(400).json(errorResponse('Erro ao atualizar publisher', error.message));
+      return res.json(updatedPublisher);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar publisher', e.error);
+      return res.status(400).json(errorResponse('Erro ao atualizar publisher', e.message));
     }
   }
 );
@@ -544,7 +553,7 @@ router.put('/:id',
 router.delete('/:id',
   ...idParamValidatorDefault,
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const { id } = req.params;
       const pid = parseInt(id, 10);
@@ -557,10 +566,11 @@ router.delete('/:id',
       
       await getPublisherService().deletePublisher(pid);
       
-      return res.json({ success: true, message: 'Publisher deletado com sucesso' });
-    } catch (error: any) {
-      await logError('Erro ao deletar publisher', error);
-      return res.status(400).json(errorResponse('Erro ao deletar publisher', error.message));
+      return res.json({
+        success: true, message: 'Publisher deletado com sucesso' });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao deletar publisher', e.error);
+      return res.status(400).json(errorResponse('Erro ao deletar publisher', e.message));
     }
   }
 );

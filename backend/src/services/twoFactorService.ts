@@ -9,6 +9,7 @@ import crypto from 'crypto';
 import { getDatabase } from '../config/database';
 import { logInfo, logError, logWarn, logDebug } from '../utils/loggerHelper';
 import { config } from '../config/env';
+import { normalizeError } from '../utils/errors';
 
 export interface TwoFactorSetup {
   secret: string;
@@ -117,10 +118,10 @@ export class TwoFactorService {
         secret: secret.base32 || '',
         qrCodeUrl,
         backupCodes,
-      };
-    } catch (error: any) {
-      await logError('Erro ao criar setup de 2FA', error, { userId });
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar setup de 2FA', e.error, { userId });
+      throw e.error;
     }
   }
 
@@ -198,9 +199,10 @@ export class TwoFactorService {
       await this.recordAttempt(userId, code, false, ipAddress, userAgent);
 
       await logWarn('Código 2FA inválido', { userId });
-      return { success: false, error: 'Código inválido' };
-    } catch (error: any) {
-      await logError('Erro ao verificar código 2FA', error, { userId });
+      return {
+        success: false, error: 'Código inválido' };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao verificar código 2FA', e.error, { userId });
       return { success: false, error: 'Erro ao verificar código' };
     }
   }
@@ -225,9 +227,10 @@ export class TwoFactorService {
       `, [userId]);
 
       await logInfo('2FA habilitado com sucesso', { userId });
-      return { success: true };
-    } catch (error: any) {
-      await logError('Erro ao habilitar 2FA', error, { userId });
+      return {
+        success: true };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao habilitar 2FA', e.error, { userId });
       return { success: false, error: 'Erro ao habilitar 2FA' };
     }
   }
@@ -244,9 +247,10 @@ export class TwoFactorService {
       `, [userId]);
 
       await logInfo('2FA desabilitado', { userId });
-      return { success: true };
-    } catch (error: any) {
-      await logError('Erro ao desabilitar 2FA', error, { userId });
+      return {
+        success: true };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao desabilitar 2FA', e.error, { userId });
       return { success: false, error: 'Erro ao desabilitar 2FA' };
     }
   }
@@ -262,9 +266,9 @@ export class TwoFactorService {
         WHERE user_id = $1
       `, [userId]);
 
-      return result?.enabled === true;
-    } catch (error: any) {
-      await logError('Erro ao verificar status 2FA', error, { userId });
+      return result?.enabled === true;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao verificar status 2FA', e.error, { userId });
       return false;
     }
   }
@@ -290,10 +294,10 @@ export class TwoFactorService {
       `, [hashedBackupCodes, userId]);
 
       await logInfo('Backup codes regenerados', { userId });
-      return backupCodes;
-    } catch (error: any) {
-      await logError('Erro ao regenerar backup codes', error, { userId });
-      throw error;
+      return backupCodes;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao regenerar backup codes', e.error, { userId });
+      throw e.error;
     }
   }
 
@@ -317,10 +321,10 @@ export class TwoFactorService {
       await this.db.executeRaw(`
         DELETE FROM two_factor_attempts
         WHERE created_at < NOW() - INTERVAL '30 days'
-      `);
-    } catch (error: any) {
+      `);} catch (error: unknown) {
+      const e = normalizeError(error);
       // Não falhar se não conseguir registrar tentativa
-      await logWarn('Erro ao registrar tentativa 2FA', { userId, error: error.message });
+      await logWarn('Erro ao registrar tentativa 2FA', { userId, error: e.message });
     }
   }
 
@@ -360,10 +364,10 @@ export class TwoFactorService {
         lastUsedAt: config.last_used_at ? new Date(config.last_used_at).toISOString() : undefined,
         backupCodesRemaining: (config.backup_codes || []).length,
         recentAttempts: parseInt(recentAttempts?.count || '0', 10),
-      };
-    } catch (error: any) {
-      await logError('Erro ao obter estatísticas 2FA', error, { userId });
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter estatísticas 2FA', e.error, { userId });
+      throw e.error;
     }
   }
 }

@@ -1,12 +1,14 @@
 import request from 'supertest';
 import express from 'express';
 
+import * as express from 'express';
+
 jest.mock('../../../middleware/auth.middleware', () => ({
-  authenticateToken: (req: any, _res: any, next: any) => {
+  authenticateToken: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
     req.user = { id: 1, role: 'admin' };
     next();
   },
-  authorizeRole: () => (_req: any, _res: any, next: any) => next(),
+  authorizeRole: () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
 }));
 
 jest.mock('../../../services/publishTemplateService', () => ({

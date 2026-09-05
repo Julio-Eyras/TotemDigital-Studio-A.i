@@ -1,10 +1,13 @@
 import { Router } from 'express';
+import express from 'express';
+
 import { body, validationResult } from 'express-validator';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { getSimplePublishService } from '../services/simplePublishService';
 import { logError } from '../utils/loggerHelper';
 import { publishGuardErrorPayload, resolvePublishGuardHttpStatus } from '../utils/publishGuardHttp';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -21,7 +24,7 @@ const SIMPLE_PUBLISH_ROLES = [
   'publisher_user',
 ] as const;
 
-const validateRequest = (req: any, res: any, next: any) => {
+const validateRequest = (req: express.Request, res: express.Response, next: express.NextFunction): express.Response | void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -47,7 +50,7 @@ function sanitizeIdList(raw: unknown): number[] {
 router.post(
   '/',
   authorizeRole([...SIMPLE_PUBLISH_ROLES]),
-  (req: any, res: any, next: any) => {
+  (req: express.Request, res: any, next: express.NextFunction) => {
     if (Array.isArray(req.body?.totemIds)) {
       req.body.totemIds = sanitizeIdList(req.body.totemIds);
     }
@@ -76,7 +79,7 @@ router.post(
   body('title').optional().isString().trim().isLength({ min: 1, max: 160 }),
   body('description').optional({ nullable: true }).isString().trim().isLength({ max: 500 }),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const result = await getSimplePublishService().publish(
         {
@@ -95,14 +98,14 @@ router.post(
         success: true,
         data: result,
         message: result.message,
-      });
-    } catch (error: any) {
-      await logError('Erro na rota simple-publish', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro na rota simple-publish', e.error);
       const payload = publishGuardErrorPayload(error);
       return res.status(resolvePublishGuardHttpStatus(error)).json({
         success: false,
         ...payload,
-      });
+    });
     }
   }
 );

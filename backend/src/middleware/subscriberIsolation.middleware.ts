@@ -6,6 +6,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from './auth.middleware';
 import { logError, logWarn } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 /**
  * Middleware que garante isolamento de dados por subscriber
@@ -57,14 +58,14 @@ export const subscriberIsolationMiddleware = async (
         }
         
         // Admin e outros roles podem passar sem restrição
-        next();
-    } catch (error: any) {
-        await logError('Erro no middleware de isolamento de subscriber', error);
+        next();} catch (error: unknown) {
+        const e = normalizeError(error);
+        await logError('Erro no middleware de isolamento de subscriber', e.error);
         res.status(500).json({
             success: false,
             error: 'Erro interno do servidor',
             message: 'Erro ao validar permissões de acesso'
-        });
+    });
     }
 };
 

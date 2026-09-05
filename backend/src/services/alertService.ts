@@ -6,6 +6,7 @@
 
 import { getDatabase } from '../config/database';
 import { logError, logWarn, logInfo } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export interface AlertRule {
   id: string;
@@ -91,9 +92,10 @@ export class AlertService {
         const alert = await this.checkRule(rule);
         if (alert) {
           alerts.push(alert);
-        }
-      } catch (error: any) {
-        await logError('Erro ao verificar regra de alerta', error, { ruleId: rule.id });
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+        await logError('Erro ao verificar regra de alerta', e.error, { ruleId: rule.id });
       }
     }
 
@@ -175,9 +177,9 @@ export class AlertService {
         },
         timestamp: new Date().toISOString(),
         acknowledged: false,
-      };
-    } catch (error: any) {
-      await logError('Erro ao verificar FPS baixo', error, { ruleId: rule.id });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao verificar FPS baixo', e.error, { ruleId: rule.id });
       return null;
     }
   }
@@ -268,9 +270,9 @@ export class AlertService {
         },
         timestamp: new Date().toISOString(),
         acknowledged: false,
-      };
-    } catch (error: any) {
-      await logError('Erro ao verificar taxa de falha', error, { ruleId: rule.id });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao verificar taxa de falha', e.error, { ruleId: rule.id });
       return null;
     }
   }
@@ -353,9 +355,10 @@ export class AlertService {
           case 'sms':
             await this.sendSMS(alert);
             break;
-        }
-      } catch (error: any) {
-        await logError('Erro ao enviar alerta', error, { alertId: alert.id, channel });
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+        await logError('Erro ao enviar alerta', e.error, { alertId: alert.id, channel });
       }
     }
   }
@@ -388,9 +391,9 @@ export class AlertService {
             SELECT email FROM users 
             WHERE role = 'admin' AND is_active = true AND email IS NOT NULL
           `);
-          recipients = admins.map((a: any) => a.email).filter((e: string) => e && e.length > 0);
-        } catch (error: any) {
-          await logWarn('Erro ao buscar admins para alertas', { error: error.message });
+          recipients = admins.map((a: any) => a.email).filter((e: string) => e && e.length > 0);} catch (error: unknown) {
+      const e = normalizeError(error);
+          await logWarn('Erro ao buscar admins para alertas', { error: e.message });
         }
       }
       
@@ -436,9 +439,10 @@ ${JSON.stringify(alert.details, null, 2)}
         });
       }
 
-      await logInfo('Alerta enviado por email', { alertId: alert.id, recipients });
-    } catch (error: any) {
-      await logError('Erro ao enviar alerta por email', error, { alertId: alert.id });
+      await logInfo('Alerta enviado por email', {
+        alertId: alert.id, recipients });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao enviar alerta por email', e.error, { alertId: alert.id });
     }
   }
 
@@ -450,7 +454,8 @@ ${JSON.stringify(alert.details, null, 2)}
       const axios = (await import('axios')).default;
       const { config } = await import('../config/env');
       
-      const slackWebhookUrl = process.env.SLACK_WEBHOOK_URL || (config as any).alerting?.slackWebhookUrl;
+      const alertingCfg = (config as unknown as Record<string, unknown>).alerting as Record<string, unknown> | undefined;
+      const slackWebhookUrl = process.env.SLACK_WEBHOOK_URL || alertingCfg?.slackWebhookUrl as string | undefined;
       
       if (!slackWebhookUrl) {
         await logWarn('Webhook do Slack não configurado', { alertId: alert.id });
@@ -485,9 +490,10 @@ ${JSON.stringify(alert.details, null, 2)}
         headers: { 'Content-Type': 'application/json' }
       });
 
-      await logInfo('Alerta enviado por Slack', { alertId: alert.id });
-    } catch (error: any) {
-      await logError('Erro ao enviar alerta por Slack', error, { alertId: alert.id });
+      await logInfo('Alerta enviado por Slack', {
+        alertId: alert.id });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao enviar alerta por Slack', e.error, { alertId: alert.id });
     }
   }
 
@@ -506,17 +512,17 @@ ${JSON.stringify(alert.details, null, 2)}
           SELECT url, secret, is_active as enabled 
           FROM webhook_configs 
           WHERE is_active = true AND events::jsonb @> $1::jsonb
-        `, [JSON.stringify(['alerts'])]);
-      } catch (error: any) {
-        // Se webhook_configs não existir ou falhar, tentar webhooks
+        `, [JSON.stringify(['alerts'])]);} catch (error: unknown) {
+// Se webhook_configs não existir ou falhar, tentar webhooks
         try {
           webhooks = await this.db.findMany(`
         SELECT url, secret, enabled 
         FROM webhooks 
         WHERE enabled = true AND channels @> $1::jsonb
       `, [JSON.stringify(['alerts'])]);
-        } catch (err: any) {
-          await logWarn('Tabela de webhooks não encontrada', { error: err.message });
+} catch (err: unknown) {
+          const e = normalizeError(err);
+          await logWarn('Tabela de webhooks não encontrada', { error: e.message });
           webhooks = [];
         }
       }
@@ -559,16 +565,18 @@ ${JSON.stringify(alert.details, null, 2)}
             timeout: 5000
           });
 
-          await logInfo('Alerta enviado por webhook', { alertId: alert.id, webhookUrl: webhook.url });
-        } catch (error: any) {
-          await logError('Erro ao enviar alerta para webhook', error, { 
+          await logInfo('Alerta enviado por webhook', {
+            alertId: alert.id, webhookUrl: webhook.url });} catch (error: unknown) {
+      const e = normalizeError(error);
+          await logError('Erro ao enviar alerta para webhook', e.error, { 
             alertId: alert.id, 
             webhookUrl: webhook.url 
           });
         }
-      }
-    } catch (error: any) {
-      await logError('Erro ao enviar alerta por webhook', error, { alertId: alert.id });
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao enviar alerta por webhook', e.error, { alertId: alert.id });
     }
   }
 
@@ -617,13 +625,15 @@ ${JSON.stringify(alert.details, null, 2)}
             }
           );
 
-          await logInfo('Alerta enviado por SMS', { alertId: alert.id, recipient });
-        } catch (error: any) {
-          await logError('Erro ao enviar alerta por SMS', error, { alertId: alert.id, recipient });
+          await logInfo('Alerta enviado por SMS', {
+            alertId: alert.id, recipient });} catch (error: unknown) {
+      const e = normalizeError(error);
+          await logError('Erro ao enviar alerta por SMS', e.error, { alertId: alert.id, recipient });
         }
-      }
-    } catch (error: any) {
-      await logError('Erro ao enviar alerta por SMS', error, { alertId: alert.id });
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao enviar alerta por SMS', e.error, { alertId: alert.id });
     }
   }
 

@@ -2,8 +2,10 @@ import express from 'express';
 import request from 'supertest';
 import { advancedScheduleService } from '../../../services/advancedScheduleService';
 
+import * as express from 'express';
+
 jest.mock('../../../middleware/auth.middleware', () => {
-  const authFn = (req: any, res: any, next: any) => {
+  const authFn = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const h = String(req.headers.authorization || '');
     if (!h.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'Unauthorized' });

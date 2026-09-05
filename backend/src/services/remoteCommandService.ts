@@ -6,11 +6,14 @@
 import { getDatabase } from '../config/database';
 import { getDatabase as getPgPool } from '../config/database-pg';
 import {
+
   ensureRemoteCommandTypesConstraint,
   isRemoteCommandTypeConstraintError,
 } from '../config/schemaCompat';
 import { logInfo, logError, logWarn, logDebug } from '../utils/loggerHelper';
 import { getEventLogService, EventType } from './eventLogService';
+import * as fsPkg from 'fs';
+import { normalizeError } from '../utils/errors';
 
 export type CommandType =
   | 'restart'
@@ -89,7 +92,7 @@ export class RemoteCommandService {
         throw new Error('Totem não encontrado');
       }
 
-      if (!(totem as any).is_active) {
+      if (!(totem as unknown as Record<string, unknown>).is_active) {
         throw new Error('Totem não está ativo');
       }
 
@@ -117,13 +120,13 @@ export class RemoteCommandService {
         totemId: request.totemId
       });
 
-      return this.mapToRemoteCommand(command);
-    } catch (error: any) {
-      await logError('Erro ao criar comando remoto', error, {
+      return this.mapToRemoteCommand(command);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar comando remoto', e.error, {
         totemId: request.totemId,
         commandType: request.commandType
       });
-      throw error;
+      throw e.error;
     }
   }
 
@@ -146,10 +149,11 @@ export class RemoteCommandService {
       );
 
     try {
-      return await runInsert();
-    } catch (error: unknown) {
+      return await runInsert();} catch (error: unknown) {
+      const e = normalizeError(error);
+
       if (!isRemoteCommandTypeConstraintError(error)) {
-        throw error;
+        throw e.error;
       }
       await logWarn('chk_remote_command_type desatualizado — aplicando compat e repetindo insert', {
         commandType: request.commandType,
@@ -201,12 +205,12 @@ export class RemoteCommandService {
         [totemId, limit]
       );
       const rows = claimed.rows || [];
-      return rows.map((cmd: any) => this.mapToRemoteCommand(cmd));
-    } catch (error: any) {
+      return rows.map((cmd: any) => this.mapToRemoteCommand(cmd));} catch (error: unknown) {
+      const e = normalizeError(error);
       // Fallback sem SKIP LOCKED (Postgres antigo / driver)
       await logWarn('claimPendingCommands com SKIP LOCKED falhou; fallback simples', {
         totemId,
-        error: error?.message,
+        error: ((e.raw as { message?: string })?.message),
       });
       const pending = await this.getPendingCommands(totemId);
       const slice = pending.slice(0, limit);
@@ -242,10 +246,10 @@ export class RemoteCommandService {
         ORDER BY created_at ASC
       `, [totemId]);
 
-      return commands.map(cmd => this.mapToRemoteCommand(cmd));
-    } catch (error: any) {
-      await logError('Erro ao obter comandos pendentes', error, { totemId });
-      throw error;
+      return commands.map(cmd => this.mapToRemoteCommand(cmd));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter comandos pendentes', e.error, { totemId });
+      throw e.error;
     }
   }
 
@@ -263,10 +267,11 @@ export class RemoteCommandService {
         WHERE command_id = $1
       `, [commandId]);
 
-      await logDebug('Comando marcado como enviado', { commandId });
-    } catch (error: any) {
-      await logError('Erro ao marcar comando como enviado', error, { commandId });
-      throw error;
+      await logDebug('Comando marcado como enviado', {
+        commandId });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao marcar comando como enviado', e.error, { commandId });
+      throw e.error;
     }
   }
 
@@ -281,10 +286,11 @@ export class RemoteCommandService {
         WHERE command_id = $1
       `, [commandId]);
 
-      await logDebug('Comando marcado como executando', { commandId });
-    } catch (error: any) {
-      await logError('Erro ao marcar comando como executando', error, { commandId });
-      throw error;
+      await logDebug('Comando marcado como executando', {
+        commandId });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao marcar comando como executando', e.error, { commandId });
+      throw e.error;
     }
   }
 
@@ -301,10 +307,11 @@ export class RemoteCommandService {
         WHERE command_id = $2
       `, [result ? JSON.stringify(result) : null, commandId]);
 
-      await logInfo('Comando marcado como completado', { commandId });
-    } catch (error: any) {
-      await logError('Erro ao marcar comando como completado', error, { commandId });
-      throw error;
+      await logInfo('Comando marcado como completado', {
+        commandId });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao marcar comando como completado', e.error, { commandId });
+      throw e.error;
     }
   }
 
@@ -321,10 +328,11 @@ export class RemoteCommandService {
         WHERE command_id = $2
       `, [errorMessage, commandId]);
 
-      await logWarn('Comando marcado como falhado', { commandId, errorMessage });
-    } catch (error: any) {
-      await logError('Erro ao marcar comando como falhado', error, { commandId });
-      throw error;
+      await logWarn('Comando marcado como falhado', {
+        commandId, errorMessage });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao marcar comando como falhado', e.error, { commandId });
+      throw e.error;
     }
   }
 
@@ -341,10 +349,10 @@ export class RemoteCommandService {
         LIMIT $2
       `, [totemId, limit]);
 
-      return commands.map(cmd => this.mapToRemoteCommand(cmd));
-    } catch (error: any) {
-      await logError('Erro ao obter histórico de comandos', error, { totemId });
-      throw error;
+      return commands.map(cmd => this.mapToRemoteCommand(cmd));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter histórico de comandos', e.error, { totemId });
+      throw e.error;
     }
   }
 
@@ -380,10 +388,10 @@ export class RemoteCommandService {
       // Retenção: mantém as 20 mais recentes por totem
       await this.pruneScreenshotsPerTotem(20).catch(() => 0);
 
-      return screenshotId;
-    } catch (error: any) {
-      await logError('Erro ao salvar screenshot', error, { totemId, filePath });
-      throw error;
+      return screenshotId;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao salvar screenshot', e.error, { totemId, filePath });
+      throw e.error;
     }
   }
 
@@ -400,10 +408,10 @@ export class RemoteCommandService {
         LIMIT $2
       `, [totemId, limit]);
 
-      return screenshots;
-    } catch (error: any) {
-      await logError('Erro ao obter screenshots', error, { totemId });
-      throw error;
+      return screenshots;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter screenshots', e.error, { totemId });
+      throw e.error;
     }
   }
 
@@ -421,11 +429,10 @@ export class RemoteCommandService {
         [String(Math.max(1, days))]
       );
       let deleted = 0;
-      const fs = await import('fs');
       for (const row of rows as Array<{ id: number; file_path: string }>) {
         try {
-          if (row.file_path && fs.existsSync(row.file_path)) {
-            await fs.promises.unlink(row.file_path);
+          if (row.file_path && fsPkg.existsSync(row.file_path)) {
+            await fsPkg.promises.unlink(row.file_path);
           }
         } catch {
           /* best-effort */
@@ -436,9 +443,9 @@ export class RemoteCommandService {
       if (deleted > 0) {
         await logInfo('Screenshots remotos antigos limpos', { deleted, days });
       }
-      return deleted;
-    } catch (error: any) {
-      await logError('Erro ao limpar screenshots antigos', error);
+      return deleted;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao limpar screenshots antigos', e.error);
       return 0;
     }
   }
@@ -460,11 +467,10 @@ export class RemoteCommandService {
         [keepPerTotem]
       );
       let deleted = 0;
-      const fs = await import('fs');
       for (const row of overflow as Array<{ id: number; file_path: string }>) {
         try {
-          if (row.file_path && fs.existsSync(row.file_path)) {
-            await fs.promises.unlink(row.file_path);
+          if (row.file_path && fsPkg.existsSync(row.file_path)) {
+            await fsPkg.promises.unlink(row.file_path);
           }
         } catch {
           /* best-effort */
@@ -472,9 +478,9 @@ export class RemoteCommandService {
         await this.db.executeRaw(`DELETE FROM remote_screenshots WHERE id = $1`, [row.id]);
         deleted += 1;
       }
-      return deleted;
-    } catch (error: any) {
-      await logError('Erro ao podar screenshots por totem', error);
+      return deleted;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao podar screenshots por totem', e.error);
       return 0;
     }
   }
@@ -496,9 +502,9 @@ export class RemoteCommandService {
         await logInfo('Comandos antigos limpos', { deletedCount });
       }
 
-      return deletedCount;
-    } catch (error: any) {
-      await logError('Erro ao limpar comandos antigos', error);
+      return deletedCount;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao limpar comandos antigos', e.error);
       return 0;
     }
   }

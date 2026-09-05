@@ -72,7 +72,7 @@ export const detectSubdomain = async (
     }
 
     next();
-  } catch (error) {
+} catch (error: unknown) {
     await logError('Erro ao resolver tenant do portal', error);
     res.status(500).json({
       error: 'Erro ao resolver tenant do portal',

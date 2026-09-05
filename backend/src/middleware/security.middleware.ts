@@ -4,7 +4,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import rateLimit from 'express-rate-limit';
 import { logWarn } from '../utils/loggerHelper';
 import { securityConfig, getEnvNumber } from '../config/env';
 
@@ -13,9 +13,14 @@ function playerRateLimitKey(req: Request): string {
   if (uin) {
     return `uin:${uin}`;
   }
-  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
-  // ipKeyGenerator evita ERR_ERL_KEY_GEN_IPV6 com IPs IPv6
-  return `ip:${ipKeyGenerator(ip)}`;
+  const ip = String(req.ip || req.socket?.remoteAddress || 'unknown-ip').trim();
+  // IPv6: normalizar removendo brackets e zonas (%num) para evitar keys gigantes
+  const normalizedIp = ip
+    .replace(/^\[/, '')
+    .replace(/\]$/, '')
+    .replace(/%.+$/, '')
+    .slice(0, 64);
+  return `ip:${normalizedIp}`;
 }
 
 /**
@@ -32,10 +37,10 @@ export const playerApiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: playerRateLimitKey,
-  handler: (_req, res, _next, options) => {
-    const retryAfterSec = Math.ceil(options.windowMs / 1000);
-    res.setHeader('Retry-After', String(retryAfterSec));
-    res.status(options.statusCode).json({
+  handler: (_request: Request, response: Response, _nextFn: NextFunction, optionsUsed: { windowMs: number; statusCode: number }) => {
+    const retryAfterSec = Math.ceil(optionsUsed.windowMs / 1000);
+    response.setHeader('Retry-After', String(retryAfterSec));
+    response.status(optionsUsed.statusCode).json({
       error: 'Muitas requisições do player. Tente novamente em alguns minutos.',
       retryAfter: retryAfterSec,
       retryAfterSeconds: retryAfterSec,
@@ -54,10 +59,10 @@ export const playerTokenLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => `${playerRateLimitKey(req)}:token`,
-  handler: (_req, res, _next, options) => {
-    const retryAfterSec = Math.ceil(options.windowMs / 1000);
-    res.setHeader('Retry-After', String(retryAfterSec));
-    res.status(options.statusCode).json({
+  handler: (_request: Request, response: Response, _nextFn: NextFunction, optionsUsed: { windowMs: number; statusCode: number }) => {
+    const retryAfterSec = Math.ceil(optionsUsed.windowMs / 1000);
+    response.setHeader('Retry-After', String(retryAfterSec));
+    response.status(optionsUsed.statusCode).json({
       error: 'Muitas solicitações de token do player. Tente novamente em alguns minutos.',
       retryAfter: retryAfterSec,
       retryAfterSeconds: retryAfterSec,
@@ -112,6 +117,60 @@ export const authLimiter = rateLimit({
   legacyHeaders: false,
   // Removido keyGenerator customizado para evitar erro ERR_ERL_KEY_GEN_IPV6
   // O rate limiter padrão já funciona bem para autenticação por IP
+});
+
+/**
+ * Rate limiter DEDICADO e mais agressivo para rotas de login (/api/auth/login e /subscriber-login).
+ * Diferencia por username + IP para evitar:
+ *   - enumerar contas (bloqueia o username atacado, não só o IP)
+ *   - um atacante em NAT bloquear todos os usuários legítimos da rede
+ */
+export const loginHardLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minuto (mais agressivo)
+  max: Math.max(getEnvNumber('LOGIN_HARD_LIMIT_MAX', 8), 5),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const body = (req.body || {}) as Record<string, unknown>;
+    const username = String(body?.username || body?.email || 'anonymous').trim().toLowerCase();
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown-ip';
+    return `login:${ip}:${username}`;
+  },
+  handler: (_request: Request, response: Response, _nextFn: NextFunction, optionsUsed: { windowMs: number; statusCode: number }) => {
+    const retryAfterSec = Math.ceil(optionsUsed.windowMs / 1000);
+    response.setHeader('Retry-After', String(retryAfterSec));
+    response.status(optionsUsed.statusCode).json({
+      error: 'Muitas tentativas de login consecutivas. Tente novamente em 1 minuto.',
+      retryAfter: retryAfterSec,
+      retryAfterSeconds: retryAfterSec,
+      hint: 'Por segurança, este limite é aplicado por combinação de usuário + IP.',
+    });
+  },
+});
+
+/**
+ * Rate limiter para recuperação de senha - mais agressivo que authLimiter padrão
+ * para evitar spam de e-mails em massa.
+ */
+export const passwordRecoveryLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hora
+  max: Math.max(getEnvNumber('PASSWORD_RECOVERY_LIMIT_MAX', 5), 3),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const body = (req.body || {}) as Record<string, unknown>;
+    const email = String(body?.email || '').trim().toLowerCase();
+    return `pwd-recovery:${email || req.ip || 'unknown'}`;
+  },
+  handler: (_request: Request, response: Response, _nextFn: NextFunction, optionsUsed: { windowMs: number; statusCode: number }) => {
+    const retryAfterSec = Math.ceil(optionsUsed.windowMs / 1000);
+    response.setHeader('Retry-After', String(retryAfterSec));
+    response.status(optionsUsed.statusCode).json({
+      error: 'Muitas solicitações de recuperação de senha. Tente novamente mais tarde.',
+      retryAfter: retryAfterSec,
+      retryAfterSeconds: retryAfterSec,
+    });
+  },
 });
 
 /**
@@ -218,7 +277,7 @@ export const validateJsonContentType = (req: Request, res: Response, next: NextF
 export const sanitizeQueryParams = (req: Request, _res: Response, next: NextFunction): void => {
   // Sanitizar parâmetros de query removendo caracteres perigosos
   if (req.query) {
-    const sanitized: any = {};
+    const sanitized: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(req.query)) {
       if (typeof value === 'string') {
         // Remover caracteres perigosos comuns em NoSQL injection
@@ -227,7 +286,7 @@ export const sanitizeQueryParams = (req: Request, _res: Response, next: NextFunc
         sanitized[key] = value;
       }
     }
-    req.query = sanitized;
+    req.query = sanitized as typeof req.query;
   }
   
   next();

@@ -54,7 +54,7 @@ export function decryptPlayerConfig(
       mac: mac || '',
       timestamp: Number.isFinite(timestamp) ? timestamp : 0,
     };
-  } catch (error) {
+} catch (error: unknown) {
     logErrorSync('Erro ao desencriptar configuração do player', error, {
       currentMacAddress,
     });

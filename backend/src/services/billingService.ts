@@ -9,6 +9,7 @@ import { AuditService } from './auditService';
 import { logError } from '../utils/loggerHelper';
 import type { PoolClient } from 'pg';
 import { addCalendarDaysYmd } from '../utils/businessDate';
+import { normalizeError } from '../utils/errors';
 
 export interface CreateBillingRequest {
   clientId: number;
@@ -23,7 +24,7 @@ export interface CreateBillingRequest {
   paymentMethod?: string;
   paymentReference?: string;
   notes?: string;
-  metadata?: any;
+  metadata?: unknown;
 }
 
 export interface UpdateBillingRequest {
@@ -35,7 +36,7 @@ export interface UpdateBillingRequest {
   paymentMethod?: string;
   paymentReference?: string;
   notes?: string;
-  metadata?: any;
+  metadata?: unknown;
 }
 
 export interface BillingResponse {
@@ -52,7 +53,7 @@ export interface BillingResponse {
   paymentMethod?: string;
   paymentReference?: string;
   notes?: string;
-  metadata?: any;
+  metadata?: unknown;
   createdAt: string;
   updatedAt: string;
   paidAt?: string;
@@ -89,7 +90,7 @@ export interface PaymentRequest {
   paymentMethod: string;
   paymentReference: string;
   notes?: string;
-  metadata?: any;
+  metadata?: unknown;
 }
 
 export interface PaymentResponse {
@@ -99,7 +100,7 @@ export interface PaymentResponse {
   paymentMethod: string;
   paymentReference: string;
   notes?: string;
-  metadata?: any;
+  metadata?: unknown;
   createdAt: string;
   status: string;
 }
@@ -121,9 +122,9 @@ export class BillingService {
         ORDER BY client_id ASC 
         LIMIT 1
       `);
-      return client;
-    } catch (error: any) {
-      await logError('❌ Erro ao buscar primeiro cliente', error);
+      return client;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('❌ Erro ao buscar primeiro cliente', e.error);
       return null;
     }
   }
@@ -154,7 +155,7 @@ export class BillingService {
     try {
       const offset = (page - 1) * limit;
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       // Aplicar filtros
       if (filters.clientId) {
@@ -250,10 +251,9 @@ export class BillingService {
         total,
         page,
         limit
-      };
-
-    } catch (error: any) {
-      await logError('❌ Erro ao buscar faturas', error, { filters });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('❌ Erro ao buscar faturas', e.error, { filters });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -297,10 +297,10 @@ export class BillingService {
       }
 
       const info = this.getBillingInfo(billing);
-      return { ...billing, ...info };
-
-    } catch (error: any) {
-      await logError('❌ Erro ao buscar fatura', error, { billingId });
+      return {
+        ...billing, ...info };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('❌ Erro ao buscar fatura', e.error, { billingId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -472,11 +472,10 @@ export class BillingService {
           })
         ]);
 
-        return newBilling;
-
-      } catch (error: any) {
-        await logError('❌ Erro ao criar fatura', error, { clientId: data.clientId, billingType: data.billingType });
-        throw error;
+        return newBilling;} catch (error: unknown) {
+        const e = normalizeError(error);
+        await logError('❌ Erro ao criar fatura', e.error, { clientId: data.clientId, billingType: data.billingType });
+        throw e.error;
       }
     });
   }
@@ -494,7 +493,7 @@ export class BillingService {
 
       // Construir query de atualização
       const updates: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (data.amount !== undefined) {
         updates.push('amount = ?');
@@ -567,11 +566,10 @@ export class BillingService {
         changes: data
       });
 
-      return updatedBilling;
-
-    } catch (error: any) {
-      await logError('❌ Erro ao atualizar fatura', error, { billingId });
-      throw error;
+      return updatedBilling;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('❌ Erro ao atualizar fatura', e.error, { billingId });
+      throw e.error;
     }
   }
 
@@ -601,11 +599,10 @@ export class BillingService {
         billingId,
         clientId: billing.clientId,
         amount: billing.amount
-      });
-
-    } catch (error: any) {
-      await logError('❌ Erro ao remover fatura', error, { billingId });
-      throw error;
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('❌ Erro ao remover fatura', e.error, { billingId });
+      throw e.error;
     }
   }
 
@@ -689,11 +686,10 @@ export class BillingService {
         paymentMethod: payment.paymentMethod
       });
 
-      return payment;
-
-    } catch (error: any) {
-      await logError('❌ Erro ao registrar pagamento', error, { billingId: paymentData.billingId, amount: paymentData.amount });
-      throw error;
+      return payment;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('❌ Erro ao registrar pagamento', e.error, { billingId: paymentData.billingId, amount: paymentData.amount });
+      throw e.error;
     }
   }
 
@@ -718,9 +714,9 @@ export class BillingService {
         ORDER BY p.payment_date DESC
       `, [billingId]);
 
-      return payments;
-    } catch (error: any) {
-      await logError('❌ Erro ao buscar pagamentos', error, { billingId });
+      return payments;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('❌ Erro ao buscar pagamentos', e.error, { billingId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -839,10 +835,9 @@ export class BillingService {
           paidBillings: paidBillingsResult?.count || 0,
           overdueBillings: overdueBillingsResult?.count || 0
         }
-      };
-
-    } catch (error: any) {
-      await logError('❌ Erro ao buscar estatísticas de faturamento', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('❌ Erro ao buscar estatísticas de faturamento', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -888,10 +883,9 @@ export class BillingService {
         return { ...billing, ...info };
       });
 
-      return billingsWithInfo;
-
-    } catch (error: any) {
-      await logError('❌ Erro ao buscar faturas vencidas', error);
+      return billingsWithInfo;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('❌ Erro ao buscar faturas vencidas', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -907,10 +901,9 @@ export class BillingService {
         WHERE status = 'pending' AND due_date < CURRENT_TIMESTAMP
       `);
 
-      return result.rowCount || 0;
-
-    } catch (error: any) {
-      await logError('❌ Erro ao marcar faturas como vencidas', error);
+      return result.rowCount || 0;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('❌ Erro ao marcar faturas como vencidas', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -957,10 +950,9 @@ export class BillingService {
         return { ...billing, ...info };
       });
 
-      return billingsWithInfo;
-
-    } catch (error: any) {
-      await logError('❌ Erro ao buscar faturas por cliente', error, { clientId, limit });
+      return billingsWithInfo;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('❌ Erro ao buscar faturas por cliente', e.error, { clientId, limit });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -968,7 +960,7 @@ export class BillingService {
   /**
    * Obtém informações da fatura
    */
-  private getBillingInfo(billing: any): {
+  private getBillingInfo(billing: { dueDate: string; status: string }): {
     isOverdue: boolean;
     daysOverdue: number;
   } {

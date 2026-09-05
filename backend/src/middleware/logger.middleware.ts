@@ -40,7 +40,7 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction): 
             userAgent: req.get('User-Agent'),
             ip: req.ip
           });
-        } catch (error) {
+} catch (error: unknown) {
           logError('Erro ao registrar auditoria no request logger', error, {
             method: req.method,
             url: req.url,

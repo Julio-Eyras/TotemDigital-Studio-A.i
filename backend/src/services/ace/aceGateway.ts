@@ -3,6 +3,7 @@ import {
   ACE_IDENTITY_FIELDS,
   ACE_STALE_MAX_SECONDS,
   AceGatewayDecision,
+  TotemAcePolicy,
 } from './aceTypes';
 
 function parseObservedAt(value: unknown): Date | null {
@@ -18,12 +19,14 @@ export function aceGatewayDecide(
     aceEnabled?: boolean;
     confidenceMin?: number;
     staleMaxSeconds?: number;
+    totemPolicy?: TotemAcePolicy;
   } = {}
 ): AceGatewayDecision {
   const now = options.now ?? new Date();
   const aceEnabled = options.aceEnabled !== false;
   const confidenceMin = options.confidenceMin ?? ACE_CONFIDENCE_MIN;
   const staleMaxSeconds = options.staleMaxSeconds ?? ACE_STALE_MAX_SECONDS;
+  const totemPolicy: TotemAcePolicy = options.totemPolicy ?? {};
 
   if (!aceEnabled) {
     return {
@@ -34,12 +37,22 @@ export function aceGatewayDecide(
     };
   }
 
+  if (totemPolicy.ace_disabled_locally === true) {
+    return {
+      status: 'refused',
+      code: 'TOTEM_PRIVACY_DISABLED',
+      errors: ['ACE desativado na política do totem (flag local de privacidade).'],
+      payload,
+    };
+  }
+
   const leaked = ACE_IDENTITY_FIELDS.filter((key) => key in payload);
   const privacy = (payload.privacy && typeof payload.privacy === 'object'
     ? payload.privacy
     : {}) as Record<string, unknown>;
   const identityDropped = privacy.identity_dropped === true;
   const imageDropped = privacy.image_dropped === true;
+  const lgpdConsentGiven = privacy.lgpd_consent_given === true;
 
   if (leaked.length > 0 || !identityDropped || !imageDropped) {
     const errors: string[] = [];
@@ -47,6 +60,15 @@ export function aceGatewayDecide(
     if (!identityDropped) errors.push('privacy.identity_dropped deve ser true');
     if (!imageDropped) errors.push('privacy.image_dropped deve ser true');
     return { status: 'refused', code: 'IDENTITY_LEAK', errors, payload };
+  }
+
+  if (totemPolicy.require_lgpd_consent === true && !lgpdConsentGiven) {
+    return {
+      status: 'refused',
+      code: 'LGPD_CONSENT_REQUIRED',
+      errors: ['privacy.lgpd_consent_given=true requerido pela política do totem (LGPD).'],
+      payload,
+    };
   }
 
   if (payload.schema !== 'ace/0.1') {
@@ -90,3 +112,4 @@ export function aceGatewayDecide(
 
   return { status: 'accepted', code: null, errors: [], payload };
 }
+

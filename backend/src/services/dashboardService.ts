@@ -1,6 +1,7 @@
 import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
 import type { TenantScope } from '../utils/tenantScope';
+import { normalizeError } from '../utils/errors';
 
 /** Visão global de anunciantes (subscribers) para o dashboard principal. */
 export interface AdvertiserOverviewStats {
@@ -144,9 +145,9 @@ export class DashboardService {
       if (scope.scopedSubscriberId != null) {
         return await this.getDashboardStatsForSubscriber(scope.scopedSubscriberId);
       }
-      return await this.getDashboardStatsGlobal();
-    } catch (error: any) {
-      await logError('Erro ao obter estatísticas do dashboard', error, {});
+      return await this.getDashboardStatsGlobal();} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter estatísticas do dashboard', e.error, {});
       throw new Error('Erro interno do servidor');
     }
   }
@@ -714,9 +715,9 @@ export class DashboardService {
 
       activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-      return activities.slice(0, limit);
-    } catch (error: any) {
-      await logError('Erro ao obter atividades recentes', error, { limit });
+      return activities.slice(0, limit);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter atividades recentes', e.error, { limit });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -806,9 +807,9 @@ export class DashboardService {
         playlistCount: parseInt(String(playlistCount?.total || '0'), 10),
         playerCount: parseInt(String(playerCount?.total || '0'), 10),
         activePlayerCount: parseInt(String(activePlayerCount?.total || '0'), 10)
-      };
-    } catch (error: any) {
-      await logError('Erro ao obter estatísticas por cliente', error, { id, view });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter estatísticas por cliente', e.error, { id, view });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -838,9 +839,9 @@ export class DashboardService {
       if (scope.scopedSubscriberId != null) {
         return await this.getUsageChartsForSubscriber(scope.scopedSubscriberId);
       }
-      return await this.getUsageChartsGlobal();
-    } catch (error: any) {
-      await logError('Erro ao obter gráficos de uso', error, {});
+      return await this.getUsageChartsGlobal();} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter gráficos de uso', e.error, {});
       throw new Error('Erro interno do servidor');
     }
   }

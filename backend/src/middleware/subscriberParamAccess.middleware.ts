@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
+import { normalizeError } from '../utils/errors';
 
 /**
  * Garante que :subscriberId na rota pertence ao tenant do usuário autenticado.
@@ -17,12 +18,12 @@ export async function assertSubscriberParamAccess(
       return;
     }
     await assertTenantClientParamAccess(req, subscriberId);
-    next();
-  } catch (error: any) {
-    const status = error?.statusCode === 403 ? 403 : 500;
+    next();} catch (error: unknown) {
+    const e = normalizeError(error);
+    const status = (e.raw as { statusCode?: number })?.statusCode === 403 ? 403 : 500;
     res.status(status).json({
       success: false,
-      error: error?.message || 'Acesso negado',
-    });
+      error: e.message || 'Acesso negado',
+  });
   }
 }

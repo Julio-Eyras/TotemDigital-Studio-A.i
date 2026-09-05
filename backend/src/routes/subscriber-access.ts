@@ -4,6 +4,7 @@
  */
 
 import { Router, Response } from 'express';
+
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { authorizeRole } from '../middleware/auth.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
@@ -15,6 +16,7 @@ import { getDatabase } from '../config/database';
 import { isStudioRuntime } from '../config/installationRuntime';
 import { resolveCompactOwnerPublisherId } from '../utils/compactOwnerPublisher';
 import { isAdminRole } from '../utils/tenantScope';
+import { normalizeError } from '../utils/errors';
 
 /** Pode consultar publishers acessíveis de qualquer anunciante (campanhas / backoffice). */
 function canInspectAnySubscriberPublisherAccess(role?: string): boolean {
@@ -70,13 +72,13 @@ router.get('/',
       return res.json({
         success: true,
         data: access
-      });
-    } catch (error: any) {
-      await logError('Erro ao listar acessos', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar acessos', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro interno do servidor'
-      });
+    });
     }
   }
 );
@@ -106,13 +108,13 @@ router.get('/plan-publisher',
       return res.json({
         success: true,
         data: access
-      });
-    } catch (error: any) {
-      await logError('Erro ao listar acesso plano → publisher', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar acesso plano → publisher', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro interno do servidor'
-      });
+    });
     }
   }
 );
@@ -136,10 +138,11 @@ router.post('/reconcile',
       } else {
         await reconcileService.reconcileAll();
         return res.json({ success: true, message: 'Reconciliação global executada' });
-      }
-    } catch (error: any) {
-      await logError('Erro ao executar reconciliação via endpoint', error);
-      return res.status(500).json({ success: false, error: error.message || 'Erro interno' });
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao executar reconciliação via endpoint', e.error);
+      return res.status(500).json({ success: false, error: e.message || 'Erro interno' });
     }
   }
 );
@@ -171,7 +174,7 @@ router.post('/plan-publisher',
       // Enfileirar reconcile para aplicar mudanças imediatamente
       try {
         await accessService.enqueueReconcile(planId, publisherId);
-      } catch (_e) {
+} catch (_e: unknown) {
         // log only, don't fail request
         await logError('Falha ao enfileirar reconcile (não crítico)', _e);
       }
@@ -187,9 +190,10 @@ router.post('/plan-publisher',
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const reconcileService = getReconcileService();
         await reconcileService.reconcilePlan(planId);
-      } catch (reconcileErr: any) {
+} catch (reconcileErr: unknown) {
+        const e = normalizeError(reconcileErr);
         // Log e continuar — não falhar a requisição por causa da reconciliação
-        await logInfo('Reconciliação do plan_publisher_access falhou (registrado)', { planId, error: reconcileErr?.message || reconcileErr });
+        await logInfo('Reconciliação do plan_publisher_access falhou (registrado)', { planId, error: e.message || reconcileErr });
       }
 
       await logInfo('Acesso plano → publisher configurado', {
@@ -202,15 +206,15 @@ router.post('/plan-publisher',
       return res.json({
         success: true,
         message: 'Acesso configurado com sucesso'
-      });
-    } catch (error: any) {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
       await logError('Erro ao configurar acesso plano → publisher', error, req.body);
-      const message = error?.message || 'Erro ao configurar acesso';
+      const message = e.message || 'Erro ao configurar acesso';
       const isFk = /foreign key|violates foreign key|plan_id|publisher_id/i.test(String(message));
       return res.status(isFk ? 404 : 400).json({
         success: false,
         error: isFk ? 'Plano ou publisher não encontrado. Verifique se o plano e o publisher existem.' : message
-      });
+    });
     }
   }
 );
@@ -231,13 +235,13 @@ router.post('/plan-publisher/reconcile',
         success: true,
         message: 'Reconciliação iniciada',
         results
-      });
-    } catch (error: any) {
-      await logError('Erro ao iniciar reconciliação', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao iniciar reconciliação', e.error);
       return res.status(500).json({
         success: false,
-        error: error.message || 'Erro ao iniciar reconciliação'
-      });
+        error: e.message || 'Erro ao iniciar reconciliação'
+    });
     }
   }
 );
@@ -270,22 +274,23 @@ router.delete('/plan-publisher/:planId/:publisherId',
         const { getReconcileService } = require('../services/reconcileService');
         const reconcileService = getReconcileService();
         await reconcileService.reconcilePlan(planId);
-      } catch (reconcileErr: any) {
-        await logInfo('Reconciliação do plan_publisher_access falhou (registrado)', { planId, error: reconcileErr?.message || reconcileErr });
+} catch (
+reconcileErr: unknown) {        const e = normalizeError(reconcileErr);
+        await logInfo('Reconciliação do plan_publisher_access falhou (registrado)', { planId, error: e.message || reconcileErr });
       }
 
       return res.json({
         success: true,
         message: 'Acesso removido com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro ao remover acesso plano → publisher', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao remover acesso plano → publisher', e.error, {
         planId: req.params.planId,
         publisherId: req.params.publisherId
-      });
+    });
       return res.status(400).json({
         success: false,
-        error: error.message || 'Erro ao remover acesso'
+        error: e.message || 'Erro ao remover acesso'
       });
     }
   }
@@ -319,11 +324,11 @@ router.get('/:subscriberId/publishers',
       return res.json({
         success: true,
         data: publishers
-      });
-    } catch (error: any) {
-      await logError('Erro ao buscar publishers acessíveis', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar publishers acessíveis', e.error, {
         subscriberId: req.params.subscriberId
-      });
+    });
       return res.status(500).json({
         success: false,
         error: 'Erro interno do servidor'
@@ -361,12 +366,12 @@ router.get('/:subscriberId/publishers/:publisherId/check',
       return res.json({
         success: true,
         hasAccess
-      });
-    } catch (error: any) {
-      await logError('Erro ao verificar acesso', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao verificar acesso', e.error, {
         subscriberId: req.params.subscriberId,
         publisherId: req.params.publisherId
-      });
+    });
       return res.status(500).json({
         success: false,
         error: 'Erro interno do servidor'
@@ -433,13 +438,13 @@ router.post('/grant',
       return res.json({
         success: true,
         data: access
-      });
-    } catch (error: any) {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
       await logError('Erro ao conceder acesso', error, req.body);
       return res.status(400).json({
         success: false,
-        error: error.message || 'Erro ao conceder acesso'
-      });
+        error: e.message || 'Erro ao conceder acesso'
+    });
     }
   }
 );
@@ -482,15 +487,15 @@ router.post('/:subscriberId/publishers/:publisherId/revoke',
       return res.json({
         success: true,
         message: 'Acesso revogado com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro ao revogar acesso', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao revogar acesso', e.error, {
         subscriberId: req.params.subscriberId,
         publisherId: req.params.publisherId
-      });
+    });
       return res.status(400).json({
         success: false,
-        error: error.message || 'Erro ao revogar acesso'
+        error: e.message || 'Erro ao revogar acesso'
       });
     }
   }
@@ -517,18 +522,21 @@ router.get('/expiring',
       });
 
       // Filtrar apenas os que expiram no período especificado
-      const filtered = expiringAccess.filter((access: any) => {
+      const filtered = expiringAccess.filter((accessRaw: unknown) => {
+        const access = accessRaw as Record<string, unknown>;
         if (!access.expires_at) return false;
-        const expiryDate = new Date(access.expires_at);
+        const expiryDate = new Date(access.expires_at as string | number | Date);
         const now = new Date();
         const daysUntilExpiry = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
         return expiryDate > now && daysUntilExpiry <= days;
       });
 
       // Ordenar por data de expiração
-      filtered.sort((a: any, b: any) => {
-        const dateA = new Date(a.expires_at).getTime();
-        const dateB = new Date(b.expires_at).getTime();
+      filtered.sort((aRaw: unknown, bRaw: unknown) => {
+        const a = aRaw as Record<string, unknown>;
+        const b = bRaw as Record<string, unknown>;
+        const dateA = new Date(a.expires_at as string | number | Date).getTime();
+        const dateB = new Date(b.expires_at as string | number | Date).getTime();
         return dateA - dateB;
       });
 
@@ -537,26 +545,29 @@ router.get('/expiring',
         data: filtered,
         summary: {
           total: filtered.length,
-          expiringIn7Days: filtered.filter((a: any) => {
-            const daysUntil = Math.ceil((new Date(a.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+          expiringIn7Days: filtered.filter((aRaw: unknown) => {
+            const a = aRaw as Record<string, unknown>;
+            const daysUntil = Math.ceil((new Date(a.expires_at as string | number | Date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
             return daysUntil <= 7;
           }).length,
-          expiringIn15Days: filtered.filter((a: any) => {
-            const daysUntil = Math.ceil((new Date(a.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+          expiringIn15Days: filtered.filter((aRaw: unknown) => {
+            const a = aRaw as Record<string, unknown>;
+            const daysUntil = Math.ceil((new Date(a.expires_at as string | number | Date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
             return daysUntil <= 15 && daysUntil > 7;
           }).length,
-          expiringIn30Days: filtered.filter((a: any) => {
-            const daysUntil = Math.ceil((new Date(a.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+          expiringIn30Days: filtered.filter((aRaw: unknown) => {
+            const a = aRaw as Record<string, unknown>;
+            const daysUntil = Math.ceil((new Date(a.expires_at as string | number | Date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
             return daysUntil <= 30 && daysUntil > 15;
           }).length,
         },
-      });
-    } catch (error: any) {
-      await logError('Erro ao listar acessos expirando', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar acessos expirando', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro interno do servidor',
-      });
+    });
     }
   }
 );

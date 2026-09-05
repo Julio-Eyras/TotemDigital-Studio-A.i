@@ -3,9 +3,11 @@
  */
 
 import { Router, Response } from 'express';
+
 import { body, param, validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole, AuthenticatedRequest } from '../middleware/auth.middleware';
 import {
+
   authorizeBillingManagement,
   authorizeBillingManagementOrPublisherSelf,
   authorizeBillingManagementOrSubscriberSelf,
@@ -13,6 +15,7 @@ import {
 import { getFinancialAdminService } from '../services/financialAdminService';
 import { logError } from '../utils/loggerHelper';
 import { StripeService } from '../services/stripeService';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 router.use(authMiddleware);
@@ -52,10 +55,11 @@ router.post(
         includeRevenueSharePayouts: req.body.includeRevenueSharePayouts === true,
         revenueShareSinceDays: req.body.revenueShareSinceDays,
       });
-      return res.json({ success: true, data });
-    } catch (error: any) {
-      await logError('Erro ao emitir faturas', error);
-      return res.status(500).json({ success: false, message: error.message || 'Erro interno' });
+      return res.json({
+        success: true, data });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao emitir faturas', e.error);
+      return res.status(500).json({ success: false, message: e.message || 'Erro interno' });
     }
   }
 );
@@ -76,10 +80,11 @@ router.post(
         publisherId: req.body.publisherId,
         sinceDays: req.body.sinceDays,
       });
-      return res.json({ success: true, data });
-    } catch (error: any) {
-      await logError('Erro ao emitir repasses revenue share', error);
-      return res.status(500).json({ success: false, message: error.message || 'Erro interno' });
+      return res.json({
+        success: true, data });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao emitir repasses revenue share', e.error);
+      return res.status(500).json({ success: false, message: e.message || 'Erro interno' });
     }
   }
 );
@@ -106,9 +111,9 @@ router.post(
         data: result.billing,
         revenueSharePayout: result.revenueSharePayout,
         message: 'Pagamento registado',
-      });
-    } catch (error: any) {
-      return res.status(400).json({ success: false, message: error.message || 'Erro ao registar pagamento' });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      return res.status(400).json({ success: false, message: e.message || 'Erro ao registar pagamento' });
     }
   }
 );
@@ -133,9 +138,10 @@ router.get(
     try {
       const billingId = parseInt(req.params.id, 10);
       const data = await getFinancialAdminService().getSubscriberPaymentQr(billingId);
-      return res.json({ success: true, data });
-    } catch (error: any) {
-      return res.status(400).json({ success: false, message: error.message || 'Erro ao gerar QR' });
+      return res.json({
+        success: true, data });} catch (error: unknown) {
+      const e = normalizeError(error);
+      return res.status(400).json({ success: false, message: e.message || 'Erro ao gerar QR' });
     }
   }
 );
@@ -152,9 +158,10 @@ router.post(
     try {
       const billingId = parseInt(req.params.id, 10);
       const result = await getFinancialAdminService().sendInvoicePaymentEmail(billingId);
-      return res.json({ success: result.sent, data: result });
-    } catch (error: any) {
-      return res.status(400).json({ success: false, message: error.message });
+      return res.json({
+        success: result.sent, data: result });} catch (error: unknown) {
+      const e = normalizeError(error);
+      return res.status(400).json({ success: false, message: e.message });
     }
   }
 );
@@ -171,9 +178,10 @@ router.post(
     try {
       const billingId = parseInt(req.params.id, 10);
       const data = await getFinancialAdminService().createStripeCheckoutForBilling(billingId);
-      return res.json({ success: true, data });
-    } catch (error: any) {
-      return res.status(400).json({ success: false, message: error.message });
+      return res.json({
+        success: true, data });} catch (error: unknown) {
+      const e = normalizeError(error);
+      return res.status(400).json({ success: false, message: e.message });
     }
   }
 );
@@ -209,9 +217,10 @@ router.post(
         ...meta,
         sessionId: session.id,
       });
-      return res.json({ success: true, billingId: meta.billingId });
-    } catch (error: any) {
-      return res.status(400).json({ success: false, message: error.message });
+      return res.json({
+        success: true, billingId: meta.billingId });} catch (error: unknown) {
+      const e = normalizeError(error);
+      return res.status(400).json({ success: false, message: e.message });
     }
   }
 );
@@ -230,9 +239,10 @@ router.post(
     try {
       const billingId = parseInt(req.params.id, 10);
       const updated = await getFinancialAdminService().recordPublisherPayment(billingId, req.body);
-      return res.json({ success: true, data: updated, message: 'Pagamento registado' });
-    } catch (error: any) {
-      return res.status(400).json({ success: false, message: error.message || 'Erro ao registar pagamento' });
+      return res.json({
+        success: true, data: updated, message: 'Pagamento registado' });} catch (error: unknown) {
+      const e = normalizeError(error);
+      return res.status(400).json({ success: false, message: e.message || 'Erro ao registar pagamento' });
     }
   }
 );
@@ -263,9 +273,10 @@ router.get(
         }
       }
       const data = await getFinancialAdminService().getPublisherPaymentQr(billingId);
-      return res.json({ success: true, data });
-    } catch (error: any) {
-      return res.status(400).json({ success: false, message: error.message || 'Erro ao gerar QR' });
+      return res.json({
+        success: true, data });} catch (error: unknown) {
+      const e = normalizeError(error);
+      return res.status(400).json({ success: false, message: e.message || 'Erro ao gerar QR' });
     }
   }
 );
@@ -279,9 +290,10 @@ router.post(
     try {
       const billingId = parseInt(req.params.id, 10);
       const result = await getFinancialAdminService().sendPublisherPaymentEmail(billingId);
-      return res.json({ success: result.sent, data: result });
-    } catch (error: any) {
-      return res.status(400).json({ success: false, message: error.message });
+      return res.json({
+        success: result.sent, data: result });} catch (error: unknown) {
+      const e = normalizeError(error);
+      return res.status(400).json({ success: false, message: e.message });
     }
   }
 );
@@ -295,9 +307,10 @@ router.post(
     try {
       const billingId = parseInt(req.params.id, 10);
       const data = await getFinancialAdminService().createStripeCheckoutForPublisherBilling(billingId);
-      return res.json({ success: true, data });
-    } catch (error: any) {
-      return res.status(400).json({ success: false, message: error.message });
+      return res.json({
+        success: true, data });} catch (error: unknown) {
+      const e = normalizeError(error);
+      return res.status(400).json({ success: false, message: e.message });
     }
   }
 );

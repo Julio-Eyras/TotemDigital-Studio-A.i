@@ -10,19 +10,19 @@ const mockSuggestCopy = jest.fn();
 const mockCheckAIStatus = jest.fn();
 
 jest.mock('../../../middleware/auth.middleware', () => ({
-  authenticateToken: (req: any, _res: any, next: any) => {
+  authenticateToken: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
     req.user = { id: 1, role: 'admin' };
     next();
   },
-  authorizeRole: () => (_req: any, _res: any, next: any) => next(),
+  authorizeRole: () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
 }));
 
 jest.mock('../../../middleware/operatorProtection.middleware', () => ({
-  blockClientDataAccess: (_req: any, _res: any, next: any) => next(),
+  blockClientDataAccess: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
 }));
 
 jest.mock('../../../middleware/subscriberParamAccess.middleware', () => ({
-  assertSubscriberParamAccess: (_req: any, _res: any, next: any) => next(),
+  assertSubscriberParamAccess: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
 }));
 
 jest.mock('../../../utils/loggerHelper', () => ({
@@ -69,6 +69,8 @@ jest.mock('../../../services/publishVideoAiQueueService', () => ({
 }));
 
 import publishBoardRoutes from '../../../routes/publish-board';
+
+import * as express from 'express';
 
 describe('publish-board routes', () => {
   let app: express.Application;

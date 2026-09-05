@@ -116,7 +116,7 @@ export async function testRedisConnection(): Promise<boolean> {
     }
     const result = await client.ping();
     return result === 'PONG';
-  } catch (error) {
+} catch (error: unknown) {
     logErrorSync('Erro ao testar conexão Redis', error, {
       host: redisConfig.host,
       port: redisConfig.port

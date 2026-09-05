@@ -4,18 +4,21 @@
  * @access Private (Admin, Admin SQL, Gerente Marketing)
  */
 
-import { Router, Response } from 'express';
+import { Router} from 'express';
+import express from 'express';
+
 import { body, query, param, validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { getFxEffectService } from '../services/fxEffectService';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
 // Middleware de autenticação para todas as rotas
 router.use(authMiddleware);
 
-const validateRequest = (req: any, res: any, next: any) => {
+const validateRequest = (req: express.Request, res: express.Response, next: express.NextFunction): express.Response | void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -39,7 +42,7 @@ router.get('/',
   query('isActive').optional().isBoolean(),
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const { page, limit, search, effect_type, isActive } = req.query;
       
@@ -51,13 +54,13 @@ router.get('/',
         isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
       });
 
-      return res.json(result);
-    } catch (error: any) {
+      return res.json(result);} catch (error: unknown) {
+      const e = normalizeError(error);
       await logError('GET /api/smartdisplayfx/effects error', error, req.query);
       return res.status(500).json({
         error: 'Erro ao listar efeitos',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );
@@ -69,16 +72,17 @@ router.get('/',
  */
 router.get('/types',
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing']),
-  async (_req: any, res: Response) => {
+  async (_req: express.Request, res: express.Response) => {
     try {
       const types = await getFxEffectService().getEffectTypes();
-      return res.json({ data: types });
-    } catch (error: any) {
-      await logError('GET /api/smartdisplayfx/effects/types error', error, {});
+      return res.json({
+        data: types });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('GET /api/smartdisplayfx/effects/types error', e.error, {});
       return res.status(500).json({
         error: 'Erro ao listar tipos de efeitos',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );
@@ -92,7 +96,7 @@ router.get('/:id',
   param('id').isInt({ min: 1 }),
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const effectId = parseInt(req.params.id);
       const effect = await getFxEffectService().getEffectById(effectId);
@@ -103,13 +107,14 @@ router.get('/:id',
         });
       }
 
-      return res.json({ data: effect });
-    } catch (error: any) {
-      await logError('GET /api/smartdisplayfx/effects/:id error', error, { id: req.params.id });
+      return res.json({
+        data: effect });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('GET /api/smartdisplayfx/effects/:id error', e.error, { id: req.params.id });
       return res.status(500).json({
         error: 'Erro ao buscar efeito',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );
@@ -128,16 +133,17 @@ router.post('/',
   body('is_active').optional({ nullable: true }).isBoolean(),
   validateRequest,
   authorizeRole(['admin', 'admin_sql']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const effect = await getFxEffectService().createEffect(req.body);
-      return res.status(201).json({ data: effect });
-    } catch (error: any) {
+      return res.status(201).json({
+        data: effect });} catch (error: unknown) {
+      const e = normalizeError(error);
       await logError('POST /api/smartdisplayfx/effects error', error, req.body);
       return res.status(500).json({
         error: 'Erro ao criar efeito',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );
@@ -157,21 +163,22 @@ router.put('/:id',
   body('is_active').optional({ nullable: true }).isBoolean(),
   validateRequest,
   authorizeRole(['admin', 'admin_sql']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const effectId = parseInt(req.params.id);
       const effect = await getFxEffectService().updateEffect(effectId, req.body);
-      return res.json({ data: effect });
-    } catch (error: any) {
-      await logError('PUT /api/smartdisplayfx/effects/:id error', error, { id: req.params.id, body: req.body });
-      if (error.message.includes('não encontrado')) {
+      return res.json({
+        data: effect });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('PUT /api/smartdisplayfx/effects/:id error', e.error, { id: req.params.id, body: req.body });
+      if (e.message.includes('não encontrado')) {
         return res.status(404).json({
-          error: error.message
-        });
+          error: e.message
+    });
       }
       return res.status(500).json({
         error: 'Erro ao atualizar efeito',
-        message: error.message
+        message: e.message
       });
     }
   }
@@ -186,21 +193,22 @@ router.delete('/:id',
   param('id').isInt({ min: 1 }),
   validateRequest,
   authorizeRole(['admin', 'admin_sql']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const effectId = parseInt(req.params.id);
       await getFxEffectService().deleteEffect(effectId);
-      return res.json({ message: 'Efeito deletado com sucesso' });
-    } catch (error: any) {
-      await logError('DELETE /api/smartdisplayfx/effects/:id error', error, { id: req.params.id });
-      if (error.message.includes('não encontrado')) {
+      return res.json({
+        message: 'Efeito deletado com sucesso' });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('DELETE /api/smartdisplayfx/effects/:id error', e.error, { id: req.params.id });
+      if (e.message.includes('não encontrado')) {
         return res.status(404).json({
-          error: error.message
-        });
+          error: e.message
+    });
       }
       return res.status(500).json({
         error: 'Erro ao deletar efeito',
-        message: error.message
+        message: e.message
       });
     }
   }

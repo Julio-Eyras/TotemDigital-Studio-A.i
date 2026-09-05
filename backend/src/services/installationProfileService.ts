@@ -32,7 +32,7 @@ function parseModuleOverrides(raw: unknown): Partial<Record<string, boolean>> | 
   }
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const out: Partial<Record<string, boolean>> = {};
-  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+  for (const [k, v] of Object.entries(value as unknown as Record<string, unknown>)) {
     if (typeof v === 'boolean') out[k] = v;
   }
   return Object.keys(out).length ? out : null;

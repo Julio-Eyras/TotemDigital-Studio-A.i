@@ -4,8 +4,10 @@
  */
 
 import { Router, Response } from 'express';
+
 import { getHealthCheckService } from '../services/healthCheckService';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -20,14 +22,14 @@ router.get('/check', async (_req, res: Response) => {
     const health = await healthCheckService.performHealthCheck();
 
     const statusCode = health.status === 'healthy' ? 200 : health.status === 'degraded' ? 200 : 503;
-    res.status(statusCode).json(health);
-  } catch (error: any) {
-    await logError('Erro ao verificar saúde do sistema', error);
+    res.status(statusCode).json(health);} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao verificar saúde do sistema', e.error);
     res.status(503).json({
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -42,13 +44,13 @@ router.get('/quick', async (_req, res: Response) => {
     const health = await healthCheckService.quickHealthCheck();
 
     const statusCode = health.status === 'healthy' ? 200 : 503;
-    res.status(statusCode).json(health);
-  } catch (error: any) {
-    await logError('Erro na verificação rápida de saúde', error);
+    res.status(statusCode).json(health);} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro na verificação rápida de saúde', e.error);
     res.status(503).json({
       status: 'unhealthy',
-      message: error.message
-    });
+      message: e.message
+  });
   }
 });
 

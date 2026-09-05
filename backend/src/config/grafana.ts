@@ -5,6 +5,7 @@
 
 import axios from 'axios';
 import dotenv from 'dotenv';
+import { normalizeError } from '../utils/errors';
 
 dotenv.config();
 
@@ -21,7 +22,7 @@ export const grafanaConfig = {
 /**
  * Executa query no Grafana
  */
-export async function executeGrafanaQuery(query: string, datasourceId?: string): Promise<any> {
+export async function executeGrafanaQuery(query: string, datasourceId?: string): Promise<Record<string, unknown>[]> {
   try {
     const url = `${grafanaConfig.url}/api/ds/query`;
     const dsId = datasourceId || grafanaConfig.datasourceId;
@@ -60,69 +61,71 @@ export async function executeGrafanaQuery(query: string, datasourceId?: string):
     const data = response.data;
     
     // Converter resposta do Grafana para formato tabular
-    return convertGrafanaResponseToTable(data);
-
-  } catch (error: any) {
-    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+    return convertGrafanaResponseToTable(data);} catch (error: unknown) {
+      const e = normalizeError(error);
+    if (e.code === 'ECONNABORTED' || e.message.includes('timeout')) {
       throw new Error('Timeout ao executar query no Grafana');
     }
-    if (error.response) {
-      throw new Error(`Grafana API error: ${error.response.status} - ${error.response.data?.message || error.response.statusText}`);
+    const rawResp = (e.raw as { response?: { status?: number; data?: { message?: string }; statusText?: string } })?.response;
+    if (rawResp) {
+      throw new Error(`Grafana API error: ${rawResp.status} - ${rawResp.data?.message || rawResp.statusText}`);
     }
-    throw new Error(`Erro ao executar query no Grafana: ${error.message}`);
+    throw new Error(`Erro ao executar query no Grafana: ${e.message}`);
   }
 }
 
 /**
  * Converte resposta do Grafana para formato tabular
  */
-function convertGrafanaResponseToTable(grafanaResponse: any): any[] {
+function convertGrafanaResponseToTable(grafanaResponse: unknown): Record<string, unknown>[] {
   try {
-    const results: any[] = [];
+    const results: Record<string, unknown>[] = [];
 
-    if (!grafanaResponse.results || !grafanaResponse.results.A) {
+    const resp = grafanaResponse as Record<string, unknown>;
+    const resultsObj = resp.results as Record<string, unknown> | undefined;
+    const resultA = resultsObj?.A as Record<string, unknown> | undefined;
+    if (!resultA) {
       return [];
     }
 
-    const result = grafanaResponse.results.A;
-    
-    if (result.frames && result.frames.length > 0) {
-      // Formato de frames (novo formato do Grafana)
-      for (const frame of result.frames) {
-        if (frame.data && frame.data.values) {
-          const columns = frame.schema?.fields?.map((f: any) => f.name) || [];
-          const values = frame.data.values;
-          
-          // Converter para formato tabular
-          for (let i = 0; i < values[0].length; i++) {
-            const row: any = {};
+    const frames = resultA.frames as Array<Record<string, unknown>> | undefined;
+    if (frames && frames.length > 0) {
+      for (const frame of frames) {
+        const frameData = frame.data as { values?: unknown[][] } | undefined;
+        if (frameData?.values) {
+          const schema = frame.schema as { fields?: Array<{ name?: string }> } | undefined;
+          const columns = schema?.fields?.map((f) => f.name ?? '') || [];
+          const values = frameData.values;
+
+          for (let i = 0; i < (values[0]?.length || 0); i++) {
+            const row: Record<string, unknown> = {};
             columns.forEach((col: string, idx: number) => {
-              row[col] = values[idx][i];
+              row[col] = values[idx]?.[i];
             });
             results.push(row);
           }
         }
       }
-    } else if (result.series && result.series.length > 0) {
-      // Formato de séries (formato antigo do Grafana)
-      for (const serie of result.series) {
-        const columns = serie.columns || [];
-        const values = serie.values || [];
-        
-        for (let i = 0; i < values.length; i++) {
-          const row: any = {};
-          columns.forEach((col: string, idx: number) => {
-            row[col] = values[i][idx];
-          });
-          results.push(row);
+    } else {
+      const series = resultA.series as Array<Record<string, unknown>> | undefined;
+      if (series && series.length > 0) {
+        for (const serie of series) {
+          const columns = (serie.columns as string[] | undefined) || [];
+          const values = (serie.values as unknown[][] | undefined) || [];
+
+          for (let i = 0; i < values.length; i++) {
+            const row: Record<string, unknown> = {};
+            columns.forEach((col: string, idx: number) => {
+              row[col] = values[i][idx];
+            });
+            results.push(row);
+          }
         }
       }
     }
 
-    return results;
-
-  } catch (error: any) {
-    const { logErrorSync } = require('../utils/loggerHelper');
+    return results;} catch (error: unknown) {
+const { logErrorSync } = require('../utils/loggerHelper');
     logErrorSync('Erro ao converter resposta do Grafana', error, {});
     return [];
   }
@@ -146,8 +149,7 @@ export async function testGrafanaConnection(): Promise<boolean> {
     });
 
     return response.status === 200;
-
-  } catch (error) {
+} catch (error: unknown) {
     const { logErrorSync } = require('../utils/loggerHelper');
     logErrorSync('Erro ao testar conexão Grafana', error, {});
     return false;

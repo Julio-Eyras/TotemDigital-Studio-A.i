@@ -1,16 +1,19 @@
-import { Router, Response } from 'express';
+import { Router} from 'express';
+
+import express from 'express';
 import * as fs from 'fs';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { exportExecutionService } from '../services/exportExecutionService';
 import { logError } from '../utils/loggerHelper';
 import { isMissingTableError } from '../utils/dbErrors';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
 router.use(authMiddleware);
 
-router.get('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
-  let filters: any = {};
+router.get('/', authorizeRole(['admin', 'admin_sql']), async (req: express.Request, res: express.Response) => {
+  let filters: Record<string, unknown> = {};
   try {
     const {
       scheduleId,
@@ -43,25 +46,25 @@ router.get('/', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Res
         page: result.page,
         limit: result.limit
       }
-    });
-  } catch (error: any) {
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
     if (isMissingTableError(error)) {
       return res.json({
         success: true,
         data: [],
         pagination: { total: 0, page: 1, limit: filters?.limit || 10 }
-      });
+  });
     }
-    await logError('Erro ao listar execuções de exportação', error, { filters: req.query });
+    await logError('Erro ao listar execuções de exportação', e.error, { filters: req.query });
     return res.status(500).json({
       success: false,
       message: 'Erro ao listar execuções',
-      error: error.message
+      error: e.message
     });
   }
 });
 
-router.get('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
+router.get('/:id', authorizeRole(['admin', 'admin_sql']), async (req: express.Request, res: express.Response) => {
   try {
     const executionId = parseInt(req.params.id, 10);
 
@@ -84,18 +87,18 @@ router.get('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res: 
     return res.json({
       success: true,
       data: execution
-    });
-  } catch (error: any) {
-    await logError('Erro ao buscar execução de exportação', error, { executionId: req.params.id });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar execução de exportação', e.error, { executionId: req.params.id });
     return res.status(500).json({
       success: false,
       message: 'Erro ao buscar execução',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
-router.get('/:id/download', authorizeRole(['admin', 'admin_sql']), async (req: any, res: Response) => {
+router.get('/:id/download', authorizeRole(['admin', 'admin_sql']), async (req: express.Request, res: express.Response) => {
   try {
     const executionId = parseInt(req.params.id, 10);
 
@@ -122,14 +125,14 @@ router.get('/:id/download', authorizeRole(['admin', 'admin_sql']), async (req: a
       });
     }
 
-      return res.download(fileInfo.filePath, fileInfo.fileName);
-  } catch (error: any) {
-    await logError('Erro ao baixar arquivo de execução', error, { executionId: req.params.id });
+      return res.download(fileInfo.filePath, fileInfo.fileName);} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao baixar arquivo de execução', e.error, { executionId: req.params.id });
     return res.status(500).json({
       success: false,
       message: 'Erro ao baixar arquivo de execução',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 

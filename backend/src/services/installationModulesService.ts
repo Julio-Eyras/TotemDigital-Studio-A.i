@@ -1,4 +1,5 @@
 import {
+
   INSTALLATION_MODULE_CATALOG,
   InstallationModuleFlags,
   InstallationModuleId,
@@ -21,6 +22,7 @@ import {
 } from './installationProfileService';
 import { resolveInstallationSimpleTotemMode } from './totemSimpleModeService';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export const INSTALLATION_MODULES_SETTING_KEY = 'installation.modules';
 export const INSTALLATION_PROFILE_SETTING_KEY = 'installation.profile';
@@ -44,7 +46,7 @@ function parseModuleOverrides(raw: unknown): Partial<Record<string, boolean>> | 
   }
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const out: Partial<Record<string, boolean>> = {};
-  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+  for (const [k, v] of Object.entries(value as unknown as Record<string, unknown>)) {
     if (typeof v === 'boolean') out[k] = v;
   }
   return Object.keys(out).length ? out : null;
@@ -89,8 +91,9 @@ export async function loadInstallationModuleOverrides(
       [INSTALLATION_MODULES_SETTING_KEY]
     );
     return parseModuleOverrides(row?.setting_value);
-  } catch (error) {
-    await logError('Erro ao ler installation.modules', error);
+} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao ler installation.modules', e.error);
     return null;
   }
 }
@@ -123,8 +126,9 @@ export async function getInstallationModulesAdminView(db: DbLike): Promise<{
       const healed = healStaleMultiAgencyLiteModules(capabilities.modules);
       await persistModulesFlags(db, healed);
       capabilities = buildInstallationCapabilities(profile, simpleTotemMode, healed);
-    } catch (error) {
-      await logError('Falha ao persistir heal do preset multi-lite', error);
+} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Falha ao persistir heal do preset multi-lite', e.error);
     }
   }
 
@@ -251,10 +255,11 @@ async function applyWorkersHotReload(db: DbLike): Promise<{ ok: boolean; error?:
       Boolean(config.redis?.enabled),
       'Hot-reload workers'
     );
-    return { ok: result?.ok === true, error: result?.error };
-  } catch (error: any) {
-    await logError('Hot-reload de workers falhou', error);
-    return { ok: false, error: error?.message || 'Falha no hot-reload' };
+    return {
+      ok: result?.ok === true, error: result?.error };} catch (error: unknown) {
+      const e = normalizeError(error);
+    await logError('Hot-reload de workers falhou', e.error);
+    return { ok: false, error: ((e.raw as { message?: string })?.message) || 'Falha no hot-reload' };
   }
 }
 
@@ -311,8 +316,9 @@ export async function ensureSystemOwnerPublisherIfEmpty(db: DbLike): Promise<{
       publisherId,
       detail: `Organização owner «${name}» criada (publisher_id=${publisherId ?? '?'}).`,
     };
-  } catch (error) {
-    await logError('Falha ao criar organização owner no bootstrap multi-agência', error);
+} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Falha ao criar organização owner no bootstrap multi-agência', e.error);
     return { created: false, detail: 'Falha ao criar organização owner — crie manualmente.' };
   }
 }
@@ -485,12 +491,14 @@ export async function ensureDemoSecondAgencyIfNeeded(db: DbLike): Promise<{
                 [subscriberId, pubId]
               );
             }
-          } catch (spaErr) {
+ 
+} catch (spaErr: unknown) {
             await logError('Seed SPA demo falhou', spaErr, { subscriberId, pubId });
           }
         }
       }
-    } catch (subErr) {
+ 
+} catch (subErr: unknown) {
       await logError('Seed anunciante demo falhou (agência já criada)', subErr);
     }
 
@@ -500,10 +508,12 @@ export async function ensureDemoSecondAgencyIfNeeded(db: DbLike): Promise<{
       subscriberId,
       detail: `2ª agência «${agencyName}» (slug=${agencySlug}, id=${publisherId ?? '?'})${
         subscriberId ? ` + anunciante demo id=${subscriberId}` : ''
-      }.`,
+      }  const e = normalizeError(error);
+.`,
     };
-  } catch (error) {
-    await logError('Falha ao criar 2ª agência demo', error);
+} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Falha ao criar 2ª agência demo', e.error);
     return { created: false, detail: 'Falha ao criar 2ª agência demo — crie manualmente.' };
   }
 }

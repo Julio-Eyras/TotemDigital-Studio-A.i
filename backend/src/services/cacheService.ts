@@ -6,6 +6,7 @@
 
 import { getRedisClient } from '../config/redis';
 import { logError, logDebug } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export interface CacheOptions {
   ttl?: number; // Time to live em segundos
@@ -40,9 +41,10 @@ export class CacheService {
         return JSON.parse(value) as T;
       } catch {
         return value as T;
-      }
-    } catch (error: any) {
-      await logError('CacheService.get error', error, { key });
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('CacheService.get error', e.error, { key });
       return null;
     }
   }
@@ -50,7 +52,7 @@ export class CacheService {
   /**
    * Define valor no cache
    */
-  async set(key: string, value: any, ttl?: number): Promise<boolean> {
+  async set(key: string, value: unknown, ttl?: number): Promise<boolean> {
     try {
       if (!this.redis) {
         return false;
@@ -64,9 +66,9 @@ export class CacheService {
         await this.redis.set(key, serialized);
       }
 
-      return true;
-    } catch (error: any) {
-      await logError('CacheService.set error', error, { key });
+      return true;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('CacheService.set error', e.error, { key });
       return false;
     }
   }
@@ -81,9 +83,9 @@ export class CacheService {
       }
 
       await this.redis.del(key);
-      return true;
-    } catch (error: any) {
-      await logError('CacheService.delete error', error, { key });
+      return true;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('CacheService.delete error', e.error, { key });
       return false;
     }
   }
@@ -103,9 +105,9 @@ export class CacheService {
       }
 
       await this.redis.del(...keys);
-      return keys.length;
-    } catch (error: any) {
-      await logError('CacheService.deletePattern error', error, { pattern });
+      return keys.length;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('CacheService.deletePattern error', e.error, { pattern });
       return 0;
     }
   }
@@ -130,9 +132,9 @@ export class CacheService {
       await logDebug('Cache miss', { key });
       const value = await fetcher();
       await this.set(key, value, ttl);
-      return value;
-    } catch (error: any) {
-      await logError('CacheService.getOrSet error', error, { key });
+      return value;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('CacheService.getOrSet error', e.error, { key });
       // Em caso de erro no cache, retornar valor direto
       return await fetcher();
     }
@@ -155,9 +157,10 @@ export class CacheService {
 
       for (const pattern of patterns) {
         await this.deletePattern(pattern);
-      }
-    } catch (error: any) {
-      await logError('CacheService.invalidateEntity error', error, { entityType, entityId });
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('CacheService.invalidateEntity error', e.error, { entityType, entityId });
     }
   }
 

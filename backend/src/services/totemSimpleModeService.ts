@@ -22,12 +22,12 @@ function parseBooleanSetting(value: unknown): boolean | undefined {
 function parseCapabilities(raw: unknown): Record<string, unknown> | null {
   if (!raw) return null;
   if (typeof raw === 'object' && !Array.isArray(raw)) {
-    return raw as Record<string, unknown>;
+    return raw as unknown as Record<string, unknown>;
   }
   if (typeof raw === 'string') {
     try {
       const parsed = JSON.parse(raw);
-      return typeof parsed === 'object' && parsed ? (parsed as Record<string, unknown>) : null;
+      return typeof parsed === 'object' && parsed ? (parsed as unknown as Record<string, unknown>) : null;
     } catch {
       return null;
     }

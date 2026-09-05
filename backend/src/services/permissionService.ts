@@ -1,5 +1,6 @@
 import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export interface Permission {
   permission_id: number;
@@ -99,10 +100,10 @@ export class PermissionService {
         total,
         page,
         limit
-      };
-    } catch (error: any) {
-      await logError('Erro ao listar permissions', error);
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar permissions', e.error);
+      throw e.error;
     }
   }
 
@@ -126,10 +127,10 @@ export class PermissionService {
         action: permission.action,
         description: permission.description,
         created_at: permission.created_at
-      };
-    } catch (error: any) {
-      await logError('Erro ao buscar permission', error, { permissionId });
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar permission', e.error, { permissionId });
+      throw e.error;
     }
   }
 
@@ -153,10 +154,10 @@ export class PermissionService {
         action: permission.action,
         description: permission.description,
         created_at: permission.created_at
-      };
-    } catch (error: any) {
-      await logError('Erro ao buscar permission por nome', error, { name });
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar permission por nome', e.error, { name });
+      throw e.error;
     }
   }
 
@@ -187,10 +188,10 @@ export class PermissionService {
         throw new Error('Erro ao buscar permission criada');
       }
 
-      return newPermission;
-    } catch (error: any) {
-      await logError('Erro ao criar permission', error, { data });
-      throw error;
+      return newPermission;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar permission', e.error, { data });
+      throw e.error;
     }
   }
 
@@ -213,7 +214,7 @@ export class PermissionService {
       }
 
       const updates: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (data.name !== undefined) {
         updates.push('name = ?');
@@ -252,10 +253,10 @@ export class PermissionService {
         throw new Error('Erro ao buscar permission atualizada');
       }
 
-      return updated;
-    } catch (error: any) {
-      await logError('Erro ao atualizar permission', error, { permissionId, data });
-      throw error;
+      return updated;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar permission', e.error, { permissionId, data });
+      throw e.error;
     }
   }
 
@@ -283,10 +284,10 @@ export class PermissionService {
       await this.db.executeRaw(`
         DELETE FROM permissions
         WHERE permission_id = ?
-      `, [permissionId]);
-    } catch (error: any) {
-      await logError('Erro ao deletar permission', error, { permissionId });
-      throw error;
+      `, [permissionId]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao deletar permission', e.error, { permissionId });
+      throw e.error;
     }
   }
 
@@ -301,10 +302,10 @@ export class PermissionService {
         ORDER BY resource
       `);
 
-      return resources.map((r: any) => r.resource);
-    } catch (error: any) {
-      await logError('Erro ao buscar recursos', error);
-      throw error;
+      return resources.map((r: any) => r.resource);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar recursos', e.error);
+      throw e.error;
     }
   }
 
@@ -319,10 +320,10 @@ export class PermissionService {
         ORDER BY action
       `);
 
-      return actions.map((a: any) => a.action);
-    } catch (error: any) {
-      await logError('Erro ao buscar ações', error);
-      throw error;
+      return actions.map((a: any) => a.action);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar ações', e.error);
+      throw e.error;
     }
   }
 }

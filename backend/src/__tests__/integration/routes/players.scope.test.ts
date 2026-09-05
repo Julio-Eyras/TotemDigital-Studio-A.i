@@ -8,7 +8,7 @@ const mockAssignPlaylist = jest.fn();
 const mockGetPlayerStatus = jest.fn();
 
 jest.mock('../../../middleware/auth.middleware', () => {
-  const authFn = (req: any, res: any, next: any) => {
+  const authFn = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const h = String(req.headers.authorization || '');
     if (!h.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -28,7 +28,7 @@ jest.mock('../../../middleware/auth.middleware', () => {
   return {
     authMiddleware: authFn,
     authenticateToken: authFn,
-    authorizeRole: () => (_req: any, _res: any, next: any) => next(),
+    authorizeRole: () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
   };
 });
 
@@ -52,10 +52,12 @@ jest.mock('../../../utils/loggerHelper', () => ({
 
 import { assertTotemReadAccess } from '../../../utils/totemReadAccess';
 
+import * as express from 'express';
+
 const minimalPlayer = { id: 5, name: 'P', totem_id: 5 };
 
 function totem403() {
-  const e: any = new Error('Acesso negado');
+  const e: Error & { statusCode?: number; code?: string } = new Error('Acesso negado');
   e.statusCode = 403;
   return Promise.reject(e);
 }

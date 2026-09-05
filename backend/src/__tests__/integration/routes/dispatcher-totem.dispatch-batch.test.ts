@@ -1,10 +1,12 @@
 import express from 'express';
 import request from 'supertest';
 
+import * as express from 'express';
+
 const mockDispatchBatch = jest.fn();
 
 jest.mock('../../../middleware/auth.middleware', () => {
-  const authFn = (req: any, res: any, next: any) => {
+  const authFn = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const h = String(req.headers.authorization || '');
     if (!h.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -12,7 +14,7 @@ jest.mock('../../../middleware/auth.middleware', () => {
     req.user = { id: 1, role: 'admin' };
     next();
   };
-  return { authMiddleware: authFn, authenticateToken: authFn, authorizeRole: () => (_req: any, _res: any, next: any) => next() };
+  return { authMiddleware: authFn, authenticateToken: authFn, authorizeRole: () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next() };
 });
 
 jest.mock('../../../utils/loggerHelper', () => ({

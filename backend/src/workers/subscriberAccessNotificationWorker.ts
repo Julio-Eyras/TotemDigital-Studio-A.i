@@ -6,6 +6,7 @@
 import cron from 'node-cron';
 import { getSubscriberAccessNotificationServiceInstance } from '../services/subscriberAccessNotificationService';
 import { logInfo, logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export class SubscriberAccessNotificationWorker {
   private notificationService = getSubscriberAccessNotificationServiceInstance();
@@ -25,9 +26,9 @@ export class SubscriberAccessNotificationWorker {
       try {
         await logInfo('Iniciando verificação de acessos expirando (múltiplos períodos)', {});
         const result = await this.notificationService.checkAndNotifyAllPeriods([7, 15, 30]);
-        await logInfo('Verificação de acessos expirando (múltiplos períodos) concluída', result);
-      } catch (error: any) {
-        await logError('Erro no worker de notificações de acesso expirando', error);
+        await logInfo('Verificação de acessos expirando (múltiplos períodos) concluída', result);} catch (error: unknown) {
+        const e = normalizeError(error);
+        await logError('Erro no worker de notificações de acesso expirando', e.error);
       }
     });
 
@@ -36,9 +37,9 @@ export class SubscriberAccessNotificationWorker {
       try {
         await logInfo('Iniciando verificação de acessos expirados', {});
         const result = await this.notificationService.checkAndNotifyExpiredAccess();
-        await logInfo('Verificação de acessos expirados concluída', result);
-      } catch (error: any) {
-        await logError('Erro no worker de notificações de acesso expirado', error);
+        await logInfo('Verificação de acessos expirados concluída', result);} catch (error: unknown) {
+        const e = normalizeError(error);
+        await logError('Erro no worker de notificações de acesso expirado', e.error);
       }
     });
 

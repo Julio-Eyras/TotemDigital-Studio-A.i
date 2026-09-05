@@ -1,5 +1,6 @@
 import { getDatabase } from '../config/database';
 import { logError, logInfo } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export class ReconcileService {
   private get db() {
@@ -19,17 +20,17 @@ export class ReconcileService {
         LIMIT $1
       `, [limit]);
 
-      const results: any[] = [];
+      const results: unknown[] = [];
       for (const j of jobs) {
         const r = await this.db.findFirst(`SELECT execute_reconcile_job($1) as result`, [j.job_id]);
         results.push(r?.result || null);
       }
 
       await logInfo('Reconcile: processed pending jobs', { count: results.length });
-      return results;
-    } catch (error: any) {
-      await logError('Reconcile: error processing jobs', error);
-      throw error;
+      return results;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Reconcile: error processing jobs', e.error);
+      throw e.error;
     }
   }
 
@@ -52,16 +53,16 @@ export class ReconcileService {
         LIMIT $2
       `, [planId, limit]);
 
-      const results: any[] = [];
+      const results: unknown[] = [];
       for (const j of jobs) {
         const r = await this.db.findFirst(`SELECT execute_reconcile_job($1) as result`, [j.job_id]);
         results.push(r?.result || null);
       }
       await logInfo('Reconcile: processed plan jobs', { planId, count: results.length });
-      return results;
-    } catch (error: any) {
-      await logError('Reconcile: error processing plan jobs', error, { planId });
-      throw error;
+      return results;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Reconcile: error processing plan jobs', e.error, { planId });
+      throw e.error;
     }
   }
 

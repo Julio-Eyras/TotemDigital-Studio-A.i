@@ -3,11 +3,14 @@
  * Rotas para gerenciamento de logs e rotação
  */
 
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
+import express from 'express';
+
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { LogRotationService } from '../services/logRotationService';
 import { reloadLogger } from '../config/logger';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 const logRotationService = new LogRotationService();
@@ -19,7 +22,7 @@ const logRotationService = new LogRotationService();
  * 
  * Esta rota deve estar ANTES do middleware de autenticação
  */
-router.post('/frontend-error', async (req: Request, res: Response) => {
+router.post('/frontend-error', async (req: express.Request, res: express.Response) => {
   try {
     const { error, errorInfo, context } = req.body;
 
@@ -53,8 +56,7 @@ router.post('/frontend-error', async (req: Request, res: Response) => {
       success: true,
       message: 'Erro registrado com sucesso'
     });
-  } catch (logErr: any) {
-    // Não falhar se o logging falhar - tentar logar usando logger helper
+} catch (logErr: unknown) {    // Não falhar se o logging falhar - tentar logar usando logger helper
     await logError('Erro ao registrar erro do frontend', logErr, { route: '/api/logs/frontend-error' }).catch(() => {
       // Se até o logger falhar, ignorar silenciosamente
     });
@@ -73,7 +75,7 @@ router.use(authenticateToken);
  * @desc Obter configurações de logs
  * @access Private (Admin)
  */
-router.get('/config', authorizeRole(['admin']), async (_req: Request, res: Response) => {
+router.get('/config', authorizeRole(['admin']), async (_req: express.Request, res: express.Response) => {
   try {
     const config = await logRotationService.getConfig();
     
@@ -84,14 +86,14 @@ router.get('/config', authorizeRole(['admin']), async (_req: Request, res: Respo
         maxSizeFormatted: formatSize(config.maxSize),
         minFreeSpaceFormatted: formatSize(config.minFreeSpace)
       }
-    });
-  } catch (error: any) {
-    await logError('Erro ao obter configurações de logs', error, { route: '/api/logs/config' });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao obter configurações de logs', e.error, { route: '/api/logs/config' });
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -100,7 +102,7 @@ router.get('/config', authorizeRole(['admin']), async (_req: Request, res: Respo
  * @desc Listar arquivos de log
  * @access Private (Admin)
  */
-router.get('/files', authorizeRole(['admin']), async (_req: Request, res: Response) => {
+router.get('/files', authorizeRole(['admin']), async (_req: express.Request, res: express.Response) => {
   try {
     const config = await logRotationService.getConfig();
     const files = await logRotationService.listLogFiles(config.logDirectory);
@@ -112,14 +114,14 @@ router.get('/files', authorizeRole(['admin']), async (_req: Request, res: Respon
         sizeFormatted: formatSize(file.size),
         age: Math.floor((Date.now() - file.modified.getTime()) / (24 * 60 * 60 * 1000))
       }))
-    });
-  } catch (error: any) {
-    await logError('Erro ao listar arquivos de log', error, { route: '/api/logs/files' });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao listar arquivos de log', e.error, { route: '/api/logs/files' });
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -128,7 +130,7 @@ router.get('/files', authorizeRole(['admin']), async (_req: Request, res: Respon
  * @desc Obter informações de espaço em disco
  * @access Private (Admin)
  */
-router.get('/disk-space', authorizeRole(['admin']), async (_req: Request, res: Response) => {
+router.get('/disk-space', authorizeRole(['admin']), async (_req: express.Request, res: express.Response) => {
   try {
     const config = await logRotationService.getConfig();
     const diskSpace = await logRotationService.getDiskSpace(config.logDirectory);
@@ -142,14 +144,14 @@ router.get('/disk-space', authorizeRole(['admin']), async (_req: Request, res: R
         usedFormatted: formatSize(diskSpace.used),
         percentFree: (100 - diskSpace.percentUsed).toFixed(2)
       }
-    });
-  } catch (error: any) {
-    await logError('Erro ao obter espaço em disco', error, { route: '/api/logs/disk-space' });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao obter espaço em disco', e.error, { route: '/api/logs/disk-space' });
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -158,21 +160,21 @@ router.get('/disk-space', authorizeRole(['admin']), async (_req: Request, res: R
  * @desc Verificar status de rotação de logs
  * @access Private (Admin)
  */
-router.get('/rotation-status', authorizeRole(['admin']), async (_req: Request, res: Response) => {
+router.get('/rotation-status', authorizeRole(['admin']), async (_req: express.Request, res: express.Response) => {
   try {
     const rotationCheck = await logRotationService.checkRotation();
     
     return res.json({
       success: true,
       data: rotationCheck
-    });
-  } catch (error: any) {
-    await logError('Erro ao verificar rotação de logs', error, { route: '/api/logs/rotation-status' });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao verificar rotação de logs', e.error, { route: '/api/logs/rotation-status' });
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -181,7 +183,7 @@ router.get('/rotation-status', authorizeRole(['admin']), async (_req: Request, r
  * @desc Rotacionar logs manualmente
  * @access Private (Admin)
  */
-router.post('/rotate', authorizeRole(['admin']), async (_req: Request, res: Response) => {
+router.post('/rotate', authorizeRole(['admin']), async (_req: express.Request, res: express.Response) => {
   try {
     const result = await logRotationService.rotateLogs();
     
@@ -191,14 +193,14 @@ router.post('/rotate', authorizeRole(['admin']), async (_req: Request, res: Resp
         ? `Logs rotacionados: ${result.filesRotated} arquivos rotacionados, ${result.filesDeleted} arquivos excluídos`
         : 'Erro ao rotacionar logs',
       data: result
-    });
-  } catch (error: any) {
-    await logError('Erro ao rotacionar logs', error, { route: '/api/logs/rotate' });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao rotacionar logs', e.error, { route: '/api/logs/rotate' });
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -207,21 +209,21 @@ router.post('/rotate', authorizeRole(['admin']), async (_req: Request, res: Resp
  * @desc Recarregar configurações do logger
  * @access Private (Admin)
  */
-router.post('/reload', authorizeRole(['admin']), async (_req: Request, res: Response) => {
+router.post('/reload', authorizeRole(['admin']), async (_req: express.Request, res: express.Response) => {
   try {
     await reloadLogger();
     
     return res.json({
       success: true,
       message: 'Configurações do logger recarregadas com sucesso'
-    });
-  } catch (error: any) {
-    await logError('Erro ao recarregar logger', error, { route: '/api/logs/reload' });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao recarregar logger', e.error, { route: '/api/logs/reload' });
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 

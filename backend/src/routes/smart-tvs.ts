@@ -3,13 +3,16 @@
  * Rotas para gerenciamento de Smart TVs (controladas pelos totens)
  */
 
-import { Router, Response } from 'express';
+import { Router } from 'express';
+import express from 'express';
+
 import { getSmartTvService } from '../services/smartTvService';
 import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
 import { requireFlag } from '../middleware/flagAuth.middleware';
 import { param, query, body, validationResult } from 'express-validator';
 import { logError } from '../utils/loggerHelper';
 import { successResponse, errorResponse } from '../utils/apiResponse';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -51,7 +54,7 @@ const updateSmartTvValidator = [
   body('is_active').optional({ nullable: true }).isBoolean(),
 ];
 
-const validateRequest = (req: any, res: any, next: any) => {
+const validateRequest = (req: express.Request, res: express.Response, next: express.NextFunction): express.Response | void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -78,7 +81,7 @@ router.get('/',
   query('publisherId').optional().isInt({ min: 1 }),
   query('active_only').optional().isBoolean(),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       // NOVO: Verificar permissões baseado em userType, role e publisherId/subscriberId
       const userType = req.user?.userType;
@@ -116,10 +119,10 @@ router.get('/',
         active_only: active_only === 'true' || active_only === undefined,
       }, requestPublisherId, isAdmin);
       
-      return res.json(result);
-    } catch (error: any) {
-      await logError('Erro ao listar Smart TVs', error);
-      return res.status(500).json(errorResponse('Erro interno do servidor', error.message));
+      return res.json(result);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar Smart TVs', e.error);
+      return res.status(500).json(errorResponse('Erro interno do servidor', e.message));
     }
   }
 );
@@ -133,7 +136,7 @@ router.get('/totem/:totemId',
   requireFlag('flag_smart_0'),
   param('totemId').isInt({ min: 1 }),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const { totemId } = req.params;
       
@@ -142,13 +145,13 @@ router.get('/totem/:totemId',
 
       const smartTvs = await getSmartTvService().getSmartTvsByTotem(parseInt(totemId), requestPublisherId, isAdmin);
       
-      return res.json(successResponse(smartTvs));
-    } catch (error: any) {
-      await logError('Erro ao listar Smart TVs do totem', error);
-      if (error.message.includes('Acesso negado')) {
-        return res.status(403).json(errorResponse(error.message || 'Acesso negado'));
-      }
-      return res.status(500).json(errorResponse('Erro interno do servidor', error.message));
+      return res.json(successResponse(smartTvs));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar Smart TVs do totem', e.error);
+      if (e.message.includes('Acesso negado')) {
+        return res.status(403).json(errorResponse(e.message || 'Acesso negado'));
+    }
+      return res.status(500).json(errorResponse('Erro interno do servidor', e.message));
     }
   }
 );
@@ -162,7 +165,7 @@ router.get('/:id',
   requireFlag('flag_smart_0'),
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const { id } = req.params;
       
@@ -175,13 +178,13 @@ router.get('/:id',
         return res.status(404).json(errorResponse('Smart TV não encontrada'));
       }
 
-      return res.json(successResponse(smartTv));
-    } catch (error: any) {
-      await logError('Erro ao obter Smart TV', error);
-      if (error.message.includes('Acesso negado')) {
-        return res.status(403).json(errorResponse(error.message || 'Acesso negado'));
-      }
-      return res.status(500).json(errorResponse('Erro interno do servidor', error.message));
+      return res.json(successResponse(smartTv));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter Smart TV', e.error);
+      if (e.message.includes('Acesso negado')) {
+        return res.status(403).json(errorResponse(e.message || 'Acesso negado'));
+    }
+      return res.status(500).json(errorResponse('Erro interno do servidor', e.message));
     }
   }
 );
@@ -195,7 +198,7 @@ router.post('/',
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
   createSmartTvValidator,
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const { totem_id, contract_id, identifier, device_id, name, brand, model, platform, firmware_version, resolution_width, resolution_height, orientation, capabilities, settings } = req.body;
       
@@ -203,7 +206,7 @@ router.post('/',
         return res.status(401).json(errorResponse('Usuário não autenticado'));
       }
 
-      const isAdmin = req.user.role === 'admin' || req.user.role === 'owner_system' || req.user.role === 'admin_sql';
+      const isAdmin = req.user!.role === 'admin' || req.user!.role === 'owner_system' || req.user!.role === 'admin_sql';
       const requestPublisherId = req.user?.publisherId || undefined;
 
       const newSmartTv = await getSmartTvService().createSmartTv({
@@ -221,15 +224,15 @@ router.post('/',
         orientation,
         capabilities,
         settings,
-      }, req.user.id, requestPublisherId, isAdmin);
+      }, req.user!.id, requestPublisherId, isAdmin);
       
-      return res.status(201).json(successResponse(newSmartTv));
-    } catch (error: any) {
-      await logError('Erro ao criar Smart TV', error);
-      if (error.message.includes('Acesso negado')) {
-        return res.status(403).json(errorResponse(error.message || 'Acesso negado'));
-      }
-      return res.status(400).json(errorResponse('Erro na operação', error.message));
+      return res.status(201).json(successResponse(newSmartTv));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar Smart TV', e.error);
+      if (e.message.includes('Acesso negado')) {
+        return res.status(403).json(errorResponse(e.message || 'Acesso negado'));
+    }
+      return res.status(400).json(errorResponse('Erro na operação', e.message));
     }
   }
 );
@@ -245,7 +248,7 @@ router.put('/:id',
   param('id').isInt({ min: 1 }),
   updateSmartTvValidator,
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const { id } = req.params;
       const { identifier, device_id, name, brand, model, platform, firmware_version, resolution_width, resolution_height, orientation, status, capabilities, settings, is_active } = req.body;
@@ -254,7 +257,7 @@ router.put('/:id',
         return res.status(401).json(errorResponse('Usuário não autenticado'));
       }
 
-      const isAdmin = req.user.role === 'admin' || req.user.role === 'owner_system' || req.user.role === 'admin_sql';
+      const isAdmin = req.user!.role === 'admin' || req.user!.role === 'owner_system' || req.user!.role === 'admin_sql';
       const requestPublisherId = req.user?.publisherId || undefined;
 
       const updatedSmartTv = await getSmartTvService().updateSmartTv(
@@ -275,18 +278,18 @@ router.put('/:id',
           settings,
           is_active,
         },
-        req.user.id,
+        req.user!.id,
         requestPublisherId,
         isAdmin
       );
       
-      return res.json(successResponse(updatedSmartTv));
-    } catch (error: any) {
-      await logError('Erro ao atualizar Smart TV', error);
-      if (error.message.includes('Acesso negado')) {
-        return res.status(403).json(errorResponse(error.message || 'Acesso negado'));
-      }
-      return res.status(400).json(errorResponse('Erro na operação', error.message));
+      return res.json(successResponse(updatedSmartTv));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar Smart TV', e.error);
+      if (e.message.includes('Acesso negado')) {
+        return res.status(403).json(errorResponse(e.message || 'Acesso negado'));
+    }
+      return res.status(400).json(errorResponse('Erro na operação', e.message));
     }
   }
 );
@@ -301,7 +304,7 @@ router.delete('/:id',
   authorizeRole(['admin', 'owner_system', 'admin_sql']),
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const { id } = req.params;
       
@@ -309,18 +312,19 @@ router.delete('/:id',
         return res.status(401).json(errorResponse('Usuário não autenticado'));
       }
 
-      const isAdmin = req.user.role === 'admin' || req.user.role === 'owner_system' || req.user.role === 'admin_sql';
+      const isAdmin = req.user!.role === 'admin' || req.user!.role === 'owner_system' || req.user!.role === 'admin_sql';
       const requestPublisherId = req.user?.publisherId || undefined;
 
-      await getSmartTvService().deleteSmartTv(parseInt(id), req.user.id, requestPublisherId, isAdmin);
+      await getSmartTvService().deleteSmartTv(parseInt(id), req.user!.id, requestPublisherId, isAdmin);
       
-      return res.json(successResponse({ message: 'Smart TV deletada com sucesso' }));
-    } catch (error: any) {
-      await logError('Erro ao deletar Smart TV', error);
-      if (error.message.includes('Acesso negado')) {
-        return res.status(403).json(errorResponse(error.message || 'Acesso negado'));
-      }
-      return res.status(400).json(errorResponse('Erro na operação', error.message));
+      return res.json(successResponse({
+        message: 'Smart TV deletada com sucesso' }));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao deletar Smart TV', e.error);
+      if (e.message.includes('Acesso negado')) {
+        return res.status(403).json(errorResponse(e.message || 'Acesso negado'));
+    }
+      return res.status(400).json(errorResponse('Erro na operação', e.message));
     }
   }
 );

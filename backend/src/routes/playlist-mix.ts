@@ -3,12 +3,14 @@
  */
 
 import { Router, Response } from 'express';
+
 import { getTotemPlaylistMixService } from '../services/totemPlaylistMixService';
 import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
 import { body, param, query } from 'express-validator';
 import { logError } from '../utils/loggerHelper';
 import { getDatabase } from '../config/database';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -57,7 +59,7 @@ router.get('/rules',
         WHERE 1=1
       `;
       
-      const params: any[] = [];
+      const params: unknown[] = [];
       
       if (totemId) {
         query += ` AND (totem_id = $${params.length + 1} OR totem_id IS NULL)`;
@@ -71,13 +73,13 @@ router.get('/rules',
       return res.json({
         success: true,
         data: rules
-      });
-    } catch (error: any) {
-      await logError('Erro ao listar regras de mixagem', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar regras de mixagem', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao listar regras de mixagem'
-      });
+    });
     }
   }
 );
@@ -109,13 +111,13 @@ router.get('/rules/:id',
       return res.json({
         success: true,
         data: rule
-      });
-    } catch (error: any) {
-      await logError('Erro ao obter regra de mixagem', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter regra de mixagem', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao obter regra de mixagem'
-      });
+    });
     }
   }
 );
@@ -256,14 +258,14 @@ router.post('/rules',
         data: rule,
         message: 'Regra de mixagem criada com sucesso',
         warnings: validation.warnings.length > 0 ? validation.warnings : undefined,
-      });
-    } catch (error: any) {
-      await logError('Erro ao criar regra de mixagem', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar regra de mixagem', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao criar regra de mixagem',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );
@@ -327,7 +329,7 @@ router.put('/rules/:id',
       }
 
       const updates: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
       let paramIndex = 1;
       
       const allowedFields = [
@@ -383,14 +385,14 @@ router.put('/rules/:id',
         data: rule,
         message: 'Regra atualizada com sucesso',
         warnings: validation.warnings.length > 0 ? validation.warnings : undefined,
-      });
-    } catch (error: any) {
-      await logError('Erro ao atualizar regra de mixagem', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar regra de mixagem', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao atualizar regra de mixagem',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );
@@ -412,13 +414,13 @@ router.get('/context/:totemId',
       return res.json({
         success: true,
         data: context
-      });
-    } catch (error: any) {
-      await logError('Erro ao obter contexto de IA', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter contexto de IA', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao obter contexto de IA'
-      });
+    });
     }
   }
 );
@@ -468,14 +470,14 @@ router.post('/context/:totemId',
         success: true,
         data: updated,
         message: 'Contexto de IA atualizado com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro ao atualizar contexto de IA', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar contexto de IA', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao atualizar contexto de IA',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );
@@ -527,14 +529,14 @@ router.put('/context/:totemId',
           success: true,
           data: updated,
           message: 'Contexto de IA atualizado com sucesso'
-        });
-      } catch (error: any) {
-        await logError('Erro ao atualizar contexto de IA', error);
+        });} catch (error: unknown) {
+        const e = normalizeError(error);
+        await logError('Erro ao atualizar contexto de IA', e.error);
         return res.status(500).json({
           success: false,
           error: 'Erro ao atualizar contexto de IA',
-          message: error.message
-        });
+          message: e.message
+      });
       }
     })();
   }
@@ -582,14 +584,14 @@ router.delete('/rules/:id',
       return res.json({
         success: true,
         message: 'Regra deletada com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro ao deletar regra de mixagem', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao deletar regra de mixagem', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao deletar regra de mixagem',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );
@@ -612,7 +614,7 @@ router.get('/history',
       const db = getDatabase();
       
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
       let paramIndex = 1;
       
       if (totemId) {
@@ -672,13 +674,13 @@ router.get('/history',
           limit: parseInt(limit as string),
           total: parseInt(totalResult?.total || '0')
         }
-      });
-    } catch (error: any) {
-      await logError('Erro ao obter histórico de mixagens', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter histórico de mixagens', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao obter histórico de mixagens'
-      });
+    });
     }
   }
 );
@@ -697,7 +699,7 @@ router.get('/overview',
       const { publisherId, localId } = req.query;
       const db = getDatabase();
 
-      const params: any[] = [];
+      const params: unknown[] = [];
       let whereClause = 'WHERE t.is_active = true';
 
       if (publisherId) {
@@ -805,7 +807,7 @@ router.get('/overview',
         group.total_totems += 1;
         group.total_tvs += Number(t.tv_count || 0);
 
-        let mixItems: any[] = [];
+        let mixItems: unknown[] = [];
         let mixTotalDuration = 0;
         let mixTotalItems = 0;
 
@@ -821,7 +823,7 @@ router.get('/overview',
           }
           mixTotalItems = mix.total_items || mixItems.length;
           mixTotalDuration = mix.total_duration || mixItems.reduce(
-            (sum: number, it: any) => sum + (it.duration || 10),
+            (sum: number, itRaw: unknown) => { const it = itRaw as Record<string, unknown>; return sum + (Number(it.duration) || 10); },
             0
           );
         }
@@ -838,7 +840,8 @@ router.get('/overview',
         });
 
         // Agregar campanhas por grupo
-        for (const item of mixItems) {
+        for (const itemRaw of mixItems) {
+          const item = itemRaw as Record<string, unknown>;
           const campaignId = Number(item.campaign_id);
           if (!campaignId) continue;
           const duration = Number(item.duration || 10);
@@ -874,14 +877,14 @@ router.get('/overview',
       return res.json({
         success: true,
         data: Array.from(groupsMap.values()),
-      });
-    } catch (error: any) {
-      await logError('Erro ao obter overview de mixagem', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter overview de mixagem', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao obter overview de mixagem',
-        message: error.message,
-      });
+        message: e.message,
+    });
     }
   }
 );
@@ -903,7 +906,7 @@ router.get('/analytics',
       const db = getDatabase();
       
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
       let paramIndex = 1;
 
       if (totemId) {
@@ -1020,48 +1023,56 @@ router.get('/analytics',
             avg_executions: parseFloat(stats?.avg_executions || '0'),
             total_executions: parseInt(stats?.total_executions || '0'),
           },
-          byStrategy: byStrategy.map((s: any) => ({
+          byStrategy: byStrategy.map((sRaw: unknown) => {
+            const s = sRaw as Record<string, unknown>;
+            return {
             strategy: s.mix_strategy,
-            count: parseInt(s.count),
-            avg_engagement: parseFloat(s.avg_engagement || '0'),
-            avg_executions: parseFloat(s.avg_executions || '0'),
-            avg_items: parseFloat(s.avg_items || '0'),
-          })),
-          topMixes: topMixes.map((m: any) => ({
+            count: parseInt(s.count as string),
+            avg_engagement: parseFloat(s.avg_engagement as string || '0'),
+            avg_executions: parseFloat(s.avg_executions as string || '0'),
+            avg_items: parseFloat(s.avg_items as string || '0'),
+          }; }),
+          topMixes: topMixes.map((mRaw: unknown) => {
+            const m = mRaw as Record<string, unknown>;
+            return {
             history_id: m.history_id,
             totem_id: m.totem_id,
             totem_identifier: m.totem_identifier,
             totem_name: m.totem_name,
             mix_strategy: m.mix_strategy,
-            engagement_score: m.engagement_score ? parseFloat(m.engagement_score) : null,
-            execution_count: parseInt(m.execution_count || '0'),
-            total_items: parseInt(m.total_items || '0'),
-            total_duration: parseInt(m.total_duration || '0'),
+            engagement_score: m.engagement_score ? parseFloat(m.engagement_score as string) : null,
+            execution_count: parseInt(m.execution_count as string || '0'),
+            total_items: parseInt(m.total_items as string || '0'),
+            total_duration: parseInt(m.total_duration as string || '0'),
             generated_at: m.generated_at,
-          })),
-          byTotem: byTotem.map((t: any) => ({
+          }; }),
+          byTotem: byTotem.map((tRaw: unknown) => {
+            const t = tRaw as Record<string, unknown>;
+            return {
             totem_id: t.totem_id,
             totem_identifier: t.totem_identifier,
             totem_name: t.totem_name,
-            mix_count: parseInt(t.mix_count),
-            avg_engagement: parseFloat(t.avg_engagement || '0'),
-            total_executions: parseInt(t.total_executions || '0'),
-            avg_items: parseFloat(t.avg_items || '0'),
-          })),
-          trend: trendData.map((t: any) => ({
+            mix_count: parseInt(t.mix_count as string),
+            avg_engagement: parseFloat(t.avg_engagement as string || '0'),
+            total_executions: parseInt(t.total_executions as string || '0'),
+            avg_items: parseFloat(t.avg_items as string || '0'),
+          }; }),
+          trend: trendData.map((tRaw: unknown) => {
+            const t = tRaw as Record<string, unknown>;
+            return {
             date: t.date,
-            mix_count: parseInt(t.mix_count),
-            avg_engagement: parseFloat(t.avg_engagement || '0'),
-            total_executions: parseInt(t.total_executions || '0'),
-          })),
+            mix_count: parseInt(t.mix_count as string),
+            avg_engagement: parseFloat(t.avg_engagement as string || '0'),
+            total_executions: parseInt(t.total_executions as string || '0'),
+          }; }),
         },
-      });
-    } catch (error: any) {
-      await logError('Erro ao obter analytics de mixagens', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter analytics de mixagens', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao obter analytics de mixagens',
-      });
+    });
     }
   }
 );

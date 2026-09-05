@@ -18,6 +18,7 @@ describe('ContractService - estruturas e validações', () => {
         end_date: '2025-12-31',
         currency: 'BRL',
         status: 'active',
+        metadata: {},
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -57,6 +58,7 @@ describe('ContractService - estruturas e validações', () => {
         contract_type: 'advertising',
         title: 'Título',
         start_date: '2025-01-01T00:00:00.000Z',
+        metadata: {},
       };
       expect(req.contract_number).toBeDefined();
       expect(req.contract_type).toBe('advertising');
@@ -67,7 +69,7 @@ describe('ContractService - estruturas e validações', () => {
 
   describe('UpdateContractRequest', () => {
     it('deve aceitar atualização parcial', () => {
-      const req: UpdateContractRequest = { status: 'active' };
+      const req: UpdateContractRequest = { status: 'active', metadata: {} };
       expect(req.status).toBe('active');
     });
   });

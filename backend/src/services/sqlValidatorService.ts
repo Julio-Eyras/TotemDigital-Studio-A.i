@@ -3,6 +3,7 @@
  * Validação de sintaxe SQL por provider
  */
 
+import { normalizeError } from '../utils/errors';
 export interface SQLValidationResult {
   valid: boolean;
   error?: string;
@@ -63,11 +64,12 @@ export class SQLValidatorService {
             valid: false,
             error: `Provider não suportado: ${provider}`
           };
-      }
-    } catch (error: any) {
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
       return {
         valid: false,
-        error: `Erro ao validar SQL: ${error.message}`
+        error: `Erro ao validar SQL: ${e.message}`
       };
     }
   }
@@ -188,7 +190,7 @@ export class SQLValidatorService {
       }
 
       return tables;
-    } catch (error) {
+} catch (error: unknown) {
       return [];
     }
   }
@@ -215,7 +217,7 @@ export class SQLValidatorService {
       }
 
       return columns;
-    } catch (error) {
+} catch (error: unknown) {
       return [];
     }
   }

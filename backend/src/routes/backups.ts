@@ -3,18 +3,21 @@
  * Rotas para gerenciar backups do sistema
  */
 
-import { Router, Response } from 'express';
+import { Router} from 'express';
+import express from 'express';
+
 import { param, validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { getBackupService } from '../services/backupService';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
 // Middleware de autenticação
 router.use(authMiddleware);
 
-const validateRequest = (req: any, res: any, next: any) => {
+const validateRequest = (req: express.Request, res: express.Response, next: express.NextFunction): express.Response | void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -32,7 +35,7 @@ const validateRequest = (req: any, res: any, next: any) => {
  */
 router.post('/create',
   authorizeRole(['admin', 'admin_sql']),
-  async (_req: any, res: Response) => {
+  async (_req: express.Request, res: express.Response) => {
     try {
       const backupService = getBackupService();
       const result = await backupService.createFullBackup();
@@ -49,13 +52,14 @@ router.post('/create',
           message: 'Erro ao criar backup',
           error: result.error
         });
-      }
-    } catch (error: any) {
-      await logError('Erro ao criar backup', error);
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar backup', e.error);
       return res.status(500).json({
         success: false,
-        message: error.message || 'Erro ao criar backup'
-      });
+        message: e.message || 'Erro ao criar backup'
+    });
     }
   }
 );
@@ -67,7 +71,7 @@ router.post('/create',
  */
 router.get('/',
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing']),
-  async (_req: any, res: Response) => {
+  async (_req: express.Request, res: express.Response) => {
     try {
       const backupService = getBackupService();
       const backups = await backupService.listBackups();
@@ -75,13 +79,13 @@ router.get('/',
       return res.json({
         success: true,
         data: backups
-      });
-    } catch (error: any) {
-      await logError('Erro ao listar backups', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar backups', e.error);
       return res.status(500).json({
         success: false,
-        message: error.message || 'Erro ao listar backups'
-      });
+        message: e.message || 'Erro ao listar backups'
+    });
     }
   }
 );
@@ -95,7 +99,7 @@ router.post('/:id/restore',
   param('id').notEmpty().isString(),
   validateRequest,
   authorizeRole(['admin', 'admin_sql']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const backupService = getBackupService();
       const result = await backupService.restoreBackup(req.params.id);
@@ -110,13 +114,14 @@ router.post('/:id/restore',
           success: false,
           message: result.message
         });
-      }
-    } catch (error: any) {
-      await logError('Erro ao restaurar backup', error);
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao restaurar backup', e.error);
       res.status(500).json({
         success: false,
-        message: error.message || 'Erro ao restaurar backup'
-      });
+        message: e.message || 'Erro ao restaurar backup'
+    });
     }
   }
 );

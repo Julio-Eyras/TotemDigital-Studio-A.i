@@ -211,9 +211,8 @@ export async function loadMediaConfig(): Promise<void> {
     };
 
     const { logInfoSync } = require('../utils/loggerHelper');
-    logInfoSync('Configurações de mídia carregadas do banco de dados', {});
-  } catch (error: any) {
-    const { logErrorSync } = require('../utils/loggerHelper');
+    logInfoSync('Configurações de mídia carregadas do banco de dados', {});} catch (error: unknown) {
+const { logErrorSync } = require('../utils/loggerHelper');
     logErrorSync('Erro ao carregar configurações de mídia', error, {});
     // Usar valores padrão em caso de erro
     configCache = {

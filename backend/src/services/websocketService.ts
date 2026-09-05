@@ -12,10 +12,18 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config/env';
 import { getDatabase } from '../config/database';
 import { getTotemService } from './totemService';
+import { normalizeError } from '../utils/errors';
+import {
+  getRealtimeDashboardsBridge,
+  type DashSubscribeMessage,
+  type DashboardKind as RtDashKind,
+} from './realtimeDashboardsBridge';
+import type { DashboardFilters } from '../types/analytics';
+import type { AuthenticatedRequest } from '../routes/dashboards';
 
 export interface WebSocketMessage {
   type: string;
-  data?: any;
+  data?: unknown;
   error?: string;
 }
 
@@ -49,17 +57,24 @@ export class WebSocketService {
 
         try {
           const decoded = jwt.verify(token, config.jwt.secret) as any;
-          (info.req as any).user = decoded;
+          (info.req as unknown as Record<string, unknown>).user = decoded;
           callback(true);
-        } catch (error) {
+} catch (error: unknown) {
           callback(false, 401, 'Unauthorized');
         }
       }
     });
 
-    this.wss.on('connection', (ws: WebSocket, req: any) => {
+    this.wss.on('connection', (ws: WebSocket, req: unknown) => {
       this.handleConnection(ws, req);
     });
+
+    try {
+      getRealtimeDashboardsBridge().start();
+    } catch (error: unknown) {
+      const e = normalizeError(error);
+      logError('Falha ao iniciar RealtimeDashboardsBridge', e.error);
+    }
 
     logInfo('WebSocket server initialized', { path: '/ws' });
   }
@@ -67,14 +82,13 @@ export class WebSocketService {
   /**
    * Extrai token de autenticação da requisição
    */
-  private extractToken(req: any): string | null {
-    // Tentar query string primeiro
-    const url = new URL(req.url, `http://${req.headers.host}`);
+  private extractToken(reqRaw: unknown): string | null {
+    const req = reqRaw as { url?: string; headers?: { host?: string; authorization?: string } };
+    const url = new URL(req.url || '/', `http://${req.headers?.host || 'localhost'}`);
     const token = url.searchParams.get('token');
     if (token) return token;
 
-    // Tentar header Authorization
-    const authHeader = req.headers.authorization;
+    const authHeader = req.headers?.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       return authHeader.substring(7);
     }
@@ -85,8 +99,9 @@ export class WebSocketService {
   /**
    * Manipula nova conexão WebSocket
    */
-  private handleConnection(ws: WebSocket, req: any) {
+  private handleConnection(ws: WebSocket, reqRaw: unknown) {
     const clientId = this.generateClientId();
+    const req = reqRaw as { user?: Record<string, unknown> };
     const user = req.user;
 
     this.clients.set(clientId, ws);
@@ -113,13 +128,13 @@ export class WebSocketService {
     ws.on('message', (message: Buffer) => {
       try {
         const data = JSON.parse(message.toString());
-        this.handleMessage(clientId, data, user);
-      } catch (error: any) {
-        logError('Erro ao processar mensagem WebSocket', error, { clientId });
+        this.handleMessage(clientId, data, user);} catch (error: unknown) {
+        const e = normalizeError(error);
+        logError('Erro ao processar mensagem WebSocket', e.error, { clientId });
         this.sendToClient(clientId, {
           type: 'error',
           error: 'Invalid message format'
-        });
+      });
       }
     });
 
@@ -137,45 +152,56 @@ export class WebSocketService {
   /**
    * Manipula mensagens recebidas
    */
-  private async handleMessage(clientId: string, message: WebSocketMessage, user: any) {
+  private async handleMessage(clientId: string, message: WebSocketMessage, userRaw: unknown) {
     try {
+      const msgData = (message.data || {}) as unknown as Record<string, unknown>;
       switch (message.type) {
         case 'subscribe_logs':
-          await this.subscribeToLogs(clientId, message.data.totemId, user);
+          await this.subscribeToLogs(clientId, Number(msgData.totemId), userRaw);
           break;
 
         case 'unsubscribe_logs':
-          this.unsubscribeFromLogs(clientId, message.data.totemId);
+          this.unsubscribeFromLogs(clientId, Number(msgData.totemId));
           break;
 
         case 'subscribe_playback_state':
-          await this.subscribeToPlaybackState(clientId, message.data?.totemId, user);
+          await this.subscribeToPlaybackState(clientId, msgData.totemId, userRaw);
           break;
 
         case 'unsubscribe_playback_state':
-          this.unsubscribeFromPlaybackState(clientId, message.data?.totemId);
+          this.unsubscribeFromPlaybackState(clientId, msgData?.totemId);
           break;
 
         case 'ping':
           this.sendToClient(clientId, { type: 'pong' });
           break;
 
+        case 'dash:subscribe':
+          await this.subscribeToDashboards(clientId, msgData as DashSubscribeMessage, userRaw);
+          break;
+
+        case 'dash:unsubscribe':
+          this.unsubscribeFromDashboards(clientId, msgData as DashSubscribeMessage);
+          break;
+
         default:
           logDebug('Unknown WebSocket message type', { clientId, type: message.type });
-      }
-    } catch (error: any) {
-      logError('Erro ao processar mensagem WebSocket', error, { clientId, type: message.type });
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      logError('Erro ao processar mensagem WebSocket', e.error, { clientId, type: message.type });
       this.sendToClient(clientId, {
         type: 'error',
-        error: error.message || 'Internal error'
-      });
+        error: e.message || 'Internal error'
+    });
     }
   }
 
   /**
    * Inscreve cliente em stream de logs de um totem
    */
-  private async subscribeToLogs(clientId: string, totemId: number, user: any) {
+  private async subscribeToLogs(clientId: string, totemId: number, userRaw: unknown) {
+    const user = userRaw as unknown as Record<string, unknown>;
     // Verificar permissão (apenas admin e manager)
     if (user.role !== 'admin' && user.role !== 'manager') {
       this.sendToClient(clientId, {
@@ -197,9 +223,9 @@ export class WebSocketService {
       this.sendToClient(clientId, {
         type: 'log_batch',
         data: recentLogs
-      });
-    } catch (error: any) {
-      logError('Erro ao obter logs recentes', error, { totemId, clientId });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      logError('Erro ao obter logs recentes', e.error, { totemId, clientId });
     }
 
     logInfo('Client subscribed to totem logs', { clientId, totemId, userId: user.id });
@@ -220,8 +246,9 @@ export class WebSocketService {
     logDebug('Client unsubscribed from totem logs', { clientId, totemId });
   }
 
-  private async canAccessTotem(user: any, totemId: number): Promise<boolean> {
+  private async canAccessTotem(userRaw: unknown, totemId: number): Promise<boolean> {
     if (!Number.isInteger(Number(totemId)) || Number(totemId) < 1) return false;
+    const user = userRaw as unknown as Record<string, unknown>;
     const userId = Number(user?.id || user?.userId);
     if (!userId) return false;
     const currentUser = await getDatabase().findFirst(
@@ -258,9 +285,9 @@ export class WebSocketService {
     return false;
   }
 
-  private async subscribeToPlaybackState(clientId: string, rawTotemId: unknown, user: any) {
+  private async subscribeToPlaybackState(clientId: string, rawTotemId: unknown, userRaw: unknown) {
     const totemId = Number(rawTotemId);
-    if (!(await this.canAccessTotem(user, totemId))) {
+    if (!(await this.canAccessTotem(userRaw, totemId))) {
       this.sendToClient(clientId, {
         type: 'error',
         error: 'Unauthorized: totem outside tenant scope',
@@ -280,7 +307,7 @@ export class WebSocketService {
     logInfo('Client subscribed to playback state', {
       clientId,
       totemId,
-      userId: Number(user?.id || user?.userId),
+      userId: Number((userRaw as unknown as Record<string, unknown>)?.id || (userRaw as unknown as Record<string, unknown>)?.userId),
     });
   }
 
@@ -376,9 +403,9 @@ export class WebSocketService {
     }
 
     try {
-      ws.send(JSON.stringify(message));
-    } catch (error: any) {
-      logError('Erro ao enviar mensagem WebSocket', error, { clientId });
+      ws.send(JSON.stringify(message));} catch (error: unknown) {
+      const e = normalizeError(error);
+      logError('Erro ao enviar mensagem WebSocket', e.error, { clientId });
       this.handleDisconnection(clientId);
     }
   }

@@ -16,7 +16,7 @@ import { isStudioRuntime } from '../config/installationRuntime';
 import { isDirectTotemMode } from '../config/directTotemMode';
 import { logError, logDebug } from '../utils/loggerHelper';
 import { getCacheService } from './cacheService';
-import { getTotemPlaylistMixService, TotemPlaylistMix } from './totemPlaylistMixService';
+import { getTotemPlaylistMixService, TotemPlaylistMix, MixRule, AIContext } from './totemPlaylistMixService';
 import { getTotemSimpleMixService } from './totemSimpleMixService';
 import { isTotemSimpleModeEnabled } from './totemSimpleModeService';
 import { buildDispatchMediaItem } from '../utils/dispatchMediaItem';
@@ -26,6 +26,7 @@ import { getAceHintStore } from './ace/aceHintStore';
 import { recordAceAudit } from './ace/aceAudit';
 import { publishAceHintWire } from './ace/aceFxPublish';
 import {
+
   applyAceHintToWeight,
   isAceEnabledInCapabilities,
   shouldUseDispatchPlanCache,
@@ -41,6 +42,12 @@ import {
   planVersionCacheKey,
 } from '../utils/dispatchPlanVersion';
 import {
+  computeDispatchVersionHash,
+  getSharedDedupStore,
+  detectDuplicateMediaByContentHash,
+  type VersionHashOptions,
+} from '../utils/dispatchDedup';
+import {
   DispatchRequest,
   DispatchPlan,
   DispatchMediaItem,
@@ -52,6 +59,7 @@ import {
   DispatchEmptyCheck,
   DispatchEmptyExplanation,
 } from '../types/dispatcherTotem.types';
+import { normalizeError } from '../utils/errors';
 
 export class DispatcherTotemService {
   private get db() {
@@ -75,6 +83,57 @@ export class DispatcherTotemService {
    */
   getCacheConfig(): CacheConfig {
     return { ...this.cacheConfig };
+  }
+
+  /**
+   * SPRINT-3 HARDENING — enriquece DispatchPlan com versionHash e (opcionalmente)
+   * marca plano como duplicado se o último envio para este totem for idêntico.
+   *
+   * NOTA: esta função MUTA o objeto `plan` recebido (adiciona campos versionHash
+   * e duplicateOfPrevious). Isto é aceitável porque o plan foi recém criado e é
+   * propriedade do caller.
+   */
+  async enrichPlanWithVersioning(
+    plan: DispatchPlan,
+    opts: {
+      totemId: number;
+      cacheKey?: string;
+      enableDedup?: boolean;
+      aceEnabled?: boolean;
+    },
+  ): Promise<{ versionHash: string; isDuplicate: boolean }> {
+    const hashOpts: VersionHashOptions = {
+      preferMediaContentHash: opts.aceEnabled === true,
+    };
+
+    // --- SPRINT-4: Dedup de mídia por content-hash (não remove, só avisa) ----
+    const contentHashDups = detectDuplicateMediaByContentHash(plan.mediaItems);
+    if (contentHashDups.duplicateCount > 0) {
+      const next: Record<string, unknown> = typeof plan.validationDetails === 'object'
+        && plan.validationDetails !== null
+        ? { ...(plan.validationDetails as unknown as Record<string, unknown>) }
+        : {};
+      next.contentHashDedup = contentHashDups;
+      next.contentHashDuplicateCount = contentHashDups.duplicateCount;
+      plan.validationDetails = next;
+    }
+
+    const versionHash = computeDispatchVersionHash(plan, hashOpts);
+    plan.versionHash = versionHash;
+
+    const enableDedup = opts.enableDedup !== false; // default: true
+    let isDuplicate = false;
+    if (enableDedup) {
+      const dedup = getSharedDedupStore();
+      const check = dedup.checkAndRecord(opts.totemId, versionHash, {
+        cacheKey: opts.cacheKey,
+      });
+      isDuplicate = check.isDuplicate;
+      if (isDuplicate) {
+        plan.duplicateOfPrevious = true;
+      }
+    }
+    return { versionHash, isDuplicate };
   }
 
   /**
@@ -112,7 +171,15 @@ export class DispatcherTotemService {
         if (cached && hasCandidatesData && hasMediaItems) {
           await logDebug('[DispatcherTotem] Cache hit', { totem: totemContext, cacheKey });
           const planVersion = await this.rememberPlanVersion(totemId, cached.plan);
-          
+
+          // SPRINT-3: versionHash + dedup (cache hit também pode ser duplicado vs último envio)
+          const { isDuplicate } = await this.enrichPlanWithVersioning(cached.plan, {
+            totemId,
+            cacheKey,
+            enableDedup: options.enableDedup,
+            aceEnabled,
+          });
+
           // Registrar log de auditoria (cache hit)
           await this.logDispatch({
             totemId,
@@ -122,6 +189,7 @@ export class DispatcherTotemService {
             cacheKey,
             executionTimeMs: Date.now() - startTime,
             candidates: includeCandidates ? cached.candidates : undefined,
+            skippedAsDuplicate: isDuplicate,
           });
 
           return {
@@ -130,6 +198,7 @@ export class DispatcherTotemService {
             planVersion,
             candidates: includeCandidates ? cached.candidates : undefined,
             fromCache: true,
+            deduplicated: isDuplicate,
             executionTimeMs: Date.now() - startTime,
           };
         }
@@ -149,6 +218,12 @@ export class DispatcherTotemService {
             items: fallbackPlan.mediaItems.length,
             fallbackPlaylist: { id: fallbackPlan.playlistId, name: fallbackPlan.playlistName },
           });
+          const { isDuplicate: dedupDup } = await this.enrichPlanWithVersioning(fallbackPlan, {
+            totemId,
+            cacheKey,
+            enableDedup: options.enableDedup,
+            aceEnabled,
+          });
           const planVersion = await this.rememberPlanVersion(totemId, fallbackPlan);
           if (this.cacheConfig.enabled && shouldUseDispatchPlanCache(aceEnabled) && !validateOnly) {
             await this.saveToCache(cacheKey, { plan: fallbackPlan, candidates: [] });
@@ -159,6 +234,7 @@ export class DispatcherTotemService {
             planVersion,
             candidates: includeCandidates ? [] : undefined,
             fromCache: false,
+            deduplicated: dedupDup,
             executionTimeMs: Date.now() - startTime,
           };
         }
@@ -239,6 +315,15 @@ export class DispatcherTotemService {
               subscribers: simpleMixPlan.metadata?.subscriberIds,
               simpleMode: true,
             });
+
+            // SPRINT-3: versionamento + dedup antes de cache/log/return
+            const { isDuplicate: simpleMixDup } = await this.enrichPlanWithVersioning(simpleMixPlan, {
+              totemId,
+              cacheKey,
+              enableDedup: options.enableDedup,
+              aceEnabled,
+            });
+
             if (this.cacheConfig.enabled && !skipCache && shouldUseDispatchPlanCache(aceEnabled) && !validateOnly) {
               await this.saveToCache(cacheKey, {
                 plan: simpleMixPlan,
@@ -256,17 +341,19 @@ export class DispatcherTotemService {
               cacheKey,
               plan: simpleMixPlan,
               executionTimeMs: Date.now() - startTime,
+              skippedAsDuplicate: simpleMixDup,
             });
             return {
               success: true,
               plan: simpleMixPlan,
               candidates: includeCandidates ? validatedCandidates : undefined,
               fromCache: false,
+              deduplicated: simpleMixDup,
               executionTimeMs: Date.now() - startTime,
             };
           }
-        } catch (simpleMixError: any) {
-          await logError('[DispatcherTotem] Erro no mix modo simples', simpleMixError, {
+ 
+} catch (simpleMixError: unknown) {          await logError('[DispatcherTotem] Erro no mix modo simples', simpleMixError, {
             totem: totemContext,
           });
         }
@@ -297,8 +384,8 @@ export class DispatcherTotemService {
           if (simpleMixPlan && simpleMixPlan.mediaItems.length > 0) {
             plan = simpleMixPlan;
           }
-        } catch (simpleMixError: any) {
-          await logError('[DispatcherTotem] Mix simples falhou no ramo mix', simpleMixError, {
+ 
+} catch (simpleMixError: unknown) {          await logError('[DispatcherTotem] Mix simples falhou no ramo mix', simpleMixError, {
             totem: totemContext,
           });
         }
@@ -340,8 +427,7 @@ export class DispatcherTotemService {
               totalItems: mix.total_items,
             },
           });
-        } catch (mixError: any) {
-          await logError('[DispatcherTotem] Erro ao gerar mix', mixError, { totem: totemContext });
+} catch (mixError: unknown) {          await logError('[DispatcherTotem] Erro ao gerar mix', mixError, { totem: totemContext });
           // Fallback: tentar estratégia PRIORITY
           await logDebug('[DispatcherTotem] Fallback para estratégia PRIORITY após erro no mix', {
             totem: totemContext,
@@ -414,6 +500,14 @@ export class DispatcherTotemService {
         };
       }
 
+      // SPRINT-3: versionamento e dedup — aplicamos ANTES de cache e log
+      const { isDuplicate: mainDup } = await this.enrichPlanWithVersioning(plan, {
+        totemId,
+        cacheKey,
+        enableDedup: options.enableDedup,
+        aceEnabled,
+      });
+
       // 6. Salvar no cache (não persistir plano ACE — hint expira em ~3s)
       if (this.cacheConfig.enabled && shouldUseDispatchPlanCache(aceEnabled) && !validateOnly) {
         await this.saveToCache(cacheKey, {
@@ -456,6 +550,7 @@ export class DispatcherTotemService {
         cacheKey,
         plan,
         executionTimeMs: Date.now() - startTime,
+        skippedAsDuplicate: mainDup,
       });
 
       return {
@@ -464,15 +559,15 @@ export class DispatcherTotemService {
         planVersion: await this.rememberPlanVersion(totemId, plan),
         candidates: includeCandidates ? validatedCandidates : undefined,
         fromCache: false,
+        deduplicated: mainDup,
         executionTimeMs: Date.now() - startTime,
-      };
-
-    } catch (error: any) {
-      await logError('[DispatcherTotem] Erro ao gerar plano', error, { totemId, timestamp });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('[DispatcherTotem] Erro ao gerar plano', e.error, { totemId, timestamp });
       
       return {
         success: false,
-        error: error.message || 'Erro interno ao gerar plano',
+        error: e.message || 'Erro interno ao gerar plano',
         fromCache: false,
         executionTimeMs: Date.now() - startTime,
       };
@@ -919,12 +1014,11 @@ export class DispatcherTotemService {
       }
       const deduped = Array.from(seen.values());
 
-      return deduped;
-
-    } catch (error: any) {
+      return deduped;} catch (error: unknown) {
+      const e = normalizeError(error);
       const totemContext = await this.getTotemLogContext(totemId);
-      await logError('[DispatcherTotem] Erro ao buscar candidatos', error, { totem: totemContext });
-      throw error;
+      await logError('[DispatcherTotem] Erro ao buscar candidatos', e.error, { totem: totemContext });
+      throw e.error;
     }
   }
 
@@ -962,43 +1056,51 @@ export class DispatcherTotemService {
       `, [tp.totem_playlist_id]);
       if (!items.length) return null;
 
-      const mediaIds = [...new Set(items.map((i: any) => i.media_id))];
+      const mediaIds = [...new Set(items.map((iRaw: unknown) => {
+        const i = iRaw as unknown as Record<string, unknown>;
+        return i.media_id;
+      }))];
       const medias = await this.db.findMany(`
         SELECT media_id, name, file_name, file_path, media_type, duration_seconds, width, height, mime_type, tags, updated_at, file_size_bytes
         FROM medias
         WHERE media_id = ANY($1::int[]) AND is_active = true
       `, [mediaIds]);
-      const mediaMap = new Map(medias.map((m: any) => [m.media_id, m]));
+      const mediaMap = new Map(medias.map((mRaw: unknown) => {
+        const m = mRaw as unknown as Record<string, unknown>;
+        return [m.media_id, m];
+      }));
       const mediaService = getMediaService();
 
       const now = timestamp || new Date();
       const validityEnd = new Date(now.getTime() + 24 * 60 * 60 * 1000);
       const mediaItems: DispatchMediaItem[] = items
-        .filter((item: any) => {
-          const m = mediaMap.get(item.media_id);
+        .filter((itemRaw: unknown) => {
+          const item = itemRaw as unknown as Record<string, unknown>;
+          const m = mediaMap.get(item.media_id) as unknown as Record<string, unknown> | undefined;
           if (!m) return false;
           // Adequação ainda a correr: não enviar ficheiro original virado ao player.
-          if (mediaService.isTotemDeliveryPending(m.tags)) return false;
+          if (mediaService.isTotemDeliveryPending((m.tags as string[] | null | undefined) ?? undefined)) return false;
           if (mediaService.hasPendingDeliveryNormalization(Number(item.media_id))) return false;
           return true;
         })
-        .map((item: any, index: number) => {
-          const m = mediaMap.get(item.media_id);
+        .map((itemRaw: unknown, index: number) => {
+          const item = itemRaw as unknown as Record<string, unknown>;
+          const m = mediaMap.get(item.media_id) as unknown as Record<string, unknown> | undefined;
           const built = buildDispatchMediaItem({
-            mediaId: item.media_id,
-            order: item.order_index ?? index + 1,
-            displaySeconds: item.display_seconds,
-            mediaType: m?.media_type,
-            durationSeconds: m?.duration_seconds,
-            filePath: m?.file_path,
-            name: m?.name,
-            fileName: m?.file_name,
-            width: m?.width,
-            height: m?.height,
-            mimeType: m?.mime_type,
-            tags: m?.tags,
-            updatedAt: m?.updated_at,
-            fileSizeBytes: m?.file_size_bytes,
+            mediaId: item.media_id as number,
+            order: (item.order_index as number) ?? index + 1,
+            displaySeconds: item.display_seconds as number | undefined,
+            mediaType: m?.media_type as string | undefined,
+            durationSeconds: m?.duration_seconds as number | undefined,
+            filePath: m?.file_path as string | undefined,
+            name: m?.name as string | undefined,
+            fileName: m?.file_name as string | undefined,
+            width: m?.width as number | null | undefined,
+            height: m?.height as number | null | undefined,
+            mimeType: m?.mime_type as string | null | undefined,
+            tags: m?.tags as string[] | null | undefined,
+            updatedAt: m?.updated_at as string | Date | null | undefined,
+            fileSizeBytes: m?.file_size_bytes as number | null | undefined,
           });
           if (!built.url) {
             built.url = `/api/media/${item.media_id}/download`;
@@ -1026,10 +1128,10 @@ export class DispatcherTotemService {
           mixVersion: tp.version,
           mixStrategy: 'totem_playlist_fallback',
         },
-      };
-    } catch (error: any) {
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
       const totemContext = await this.getTotemLogContext(totemId);
-      await logError('[DispatcherTotem] Erro ao obter fallback totem_playlists', error, { totem: totemContext });
+      await logError('[DispatcherTotem] Erro ao obter fallback totem_playlists', e.error, { totem: totemContext });
       return null;
     }
   }
@@ -1641,17 +1743,17 @@ export class DispatcherTotemService {
    * Validar frequência temporal
    */
   private async validateTemporalFrequency(
-    campaign: any,
+    campaign: Record<string, unknown>,
     timestamp: Date,
     timezone: string
   ): Promise<boolean> {
     try {
       // Validar data (start_date e end_date)
       const effectiveStartDate = campaign.effective_start_date 
-        ? new Date(campaign.effective_start_date) 
+        ? new Date(campaign.effective_start_date as string | Date) 
         : null;
       const effectiveEndDate = campaign.effective_end_date 
-        ? new Date(campaign.effective_end_date) 
+        ? new Date(campaign.effective_end_date as string | Date) 
         : null;
 
       if (effectiveStartDate && timestamp < effectiveStartDate) {
@@ -1662,8 +1764,8 @@ export class DispatcherTotemService {
       }
 
       // Validar horário (start_time e end_time)
-      const effectiveStartTime = campaign.effective_start_time;
-      const effectiveEndTime = campaign.effective_end_time;
+      const effectiveStartTime = campaign.effective_start_time as string | undefined;
+      const effectiveEndTime = campaign.effective_end_time as string | undefined;
 
       if (effectiveStartTime || effectiveEndTime) {
         const timestampTime = timestamp.toLocaleTimeString('en-US', { 
@@ -1691,7 +1793,7 @@ export class DispatcherTotemService {
       }
 
       // Validar dias da semana
-      const effectiveDaysOfWeek = campaign.effective_days_of_week;
+      const effectiveDaysOfWeek = campaign.effective_days_of_week as string | undefined;
       if (effectiveDaysOfWeek) {
         const daysArray = JSON.parse(effectiveDaysOfWeek);
         if (Array.isArray(daysArray) && daysArray.length > 0) {
@@ -1708,9 +1810,9 @@ export class DispatcherTotemService {
       }
 
       return true;
-
-    } catch (error) {
-      logError('[DispatcherTotem] Erro na validação temporal', error, { campaign });
+} catch (error: unknown) {
+      const e = normalizeError(error);
+      logError('[DispatcherTotem] Erro na validação temporal', e.error, { campaign });
       return false;
     }
   }
@@ -1719,8 +1821,8 @@ export class DispatcherTotemService {
    * Calcular score do candidato (para ordenação)
    * TODO: Será substituído por calculateWeight() na Fase 2
    */
-  private calculateScore(campaign: any, isDirect: boolean): number {
-    let score = campaign.effective_priority || 1;
+  private calculateScore(campaign: Record<string, unknown>, isDirect: boolean): number {
+    let score = (campaign.effective_priority as number) || 1;
     
     // Bonus para escopo direto
     if (isDirect) {
@@ -1748,8 +1850,8 @@ export class DispatcherTotemService {
     const defaultSubscriberWeight = 0.5;
     
     // Tentar obter regra de mixagem do totem (opcional)
-    let rule: any = null;
-    let aiContext: any = null;
+    let rule: MixRule | null = null;
+    let aiContext: AIContext | null = null;
     
     try {
       const mixService = getTotemPlaylistMixService();
@@ -1758,16 +1860,17 @@ export class DispatcherTotemService {
       if (rule && (rule.ai_enabled || rule.rule_type === 'ai' || rule.rule_type === 'hybrid')) {
         aiContext = await mixService.getAIContextForTotem(totemId);
       }
-    } catch (error) {
+ 
+} catch (error: unknown) {
       // Se não conseguir obter regra, usar valores padrão
       await logDebug('[DispatcherTotem] Usando pesos padrão (regra não disponível)', {
         totem: await this.getTotemLogContext(totemId),
       });
     }
     
-    const priorityWeight = rule?.priority_weight || defaultPriorityWeight;
-    const timeWeight = rule?.time_weight || defaultTimeWeight;
-    const subscriberWeight = rule?.subscriber_weight || defaultSubscriberWeight;
+    const priorityWeight = (rule?.priority_weight as number | undefined) ?? defaultPriorityWeight;
+    const timeWeight = (rule?.time_weight as number | undefined) ?? defaultTimeWeight;
+    const subscriberWeight = (rule?.subscriber_weight as number | undefined) ?? defaultSubscriberWeight;
     
     // 1. Peso por prioridade da campanha
     weight += candidate.priority * priorityWeight;
@@ -1817,21 +1920,25 @@ export class DispatcherTotemService {
     // 8. Ajustes baseados em IA (se disponível)
     if (aiContext && rule && (rule.ai_enabled || rule.rule_type === 'ai' || rule.rule_type === 'hybrid')) {
       // Ajuste por densidade de transeuntes
-      if (rule.use_pedestrian_detection && aiContext.pedestrian_count > 0) {
-        const densityMultiplier = aiContext.pedestrian_density === 'high' ? 1.5 :
-                                 aiContext.pedestrian_density === 'medium' ? 1.2 : 1.0;
+      const pedestrianCount = aiContext.pedestrian_count as number | undefined;
+      if (rule.use_pedestrian_detection && pedestrianCount !== undefined && pedestrianCount > 0) {
+        const density = aiContext.pedestrian_density as 'low' | 'medium' | 'high' | undefined;
+        const densityMultiplier = density === 'high' ? 1.5 :
+                                 density === 'medium' ? 1.2 : 1.0;
         weight *= densityMultiplier;
       }
       
       // Ajuste por sentimento
-      if (rule.use_sentiment_analysis && aiContext.sentiment_score !== undefined) {
-        const sentimentMultiplier = 1.0 + (aiContext.sentiment_score * 0.3);
+      const sentimentScore = aiContext.sentiment_score as number | undefined;
+      if (rule.use_sentiment_analysis && sentimentScore !== undefined) {
+        const sentimentMultiplier = 1.0 + (sentimentScore * 0.3);
         weight *= sentimentMultiplier;
       }
       
       // Ajuste por performance histórica
-      if (rule.use_historical_optimization && aiContext.performance_metrics) {
-        const engagementRate = aiContext.performance_metrics.engagement_rate || 0;
+      const perfMetrics = aiContext.performance_metrics as unknown as Record<string, unknown> | undefined;
+      if (rule.use_historical_optimization && perfMetrics) {
+        const engagementRate = (perfMetrics.engagement_rate as number | undefined) || 0;
         const performanceMultiplier = 1.0 + (engagementRate * 0.2);
         weight *= performanceMultiplier;
       }
@@ -1972,14 +2079,14 @@ export class DispatcherTotemService {
         }
       }
       
-      return { valid: errors.length === 0, errors };
-      
-    } catch (error: any) {
-      await logError('[DispatcherTotem] Erro na validação comercial', error, {
+      return {
+        valid: errors.length === 0, errors };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('[DispatcherTotem] Erro na validação comercial', e.error, {
         totem: await this.getTotemLogContext(totemId),
         candidate: await this.getCandidateLogContext(candidate),
       });
-      return { valid: false, errors: [`Erro na validação comercial: ${error.message}`] };
+      return { valid: false, errors: [`Erro na validação comercial: ${e.message}`] };
     }
   }
 
@@ -2081,10 +2188,10 @@ export class DispatcherTotemService {
       // - Plataforma (WebOS, Android, Browser)
       
       // Por enquanto, retornar válido
-      return { valid: true, errors: [] };
-
-    } catch (error: any) {
-      errors.push(`Erro na validação técnica: ${error.message}`);
+      return {
+        valid: true, errors: [] };} catch (error: unknown) {
+      const e = normalizeError(error);
+      errors.push(`Erro na validação técnica: ${e.message}`);
       return { valid: false, errors };
     }
   }
@@ -2119,10 +2226,10 @@ export class DispatcherTotemService {
         }
       }
 
-      return { valid: errors.length === 0, errors };
-
-    } catch (error: any) {
-      errors.push(`Erro na validação de integridade: ${error.message}`);
+      return {
+        valid: errors.length === 0, errors };} catch (error: unknown) {
+      const e = normalizeError(error);
+      errors.push(`Erro na validação de integridade: ${e.message}`);
       return { valid: false, errors };
     }
   }
@@ -2211,43 +2318,49 @@ export class DispatcherTotemService {
       [campaignId]
     );
 
-    const normalizedPlaylist = playlistRows.map((item: any) => ({
-      media_id: Number(item.media_id),
-      order_index: Number(item.order_index ?? 0),
-      duration: item.duration,
-      name: item.name,
-      file_name: item.file_name,
-      file_path: item.file_path,
-      media_type: item.media_type,
-      tags: item.tags,
-      width: item.width,
-      height: item.height,
-      mime_type: item.mime_type,
-      duration_seconds: item.duration_seconds,
-      updated_at: item.updated_at,
-      file_size_bytes: item.file_size_bytes,
-      source: 'playlist' as const,
-      source_priority: 0,
-    }));
+    const normalizedPlaylist: DispatchConsolidatedRow[] = playlistRows.map((itemRaw: unknown) => {
+      const item = itemRaw as unknown as Record<string, unknown>;
+      return {
+        media_id: Number(item.media_id),
+        order_index: Number(item.order_index ?? 0),
+        duration: item.duration as number | null,
+        name: item.name as string | null,
+        file_name: item.file_name as string | null,
+        file_path: item.file_path as string | null,
+        media_type: item.media_type as string | null,
+        tags: item.tags as string[] | null,
+        width: item.width as number | null,
+        height: item.height as number | null,
+        mime_type: item.mime_type as string | null,
+        duration_seconds: item.duration_seconds as number | null,
+        updated_at: item.updated_at as string | Date | null,
+        file_size_bytes: item.file_size_bytes as number | null,
+        source: 'playlist' as const,
+        source_priority: 0,
+      };
+    });
 
-    const normalizedCampaign = campaignItems.map((item: any) => ({
-      media_id: Number(item.media_id),
-      order_index: Number(item.order_index ?? 0),
-      duration: item.duration,
-      name: item.name,
-      file_name: item.file_name,
-      file_path: item.file_path,
-      media_type: item.media_type,
-      tags: item.tags,
-      width: item.width,
-      height: item.height,
-      mime_type: item.mime_type,
-      duration_seconds: item.duration_seconds,
-      updated_at: item.updated_at,
-      file_size_bytes: item.file_size_bytes,
-      source: 'campaign' as const,
-      source_priority: 1,
-    }));
+    const normalizedCampaign: DispatchConsolidatedRow[] = campaignItems.map((itemRaw: unknown) => {
+      const item = itemRaw as unknown as Record<string, unknown>;
+      return {
+        media_id: Number(item.media_id),
+        order_index: Number(item.order_index ?? 0),
+        duration: item.duration as number | null,
+        name: item.name as string | null,
+        file_name: item.file_name as string | null,
+        file_path: item.file_path as string | null,
+        media_type: item.media_type as string | null,
+        tags: item.tags as string[] | null,
+        width: item.width as number | null,
+        height: item.height as number | null,
+        mime_type: item.mime_type as string | null,
+        duration_seconds: item.duration_seconds as number | null,
+        updated_at: item.updated_at as string | Date | null,
+        file_size_bytes: item.file_size_bytes as number | null,
+        source: 'campaign' as const,
+        source_priority: 1,
+      };
+    });
 
     const campaignPlaylistCount = new Set(
       playlistRows.map((row: { playlist_id?: number }) => Number(row.playlist_id)).filter((id) => id > 0)
@@ -2312,24 +2425,27 @@ export class DispatcherTotemService {
           )
         : [];
 
-    const items = playlistItems.map((item: any) => ({
-      media_id: Number(item.media_id),
-      order_index: Number(item.order_index ?? 0),
-      duration: item.duration,
-      name: item.name,
-      file_name: item.file_name,
-      file_path: item.file_path,
-      media_type: item.media_type,
-      tags: item.tags,
-      width: item.width,
-      height: item.height,
-      mime_type: item.mime_type,
-      duration_seconds: item.duration_seconds,
-      updated_at: item.updated_at,
-      file_size_bytes: item.file_size_bytes,
-      source: 'playlist' as const,
-      source_priority: 0,
-    }));
+    const items: DispatchConsolidatedRow[] = playlistItems.map((itemRaw: unknown) => {
+      const item = itemRaw as unknown as Record<string, unknown>;
+      return {
+        media_id: Number(item.media_id),
+        order_index: Number(item.order_index ?? 0),
+        duration: item.duration as number | null,
+        name: item.name as string | null,
+        file_name: item.file_name as string | null,
+        file_path: item.file_path as string | null,
+        media_type: item.media_type as string | null,
+        tags: item.tags as string[] | null,
+        width: item.width as number | null,
+        height: item.height as number | null,
+        mime_type: item.mime_type as string | null,
+        duration_seconds: item.duration_seconds as number | null,
+        updated_at: item.updated_at as string | Date | null,
+        file_size_bytes: item.file_size_bytes as number | null,
+        source: 'playlist' as const,
+        source_priority: 0,
+      };
+    });
 
     return {
       items,
@@ -2659,7 +2775,7 @@ export class DispatcherTotemService {
         const minuteKey = this.generateCacheKey(totemId, timestamp);
         const cached = await this.getFromCache(minuteKey);
         if (cached?.plan?.mediaItems?.length) {
-          const version = buildDispatchPlanVersionFromPlan(cached.plan as any);
+          const version = buildDispatchPlanVersionFromPlan(cached.plan as unknown as Record<string, unknown>);
           await this.rememberPlanVersion(totemId, version);
           return { planVersion: version, source: 'minute_cache' };
         }
@@ -2670,8 +2786,10 @@ export class DispatcherTotemService {
         await this.rememberPlanVersion(totemId, dbVersion);
         return { planVersion: dbVersion, source: 'playlist_db' };
       }
-    } catch (error) {
-      await logError('[DispatcherTotem] peekPlanVersion falhou', error, { totemId });
+ 
+} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('[DispatcherTotem] peekPlanVersion falhou', e.error, { totemId });
     }
     return { planVersion: null, source: 'none' };
   }
@@ -2680,13 +2798,14 @@ export class DispatcherTotemService {
     const version =
       typeof planOrVersion === 'string'
         ? planOrVersion
-        : buildDispatchPlanVersionFromPlan(planOrVersion as any);
+        : buildDispatchPlanVersionFromPlan(planOrVersion as unknown as Record<string, unknown>);
     try {
       const cacheService = getCacheService();
       // TTL longo: só muda quando o plano muda ou o cache é invalidado.
       await cacheService.set(planVersionCacheKey(totemId), version, 24 * 60 * 60);
-    } catch (error) {
-      await logError('[DispatcherTotem] rememberPlanVersion falhou', error, { totemId });
+} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('[DispatcherTotem] rememberPlanVersion falhou', e.error, { totemId });
     }
     return version;
   }
@@ -2733,16 +2852,19 @@ export class DispatcherTotemService {
         });
       }
 
-      const items = rows.map((r: any) => ({
-        mediaId: r.media_id,
-        order: Number(r.item_order) || 0,
-        contentVersion: buildMediaContentVersion({
-          updatedAt: r.media_updated_at,
-          fileSizeBytes: r.file_size_bytes,
-          filePath: r.file_path,
-          fileCrc: null,
-        }),
-      }));
+      const items = rows.map((rRaw: unknown) => {
+        const r = rRaw as unknown as Record<string, unknown>;
+        return {
+          mediaId: r.media_id as string | number,
+          order: Number(r.item_order) || 0,
+          contentVersion: buildMediaContentVersion({
+            updatedAt: r.media_updated_at as Date | string | undefined,
+            fileSizeBytes: r.file_size_bytes as number | undefined,
+            filePath: r.file_path as string | undefined,
+            fileCrc: null,
+          }),
+        };
+      });
       return buildDispatchPlanVersionFromPlan({
         mediaItems: items.map((i) => ({
           mediaId: i.mediaId,
@@ -2751,10 +2873,12 @@ export class DispatcherTotemService {
         })),
         playlistId: tp.totem_playlist_id,
         source: 'direct',
-        metadata: { mixVersion: tp.playlist_version },
+        metadata: { mixVersion: tp.playlist_version 
+},
       });
-    } catch (error) {
-      await logError('[DispatcherTotem] computePlaylistDbPlanVersion falhou', error, { totemId });
+} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('[DispatcherTotem] computePlaylistDbPlanVersion falhou', e.error, { totemId });
       return null;
     }
   }
@@ -2789,9 +2913,11 @@ export class DispatcherTotemService {
       if (typeof cached === 'string') {
         return JSON.parse(cached);
       }
-      return null;
-    } catch (error) {
-      await logError('[DispatcherTotem] Erro ao ler cache', error, { cacheKey });
+     
+ return null;
+} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('[DispatcherTotem] Erro ao ler cache', e.error, { cacheKey });
       return null;
     }
   }
@@ -2814,8 +2940,10 @@ export class DispatcherTotemService {
       if (totemIdMatch && data.plan) {
         await this.rememberPlanVersion(Number(totemIdMatch[1]), data.plan);
       }
-    } catch (error) {
-      await logError('[DispatcherTotem] Erro ao salvar cache', error, { cacheKey });
+ 
+} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('[DispatcherTotem] Erro ao salvar cache', e.error, { cacheKey });
       // Não falhar se cache falhar
     }
   }
@@ -2836,11 +2964,12 @@ export class DispatcherTotemService {
     temporalValidation?: boolean;
     technicalValidation?: boolean;
     integrityValidation?: boolean;
-    validationDetails?: any;
+    validationDetails?: Record<string, unknown>;
     fromCache: boolean;
     cacheKey?: string;
     plan?: DispatchPlan;
     executionTimeMs: number;
+    skippedAsDuplicate?: boolean;
   }): Promise<void> {
     try {
       await this.db.executeRaw(`
@@ -2882,8 +3011,9 @@ export class DispatcherTotemService {
         data.plan ? JSON.stringify(data.plan) : null,
         data.executionTimeMs,
       ]);
-    } catch (error) {
-      await logError('[DispatcherTotem] Erro ao registrar log', error, {
+} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('[DispatcherTotem] Erro ao registrar log', e.error, {
         totem: await this.getTotemLogContext(data.totemId),
       });
       // Não falhar se log falhar
@@ -2961,13 +3091,12 @@ export class DispatcherTotemService {
         dispatchPlan: log.dispatch_plan ? JSON.parse(log.dispatch_plan) : undefined,
         executionTimeMs: log.execution_time_ms,
         createdAt: new Date(log.created_at),
-      }));
-
-    } catch (error: any) {
-      await logError('[DispatcherTotem] Erro ao buscar histórico', error, {
+      }));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('[DispatcherTotem] Erro ao buscar histórico', e.error, {
         totem: await this.getTotemLogContext(totemId),
       });
-      throw error;
+      throw e.error;
     }
   }
 
@@ -3020,7 +3149,8 @@ export class DispatcherTotemService {
           executionTimeMs: r.executionTimeMs,
           error: r.error,
         });
-      } catch (e: unknown) {
+} catch (rawErr: unknown) {
+  const e = normalizeError(rawErr);
         const msg = e instanceof Error ? e.message : 'Erro ao calcular plano';
         out.push({
           timestamp: iso,

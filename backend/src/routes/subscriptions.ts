@@ -6,16 +6,20 @@
  */
 
 import { Router } from 'express';
+import express from 'express';
+
 import { SubscriptionService } from '../services/subscriptionService';
 import { StripeService } from '../services/stripeService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { logError } from '../utils/loggerHelper';
 import { isAdminRole } from '../utils/tenantScope';
 import {
+
   getStripePriceIdForInterval,
   isBillingIntervalCode,
   normalizeBillingInterval,
 } from '../utils/billingIntervals';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -42,13 +46,13 @@ router.use(authenticateToken);
  * @desc Lista assinaturas
  * @access Private (Admin, Manager, Client)
  */
-router.get('/', async (req: any, res) => {
+router.get('/', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
-    const filters: any = {};
+    const filters: Record<string, unknown> = {};
 
     // Usuários só veem suas próprias assinaturas baseado em publisherId/userType
-    const userPublisherId = req.user.publisherId;
-    const userType = req.user.userType;
+    const userPublisherId = req.user!.publisherId;
+    const userType = req.user!.userType;
 
     // Regra do domínio: subscriptions são APENAS de publishers (publishers pagam para usar o sistema)
     if (userType === 'subscriber_user') {
@@ -82,14 +86,13 @@ router.get('/', async (req: any, res) => {
     return res.json({
       success: true,
       data: subscriptions
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao listar assinaturas', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao listar assinaturas', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro ao listar assinaturas',
-      error: error?.message
+      error: e.message
     });
   }
 });
@@ -99,12 +102,12 @@ router.get('/', async (req: any, res) => {
  * @desc Busca assinatura do usuário atual
  * @access Private (Client)
  */
-router.get('/my-subscription', async (req: any, res) => {
+router.get('/my-subscription', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     // Suportar publisherId além de clientId (compatibilidade)
-    const userPublisherId = req.user.publisherId;
-    const userType = req.user.userType;
-    const clientId = req.user.clientId; // DEPRECADO: Compatibilidade
+    const userPublisherId = req.user!.publisherId;
+    const userType = req.user!.userType;
+    const clientId = req.user!.clientId; // DEPRECADO: Compatibilidade
 
     let publisherId: number | undefined;
 
@@ -117,7 +120,7 @@ router.get('/my-subscription', async (req: any, res) => {
 
     if (userType === 'publisher_user') {
       publisherId = userPublisherId;
-    } else if (req.user.role === 'client' && clientId) {
+    } else if (req.user!.role === 'client' && clientId) {
       // DEPRECADO: Compatibilidade
       publisherId = clientId;
     }
@@ -141,14 +144,13 @@ router.get('/my-subscription', async (req: any, res) => {
     return res.json({
       success: true,
       data: subscription
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar assinatura do usuário', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar assinatura do usuário', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
+      error: e.message
     });
   }
 });
@@ -158,7 +160,7 @@ router.get('/my-subscription', async (req: any, res) => {
  * @desc Busca assinatura por ID
  * @access Private (Admin, Manager, Client)
  */
-router.get('/:id', async (req: any, res) => {
+router.get('/:id', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { id } = req.params;
     const subscription = await getSubscriptionService().getSubscriptionById(parseInt(id));
@@ -171,9 +173,9 @@ router.get('/:id', async (req: any, res) => {
     }
 
     // NOVO: Verificar permissão baseado em userType
-    const userType = req.user.userType;
-    const userPublisherId = req.user.publisherId;
-    const clientId = req.user.clientId; // DEPRECADO
+    const userType = req.user!.userType;
+    const userPublisherId = req.user!.publisherId;
+    const clientId = req.user!.clientId; // DEPRECADO
 
     // Regra do domínio: subscriptions são exclusivas de publishers
     if (userType === 'subscriber_user') {
@@ -194,7 +196,7 @@ router.get('/:id', async (req: any, res) => {
       hasAccess =
         userPublisherId != null &&
         Number(userPublisherId) === Number(subscription.publisherId);
-    } else if (req.user.role === 'client' && clientId) {
+    } else if (req.user!.role === 'client' && clientId) {
       // DEPRECADO: Compatibilidade
       hasAccess = clientId === subscription.subscriberId || clientId === subscription.publisherId;
     } else {
@@ -211,14 +213,13 @@ router.get('/:id', async (req: any, res) => {
     return res.json({
       success: true,
       data: subscription
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar assinatura', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar assinatura', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
+      error: e.message
     });
   }
 });
@@ -228,14 +229,14 @@ router.get('/:id', async (req: any, res) => {
  * @desc Cria nova assinatura
  * @access Private (Admin, Manager, Client)
  */
-router.post('/', async (req: any, res) => {
+router.post('/', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { clientId, publisherId, planId, billingInterval, trialDays } = req.body;
 
     // NOVO: Determinar publisherId baseado em userType
     let finalPublisherId: number | undefined;
-    const userType = req.user.userType;
-    const userPublisherId = req.user.publisherId;
+    const userType = req.user!.userType;
+    const userPublisherId = req.user!.publisherId;
 
     // Regra do domínio: subscriptions são exclusivas de publishers
     if (userType === 'subscriber_user') {
@@ -248,9 +249,9 @@ router.post('/', async (req: any, res) => {
     if (userType === 'publisher_user') {
       // Publishers criam assinaturas para si mesmos
       finalPublisherId = userPublisherId;
-    } else if (req.user.role === 'client' && req.user.clientId) {
+    } else if (req.user!.role === 'client' && req.user!.clientId) {
       // DEPRECADO: Compatibilidade
-      finalPublisherId = req.user.clientId;
+      finalPublisherId = req.user!.clientId;
     } else {
       // Admins podem especificar publisherId
       finalPublisherId = publisherId || clientId; // clientId para compatibilidade
@@ -282,14 +283,13 @@ router.post('/', async (req: any, res) => {
       success: true,
       message: 'Assinatura criada com sucesso',
       data: subscription
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao criar assinatura', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao criar assinatura', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao criar assinatura',
-      error: error.message
+      message: e.message || 'Erro ao criar assinatura',
+      error: e.message
     });
   }
 });
@@ -299,7 +299,7 @@ router.post('/', async (req: any, res) => {
  * @desc Atualiza assinatura
  * @access Private (Admin, Manager)
  */
-router.put('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res) => {
+router.put('/:id', authorizeRole(['admin', 'admin_sql']), async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { id } = req.params;
     const updateData = req.body;
@@ -310,14 +310,13 @@ router.put('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res) 
       success: true,
       message: 'Assinatura atualizada com sucesso',
       data: subscription
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao atualizar assinatura', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao atualizar assinatura', e.error);
     res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao atualizar assinatura',
-      error: error.message
+      message: e.message || 'Erro ao atualizar assinatura',
+      error: e.message
     });
   }
 });
@@ -327,7 +326,7 @@ router.put('/:id', authorizeRole(['admin', 'admin_sql']), async (req: any, res) 
  * @desc Cancela assinatura
  * @access Private (Admin, Manager, Client)
  */
-router.post('/:id/cancel', async (req: any, res) => {
+router.post('/:id/cancel', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { id } = req.params;
     const { cancelAtPeriodEnd = true } = req.body;
@@ -341,9 +340,9 @@ router.post('/:id/cancel', async (req: any, res) => {
     }
 
     // NOVO: Verificar permissão baseado em userType
-    const userType = req.user.userType;
-    const userPublisherId = req.user.publisherId;
-    const clientId = req.user.clientId; // DEPRECADO
+    const userType = req.user!.userType;
+    const userPublisherId = req.user!.publisherId;
+    const clientId = req.user!.clientId; // DEPRECADO
 
     // Regra do domínio: subscriptions são exclusivas de publishers
     if (userType === 'subscriber_user') {
@@ -357,10 +356,10 @@ router.post('/:id/cancel', async (req: any, res) => {
 
     if (userType === 'publisher_user') {
       hasAccess = userPublisherId === subscription.publisherId;
-    } else if (req.user.role === 'client' && clientId) {
+    } else if (req.user!.role === 'client' && clientId) {
       hasAccess = clientId === subscription.subscriberId || clientId === subscription.publisherId;
     } else {
-      hasAccess = ['admin', 'admin_sql', 'owner_system'].includes(req.user.role);
+      hasAccess = ['admin', 'admin_sql', 'owner_system'].includes(req.user!.role);
     }
 
     if (!hasAccess) {
@@ -381,14 +380,13 @@ router.post('/:id/cancel', async (req: any, res) => {
         ? 'Assinatura será cancelada ao final do período'
         : 'Assinatura cancelada imediatamente',
       data: canceledSubscription
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao cancelar assinatura', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao cancelar assinatura', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao cancelar assinatura',
-      error: error.message
+      message: e.message || 'Erro ao cancelar assinatura',
+      error: e.message
     });
   }
 });
@@ -398,7 +396,7 @@ router.post('/:id/cancel', async (req: any, res) => {
  * @desc Retoma assinatura cancelada
  * @access Private (Admin, Manager, Client)
  */
-router.post('/:id/resume', async (req: any, res) => {
+router.post('/:id/resume', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { id } = req.params;
 
@@ -411,9 +409,9 @@ router.post('/:id/resume', async (req: any, res) => {
     }
 
     // NOVO: Verificar permissão baseado em userType
-    const userType = req.user.userType;
-    const userPublisherId = req.user.publisherId;
-    const clientId = req.user.clientId; // DEPRECADO
+    const userType = req.user!.userType;
+    const userPublisherId = req.user!.publisherId;
+    const clientId = req.user!.clientId; // DEPRECADO
 
     // Regra do domínio: subscriptions são exclusivas de publishers
     if (userType === 'subscriber_user') {
@@ -427,10 +425,10 @@ router.post('/:id/resume', async (req: any, res) => {
 
     if (userType === 'publisher_user') {
       hasAccess = userPublisherId === subscription.publisherId;
-    } else if (req.user.role === 'client' && clientId) {
+    } else if (req.user!.role === 'client' && clientId) {
       hasAccess = clientId === subscription.subscriberId || clientId === subscription.publisherId;
     } else {
-      hasAccess = ['admin', 'admin_sql', 'owner_system'].includes(req.user.role);
+      hasAccess = ['admin', 'admin_sql', 'owner_system'].includes(req.user!.role);
     }
 
     if (!hasAccess) {
@@ -448,14 +446,13 @@ router.post('/:id/resume', async (req: any, res) => {
       success: true,
       message: 'Assinatura retomada com sucesso',
       data: resumedSubscription
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao retomar assinatura', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao retomar assinatura', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao retomar assinatura',
-      error: error.message
+      message: e.message || 'Erro ao retomar assinatura',
+      error: e.message
     });
   }
 });
@@ -465,12 +462,12 @@ router.post('/:id/resume', async (req: any, res) => {
  * @desc Cria checkout session do Stripe
  * @access Private (Client)
  */
-router.post('/checkout', async (req: any, res) => {
+router.post('/checkout', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     // Suportar publisherId além de clientId
-    const userType = req.user.userType;
-    const userPublisherId = req.user.publisherId;
-    const clientId = req.user.clientId; // DEPRECADO
+    const userType = req.user!.userType;
+    const userPublisherId = req.user!.publisherId;
+    const clientId = req.user!.clientId; // DEPRECADO
 
     // Regra do domínio: subscriptions são exclusivas de publishers
     if (userType === 'subscriber_user') {
@@ -484,7 +481,7 @@ router.post('/checkout', async (req: any, res) => {
 
     if (userType === 'publisher_user') {
       publisherId = userPublisherId;
-    } else if (req.user.role === 'client' && clientId) {
+    } else if (req.user!.role === 'client' && clientId) {
       publisherId = clientId;
     }
 
@@ -534,8 +531,8 @@ router.post('/checkout', async (req: any, res) => {
 
     // NOVO: Buscar publisher (substitui subscriber)
     const db = (await import('../config/database')).getDatabase();
-    let publisher: any = null;
-    let subscriber: any = null;
+    let publisher: Record<string, unknown> | null = null;
+    let subscriber: Record<string, unknown> | null = null;
 
     // Tentar buscar publisher primeiro
     publisher = await db.findFirst(`
@@ -557,8 +554,12 @@ router.post('/checkout', async (req: any, res) => {
     }
 
     // Determinar email e nome
-    const clientEmail = publisher?.email || subscriber?.email || `${publisherId}@smartsignage.com`;
-    const clientName = publisher?.name || subscriber?.name || undefined;
+    const clientEmail = String(publisher?.email || subscriber?.email || `${publisherId}@smartsignage.com`);
+    const clientName = publisher?.name !== undefined && publisher?.name !== null
+      ? String(publisher.name)
+      : subscriber?.name !== undefined && subscriber?.name !== null
+        ? String(subscriber.name)
+        : undefined;
 
     // Criar ou buscar customer
     const customer = await stripeService.createOrGetCustomer(
@@ -598,14 +599,13 @@ router.post('/checkout', async (req: any, res) => {
         sessionId: session.id,
         url: session.url,
       }
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao criar checkout session', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao criar checkout session', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao criar checkout session',
-      error: error.message
+      message: e.message || 'Erro ao criar checkout session',
+      error: e.message
     });
   }
 });
@@ -634,20 +634,20 @@ router.post('/webhook', async (req, res) => {
     }
 
     // Verificar signature
-    const event = stripeService.verifyWebhookSignature(req.body, signature);
+    const event = await stripeService.verifyWebhookSignature(req.body, signature);
 
     // Processar webhook
     const subscriptionService = getSubscriptionService();
-    await subscriptionService.processStripeWebhook(event);
+    await subscriptionService.processStripeWebhook(event as unknown as Record<string, unknown>);
 
-    return res.json({ received: true });
-
-  } catch (error: any) {
-    await logError('Erro ao processar webhook do Stripe', error);
+    return res.json({
+      received: true });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao processar webhook do Stripe', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao processar webhook',
-      error: error.message
+      message: e.message || 'Erro ao processar webhook',
+      error: e.message
     });
   }
 });

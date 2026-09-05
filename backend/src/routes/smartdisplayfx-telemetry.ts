@@ -4,19 +4,22 @@
  * @access Private (Admin, Admin SQL, Gerente Marketing, Visualizador)
  */
 
-import { Router, Response, Request } from 'express';
+import { Router} from 'express';
+import express from 'express';
+
 import { query, param, body, validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { getFxTelemetryService } from '../services/fxTelemetryService';
 import { logError } from '../utils/loggerHelper';
 import { isMissingTableError } from '../utils/dbErrors';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
 // Middleware de autenticação para todas as rotas
 router.use(authMiddleware);
 
-const validateRequest = (req: any, res: any, next: any) => {
+const validateRequest = (req: express.Request, res: express.Response, next: express.NextFunction): express.Response | void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -42,7 +45,7 @@ router.get('/',
   query('endDate').optional().isISO8601(),
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing', 'visualizador']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const { page, limit, totem_id, effect_id, status, startDate, endDate } = req.query;
       
@@ -56,15 +59,15 @@ router.get('/',
         endDate: endDate as string | undefined,
       });
 
-      return res.json(result);
-    } catch (error: any) {
+      return res.json(result);} catch (error: unknown) {
+      const e = normalizeError(error);
       if (isMissingTableError(error)) {
         return res.json({ data: [], total: 0, page: 1, limit: 50 });
-      }
+    }
       await logError('GET /api/smartdisplayfx/telemetry error', error, req.query);
       return res.status(500).json({
         error: 'Erro ao listar telemetria',
-        message: error.message
+        message: e.message
       });
     }
   }
@@ -90,7 +93,7 @@ router.post(
   body('error_message').optional({ nullable: true }).isString(),
   body('metadata').optional({ nullable: true }).isObject(),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const telemetryService = getFxTelemetryService();
 
@@ -112,13 +115,13 @@ router.post(
       return res.status(201).json({
         success: true,
         data: telemetry,
-      });
-    } catch (error: any) {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
       await logError('POST /api/smartdisplayfx/telemetry error', error, req.body);
       return res.status(500).json({
         error: 'Erro ao criar telemetria',
-        message: error.message,
-      });
+        message: e.message,
+    });
     }
   }
 );
@@ -134,7 +137,7 @@ router.post(
   body('items.*.totem_id').isInt({ min: 1 }).withMessage('totem_id é obrigatório e deve ser um número válido'),
   body('items.*.effect_id').isString().notEmpty().withMessage('effect_id é obrigatório'),
   validateRequest,
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const telemetryService = getFxTelemetryService();
 
@@ -163,13 +166,13 @@ router.post(
         success: true,
         count: results.length,
         data: results,
-      });
-    } catch (error: any) {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
       await logError('POST /api/smartdisplayfx/telemetry/batch error', error, req.body);
       return res.status(500).json({
         error: 'Erro ao criar telemetria em batch',
-        message: error.message,
-      });
+        message: e.message,
+    });
     }
   }
 );
@@ -186,7 +189,7 @@ router.get('/stats',
   query('endDate').optional().isISO8601(),
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing', 'visualizador']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const { totem_id, effect_id, startDate, endDate } = req.query;
       
@@ -197,13 +200,14 @@ router.get('/stats',
         endDate: endDate as string | undefined,
       });
 
-      return res.json({ data: stats });
-    } catch (error: any) {
+      return res.json({
+        data: stats });} catch (error: unknown) {
+      const e = normalizeError(error);
       await logError('GET /api/smartdisplayfx/telemetry/stats error', error, req.query);
       return res.status(500).json({
         error: 'Erro ao obter estatísticas',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );
@@ -217,7 +221,7 @@ router.get('/:id',
   param('id').isInt({ min: 1 }),
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing', 'visualizador']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const telemetryId = parseInt(req.params.id);
       const telemetry = await getFxTelemetryService().getTelemetryById(telemetryId);
@@ -228,13 +232,14 @@ router.get('/:id',
         });
       }
 
-      return res.json({ data: telemetry });
-    } catch (error: any) {
-      await logError('GET /api/smartdisplayfx/telemetry/:id error', error, { id: req.params.id });
+      return res.json({
+        data: telemetry });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('GET /api/smartdisplayfx/telemetry/:id error', e.error, { id: req.params.id });
       return res.status(500).json({
         error: 'Erro ao buscar telemetria',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );

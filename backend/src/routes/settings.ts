@@ -7,6 +7,7 @@ import { Router } from 'express';
 import { SettingsService } from '../services/settingsService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { logError, logWarn, logInfo } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -33,15 +34,14 @@ router.get('/', authorizeRole(['admin', 'admin_sql']), async (_req, res) => {
     res.json({
       success: true,
       data: settings
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar configurações', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar configurações', e.error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -57,15 +57,14 @@ router.get('/public', async (_req, res) => {
     res.json({
       success: true,
       data: settings.publicSettings
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar configurações públicas', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar configurações públicas', e.error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -90,15 +89,14 @@ router.get('/:key', authorizeRole(['admin', 'admin_sql']), async (req, res) => {
     return res.json({
       success: true,
       data: setting
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar configuração', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar configuração', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -118,7 +116,7 @@ router.put('/', authorizeRole(['admin']), async (req, res) => {
       });
     }
 
-    const validation = await getSettingsService().updateSettings(settings, req.user.id);
+    const validation = await getSettingsService().updateSettings(settings, req.user!.id);
 
     if (!validation.isValid) {
       return res.status(400).json({
@@ -135,8 +133,9 @@ router.put('/', authorizeRole(['admin']), async (req, res) => {
         const { reloadMediaConfig } = await import('../config/mediaConfig');
         await reloadMediaConfig();
         await logInfo('Configurações de mídia recarregadas automaticamente após atualização');
-      } catch (reloadError: any) {
-        await logWarn('Erro ao recarregar configurações de mídia', { error: reloadError.message });
+} catch (reloadError: unknown) {
+  const e = normalizeError(reloadError);
+        await logWarn('Erro ao recarregar configurações de mídia', { error: e.message });
       }
     }
 
@@ -144,15 +143,14 @@ router.put('/', authorizeRole(['admin']), async (req, res) => {
       success: true,
       message: 'Configurações atualizadas com sucesso',
       data: validation
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao atualizar configurações', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao atualizar configurações', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao atualizar configurações',
-      error: error.message
-    });
+      message: e.message || 'Erro ao atualizar configurações',
+      error: e.message
+  });
   }
 });
 
@@ -172,20 +170,19 @@ router.post('/:key/reset', authorizeRole(['admin', 'admin_sql']), async (req, re
       });
     }
 
-    await getSettingsService().resetSetting(key, req.user.id);
+    await getSettingsService().resetSetting(key, req.user!.id);
 
     return res.json({
       success: true,
       message: 'Configuração resetada para valor padrão'
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao resetar configuração', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao resetar configuração', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao resetar configuração',
-      error: error.message
-    });
+      message: e.message || 'Erro ao resetar configuração',
+      error: e.message
+  });
   }
 });
 
@@ -203,20 +200,19 @@ router.post('/reset-all', authorizeRole(['admin']), async (req, res) => {
       });
     }
 
-    await getSettingsService().resetAllSettings(req.user.id);
+    await getSettingsService().resetAllSettings(req.user!.id);
 
     return res.json({
       success: true,
       message: 'Todas as configurações foram resetadas para valores padrão'
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao resetar todas as configurações', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao resetar todas as configurações', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -236,21 +232,20 @@ router.post('/', authorizeRole(['admin']), async (req, res) => {
       });
     }
 
-    const setting = await getSettingsService().createSetting(settingData, req.user.id);
+    const setting = await getSettingsService().createSetting(settingData, req.user!.id);
 
     return res.status(201).json({
       success: true,
       message: 'Configuração criada com sucesso',
       data: setting
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao criar configuração', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao criar configuração', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao criar configuração',
-      error: error.message
-    });
+      message: e.message || 'Erro ao criar configuração',
+      error: e.message
+  });
   }
 });
 
@@ -270,20 +265,19 @@ router.delete('/:key', authorizeRole(['admin']), async (req, res) => {
       });
     }
 
-    await getSettingsService().deleteSetting(key, req.user.id);
+    await getSettingsService().deleteSetting(key, req.user!.id);
 
     return res.json({
       success: true,
       message: 'Configuração removida com sucesso'
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao remover configuração', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao remover configuração', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao remover configuração',
-      error: error.message
-    });
+      message: e.message || 'Erro ao remover configuração',
+      error: e.message
+  });
   }
 });
 
@@ -301,15 +295,14 @@ router.post('/validate', authorizeRole(['admin', 'admin_sql']), async (req, res)
     res.json({
       success: true,
       data: validation
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao validar configurações', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao validar configurações', e.error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -324,15 +317,14 @@ router.get('/export', authorizeRole(['admin', 'admin_sql']), async (_req, res) =
 
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', 'attachment; filename="settings-export.json"');
-    res.json(settings);
-
-  } catch (error: any) {
-    await logError('Erro ao exportar configurações', error);
+    res.json(settings);} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao exportar configurações', e.error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -359,7 +351,7 @@ router.post('/import', authorizeRole(['admin']), async (req, res) => {
       });
     }
 
-    const validation = await getSettingsService().importSettings(settings, req.user.id);
+    const validation = await getSettingsService().importSettings(settings, req.user!.id);
 
     if (!validation.isValid) {
       return res.status(400).json({
@@ -373,15 +365,14 @@ router.post('/import', authorizeRole(['admin']), async (req, res) => {
       success: true,
       message: 'Configurações importadas com sucesso',
       data: validation
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao importar configurações', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao importar configurações', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao importar configurações',
-      error: error.message
-    });
+      message: e.message || 'Erro ao importar configurações',
+      error: e.message
+  });
   }
 });
 
@@ -405,15 +396,14 @@ router.get('/categories', authorizeRole(['admin', 'admin_sql']), async (_req, re
     res.json({
       success: true,
       data: categories
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar categorias de configurações', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar categorias de configurações', e.error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -439,15 +429,14 @@ router.get('/category/:category', authorizeRole(['admin', 'admin_sql']), async (
     return res.json({
       success: true,
       data: categorySettings
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar configurações da categoria', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar configurações da categoria', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -488,7 +477,7 @@ router.put('/category/:category', authorizeRole(['admin', 'admin_sql']), async (
       }
     }
 
-    const validation = await getSettingsService().updateSettings(categorySettings, req.user.id);
+    const validation = await getSettingsService().updateSettings(categorySettings, req.user!.id);
 
     if (!validation.isValid) {
       return res.status(400).json({
@@ -502,15 +491,14 @@ router.put('/category/:category', authorizeRole(['admin', 'admin_sql']), async (
       success: true,
       message: `Configurações da categoria ${category} atualizadas com sucesso`,
       data: validation
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao atualizar configurações da categoria', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao atualizar configurações da categoria', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao atualizar configurações da categoria',
-      error: error.message
-    });
+      message: e.message || 'Erro ao atualizar configurações da categoria',
+      error: e.message
+  });
   }
 });
 
@@ -541,15 +529,14 @@ router.post('/media/apply', authorizeRole(['admin']), async (req, res) => {
       success: true,
       message: result.message,
       data: result
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao aplicar configurações de mídia', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao aplicar configurações de mídia', e.error);
     return res.status(500).json({
       success: false,
-      message: error.message || 'Erro ao aplicar configurações de mídia',
-      error: error.message
-    });
+      message: e.message || 'Erro ao aplicar configurações de mídia',
+      error: e.message
+  });
   }
 });
 

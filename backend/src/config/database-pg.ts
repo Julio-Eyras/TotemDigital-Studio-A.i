@@ -10,6 +10,7 @@ import pg from 'pg';
 import { logInfoSync, logErrorSync } from '../utils/loggerHelper';
 import { databaseConfig as config } from './env';
 import { ensureRemoteCommandTypesConstraint, ensureRemoteScreenshotsSchema } from './schemaCompat';
+import { normalizeError } from '../utils/errors';
 
 const { Pool } = pg;
 
@@ -81,14 +82,14 @@ export async function initializeDatabase(): Promise<pg.Pool> {
       return pool;
     }
     
-    return pool;
-  } catch (error: any) {
+    return pool;} catch (error: unknown) {
+      const e = normalizeError(error);
     logErrorSync('Erro ao conectar ao PostgreSQL', error, {
       host: dbConfig.host,
       port: dbConfig.port,
       database: dbConfig.database
     });
-    throw error;
+    throw e.error;
   }
 }
 
@@ -141,9 +142,10 @@ export async function transaction<T>(
     const result = await callback(client);
     await client.query('COMMIT');
     return result;
-  } catch (error) {
+} catch (error: unknown) {
+    const e = normalizeError(error);
     await client.query('ROLLBACK');
-    throw error;
+    throw e.error;
   } finally {
     client.release();
   }
@@ -155,7 +157,7 @@ export async function transaction<T>(
  */
 class DatabaseWrapper {
   private pool: pg.Pool;
-  private queryLogger?: (query: string, params?: any[], duration?: number, rowCount?: number, error?: string) => void;
+  private queryLogger?: (query: string, params?: unknown[], duration?: number, rowCount?: number, error?: string) => void;
 
   constructor(pool: pg.Pool) {
     this.pool = pool;
@@ -164,14 +166,14 @@ class DatabaseWrapper {
   /**
    * Define função de callback para logar queries (usado pelo debug service)
    */
-  setQueryLogger(logger: (query: string, params?: any[], duration?: number, rowCount?: number, error?: string) => void): void {
+  setQueryLogger(logger: (query: string, params?: unknown[], duration?: number, rowCount?: number, error?: string) => void): void {
     this.queryLogger = logger;
   }
 
   /**
    * Converte query com ? placeholders para $1, $2, etc.
    */
-  private convertQuery(query: string, params: any[]): { text: string; values: any[] } {
+  private convertQuery(query: string, params: unknown[]): { text: string; values: unknown[] } {
     // Se a query já utiliza placeholders $1, $2, etc., apenas repassar
     if (/\$\d+/.test(query)) {
       return {
@@ -181,7 +183,7 @@ class DatabaseWrapper {
     }
 
     let convertedQuery = query;
-    const values: any[] = [];
+    const values: unknown[] = [];
     let paramIndex = 1;
 
     // Substituir ? por $1, $2, etc.
@@ -201,7 +203,7 @@ class DatabaseWrapper {
   /**
    * Busca múltiplos registros
    */
-  async findMany(query: string, params: any[] = []): Promise<any[]> {
+  async findMany(query: string, params: unknown[] = []): Promise<any[]> {
     const { text, values } = this.convertQuery(query, params);
     const startTime = Date.now();
     try {
@@ -210,20 +212,20 @@ class DatabaseWrapper {
       if (this.queryLogger) {
         this.queryLogger(text, values, duration, result.rowCount ?? undefined);
       }
-      return result.rows;
-    } catch (error: any) {
+      return result.rows;} catch (error: unknown) {
+      const e = normalizeError(error);
       const duration = Date.now() - startTime;
       if (this.queryLogger) {
-        this.queryLogger(text, values, duration, undefined, error.message);
+        this.queryLogger(text, values, duration, undefined, e.message);
       }
-      throw error;
+      throw e.error;
     }
   }
 
   /**
    * Busca o primeiro registro
    */
-  async findFirst(query: string, params: any[] = []): Promise<any | null> {
+  async findFirst(query: string, params: unknown[] = []): Promise<any | null> {
     const { text, values } = this.convertQuery(query, params);
     const startTime = Date.now();
     try {
@@ -232,20 +234,20 @@ class DatabaseWrapper {
       if (this.queryLogger) {
         this.queryLogger(text, values, duration, result.rowCount ?? undefined);
       }
-      return result.rows.length > 0 ? result.rows[0] : null;
-    } catch (error: any) {
+      return result.rows.length > 0 ? result.rows[0] : null;} catch (error: unknown) {
+      const e = normalizeError(error);
       const duration = Date.now() - startTime;
       if (this.queryLogger) {
-        this.queryLogger(text, values, duration, undefined, error.message);
+        this.queryLogger(text, values, duration, undefined, e.message);
       }
-      throw error;
+      throw e.error;
     }
   }
 
   /**
    * Executa query (INSERT, UPDATE, DELETE)
    */
-  async executeRaw(query: string, params: any[] = []): Promise<any> {
+  async executeRaw(query: string, params: unknown[] = []): Promise<any> {
     const { text, values } = this.convertQuery(query, params);
     const startTime = Date.now();
     try {
@@ -254,13 +256,13 @@ class DatabaseWrapper {
       if (this.queryLogger) {
         this.queryLogger(text, values, duration, result.rowCount ?? undefined);
       }
-      return result;
-    } catch (error: any) {
+      return result;} catch (error: unknown) {
+      const e = normalizeError(error);
       const duration = Date.now() - startTime;
       if (this.queryLogger) {
-        this.queryLogger(text, values, duration, undefined, error.message);
+        this.queryLogger(text, values, duration, undefined, e.message);
       }
-      throw error;
+      throw e.error;
     }
   }
 

@@ -15,6 +15,7 @@ import { transaction } from '../config/database-pg';
 // import { AuditService } from './auditService'; // Não utilizado no momento
 import { logError, logDebug } from '../utils/loggerHelper';
 import type { PoolClient } from 'pg';
+import { normalizeError } from '../utils/errors';
 
 export interface CreateSubscriberBillingRequest {
   subscriberId: number;
@@ -32,7 +33,7 @@ export interface CreateSubscriberBillingRequest {
   paymentMethod?: string;
   paymentReference?: string;
   notes?: string;
-  metadata?: any; // Para exhibition_lot, totem_quantity, time_based
+  metadata: Record<string, unknown>; // Para exhibition_lot, totem_quantity, time_based
 }
 
 export interface UpdateSubscriberBillingRequest {
@@ -44,7 +45,7 @@ export interface UpdateSubscriberBillingRequest {
   paymentMethod?: string;
   paymentReference?: string;
   notes?: string;
-  metadata?: any;
+  metadata: Record<string, unknown>;
 }
 
 export interface SubscriberBillingResponse {
@@ -58,7 +59,7 @@ export interface SubscriberBillingResponse {
   dueDate: string;
   status: string; // mapeado de payment_status
   paymentMethod?: string;
-  metadata?: any;
+  metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
   paidAt?: string; // mapeado de payment_date
@@ -92,10 +93,10 @@ export class SubscriberBillingService {
 
   // Audit service - comentado temporariamente (não utilizado)
   // private getAuditService(): AuditService {
-  //   if (!(global as any).auditServiceInstance) {
-  //     (global as any).auditServiceInstance = new AuditService();
+  //   if (!(global as unknown as Record<string, unknown>).auditServiceInstance) {
+  //     (global as unknown as Record<string, unknown>).auditServiceInstance = new AuditService();
   //   }
-  //   return (global as any).auditServiceInstance;
+  //   return (global as unknown as Record<string, unknown>).auditServiceInstance;
   // }
 
   /**
@@ -122,7 +123,7 @@ export class SubscriberBillingService {
     try {
       const offset = (page - 1) * limit;
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (filters.subscriberId) {
         whereClause += ' AND sb.subscriber_id = $' + (params.length + 1);
@@ -258,9 +259,9 @@ export class SubscriberBillingService {
         total: parseInt(totalResult?.total || '0'),
         page,
         limit
-      };
-    } catch (error: any) {
-      await logError('Erro ao listar faturas de subscribers', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar faturas de subscribers', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -378,9 +379,9 @@ export class SubscriberBillingService {
         ...billing,
         isOverdue: billing.isOverdue || false,
         daysOverdue: billing.daysOverdue || 0
-      };
-    } catch (error: any) {
-      await logError('Erro ao obter fatura de subscriber', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter fatura de subscriber', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -455,10 +456,10 @@ export class SubscriberBillingService {
           throw new Error('Erro ao buscar fatura criada');
         }
 
-        return billing;
-      } catch (error: any) {
-        await logError('Erro ao criar fatura de subscriber', error);
-        throw error;
+        return billing;} catch (error: unknown) {
+      const e = normalizeError(error);
+        await logError('Erro ao criar fatura de subscriber', e.error);
+        throw e.error;
       }
     });
   }
@@ -541,10 +542,10 @@ export class SubscriberBillingService {
         throw new Error('Erro ao buscar fatura atualizada');
       }
 
-      return updatedBilling;
-    } catch (error: any) {
-      await logError('Erro ao atualizar fatura de subscriber', error);
-      throw error;
+      return updatedBilling;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar fatura de subscriber', e.error);
+      throw e.error;
     }
   }
 
@@ -557,7 +558,7 @@ export class SubscriberBillingService {
     try {
       const dueSoonDays = Math.min(Math.max(filters?.dueSoonDays ?? 30, 1), 365);
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (filters?.subscriberId) {
         whereClause += ' AND sb.subscriber_id = $' + (params.length + 1);
@@ -702,9 +703,9 @@ export class SubscriberBillingService {
           amount: parseFloat(s.amount) 
         })),
         byMonth: byMonth.map(m => ({ month: m.month, count: parseInt(m.count), amount: parseFloat(m.amount) }))
-      };
-    } catch (error: any) {
-      await logError('Erro ao buscar estatísticas de billing de subscribers', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar estatísticas de billing de subscribers', e.error);
       throw new Error('Erro interno do servidor');
     }
   }

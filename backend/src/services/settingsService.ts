@@ -7,10 +7,12 @@ import { getDatabase } from '../config/database';
 import { AuditService } from './auditService';
 import { logError } from '../utils/loggerHelper';
 import {
+
   invalidateFinancialIntegrationConfigCache,
 } from './financialIntegrationConfigService';
 import { isSecretSettingKey, maskSecretSettingValue } from '../constants/secretSettingKeys';
 import { DEFAULT_FINANCIAL_SETTINGS } from '../constants/defaultFinancialSettings';
+import { normalizeError } from '../utils/errors';
 
 export interface SystemSetting {
   id: number;
@@ -22,7 +24,7 @@ export interface SystemSetting {
   isPublic: boolean;
   isEditable: boolean;
   validation?: string;
-  options?: any[];
+  options?: unknown[];
   defaultValue: string;
   createdAt: string;
   updatedAt: string;
@@ -38,12 +40,12 @@ export interface SettingsCategory {
 
 export interface SettingsResponse {
   categories: SettingsCategory[];
-  publicSettings: { [key: string]: any };
-  privateSettings: { [key: string]: any };
+  publicSettings: Record<string, unknown>;
+  privateSettings: Record<string, unknown>;
 }
 
 export interface UpdateSettingsRequest {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface SettingsValidation {
@@ -53,7 +55,7 @@ export interface SettingsValidation {
 }
 
 type DefaultSystemSetting = Omit<SystemSetting, 'id' | 'createdAt' | 'updatedAt' | 'value'> & {
-  value: any;
+  value: unknown;
 };
 
 const DEFAULT_UI_SETTINGS: DefaultSystemSetting[] = [
@@ -85,13 +87,13 @@ export class SettingsService {
   
   // Lazy initialization - só criar quando necessário
   private getAuditService(): AuditService {
-    if (!(global as any).auditServiceInstance) {
-      (global as any).auditServiceInstance = new AuditService();
+    if (!(global as unknown as Record<string, unknown>).auditServiceInstance) {
+      (global as unknown as Record<string, unknown>).auditServiceInstance = new AuditService();
     }
-    return (global as any).auditServiceInstance;
+    return (global as unknown as Record<string, unknown>).auditServiceInstance as AuditService;
   }
 
-  private tryParseJson(value?: string | null): any {
+  private tryParseJson(value?: string | null): unknown {
     if (!value) {
       return undefined;
     }
@@ -227,16 +229,16 @@ export class SettingsService {
 
       // Organizar por categoria
       const categories: { [key: string]: SettingsCategory } = {};
-      const publicSettings: { [key: string]: any } = {};
-      const privateSettings: { [key: string]: any } = {};
+      const publicSettings: Record<string, unknown> = {};
+      const privateSettings: Record<string, unknown> = {};
 
       settings.forEach(setting => {
         const convertedValue = this.convertSettingValue(setting.value, setting.type);
         const isEditableNorm =
           setting.isEditable === false ||
           setting.isEditable === 0 ||
-          (setting as any).is_editable === false ||
-          (setting as any).is_editable === 0
+          (setting as unknown as Record<string, unknown>).is_editable === false ||
+          (setting as unknown as Record<string, unknown>).is_editable === 0
             ? false
             : true;
 
@@ -270,10 +272,9 @@ export class SettingsService {
         categories: Object.values(categories),
         publicSettings,
         privateSettings
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar configurações', error, {});
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar configurações', e.error, {});
       throw new Error('Erro interno do servidor');
     }
   }
@@ -311,8 +312,8 @@ export class SettingsService {
       const isEditable =
         setting.isEditable === false ||
         setting.isEditable === 0 ||
-        (setting as any).is_editable === false ||
-        (setting as any).is_editable === 0
+        (setting as unknown as Record<string, unknown>).is_editable === false ||
+        (setting as unknown as Record<string, unknown>).is_editable === 0
           ? false
           : true;
 
@@ -321,10 +322,9 @@ export class SettingsService {
         isEditable,
         value: maskSecretSettingValue(setting.key, this.convertSettingValue(setting.value, setting.type)),
         options: this.tryParseJson(setting.options)
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar configuração', error, { key });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar configuração', e.error, { key });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -373,10 +373,9 @@ export class SettingsService {
             WHERE setting_key = $2
           `, [stringValue, key]);
 
-          updates.push(key);
-
-        } catch (error: any) {
-          errors[key] = error.message;
+          updates.push(key);} catch (error: unknown) {
+      const e = normalizeError(error);
+          errors[key] = e.message;
         }
       }
 
@@ -402,10 +401,9 @@ export class SettingsService {
         isValid: true,
         errors: {},
         warnings: {}
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao atualizar configurações', error, { settings });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar configurações', e.error, { settings });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -435,11 +433,10 @@ export class SettingsService {
       await this.getAuditService().log('settings', 'reset', resetBy, {
         settingKey: key,
         resetTo: setting.defaultValue
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao resetar configuração', error, { key });
-      throw error;
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao resetar configuração', e.error, { key });
+      throw e.error;
     }
   }
 
@@ -457,10 +454,9 @@ export class SettingsService {
       // Log de auditoria
       await this.getAuditService().log('settings', 'reset_all', resetBy, {
         message: 'Todas as configurações foram resetadas para valores padrão'
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao resetar todas as configurações', error, {});
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao resetar todas as configurações', e.error, {});
       throw new Error('Erro interno do servidor');
     }
   }
@@ -515,11 +511,10 @@ export class SettingsService {
         type: setting.type
       });
 
-      return newSetting;
-
-    } catch (error: any) {
-      await logError('Erro ao criar configuração', error, { key: setting.key });
-      throw error;
+      return newSetting;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar configuração', e.error, { key: setting.key });
+      throw e.error;
     }
   }
 
@@ -542,11 +537,10 @@ export class SettingsService {
       await this.getAuditService().log('settings', 'deleted', deletedBy, {
         settingKey: key,
         category: setting.category
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao remover configuração', error, { key });
-      throw error;
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao remover configuração', e.error, { key });
+      throw e.error;
     }
   }
 
@@ -598,10 +592,9 @@ export class SettingsService {
         isValid: Object.keys(errors).length === 0,
         errors,
         warnings
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao validar configurações', error, { settings });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao validar configurações', e.error, { settings });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -609,7 +602,7 @@ export class SettingsService {
   /**
    * Exporta configurações
    */
-  async exportSettings(): Promise<{ [key: string]: any }> {
+  async exportSettings(): Promise<Record<string, unknown>> {
     try {
       const settings = await this.db.findMany(`
         SELECT setting_key as key, setting_value as value, setting_type as type
@@ -617,15 +610,14 @@ export class SettingsService {
         WHERE is_editable = 1
       `);
 
-      const exported: { [key: string]: any } = {};
+      const exported: Record<string, unknown> = {};
       settings.forEach(setting => {
         exported[setting.key] = this.convertSettingValue(setting.value, setting.type);
       });
 
-      return exported;
-
-    } catch (error: any) {
-      await logError('Erro ao exportar configurações', error, {});
+      return exported;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao exportar configurações', e.error, {});
       throw new Error('Erro interno do servidor');
     }
   }
@@ -633,7 +625,7 @@ export class SettingsService {
   /**
    * Importa configurações
    */
-  async importSettings(settings: { [key: string]: any }, importedBy: number): Promise<SettingsValidation> {
+  async importSettings(settings: Record<string, unknown>, importedBy: number): Promise<SettingsValidation> {
     try {
       const validation = await this.validateSettings(settings);
       
@@ -668,10 +660,9 @@ export class SettingsService {
         isValid: true,
         errors: {},
         warnings: {}
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao importar configurações', error, { settings });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao importar configurações', e.error, { settings });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -679,7 +670,7 @@ export class SettingsService {
   /**
    * Converte valor da configuração baseado no tipo
    */
-  private convertSettingValue(value: string, type: string): any {
+  private convertSettingValue(value: string, type: string): unknown {
     try {
       switch (type) {
         case 'number':
@@ -693,7 +684,8 @@ export class SettingsService {
         default:
           return value;
       }
-    } catch (error) {
+ 
+} catch (error: unknown) {
       return value;
     }
   }
@@ -701,24 +693,24 @@ export class SettingsService {
   /**
    * Converte valor para string baseado no tipo
    */
-  private convertValueToString(value: any, type: string): string {
+  private convertValueToString(value: unknown, type: string): string {
     switch (type) {
       case 'number':
-        return value.toString();
+        return value != null ? String(value) : '';
       case 'boolean':
         return value ? 'true' : 'false';
       case 'json':
       case 'array':
         return JSON.stringify(value);
       default:
-        return value.toString();
+        return value != null ? String(value) : '';
     }
   }
 
   /**
    * Valida tipo do valor
    */
-  private validateValueType(value: any, type: string): boolean {
+  private validateValueType(value: unknown, type: string): boolean {
     switch (type) {
       case 'string':
         return typeof value === 'string';
@@ -743,19 +735,20 @@ export class SettingsService {
   /**
    * Valida valor específico
    */
-  private validateValue(value: any, validation: string): { isValid: boolean; error?: string } {
+  private validateValue(value: unknown, validation: string): { isValid: boolean; error?: string } {
     try {
       // Implementar validações específicas baseadas na string de validação
       // Exemplo: "min:0,max:100" para números
       if (validation.includes('min:') || validation.includes('max:')) {
         const minMatch = validation.match(/min:(\d+)/);
         const maxMatch = validation.match(/max:(\d+)/);
+        const numValue = Number(value);
         
-        if (minMatch && value < parseInt(minMatch[1])) {
+        if (minMatch && !Number.isNaN(numValue) && numValue < parseInt(minMatch[1])) {
           return { isValid: false, error: `Valor deve ser maior ou igual a ${minMatch[1]}` };
         }
         
-        if (maxMatch && value > parseInt(maxMatch[1])) {
+        if (maxMatch && !Number.isNaN(numValue) && numValue > parseInt(maxMatch[1])) {
           return { isValid: false, error: `Valor deve ser menor ou igual a ${maxMatch[1]}` };
         }
       }
@@ -763,7 +756,7 @@ export class SettingsService {
       // Validação de email
       if (validation === 'email') {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(value)) {
+        if (!emailRegex.test(String(value ?? ''))) {
           return { isValid: false, error: 'Formato de email inválido' };
         }
       }
@@ -771,16 +764,15 @@ export class SettingsService {
       // Validação de URL
       if (validation === 'url') {
         try {
-          new URL(value);
+          new URL(String(value ?? ''));
         } catch {
           return { isValid: false, error: 'URL inválida' };
         }
       }
 
-      return { isValid: true };
-
-    } catch (error: any) {
-      return { isValid: false, error: 'Erro na validação' };
+      return {
+        isValid: true };} catch (error: unknown) {
+return { isValid: false, error: 'Erro na validação' };
     }
   }
 

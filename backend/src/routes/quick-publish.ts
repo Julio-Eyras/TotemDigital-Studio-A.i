@@ -1,17 +1,20 @@
 import { Router } from 'express';
+import express from 'express';
+
 import { body, validationResult } from 'express-validator';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { getQuickPublishService } from '../services/quickPublishService';
 import { logError } from '../utils/loggerHelper';
 import { publishGuardErrorPayload, resolvePublishGuardHttpStatus } from '../utils/publishGuardHttp';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
 router.use(authenticateToken);
 router.use(blockClientDataAccess);
 
-const validateRequest = (req: any, res: any, next: any) => {
+const validateRequest = (req: express.Request, res: express.Response, next: express.NextFunction): express.Response | void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -37,7 +40,7 @@ function sanitizeIdList(raw: unknown): number[] {
 router.post(
   '/',
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'gerente_marketing', 'editoracao']),
-  (req: any, _res: any, next: any) => {
+  (req: express.Request, _res: any, next: express.NextFunction) => {
     if (Array.isArray(req.body?.totemIds)) {
       req.body.totemIds = sanitizeIdList(req.body.totemIds);
     }
@@ -58,7 +61,7 @@ router.post(
   body('publishNow').optional().isBoolean(),
   body('durationMs').optional().isInt({ min: 1000, max: 300000 }),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const rawContract = req.body.contractId;
       const contractId =
@@ -85,14 +88,14 @@ router.post(
         success: true,
         data: result,
         message: result.message,
-      });
-    } catch (error: any) {
-      await logError('Erro na rota de publicação rápida', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro na rota de publicação rápida', e.error);
       const payload = publishGuardErrorPayload(error);
       return res.status(resolvePublishGuardHttpStatus(error)).json({
         success: false,
         ...payload,
-      });
+    });
     }
   }
 );

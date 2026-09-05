@@ -7,13 +7,15 @@ import { getDatabase } from '../config/database';
 import { logInfo, logError, logDebug } from '../utils/loggerHelper';
 import fs from 'fs';
 import path from 'path';
+import { normalizeError } from '../utils/errors';
+
 // import { config } from '../config/env'; // TODO: usar quando necessário
 
 export interface TotemLogEntry {
   timestamp: string;
   level: 'info' | 'warn' | 'error' | 'debug';
   message: string;
-  metadata?: any;
+  metadata: Record<string, unknown>;
 }
 
 export interface TotemLogFilter {
@@ -75,7 +77,7 @@ export class TotemLogService {
           if (search && !logEntry.message.toLowerCase().includes(search.toLowerCase())) continue;
 
           logs.push(logEntry);
-        } catch (error) {
+} catch (error: unknown) {
           // Ignorar linhas inválidas
           continue;
         }
@@ -83,11 +85,10 @@ export class TotemLogService {
 
       // Ordenar por timestamp (mais recente primeiro) e limitar
       logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      return logs.slice(0, limit);
-
-    } catch (error: any) {
-      await logError('Erro ao obter logs do totem', error, { totemId: filter.totemId });
-      throw error;
+      return logs.slice(0, limit);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter logs do totem', e.error, { totemId: filter.totemId });
+      throw e.error;
     }
   }
 
@@ -175,10 +176,11 @@ export class TotemLogService {
 
       fs.writeFileSync(filePath, logContent);
 
-      return { filePath, fileName };
-    } catch (error: any) {
-      await logError('Erro ao fazer download de logs', error, { totemId: filter.totemId });
-      throw error;
+      return {
+        filePath, fileName };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao fazer download de logs', e.error, { totemId: filter.totemId });
+      throw e.error;
     }
   }
 
@@ -226,9 +228,9 @@ export class TotemLogService {
       const deletedCount = logs.length - recentLogs.length;
       await logInfo('Logs antigos limpos', { totemId, deletedCount, daysToKeep });
 
-      return deletedCount;
-    } catch (error: any) {
-      await logError('Erro ao limpar logs antigos', error, { totemId });
+      return deletedCount;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao limpar logs antigos', e.error, { totemId });
       return 0;
     }
   }

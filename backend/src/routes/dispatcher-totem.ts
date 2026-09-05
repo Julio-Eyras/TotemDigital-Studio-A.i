@@ -3,7 +3,9 @@
  * Rotas para o módulo Dispatcher-Totem
  */
 
-import { Router, Response } from 'express';
+import { Router } from 'express';
+import express from 'express';
+
 import { query, body, validationResult } from 'express-validator';
 import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
 import { getDispatcherTotemService } from '../services/dispatcherTotemService';
@@ -12,6 +14,7 @@ import { idParamValidator } from '../validators/common.validators';
 import { isStudioRuntime } from '../config/installationRuntime';
 import { isTotemSimpleModeEnabled } from '../services/totemSimpleModeService';
 import { assertDispatcherTotemScope } from '../middleware/dispatcherTotemScope.middleware';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -22,7 +25,7 @@ const DISPATCHER_TOTEM_TECH_ROLES = isStudioRuntime()
   ? (['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial', 'publisher_user'] as const)
   : (['admin', 'admin_sql', 'owner_system', 'operador_tecnico', 'operador_faturamento', 'operador_comercial'] as const);
 
-const validateRequest = (req: any, res: any, next: any) => {
+const validateRequest = (req: express.Request, res: express.Response, next: express.NextFunction): express.Response | void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -46,7 +49,7 @@ router.get('/:totemId/dispatch',
   query('includeCandidates').optional().isBoolean().withMessage('includeCandidates deve ser um booleano'),
   validateRequest,
   assertDispatcherTotemScope as any,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const totemId = parseInt(req.params.totemId);
       const timestamp = req.query.timestamp ? new Date(req.query.timestamp as string) : undefined;
@@ -71,14 +74,13 @@ router.get('/:totemId/dispatch',
         error: result.error,
         simpleMode,
         planSimpleMode: result.plan?.metadata?.simpleMode === true,
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao gerar plano de dispatch', error, { totemId: req.params.totemId });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar plano de dispatch', e.error, { totemId: req.params.totemId });
       return res.status(500).json({
         success: false,
-        error: error.message || 'Erro interno do servidor'
-      });
+        error: e.message || 'Erro interno do servidor'
+    });
     }
   }
 );
@@ -101,7 +103,7 @@ router.post('/:totemId/dispatch-batch',
   body('includeCandidates').optional({ nullable: true }).isBoolean().withMessage('includeCandidates deve ser um booleano'),
   validateRequest,
   assertDispatcherTotemScope as any,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const totemId = parseInt(req.params.totemId, 10);
       const { timestamps, timezone, skipCache, includeCandidates } = req.body as {
@@ -132,13 +134,13 @@ router.post('/:totemId/dispatch-batch',
           executionTimeMs: row.executionTimeMs,
           error: row.error,
         })),
-      });
-    } catch (error: any) {
-      await logError('Erro ao gerar planos de dispatch em lote', error, { totemId: req.params.totemId });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar planos de dispatch em lote', e.error, { totemId: req.params.totemId });
       return res.status(500).json({
         success: false,
-        error: error.message || 'Erro interno do servidor',
-      });
+        error: e.message || 'Erro interno do servidor',
+    });
     }
   }
 );
@@ -154,7 +156,7 @@ router.get('/:totemId/history',
   query('endDate').isISO8601().withMessage('endDate deve ser uma data ISO8601 válida'),
   validateRequest,
   assertDispatcherTotemScope as any,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const totemId = parseInt(req.params.totemId);
       const startDate = new Date(req.query.startDate as string);
@@ -167,14 +169,13 @@ router.get('/:totemId/history',
         success: true,
         data: history,
         count: history.length,
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao buscar histórico de dispatch', error, { totemId: req.params.totemId });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar histórico de dispatch', e.error, { totemId: req.params.totemId });
       return res.status(500).json({
         success: false,
-        error: error.message || 'Erro interno do servidor'
-      });
+        error: e.message || 'Erro interno do servidor'
+    });
     }
   }
 );
@@ -191,7 +192,7 @@ router.get('/:totemId/candidates',
   validateRequest,
   authorizeRole([...DISPATCHER_TOTEM_TECH_ROLES]) as any,
   assertDispatcherTotemScope as any,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const totemId = parseInt(req.params.totemId);
       const timestamp = req.query.timestamp ? new Date(req.query.timestamp as string) : undefined;
@@ -213,14 +214,13 @@ router.get('/:totemId/candidates',
         count: result.candidates?.length || 0,
         simpleMode,
         planSimpleMode: result.plan?.metadata?.simpleMode === true,
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao buscar candidatos', error, { totemId: req.params.totemId });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar candidatos', e.error, { totemId: req.params.totemId });
       return res.status(500).json({
         success: false,
-        error: error.message || 'Erro interno do servidor'
-      });
+        error: e.message || 'Erro interno do servidor'
+    });
     }
   }
 );
@@ -236,7 +236,7 @@ router.get(
   validateRequest,
   authorizeRole([...DISPATCHER_TOTEM_TECH_ROLES]) as any,
   assertDispatcherTotemScope as any,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const totemId = parseInt(req.params.totemId);
       const dispatcher = getDispatcherTotemService();
@@ -244,13 +244,13 @@ router.get(
       return res.json({
         success: true,
         data: diagnostics,
-      });
-    } catch (error: any) {
-      await logError('Erro ao buscar diagnostics do dispatcher', error, { totemId: req.params.totemId });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar diagnostics do dispatcher', e.error, { totemId: req.params.totemId });
       return res.status(500).json({
         success: false,
-        error: error.message || 'Erro interno do servidor',
-      });
+        error: e.message || 'Erro interno do servidor',
+    });
     }
   }
 );
@@ -262,7 +262,7 @@ router.get(
  */
 router.get('/cache/config',
   authorizeRole([...DISPATCHER_TOTEM_TECH_ROLES]) as any,
-  async (_req: AuthenticatedRequest, res: Response) => {
+  async (_req: AuthenticatedRequest, res: express.Response) => {
     try {
       const dispatcher = getDispatcherTotemService();
       const config = dispatcher.getCacheConfig();
@@ -270,14 +270,13 @@ router.get('/cache/config',
       return res.json({
         success: true,
         data: config,
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao obter configuração de cache', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter configuração de cache', e.error);
       return res.status(500).json({
         success: false,
-        error: error.message || 'Erro interno do servidor'
-      });
+        error: e.message || 'Erro interno do servidor'
+    });
     }
   }
 );
@@ -289,7 +288,7 @@ router.get('/cache/config',
  */
 router.post('/cache/config',
   authorizeRole([...DISPATCHER_TOTEM_TECH_ROLES]) as any,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const { enabled, ttlSeconds, maxSize } = req.body;
 
@@ -316,14 +315,13 @@ router.post('/cache/config',
         success: true,
         data: newConfig,
         message: 'Configuração de cache atualizada com sucesso'
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao configurar cache', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao configurar cache', e.error);
       return res.status(500).json({
         success: false,
-        error: error.message || 'Erro interno do servidor'
-      });
+        error: e.message || 'Erro interno do servidor'
+    });
     }
   }
 );

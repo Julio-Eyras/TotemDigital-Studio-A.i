@@ -5,6 +5,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from './auth.middleware';
 import {
+
   InstallationModuleId,
   INSTALLATION_MODULE_CATALOG,
   isInstallationModuleEnabled,
@@ -12,6 +13,7 @@ import {
 import { resolveInstallationCapabilities } from '../services/installationProfileService';
 import { createDatabaseWrapper } from '../config/database-pg';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 function moduleDisabledPayload(moduleId: InstallationModuleId | InstallationModuleId[]) {
   const ids = Array.isArray(moduleId) ? moduleId : [moduleId];
@@ -57,14 +59,14 @@ export const requireModule = (moduleId: InstallationModuleId) => {
         res.status(403).json(moduleDisabledPayload(moduleId));
         return;
       }
-      next();
-    } catch (error: any) {
-      logError('Erro ao verificar módulo da instalação', error).catch(() => {});
+      next();} catch (error: unknown) {
+      const e = normalizeError(error);
+      logError('Erro ao verificar módulo da instalação', e.error).catch(() => {});
       res.status(500).json({
         success: false,
         error: 'Erro interno ao verificar módulos',
         code: 'MODULE_CHECK_ERROR',
-      });
+    });
     }
   };
 };
@@ -80,14 +82,14 @@ export const requireAnyModule = (moduleIds: InstallationModuleId[]) => {
         res.status(403).json(moduleDisabledPayload(moduleIds));
         return;
       }
-      next();
-    } catch (error: any) {
-      logError('Erro ao verificar módulos da instalação', error).catch(() => {});
+      next();} catch (error: unknown) {
+      const e = normalizeError(error);
+      logError('Erro ao verificar módulos da instalação', e.error).catch(() => {});
       res.status(500).json({
         success: false,
         error: 'Erro interno ao verificar módulos',
         code: 'MODULE_CHECK_ERROR',
-      });
+    });
     }
   };
 };

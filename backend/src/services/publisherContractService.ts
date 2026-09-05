@@ -1,11 +1,13 @@
 import { getDatabase } from '../config/database';
 import {
+
   billingIntervalLabel,
   isBillingIntervalCode,
   resolvePublisherContractBillingInterval,
 } from '../utils/billingIntervals';
 import { logError } from '../utils/loggerHelper';
 import { todayYmd } from '../utils/businessDate';
+import { normalizeError } from '../utils/errors';
 
 export interface PublisherContract {
   contract_id: number;
@@ -17,7 +19,7 @@ export interface PublisherContract {
   start_date: string;
   end_date?: string;
   revenue_share_percentage?: number;
-  revenue_share_rules?: any;
+  revenue_share_rules?: unknown;
   minimum_payout_amount?: number;
   subscription_amount?: number;
   billing_interval?: string;
@@ -31,7 +33,7 @@ export interface PublisherContract {
   status: 'draft' | 'active' | 'expired' | 'terminated' | 'cancelled';
   signed_by_publisher_at?: string;
   signed_by_tenant_at?: string;
-  metadata?: any;
+  metadata?: unknown;
   created_at: string;
   updated_at: string;
   // created_before_publisher removed from schema
@@ -48,7 +50,7 @@ export interface CreatePublisherContractRequest {
   start_date: string;
   end_date?: string;
   revenue_share_percentage?: number;
-  revenue_share_rules?: any;
+  revenue_share_rules?: unknown;
   minimum_payout_amount?: number;
   subscription_amount?: number;
   billing_interval?: string;
@@ -62,7 +64,7 @@ export interface CreatePublisherContractRequest {
   status?: 'draft' | 'active' | 'expired' | 'terminated' | 'cancelled';
   signed_by_publisher_at?: string;
   signed_by_tenant_at?: string;
-  metadata?: any;
+  metadata?: unknown;
   // created_before_publisher removed from API
 }
 
@@ -74,7 +76,7 @@ export interface UpdatePublisherContractRequest {
   start_date?: string;
   end_date?: string;
   revenue_share_percentage?: number;
-  revenue_share_rules?: any;
+  revenue_share_rules?: unknown;
   minimum_payout_amount?: number;
   subscription_amount?: number;
   billing_interval?: string;
@@ -88,7 +90,7 @@ export interface UpdatePublisherContractRequest {
   status?: 'draft' | 'active' | 'expired' | 'terminated' | 'cancelled';
   signed_by_publisher_at?: string;
   signed_by_tenant_at?: string;
-  metadata?: any;
+  metadata?: unknown;
 }
 
 export interface PublisherContractListResponse {
@@ -120,7 +122,7 @@ export class PublisherContractService {
       const offset = (page - 1) * limit;
 
       let whereClause = 'WHERE 1=1';
-      const queryParams: any[] = [];
+      const queryParams: unknown[] = [];
 
       if (search) {
         whereClause += ` AND (pc.title ILIKE $${queryParams.length + 1} OR pc.contract_number ILIKE $${queryParams.length + 1} OR p.name ILIKE $${queryParams.length + 1})`;
@@ -199,9 +201,9 @@ export class PublisherContractService {
         total: parseInt(totalResult?.total || '0'),
         page,
         limit,
-      };
-    } catch (error: any) {
-      await logError('Erro ao listar contratos de publishers', error, { params });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar contratos de publishers', e.error, { params });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -246,10 +248,10 @@ export class PublisherContractService {
         WHERE pc.contract_id = $1
       `, [id]);
 
-      return contract || null;
-    } catch (error: any) {
-      await logError('Erro ao buscar contrato de publisher', error, { id });
-      throw error;
+      return contract || null;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar contrato de publisher', e.error, { id });
+      throw e.error;
     }
   }
 
@@ -366,10 +368,10 @@ export class PublisherContractService {
         throw new Error('Erro ao buscar contrato criado');
       }
 
-      return newContract;
-    } catch (error: any) {
-      await logError('Erro ao criar contrato de publisher', error, { data });
-      throw error;
+      return newContract;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar contrato de publisher', e.error, { data });
+      throw e.error;
     }
   }
 
@@ -379,7 +381,7 @@ export class PublisherContractService {
   async updateContract(id: number, data: UpdatePublisherContractRequest): Promise<PublisherContract> {
     try {
       const updateFields: string[] = [];
-      const updateParams: any[] = [];
+      const updateParams: unknown[] = [];
       let paramIndex = 1;
 
       if (data.contract_number !== undefined) {
@@ -495,10 +497,10 @@ export class PublisherContractService {
         throw new Error('Erro ao buscar contrato atualizado');
       }
 
-      return updatedContract;
-    } catch (error: any) {
-      await logError('Erro ao atualizar contrato de publisher', error, { id, data });
-      throw error;
+      return updatedContract;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar contrato de publisher', e.error, { id, data });
+      throw e.error;
     }
   }
 
@@ -517,10 +519,10 @@ export class PublisherContractService {
         UPDATE publisher_contracts 
         SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
         WHERE contract_id = $1
-      `, [id]);
-    } catch (error: any) {
-      await logError('Erro ao excluir contrato de publisher', error, { id });
-      throw error;
+      `, [id]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao excluir contrato de publisher', e.error, { id });
+      throw e.error;
     }
   }
 }

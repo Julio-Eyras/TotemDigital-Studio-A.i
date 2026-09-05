@@ -4,7 +4,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { AuthenticatedRequest } from './auth.middleware';
+import type { AuthenticatedRequest } from './auth.middleware';
 import { AuditService } from '../services/auditService';
 
 const auditService = new AuditService();
@@ -14,7 +14,7 @@ const auditService = new AuditService();
  * Todas as ações desses usuários devem ser registradas para auditoria
  */
 export const auditSystemUsers = async (
-  req: Request | AuthenticatedRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -30,9 +30,9 @@ export const auditSystemUsers = async (
       return originalStatus(code);
     };
 
-    res.json = function (body: any) {
+    res.json = function (body: unknown) {
       // Registrar auditoria (não bloquear se falhar)
-      auditService.log(
+      void auditService.log(
         'system',
         `${req.method.toLowerCase()}_${req.path.replace(/\//g, '_').replace(/[^a-z0-9_]/gi, '')}`,
         authReq.user!.id,
@@ -43,13 +43,13 @@ export const auditSystemUsers = async (
           statusCode,
           query: req.query,
           body: sanitizeForAudit(req.body),
-          responseSize: body ? JSON.stringify(body).length : 0
+          responseSize: body != null ? JSON.stringify(body).length : 0
         }
       ).catch(() => {
         // Não bloquear se auditoria falhar
       });
 
-      return originalJson(body);
+      return originalJson(body as Record<string, unknown>);
     };
   }
 
@@ -59,22 +59,22 @@ export const auditSystemUsers = async (
 /**
  * Remove dados sensíveis do body antes de auditar
  */
-function sanitizeForAudit(body: any): any {
-  if (!body) return body;
+function sanitizeForAudit(body: unknown): unknown {
+  if (body == null || typeof body !== 'object') return body;
   
-  if (typeof body !== 'object') return body;
-  
-  const sanitized = Array.isArray(body) ? [...body] : { ...body };
+  const sanitized: Record<string, unknown> = Array.isArray(body)
+    ? [...(body as unknown[])] as unknown as Record<string, unknown>
+    : { ...(body as Record<string, unknown>) };
   
   // Remover dados sensíveis
   const sensitiveFields = ['password', 'password_hash', 'token', 'secret', 'api_key', 'private_key'];
   
   for (const field of sensitiveFields) {
-    if (sanitized[field]) {
+    if (field in sanitized) {
       sanitized[field] = '***REDACTED***';
     }
   }
   
-  return sanitized;
+  return sanitized as unknown;
 }
 

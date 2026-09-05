@@ -5,6 +5,7 @@
 
 import { getDatabase } from '../config/database';
 import { logError, logDebug } from './loggerHelper';
+import { normalizeError } from './errors';
 
 /**
  * Determina subscriberId a partir do request
@@ -64,9 +65,10 @@ export async function determineSubscriberId(options: {
           subscriberId: firstSubscriber.subscriber_id
         });
         return firstSubscriber.subscriber_id;
-      }
-    } catch (error: any) {
-      await logError('Erro ao buscar primeiro subscriber ativo', error);
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar primeiro subscriber ativo', e.error);
     }
   }
 
@@ -76,7 +78,7 @@ export async function determineSubscriberId(options: {
 /**
  * Normaliza dados de campanha (snake_case → camelCase)
  */
-export function normalizeCampaignData(data: any): {
+export function normalizeCampaignData<T extends Record<string, unknown>>(data: T): {
   subscriberId?: number;
   contractId?: number;
   title?: string;
@@ -98,34 +100,34 @@ export function normalizeCampaignData(data: any): {
   playlistIds?: number[];
   mediaIds?: number[];
 } {
+  const d = data as Record<string, unknown>;
   return {
-    subscriberId: data.subscriberId || data.subscriber_id || data.clientId,
-    contractId: data.contractId || data.contract_id,
-    title: data.title,
-    categorySegment: data.categorySegment || data.category_segment,
-    description: data.description,
-    campaignType: data.campaignType || data.campaign_type || 'general',
-    priority: data.priority,
-    commercialTier: data.commercialTier || data.commercial_tier,
-    startDate: data.startDate || data.start_date,
-    endDate: data.endDate || data.end_date,
-    startTime: data.startTime || data.start_time,
-    endTime: data.endTime || data.end_time,
-    daysOfWeek: data.daysOfWeek || data.days_of_week,
-    timezone: data.timezone,
-    status: data.status || 'draft',
-    isActive: data.isActive !== undefined ? data.isActive : (data.is_active !== undefined ? data.is_active : true),
-    publisherIds: data.publisherIds !== undefined ? data.publisherIds : undefined,
+    subscriberId: (d.subscriberId as number | undefined) || (d.subscriber_id as number | undefined) || (d.clientId as number | undefined),
+    contractId: (d.contractId as number | undefined) || (d.contract_id as number | undefined),
+    title: d.title as string | undefined,
+    categorySegment: (d.categorySegment as string | undefined) || (d.category_segment as string | undefined),
+    description: d.description as string | undefined,
+    campaignType: (d.campaignType as string | undefined) || (d.campaign_type as string | undefined) || 'general',
+    priority: d.priority as number | undefined,
+    commercialTier: (d.commercialTier as string | undefined) || (d.commercial_tier as string | undefined),
+    startDate: (d.startDate as string | undefined) || (d.start_date as string | undefined),
+    endDate: (d.endDate as string | undefined) || (d.end_date as string | undefined),
+    startTime: (d.startTime as string | undefined) || (d.start_time as string | undefined),
+    endTime: (d.endTime as string | undefined) || (d.end_time as string | undefined),
+    daysOfWeek: (d.daysOfWeek as string[] | undefined) || (d.days_of_week as string[] | undefined),
+    timezone: d.timezone as string | undefined,
+    status: (d.status as string | undefined) || 'draft',
+    isActive: d.isActive !== undefined ? (d.isActive as boolean) : (d.is_active !== undefined ? (d.is_active as boolean) : true),
+    publisherIds: d.publisherIds !== undefined ? (d.publisherIds as number[]) : undefined,
     totemIds: (() => {
-      const raw = data.totemIds !== undefined ? data.totemIds : data.totem_ids;
+      const raw = d.totemIds !== undefined ? d.totemIds : d.totem_ids;
       if (raw === undefined) return undefined;
       if (!Array.isArray(raw)) return undefined;
       return raw
-        .map((x: any) => Number(x))
+        .map((x: unknown) => Number(x))
         .filter((n: number) => Number.isInteger(n) && n > 0);
     })(),
-    // Manter undefined quando não enviados, para não sobrescrever associações no update
-    playlistIds: data.playlistIds !== undefined ? data.playlistIds : undefined,
-    mediaIds: data.mediaIds !== undefined ? data.mediaIds : undefined,
+    playlistIds: d.playlistIds !== undefined ? (d.playlistIds as number[]) : undefined,
+    mediaIds: d.mediaIds !== undefined ? (d.mediaIds as number[]) : undefined,
   };
 }

@@ -4,6 +4,7 @@
  */
 
 import { Router, Response } from 'express';
+
 import { getDatabase } from '../config/database';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
@@ -12,6 +13,7 @@ import { body, param, query } from 'express-validator';
 import { logError, logInfo } from '../utils/loggerHelper';
 import { successResponse, errorResponse } from '../utils/apiResponse';
 import { normalizeDownloadUrl } from '../utils/pathHelper';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -68,10 +70,11 @@ router.post('/related-content',
         }
       }
 
-      return res.json(successResponse({ contentId, sourceInteraction: interaction }));
-    } catch (error: any) {
-      await logError('Erro ao buscar conteúdo relacionado', error);
-      return res.status(500).json(errorResponse('Erro ao buscar conteúdo relacionado', error.message));
+      return res.json(successResponse({
+        contentId, sourceInteraction: interaction }));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar conteúdo relacionado', e.error);
+      return res.status(500).json(errorResponse('Erro ao buscar conteúdo relacionado', e.message));
     }
   }
 );
@@ -117,10 +120,10 @@ router.get('/nearby-totems/:totemId',
         ORDER BY t.name
       `, [network.nearby_totems || []]);
 
-      return res.json(successResponse(nearbyTotems));
-    } catch (error: any) {
-      await logError('Erro ao buscar totens próximos', error);
-      return res.status(500).json(errorResponse('Erro ao buscar totens próximos', error.message));
+      return res.json(successResponse(nearbyTotems));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar totens próximos', e.error);
+      return res.status(500).json(errorResponse('Erro ao buscar totens próximos', e.message));
     }
   }
 );
@@ -159,10 +162,11 @@ router.post('/interactions',
 
       await logInfo('Interação registrada', { totemId, interactionType });
 
-      return res.json(successResponse({ message: 'Interação registrada com sucesso' }));
-    } catch (error: any) {
-      await logError('Erro ao registrar interação', error);
-      return res.status(500).json(errorResponse('Erro ao registrar interação', error.message));
+      return res.json(successResponse({
+        message: 'Interação registrada com sucesso' }));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao registrar interação', e.error);
+      return res.status(500).json(errorResponse('Erro ao registrar interação', e.message));
     }
   }
 );
@@ -204,8 +208,8 @@ router.get('/topology',
         ORDER BY p.name NULLS LAST, l.name NULLS LAST, t.identifier NULLS LAST, st.identifier NULLS LAST
       `);
 
-      const totemIds = [...new Set(rows.map((r: any) => r.totem_id).filter(Boolean))] as number[];
-      const smartTvIds = [...new Set(rows.map((r: any) => r.smart_tv_id).filter(Boolean))] as number[];
+      const totemIds = [...new Set(rows.map((rRaw: unknown) => { const r = rRaw as Record<string, unknown>; return r.totem_id; }).filter(Boolean))] as number[];
+      const smartTvIds = [...new Set(rows.map((rRaw: unknown) => { const r = rRaw as Record<string, unknown>; return r.smart_tv_id; }).filter(Boolean))] as number[];
       let mediaCountByTotem: Record<number, number> = {};
       let mediaCountBySmartTv: Record<number, number> = {};
       if (totemIds.length > 0) {
@@ -217,8 +221,8 @@ router.get('/topology',
             WHERE ct.totem_id = ANY($1) AND COALESCE(ct.is_active, true) = true
             GROUP BY ct.totem_id
           `, [totemIds]);
-          mediaCountByTotem = Object.fromEntries(mediaRows.map((r: any) => [r.totem_id, r.media_count]));
-        } catch (_) {
+          mediaCountByTotem = Object.fromEntries(mediaRows.map((rRaw: unknown) => { const r = rRaw as Record<string, unknown>; return [r.totem_id, r.media_count]; }));
+} catch (_: unknown) {
           mediaCountByTotem = {};
         }
       }
@@ -231,27 +235,28 @@ router.get('/topology',
             WHERE tp.smart_tv_id = ANY($1) AND COALESCE(tp.is_active, true) = true
             GROUP BY tp.smart_tv_id
           `, [smartTvIds]);
-          mediaCountBySmartTv = Object.fromEntries(tvMediaRows.map((r: any) => [r.smart_tv_id, r.media_count]));
-        } catch (_) {
+          mediaCountBySmartTv = Object.fromEntries(tvMediaRows.map((rRaw: unknown) => { const r = rRaw as Record<string, unknown>; return [r.smart_tv_id, r.media_count]; }));
+} catch (_: unknown) {
           mediaCountBySmartTv = {};
         }
       }
 
-      const topology: any[] = [];
-      const seenPublishers = new Map<number, any>();
-      const seenLocals = new Map<string, any>();
-      const seenTotems = new Map<number, any>();
+      const topology: unknown[] = [];
+      const seenPublishers = new Map<number, Record<string, unknown>>();
+      const seenLocals = new Map<string, Record<string, unknown>>();
+      const seenTotems = new Map<number, Record<string, unknown>>();
 
-      for (const r of rows) {
+      for (const rRaw of rows) {
+        const r = rRaw as Record<string, unknown>;
         if (!r.publisher_id) continue;
-        let pub = seenPublishers.get(r.publisher_id);
+        let pub = seenPublishers.get(Number(r.publisher_id));
         if (!pub) {
           pub = {
             id: r.publisher_id,
             name: r.publisher_name,
             locals: [],
           };
-          seenPublishers.set(r.publisher_id, pub);
+          seenPublishers.set(Number(r.publisher_id), pub);
           topology.push(pub);
         }
 
@@ -265,11 +270,11 @@ router.get('/topology',
               totems: [],
             };
             seenLocals.set(localKey, loc);
-            pub.locals.push(loc);
+            (pub.locals as unknown[]).push(loc);
           }
 
           if (r.totem_id) {
-            let tot = seenTotems.get(r.totem_id);
+            let tot = seenTotems.get(Number(r.totem_id));
             if (!tot) {
               tot = {
                 id: r.totem_id,
@@ -277,31 +282,32 @@ router.get('/topology',
                 name: r.totem_name,
                 status: r.totem_status,
                 lastHeartbeat: r.totem_last_heartbeat,
-                mediaCount: mediaCountByTotem[r.totem_id] ?? 0,
+                mediaCount: mediaCountByTotem[Number(r.totem_id)] ?? 0,
                 smartTvs: [],
               };
-              seenTotems.set(r.totem_id, tot);
-              loc.totems.push(tot);
+              seenTotems.set(Number(r.totem_id), tot);
+              (loc.totems as unknown[]).push(tot);
             }
 
             if (r.smart_tv_id) {
-              tot.smartTvs.push({
+              (tot.smartTvs as unknown[]).push({
                 id: r.smart_tv_id,
                 identifier: r.smart_tv_identifier,
                 name: r.smart_tv_name,
                 status: r.smart_tv_status,
                 lastHeartbeat: r.smart_tv_last_heartbeat,
-                mediaCount: mediaCountBySmartTv[r.smart_tv_id] ?? 0,
+                mediaCount: mediaCountBySmartTv[Number(r.smart_tv_id)] ?? 0,
               });
             }
           }
         }
       }
 
-      return res.json(successResponse(topology, { totalPublishers: topology.length }));
-    } catch (error: any) {
-      await logError('Erro ao obter topologia da rede', error);
-      return res.status(500).json(errorResponse('Erro ao obter topologia da rede', error.message));
+      return res.json(successResponse(topology, {
+        totalPublishers: topology.length }));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter topologia da rede', e.error);
+      return res.status(500).json(errorResponse('Erro ao obter topologia da rede', e.message));
     }
   }
 );
@@ -334,9 +340,10 @@ router.get('/graph',
     let db;
     try {
       db = getDatabase();
-    } catch (dbErr: any) {
+} catch (dbErr: unknown) {
+  const e = normalizeError(dbErr);
       await logError('Erro ao obter conexão DB no graph', dbErr);
-      return res.status(500).json(errorResponse('Banco de dados não disponível', dbErr.message));
+      return res.status(500).json(errorResponse('Banco de dados não disponível', e.message));
     }
     const dayOfWeek = req.query.dayOfWeek != null ? parseInt(String(req.query.dayOfWeek), 10) : undefined;
     const time = typeof req.query.time === 'string' ? req.query.time : undefined;
@@ -344,7 +351,7 @@ router.get('/graph',
 
     try {
       // 1) Publishers (topologia: publishers → locals → totems → smart_tvs), IDs como string
-      let rows: any[] = [];
+      let rows: unknown[] = [];
       try {
         rows = await db.findMany(`
           SELECT
@@ -359,21 +366,23 @@ router.get('/graph',
           WHERE p.is_publisher = true AND p.is_subscriber = false AND COALESCE(p.is_active, true) = true
           ORDER BY p.name NULLS LAST, l.name NULLS LAST, t.identifier NULLS LAST, st.identifier NULLS LAST
         `);
-      } catch (pubErr: any) {
+} catch (pubErr: unknown) {
+  const e = normalizeError(pubErr);
         await logError('Erro ao carregar publishers no graph', pubErr);
-        warnings.push(`publishers: ${pubErr.message}`);
+        warnings.push(`publishers: ${e.message}`);
       }
 
-      const publishersMap = new Map<number, any>();
-      const localsMap = new Map<string, any>();
-      const totemsMap = new Map<number, any>();
+      const publishersMap = new Map<number, Record<string, unknown>>();
+      const localsMap = new Map<string, Record<string, unknown>>();
+      const totemsMap = new Map<number, Record<string, unknown>>();
 
-      for (const r of rows) {
+      for (const rRaw of rows) {
+        const r = rRaw as Record<string, unknown>;
         if (!r.publisher_id) continue;
-        let pub = publishersMap.get(r.publisher_id);
+        let pub = publishersMap.get(Number(r.publisher_id));
         if (!pub) {
-          pub = { id: String(r.publisher_id), name: r.publisher_name || '', locations: [] };
-          publishersMap.set(r.publisher_id, pub);
+          pub = { id: String(r.publisher_id), name: (r.publisher_name as string) || '', locations: [] };
+          publishersMap.set(Number(r.publisher_id), pub);
         }
         if (r.local_id) {
           const lk = `${r.publisher_id}-${r.local_id}`;
@@ -381,26 +390,26 @@ router.get('/graph',
             const loc = {
               id: String(r.local_id),
               publisherId: String(r.publisher_id),
-              name: r.local_name || '',
+              name: (r.local_name as string) || '',
               address: r.local_address || undefined,
               totems: []
             };
             localsMap.set(lk, loc);
-            pub.locations.push(loc);
+            (pub.locations as unknown[]).push(loc);
           }
-          const loc = localsMap.get(lk);
+          const loc = localsMap.get(lk)!;
           if (r.totem_id) {
-            let tot = totemsMap.get(r.totem_id);
+            let tot = totemsMap.get(Number(r.totem_id));
             if (!tot) {
-              tot = { id: String(r.totem_id), locationId: String(r.local_id), name: r.totem_name || r.totem_identifier || '', smartTvs: [] };
-              totemsMap.set(r.totem_id, tot);
-              loc.totems.push(tot);
+              tot = { id: String(r.totem_id), locationId: String(r.local_id), name: (r.totem_name as string) || (r.totem_identifier as string) || '', smartTvs: [] };
+              totemsMap.set(Number(r.totem_id), tot);
+              (loc.totems as unknown[]).push(tot);
             }
             if (r.smart_tv_id) {
-              tot.smartTvs.push({
+              (tot.smartTvs as unknown[]).push({
                 id: String(r.smart_tv_id),
                 totemId: String(r.totem_id),
-                name: r.smart_tv_name || r.smart_tv_identifier || ''
+                name: (r.smart_tv_name as string) || (r.smart_tv_identifier as string) || ''
               });
             }
           }
@@ -409,7 +418,7 @@ router.get('/graph',
       const publishers = Array.from(publishersMap.values());
 
       // 2) Subscribers com media, playlists, campaigns (IDs como string)
-      let subscribers: any[] = [];
+      let subscribers: unknown[] = [];
       try {
         const subRows = await db.findMany(`
           SELECT subscriber_id, name FROM subscribers WHERE COALESCE(is_active, true) = true
@@ -427,7 +436,7 @@ router.get('/graph',
             `, [subId]);
             for (const pl of playlists) {
               const items = await db.findMany(`SELECT media_id FROM playlist_items WHERE playlist_id = $1 AND COALESCE(is_active, true) = true`, [pl.id]);
-              (pl as any).mediaIds = items.map((i: any) => String(i.media_id));
+              (pl as Record<string, unknown>).mediaIds = items.map((iRaw: unknown) => { const i = iRaw as Record<string, unknown>; return String(i.media_id); });
             }
             const campaigns = await db.findMany(`
               SELECT c.campaign_id AS id, c.subscriber_id AS subscriberId, c.title AS name
@@ -435,23 +444,26 @@ router.get('/graph',
             `, [subId]);
             for (const c of campaigns) {
               const cpl = await db.findMany(`SELECT playlist_id FROM campaign_playlists WHERE campaign_id = $1 AND COALESCE(is_active, true) = true`, [c.id]);
-              (c as any).playlistIds = cpl.map((x: any) => String(x.playlist_id));
+              (c as Record<string, unknown>).playlistIds = cpl.map((xRaw: unknown) => { const x = xRaw as Record<string, unknown>; return String(x.playlist_id); });
             }
             subscribers.push({
               id: String(subId),
               name: s.name || '',
-              media: medias.map((m: any) => ({ id: String(m.id), subscriberId: String(m.subscriberId), name: m.name, type: m.type, url: normalizeDownloadUrl(m.url) || m.url })),
-              playlists: playlists.map((p: any) => ({ id: String(p.id), subscriberId: String(p.subscriberId), name: p.name, mediaIds: (p as any).mediaIds })),
-              campaigns: campaigns.map((c: any) => ({ id: String(c.id), subscriberId: String(c.subscriberId), name: c.name, playlistIds: (c as any).playlistIds }))
+              media: medias.map((mRaw: unknown) => { const m = mRaw as Record<string, unknown>; return { id: String(m.id), subscriberId: String(m.subscriberId), name: m.name, type: m.type, url: normalizeDownloadUrl(String(m.url || '') || null) || String(m.url || '') }; }),
+              playlists: playlists.map((pRaw: unknown) => { const p = pRaw as Record<string, unknown>; return { id: String(p.id), subscriberId: String(p.subscriberId), name: p.name, mediaIds: (p as Record<string, unknown>).mediaIds }; }),
+              campaigns: campaigns.map((cRaw: unknown) => { const c = cRaw as Record<string, unknown>; return { id: String(c.id), subscriberId: String(c.subscriberId), name: c.name, playlistIds: (c as Record<string, unknown>).playlistIds }; })
             });
-          } catch (subErr: any) {
+} catch (subErr: unknown) {
+  const e = normalizeError(subErr);
             await logError('Erro ao processar subscriber no graph', subErr, { subscriberId: s.subscriber_id });
-            warnings.push(`subscriber ${s.subscriber_id}: ${subErr.message}`);
+            warnings.push(`subscriber ${s.subscriber_id}: ${e.message}`);
           }
         }
-      } catch (subErr: any) {
+ 
+} catch (subErr: unknown) {
+   const e = normalizeError(subErr);
         await logError('Erro ao listar subscribers no graph', subErr);
-        warnings.push(`subscribers: ${subErr.message}`);
+        warnings.push(`subscribers: ${e.message}`);
       }
 
       // 3) Schedule assignments: campaign_totems, campaign_publishers, campaign_locals
@@ -524,9 +536,11 @@ router.get('/graph',
             });
           }
         }
-      } catch (schedErr: any) {
+ 
+} catch (schedErr: unknown) {
+   const e = normalizeError(schedErr);
         await logError('Erro ao obter schedule assignments no graph', schedErr);
-        warnings.push(`scheduleAssignments: ${schedErr.message}`);
+        warnings.push(`scheduleAssignments: ${e.message}`);
       }
 
       const payload: Record<string, unknown> = {
@@ -538,15 +552,15 @@ router.get('/graph',
       if (warnings.length > 0) {
         payload.warnings = warnings;
       }
-      return res.json(successResponse(payload));
-    } catch (error: any) {
-      await logError('Erro ao obter grafo da rede', error);
-      const msg = error?.message || String(error);
+      return res.json(successResponse(payload));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter grafo da rede', e.error);
+      const msg = e.message || String(error);
       const isDev = process.env.NODE_ENV !== 'production';
       return res.status(500).json(errorResponse(
         'Erro ao obter grafo da rede',
         msg,
-        isDev ? { stack: error?.stack } : undefined
+        isDev ? { stack: e.error.stack } : undefined
       ));
     }
   }

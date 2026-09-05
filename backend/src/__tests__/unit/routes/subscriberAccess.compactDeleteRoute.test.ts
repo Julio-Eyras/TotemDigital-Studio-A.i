@@ -10,11 +10,11 @@ const mockReconcileService = {
 };
 
 jest.mock('../../../middleware/auth.middleware', () => ({
-  authMiddleware: (req: any, _res: any, next: any) => {
-    req.user = { id: 1, role: 'admin_sql' };
+  authMiddleware: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
+    req.user = { id: 1, userId: 1, username: 'admin_sql', email: 'admin@example.com', role: 'admin_sql' };
     next();
   },
-  authorizeRole: () => (_req: any, _res: any, next: any) => next(),
+  authorizeRole: () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
 }));
 
 jest.mock('../../../services/subscriberAccessService', () => ({

@@ -9,6 +9,7 @@
  */
 
 // MQTT é opcional - apenas importar se disponível
+import { normalizeError } from '../utils/errors';
 let mqtt: any;
 try {
   const mqttModule = require('mqtt');
@@ -90,7 +91,7 @@ export class FxMessageBridge {
   private connect() {
     try {
       const url = messagingConfig.mqtt.url;
-      const options: any = {
+      const options: Record<string, unknown> = {
         username: messagingConfig.mqtt.username || undefined,
         password: messagingConfig.mqtt.password || undefined,
         reconnectPeriod: 5000,
@@ -115,9 +116,9 @@ export class FxMessageBridge {
       this.client.on('close', () => {
         this.connected = false;
         logWarn('FxMessageBridge MQTT desconectado, tentando reconectar...', { url });
-      });
-    } catch (error: any) {
-      logError('FxMessageBridge não conseguiu iniciar conexão MQTT', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      logError('FxMessageBridge não conseguiu iniciar conexão MQTT', e.error, {
         url: messagingConfig.mqtt.url,
       }).catch(() => {});
     }
@@ -146,9 +147,9 @@ export class FxMessageBridge {
         } else {
           logInfo('FxMessageBridge publishEffect ok', { topic });
         }
-      });
-    } catch (error: any) {
-      await logError('FxMessageBridge publishEffect exception', error, { topic }).catch(() => {});
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxMessageBridge publishEffect exception', e.error, { topic }).catch(() => {});
     }
   }
 
@@ -174,9 +175,9 @@ export class FxMessageBridge {
         } else {
           logInfo('FxMessageBridge publishTimeline ok', { topic });
         }
-      });
-    } catch (error: any) {
-      await logError('FxMessageBridge publishTimeline exception', error, { topic }).catch(() => {});
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxMessageBridge publishTimeline exception', e.error, { topic }).catch(() => {});
     }
   }
 
@@ -211,9 +212,9 @@ export class FxMessageBridge {
         } else {
           logInfo('FxMessageBridge publishSyncTime ok', { topic, serverTime });
         }
-      });
-    } catch (error: any) {
-      await logError('FxMessageBridge publishSyncTime exception', error, { topic }).catch(() => {});
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxMessageBridge publishSyncTime exception', e.error, { topic }).catch(() => {});
     }
   }
 
@@ -240,9 +241,9 @@ export class FxMessageBridge {
         } else {
           logInfo('FxMessageBridge publishTelemetry ok', { topic });
         }
-      });
-    } catch (error: any) {
-      await logError('FxMessageBridge publishTelemetry exception', error, { topic }).catch(() => {});
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxMessageBridge publishTelemetry exception', e.error, { topic }).catch(() => {});
     }
   }
 
@@ -271,9 +272,9 @@ export class FxMessageBridge {
         } else {
           logInfo('FxMessageBridge publishAceHint ok', { topic, category: message.category });
         }
-      });
-    } catch (error: any) {
-      await logError('FxMessageBridge publishAceHint exception', error, { topic }).catch(() => {});
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxMessageBridge publishAceHint exception', e.error, { topic }).catch(() => {});
     }
   }
 
@@ -307,5 +308,4 @@ export function getFxMessageBridge(): FxMessageBridge {
   }
   return fxMessageBridgeInstance;
 }
-
 

@@ -6,6 +6,7 @@
 import { getRedisClient, testRedisConnection } from '../config/redis';
 import { redisConfig } from '../config/env';
 import { getCacheService } from './cacheService';
+import { normalizeError } from '../utils/errors';
 
 export interface RedisStatus {
   enabled: boolean;
@@ -25,7 +26,7 @@ export interface QueryLog {
   id: string;
   timestamp: Date;
   query: string;
-  params?: any[];
+  params?: unknown[];
   duration?: number;
   rowCount?: number;
   error?: string;
@@ -41,8 +42,8 @@ export interface DispatcherMessage {
   uin?: string;
   endpoint?: string;
   method?: string;
-  request?: any;
-  response?: any;
+  request?: unknown;
+  response?: unknown;
   duration?: number;
   fromCache?: boolean;
   error?: string;
@@ -57,7 +58,7 @@ export interface DebugLog {
   id: string;
   timestamp: Date;
   type: 'redis' | 'query' | 'message' | 'cache';
-  data: any;
+  data: unknown;
 }
 
 class DispatcherDebugService {
@@ -83,7 +84,8 @@ class DispatcherDebugService {
             try {
               await client.ping();
               connected = true;
-            } catch (e: any) {
+} catch (rawErr: unknown) {
+  const e = normalizeError(rawErr);
               error = e.message || 'Erro ao conectar ao Redis';
             }
           } else {
@@ -91,7 +93,9 @@ class DispatcherDebugService {
           }
         }
       }
-    } catch (e: any) {
+ 
+} catch (rawErr: unknown) {
+   const e = normalizeError(rawErr);
       error = e.message || 'Erro ao verificar Redis';
       connected = false;
     }
@@ -114,7 +118,7 @@ class DispatcherDebugService {
   /**
    * Registrar query SQL
    */
-  logQuery(query: string, params?: any[], duration?: number, rowCount?: number, error?: string, source?: string): void {
+  logQuery(query: string, params?: unknown[], duration?: number, rowCount?: number, error?: string, source?: string): void {
     const log: QueryLog = {
       id: `query-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       timestamp: new Date(),
@@ -145,8 +149,8 @@ class DispatcherDebugService {
       uin?: string;
       endpoint?: string;
       method?: string;
-      request?: any;
-      response?: any;
+      request?: unknown;
+      response?: unknown;
       duration?: number;
       fromCache?: boolean;
       error?: string;
@@ -190,7 +194,8 @@ class DispatcherDebugService {
           data: message
         });
       }
-    } catch (error) {
+ 
+} catch (error: unknown) {
       // Falha silenciosa - WebSocket pode não estar disponível
     }
   }
@@ -198,7 +203,7 @@ class DispatcherDebugService {
   /**
    * Adicionar log de debug genérico
    */
-  addDebugLog(type: 'redis' | 'query' | 'message' | 'cache', data: any): void {
+  addDebugLog(type: 'redis' | 'query' | 'message' | 'cache', data: unknown): void {
     const log: DebugLog = {
       id: `debug-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       timestamp: new Date(),

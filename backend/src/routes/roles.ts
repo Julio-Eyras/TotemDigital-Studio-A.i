@@ -4,12 +4,15 @@
  * @access Private (Admin SQL apenas)
  */
 
-import { Router, Response } from 'express';
+import { Router } from 'express';
+import express from 'express';
+
 import { body, query, param, validationResult } from 'express-validator';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { requireAdminSql } from '../middleware/adminSql.middleware';
 import { getRoleService } from '../services/roleService';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -19,7 +22,7 @@ router.use(authMiddleware);
 // Todas as rotas requerem ADMIN_SQL
 router.use(requireAdminSql);
 
-const validateRequest = (req: any, res: any, next: any) => {
+const validateRequest = (req: express.Request, res: express.Response, next: express.NextFunction): express.Response | void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -41,7 +44,7 @@ router.get('/',
   query('search').optional().isString(),
   query('isActive').optional().isBoolean(),
   validateRequest,
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const { page, limit, search, isActive } = req.query;
       
@@ -55,14 +58,14 @@ router.get('/',
       return res.json({
         success: true,
         data: result
-      });
-    } catch (error: any) {
-      await logError('Erro ao listar roles', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar roles', e.error);
       return res.status(500).json({
         success: false,
         message: 'Erro interno do servidor',
-        error: error.message
-      });
+        error: e.message
+    });
     }
   }
 );
@@ -75,7 +78,7 @@ router.get('/',
 router.get('/:id',
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const roleId = parseInt(req.params.id);
       const role = await getRoleService().getRoleById(roleId);
@@ -96,14 +99,14 @@ router.get('/:id',
           ...role,
           permissions
         }
-      });
-    } catch (error: any) {
-      await logError('Erro ao buscar role', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar role', e.error);
       return res.status(500).json({
         success: false,
         message: 'Erro interno do servidor',
-        error: error.message
-      });
+        error: e.message
+    });
     }
   }
 );
@@ -118,7 +121,7 @@ router.post('/',
   body('description').optional({ nullable: true }).isString(),
   body('is_active').optional({ nullable: true }).isBoolean(),
   validateRequest,
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const { name, description, is_active } = req.body;
 
@@ -132,14 +135,14 @@ router.post('/',
         success: true,
         message: 'Role criada com sucesso',
         data: role
-      });
-    } catch (error: any) {
-      await logError('Erro ao criar role', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar role', e.error);
       return res.status(400).json({
         success: false,
-        message: error.message || 'Erro ao criar role',
-        error: error.message
-      });
+        message: e.message || 'Erro ao criar role',
+        error: e.message
+    });
     }
   }
 );
@@ -155,7 +158,7 @@ router.put('/:id',
   body('description').optional({ nullable: true }).isString(),
   body('is_active').optional({ nullable: true }).isBoolean(),
   validateRequest,
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const roleId = parseInt(req.params.id);
       const { name, description, is_active } = req.body;
@@ -170,14 +173,14 @@ router.put('/:id',
         success: true,
         message: 'Role atualizada com sucesso',
         data: role
-      });
-    } catch (error: any) {
-      await logError('Erro ao atualizar role', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar role', e.error);
       return res.status(400).json({
         success: false,
-        message: error.message || 'Erro ao atualizar role',
-        error: error.message
-      });
+        message: e.message || 'Erro ao atualizar role',
+        error: e.message
+    });
     }
   }
 );
@@ -190,7 +193,7 @@ router.put('/:id',
 router.delete('/:id',
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const roleId = parseInt(req.params.id);
       await getRoleService().deleteRole(roleId);
@@ -198,14 +201,14 @@ router.delete('/:id',
       return res.json({
         success: true,
         message: 'Role deletada com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro ao deletar role', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao deletar role', e.error);
       return res.status(400).json({
         success: false,
-        message: error.message || 'Erro ao deletar role',
-        error: error.message
-      });
+        message: e.message || 'Erro ao deletar role',
+        error: e.message
+    });
     }
   }
 );
@@ -218,7 +221,7 @@ router.delete('/:id',
 router.get('/:id/permissions',
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const roleId = parseInt(req.params.id);
       const permissions = await getRoleService().getRolePermissions(roleId);
@@ -226,14 +229,14 @@ router.get('/:id/permissions',
       return res.json({
         success: true,
         data: permissions
-      });
-    } catch (error: any) {
-      await logError('Erro ao listar permissões da role', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar permissões da role', e.error);
       return res.status(500).json({
         success: false,
         message: 'Erro interno do servidor',
-        error: error.message
-      });
+        error: e.message
+    });
     }
   }
 );
@@ -248,7 +251,7 @@ router.post('/:id/permissions',
   body('permissionIds').isArray().withMessage('permissionIds deve ser um array'),
   body('permissionIds.*').isInt({ min: 1 }).withMessage('Cada permissionId deve ser um número inteiro'),
   validateRequest,
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const roleId = parseInt(req.params.id);
       const { permissionIds } = req.body;
@@ -261,14 +264,14 @@ router.post('/:id/permissions',
         success: true,
         message: 'Permissões atribuídas com sucesso',
         data: permissions
-      });
-    } catch (error: any) {
-      await logError('Erro ao atribuir permissões à role', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atribuir permissões à role', e.error);
       return res.status(400).json({
         success: false,
-        message: error.message || 'Erro ao atribuir permissões',
-        error: error.message
-      });
+        message: e.message || 'Erro ao atribuir permissões',
+        error: e.message
+    });
     }
   }
 );
@@ -282,7 +285,7 @@ router.post('/:id/permissions/:permissionId',
   param('id').isInt({ min: 1 }),
   param('permissionId').isInt({ min: 1 }),
   validateRequest,
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const roleId = parseInt(req.params.id);
       const permissionId = parseInt(req.params.permissionId);
@@ -292,14 +295,14 @@ router.post('/:id/permissions/:permissionId',
       return res.json({
         success: true,
         message: 'Permissão atribuída com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro ao atribuir permissão à role', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atribuir permissão à role', e.error);
       return res.status(400).json({
         success: false,
-        message: error.message || 'Erro ao atribuir permissão',
-        error: error.message
-      });
+        message: e.message || 'Erro ao atribuir permissão',
+        error: e.message
+    });
     }
   }
 );
@@ -313,7 +316,7 @@ router.delete('/:id/permissions/:permissionId',
   param('id').isInt({ min: 1 }),
   param('permissionId').isInt({ min: 1 }),
   validateRequest,
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const roleId = parseInt(req.params.id);
       const permissionId = parseInt(req.params.permissionId);
@@ -323,14 +326,14 @@ router.delete('/:id/permissions/:permissionId',
       return res.json({
         success: true,
         message: 'Permissão removida com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro ao remover permissão da role', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao remover permissão da role', e.error);
       return res.status(400).json({
         success: false,
-        message: error.message || 'Erro ao remover permissão',
-        error: error.message
-      });
+        message: e.message || 'Erro ao remover permissão',
+        error: e.message
+    });
     }
   }
 );

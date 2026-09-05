@@ -4,6 +4,8 @@
  */
 
 import { Router } from 'express';
+import express from 'express';
+
 import { getSmartPlaylistService } from '../services/smartPlaylistService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
@@ -12,6 +14,7 @@ import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
 import { assertCampaignReadAccess } from '../utils/campaignReadAccess';
 import { assertTotemReadAccess } from '../utils/totemReadAccess';
 import { isAdminRole } from '../utils/tenantScope';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -26,7 +29,7 @@ router.use(blockClientDataAccess);
  * @desc Lista smart playlists com paginação e filtros
  * @access Private (Admin, Manager, Client)
  */
-router.get('/', async (req: any, res) => {
+router.get('/', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const {
       page = 1,
@@ -40,8 +43,8 @@ router.get('/', async (req: any, res) => {
     } = req.query;
 
     // Aplicar filtro de cliente se for Client
-    const filters: any = {
-      subscriberId: req.user.role === 'client' || req.user.role === 'subscriber' ? (req.user.subscriberId || req.subscriberId) : (subscriberId ? parseInt(subscriberId as string) : undefined),
+    const filters: Record<string, unknown> = {
+      subscriberId: req.user!.role === 'client' || req.user!.role === 'subscriber' ? (req.user!.subscriberId || req.subscriberId) : (subscriberId ? parseInt(subscriberId as string) : undefined),
       campaignId: campaignId ? parseInt(campaignId as string) : undefined,
       totemId: totemId ? parseInt(totemId as string) : undefined,
       status: status as string,
@@ -58,15 +61,14 @@ router.get('/', async (req: any, res) => {
     return res.json({
       success: true,
       data: result
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao listar smart playlists', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao listar smart playlists', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message || 'Erro desconhecido'
-    });
+      error: e.message || 'Erro desconhecido'
+  });
   }
 });
 
@@ -82,15 +84,14 @@ router.get('/stats', authorizeRole(['admin', 'gerente_marketing']), async (_req,
     return res.json({
       success: true,
       data: stats
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar estatísticas de smart playlists', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar estatísticas de smart playlists', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -99,7 +100,7 @@ router.get('/stats', authorizeRole(['admin', 'gerente_marketing']), async (_req,
  * @desc Busca smart playlist por ID
  * @access Private (Admin, Manager, Client)
  */
-router.get('/:id', async (req: any, res) => {
+router.get('/:id', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { id } = req.params;
 
@@ -123,7 +124,8 @@ router.get('/:id', async (req: any, res) => {
     if (!isAdminRole(req.user?.role)) {
       try {
         await assertTenantClientParamAccess(req, sid);
-      } catch (e: any) {
+} catch (rawErr: unknown) {
+  const e = normalizeError(rawErr);
         if (e?.statusCode === 403) {
           return res.status(403).json({
             success: false,
@@ -137,15 +139,14 @@ router.get('/:id', async (req: any, res) => {
     return res.json({
       success: true,
       data: playlist
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar smart playlist', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar smart playlist', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -154,7 +155,7 @@ router.get('/:id', async (req: any, res) => {
  * @desc Cria nova smart playlist
  * @access Private (Admin, Manager, Client)
  */
-router.post('/', async (req: any, res) => {
+router.post('/', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const playlistData = req.body;
 
@@ -187,10 +188,10 @@ router.post('/', async (req: any, res) => {
 
     // Se subscriberId não foi fornecido, usar o do usuário autenticado ou buscar primeiro subscriber
     if (!playlistData.subscriberId) {
-      if ((req.user.role === 'client' || req.user.role === 'subscriber_user') && req.user.subscriberId) {
-        playlistData.subscriberId = req.user.subscriberId;
+      if ((req.user!.role === 'client' || req.user!.role === 'subscriber_user') && req.user!.subscriberId) {
+        playlistData.subscriberId = req.user!.subscriberId;
         await logDebug('[Smart Playlist] Usando subscriberId do usuário', { subscriberId: playlistData.subscriberId });
-      } else if (req.user.role === 'admin' || req.user.role === 'admin_sql' || req.user.role === 'gerente_marketing') {
+      } else if (req.user!.role === 'admin' || req.user!.role === 'admin_sql' || req.user!.role === 'gerente_marketing') {
         // Para admin/manager, buscar primeiro cliente ativo se não fornecido
         try {
           await logDebug('[Smart Playlist] Buscando primeiro cliente ativo');
@@ -204,16 +205,17 @@ router.post('/', async (req: any, res) => {
               success: false,
               message: 'Nenhum anunciante encontrado. É necessário criar um anunciante antes de criar smart playlists.'
             });
-          }
-        } catch (error: any) {
-          await logError('[Smart Playlist] Erro ao buscar primeiro cliente', error);
+ 
+}} catch (error: unknown) {
+          const e = normalizeError(error);
+          await logError('[Smart Playlist] Erro ao buscar primeiro cliente', e.error);
           return res.status(400).json({
             success: false,
             message: 'subscriberId (ou clientId legado) é obrigatório para criar smart playlist'
-          });
+        });
         }
       } else {
-        await logError('[Smart Playlist] Role inválido ou sem subscriberId', undefined, { role: req.user.role });
+        await logError('[Smart Playlist] Role inválido ou sem subscriberId', undefined, { role: req.user!.role });
         return res.status(400).json({
           success: false,
           message: 'subscriberId (ou clientId legado) é obrigatório'
@@ -222,7 +224,7 @@ router.post('/', async (req: any, res) => {
     }
 
     // Verificar permissão
-    if (req.user.role === 'client' && req.user.subscriberId !== playlistData.subscriberId) {
+    if (req.user!.role === 'client' && req.user!.subscriberId !== playlistData.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode criar smart playlists para seu próprio cliente'
@@ -231,21 +233,20 @@ router.post('/', async (req: any, res) => {
 
     await logDebug('[Smart Playlist] Dados finais antes de criar', { playlistData });
 
-    const playlist = await getSmartPlaylistService().createSmartPlaylist(playlistData, req.user.userId);
+    const playlist = await getSmartPlaylistService().createSmartPlaylist(playlistData, req.user!.userId);
 
     return res.status(201).json({
       success: true,
       message: 'Smart playlist criada com sucesso',
       data: playlist
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao criar smart playlist', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao criar smart playlist', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao criar smart playlist',
-      error: error.message || 'Erro desconhecido'
-    });
+      message: e.message || 'Erro ao criar smart playlist',
+      error: e.message || 'Erro desconhecido'
+  });
   }
 });
 
@@ -254,7 +255,7 @@ router.post('/', async (req: any, res) => {
  * @desc Atualiza smart playlist
  * @access Private (Admin, Manager, Client)
  */
-router.put('/:id', async (req: any, res) => {
+router.put('/:id', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { id } = req.params;
     const updateData = req.body;
@@ -268,7 +269,7 @@ router.put('/:id', async (req: any, res) => {
       });
     }
 
-    if (req.user.role === 'client' && req.user.subscriberId !== existingPlaylist.subscriberId) {
+    if (req.user!.role === 'client' && req.user!.subscriberId !== existingPlaylist.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode editar suas próprias smart playlists'
@@ -278,22 +279,21 @@ router.put('/:id', async (req: any, res) => {
     const playlist = await getSmartPlaylistService().updateSmartPlaylist(
       parseInt(id),
       updateData,
-      req.user.userId
+      req.user!.userId
     );
 
     return res.json({
       success: true,
       message: 'Smart playlist atualizada com sucesso',
       data: playlist
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao atualizar smart playlist', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao atualizar smart playlist', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao atualizar smart playlist',
-      error: error.message
-    });
+      message: e.message || 'Erro ao atualizar smart playlist',
+      error: e.message
+  });
   }
 });
 
@@ -302,24 +302,23 @@ router.put('/:id', async (req: any, res) => {
  * @desc Remove smart playlist
  * @access Private (Admin, Manager)
  */
-router.delete('/:id', authorizeRole(['admin', 'gerente_marketing']), async (req: any, res) => {
+router.delete('/:id', authorizeRole(['admin', 'gerente_marketing']), async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { id } = req.params;
 
-    await getSmartPlaylistService().deleteSmartPlaylist(parseInt(id), req.user.userId);
+    await getSmartPlaylistService().deleteSmartPlaylist(parseInt(id), req.user!.userId);
 
     return res.json({
       success: true,
       message: 'Smart playlist removida com sucesso'
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao remover smart playlist', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao remover smart playlist', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao remover smart playlist',
-      error: error.message
-    });
+      message: e.message || 'Erro ao remover smart playlist',
+      error: e.message
+  });
   }
 });
 
@@ -328,7 +327,7 @@ router.delete('/:id', authorizeRole(['admin', 'gerente_marketing']), async (req:
  * @desc Gera playlist inteligente
  * @access Private (Admin, Manager, Client)
  */
-router.post('/:id/generate', async (req: any, res) => {
+router.post('/:id/generate', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { id } = req.params;
 
@@ -341,28 +340,27 @@ router.post('/:id/generate', async (req: any, res) => {
       });
     }
 
-    if (req.user.role === 'client' && req.user.subscriberId !== playlist.subscriberId) {
+    if (req.user!.role === 'client' && req.user!.subscriberId !== playlist.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode gerar suas próprias smart playlists'
       });
     }
 
-    const result = await getSmartPlaylistService().generateSmartPlaylist(parseInt(id), req.user.userId);
+    const result = await getSmartPlaylistService().generateSmartPlaylist(parseInt(id), req.user!.userId);
 
     return res.json({
       success: true,
       message: 'Smart playlist gerada com sucesso',
       data: result
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao gerar smart playlist manualmente', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao gerar smart playlist manualmente', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao gerar smart playlist',
-      error: error.message
-    });
+      message: e.message || 'Erro ao gerar smart playlist',
+      error: e.message
+  });
   }
 });
 
@@ -371,7 +369,7 @@ router.post('/:id/generate', async (req: any, res) => {
  * @desc Ativa smart playlist
  * @access Private (Admin, Manager, Client)
  */
-router.post('/:id/activate', async (req: any, res) => {
+router.post('/:id/activate', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { id } = req.params;
 
@@ -384,27 +382,26 @@ router.post('/:id/activate', async (req: any, res) => {
       });
     }
 
-    if (req.user.role === 'client' && req.user.subscriberId !== playlist.subscriberId) {
+    if (req.user!.role === 'client' && req.user!.subscriberId !== playlist.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode ativar suas próprias smart playlists'
       });
     }
 
-    await getSmartPlaylistService().updateSmartPlaylist(parseInt(id), { isActive: true } as any, req.user.id);
+    await getSmartPlaylistService().updateSmartPlaylist(parseInt(id), { isActive: true } as any, req.user!.id);
 
     return res.json({
       success: true,
       message: 'Smart playlist ativada com sucesso'
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao ativar smart playlist', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao ativar smart playlist', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao ativar smart playlist',
-      error: error.message
-    });
+      message: e.message || 'Erro ao ativar smart playlist',
+      error: e.message
+  });
   }
 });
 
@@ -413,7 +410,7 @@ router.post('/:id/activate', async (req: any, res) => {
  * @desc Desativa smart playlist
  * @access Private (Admin, Manager, Client)
  */
-router.post('/:id/deactivate', async (req: any, res) => {
+router.post('/:id/deactivate', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { id } = req.params;
 
@@ -426,27 +423,26 @@ router.post('/:id/deactivate', async (req: any, res) => {
       });
     }
 
-    if (req.user.role === 'client' && req.user.subscriberId !== playlist.subscriberId) {
+    if (req.user!.role === 'client' && req.user!.subscriberId !== playlist.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode desativar suas próprias smart playlists'
       });
     }
 
-    await getSmartPlaylistService().updateSmartPlaylist(parseInt(id), { isActive: false } as any, req.user.id);
+    await getSmartPlaylistService().updateSmartPlaylist(parseInt(id), { isActive: false } as any, req.user!.id);
 
     return res.json({
       success: true,
       message: 'Smart playlist desativada com sucesso'
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao desativar smart playlist', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao desativar smart playlist', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao desativar smart playlist',
-      error: error.message
-    });
+      message: e.message || 'Erro ao desativar smart playlist',
+      error: e.message
+  });
   }
 });
 
@@ -455,7 +451,7 @@ router.post('/:id/deactivate', async (req: any, res) => {
  * @desc Lista smart playlists de um cliente específico
  * @access Private (Admin, Manager, Client)
  */
-router.get('/client/:clientId', async (req: any, res) => {
+router.get('/client/:clientId', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { clientId } = req.params;
     const { limit = 50 } = req.query;
@@ -479,20 +475,19 @@ router.get('/client/:clientId', async (req: any, res) => {
     return res.json({
       success: true,
       data: result.playlists
-    });
-
-  } catch (error: any) {
-    if (error?.statusCode === 403) {
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    if ((e.raw as { statusCode?: number })?.statusCode === 403) {
       return res.status(403).json({
         success: false,
-        message: error.message || 'Acesso negado'
-      });
+        message: e.message || 'Acesso negado'
+  });
     }
-    await logError('Erro ao buscar smart playlists do cliente', error);
+    await logError('Erro ao buscar smart playlists do cliente', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
+      error: e.message
     });
   }
 });
@@ -502,7 +497,7 @@ router.get('/client/:clientId', async (req: any, res) => {
  * @desc Lista smart playlists de uma campanha específica
  * @access Private (Admin, Manager, Client)
  */
-router.get('/campaign/:campaignId', async (req: any, res) => {
+router.get('/campaign/:campaignId', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { campaignId } = req.params;
     const { limit = 50 } = req.query;
@@ -526,26 +521,25 @@ router.get('/campaign/:campaignId', async (req: any, res) => {
     return res.json({
       success: true,
       data: result.playlists
-    });
-
-  } catch (error: any) {
-    if (error?.statusCode === 403) {
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    if ((e.raw as { statusCode?: number })?.statusCode === 403) {
       return res.status(403).json({
         success: false,
-        message: error.message || 'Acesso negado'
-      });
+        message: e.message || 'Acesso negado'
+  });
     }
-    if (error?.statusCode === 404) {
+    if ((e.raw as { statusCode?: number })?.statusCode === 404) {
       return res.status(404).json({
         success: false,
-        message: error.message || 'Não encontrado'
+        message: e.message || 'Não encontrado'
       });
     }
-    await logError('Erro ao buscar smart playlists da campanha', error);
+    await logError('Erro ao buscar smart playlists da campanha', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
+      error: e.message
     });
   }
 });
@@ -555,7 +549,7 @@ router.get('/campaign/:campaignId', async (req: any, res) => {
  * @desc Lista smart playlists de um totem específico
  * @access Private (Admin, Manager, Client)
  */
-router.get('/totem/:totemId', async (req: any, res) => {
+router.get('/totem/:totemId', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { totemId } = req.params;
     const { limit = 50 } = req.query;
@@ -579,26 +573,25 @@ router.get('/totem/:totemId', async (req: any, res) => {
     return res.json({
       success: true,
       data: result.playlists
-    });
-
-  } catch (error: any) {
-    if (error?.statusCode === 403) {
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    if ((e.raw as { statusCode?: number })?.statusCode === 403) {
       return res.status(403).json({
         success: false,
-        message: error.message || 'Acesso negado'
-      });
+        message: e.message || 'Acesso negado'
+  });
     }
-    if (error?.statusCode === 404) {
+    if ((e.raw as { statusCode?: number })?.statusCode === 404) {
       return res.status(404).json({
         success: false,
-        message: error.message || 'Não encontrado'
+        message: e.message || 'Não encontrado'
       });
     }
-    await logError('Erro ao buscar smart playlists do totem', error);
+    await logError('Erro ao buscar smart playlists do totem', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
+      error: e.message
     });
   }
 });
@@ -608,7 +601,7 @@ router.get('/totem/:totemId', async (req: any, res) => {
  * @desc Testa geração de smart playlist
  * @access Private (Admin, Manager, Client)
  */
-router.post('/:id/test', async (req: any, res) => {
+router.post('/:id/test', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { id } = req.params;
 
@@ -621,7 +614,7 @@ router.post('/:id/test', async (req: any, res) => {
       });
     }
 
-    if (req.user.role === 'client' && req.user.subscriberId !== playlist.subscriberId) {
+    if (req.user!.role === 'client' && req.user!.subscriberId !== playlist.subscriberId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode testar suas próprias smart playlists'
@@ -629,21 +622,20 @@ router.post('/:id/test', async (req: any, res) => {
     }
 
     // Gerar playlist em modo de teste (não salva no banco)
-    const result = await getSmartPlaylistService().generateSmartPlaylist(parseInt(id), req.user.userId);
+    const result = await getSmartPlaylistService().generateSmartPlaylist(parseInt(id), req.user!.userId);
 
     return res.json({
       success: true,
       message: 'Teste de geração realizado com sucesso',
       data: result
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao testar smart playlist', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao testar smart playlist', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao testar smart playlist',
-      error: error.message
-    });
+      message: e.message || 'Erro ao testar smart playlist',
+      error: e.message
+  });
   }
 });
 
@@ -669,9 +661,10 @@ router.post('/bulk-generate', authorizeRole(['admin', 'gerente_marketing']), asy
     for (const playlistId of playlistIds) {
       try {
         const result = await getSmartPlaylistService().generateSmartPlaylist(playlistId, req.user?.id || req.user?.userId || 0);
-        results.push({ playlistId, success: true, result });
-      } catch (error: any) {
-        errors.push({ playlistId, success: false, error: error.message });
+        results.push({
+          playlistId, success: true, result });} catch (error: unknown) {
+        const e = normalizeError(error);
+        errors.push({ playlistId, success: false, error: e.message });
       }
     }
 
@@ -687,15 +680,14 @@ router.post('/bulk-generate', authorizeRole(['admin', 'gerente_marketing']), asy
           failed: errors.length
         }
       }
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao gerar smart playlists em lote', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao gerar smart playlists em lote', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 

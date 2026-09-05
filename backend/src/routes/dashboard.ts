@@ -1,3 +1,5 @@
+
+
 import express from 'express';
 import { query } from 'express-validator';
 import { validationResult } from 'express-validator';
@@ -10,9 +12,11 @@ import { isAdminRole, resolveTenantScope } from '../utils/tenantScope';
 import { DISABLE_DIRECT_CAMPAIGN_TOTEM } from '../config/featureFlags';
 import { DIRECT_CAMPAIGN_TOTEM_DISABLED_HINT } from '../constants/campaignDeliveryPolicy';
 import {
+
   buildInstallationCapabilities,
 } from '../policy/installationPolicy';
 import { resolveInstallationCapabilities } from '../services/installationProfileService';
+import { normalizeError } from '../utils/errors';
 
 const router = express.Router();
 
@@ -20,7 +24,7 @@ const router = express.Router();
  * @route GET /api/dashboard/ui-context
  * @desc Capabilities da instalação (público — tela de login e bootstrap da UI).
  */
-router.get('/ui-context', async (_req: any, res: any) => {
+router.get('/ui-context', async (_req: express.Request, res: any) => {
   try {
     const { createDatabaseWrapper } = await import('../config/database-pg');
     const db = createDatabaseWrapper();
@@ -47,7 +51,7 @@ router.get('/ui-context', async (_req: any, res: any) => {
 // Demais rotas do dashboard exigem autenticação
 router.use(authMiddleware);
 
-const validateRequest = (req: any, res: any, next: any) => {
+const validateRequest = (req: express.Request, res: express.Response, next: express.NextFunction): express.Response | void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -62,7 +66,7 @@ const validateRequest = (req: any, res: any, next: any) => {
  * Garante que o usuário só consulte estatísticas do próprio assinante/cliente
  * ou, no caso de publisher, do próprio publisher ou de um subscriber com plano que inclui esse publisher.
  */
-async function assertDashboardClientStatsAccess(req: any, requestedId: number): Promise<void> {
+async function assertDashboardClientStatsAccess(req: express.Request, requestedId: number): Promise<void> {
   await assertTenantClientParamAccess(req, requestedId, { allowPublisherViewOwnPublisherId: true });
 }
 
@@ -70,7 +74,7 @@ async function assertDashboardClientStatsAccess(req: any, requestedId: number): 
  * Quando o publisher consulta o próprio `publisher_id` na URL, as contagens seguem o escopo publisher;
  * caso contrário o id é tratado como `subscriber_id`.
  */
-async function resolveClientStatsView(req: any, requestedId: number): Promise<'subscriber' | 'publisher'> {
+async function resolveClientStatsView(req: express.Request, requestedId: number): Promise<'subscriber' | 'publisher'> {
   if (isAdminRole(req.user?.role)) {
     return 'subscriber';
   }
@@ -87,12 +91,12 @@ async function resolveClientStatsView(req: any, requestedId: number): Promise<'s
  * @route GET /api/dashboard/stats
  * @desc Obter estatísticas do dashboard
  */
-router.get('/stats', async (req: any, res: any) => {
+router.get('/stats', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const scope = await resolveTenantScope(req);
     const stats = await getDashboardService().getDashboardStats(scope || undefined);
     res.json(stats);
-  } catch (error) {
+} catch (error: unknown) {
     await logError('Erro ao obter estatísticas do dashboard', error);
     res.status(500).json(errorResponse('Erro interno do servidor'));
   }
@@ -105,13 +109,13 @@ router.get('/stats', async (req: any, res: any) => {
 router.get('/activities',
   query('limit').optional().isInt({ min: 1, max: 50 }),
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { limit = 10 } = req.query;
       const scope = await resolveTenantScope(req);
-      const activities = await getDashboardService().getRecentActivity(parseInt(limit, 10), scope || undefined);
+      const activities = await getDashboardService().getRecentActivity(parseInt(String(limit), 10), scope || undefined);
       res.json(activities);
-    } catch (error) {
+} catch (error: unknown) {
       await logError('Erro ao obter atividades recentes do dashboard', error);
       res.status(500).json(errorResponse('Erro interno do servidor'));
     }
@@ -122,12 +126,12 @@ router.get('/activities',
  * @route GET /api/dashboard/charts
  * @desc Obter dados para gráficos
  */
-router.get('/charts', async (req: any, res: any) => {
+router.get('/charts', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const scope = await resolveTenantScope(req);
     const charts = await getDashboardService().getUsageCharts(scope || undefined);
     res.json(charts);
-  } catch (error) {
+} catch (error: unknown) {
     await logError('Erro ao obter dados dos gráficos do dashboard', error);
     res.status(500).json(errorResponse('Erro interno do servidor'));
   }
@@ -138,7 +142,7 @@ router.get('/charts', async (req: any, res: any) => {
  * @desc Obter estatísticas por cliente
  */
 router.get('/client/:clientId/stats',
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const id = parseInt(req.params.clientId, 10);
       if (Number.isNaN(id) || id < 1) {
@@ -149,12 +153,12 @@ router.get('/client/:clientId/stats',
 
       const view = await resolveClientStatsView(req, id);
       const stats = await getDashboardService().getStatsByClient(id, view);
-      res.json(stats);
-    } catch (error: any) {
-      if (error?.statusCode === 403) {
-        return res.status(403).json(errorResponse(error.message || 'Acesso negado'));
-      }
-      await logError('Erro ao obter estatísticas do cliente no dashboard', error);
+      res.json(stats);} catch (error: unknown) {
+      const e = normalizeError(error);
+      if ((e.raw as { statusCode?: number })?.statusCode === 403) {
+        return res.status(403).json(errorResponse(e.message || 'Acesso negado'));
+    }
+      await logError('Erro ao obter estatísticas do cliente no dashboard', e.error);
       res.status(500).json(errorResponse('Erro interno do servidor'));
     }
   }

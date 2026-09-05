@@ -1,5 +1,6 @@
 import { getOTAUpdateService } from './otaUpdateService';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export interface HeartbeatOtaPayload {
   id: number;
@@ -56,9 +57,9 @@ export async function resolveOtaUpdateForHeartbeat(
       updateStatus: 'up_to_date',
       lastCheck: new Date(),
     });
-    return null;
-  } catch (error: any) {
-    await logError('Erro ao verificar OTA no heartbeat', error, { totemId });
+    return null;} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao verificar OTA no heartbeat', e.error, { totemId });
     return null;
   }
 }

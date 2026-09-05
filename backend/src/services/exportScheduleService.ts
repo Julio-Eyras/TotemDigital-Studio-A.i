@@ -9,6 +9,7 @@ import { getExportQueue, ExportJobData } from '../config/queue';
 import { parseExpression } from 'cron-parser';
 import { exportQueryService } from './exportQueryService';
 import { logError, logInfo, logWarn } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export interface CreateExportScheduleRequest {
   name: string;
@@ -50,10 +51,10 @@ export class ExportScheduleService {
   
   // Lazy initialization
   private getAuditService(): AuditService {
-    if (!(global as any).auditServiceInstance) {
-      (global as any).auditServiceInstance = new AuditService();
+    if (!(global as unknown as Record<string, unknown>).auditServiceInstance) {
+      (global as unknown as Record<string, unknown>).auditServiceInstance = new AuditService();
     }
-    return (global as any).auditServiceInstance;
+    return (global as unknown as Record<string, unknown>).auditServiceInstance as AuditService;
   }
 
   /**
@@ -67,11 +68,11 @@ export class ExportScheduleService {
       return {
         valid: true,
         nextExecution
-      };
-    } catch (error: any) {
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
       return {
         valid: false,
-        error: `Expressão cron inválida: ${error.message}`
+        error: `Expressão cron inválida: ${e.message}`
       };
     }
   }
@@ -83,7 +84,7 @@ export class ExportScheduleService {
     try {
       const interval = parseExpression(cronExpression);
       return interval.next().toDate();
-    } catch (error) {
+} catch (error: unknown) {
       return null;
     }
   }
@@ -149,10 +150,10 @@ export class ExportScheduleService {
         queryId: data.queryId
       }).catch(e => logError('Erro ao registrar log de auditoria', e, { scheduleId: schedule.schedule_id }).catch(() => {}));
 
-      return this.mapToExportSchedule(schedule);
-    } catch (error: any) {
-      await logError('Erro ao criar agendamento', error, { data });
-      throw error;
+      return this.mapToExportSchedule(schedule);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar agendamento', e.error, { data });
+      throw e.error;
     }
   }
 
@@ -169,10 +170,10 @@ export class ExportScheduleService {
         return null;
       }
 
-      return this.mapToExportSchedule(schedule);
-    } catch (error: any) {
-      await logError('Erro ao buscar agendamento', error, { scheduleId });
-      throw error;
+      return this.mapToExportSchedule(schedule);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar agendamento', e.error, { scheduleId });
+      throw e.error;
     }
   }
 
@@ -194,7 +195,7 @@ export class ExportScheduleService {
     try {
       let sql = 'SELECT * FROM export_schedules WHERE 1=1';
       let countSql = 'SELECT COUNT(*) as total FROM export_schedules WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
       const countParams: any[] = [];
 
       if (filters?.queryId) {
@@ -240,10 +241,10 @@ export class ExportScheduleService {
         total,
         page,
         limit
-      };
-    } catch (error: any) {
-      await logError('Erro ao buscar agendamentos', error, { filters });
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar agendamentos', e.error, { filters });
+      throw e.error;
     }
   }
 
@@ -292,7 +293,7 @@ export class ExportScheduleService {
 
       // Construir query de atualização dinâmica
       const updates: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (data.name !== undefined) {
         updates.push('name = ?');
@@ -342,10 +343,10 @@ export class ExportScheduleService {
         changes: Object.keys(data)
       }).catch(e => logError('Erro ao registrar log de auditoria', e, { scheduleId: schedule.schedule_id }).catch(() => {}));
 
-      return this.mapToExportSchedule(schedule);
-    } catch (error: any) {
-      await logError('Erro ao atualizar agendamento', error, { scheduleId, data });
-      throw error;
+      return this.mapToExportSchedule(schedule);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar agendamento', e.error, { scheduleId, data });
+      throw e.error;
     }
   }
 
@@ -372,10 +373,11 @@ export class ExportScheduleService {
       await this.getAuditService().log('export', 'schedule_deleted', userId, {
         scheduleId: scheduleId,
         scheduleName: existing.name
-      }).catch(e => logError('Erro ao registrar log de auditoria', e, { scheduleId }).catch(() => {}));
-    } catch (error: any) {
-      await logError('Erro ao excluir agendamento', error, { scheduleId });
-      throw error;
+      }).catch(e => logError('Erro ao registrar log de auditoria', e, {
+        scheduleId }).catch(() => {}));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao excluir agendamento', e.error, { scheduleId });
+      throw e.error;
     }
   }
 
@@ -403,10 +405,11 @@ export class ExportScheduleService {
         }
       );
 
-        await logInfo(`Job registrado para agendamento`, { scheduleId });
-    } catch (error: any) {
-        await logError('Erro ao registrar job para agendamento', error, { scheduleId });
-      throw error;
+        await logInfo(`Job registrado para agendamento`, {
+          scheduleId });} catch (error: unknown) {
+      const e = normalizeError(error);
+        await logError('Erro ao registrar job para agendamento', e.error, { scheduleId });
+      throw e.error;
     }
   }
 
@@ -421,10 +424,11 @@ export class ExportScheduleService {
       // Registrar novo job se habilitado
       if (enabled) {
         await this.registerScheduleJob(scheduleId, queryId, cronExpression);
-      }
-    } catch (error: any) {
-      await logError('Erro ao atualizar job para agendamento', error, { scheduleId });
-      throw error;
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar job para agendamento', e.error, { scheduleId });
+      throw e.error;
     }
   }
 
@@ -442,9 +446,10 @@ export class ExportScheduleService {
       if (job) {
         await job.remove();
         await logInfo('Job removido para agendamento', { scheduleId });
-      }
-    } catch (error: any) {
-      await logError('Erro ao remover job para agendamento', error, { scheduleId });
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao remover job para agendamento', e.error, { scheduleId });
       // Não falhar se job não existir
     }
   }
@@ -475,10 +480,11 @@ export class ExportScheduleService {
         }
       );
 
-      await logInfo('Execução manual iniciada para agendamento', { scheduleId });
-    } catch (error: any) {
-      await logError('Erro ao executar agendamento', error, { scheduleId });
-      throw error;
+      await logInfo('Execução manual iniciada para agendamento', {
+        scheduleId });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao executar agendamento', e.error, { scheduleId });
+      throw e.error;
     }
   }
 
@@ -494,7 +500,8 @@ export class ExportScheduleService {
           await logInfo('Tabela export_schedules não existe, pulando carregamento de agendamentos');
           return;
         }
-      } catch (checkError: any) {
+ 
+} catch (checkError: unknown) {
         // Se não conseguir verificar, continuar e deixar o getAllSchedules tratar o erro
         await logWarn('Não foi possível verificar existência da tabela export_schedules');
       }
@@ -508,20 +515,21 @@ export class ExportScheduleService {
             schedule.schedule_id,
             schedule.query_id,
             schedule.cron_expression
-          );
-        } catch (error: any) {
-          await logError('Erro ao carregar agendamento', error, { scheduleId: schedule.schedule_id });
+          );} catch (error: unknown) {
+      const e = normalizeError(error);
+          await logError('Erro ao carregar agendamento', e.error, { scheduleId: schedule.schedule_id });
         }
       }
 
-      await logInfo('Agendamentos ativos carregados no Bull', { count: schedules.length });
-    } catch (error: any) {
+      await logInfo('Agendamentos ativos carregados no Bull', {
+        count: schedules.length });} catch (error: unknown) {
+      const e = normalizeError(error);
       // Se a tabela não existe, não é um erro crítico - apenas logar e continuar
-      if (error.message && (error.message.includes('não existe') || error.message.includes('does not exist'))) {
+      if (e.message && (e.message.includes('não existe') || e.message.includes('does not exist'))) {
         await logInfo('Tabela export_schedules não encontrada, continuando sem agendamentos');
         return;
       }
-      await logError('Erro ao carregar agendamentos', error);
+      await logError('Erro ao carregar agendamentos', e.error);
       // Não lançar erro - permitir que o servidor inicie mesmo sem agendamentos
     }
   }
@@ -551,5 +559,4 @@ export class ExportScheduleService {
 
 // Exportar instância singleton
 export const exportScheduleService = new ExportScheduleService();
-
 

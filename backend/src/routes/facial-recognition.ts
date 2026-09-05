@@ -4,12 +4,14 @@
  */
 
 import { Router, Response } from 'express';
+
 import { getFacialRecognitionService } from '../services/facialRecognitionService';
 import { AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
 import { blockClientDataAccess } from '../middleware/operatorProtection.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
 import { body, query } from 'express-validator';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -58,13 +60,14 @@ router.post('/match',
           data: null,
           message: 'Nenhuma pessoa reconhecida'
         });
-      }
-    } catch (error: any) {
-      await logError('Erro ao fazer match facial', error);
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao fazer match facial', e.error);
       res.status(500).json({
         success: false,
         error: 'Erro ao fazer match facial'
-      });
+    });
     }
   }
 );
@@ -91,13 +94,13 @@ router.get('/persons',
       res.json({
         success: true,
         data: persons
-      });
-    } catch (error: any) {
-      await logError('Erro ao listar pessoas', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar pessoas', e.error);
       res.status(500).json({
         success: false,
         error: 'Erro ao listar pessoas'
-      });
+    });
     }
   }
 );
@@ -128,13 +131,13 @@ router.post('/persons',
         success: true,
         message: 'Pessoa criada/atualizada com sucesso',
         data: person
-      });
-    } catch (error: any) {
-      await logError('Erro ao criar/atualizar pessoa', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar/atualizar pessoa', e.error);
       res.status(500).json({
         success: false,
-        error: error.message || 'Erro ao criar/atualizar pessoa'
-      });
+        error: e.message || 'Erro ao criar/atualizar pessoa'
+    });
     }
   }
 );

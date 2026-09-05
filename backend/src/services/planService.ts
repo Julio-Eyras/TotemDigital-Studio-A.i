@@ -7,10 +7,12 @@ import { getDatabase } from '../config/database';
 import { logError, logInfo } from '../utils/loggerHelper';
 import { getCacheService } from './cacheService';
 import {
+
   isBillingIntervalCode,
   normalizeBillingInterval,
   validatePlanPriceConfiguration,
 } from '../utils/billingIntervals';
+import { normalizeError } from '../utils/errors';
 
 const PLAN_SELECT = `
           plan_id as "planId",
@@ -54,8 +56,8 @@ export interface Plan {
   stripePriceIdSemester?: string;
   stripePriceIdYearly?: string;
   stripeProductId?: string;
-  features: any;
-  limits: any;
+  features: Record<string, unknown>;
+  limits: Record<string, unknown>;
   isActive: boolean;
   isPopular: boolean;
   isDefault?: boolean;
@@ -80,8 +82,8 @@ export interface CreatePlanRequest {
   stripePriceIdSemester?: string;
   stripePriceIdYearly?: string;
   stripeProductId?: string;
-  features?: any;
-  limits?: any;
+  features: Record<string, unknown>;
+  limits?: Record<string, unknown>;
   isActive?: boolean;
   isPopular?: boolean;
   sortOrder?: number;
@@ -99,8 +101,8 @@ export interface UpdatePlanRequest {
   stripePriceIdFourMonth?: string;
   stripePriceIdSemester?: string;
   stripePriceIdYearly?: string;
-  features?: any;
-  limits?: any;
+  features: Record<string, unknown>;
+  limits?: Record<string, unknown>;
   isActive?: boolean;
   isPopular?: boolean;
   sortOrder?: number;
@@ -129,10 +131,9 @@ export class PlanService {
         ORDER BY COALESCE(is_default, false) DESC, sort_order ASC, name ASC
       `);
 
-      return plans;
-
-    } catch (error: any) {
-      await logError('Erro ao buscar planos', error);
+      return plans;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar planos', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -149,10 +150,9 @@ export class PlanService {
         WHERE plan_id = ?
       `, [planId]);
 
-      return plan || null;
-
-    } catch (error: any) {
-      await logError('Erro ao buscar plano', error, { planId });
+      return plan || null;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar plano', e.error, { planId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -170,9 +170,9 @@ export class PlanService {
         ORDER BY COALESCE(is_default, false) DESC, sort_order ASC NULLS LAST, plan_id ASC
         LIMIT 1
       `);
-      return plan || null;
-    } catch (error: any) {
-      await logError('Erro ao buscar plano padrão', error);
+      return plan || null;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar plano padrão', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -189,10 +189,9 @@ export class PlanService {
         WHERE slug = ?
       `, [slug]);
 
-      return plan || null;
-
-    } catch (error: any) {
-      await logError('Erro ao buscar plano por slug', error, { slug });
+      return plan || null;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar plano por slug', e.error, { slug });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -289,11 +288,10 @@ export class PlanService {
 
       await logInfo('Plano criado com sucesso', { planId: newPlan.planId, slug });
 
-      return newPlan;
-
-    } catch (error: any) {
-      await logError('Erro ao criar plano', error, { slug: data.slug });
-      throw error;
+      return newPlan;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar plano', e.error, { slug: data.slug });
+      throw e.error;
     }
   }
 
@@ -346,7 +344,7 @@ export class PlanService {
 
       // Construir query de atualização
       const updates: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (data.name !== undefined) {
         updates.push('name = ?');
@@ -467,17 +465,17 @@ export class PlanService {
       try {
         const cache = getCacheService();
         await cache.deletePattern('subscriber:*:max_limits');
-      } catch (e) {
-        await logError('Erro ao invalidar cache de limites após atualizar plano', e as Error, { planId }).catch(() => {});
+} catch (rawErr: unknown) {
+        const e = normalizeError(rawErr);
+        await logError('Erro ao invalidar cache de limites após atualizar plano', e.error, { planId }).catch(() => {});
       }
 
       await logInfo('Plano atualizado com sucesso', { planId });
 
-      return updatedPlan;
-
-    } catch (error: any) {
-      await logError('Erro ao atualizar plano', error, { planId });
-      throw error;
+      return updatedPlan;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar plano', e.error, { planId });
+      throw e.error;
     }
   }
 
@@ -490,9 +488,9 @@ export class PlanService {
     publishers: Array<{
       publisher_id: number;
       publisher_name: string;
-      locals: any[];
-      totems: any[];
-      smartTvs: any[];
+      locals: Record<string, unknown>[];
+      totems: Record<string, unknown>[];
+      smartTvs: Record<string, unknown>[];
     }>;
   }> {
     const plan = await this.getPlanById(planId);
@@ -581,9 +579,9 @@ export class PlanService {
     const publishers: Array<{
       publisher_id: number;
       publisher_name: string;
-      locals: any[];
-      totems: any[];
-      smartTvs: any[];
+      locals: Record<string, unknown>[];
+      totems: Record<string, unknown>[];
+      smartTvs: Record<string, unknown>[];
     }> = [];
 
     for (const row of accessRows) {
@@ -733,11 +731,11 @@ export class PlanService {
         DELETE FROM plans WHERE plan_id = ?
       `, [planId]);
 
-      await logInfo('Plano removido com sucesso', { planId });
-
-    } catch (error: any) {
-      await logError('Erro ao remover plano', error, { planId });
-      throw error;
+      await logInfo('Plano removido com sucesso', {
+        planId });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao remover plano', e.error, { planId });
+      throw e.error;
     }
   }
 }

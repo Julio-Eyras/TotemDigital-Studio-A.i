@@ -1,12 +1,15 @@
 import { Router } from 'express';
+import express from 'express';
+
 import { body, param, validationResult } from 'express-validator';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { getPublishTemplateService } from '../services/publishTemplateService';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
-const validate = (req: any, res: any, next: any) => {
+const validate = (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ success: false, error: 'Dados inválidos', details: errors.array() });
@@ -17,9 +20,10 @@ const validate = (req: any, res: any, next: any) => {
 router.get('/featured', authenticateToken, async (_req, res) => {
   try {
     const data = await getPublishTemplateService().listFeatured();
-    return res.json({ success: true, data });
-  } catch (error: any) {
-    await logError('Erro ao listar templates em destaque', error);
+    return res.json({
+      success: true, data });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao listar templates em destaque', e.error);
     return res.status(500).json({ success: false, error: 'Erro ao carregar templates' });
   }
 });
@@ -27,9 +31,10 @@ router.get('/featured', authenticateToken, async (_req, res) => {
 router.get('/', authenticateToken, async (_req, res) => {
   try {
     const data = await getPublishTemplateService().listAll();
-    return res.json({ success: true, data });
-  } catch (error: any) {
-    await logError('Erro ao listar templates de publicação', error);
+    return res.json({
+      success: true, data });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao listar templates de publicação', e.error);
     return res.status(500).json({ success: false, error: 'Erro ao carregar templates' });
   }
 });
@@ -44,9 +49,10 @@ router.get(
       const templateId = Number(req.params.templateId);
       const data = await getPublishTemplateService().getById(templateId);
       if (!data) return res.status(404).json({ success: false, error: 'Template não encontrado' });
-      return res.json({ success: true, data });
-    } catch (error: any) {
-      await logError('Erro ao carregar template de publicação', error);
+      return res.json({
+        success: true, data });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao carregar template de publicação', e.error);
       return res.status(500).json({ success: false, error: 'Erro ao carregar template' });
     }
   }
@@ -72,9 +78,10 @@ router.post(
   async (req, res) => {
     try {
       const data = await getPublishTemplateService().createTemplate(req.body);
-      return res.status(201).json({ success: true, data });
-    } catch (error: any) {
-      await logError('Erro ao criar template de publicação', error);
+      return res.status(201).json({
+        success: true, data });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar template de publicação', e.error);
       return res.status(500).json({ success: false, error: 'Erro ao criar template' });
     }
   }
@@ -91,9 +98,10 @@ router.post(
       const templateId = Number(req.params.templateId);
       const data = await getPublishTemplateService().duplicateTemplate(templateId);
       if (!data) return res.status(404).json({ success: false, error: 'Template não encontrado' });
-      return res.status(201).json({ success: true, data });
-    } catch (error: any) {
-      await logError('Erro ao duplicar template de publicação', error);
+      return res.status(201).json({
+        success: true, data });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao duplicar template de publicação', e.error);
       return res.status(500).json({ success: false, error: 'Erro ao duplicar template' });
     }
   }
@@ -121,9 +129,10 @@ router.patch(
       const templateId = Number(req.params.templateId);
       const data = await getPublishTemplateService().updateTemplate(templateId, req.body);
       if (!data) return res.status(404).json({ success: false, error: 'Template não encontrado' });
-      return res.json({ success: true, data });
-    } catch (error: any) {
-      await logError('Erro ao atualizar template de publicação', error);
+      return res.json({
+        success: true, data });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar template de publicação', e.error);
       return res.status(500).json({ success: false, error: 'Erro ao atualizar template' });
     }
   }

@@ -4,6 +4,7 @@
  */
 
 import { logInfo, logError, logWarn } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export interface NTPTime {
   timestamp: number;
@@ -51,16 +52,16 @@ export class NTPService {
             roundTripTime
           });
 
-          return this.offset;
-        } catch (error: any) {
-          await logWarn(`Falha ao sincronizar com ${server}`, { error: error.message });
+          return this.offset;} catch (error: unknown) {
+      const e = normalizeError(error);
+          await logWarn(`Falha ao sincronizar com ${server}`, { error: e.message });
           continue;
         }
       }
 
-      throw new Error('Todos os servidores NTP falharam');
-    } catch (error: any) {
-      await logError('Erro ao sincronizar tempo NTP', error, {});
+      throw new Error('Todos os servidores NTP falharam');} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao sincronizar tempo NTP', e.error, {});
       // Retornar offset 0 se falhar (usar tempo local)
       this.offset = 0;
       return 0;

@@ -32,6 +32,7 @@ import usersRoutes from '../routes/users';
 import permissionsRoutes from '../routes/permissions';
 import webhooksRoutes from '../routes/webhooks';
 import dashboardLayoutsRoutes from '../routes/dashboard-layouts';
+import dashboardsRoutes from '../routes/dashboards';
 import backupsRoutes from '../routes/backups';
 import qrcodesRoutes from '../routes/qrcodes';
 import notificationsRoutes from '../routes/notifications';
@@ -95,6 +96,7 @@ export function registerExtendedApiRoutes(app: Express): void {
   app.use('/api/permissions', permissionsRoutes);
   app.use('/api/webhooks', webhooksRoutes);
   app.use('/api/dashboard-layouts', dashboardLayoutsRoutes);
+  app.use('/api/dashboards', authMiddleware as any, blockClientDataAccess as any, dashboardsRoutes);
   app.use(
     '/api/backups',
     requireFeatureNotDeferred('system_backups') as any,

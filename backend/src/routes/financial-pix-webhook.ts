@@ -3,9 +3,11 @@
  */
 
 import { Router, Response } from 'express';
+
 import { body } from 'express-validator';
 import { financialConfig } from '../config/env';
 import { getFinancialAdminService } from '../services/financialAdminService';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -22,9 +24,10 @@ router.post(
     }
     try {
       const result = await getFinancialAdminService().processPixWebhook(req.body);
-      return res.json({ success: true, data: result });
-    } catch (error: any) {
-      return res.status(400).json({ success: false, message: error.message });
+      return res.json({
+        success: true, data: result });} catch (error: unknown) {
+      const e = normalizeError(error);
+      return res.status(400).json({ success: false, message: e.message });
     }
   }
 );

@@ -13,6 +13,7 @@ import { getSubscriberService } from './subscriberService';
 import { getBillingEnforcementService } from './billingEnforcementService';
 import type { PoolClient } from 'pg';
 import { dateToYmd, todayYmd } from '../utils/businessDate';
+import { normalizeError } from '../utils/errors';
 
 const CAMPAIGN_START_BEFORE_CREATED_MSG =
   'Data de início não pode ser anterior à data de criação da campanha.';
@@ -128,7 +129,7 @@ export interface CampaignTotemRequest {
   totemId: number;
   scheduledStart?: string;
   scheduledEnd?: string;
-  config?: any;
+  config?: Record<string, unknown>;
 }
 
 export class CampaignService {
@@ -142,10 +143,11 @@ export class CampaignService {
   
   // Lazy initialization - só criar quando necessário
   private getAuditService(): AuditService {
-    if (!(global as any).auditServiceInstance) {
-      (global as any).auditServiceInstance = new AuditService();
+    const g = global as typeof globalThis & { auditServiceInstance?: AuditService };
+    if (!g.auditServiceInstance) {
+      g.auditServiceInstance = new AuditService();
     }
-    return (global as any).auditServiceInstance;
+    return g.auditServiceInstance;
   }
 
   /**
@@ -176,7 +178,7 @@ export class CampaignService {
     try {
       const offset = (page - 1) * limit;
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       // Aplicar filtros
       let paramIndex = 1;
@@ -424,7 +426,8 @@ export class CampaignService {
       `, [campaignIds]);
 
       const totemIdsByCampaign = new Map<number, number[]>();
-      allCampaignTotems.forEach((row: any) => {
+      allCampaignTotems.forEach((rowRaw: unknown) => {
+        const row = rowRaw as unknown as Record<string, unknown>;
         const cid = Number(row.campaign_id);
         const tid = Number(row.totem_id);
         if (Number.isNaN(cid) || Number.isNaN(tid)) return;
@@ -462,10 +465,9 @@ export class CampaignService {
         total,
         page,
         limit
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar campanhas', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar campanhas', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -550,18 +552,18 @@ export class CampaignService {
     
     return {
       ...campaign,
-      publishers: publishersResult.rows.map((p: any) => ({
-        id: p.publisher_id,
-        name: p.publisher_name
-      })),
-      playlists: playlistsResult.rows.map((p: any) => ({
-        id: p.playlist_id,
-        name: p.playlist_name
-      })),
-      medias: mediasResult.rows.map((m: any) => ({
-        id: m.media_id,
-        name: m.media_name
-      })),
+      publishers: publishersResult.rows.map((pRaw: unknown) => {
+        const p = pRaw as unknown as Record<string, unknown>;
+        return { id: p.publisher_id, name: p.publisher_name };
+      }),
+      playlists: playlistsResult.rows.map((pRaw: unknown) => {
+        const p = pRaw as unknown as Record<string, unknown>;
+        return { id: p.playlist_id, name: p.playlist_name };
+      }),
+      medias: mediasResult.rows.map((mRaw: unknown) => {
+        const m = mRaw as unknown as Record<string, unknown>;
+        return { id: m.media_id, name: m.media_name };
+      }),
       ...scheduleInfo
     };
   }
@@ -619,9 +621,9 @@ export class CampaignService {
       `,
         [campaignId, publisherId]
       );
-      return Boolean(row);
-    } catch (error: any) {
-      await logError('isCampaignVisibleToPublisher', error, { campaignId, publisherId });
+      return Boolean(row);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('isCampaignVisibleToPublisher', e.error, { campaignId, publisherId });
       return false;
     }
   }
@@ -721,15 +723,18 @@ export class CampaignService {
         WHERE campaign_id = $1
         ORDER BY totem_id
       `, [campaignId]);
-      campaign.totemIds = totemRows.map((r: any) => Number(r.totem_id));
+      campaign.totemIds = totemRows.map((rRaw: unknown) => {
+        const r = rRaw as unknown as Record<string, unknown>;
+        return Number(r.totem_id);
+      });
 
       // Buscar estatísticas
       const stats = await this.getCampaignStats(campaignId);
       const scheduleInfo = this.getScheduleInfo(campaign);
-      return { ...campaign, ...stats, ...scheduleInfo };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar campanha', error);
+      return {
+        ...campaign, ...stats, ...scheduleInfo };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar campanha', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -1137,8 +1142,8 @@ export class CampaignService {
       // Invalidar cache relacionado (fora da transação - não crítico)
       await this.cache.invalidateEntity('campaign', newCampaign.id).catch(() => {});
       return newCampaign;
-    }).catch(async (error: any) => {
-      await logError('Erro ao criar campanha', error);
+    }).catch(async (error: unknown) => {
+      await logError('Erro ao criar campanha', error as Error);
       throw error;
     });
   }
@@ -1161,7 +1166,7 @@ export class CampaignService {
 
       // Construir query de atualização (placeholders PostgreSQL $1, $2, ...)
       const updates: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
       let paramIndex = 1;
 
       if (data.title !== undefined) {
@@ -1314,7 +1319,7 @@ export class CampaignService {
 
       if (willBePublished && !wasPublished) {
         const subscriberId =
-          existingCampaign.subscriberId ?? (existingCampaign as any).subscriber_id;
+          existingCampaign.subscriberId ?? (existingCampaign as unknown as Record<string, unknown>).subscriber_id;
         if (subscriberId != null) {
           await getBillingEnforcementService().assertSubscriberCanPublish(
             Number(subscriberId),
@@ -1355,7 +1360,7 @@ export class CampaignService {
 
       // Atualizar playlists associadas à campanha (substitui as atuais pelas enviadas)
       if (data.playlistIds !== undefined) {
-        const subscriberId = existingCampaign.subscriberId ?? (existingCampaign as any).subscriber_id;
+        const subscriberId = existingCampaign.subscriberId ?? (existingCampaign as unknown as Record<string, unknown>).subscriber_id;
         if (subscriberId != null) {
           await this.associatePlaylists(campaignId, Array.isArray(data.playlistIds) ? data.playlistIds : [], subscriberId, updatedBy);
         }
@@ -1363,7 +1368,7 @@ export class CampaignService {
 
       // Atualizar mídias individuais associadas à campanha (substitui as atuais pelas enviadas)
       if (data.mediaIds !== undefined) {
-        const subscriberId = existingCampaign.subscriberId ?? (existingCampaign as any).subscriber_id;
+        const subscriberId = existingCampaign.subscriberId ?? (existingCampaign as unknown as Record<string, unknown>).subscriber_id;
         if (subscriberId != null) {
           await this.associateMedias(campaignId, Array.isArray(data.mediaIds) ? data.mediaIds : [], subscriberId, updatedBy);
         }
@@ -1393,7 +1398,10 @@ export class CampaignService {
           WHERE campaign_id = $1
         `, [campaignId]);
 
-        const existingIds = existingRows.map((r: any) => Number(r.totem_id)).filter((id) => !isNaN(id));
+        const existingIds = existingRows.map((rRaw: unknown) => {
+          const r = rRaw as unknown as Record<string, unknown>;
+          return Number(r.totem_id);
+        }).filter((id) => !isNaN(id));
 
         const toRemove = existingIds.filter((id) => !desiredTotemIds.includes(id));
         const uniqueDesired = [...new Set(desiredTotemIds)];
@@ -1463,11 +1471,10 @@ export class CampaignService {
       // Invalidar cache relacionado
       await this.cache.invalidateEntity('campaign', campaignId).catch(() => {});
 
-      return updatedCampaign;
-
-    } catch (error: any) {
-      await logError('Erro ao atualizar campanha', error);
-      throw error;
+      return updatedCampaign;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar campanha', e.error);
+      throw e.error;
     }
   }
 
@@ -1512,11 +1519,11 @@ export class CampaignService {
       });
 
       // Invalidar cache relacionado
-      await this.cache.invalidateEntity('campaign', campaignId).catch(() => {});
-
-    } catch (error: any) {
-      await logError('Erro ao remover campanha', error);
-      throw error;
+      await this.cache.invalidateEntity('campaign', campaignId).catch(() => {
+        });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao remover campanha', e.error);
+      throw e.error;
     }
   }
 
@@ -1573,11 +1580,10 @@ export class CampaignService {
       await this.getAuditService().log('campaign', 'totem_added', addedBy, {
         campaignId,
         totemId: data.totemId
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao adicionar totem à campanha', error);
-      throw error;
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao adicionar totem à campanha', e.error);
+      throw e.error;
     }
   }
 
@@ -1604,11 +1610,10 @@ export class CampaignService {
       await this.getAuditService().log('campaign', 'totem_removed', removedBy, {
         campaignId,
         totemId
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao remover totem da campanha', error);
-      throw error;
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao remover totem da campanha', e.error);
+      throw e.error;
     }
   }
 
@@ -1684,9 +1689,10 @@ export class CampaignService {
         }
       }
 
-      return { valid: true };
-    } catch (error: any) {
-      await logError('Erro ao validar execução de campanha', error, { campaignId, totemIds });
+      return {
+        valid: true };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao validar execução de campanha', e.error, { campaignId, totemIds });
       return { valid: false, error: 'Erro ao validar execução da campanha' };
     }
   }
@@ -1717,7 +1723,10 @@ export class CampaignService {
 
       // Validar execução antes de ativar
       const totems = await this.getCampaignTotems(campaignId);
-      const totemIds = totems.map((t: any) => t.totem_id);
+      const totemIds = totems.map((tRaw: unknown) => {
+        const t = tRaw as unknown as Record<string, unknown>;
+        return Number(t.totem_id);
+      });
       
       if (totemIds.length > 0) {
         const validation = await this.validateCampaignExecution(campaignId, totemIds);
@@ -1737,11 +1746,10 @@ export class CampaignService {
       await this.getAuditService().log('campaign', 'activated', activatedBy, {
         campaignId,
         title: campaign.title
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao ativar campanha', error);
-      throw error;
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao ativar campanha', e.error);
+      throw e.error;
     }
   }
 
@@ -1771,11 +1779,10 @@ export class CampaignService {
       await this.getAuditService().log('campaign', 'paused', pausedBy, {
         campaignId,
         title: campaign.title
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao pausar campanha', error);
-      throw error;
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao pausar campanha', e.error);
+      throw e.error;
     }
   }
 
@@ -1801,11 +1808,10 @@ export class CampaignService {
       await this.getAuditService().log('campaign', 'finished', finishedBy, {
         campaignId,
         title: campaign.title
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao finalizar campanha', error);
-      throw error;
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao finalizar campanha', e.error);
+      throw e.error;
     }
   }
 
@@ -1878,16 +1884,15 @@ export class CampaignService {
             playlistCount: playlistCountResult?.count || 0,
             mediaCount: mediaCountResult?.count || 0,
             totalDuration: durationResult?.total || 0
-          };
-
-        } catch (error: any) {
-          await logError('Erro ao buscar estatísticas da campanha', error);
+          };} catch (error: unknown) {
+          const e = normalizeError(error);
+          await logError('Erro ao buscar estatísticas da campanha', e.error);
           return {
             totemCount: 0,
             playlistCount: 0,
             mediaCount: 0,
             totalDuration: 0
-          };
+        };
         }
       },
       120 // Cache por 2 minutos
@@ -1914,9 +1919,9 @@ export class CampaignService {
         ORDER BY t.name
       `, [campaignId]);
 
-      return totems;
-    } catch (error: any) {
-      await logError('Erro ao buscar totems da campanha', error);
+      return totems;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar totems da campanha', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -2012,10 +2017,9 @@ export class CampaignService {
           paused: pausedResult2?.count || 0,
           finished: finishedResult2?.count || 0
         }
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar estatísticas gerais', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar estatísticas gerais', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -2059,10 +2063,9 @@ export class CampaignService {
         })
       );
 
-      return campaignsWithStats;
-
-    } catch (error: any) {
-      await logError('Erro ao buscar campanhas ativas para totem', error);
+      return campaignsWithStats;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar campanhas ativas para totem', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -2126,10 +2129,9 @@ export class CampaignService {
         AND c.is_active = true
       `, [now]);
 
-      return [...toActivate, ...toPause];
-
-    } catch (error: any) {
-      await logError('Erro ao buscar campanhas para atualizar', error);
+      return [...toActivate, ...toPause];} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar campanhas para atualizar', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -2137,21 +2139,22 @@ export class CampaignService {
   /**
    * Obtém informações de agendamento da campanha
    */
-  private getScheduleInfo(campaign: any): {
+  private getScheduleInfo(campaignRaw: Record<string, unknown>): {
     isScheduled: boolean;
     isExpired: boolean;
     isActiveNow: boolean;
   } {
     const now = new Date();
+    const c = campaignRaw;
     // Compat: alguns drivers/queries podem retornar aliases em lowercase (startdate/enddate)
-    const startRaw = campaign.startDate ?? campaign.startdate;
-    const endRaw = campaign.endDate ?? campaign.enddate;
+    const startRaw = (c.startDate ?? c.startdate) as string | Date | undefined;
+    const endRaw = (c.endDate ?? c.enddate) as string | Date | undefined;
     const startDate = startRaw ? new Date(startRaw) : null;
     const endDate = endRaw ? new Date(endRaw) : null;
 
     const isScheduled = !!(startDate || endDate);
     const isExpired = endDate ? now > endDate : false;
-    const isActiveNow = campaign.isActive && 
+    const isActiveNow = c.isActive === true && 
       (!startDate || now >= startDate) && 
       (!endDate || now <= endDate);
 
@@ -2201,10 +2204,9 @@ export class CampaignService {
         })
       );
 
-      return campaignsWithStats;
-
-    } catch (error: any) {
-      await logError('Erro ao buscar campanhas por cliente', error);
+      return campaignsWithStats;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar campanhas por cliente', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -2282,15 +2284,14 @@ export class CampaignService {
         campaignId,
         playlistIds,
         campaignSubscriberId
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao associar playlists à campanha', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao associar playlists à campanha', e.error, {
         campaignId,
         playlistIds,
         campaignSubscriberId
-      });
-      throw error;
+    });
+      throw e.error;
     }
   }
 
@@ -2370,15 +2371,14 @@ export class CampaignService {
         campaignId,
         mediaIds,
         campaignSubscriberId
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao associar mídias à campanha', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao associar mídias à campanha', e.error, {
         campaignId,
         mediaIds,
         campaignSubscriberId
-      });
-      throw error;
+    });
+      throw e.error;
     }
   }
 
@@ -2472,13 +2472,13 @@ export class CampaignService {
         campaignId,
         publisherIds,
         userId
-      });
-    } catch (error: any) {
-      await logError('Erro ao associar publishers à campanha', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao associar publishers à campanha', e.error, {
         campaignId,
         publisherIds
-      });
-      throw error;
+    });
+      throw e.error;
     }
   }
 
@@ -2525,7 +2525,7 @@ export class CampaignService {
 
       // Lista mais curta = remoção de vínculos (clientes antigos chamavam reorder ao excluir na UI).
       if (mediaIds.length < existingMediaIds.length) {
-        const subscriberId = campaign.subscriberId ?? (campaign as any).subscriber_id;
+        const subscriberId = campaign.subscriberId ?? (campaign as unknown as Record<string, unknown>).subscriber_id;
         if (subscriberId == null || typeof subscriberId !== 'number') {
           throw new Error('Campanha sem subscriber válido para atualizar mídias');
         }
@@ -2551,14 +2551,14 @@ export class CampaignService {
       });
 
       // Invalidar cache
-      await this.cache.invalidateEntity('campaign', campaignId).catch(() => {});
-
-    } catch (error: any) {
-      await logError('Erro ao reordenar mídias da campanha', error, {
+      await this.cache.invalidateEntity('campaign', campaignId).catch(() => {
+        });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao reordenar mídias da campanha', e.error, {
         campaignId,
         mediaIds
-      });
-      throw error;
+    });
+      throw e.error;
     }
   }
 
@@ -2604,7 +2604,7 @@ export class CampaignService {
       }
 
       if (playlistIds.length < existingPlaylistIds.length) {
-        const subscriberId = campaign.subscriberId ?? (campaign as any).subscriber_id;
+        const subscriberId = campaign.subscriberId ?? (campaign as unknown as Record<string, unknown>).subscriber_id;
         if (subscriberId == null || typeof subscriberId !== 'number') {
           throw new Error('Campanha sem subscriber válido para atualizar playlists');
         }
@@ -2632,24 +2632,23 @@ export class CampaignService {
       });
 
       // Invalidar cache
-      await this.cache.invalidateEntity('campaign', campaignId).catch(() => {});
-
-    } catch (error: any) {
-      await logError('Erro ao reordenar playlists da campanha', error, {
+      await this.cache.invalidateEntity('campaign', campaignId).catch(() => {
+        });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao reordenar playlists da campanha', e.error, {
         campaignId,
         playlistIds
-      });
-      throw error;
+    });
+      throw e.error;
     }
   }
 }
 
 // Lazy singleton accessor (padroniza com outros serviços e facilita testes/mocks)
 export function getCampaignService(): CampaignService {
-  if (!(global as any).campaignServiceInstance) {
-    (global as any).campaignServiceInstance = new CampaignService();
+  if (!(global as unknown as Record<string, unknown>).campaignServiceInstance) {
+    (global as unknown as Record<string, unknown>).campaignServiceInstance = new CampaignService();
   }
-  return (global as any).campaignServiceInstance;
+  return (global as unknown as Record<string, unknown>).campaignServiceInstance as CampaignService;
 }
-
 

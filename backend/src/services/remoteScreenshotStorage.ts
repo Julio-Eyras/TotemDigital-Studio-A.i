@@ -4,6 +4,7 @@
 import fs from 'fs';
 import path from 'path';
 import { logError, logInfo } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 function resolveScreenshotsRoot(): string {
   try {
@@ -39,32 +40,34 @@ export async function saveRemoteScreenshotFile(options: {
   return { filePath, fileSize: options.buffer.length, format };
 }
 
-export function decodeScreenshotPayload(result: any): {
+export function decodeScreenshotPayload(result: unknown): {
   buffer: Buffer;
   format: string;
   width: number;
   height: number;
 } | null {
   if (!result || typeof result !== 'object') return null;
+  const r = result as Record<string, unknown>;
   const b64 =
-    result.imageBase64 ||
-    result.image_base64 ||
-    result.screenshotBase64 ||
-    result.data;
+    r.imageBase64 ||
+    r.image_base64 ||
+    r.screenshotBase64 ||
+    r.data;
   if (typeof b64 !== 'string' || b64.length < 32) return null;
   const cleaned = b64.replace(/^data:image\/\w+;base64,/, '');
   try {
     const buffer = Buffer.from(cleaned, 'base64');
     if (buffer.length < 64) return null;
-    const format = String(result.format || 'jpg').toLowerCase();
+    const format = String(r.format || 'jpg').toLowerCase();
     return {
       buffer,
       format: format === 'jpeg' ? 'jpg' : format,
-      width: Number(result.width) || 0,
-      height: Number(result.height) || 0,
+      width: Number(r.width) || 0,
+      height: Number(r.height) || 0,
     };
-  } catch (e) {
-    void logError('Falha ao decodificar imageBase64 do screenshot', e as Error);
+} catch (rawErr: unknown) {
+    const e = normalizeError(rawErr);
+    void logError('Falha ao decodificar imageBase64 do screenshot', e.error);
     return null;
   }
 }

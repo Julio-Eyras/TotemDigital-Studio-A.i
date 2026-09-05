@@ -8,6 +8,7 @@ import { AuditService } from './auditService';
 import { logError } from '../utils/loggerHelper';
 import { assertCompactOwnerPublisher } from '../utils/compactOwnerPublisher';
 import { normalizeDeviceId } from '../utils/normalizeDeviceId';
+import { normalizeError } from '../utils/errors';
 
 export interface SmartTv {
   smart_tv_id: number;
@@ -24,8 +25,8 @@ export interface SmartTv {
   orientation?: 'landscape' | 'portrait';
   status?: string;
   last_heartbeat?: string;
-  capabilities?: any; // JSONB
-  settings?: any; // JSONB
+  capabilities?: unknown; // JSONB
+  settings?: unknown; // JSONB
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -48,8 +49,8 @@ export interface CreateSmartTvRequest {
   resolution_width?: number;
   resolution_height?: number;
   orientation?: 'landscape' | 'portrait';
-  capabilities?: any;
-  settings?: any;
+  capabilities?: unknown;
+  settings?: unknown;
 }
 
 export interface UpdateSmartTvRequest {
@@ -64,8 +65,8 @@ export interface UpdateSmartTvRequest {
   resolution_height?: number;
   orientation?: 'landscape' | 'portrait';
   status?: string;
-  capabilities?: any;
-  settings?: any;
+  capabilities?: unknown;
+  settings?: unknown;
   is_active?: boolean;
 }
 
@@ -82,10 +83,10 @@ export class SmartTvService {
   }
 
   private getAuditService(): AuditService {
-    if (!(global as any).auditServiceInstance) {
-      (global as any).auditServiceInstance = new AuditService();
+    if (!(global as unknown as Record<string, unknown>).auditServiceInstance) {
+      (global as unknown as Record<string, unknown>).auditServiceInstance = new AuditService();
     }
-    return (global as any).auditServiceInstance;
+    return (global as unknown as Record<string, unknown>).auditServiceInstance as AuditService;
   }
 
   /**
@@ -111,7 +112,7 @@ export class SmartTvService {
       const offset = (page - 1) * limit;
 
       let whereClause = 'WHERE 1=1';
-      const queryParams: any[] = [];
+      const queryParams: unknown[] = [];
       let paramIndex = 1;
 
       // Validação de ownership: não-admin só vê Smart TVs do seu publisher
@@ -195,9 +196,9 @@ export class SmartTvService {
         total: parseInt(totalResult?.total || '0'),
         page,
         limit,
-      };
-    } catch (error: any) {
-      await logError('Erro ao listar Smart TVs', error, { params });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar Smart TVs', e.error, { params });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -252,10 +253,10 @@ export class SmartTvService {
         throw new Error('Acesso negado: Smart TV não pertence ao seu publisher');
       }
 
-      return smartTv;
-    } catch (error: any) {
-      await logError('Erro ao obter Smart TV', error, { id });
-      throw error;
+      return smartTv;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter Smart TV', e.error, { id });
+      throw e.error;
     }
   }
 
@@ -401,10 +402,10 @@ export class SmartTvService {
         totem_id,
       });
 
-      return newSmartTv;
-    } catch (error: any) {
-      await logError('Erro ao criar Smart TV', error, { data });
-      throw error;
+      return newSmartTv;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar Smart TV', e.error, { data });
+      throw e.error;
     }
   }
 
@@ -463,7 +464,7 @@ export class SmartTvService {
 
       // Preparar campos para atualização
       const updateFields: string[] = [];
-      const updateParams: any[] = [];
+      const updateParams: unknown[] = [];
       let paramIndex = 1;
 
       if (data.identifier) {
@@ -570,10 +571,10 @@ export class SmartTvService {
         changes: data,
       });
 
-      return updatedSmartTv;
-    } catch (error: any) {
-      await logError('Erro ao atualizar Smart TV', error, { id, data });
-      throw error;
+      return updatedSmartTv;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar Smart TV', e.error, { id, data });
+      throw e.error;
     }
   }
 
@@ -608,10 +609,10 @@ export class SmartTvService {
       await this.getAuditService().log('smart_tv', 'deleted', deletedBy, {
         tvId: id,
         identifier: existingSmartTv.identifier,
-      });
-    } catch (error: any) {
-      await logError('Erro ao deletar Smart TV', error, { id });
-      throw error;
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao deletar Smart TV', e.error, { id });
+      throw e.error;
     }
   }
 
@@ -683,10 +684,10 @@ export class SmartTvService {
         ORDER BY st.name, st.identifier
       `, [totemId]);
 
-      return smartTvs;
-    } catch (error: any) {
-      await logError('Erro ao buscar Smart TVs do totem', error, { totemId });
-      throw error;
+      return smartTvs;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar Smart TVs do totem', e.error, { totemId });
+      throw e.error;
     }
   }
 }

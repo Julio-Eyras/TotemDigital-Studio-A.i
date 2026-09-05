@@ -13,6 +13,7 @@ import { getWebhookService } from './webhookService';
 import { resolvePlanTotalItemSeconds } from '../utils/dispatchItemDuration';
 import { DEFAULT_FALLBACK_PROPAGANDAS_PER_VINHETA } from '../utils/dispatchPlaylistDirectMix';
 import { expandMixItemsForPlaybackCycle, interleaveMixItemPools } from '../utils/mixPlaybackCycle';
+import { normalizeError } from '../utils/errors';
 
 export interface MixRule {
   rule_id: number;
@@ -26,7 +27,7 @@ export interface MixRule {
   ai_enabled: boolean;
   ai_provider?: string;
   ai_model?: string;
-  ai_config?: any;
+  ai_config?: unknown;
   use_pedestrian_detection: boolean;
   use_sentiment_analysis: boolean;
   use_context_awareness: boolean;
@@ -40,15 +41,15 @@ export interface AIContext {
   context_id: number;
   pedestrian_count: number;
   pedestrian_density?: 'low' | 'medium' | 'high';
-  pedestrian_demographics?: any;
+  pedestrian_demographics?: unknown;
   sentiment_score?: number;
   sentiment_label?: 'positive' | 'neutral' | 'negative';
   emotion_tags?: string[];
   time_of_day?: string;
   day_type?: string;
-  weather_context?: any;
-  event_context?: any;
-  performance_metrics?: any;
+  weather_context?: unknown;
+  event_context?: unknown;
+  performance_metrics?: unknown;
 }
 
 export interface MixItem {
@@ -73,7 +74,7 @@ export interface TotemPlaylistMix {
   total_items: number;
   total_duration: number;
   mix_strategy: string;
-  context_snapshot?: any;
+  context_snapshot?: unknown;
   is_active: boolean;
   is_current: boolean;
   generated_at: string;
@@ -109,7 +110,8 @@ export class TotemPlaylistMixService {
         if (cached && typeof cached === 'string') {
           return JSON.parse(cached);
         }
-      } catch (e) {
+ 
+} catch (e: unknown) {
         // Cache não disponível, continuar
       }
 
@@ -150,9 +152,9 @@ export class TotemPlaylistMixService {
       // Cache da regra por 1 hora
       await this.cacheService.set(cacheKey, JSON.stringify(rule), 3600);
       
-      return rule;
-    } catch (error: any) {
-      await logError('Erro ao obter regra de mixagem', error, { totemId });
+      return rule;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter regra de mixagem', e.error, { totemId });
       return this.getDefaultMixRule();
     }
   }
@@ -252,7 +254,7 @@ export class TotemPlaylistMixService {
     }
 
     // Validar totem_id se fornecido
-    const totemId = (ruleData as any).totem_id;
+    const totemId = Number((ruleData as unknown as Record<string, unknown>).totem_id);
     if (totemId !== undefined && totemId !== null && totemId > 0) {
       const totemExists = await this.db.findFirst(`
         SELECT totem_id FROM totems WHERE totem_id = $1
@@ -317,7 +319,7 @@ export class TotemPlaylistMixService {
       if (existing) {
         // Atualizar contexto existente
         const updates: string[] = [];
-        const params: any[] = [];
+        const params: unknown[] = [];
         let paramIndex = 1;
 
         if (contextData.pedestrian_count !== undefined) {
@@ -447,10 +449,10 @@ export class TotemPlaylistMixService {
 
       await logDebug('Contexto de IA atualizado', { totemId, contextId });
 
-      return updated;
-    } catch (error: any) {
-      await logError('Erro ao atualizar contexto de IA', error, { totemId, contextData });
-      throw error;
+      return updated;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar contexto de IA', e.error, { totemId, contextData });
+      throw e.error;
     }
   }
 
@@ -480,9 +482,9 @@ export class TotemPlaylistMixService {
         weather_context: result.weather_context,
         event_context: result.event_context,
         performance_metrics: result.performance_metrics,
-      };
-    } catch (error: any) {
-      await logError('Erro ao obter contexto de IA', error, { totemId });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter contexto de IA', e.error, { totemId });
       return null;
     }
   }
@@ -518,9 +520,10 @@ export class TotemPlaylistMixService {
                 aiContext.sentiment_score = sentimentAnalysis.score;
                 aiContext.sentiment_label = sentimentAnalysis.label;
               }
-            }
-          } catch (error: any) {
-            await logDebug('Erro ao analisar sentimento com IA, continuando sem dados', { totemId, error: error.message });
+ 
+}} catch (error: unknown) {
+            const e = normalizeError(error);
+            await logDebug('Erro ao analisar sentimento com IA, continuando sem dados', { totemId, error: e.message });
           }
         }
       }
@@ -542,7 +545,8 @@ export class TotemPlaylistMixService {
             return parsed;
           }
         }
-      } catch (e) {
+ 
+} catch (e: unknown) {
         // Cache não disponível ou inválido, continuar com geração
       }
 
@@ -786,12 +790,13 @@ export class TotemPlaylistMixService {
           rule_id: rule.rule_id > 0 ? rule.rule_id : null,
           generated_at: mixResult.rows[0].generated_at,
         });
-      } catch (webhookError: any) {
+} catch (webhookError: unknown) {
+  const e = normalizeError(webhookError);
         // Não falhar se webhook falhar
         await logDebug('Erro ao disparar webhook para mixagem gerada', { 
           totemId, 
           mixId, 
-          error: webhookError.message 
+          error: e.message 
         });
       }
 
@@ -804,10 +809,10 @@ export class TotemPlaylistMixService {
         strategy: rule.rule_type,
       });
 
-      return mixResult_obj;
-    } catch (error: any) {
-      await logError('Erro ao gerar mix para totem', error, { totemId });
-      throw error;
+      return mixResult_obj;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar mix para totem', e.error, { totemId });
+      throw e.error;
     }
   }
 
@@ -815,20 +820,23 @@ export class TotemPlaylistMixService {
    * Calcula peso de um item baseado nas regras
    */
   private calculateItemWeight(
-    item: any,
-    campaign: any,
-    playlist: any,
+    itemRaw: unknown,
+    campaignRaw: unknown,
+    playlistRaw: unknown,
     rule: MixRule,
     aiContext: AIContext | null
   ): number {
     let weight = 0;
+    const item = itemRaw as unknown as Record<string, unknown>;
+    const campaign = campaignRaw as unknown as Record<string, unknown>;
+    const playlist = playlistRaw as unknown as Record<string, unknown>;
 
     // Peso por prioridade da campanha
     const campaignPriority = typeof campaign.priority === 'number' ? campaign.priority : 1;
     weight += campaignPriority * rule.priority_weight;
 
     // Peso por tier comercial da campanha (premium > standard > remnant)
-    const tier = (campaign.commercial_tier as string) || 'standard';
+    const tier = (typeof campaign.commercial_tier === 'string' ? campaign.commercial_tier : 'standard');
     const tierWeights: Record<string, number> = {
       premium: 3,
       standard: 2,
@@ -892,7 +900,8 @@ export class TotemPlaylistMixService {
 
       // Ajuste por performance histórica
       if (rule.use_historical_optimization && aiContext.performance_metrics) {
-        const engagementRate = aiContext.performance_metrics.engagement_rate || 0;
+        const perfMetrics = (aiContext.performance_metrics || {}) as unknown as Record<string, unknown>;
+        const engagementRate = Number(perfMetrics.engagement_rate || 0);
         const performanceMultiplier = 1.0 + (engagementRate * 0.2);
         weight *= performanceMultiplier;
       }
@@ -904,13 +913,14 @@ export class TotemPlaylistMixService {
   /**
    * Verifica se está dentro do intervalo de horário
    */
-  private isWithinTimeRange(campaign: any, currentHour: number): boolean {
+  private isWithinTimeRange(campaignRaw: unknown, currentHour: number): boolean {
+    const campaign = campaignRaw as unknown as Record<string, unknown>;
     if (!campaign.start_time || !campaign.end_time) {
       return true; // Sem restrição de horário
     }
 
-    const [startHour] = campaign.start_time.split(':').map(Number);
-    const [endHour] = campaign.end_time.split(':').map(Number);
+    const [startHour] = String(campaign.start_time).split(':').map(Number);
+    const [endHour] = String(campaign.end_time).split(':').map(Number);
 
     if (startHour <= endHour) {
       return currentHour >= startHour && currentHour < endHour;
@@ -1074,9 +1084,9 @@ Retorne apenas um JSON com:
         return { score, label };
       }
 
-      return null;
-    } catch (error: any) {
-      await logDebug('Erro ao analisar sentimento com IA', { totemId, error: error.message });
+      return null;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logDebug('Erro ao analisar sentimento com IA', { totemId, error: e.message });
       return null;
     }
   }
@@ -1122,9 +1132,9 @@ Retorne apenas um JSON com:
         SELECT set_current_mix_for_totem($1, $2) as success
       `, [totemId, mixId]);
 
-      return result.rows[0].success === true;
-    } catch (error: any) {
-      await logError('Erro ao definir mix atual', error, { totemId, mixId });
+      return result.rows[0].success === true;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao definir mix atual', e.error, { totemId, mixId });
       return false;
     }
   }
@@ -1172,9 +1182,9 @@ Retorne apenas um JSON com:
         is_current: true,
         generated_at: result.generated_at,
         applied_at: result.applied_at,
-      };
-    } catch (error: any) {
-      await logError('Erro ao obter mix atual', error, { totemId });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter mix atual', e.error, { totemId });
       return null;
     }
   }

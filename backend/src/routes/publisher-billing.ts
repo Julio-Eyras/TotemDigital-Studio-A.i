@@ -5,7 +5,9 @@
  * Publishers podem receber revenue share (outgoing) ou pagar subscription (incoming)
  */
 
-import { Router, Response } from 'express';
+import { Router} from 'express';
+
+import express from 'express';
 import { PublisherBillingService } from '../services/publisherBillingService';
 import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
@@ -15,6 +17,7 @@ import { assertTenantClientParamAccess, resolvePublisherIdFromRequest } from '..
 import { isAdminRole } from '../utils/tenantScope';
 import { authorizeBillingManagement } from '../middleware/billingAuthorization.middleware';
 import { isStudioRuntime } from '../config/installationRuntime';
+import { normalizeError } from '../utils/errors';
 
 const normRole = (r: string | undefined) => String(r || '').trim().toLowerCase();
 
@@ -47,7 +50,7 @@ router.get('/',
   query('dueFilter').optional({ checkFalsy: true }).isIn(['overdue', 'due_soon']),
   query('dueSoonDays').optional({ checkFalsy: true }).isInt({ min: 1, max: 365 }),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const {
         page = 1,
@@ -72,7 +75,7 @@ router.get('/',
       
       let finalPublisherId: number | undefined;
 
-      if (isAdminRole(req.user.role)) {
+      if (isAdminRole(req.user!.role)) {
         finalPublisherId = publisherId ? parseInt(publisherId as string) : undefined;
       } else {
         const resolved = await resolvePublisherIdFromRequest(req);
@@ -106,7 +109,7 @@ router.get('/',
 
       // Mapear camelCase (service) -> snake_case (frontend)
       const mapped = {
-        billings: (result.billings || []).map((b: any) => ({
+        billings: (result.billings || []).map((bRaw: unknown) => { const b = bRaw as Record<string, unknown>; return ({
           billing_id: b.billingId,
           publisher_id: b.publisherId,
           publisher_name: b.publisherName,
@@ -128,20 +131,21 @@ router.get('/',
           days_overdue: b.daysOverdue,
           is_due_soon: b.isDueSoon,
           days_until_due: b.daysUntilDue,
-        })),
+        }); }),
         total: result.total || 0,
         page: result.page || parseInt(page as string) || 1,
         limit: result.limit || parseInt(limit as string) || 20
       };
 
-      return res.json({ success: true, data: mapped });
-    } catch (error: any) {
-      await logError('Erro ao listar faturas de publishers', error);
+      return res.json({
+        success: true, data: mapped });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar faturas de publishers', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao listar faturas',
-        message: error.message || 'Erro interno do servidor'
-      });
+        message: e.message || 'Erro interno do servidor'
+    });
     }
   }
 );
@@ -154,7 +158,7 @@ router.get('/stats',
   authorizeRole(['admin', 'admin_sql', 'operador_faturamento', 'gerente_financeiro']),
   query('publisherId').optional().isInt({ min: 1 }),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const { publisherId, startDate, endDate } = req.query;
       
@@ -167,14 +171,14 @@ router.get('/stats',
       return res.json({
         success: true,
         data: stats
-      });
-    } catch (error: any) {
-      await logError('Erro ao obter estatísticas de billing', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter estatísticas de billing', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao obter estatísticas',
-        message: error.message || 'Erro interno do servidor'
-      });
+        message: e.message || 'Erro interno do servidor'
+    });
     }
   }
 );
@@ -186,7 +190,7 @@ router.get('/stats',
 router.get('/:id',
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const billingId = parseInt(req.params.id);
       
@@ -207,7 +211,8 @@ router.get('/:id',
         await assertTenantClientParamAccess(req, Number(billing.publisherId), {
           requestedIdIsPublisherScope: true,
         });
-      } catch (e: any) {
+} catch (rawErr: unknown) {
+  const e = normalizeError(rawErr);
         if (e?.statusCode === 403) {
           return res.status(403).json({
             success: false,
@@ -221,14 +226,14 @@ router.get('/:id',
       return res.json({
         success: true,
         data: billing
-      });
-    } catch (error: any) {
-      await logError('Erro ao obter fatura', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter fatura', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao obter fatura',
-        message: error.message || 'Erro interno do servidor'
-      });
+        message: e.message || 'Erro interno do servidor'
+    });
     }
   }
 );
@@ -246,7 +251,7 @@ router.post('/',
   body('currency').optional({ nullable: true }).isString(),
   body('description').optional({ nullable: true }).isString(),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       if (isStudioRuntime() && normRole(req.user?.role) === 'publisher_user') {
         const resolved = await resolvePublisherIdFromRequest(req);
@@ -265,14 +270,14 @@ router.post('/',
         success: true,
         data: billing,
         message: 'Fatura criada com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro ao criar fatura', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar fatura', e.error);
       return res.status(400).json({
         success: false,
         error: 'Erro ao criar fatura',
-        message: error.message || 'Erro interno do servidor'
-      });
+        message: e.message || 'Erro interno do servidor'
+    });
     }
   }
 );
@@ -285,7 +290,7 @@ router.put('/:id',
   authorizeBillingManagement,
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const billingId = parseInt(req.params.id);
 
@@ -302,7 +307,8 @@ router.put('/:id',
           await assertTenantClientParamAccess(req, Number(existing.publisherId), {
             requestedIdIsPublisherScope: true,
           });
-        } catch (e: any) {
+} catch (rawErr: unknown) {
+  const e = normalizeError(rawErr);
           if (e?.statusCode === 403) {
             return res.status(403).json({
               success: false,
@@ -320,14 +326,14 @@ router.put('/:id',
         success: true,
         data: billing,
         message: 'Fatura atualizada com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro ao atualizar fatura', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar fatura', e.error);
       return res.status(400).json({
         success: false,
         error: 'Erro ao atualizar fatura',
-        message: error.message || 'Erro interno do servidor'
-      });
+        message: e.message || 'Erro interno do servidor'
+    });
     }
   }
 );
@@ -341,7 +347,7 @@ router.post('/:id/approve-payout',
   param('id').isInt({ min: 1 }),
   body('approvedBy').isInt({ min: 1 }),
   validateRequest,
-  async (req: AuthenticatedRequest, res: Response) => {
+  async (req: AuthenticatedRequest, res: express.Response) => {
     try {
       const billingId = parseInt(req.params.id);
       const { approvedBy } = req.body;
@@ -351,7 +357,7 @@ router.post('/:id/approve-payout',
       }
       
       // Validar que approvedBy é o usuário atual ou papel administrativo
-      if (approvedBy !== req.user.id && !isAdminRole(req.user.role)) {
+      if (approvedBy !== req.user!.id && !isAdminRole(req.user!.role)) {
         return res.status(403).json({
           success: false,
           error: 'Acesso negado',
@@ -365,14 +371,14 @@ router.post('/:id/approve-payout',
         success: true,
         data: billing,
         message: 'Payout aprovado com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro ao aprovar payout', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao aprovar payout', e.error);
       return res.status(400).json({
         success: false,
         error: 'Erro ao aprovar payout',
-        message: error.message || 'Erro interno do servidor'
-      });
+        message: e.message || 'Erro interno do servidor'
+    });
     }
   }
 );

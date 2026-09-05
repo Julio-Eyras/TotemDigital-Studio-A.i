@@ -1,12 +1,14 @@
 import express from 'express';
 import request from 'supertest';
 
+import * as express from 'express';
+
 const mockGetClientById = jest.fn();
 const mockUpdateClient = jest.fn();
 const mockDeleteClient = jest.fn();
 
 jest.mock('../../../middleware/auth.middleware', () => {
-  const authFn = (req: any, res: any, next: any) => {
+  const authFn = (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const h = String(req.headers.authorization || '');
     if (!h.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'Unauthorized' });

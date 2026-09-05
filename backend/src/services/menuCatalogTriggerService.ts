@@ -59,7 +59,7 @@ export class MenuCatalogTriggerService {
           at: new Date().toISOString(),
         }),
       ]);
-    } catch (error) {
+} catch (error: unknown) {
       await logError('menuCatalogTrigger: falha ao registrar mudança de catálogo', error);
     }
   }

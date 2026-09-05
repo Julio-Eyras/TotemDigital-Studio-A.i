@@ -7,6 +7,7 @@ import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from './auth.middleware';
 import { hasFlag, FlagName } from '../utils/flagChecker';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 /**
  * Middleware para verificar flag específica
@@ -35,13 +36,13 @@ export const requireFlag = (flag: FlagName) => {
         return;
       }
       
-      next();
-    } catch (error: any) {
-      logError('Erro ao verificar flag', error).catch(() => {});
+      next();} catch (error: unknown) {
+      const e = normalizeError(error);
+      logError('Erro ao verificar flag', e.error).catch(() => {});
       res.status(500).json({
         error: 'Erro interno ao verificar permissões',
         code: 'FLAG_CHECK_ERROR'
-      });
+    });
     }
   };
 };
@@ -73,13 +74,13 @@ export const requireAnyFlag = (flags: FlagName[]) => {
         code: 'INSUFFICIENT_PERMISSION',
         required_flags: flags,
         user_role: req.user.role
-      });
-    } catch (error: any) {
-      logError('Erro ao verificar flags', error).catch(() => {});
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      logError('Erro ao verificar flags', e.error).catch(() => {});
       res.status(500).json({
         error: 'Erro interno ao verificar permissões',
         code: 'FLAG_CHECK_ERROR'
-      });
+    });
     }
   };
 };
@@ -112,13 +113,13 @@ export const requireAllFlags = (flags: FlagName[]) => {
         }
       }
       
-      next();
-    } catch (error: any) {
-      logError('Erro ao verificar flags', error).catch(() => {});
+      next();} catch (error: unknown) {
+      const e = normalizeError(error);
+      logError('Erro ao verificar flags', e.error).catch(() => {});
       res.status(500).json({
         error: 'Erro interno ao verificar permissões',
         code: 'FLAG_CHECK_ERROR'
-      });
+    });
     }
   };
 };

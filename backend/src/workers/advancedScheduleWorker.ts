@@ -8,8 +8,9 @@ import { getAdvancedScheduleQueue, AdvancedScheduleJobData, AdvancedScheduleJobR
 import { advancedScheduleService } from '../services/advancedScheduleService';
 import { getDatabase } from '../config/database';
 import { CampaignService } from '../services/campaignService';
-import { SmartPlaylistService } from '../services/smartPlaylistService';
+import { SmartPlaylistService, SmartPlaylistRule } from '../services/smartPlaylistService';
 import { logInfo, logError, logInfoSync } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const getDb = () => getDatabase();
 const campaignService = new CampaignService();
@@ -107,16 +108,15 @@ export async function processAdvancedScheduleJob(job: Job<AdvancedScheduleJobDat
       executionId
     });
 
-    return result;
-
-  } catch (error: any) {
-    await logError('Erro ao processar agendamento avançado', error, {
+    return result;} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao processar agendamento avançado', e.error, {
       scheduleId,
       scheduleType,
       targetId,
       executionId,
       jobId: job.id
-    });
+  });
 
     // Atualizar execução com erro
     if (executionId) {
@@ -126,8 +126,8 @@ export async function processAdvancedScheduleJob(job: Job<AdvancedScheduleJobDat
             error_message = ?, execution_log = ?
         WHERE execution_id = ?
       `, [
-        error.message,
-        `Erro: ${error.message}`,
+        e.message,
+        `Erro: ${e.message}`,
         executionId
       ]);
     }
@@ -153,8 +153,8 @@ export async function processAdvancedScheduleJob(job: Job<AdvancedScheduleJobDat
     return {
       success: false,
       message: 'Erro ao processar agendamento',
-      error: error.message,
-      executionLog: `Erro: ${error.message}`
+      error: e.message,
+      executionLog: `Erro: ${e.message}`
     };
   }
 }
@@ -162,7 +162,7 @@ export async function processAdvancedScheduleJob(job: Job<AdvancedScheduleJobDat
 /**
  * Processa ativação de campanha
  */
-async function processCampaignActivation(campaignId: number, _config: any): Promise<AdvancedScheduleJobResult> {
+async function processCampaignActivation(campaignId: number, _config: Record<string, unknown>): Promise<AdvancedScheduleJobResult> {
   try {
     const campaign = await campaignService.getCampaignById(campaignId);
     if (!campaign) {
@@ -179,16 +179,16 @@ async function processCampaignActivation(campaignId: number, _config: any): Prom
       success: true,
       message: `Campanha '${campaign.title}' ativada com sucesso`,
       executionLog: `Campanha ${campaignId} ativada`
-    };
-  } catch (error: any) {
-    throw new Error(`Erro ao ativar campanha: ${error.message}`);
+    };} catch (error: unknown) {
+    const e = normalizeError(error);
+    throw new Error(`Erro ao ativar campanha: ${e.message}`);
   }
 }
 
 /**
  * Processa geração de playlist
  */
-async function processPlaylistGeneration(playlistId: number, config: any): Promise<AdvancedScheduleJobResult> {
+async function processPlaylistGeneration(playlistId: number, config: Record<string, unknown>): Promise<AdvancedScheduleJobResult> {
   try {
     const db = getDb();
     // Buscar playlist
@@ -224,23 +224,23 @@ async function processPlaylistGeneration(playlistId: number, config: any): Promi
         subscriberId: campaign.subscriber_id,
         campaignId: campaign.campaign_id,
         totemId: playlist.totem_id,
-        name: playlist.name || `Playlist Gerada - ${new Date().toISOString()}`,
-        description: config?.description || 'Playlist gerada automaticamente',
-        targetAudience: config?.targetAudience,
-        timeOfDay: config?.timeOfDay,
-        dayOfWeek: config?.dayOfWeek,
-        season: config?.season,
-        weather: config?.weather,
-        location: config?.location,
-        contentType: config?.contentType,
-        duration: config?.duration,
-        maxItems: config?.maxItems || 20,
-        aiEnabled: config?.aiEnabled !== false,
-        rules: config?.rules || []
+        name: String(playlist.name || `Playlist Gerada - ${new Date().toISOString()}`),
+        description: String(config.description ?? 'Playlist gerada automaticamente'),
+        targetAudience: config.targetAudience as string | undefined,
+        timeOfDay: config.timeOfDay as string | undefined,
+        dayOfWeek: config.dayOfWeek as string | undefined,
+        season: config.season as string | undefined,
+        weather: config.weather as string | undefined,
+        location: config.location as string | undefined,
+        contentType: config.contentType as string | undefined,
+        duration: config.duration as number | undefined,
+        maxItems: Number(config.maxItems ?? 20),
+        aiEnabled: config.aiEnabled !== false,
+        rules: (config.rules as SmartPlaylistRule[] | undefined) ?? []
       }, 1); // System user
       smartPlaylistId = newSmartPlaylist.id;
     } else {
-      smartPlaylistId = smartPlaylist.smart_playlist_id;
+      smartPlaylistId = Number(smartPlaylist.smart_playlist_id);
     }
 
     // Gerar playlist inteligente
@@ -250,16 +250,16 @@ async function processPlaylistGeneration(playlistId: number, config: any): Promi
       success: true,
       message: `Playlist '${playlist.name}' gerada com sucesso - ${generationResult.generatedItems} itens`,
       executionLog: `Playlist ${playlistId} gerada com ${generationResult.generatedItems} itens`
-    };
-  } catch (error: any) {
-    throw new Error(`Erro ao gerar playlist: ${error.message}`);
+    };} catch (error: unknown) {
+    const e = normalizeError(error);
+    throw new Error(`Erro ao gerar playlist: ${e.message}`);
   }
 }
 
 /**
  * Processa agendamento de campanha (ações customizadas)
  */
-async function processCampaignSchedule(campaignId: number, config: any): Promise<AdvancedScheduleJobResult> {
+async function processCampaignSchedule(campaignId: number, config: Record<string, unknown>): Promise<AdvancedScheduleJobResult> {
   try {
     const campaign = await campaignService.getCampaignById(campaignId);
     if (!campaign) {
@@ -305,16 +305,17 @@ async function processCampaignSchedule(campaignId: number, config: any): Promise
 
       default:
         throw new Error(`Ação não suportada: ${action}`);
-    }
-  } catch (error: any) {
-    throw new Error(`Erro ao processar agendamento de campanha: ${error.message}`);
+ 
+}} catch (error: unknown) {
+    const e = normalizeError(error);
+    throw new Error(`Erro ao processar agendamento de campanha: ${e.message}`);
   }
 }
 
 /**
  * Processa agendamento de playlist (ações customizadas)
  */
-async function processPlaylistSchedule(playlistId: number, config: any): Promise<AdvancedScheduleJobResult> {
+async function processPlaylistSchedule(playlistId: number, config: Record<string, unknown>): Promise<AdvancedScheduleJobResult> {
   try {
     const db = getDb();
     const playlist = await db.findFirst(`
@@ -357,9 +358,10 @@ async function processPlaylistSchedule(playlistId: number, config: any): Promise
 
       default:
         throw new Error(`Ação não suportada: ${action}`);
-    }
-  } catch (error: any) {
-    throw new Error(`Erro ao processar agendamento de playlist: ${error.message}`);
+ 
+}} catch (error: unknown) {
+    const e = normalizeError(error);
+    throw new Error(`Erro ao processar agendamento de playlist: ${e.message}`);
   }
 }
 

@@ -134,6 +134,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       // Fallback para menu padrão se não houver role
       return [
         { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+        {
+          text: 'Dashboards',
+          icon: <Assessment />,
+          path: '/dashboards/general',
+          children: [
+            { text: 'ACE Audiência', icon: <SmartToy />, path: '/dashboards/ace' },
+            { text: 'FX SmartDisplay', icon: <AutoAwesome />, path: '/dashboards/fx' },
+            { text: 'Geral / Analytics', icon: <Analytics />, path: '/dashboards/general' },
+          ],
+        },
         { text: 'Mídia', icon: <VideoLibrary />, path: '/media' },
         { text: 'Playlists', icon: <QueueMusic />, path: '/playlists' },
         { text: 'Campanhas', icon: <Campaign />, path: '/campaigns' },

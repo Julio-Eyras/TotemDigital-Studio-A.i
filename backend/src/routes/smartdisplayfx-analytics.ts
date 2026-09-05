@@ -4,19 +4,22 @@
  * @access Private (Admin, Admin SQL, Gerente Marketing, Visualizador)
  */
 
-import { Router, Response } from 'express';
+import { Router} from 'express';
+import express from 'express';
+
 import { query, validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { getFxAnalyticsService } from '../services/fxAnalyticsService';
 import { logError } from '../utils/loggerHelper';
 import { isMissingTableError } from '../utils/dbErrors';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
 // Middleware de autenticação para todas as rotas
 router.use(authMiddleware);
 
-const validateRequest = (req: any, res: any, next: any) => {
+const validateRequest = (req: express.Request, res: express.Response, next: express.NextFunction): express.Response | void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -38,7 +41,7 @@ router.get('/overview',
   query('endDate').optional().isISO8601(),
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing', 'visualizador']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const { site_id, startDate, endDate } = req.query;
       
@@ -48,15 +51,15 @@ router.get('/overview',
         endDate: endDate as string | undefined,
       });
 
-      return res.json(overview);
-    } catch (error: any) {
+      return res.json(overview);} catch (error: unknown) {
+      const e = normalizeError(error);
       if (isMissingTableError(error)) {
         return res.json({ overview: {}, sites: [], metrics: [] });
-      }
+    }
       await logError('GET /api/smartdisplayfx/analytics/overview error', error, req.query);
       return res.status(500).json({
         error: 'Erro ao obter overview de analytics',
-        message: error.message
+        message: e.message
       });
     }
   }
@@ -75,7 +78,7 @@ router.get('/performance',
   query('endDate').optional().isISO8601(),
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing', 'visualizador']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const { site_id, effect_id, totem_id, startDate, endDate } = req.query;
       
@@ -87,15 +90,15 @@ router.get('/performance',
         endDate: endDate as string | undefined,
       });
 
-      return res.json(metrics);
-    } catch (error: any) {
+      return res.json(metrics);} catch (error: unknown) {
+      const e = normalizeError(error);
       if (isMissingTableError(error)) {
         return res.json({ metrics: [], summary: {} });
-      }
+    }
       await logError('GET /api/smartdisplayfx/analytics/performance error', error, req.query);
       return res.status(500).json({
         error: 'Erro ao obter métricas de performance',
-        message: error.message
+        message: e.message
       });
     }
   }
@@ -111,7 +114,7 @@ router.get('/sites',
   query('endDate').optional().isISO8601(),
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing', 'visualizador']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const { startDate, endDate } = req.query;
       
@@ -120,15 +123,16 @@ router.get('/sites',
         endDate: endDate as string | undefined,
       });
 
-      return res.json({ data: siteStats });
-    } catch (error: any) {
+      return res.json({
+        data: siteStats });} catch (error: unknown) {
+      const e = normalizeError(error);
       if (isMissingTableError(error)) {
         return res.json({ data: [] });
-      }
+    }
       await logError('GET /api/smartdisplayfx/analytics/sites error', error, req.query);
       return res.status(500).json({
         error: 'Erro ao obter analytics por site',
-        message: error.message
+        message: e.message
       });
     }
   }
@@ -145,7 +149,7 @@ router.get('/export/excel',
   query('endDate').optional().isISO8601(),
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const { site_id, startDate, endDate } = req.query;
       
@@ -157,13 +161,13 @@ router.get('/export/excel',
 
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename=fx-analytics-${Date.now()}.xlsx`);
-      res.send(buffer);
-    } catch (error: any) {
+      res.send(buffer);} catch (error: unknown) {
+      const e = normalizeError(error);
       await logError('GET /api/smartdisplayfx/analytics/export/excel error', error, req.query);
       res.status(500).json({
         error: 'Erro ao exportar para Excel',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );
@@ -179,7 +183,7 @@ router.get('/export/pdf',
   query('endDate').optional().isISO8601(),
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const { site_id, startDate, endDate } = req.query;
       
@@ -191,13 +195,13 @@ router.get('/export/pdf',
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename=fx-analytics-${Date.now()}.pdf`);
-      res.send(buffer);
-    } catch (error: any) {
+      res.send(buffer);} catch (error: unknown) {
+      const e = normalizeError(error);
       await logError('GET /api/smartdisplayfx/analytics/export/pdf error', error, req.query);
       res.status(500).json({
         error: 'Erro ao exportar para PDF',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );
@@ -215,7 +219,7 @@ router.get('/compare',
   query('previousEndDate').isISO8601(),
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'gerente_marketing', 'visualizador']),
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const { site_id, currentStartDate, currentEndDate, previousStartDate, previousEndDate } = req.query;
       
@@ -227,13 +231,13 @@ router.get('/compare',
         previousEndDate: previousEndDate as string,
       });
 
-      res.json(comparison);
-    } catch (error: any) {
+      res.json(comparison);} catch (error: unknown) {
+      const e = normalizeError(error);
       await logError('GET /api/smartdisplayfx/analytics/compare error', error, req.query);
       res.status(500).json({
         error: 'Erro ao comparar períodos',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );

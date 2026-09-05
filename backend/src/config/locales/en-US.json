@@ -1,0 +1,429 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "import": "Import",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "warning": "Warning",
+    "info": "Info",
+    "ok": "OK",
+    "close": "Close",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "users": "Users",
+    "clients": "Clients",
+    "media": "Media",
+    "playlists": "Playlists",
+    "campaigns": "Campaigns",
+    "totems": "Totems",
+    "analytics": "Analytics",
+    "reports": "Reports",
+    "settings": "Settings",
+    "billing": "Billing",
+    "publishers": "Organizations",
+    "subscribers": "Advertisers",
+    "smartdisplayfx": "SmartDisplay FX",
+    "dispatcher": "Dispatcher",
+    "ai": "Artificial Intelligence"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "totalClients": "Total Clients",
+    "totalTotems": "Total Totems",
+    "totalCampaigns": "Total Campaigns",
+    "totalMedia": "Total Media",
+    "onlineTotems": "Online Totems",
+    "offlineTotems": "Offline Totems"
+  },
+  "auth": {
+    "login": "Login",
+    "logout": "Logout",
+    "username": "Username",
+    "password": "Password",
+    "forgotPassword": "Forgot password",
+    "resetPassword": "Reset password",
+    "loginSuccess": "Login successful",
+    "invalidCredentials": "Invalid credentials",
+    "inactiveUser": "Inactive user. Contact your administrator.",
+    "notAuthorized": "Not authorized. Please log in again.",
+    "tokenExpired": "Session expired. Please log in again.",
+    "passwordTooShort": "New password must be at least 6 characters long",
+    "resetRequested": "If the email is registered, you will receive a recovery link.",
+    "resetTokenInvalid": "Invalid or expired token. Request a new password recovery.",
+    "resetSuccess": "Password reset successful. You can now log in with your new password.",
+    "resetError": "Error processing password reset",
+    "requestResetError": "Error processing password recovery request",
+    "passwordChanged": "Password changed successfully",
+    "currentPasswordInvalid": "Current password is invalid"
+  },
+  "errors": {
+    "generic": "An error occurred. Please try again.",
+    "network": "Connection error. Check your internet connection.",
+    "unauthorized": "Unauthorized. Please log in again.",
+    "notFound": "Resource not found.",
+    "badRequest": "Invalid request. Check submitted data.",
+    "serverError": "Internal server error.",
+    "serviceUnavailable": "Service unavailable at the moment.",
+    "conflict": "Conflict with existing data.",
+    "tooManyRequests": "Too many requests. Try again later.",
+    "forbidden": "Forbidden access.",
+    "unknown": "An unexpected error occurred.",
+    "validationFailed": "Field validation failed.",
+    "requiredField": "The field {{field}} is required.",
+    "invalidField": "The field {{field}} is invalid.",
+    "databaseError": "Database error.",
+    "duplicateKey": "This record already exists.",
+    "missingTable": "Table not found. Contact support.",
+    "accessDenied": "Access denied. Check your permissions."
+  },
+  "crud": {
+    "created": "{{entity}} created successfully.",
+    "updated": "{{entity}} updated successfully.",
+    "deleted": "{{entity}} deleted successfully.",
+    "restored": "{{entity}} restored successfully.",
+    "createFailed": "Error creating {{entity}}.",
+    "updateFailed": "Error updating {{entity}}.",
+    "deleteFailed": "Error deleting {{entity}}.",
+    "notFound": "{{entity}} not found.",
+    "alreadyExists": "{{entity}} already exists."
+  },
+  "entities": {
+    "user": "user",
+    "client": "client",
+    "media": "media",
+    "playlist": "playlist",
+    "campaign": "campaign",
+    "totem": "totem",
+    "report": "report",
+    "publisher": "organization",
+    "subscriber": "advertiser",
+    "contract": "contract",
+    "plan": "plan",
+    "subscription": "subscription",
+    "player": "player",
+    "webhook": "webhook",
+    "backup": "backup",
+    "role": "role",
+    "permission": "permission",
+    "tag": "tag",
+    "qrcode": "QR Code",
+    "setting": "setting",
+    "dashboardLayout": "dashboard layout",
+    "fxSite": "FX site",
+    "fxEffect": "FX effect",
+    "fxTimeline": "FX timeline",
+    "fxRule": "FX rule",
+    "smartPlaylist": "smart playlist",
+    "local": "location",
+    "menuCatalog": "menu catalog",
+    "advancedSchedule": "advanced schedule",
+    "exportQuery": "export query",
+    "exportSchedule": "export schedule"
+  },
+  "totem": {
+    "online": "Online",
+    "offline": "Offline",
+    "error": "Error",
+    "maintenance": "Maintenance",
+    "lastHeartbeat": "Last heartbeat: {{time}}",
+    "heartbeatSuccess": "Heartbeat registered",
+    "notFound": "Totem not found",
+    "dispatchedSuccess": "Content dispatched to {{count}} totem(s)",
+    "dispatchedError": "Error dispatching content",
+    "commandSent": "Command sent to totem",
+    "commandFailed": "Failed to send command"
+  },
+  "media": {
+    "uploadSuccess": "Media uploaded successfully",
+    "uploadFailed": "Media upload failed",
+    "processSuccess": "Media processed successfully",
+    "processFailed": "Media processing failed",
+    "invalidType": "Invalid media type",
+    "fileTooLarge": "File exceeds the maximum allowed size",
+    "notFound": "Media not found",
+    "deletionSuccess": "Media deleted; references removed and totems notified",
+    "deletionConflict": "Media in use in {{count}} locations. Confirm cascading deletion.",
+    "configReloaded": "Media configuration reloaded from database"
+  },
+  "campaign": {
+    "notFound": "Campaign not found",
+    "started": "Campaign started successfully",
+    "paused": "Campaign paused successfully",
+    "completed": "Campaign completed",
+    "invalidDateRange": "Invalid period: end date must be after start date",
+    "eligibilityFailed": "Campaign ineligible: {{reason}}"
+  },
+  "playlist": {
+    "notFound": "Playlist not found",
+    "empty": "Playlist is empty",
+    "generationFailed": "Error generating playlist"
+  },
+  "billing": {
+    "notFound": "Invoice not found",
+    "alreadyPaid": "Invoice is already paid",
+    "overdue": "Overdue invoice",
+    "paymentSuccess": "Payment registered successfully",
+    "paymentFailed": "Payment failed",
+    "pending": "Payment pending",
+    "issued": "Invoice issued",
+    "cancelled": "Invoice cancelled",
+    "refunded": "Refund processed",
+    "amountMismatch": "Paid amount does not match total",
+    "providerError": "Payment provider error",
+    "planRequired": "Plan is required for this operation",
+    "missingAmount": "Total amount not defined",
+    "missingContractAmount": "Contract/plan value not defined",
+    "missingSubscriptionAmount": "Organization contract subscription value not defined",
+    "enforcement": {
+      "gracePeriod": "Grace period: {{days}} days remaining",
+      "suspended": "Subscription suspended due to non-payment",
+      "terminated": "Subscription terminated"
+    }
+  },
+  "publisher": {
+    "notFound": "Organization not found",
+    "createdWithResources": "Organization created with atomic resources",
+    "createFailed": "Error creating organization (procedure/constraints)"
+  },
+  "subscriber": {
+    "notFound": "Advertiser not found",
+    "createdWithContracts": "Advertiser created with atomic contracts",
+    "createFailed": "Error creating advertiser (procedure/constraints)"
+  },
+  "contract": {
+    "notFound": "Contract not found",
+    "invalidPeriod": "Invalid contract validity period",
+    "expired": "Contract expired",
+    "numberGenerated": "Contract number generated automatically"
+  },
+  "ai": {
+    "disabled": "AI service disabled",
+    "healthy": "AI service running normally",
+    "videoPremiumOnly": "AI video generation is available only in the Premium plan.",
+    "missingApiUrl": "AI_VIDEO_API_URL not configured on the server.",
+    "providerMissingVideo": "Video provider did not return videoUrl.",
+    "videoGenerated": "Video generated by the external provider.",
+    "promptTooShort": "Prompt is too short for AI processing",
+    "providerTimeout": "AI provider timeout",
+    "rateLimit": "AI quota limit reached. Try again later."
+  },
+  "dispatcher": {
+    "eventRegistered": "Event registered successfully",
+    "planError": "Error calculating plan",
+    "invalidTotems": "Invalid or empty totem list",
+    "nothingToDispatch": "No pending items to dispatch"
+  },
+  "system": {
+    "readOnlyMode": "Database in read-only mode",
+    "redisDisabled": "Redis disabled (CACHE_ENABLED=false)",
+    "redisUnavailable": "Redis is unavailable",
+    "diskApproximate": "Disk check is approximate (use system command for accuracy)",
+    "diskCheckFailed": "Unable to verify disk",
+    "criticalComponentsFailing": "Critical components are failing",
+    "operatingSystem": "Operating System",
+    "settingsReset": "All settings have been reset to default values"
+  },
+  "backup": {
+    "notFound": "Backup not found",
+    "incomplete": "Backup is not complete",
+    "restoreStarted": "Restore started (implementation pending)"
+  },
+  "logs": {
+    "rotationDisabled": "Log rotation is disabled",
+    "rotationNotNecessary": "Log rotation is not necessary"
+  },
+  "portal": {
+    "missingBaseDomain": "portal.base_domain is missing — unable to plan the certificate.",
+    "missingDnsConfig": "Missing portal.base_domain or portal.dns_target_ipv4 to plan DNS.",
+    "sslProvisioning": "SSL provisioning in progress"
+  },
+  "validation": {
+    "invalidEmail": "Invalid email",
+    "invalidPhone": "Invalid phone",
+    "invalidCnpjCpf": "Invalid CNPJ/CPF",
+    "invalidUrl": "Invalid URL",
+    "invalidDate": "Invalid date",
+    "minLength": "Field {{field}} must have at least {{min}} characters",
+    "maxLength": "Field {{field}} exceeds {{max}} characters",
+    "numericOnly": "Field {{field}} must contain only numbers",
+    "passwordMismatch": "Passwords do not match",
+    "strongPassword": "Password must contain uppercase, lowercase, numbers and symbols"
+  },
+  "health": {
+    "ok": "Healthy",
+    "degraded": "Degraded",
+    "down": "Unavailable"
+  },
+  "fx": {
+    "siteNotFound": "FX site not found",
+    "effectNotFound": "FX effect not found",
+    "timelineNotFound": "FX timeline not found",
+    "ruleNotFound": "FX rule not found",
+    "executionSuccess": "Effect executed successfully",
+    "executionFailed": "Effect execution failed",
+    "multiScreenSynced": "Effect synchronized across {{count}} screens"
+  },
+  "ace": {
+    "disabled": "ACE module disabled for this installation",
+    "noFaces": "No faces detected",
+    "insufficientSamples": "Insufficient samples for analysis",
+    "analysisSuccess": "ACE analysis completed"
+  },
+  "reports": {
+    "queued": "Report queued for processing",
+    "processing": "Processing report {{progress}}%",
+    "ready": "Report ready for download",
+    "failed": "Failed to generate report",
+    "exportStarted": "Export in progress"
+  },
+  "roles": {
+    "admin": "Administrator",
+    "admin_sql": "SQL Administrator",
+    "gerente_marketing": "Marketing Manager",
+    "editoracao": "Editor",
+    "visualizador": "Viewer",
+    "user": "User",
+    "client": "Client"
+  },
+  "data": {
+    "deletedAt": "Deleted at",
+    "createdAt": "Created at",
+    "updatedAt": "Updated at",
+    "lastLogin": "Last login"
+  },
+  "dashboards": {
+    "nav": {
+      "ace": "ACE Demographics",
+      "fx": "SmartDisplay FX",
+      "general": "General Analytics",
+      "root": "Dashboards"
+    },
+    "common": {
+      "refresh": "Refresh",
+      "refreshBypass": "Reload (bypass cache)",
+      "startDate": "Start date",
+      "endDate": "End date",
+      "granularity": "Granularity",
+      "hour": "Hour",
+      "day": "Day",
+      "week": "Week",
+      "month": "Month",
+      "generatedAt": "Generated at",
+      "period": "Period"
+    },
+    "ace": {
+      "title": "ACE Dashboard",
+      "subtitle": "Facial recognition, demographic audience and content engagement.",
+      "kpi": {
+        "totalDetections": "Total detections",
+        "uniqueFaces": "Unique faces",
+        "engagementRate": "Engagement rate",
+        "recallRate": "Recall",
+        "avgWatchTime": "Avg. watch time"
+      },
+      "demographicHeatmap": {
+        "title": "Audience × Age Range",
+        "subheader": "Detections density (columns) by demographic profile (rows)."
+      },
+      "recallGauge": {
+        "title": "Facial Recall",
+        "subheader": "Engaged / Detected.",
+        "label": "Recall rate"
+      },
+      "audienceTimeline": {
+        "title": "Audience by Time",
+        "subheader": "Detected vs. Engaged over time windows.",
+        "tableTitle": "Audience detail"
+      },
+      "topContents": {
+        "title": "Top Contents by Profile"
+      },
+      "demographicBuckets": {
+        "title": "Demographic Distribution"
+      }
+    },
+    "fx": {
+      "title": "SmartDisplay FX Dashboard",
+      "subtitle": "Latency, multi-screen sync, uptime and orchestration.",
+      "kpi": {
+        "totalExecutions": "Executions",
+        "avgLatencyMs": "Avg. latency",
+        "fleetUptime": "Fleet Uptime",
+        "syncSuccess": "Sync success",
+        "totalErrors": "Errors"
+      },
+      "fleetGauge": {
+        "title": "Fleet Health (FX)",
+        "subheader": "Average fleet uptime.",
+        "label": "% uptime"
+      },
+      "compareAB": {
+        "title": "A/B Compare (Before × After FX)",
+        "subheader": "Metrics before vs. after FX activation."
+      },
+      "timeline": {
+        "title": "Orchestration Timeline",
+        "subheader": "Duration per orchestration / sync event."
+      },
+      "topEffects": {
+        "title": "Top Executed Effects"
+      },
+      "uptimeByTotem": {
+        "title": "Uptime by Totem"
+      }
+    },
+    "general": {
+      "title": "General Analytics",
+      "subtitle": "Impressions, plays, CTR, fleet, campaigns and billing.",
+      "kpi": {
+        "totalImpressions": "Impressions",
+        "totalPlays": "Plays",
+        "ctrPercent": "Playlist CTR",
+        "avgWatchTimeSec": "Watch Time",
+        "fleetUptimePercent": "Fleet Uptime"
+      },
+      "impressionsTimeline": {
+        "title": "Impressions over period",
+        "subheader": "Impressions volume over time."
+      },
+      "fleetGauge": {
+        "title": "Fleet Status",
+        "subheader": "Overall totems health.",
+        "label": "% Uptime"
+      },
+      "billing": {
+        "title": "Billing Summary",
+        "metered": {
+          "impressions": "Impressions",
+          "bandwidth": "Bandwidth (MB)",
+          "storage": "Storage (MB)",
+          "aiCredits": "AI Credits"
+        },
+        "currentMonthCost": "Current month cost",
+        "projectedCost": "Projected"
+      },
+      "topMedias": {
+        "title": "Top Medias"
+      },
+      "topCampaigns": {
+        "title": "Top Campaigns"
+      },
+      "playlists": {
+        "title": "Top Playlists"
+      }
+    }
+  }
+}

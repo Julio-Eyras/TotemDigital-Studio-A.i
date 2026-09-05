@@ -5,6 +5,7 @@
  */
 
 import { Router, Response } from 'express';
+
 import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
 import { isStudioRuntime } from '../config/installationRuntime';
 import { logError } from '../utils/loggerHelper';
@@ -14,6 +15,7 @@ import { parseAnonymousInteraction } from '../services/ace/aceInteraction';
 import { listAceAudit, recordAceAudit } from '../services/ace/aceAudit';
 import { isAceEnabledInCapabilities } from '../services/ace/aceRuleEngine';
 import { AudienceContext } from '../services/ace/aceTypes';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -60,10 +62,10 @@ router.post('/context', async (req: AuthenticatedRequest, res: Response) => {
       success: true,
       totem_id: ctx.totem_id,
       hint,
-    });
-  } catch (error: any) {
-    await logError('[lab-ace] POST /context', error);
-    return res.status(500).json({ success: false, error: error.message });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('[lab-ace] POST /context', e.error);
+    return res.status(500).json({ success: false, error: e.message });
   }
 });
 
@@ -99,10 +101,10 @@ router.post('/interaction', async (req: AuthenticatedRequest, res: Response) => 
       totem_id: parsed.totemId,
       interaction: parsed.interaction,
       hint,
-    });
-  } catch (error: any) {
-    await logError('[lab-ace] POST /interaction', error);
-    return res.status(500).json({ success: false, error: error.message });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('[lab-ace] POST /interaction', e.error);
+    return res.status(500).json({ success: false, error: e.message });
   }
 });
 
@@ -113,10 +115,11 @@ router.get('/hint/:totemId', async (req: AuthenticatedRequest, res: Response) =>
       return res.status(400).json({ success: false, error: 'totemId inválido' });
     }
     const audit = getAceHintStore().audit(totemId, true);
-    return res.json({ success: true, totem_id: totemId, ...audit });
-  } catch (error: any) {
-    await logError('[lab-ace] GET /hint', error);
-    return res.status(500).json({ success: false, error: error.message });
+    return res.json({
+      success: true, totem_id: totemId, ...audit });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('[lab-ace] GET /hint', e.error);
+    return res.status(500).json({ success: false, error: e.message });
   }
 });
 
@@ -130,10 +133,10 @@ router.get('/audit/:totemId', async (req: AuthenticatedRequest, res: Response) =
       success: true,
       totem_id: totemId,
       records: listAceAudit(totemId),
-    });
-  } catch (error: any) {
-    await logError('[lab-ace] GET /audit', error);
-    return res.status(500).json({ success: false, error: error.message });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('[lab-ace] GET /audit', e.error);
+    return res.status(500).json({ success: false, error: e.message });
   }
 });
 

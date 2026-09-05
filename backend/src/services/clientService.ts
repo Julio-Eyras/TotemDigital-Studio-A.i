@@ -1,5 +1,6 @@
 import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export interface Client {
   client_id: number; // Mantido para compatibilidade - mapeia para subscriber_id
@@ -115,7 +116,7 @@ export class ClientService {
             FROM totems_for_subscriber
             WHERE (network_info::jsonb->'hardware'->>'platform') IS NOT NULL
           `, [subscriberIds]);
-        } catch (platformQueryError: any) {
+} catch (platformQueryError: unknown) {
           // Essa consulta é apenas auxiliar (telemetria/analytics). Não deve quebrar a listagem de subscribers.
         }
       }
@@ -132,9 +133,9 @@ export class ClientService {
         total: parseInt(totalResult?.total || '0'),
         page,
         limit,
-      };
-    } catch (error: any) {
-      await logError('Erro ao listar clientes', error, { params });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar clientes', e.error, { params });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -159,9 +160,9 @@ export class ClientService {
         WHERE s.subscriber_id = $1
       `, [id]);
 
-      return client;
-    } catch (error: any) {
-      await logError('Erro ao obter cliente', error, { id });
+      return client;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter cliente', e.error, { id });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -200,10 +201,10 @@ export class ClientService {
         throw new Error('Erro ao buscar cliente criado');
       }
 
-      return newClient;
-    } catch (error: any) {
-      await logError('Erro ao criar cliente', error, { data });
-      throw error;
+      return newClient;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar cliente', e.error, { data });
+      throw e.error;
     }
   }
 
@@ -280,10 +281,10 @@ export class ClientService {
         throw new Error('Erro ao buscar cliente atualizado');
       }
 
-      return updatedClient;
-    } catch (error: any) {
-      await logError('Erro ao atualizar cliente', error, { id, data });
-      throw error;
+      return updatedClient;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar cliente', e.error, { id, data });
+      throw e.error;
     }
   }
 
@@ -303,10 +304,10 @@ export class ClientService {
         UPDATE subscribers 
         SET is_active = false, updated_at = CURRENT_TIMESTAMP
         WHERE subscriber_id = $1
-      `, [id]);
-    } catch (error: any) {
-      await logError('Erro ao excluir cliente', error, { id });
-      throw error;
+      `, [id]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao excluir cliente', e.error, { id });
+      throw e.error;
     }
   }
 }

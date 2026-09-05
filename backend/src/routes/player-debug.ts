@@ -1,7 +1,10 @@
-import express, { Request, Response } from 'express';
+
+
+import express from 'express';
 import { query, param } from 'express-validator';
 import { playerDebugService } from '../services/playerDebugService';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const router = express.Router();
 
@@ -17,9 +20,9 @@ router.get('/transactions',
   query('startDate').optional().isISO8601(),
   query('endDate').optional().isISO8601(),
   query('limit').optional().isInt({ min: 1, max: 1000 }),
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
-      const filters: any = {};
+      const filters: Record<string, unknown> = {};
 
       if (req.query.uin) {
         filters.uin = req.query.uin as string;
@@ -52,14 +55,13 @@ router.get('/transactions',
         count: transactions.length,
         filters: filters,
         transactions: transactions
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao buscar transações de debug', error, { route: '/api/player/debug/transactions', filters: req.query });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar transações de debug', e.error, { route: '/api/player/debug/transactions', filters: req.query });
       return res.status(500).json({ 
         error: 'Erro interno do servidor',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );
@@ -71,7 +73,7 @@ router.get('/transactions',
  */
 router.get('/transactions/:transactionId',
   param('transactionId').isString(),
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     const { transactionId } = req.params;
     try {
       const transactions = await playerDebugService.getTransactions({
@@ -90,14 +92,13 @@ router.get('/transactions/:transactionId',
       return res.json({
         success: true,
         transaction: transaction
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao buscar transação', error, { route: '/api/player/debug/transactions/:transactionId', transactionId });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar transação', e.error, { route: '/api/player/debug/transactions/:transactionId', transactionId });
       return res.status(500).json({ 
         error: 'Erro interno do servidor',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );
@@ -109,7 +110,7 @@ router.get('/transactions/:transactionId',
  */
 router.post('/cleanup',
   query('daysToKeep').optional().isInt({ min: 1, max: 365 }),
-  async (req: Request, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     const daysToKeep = parseInt(req.query.daysToKeep as string) || 30;
     try {
 
@@ -119,14 +120,13 @@ router.post('/cleanup',
         success: true,
         message: `Transações antigas removidas (mantidas últimas ${daysToKeep} dias)`,
         deletedCount: deletedCount
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao limpar transações', error, { route: '/api/player/debug/cleanup', daysToKeep });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao limpar transações', e.error, { route: '/api/player/debug/cleanup', daysToKeep });
       return res.status(500).json({ 
         error: 'Erro interno do servidor',
-        message: error.message
-      });
+        message: e.message
+    });
     }
   }
 );

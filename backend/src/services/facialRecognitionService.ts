@@ -5,12 +5,13 @@
 
 import { getDatabase } from '../config/database';
 import { logInfo, logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export interface RecognizedPerson {
   id: number;
   personId: string;
   name?: string;
-  features?: any; // Características faciais (JSON)
+  features: Record<string, unknown>; // Características faciais (JSON)
   contentId?: number;
   isActive: boolean;
   createdAt: Date;
@@ -18,7 +19,7 @@ export interface RecognizedPerson {
 }
 
 export interface FacialMatchRequest {
-  features: any; // Características faciais extraídas
+  features: Record<string, unknown>; // Características faciais extraídas
   totemId?: number;
 }
 
@@ -63,9 +64,9 @@ export class FacialRecognitionService {
       }
 
       // Retornar null se não houver match
-      return null;
-    } catch (error: any) {
-      await logError('Erro ao fazer match facial', error);
+      return null;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao fazer match facial', e.error);
       return null;
     }
   }
@@ -77,7 +78,7 @@ export class FacialRecognitionService {
     personId: string,
     data: {
       name?: string;
-      features?: any;
+      features: Record<string, unknown>;
       contentId?: number;
     }
   ): Promise<RecognizedPerson> {
@@ -118,10 +119,11 @@ export class FacialRecognitionService {
 
         await logInfo('Pessoa criada', { personId });
         return this.mapToPerson(result.rows[0]);
-      }
-    } catch (error: any) {
-      await logError('Erro ao criar/atualizar pessoa', error, { personId });
-      throw error;
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar/atualizar pessoa', e.error, { personId });
+      throw e.error;
     }
   }
 
@@ -134,7 +136,7 @@ export class FacialRecognitionService {
   }): Promise<RecognizedPerson[]> {
     try {
       let query = 'SELECT * FROM recognized_persons WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (filters?.isActive !== undefined) {
         query += ' AND is_active = $' + (params.length + 1);
@@ -149,10 +151,10 @@ export class FacialRecognitionService {
       }
 
       const persons = await this.db.findMany(query, params);
-      return persons.map(person => this.mapToPerson(person));
-    } catch (error: any) {
-      await logError('Erro ao listar pessoas', error);
-      throw error;
+      return persons.map(person => this.mapToPerson(person));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar pessoas', e.error);
+      throw e.error;
     }
   }
 
@@ -163,7 +165,7 @@ export class FacialRecognitionService {
     totemId: number;
     personId?: string;
     contentId?: number;
-    features?: any;
+    features: Record<string, unknown>;
     confidence?: number;
   }): Promise<void> {
     try {
@@ -180,9 +182,9 @@ export class FacialRecognitionService {
         }),
         data.contentId || null,
         data.personId || null
-      ]);
-    } catch (error: any) {
-      await logError('Erro ao registrar interação', error);
+      ]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao registrar interação', e.error);
     }
   }
 

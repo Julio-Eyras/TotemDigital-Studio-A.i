@@ -5,6 +5,7 @@
 
 import { getDatabase } from '../config/database';
 import { logError, logDebug } from './loggerHelper';
+import { normalizeError } from './errors';
 
 export interface UserFlags {
   flag_smart_0: boolean;
@@ -72,7 +73,7 @@ export async function getRoleFlagsDefault(role: string): Promise<UserFlags | nul
     `, [role]) as UserFlags | null;
     
     return result || null;
-  } catch (error) {
+} catch (error: unknown) {
     logError('Erro ao buscar flags padrão da role', error).catch(() => {});
     return null;
   }
@@ -93,7 +94,7 @@ export async function getUserFlags(userId: number): Promise<UserFlags | null> {
     `, [userId]) as UserFlags | null;
     
     return result || null;
-  } catch (error) {
+} catch (error: unknown) {
     logError('Erro ao buscar flags do usuário', error).catch(() => {});
     return null;
   }
@@ -164,7 +165,8 @@ export async function updateUserFlags(
         VALUES (${placeholders.join(', ')})
       `, [userId, ...flagValues, updatedBy]);
     }
-  } catch (error) {
+ 
+} catch (error: unknown) {
     logError('Erro ao atualizar flags do usuário', error).catch(() => {});
     throw error;
   }
@@ -195,9 +197,11 @@ export async function getUserEffectiveFlags(user: UserWithFlags): Promise<UserFl
     if (result) {
       return result;
     }
-  } catch (error) {
+ 
+} catch (error: unknown) {
+    const e = normalizeError(error);
     // Se função não existir ainda, usar lógica manual (fallback)
-    logDebug('Função get_user_effective_flags não disponível, usando lógica manual', { error: error instanceof Error ? error.message : String(error) }).catch(() => {});
+    logDebug('Função get_user_effective_flags não disponível, usando lógica manual', { error: error instanceof Error ? e.message : String(error) }).catch(() => {});
   }
   
   // 3. Fallback: Buscar flags personalizadas

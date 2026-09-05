@@ -5,6 +5,7 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import {
+
   PortalDnsMode,
   buildPortalHost,
   buildRolePortalHost,
@@ -18,6 +19,7 @@ import {
 } from './portalDnsCloudflareService';
 import { buildPortalWildcardSslPlan, issuePortalWildcardCertificate } from './portalSslService';
 import { logError, logInfo, logWarn } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 type DbLike = {
   findFirst: (sql: string, params?: unknown[]) => Promise<Record<string, unknown> | null>;
@@ -264,7 +266,7 @@ export async function listPortalHosts(db: DbLike): Promise<PortalHostEntry[]> {
       // fallback: some wrappers only have findFirst
       void sql;
       void params;
-      return [] as Record<string, unknown>[];
+      return [] as unknown as Record<string, unknown>[];
     });
 
   const pubs = await findMany.call(
@@ -499,14 +501,15 @@ export async function syncPortalHosts(
     try {
       syncOutput = await runSyncScript(scriptPath, dir);
       syncRan = true;
-      await logInfo('Portal hosts sync executado', { scriptPath, dir });
-    } catch (error: any) {
-      await logWarn('Portal hosts sync falhou', { error: error?.message, scriptPath });
+      await logInfo('Portal hosts sync executado', {
+        scriptPath, dir });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logWarn('Portal hosts sync falhou', { error: ((e.raw as { message?: string })?.message), scriptPath });
       return {
         ok: false,
         written: [nginxPath, dnsPath, manifestPath],
         syncRan: true,
-        syncOutput: error?.message || String(error),
+        syncOutput: ((e.raw as { message?: string })?.message) || String(error),
         message:
           'Ficheiros gerados, mas sync-portal-hosts.sh falhou. Aplique manualmente ou corrija sudoers.',
         nginxSnippet,
@@ -683,7 +686,8 @@ export async function maybeSyncPortalHostsAfterSlugChange(db: DbLike): Promise<v
     const settings = await getPortalSettings(db);
     if (!settings.syncEnabled && process.env.PORTAL_SYNC_ENABLED !== 'true') return;
     await syncPortalHosts(db);
-  } catch (error) {
-    await logError('Falha ao sincronizar portal hosts após alteração de slug', error);
+} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Falha ao sincronizar portal hosts após alteração de slug', e.error);
   }
 }

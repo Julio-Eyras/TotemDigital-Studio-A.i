@@ -7,6 +7,7 @@ import { getDatabase } from '../config/database';
 import { logInfo, logError, logDebug } from '../utils/loggerHelper';
 import axios from 'axios';
 import * as crypto from 'crypto';
+import { normalizeError } from '../utils/errors';
 
 export interface Webhook {
   id: number;
@@ -101,10 +102,10 @@ export class WebhookService {
 
       const webhook = this.mapRowToWebhook(result.rows[0]);
       await logInfo('Webhook criado', { webhookId: webhook.id, name: webhook.name });
-      return webhook;
-    } catch (error: any) {
+      return webhook;} catch (error: unknown) {
+      const e = normalizeError(error);
       await logError('Erro ao criar webhook', error, data);
-      throw new Error(`Erro ao criar webhook: ${error.message}`);
+      throw new Error(`Erro ao criar webhook: ${e.message}`);
     }
   }
 
@@ -118,7 +119,7 @@ export class WebhookService {
   }): Promise<Webhook[]> {
     try {
       let whereClause = '1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
       let paramIndex = 1;
 
       if (filters?.enabled !== undefined) {
@@ -144,10 +145,10 @@ export class WebhookService {
       const query = `SELECT * FROM webhooks WHERE ${whereClause} ORDER BY created_at DESC`;
       const result = await this.db.findMany(query, params);
 
-      return result.map(row => this.mapRowToWebhook(row));
-    } catch (error: any) {
+      return result.map(row => this.mapRowToWebhook(row));} catch (error: unknown) {
+      const e = normalizeError(error);
       await logError('Erro ao listar webhooks', error, filters);
-      throw new Error(`Erro ao listar webhooks: ${error.message}`);
+      throw new Error(`Erro ao listar webhooks: ${e.message}`);
     }
   }
 
@@ -157,10 +158,10 @@ export class WebhookService {
   async getWebhookById(id: number): Promise<Webhook | null> {
     try {
       const result = await this.db.findFirst('SELECT * FROM webhooks WHERE id = $1', [id]);
-      return result ? this.mapRowToWebhook(result) : null;
-    } catch (error: any) {
-      await logError('Erro ao buscar webhook', error, { id });
-      throw new Error(`Erro ao buscar webhook: ${error.message}`);
+      return result ? this.mapRowToWebhook(result) : null;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar webhook', e.error, { id });
+      throw new Error(`Erro ao buscar webhook: ${e.message}`);
     }
   }
 
@@ -185,7 +186,7 @@ export class WebhookService {
       }
 
       const updates: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
       let paramIndex = 1;
 
       if (data.name !== undefined) {
@@ -253,10 +254,10 @@ export class WebhookService {
       const result = await this.db.executeRaw(query, params);
       const webhook = this.mapRowToWebhook(result.rows[0]);
       await logInfo('Webhook atualizado', { webhookId: webhook.id });
-      return webhook;
-    } catch (error: any) {
-      await logError('Erro ao atualizar webhook', error, { id, data });
-      throw new Error(`Erro ao atualizar webhook: ${error.message}`);
+      return webhook;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar webhook', e.error, { id, data });
+      throw new Error(`Erro ao atualizar webhook: ${e.message}`);
     }
   }
 
@@ -269,10 +270,11 @@ export class WebhookService {
       if (result.rowCount === 0) {
         throw new Error(`Webhook com ID ${id} não encontrado`);
       }
-      await logInfo('Webhook deletado', { webhookId: id });
-    } catch (error: any) {
-      await logError('Erro ao deletar webhook', error, { id });
-      throw new Error(`Erro ao deletar webhook: ${error.message}`);
+      await logInfo('Webhook deletado', {
+        webhookId: id });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao deletar webhook', e.error, { id });
+      throw new Error(`Erro ao deletar webhook: ${e.message}`);
     }
   }
 
@@ -299,9 +301,10 @@ export class WebhookService {
 
       for (const webhook of webhooks) {
         await this.sendWebhook(webhook, webhookPayload);
-      }
-    } catch (error: any) {
-      await logError('Erro ao disparar webhook', error, { event });
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao disparar webhook', e.error, { event });
     }
   }
 
@@ -333,13 +336,13 @@ export class WebhookService {
         webhookId: webhook.id,
         url: webhook.url,
         event: payload.event
-      });
-    } catch (error: any) {
-      await logError('Erro ao enviar webhook', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao enviar webhook', e.error, {
         webhookId: webhook.id,
         url: webhook.url,
         attempt
-      });
+    });
 
       // Retry se ainda houver tentativas
       if (attempt < webhook.retryCount) {

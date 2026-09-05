@@ -2,6 +2,7 @@
 import { swaggerDocumentation } from './swagger-enhanced';
 import generatedSpec from './openapi-generated.json';
 import p0Spec from './openapi-p0.json';
+import { canonicalSchemas } from './openapi-schemas';
 
 type PathItem = Record<string, unknown>;
 type Paths = Record<string, PathItem>;
@@ -61,6 +62,7 @@ export const openApiSpec = {
       '',
       'Catálogo completo gerado a partir dos routers (`openapi-generated.json`).',
       'swagger-enhanced sobrepõe PlaylistMix/publishers; `openapi-p0.json` fecha schemas de integração (login, player, installation, quick-publish/SPA, dispatcher).',
+      '`openapi-schemas.ts` injeta biblioteca canônica de 120+ schemas (Requests/Responses/Entities/Billing/FX/ACE/Dispatcher).'
     ].join('\n'),
   },
   tags: Array.from(tagByName.values()),
@@ -73,6 +75,7 @@ export const openApiSpec = {
     ...enhancedComponents,
     ...p0Components,
     schemas: {
+      ...canonicalSchemas,
       ...(generatedComponents.schemas || {}),
       ...(enhancedComponents.schemas || {}),
       ...(p0Components.schemas || {}),

@@ -6,6 +6,7 @@
 
 import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export interface FxSite {
   site_id: string;
@@ -144,10 +145,10 @@ export class FxSiteService {
         total,
         page,
         limit,
-      };
-    } catch (error: any) {
-      await logError('FxSiteService.getAllSites error', error, params);
-      throw new Error(`Erro ao listar sites: ${error.message}`);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxSiteService.getAllSites error', e.error, params);
+      throw new Error(`Erro ao listar sites: ${e.message}`);
     }
   }
 
@@ -180,10 +181,10 @@ export class FxSiteService {
         return null;
       }
 
-      return this.mapRowToSite(result);
-    } catch (error: any) {
-      await logError('FxSiteService.getSiteById error', error, { siteId });
-      throw new Error(`Erro ao buscar site: ${error.message}`);
+      return this.mapRowToSite(result);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxSiteService.getSiteById error', e.error, { siteId });
+      throw new Error(`Erro ao buscar site: ${e.message}`);
     }
   }
 
@@ -237,13 +238,13 @@ export class FxSiteService {
       ];
 
       const result = await this.db.executeRaw(query, params);
-      return this.mapRowToSite(result.rows[0]);
-    } catch (error: any) {
-      await logError('FxSiteService.createSite error', error, data);
-      if (error.code === '23505') {
+      return this.mapRowToSite(result.rows[0]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxSiteService.createSite error', e.error, data);
+      if (e.code === '23505') {
         throw new Error(`Site com ID "${data.site_id}" já existe`);
       }
-      throw new Error(`Erro ao criar site: ${error.message}`);
+      throw new Error(`Erro ao criar site: ${e.message}`);
     }
   }
 
@@ -253,7 +254,7 @@ export class FxSiteService {
   async updateSite(siteId: string, data: UpdateFxSiteRequest): Promise<FxSite> {
     try {
       const updates: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
       let paramIndex = 1;
 
       if (data.name !== undefined) {
@@ -349,10 +350,10 @@ export class FxSiteService {
         throw new Error(`Site com ID ${siteId} não encontrado`);
       }
 
-      return this.mapRowToSite(result.rows[0]);
-    } catch (error: any) {
-      await logError('FxSiteService.updateSite error', error, { siteId, data });
-      throw new Error(`Erro ao atualizar site: ${error.message}`);
+      return this.mapRowToSite(result.rows[0]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxSiteService.updateSite error', e.error, { siteId, data });
+      throw new Error(`Erro ao atualizar site: ${e.message}`);
     }
   }
 
@@ -370,10 +371,11 @@ export class FxSiteService {
 
       if (result.rowCount === 0) {
         throw new Error(`Site com ID ${siteId} não encontrado`);
-      }
-    } catch (error: any) {
-      await logError('FxSiteService.deleteSite error', error, { siteId });
-      throw new Error(`Erro ao deletar site: ${error.message}`);
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxSiteService.deleteSite error', e.error, { siteId });
+      throw new Error(`Erro ao deletar site: ${e.message}`);
     }
   }
 
@@ -398,10 +400,10 @@ export class FxSiteService {
         ORDER BY role DESC, totem_id ASC
       `;
       const result = await this.db.findMany(query, [siteId]);
-      return result.map(this.mapRowToTotemSite);
-    } catch (error: any) {
-      await logError('FxSiteService.getTotemsForSite error', error, { siteId });
-      throw new Error(`Erro ao listar totens do site: ${error.message}`);
+      return result.map(this.mapRowToTotemSite);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxSiteService.getTotemsForSite error', e.error, { siteId });
+      throw new Error(`Erro ao listar totens do site: ${e.message}`);
     }
   }
 
@@ -437,10 +439,10 @@ export class FxSiteService {
           updated_at
       `;
       const result = await this.db.executeRaw(query, [totemId, siteId, role, positionX || null, positionY || null]);
-      return this.mapRowToTotemSite(result.rows[0]);
-    } catch (error: any) {
-      await logError('FxSiteService.addTotemToSite error', error, { siteId, totemId, role });
-      throw new Error(`Erro ao adicionar totem ao site: ${error.message}`);
+      return this.mapRowToTotemSite(result.rows[0]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxSiteService.addTotemToSite error', e.error, { siteId, totemId, role });
+      throw new Error(`Erro ao adicionar totem ao site: ${e.message}`);
     }
   }
 
@@ -458,10 +460,11 @@ export class FxSiteService {
 
       if (result.rowCount === 0) {
         throw new Error(`Totem ${totemId} não está associado ao site ${siteId}`);
-      }
-    } catch (error: any) {
-      await logError('FxSiteService.removeTotemFromSite error', error, { siteId, totemId });
-      throw new Error(`Erro ao remover totem do site: ${error.message}`);
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('FxSiteService.removeTotemFromSite error', e.error, { siteId, totemId });
+      throw new Error(`Erro ao remover totem do site: ${e.message}`);
     }
   }
 

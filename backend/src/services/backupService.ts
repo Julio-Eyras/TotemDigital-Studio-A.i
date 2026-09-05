@@ -9,6 +9,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { logInfo, logError, logWarn } from '../utils/loggerHelper';
 import { getDatabase } from '../config/database';
+import { normalizeError } from '../utils/errors';
 
 const execAsync = promisify(exec);
 
@@ -136,9 +137,8 @@ export class BackupService {
         size: finalSize,
         duration,
         timestamp: new Date()
-      };
-    } catch (error: unknown) {
-      const duration = Date.now() - startTime;
+      };} catch (error: unknown) {
+const duration = Date.now() - startTime;
       await logError('Erro ao criar backup completo', error as Error, { backupId });
 
       await this.registerBackup({
@@ -179,9 +179,8 @@ export class BackupService {
       await execAsync(pgDumpCmd);
 
       await logInfo('Backup do banco de dados criado', { backupId, backupPath });
-      return backupPath;
-    } catch (error: unknown) {
-      await logError('Erro ao fazer backup do banco', error as Error, { backupId });
+      return backupPath;} catch (error: unknown) {
+await logError('Erro ao fazer backup do banco', error as Error, { backupId });
       return null;
     }
   }
@@ -202,9 +201,8 @@ export class BackupService {
       await execAsync(tarCmd);
 
       await logInfo('Backup de uploads criado', { backupId, backupPath });
-      return backupPath;
-    } catch (error: unknown) {
-      await logWarn('Erro ao fazer backup de uploads', { error: (error as Error).message, backupId });
+      return backupPath;} catch (error: unknown) {
+await logWarn('Erro ao fazer backup de uploads', { error: (error as Error).message, backupId });
       return null;
     }
   }
@@ -236,9 +234,8 @@ export class BackupService {
       await execAsync(tarCmd);
 
       await logInfo('Backup de configuração criado', { backupId, backupPath });
-      return backupPath;
-    } catch (error: unknown) {
-      await logWarn('Erro ao fazer backup de configuração', { error: (error as Error).message, backupId });
+      return backupPath;} catch (error: unknown) {
+await logWarn('Erro ao fazer backup de configuração', { error: (error as Error).message, backupId });
       return null;
     }
   }
@@ -293,9 +290,8 @@ export class BackupService {
         size: row.size as number,
         createdAt: row.createdAt as Date,
         status: row.status as 'completed' | 'failed' | 'in_progress'
-      }));
-    } catch (error: unknown) {
-      await logError('Erro ao listar backups', error as Error, {});
+      }));} catch (error: unknown) {
+await logError('Erro ao listar backups', error as Error, {});
       return [];
     }
   }
@@ -321,9 +317,9 @@ export class BackupService {
       await logInfo('Restauração de backup iniciada', { backupId });
 
       // TODO: Implementar restauração completa
-      return { success: true, message: 'Restauração iniciada (implementação pendente)' };
-    } catch (error: unknown) {
-      await logError('Erro ao restaurar backup', error as Error, { backupId });
+      return {
+        success: true, message: 'Restauração iniciada (implementação pendente)' };} catch (error: unknown) {
+await logError('Erro ao restaurar backup', error as Error, { backupId });
       return { success: false, message: (error as Error).message };
     }
   }
@@ -349,9 +345,8 @@ export class BackupService {
           // Remover registro do banco
           await this.db.executeRaw(`
             DELETE FROM backups WHERE backup_id = $1
-          `, [backup.backup_id]);
-        } catch (error: unknown) {
-          await logWarn('Erro ao deletar backup antigo', {
+          `, [backup.backup_id]);} catch (error: unknown) {
+await logWarn('Erro ao deletar backup antigo', {
             backupId: backup.backup_id,
             error: (error as Error).message
           });
@@ -360,9 +355,8 @@ export class BackupService {
 
       await logInfo('Limpeza de backups antigos concluída', {
         deleted: oldBackups.length
-      });
-    } catch (error: unknown) {
-      await logError('Erro ao limpar backups antigos', error as Error, {});
+      });} catch (error: unknown) {
+await logError('Erro ao limpar backups antigos', error as Error, {});
     }
   }
 
@@ -371,12 +365,14 @@ export class BackupService {
    */
   private async ensureBackupDirectory(): Promise<void> {
     try {
-      await fs.mkdir(this.defaultConfig.storagePath, { recursive: true });
-    } catch (error: unknown) {
+      await fs.mkdir(this.defaultConfig.storagePath, {
+        recursive: true });} catch (error: unknown) {
+        const e = normalizeError(error);
+
       await logError('Erro ao criar diretório de backup', error as Error, {
         path: this.defaultConfig.storagePath
       });
-      throw error;
+      throw e.error;
     }
   }
 
@@ -399,9 +395,8 @@ export class BackupService {
         backup.size,
         backup.createdAt,
         backup.status
-      ]);
-    } catch (error: unknown) {
-      await logError('Erro ao registrar backup', error as Error, { backupId: backup.id });
+      ]);} catch (error: unknown) {
+await logError('Erro ao registrar backup', error as Error, { backupId: backup.id });
     }
   }
 

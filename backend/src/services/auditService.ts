@@ -5,6 +5,8 @@
 
 import { getDatabase } from '../config/database';
 import { logError, logInfo } from '../utils/loggerHelper';
+import { Metadata } from '../types/shared';
+import { normalizeError } from '../utils/errors';
 
 export interface AuditLogEntry {
   id?: number;
@@ -12,7 +14,7 @@ export interface AuditLogEntry {
   action: string;
   entity: string;
   entityId?: number;
-  metadata?: any;
+  metadata?: Metadata;
   timestamp?: string;
   userAgent?: string;
   ipAddress?: string;
@@ -41,7 +43,7 @@ export class AuditService {
     entity: string,
     action: string,
     userId?: number,
-    metadata?: any,
+    metadata?: Metadata,
     _userAgent?: string,
     _ipAddress?: string
   ): Promise<void> {
@@ -55,10 +57,10 @@ export class AuditService {
         entity,
         metadata?.entityId || null,
         metadata ? JSON.stringify(metadata) : null
-      ]);
+      ]);} catch (error: unknown) {
+        const e = normalizeError(error);
 
-    } catch (error: any) {
-      await logError('Erro ao registrar log de auditoria', error, { entity, action, entityId: metadata?.entityId });
+      await logError('Erro ao registrar log de auditoria', e.error, { entity, action, entityId: metadata?.entityId });
       // Não lançar erro para não quebrar o fluxo principal
     }
   }
@@ -69,7 +71,7 @@ export class AuditService {
   async getAuditLogs(filters: AuditLogFilter = {}): Promise<AuditLogEntry[]> {
     try {
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       // Aplicar filtros
       if (filters.userId) {
@@ -131,10 +133,9 @@ export class AuditService {
         entityId: log.entityId,
         metadata: log.metadata ? JSON.parse(log.metadata) : null,
         timestamp: log.timestamp
-      }));
-
-    } catch (error: any) {
-      await logError('Erro ao buscar logs de auditoria', error, { filters });
+      }));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar logs de auditoria', e.error, { filters });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -171,10 +172,9 @@ export class AuditService {
         entityId: log.entityId,
         metadata: log.metadata ? JSON.parse(log.metadata) : null,
         timestamp: log.timestamp
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar log de auditoria', error, { logId });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar log de auditoria', e.error, { logId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -209,10 +209,9 @@ export class AuditService {
         entityId: log.entityId,
         metadata: log.metadata ? JSON.parse(log.metadata) : null,
         timestamp: log.timestamp
-      }));
-
-    } catch (error: any) {
-      await logError('Erro ao buscar logs do usuário', error, { userId, limit });
+      }));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar logs do usuário', e.error, { userId, limit });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -247,10 +246,9 @@ export class AuditService {
         entityId: log.entityId,
         metadata: log.metadata ? JSON.parse(log.metadata) : null,
         timestamp: log.timestamp
-      }));
-
-    } catch (error: any) {
-      await logError('Erro ao buscar logs da entidade', error, { entity, entityId, limit });
+      }));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar logs da entidade', e.error, { entity, entityId, limit });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -324,10 +322,9 @@ export class AuditService {
         byEntity: byEntity.map(e => ({ entity: e.entity, count: e.count })),
         byUser: byUser.map(u => ({ userId: u.userId, username: u.username, count: u.count })),
         recentActivity: recentActivity.map(r => ({ date: r.date, count: r.count }))
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar estatísticas de auditoria', error, { days });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar estatísticas de auditoria', e.error, { days });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -343,10 +340,9 @@ export class AuditService {
       `);
 
       await logInfo('Logs de auditoria antigos removidos', { count: result.changes, days: daysToKeep });
-      return result.changes;
-
-    } catch (error: any) {
-      await logError('Erro ao limpar logs antigos', error, { days: daysToKeep });
+      return result.changes;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao limpar logs antigos', e.error, { days: daysToKeep });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -365,10 +361,9 @@ export class AuditService {
         csv += `${log.id},${log.userId || ''},${log.action},${log.entity},${log.entityId || ''},"${metadata}",${log.timestamp}\n`;
       }
 
-      return csv;
-
-    } catch (error: any) {
-      await logError('Erro ao exportar logs', error, { filters });
+      return csv;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao exportar logs', e.error, { filters });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -418,10 +413,9 @@ export class AuditService {
         entityId: log.entityId,
         metadata: log.metadata ? JSON.parse(log.metadata) : null,
         timestamp: log.timestamp
-      }));
-
-    } catch (error: any) {
-      await logError('Erro ao buscar logs de segurança', error, {});
+      }));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar logs de segurança', e.error, {});
       throw new Error('Erro interno do servidor');
     }
   }
@@ -456,10 +450,9 @@ export class AuditService {
         entityId: log.entityId,
         metadata: log.metadata ? JSON.parse(log.metadata) : null,
         timestamp: log.timestamp
-      }));
-
-    } catch (error: any) {
-      await logError('Erro ao buscar tentativas de login falhadas', error, { hours });
+      }));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar tentativas de login falhadas', e.error, { hours });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -478,10 +471,9 @@ export class AuditService {
         AND al.timestamp >= datetime('now', '-${hours} hours')
       `, [username, `%"username":"${username}"%`]);
 
-      return (result?.count || 0) >= maxAttempts;
-
-    } catch (error: any) {
-      await logError('Erro ao verificar tentativas de login falhadas', error, { username, hours });
+      return (result?.count || 0) >= maxAttempts;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao verificar tentativas de login falhadas', e.error, { username, hours });
       return false;
     }
   }
@@ -489,7 +481,7 @@ export class AuditService {
   /**
    * Registra log de sistema
    */
-  async logSystemEvent(eventType: string, description: string, metadata?: any): Promise<void> {
+  async logSystemEvent(eventType: string, description: string, metadata?: Metadata): Promise<void> {
     try {
       await this.db.executeRaw(`
         INSERT INTO system_logs (event_type, description, created_at)
@@ -497,10 +489,11 @@ export class AuditService {
       `, [eventType, description]);
 
       // Também registrar no audit_logs para consistência
-      await this.log('system', eventType, undefined, { description, ...metadata });
+      await this.log('system', eventType, undefined, {
+        description, ...metadata });} catch (error: unknown) {
+        const e = normalizeError(error);
 
-    } catch (error: any) {
-      await logError('Erro ao registrar evento do sistema', error, { eventType, metadata });
+      await logError('Erro ao registrar evento do sistema', e.error, { eventType, metadata });
     }
   }
 
@@ -520,10 +513,9 @@ export class AuditService {
         LIMIT ?
       `, [limit]);
 
-      return logs;
-
-    } catch (error: any) {
-      await logError('Erro ao buscar logs do sistema', error, { limit });
+      return logs;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar logs do sistema', e.error, { limit });
       throw new Error('Erro interno do servidor');
     }
   }

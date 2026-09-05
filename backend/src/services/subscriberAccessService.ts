@@ -5,6 +5,7 @@
 
 import { getDatabase } from '../config/database';
 import { logError, logInfo } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export interface SubscriberPublisherAccess {
   accessId: number;
@@ -40,9 +41,9 @@ export class SubscriberAccessService {
         SELECT check_subscriber_publisher_access($1, $2) as has_access
       `, [subscriberId, publisherId]);
 
-      return result?.has_access === true;
-    } catch (error: any) {
-      await logError('Erro ao validar acesso subscriber → publisher', error, {
+      return result?.has_access === true;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao validar acesso subscriber → publisher', e.error, {
         subscriberId,
         publisherId
       });
@@ -62,9 +63,9 @@ export class SubscriberAccessService {
         ORDER BY publisher_id
       `, [subscriberId]);
 
-      return access.map(a => a.publisher_id);
-    } catch (error: any) {
-      await logError('Erro ao buscar publishers acessíveis', error, { subscriberId });
+      return access.map(a => a.publisher_id);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar publishers acessíveis', e.error, { subscriberId });
       return [];
     }
   }
@@ -81,9 +82,9 @@ export class SubscriberAccessService {
         ORDER BY subscriber_id
       `, [publisherId]);
 
-      return access.map(a => a.subscriber_id);
-    } catch (error: any) {
-      await logError('Erro ao buscar subscribers com acesso', error, { publisherId });
+      return access.map(a => a.subscriber_id);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar subscribers com acesso', e.error, { publisherId });
       return [];
     }
   }
@@ -117,9 +118,9 @@ export class SubscriberAccessService {
         LIMIT 1
       `, [subscriberId, publisherId]);
 
-      return access || null;
-    } catch (error: any) {
-      await logError('Erro ao buscar detalhes de acesso', error, {
+      return access || null;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar detalhes de acesso', e.error, {
         subscriberId,
         publisherId
       });
@@ -267,14 +268,14 @@ export class SubscriberAccessService {
         grantedBy,
       });
 
-      return result;
-    } catch (error: any) {
-      await logError('Erro ao conceder acesso', error, {
+      return result;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao conceder acesso', e.error, {
         subscriberId,
         publisherId,
         contractId,
       });
-      throw new Error(error?.message || 'Erro ao conceder acesso');
+      throw new Error(((e.raw as { message?: string })?.message) || 'Erro ao conceder acesso');
     }
   }
 
@@ -309,9 +310,9 @@ export class SubscriberAccessService {
         publisherId,
         revokedBy,
         reason
-      });
-    } catch (error: any) {
-      await logError('Erro ao revogar acesso', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao revogar acesso', e.error, {
         subscriberId,
         publisherId
       });
@@ -348,13 +349,13 @@ export class SubscriberAccessService {
         planId,
         publisherId,
         isAllowed
-      });
-    } catch (error: any) {
-      await logError('Erro ao configurar acesso plano → publisher', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao configurar acesso plano → publisher', e.error, {
         planId,
         publisherId
       });
-      throw error;
+      throw e.error;
     }
   }
 
@@ -364,10 +365,11 @@ export class SubscriberAccessService {
   async enqueueReconcile(planId: number, publisherId: number): Promise<void> {
     try {
       await this.db.executeRaw(`SELECT enqueue_reconcile_plan_publisher($1, $2, 'upsert')`, [planId, publisherId]);
-      await logInfo('Reconcile enqueued', { planId, publisherId });
-    } catch (error: any) {
-      await logError('Erro ao enfileirar reconcile', error, { planId, publisherId });
-      throw error;
+      await logInfo('Reconcile enqueued', {
+        planId, publisherId });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao enfileirar reconcile', e.error, { planId, publisherId });
+      throw e.error;
     }
   }
 
@@ -445,9 +447,9 @@ export class SubscriberAccessService {
         ORDER BY p.name
       `, [subscriberId]);
 
-      return viaPlan;
-    } catch (error: any) {
-      await logError('Erro ao buscar publishers com detalhes', error, { subscriberId });
+      return viaPlan;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar publishers com detalhes', e.error, { subscriberId });
       return [];
     }
   }
@@ -529,9 +531,9 @@ export class SubscriberAccessService {
         ORDER BY spa.created_at DESC
       `, queryParams);
 
-      return access;
-    } catch (error: any) {
-      await logError('Erro ao listar acessos subscriber → publisher', error, params);
+      return access;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar acessos subscriber → publisher', e.error, params);
       return [];
     }
   }
@@ -580,9 +582,9 @@ export class SubscriberAccessService {
         ORDER BY pl.sort_order ASC, pl.name ASC, p.name ASC
       `, queryParams);
 
-      return access;
-    } catch (error: any) {
-      await logError('Erro ao listar acesso plano → publisher', error, params);
+      return access;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar acesso plano → publisher', e.error, params);
       return [];
     }
   }
@@ -600,9 +602,9 @@ export class SubscriberAccessService {
       await logInfo('Acesso plano → publisher removido', {
         planId,
         publisherId
-      });
-    } catch (error: any) {
-      await logError('Erro ao remover acesso plano → publisher', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao remover acesso plano → publisher', e.error, {
         planId,
         publisherId
       });
@@ -619,9 +621,9 @@ export class SubscriberAccessService {
         UPDATE plan_publisher_access
         SET notes = $1, updated_at = CURRENT_TIMESTAMP
         WHERE plan_id = $2 AND publisher_id = $3
-      `, [notes, planId, publisherId]);
-    } catch (error: any) {
-      await logError('Erro ao atualizar notes de acesso plano → publisher', error, {
+      `, [notes, planId, publisherId]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar notes de acesso plano → publisher', e.error, {
         planId,
         publisherId
       });

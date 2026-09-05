@@ -31,7 +31,9 @@ export type AceRefuseCode =
   | 'STALE_CONTEXT'
   | 'LOW_CONFIDENCE'
   | 'ACE_DISABLED'
-  | 'SCHEMA_INVALID';
+  | 'SCHEMA_INVALID'
+  | 'TOTEM_PRIVACY_DISABLED'
+  | 'LGPD_CONSENT_REQUIRED';
 
 export type AceAttention = 'none' | 'low' | 'medium' | 'high';
 export type AceDensity = 'low' | 'medium' | 'high';
@@ -41,6 +43,14 @@ export interface AcePrivacy {
   gateway: string;
   identity_dropped: boolean;
   image_dropped: boolean;
+  lgpd_consent_given?: boolean;
+}
+
+export interface TotemAcePolicy {
+  /** Quando true, este totem tem ACE desativado globalmente (flag do totem, não do emissor). */
+  ace_disabled_locally?: boolean;
+  /** Quando true, exige consentimento LGPD explícito no payload; default true no Multi Lite/Pro. */
+  require_lgpd_consent?: boolean;
 }
 
 export interface AceMotion {

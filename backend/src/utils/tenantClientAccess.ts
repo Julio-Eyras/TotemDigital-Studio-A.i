@@ -2,6 +2,7 @@
  * Autorização para parâmetros de rota do tipo "cliente" (subscriber / publisher).
  * Usado em dashboard por cliente, campanhas por cliente, etc.
  */
+import { Request } from 'express';
 import { getDatabase } from '../config/database';
 import { isStudioRuntime } from '../config/installationRuntime';
 import { resolveCompactOwnerPublisherId } from './compactOwnerPublisher';
@@ -21,7 +22,12 @@ export type TenantClientParamAccessOptions = {
   requestedIdIsPublisherScope?: boolean;
 };
 
-function isSubscriberLikeRole(req: any): boolean {
+interface TenantAccessError extends Error {
+  statusCode?: number;
+  code?: string;
+}
+
+function isSubscriberLikeRole(req: Request): boolean {
   const role = req.user?.role || '';
   return (
     role === 'subscriber' ||
@@ -31,7 +37,7 @@ function isSubscriberLikeRole(req: any): boolean {
 }
 
 /** Token/compact → publisher_id (para escopo de API). */
-export async function resolvePublisherIdFromRequest(req: any): Promise<number | undefined> {
+export async function resolvePublisherIdFromRequest(req: Request): Promise<number | undefined> {
   let publisherId = req.user?.publisherId != null ? Number(req.user.publisherId) : undefined;
   if (isStudioRuntime() && (publisherId == null || Number.isNaN(publisherId))) {
     const ownerId = await resolveCompactOwnerPublisherId(getDatabase());
@@ -40,12 +46,12 @@ export async function resolvePublisherIdFromRequest(req: any): Promise<number | 
   return publisherId != null && !Number.isNaN(publisherId) ? publisherId : undefined;
 }
 
-async function resolvePublisherIdForAccess(req: any): Promise<number | undefined> {
+async function resolvePublisherIdForAccess(req: Request): Promise<number | undefined> {
   return resolvePublisherIdFromRequest(req);
 }
 
 /** Assinante/cliente na UI (lista de campanhas, etc.). */
-export function isSubscriberTenantRole(req: any): boolean {
+export function isSubscriberTenantRole(req: Request): boolean {
   const role = req.user?.role || '';
   return (
     role === 'client' ||
@@ -60,7 +66,7 @@ export function isSubscriberTenantRole(req: any): boolean {
  * conforme o mesmo modelo do dashboard.
  */
 export async function assertTenantClientParamAccess(
-  req: any,
+  req: Request,
   requestedId: number,
   options?: TenantClientParamAccessOptions
 ): Promise<void> {
@@ -72,7 +78,7 @@ export async function assertTenantClientParamAccess(
       req.portalTenant.role === 'subscriber' &&
       Number(requestedId) !== Number(req.portalTenant.subscriberId)
     ) {
-      const err: any = new Error('Acesso negado: recurso fora do tenant do host.');
+      const err = new Error('Acesso negado: recurso fora do tenant do host.') as TenantAccessError;
       err.statusCode = 403;
       err.code = 'TENANT_HOST_MISMATCH';
       throw err;
@@ -82,7 +88,7 @@ export async function assertTenantClientParamAccess(
       options?.requestedIdIsPublisherScope === true &&
       Number(requestedId) !== Number(req.portalTenant.publisherId)
     ) {
-      const err: any = new Error('Acesso negado: recurso fora do tenant do host.');
+      const err = new Error('Acesso negado: recurso fora do tenant do host.') as TenantAccessError;
       err.statusCode = 403;
       err.code = 'TENANT_HOST_MISMATCH';
       throw err;
@@ -98,7 +104,7 @@ export async function assertTenantClientParamAccess(
 
   if (role === 'client') {
     if (req.user?.clientId == null || Number(req.user.clientId) !== Number(requestedId)) {
-      const err: any = new Error('Acesso negado');
+      const err = new Error('Acesso negado') as TenantAccessError;
       err.statusCode = 403;
       throw err;
     }
@@ -107,7 +113,7 @@ export async function assertTenantClientParamAccess(
 
   if (isSubscriberLikeRole(req)) {
     if (!tokenSubscriberId || Number(tokenSubscriberId) !== Number(requestedId)) {
-      const err: any = new Error('Acesso negado');
+      const err = new Error('Acesso negado') as TenantAccessError;
       err.statusCode = 403;
       throw err;
     }
@@ -117,7 +123,7 @@ export async function assertTenantClientParamAccess(
   if (options?.requestedIdIsPublisherScope === true) {
     const pubId = await resolvePublisherIdForAccess(req);
     if (pubId == null || Number(requestedId) !== Number(pubId)) {
-      const err: any = new Error('Acesso negado');
+      const err = new Error('Acesso negado') as TenantAccessError;
       err.statusCode = 403;
       throw err;
     }
@@ -130,15 +136,15 @@ export async function assertTenantClientParamAccess(
     if (allowPublisherSelf) {
       return;
     }
-    const err: any = new Error(
+    const err = new Error(
       'Acesso negado: este recurso é escopado por assinante; informe o subscriber_id'
-    );
+    ) as TenantAccessError;
     err.statusCode = 403;
     throw err;
   }
 
   if (publisherId == null) {
-    const err: any = new Error('Acesso negado');
+    const err = new Error('Acesso negado') as TenantAccessError;
     err.statusCode = 403;
     throw err;
   }
@@ -161,7 +167,7 @@ export async function assertTenantClientParamAccess(
   );
 
   if (!linked) {
-    const err: any = new Error('Acesso negado: sem vínculo com este cliente ou publisher');
+    const err = new Error('Acesso negado: sem vínculo com este cliente ou publisher') as TenantAccessError;
     err.statusCode = 403;
     throw err;
   }

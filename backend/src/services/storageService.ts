@@ -9,6 +9,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { logInfoSync, logWarnSync, logErrorSync, logDebugSync } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export interface FileInfo {
   buffer?: Buffer;
@@ -91,9 +92,10 @@ export class StorageService {
         logWarnSync(`   Usando padrão: ${DEFAULT_BASE_PATH}`);
         this.basePath = DEFAULT_BASE_PATH;
         this.uploadsPath = path.join(this.basePath, 'uploads');
-      }
-    } catch (error: any) {
-      logWarnSync(`[StorageService] Erro ao obter getStoragePath(): ${error.message}`);
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      logWarnSync(`[StorageService] Erro ao obter getStoragePath(): ${e.message}`);
       const fallback = process.env.ASSETS_BASE_PATH || process.env.UPLOAD_PATH || DEFAULT_BASE_PATH;
       this.basePath = this.resolveUploadsToBase(fallback);
       if (!this.isAllowedStorageBase(this.basePath)) {
@@ -115,9 +117,8 @@ export class StorageService {
       if (!fs.existsSync(subscriberDir)) {
         return 0;
       }
-      return await this.getDirectorySize(subscriberDir);
-    } catch (error: any) {
-      logErrorSync('Erro ao calcular uso de armazenamento do subscriber', error, { subscriberId });
+      return await this.getDirectorySize(subscriberDir);} catch (error: unknown) {
+logErrorSync('Erro ao calcular uso de armazenamento do subscriber', error, { subscriberId });
       return 0;
     }
   }
@@ -173,9 +174,8 @@ export class StorageService {
         currentUsage,
         quota,
         available,
-      };
-    } catch (error: any) {
-      logErrorSync('Erro ao verificar quota do subscriber', error, { subscriberId, fileSize });
+      };} catch (error: unknown) {
+logErrorSync('Erro ao verificar quota do subscriber', error, { subscriberId, fileSize });
       // Em caso de erro, permitir upload (fail-open)
       return {
         allowed: true,
@@ -218,9 +218,10 @@ export class StorageService {
         /* ignore */
       }
       return filePath;
-    } catch (error) {
+} catch (error: unknown) {
+      const e = normalizeError(error);
       logErrorSync('Erro ao salvar mídia da organização', error, { publisherId, mediaName });
-      throw error;
+      throw e.error;
     }
   }
 
@@ -262,8 +263,9 @@ export class StorageService {
       // Definir permissões: arquivos 644 (rw-r--r--)
       try {
         fs.chmodSync(filePath, 0o644);
-      } catch (permError: any) {
-        logWarnSync(`[StorageService] Não foi possível definir permissões do arquivo ${filePath}`, { error: permError.message });
+} catch (permError: unknown) {
+  const e = normalizeError(permError);
+        logWarnSync(`[StorageService] Não foi possível definir permissões do arquivo ${filePath}`, { error: e.message });
       }
 
       // Log do caminho final para debug
@@ -271,10 +273,8 @@ export class StorageService {
         relativePath: `/assets/uploads/${path.relative(this.uploadsPath, filePath).replace(/\\/g, '/')}`
       });
 
-      return filePath;
-
-    } catch (error: any) {
-      logErrorSync('Erro ao salvar arquivo de mídia', error, { subscriberId, mediaName });
+      return filePath;} catch (error: unknown) {
+logErrorSync('Erro ao salvar arquivo de mídia', error, { subscriberId, mediaName });
       throw new Error('Erro ao salvar arquivo');
     }
   }
@@ -303,10 +303,8 @@ export class StorageService {
       fs.writeFileSync(filePath, data);
       fs.chmodSync(filePath, 0o644);
 
-      return filePath;
-
-    } catch (error: any) {
-      logErrorSync('Erro ao salvar arquivo de backup', error, { fileName });
+      return filePath;} catch (error: unknown) {
+logErrorSync('Erro ao salvar arquivo de backup', error, { fileName });
       throw new Error('Erro ao salvar backup');
     }
   }
@@ -323,10 +321,8 @@ export class StorageService {
       fs.appendFileSync(filePath, data);
       fs.chmodSync(filePath, 0o644);
 
-      return filePath;
-
-    } catch (error: any) {
-      logErrorSync('Erro ao salvar arquivo de log', error, { fileName });
+      return filePath;} catch (error: unknown) {
+logErrorSync('Erro ao salvar arquivo de log', error, { fileName });
       throw new Error('Erro ao salvar log');
     }
   }
@@ -350,9 +346,8 @@ export class StorageService {
       if (fs.existsSync(thumbnailPath)) {
         fs.unlinkSync(thumbnailPath);
         logDebugSync(`[StorageService] Thumbnail removido: ${thumbnailPath}`);
-      }
-    } catch (error: any) {
-      logErrorSync('Erro ao remover arquivo', error, { filePath });
+}} catch (error: unknown) {
+logErrorSync('Erro ao remover arquivo', error, { filePath });
       throw new Error('Erro ao remover arquivo');
     }
   }
@@ -365,9 +360,8 @@ export class StorageService {
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
         logInfoSync('Arquivo removido', { filePath });
-      }
-    } catch (error: any) {
-      logErrorSync('Erro ao remover arquivo', error, { filePath });
+}} catch (error: unknown) {
+logErrorSync('Erro ao remover arquivo', error, { filePath });
       throw new Error('Erro ao remover arquivo');
     }
   }
@@ -383,10 +377,8 @@ export class StorageService {
 
       // Mover arquivo
       fs.renameSync(sourcePath, destinationPath);
-      logInfoSync('Arquivo movido', { sourcePath, destinationPath });
-
-    } catch (error: any) {
-      logErrorSync('Erro ao mover arquivo', error, { sourcePath, destinationPath });
+      logInfoSync('Arquivo movido', { sourcePath, destinationPath });} catch (error: unknown) {
+logErrorSync('Erro ao mover arquivo', error, { sourcePath, destinationPath });
       throw new Error('Erro ao mover arquivo');
     }
   }
@@ -402,10 +394,8 @@ export class StorageService {
 
       // Copiar arquivo
       fs.copyFileSync(sourcePath, destinationPath);
-      logInfoSync('Arquivo copiado', { sourcePath, destinationPath });
-
-    } catch (error: any) {
-      logErrorSync('Erro ao copiar arquivo', error, { sourcePath, destinationPath });
+      logInfoSync('Arquivo copiado', { sourcePath, destinationPath });} catch (error: unknown) {
+logErrorSync('Erro ao copiar arquivo', error, { sourcePath, destinationPath });
       throw new Error('Erro ao copiar arquivo');
     }
   }
@@ -415,9 +405,8 @@ export class StorageService {
    */
   async fileExists(filePath: string): Promise<boolean> {
     try {
-      return fs.existsSync(filePath);
-    } catch (error: any) {
-      logErrorSync('Erro ao verificar existência do arquivo', error, { filePath });
+      return fs.existsSync(filePath);} catch (error: unknown) {
+logErrorSync('Erro ao verificar existência do arquivo', error, { filePath });
       return false;
     }
   }
@@ -445,10 +434,8 @@ export class StorageService {
         modified: stats.mtime,
         isFile: stats.isFile(),
         isDirectory: stats.isDirectory()
-      };
-
-    } catch (error: any) {
-      logErrorSync('Erro ao obter informações do arquivo', error, { filePath });
+      };} catch (error: unknown) {
+logErrorSync('Erro ao obter informações do arquivo', error, { filePath });
       return null;
     }
   }
@@ -477,10 +464,8 @@ export class StorageService {
         }
       }
 
-      return files;
-
-    } catch (error: any) {
-      logErrorSync('Erro ao listar arquivos', error, { directoryPath });
+      return files;} catch (error: unknown) {
+logErrorSync('Erro ao listar arquivos', error, { directoryPath });
       return [];
     }
   }
@@ -510,12 +495,14 @@ export class StorageService {
             break;
           }
         }
-      } catch (permError: any) {
+ 
+} catch (permError: unknown) {
+   const ne_permError = normalizeError(permError);
         // Se não conseguir alterar permissões, apenas logar (pode ser que não tenha permissão)
-        logWarnSync('Não foi possível ajustar permissões', { directoryPath, error: permError.message });
-      }
-    } catch (error: any) {
-      logErrorSync('Erro ao criar diretório', error, { directoryPath });
+        logWarnSync('Não foi possível ajustar permissões', { directoryPath, error: ne_permError.message });
+ 
+}} catch (error: unknown) {
+logErrorSync('Erro ao criar diretório', error, { directoryPath });
       throw new Error('Erro ao criar diretório');
     }
   }
@@ -528,9 +515,8 @@ export class StorageService {
       if (fs.existsSync(directoryPath)) {
         fs.rmSync(directoryPath, { recursive: true, force: true });
         logInfoSync('Diretório removido', { directoryPath });
-      }
-    } catch (error: any) {
-      logErrorSync('Erro ao remover diretório', error, { directoryPath });
+}} catch (error: unknown) {
+logErrorSync('Erro ao remover diretório', error, { directoryPath });
       throw new Error('Erro ao remover diretório');
     }
   }
@@ -552,10 +538,8 @@ export class StorageService {
         totalSize += stats.size;
       }
 
-      return totalSize;
-
-    } catch (error: any) {
-      logErrorSync('Erro ao calcular tamanho do diretório', error, { directoryPath });
+      return totalSize;} catch (error: unknown) {
+logErrorSync('Erro ao calcular tamanho do diretório', error, { directoryPath });
       return 0;
     }
   }
@@ -585,10 +569,8 @@ export class StorageService {
         }
       }
 
-      return removedCount;
-
-    } catch (error: any) {
-      logErrorSync('Erro ao limpar arquivos antigos', error, { directoryPath, maxAgeDays });
+      return removedCount;} catch (error: unknown) {
+logErrorSync('Erro ao limpar arquivos antigos', error, { directoryPath, maxAgeDays });
       return 0;
     }
   }
@@ -603,10 +585,8 @@ export class StorageService {
       }
 
       const buffer = fs.readFileSync(filePath);
-      return crypto.createHash('md5').update(buffer).digest('hex');
-
-    } catch (error: any) {
-      logErrorSync('Erro ao gerar hash do arquivo', error, { filePath });
+      return crypto.createHash('md5').update(buffer).digest('hex');} catch (error: unknown) {
+logErrorSync('Erro ao gerar hash do arquivo', error, { filePath });
       throw new Error('Erro ao gerar hash');
     }
   }
@@ -672,8 +652,9 @@ export class StorageService {
       // Implementar verificação de espaço disponível
       // Por enquanto, retorna um valor alto
       return 1024 * 1024 * 1024; // 1GB
-    } catch (error: any) {
-      logErrorSync('Erro ao verificar espaço disponível', error);
+    } catch (error: unknown) {
+      const e = normalizeError(error);
+      logErrorSync('Erro ao verificar espaço disponível', e.error);
       return 0;
     }
   }
@@ -714,10 +695,8 @@ export class StorageService {
         fileCount: files.length,
         directoryCount,
         availableSpace
-      };
-
-    } catch (error: any) {
-      logErrorSync('Erro ao obter estatísticas de armazenamento', error);
+      };} catch (error: unknown) {
+logErrorSync('Erro ao obter estatísticas de armazenamento', error);
       return {
         totalSize: 0,
         fileCount: 0,

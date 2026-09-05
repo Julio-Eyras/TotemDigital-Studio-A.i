@@ -4,6 +4,8 @@
  */
 
 import { Router } from 'express';
+import express from 'express';
+
 import { AnalyticsService, emptyAnalyticsResponse } from '../services/analyticsService';
 import { TotemService } from '../services/totemService';
 import { getCampaignService } from '../services/campaignService';
@@ -15,6 +17,7 @@ import { isStudioRuntime } from '../config/installationRuntime';
 import { resolveCompactOwnerPublisherId } from '../utils/compactOwnerPublisher';
 import { getDatabase } from '../config/database';
 import { isAdminRole, resolveTenantScope } from '../utils/tenantScope';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -64,7 +67,7 @@ async function assertCampaignPublisherScope(campaignId: number, requestPublisher
  * Garante que filtros totemId/campaignId na query não exponham dados de outro tenant.
  */
 async function assertAnalyticsFiltersAllowed(
-  req: any,
+  req: express.Request,
   opts: { totemId?: number; campaignId?: number }
 ): Promise<void> {
   const totemId = opts.totemId;
@@ -79,7 +82,7 @@ async function assertAnalyticsFiltersAllowed(
     if (campaignId != null) {
       const campaign = await getCampaignService().getCampaignById(campaignId);
       if (!campaign) throw analyticsHttpError(404, 'Campanha não encontrada');
-      if (req.user?.clientId != null && Number(campaign.subscriberId) !== Number(req.user.clientId)) {
+      if (req.user?.clientId != null && Number(campaign.subscriberId) !== Number(req.user!.clientId)) {
         throw analyticsHttpError(403, 'Acesso negado: Você só pode ver análises de suas próprias campanhas');
       }
     }
@@ -140,7 +143,7 @@ async function replyAnalyticsError(res: any, error: any, logLabel: string) {
   return res.status(500).json({ success: false, message: 'Erro interno do servidor', error: msg });
 }
 
-async function attachAnalyticsTenantScope(req: any, filters: Record<string, unknown>): Promise<void> {
+async function attachAnalyticsTenantScope(req: express.Request, filters: Record<string, unknown>): Promise<void> {
   const scope = await resolveTenantScope(req);
   if (!scope) return;
   if (scope.scopedPublisherId !== undefined) {
@@ -170,15 +173,14 @@ router.get('/dashboard', authorizeRole(['admin', 'gerente_marketing', 'visualiza
     res.json({
       success: true,
       data: stats
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar estatísticas do dashboard', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar estatísticas do dashboard', e.error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -187,7 +189,7 @@ router.get('/dashboard', authorizeRole(['admin', 'gerente_marketing', 'visualiza
  * @desc Busca análise geral com filtros
  * @access Private (Admin, Manager, Client)
  */
-router.get('/overview', async (req: any, res) => {
+router.get('/overview', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const {
       clientId,
@@ -198,9 +200,9 @@ router.get('/overview', async (req: any, res) => {
       groupBy
     } = req.query;
 
-    const user = req.user || {};
+    const user = (req.user || {}) as Record<string, unknown>;
     const filters: Record<string, unknown> = {
-      clientId: user.role === 'client' ? (user as any).clientId : (clientId ? parseInt(clientId as string) : undefined),
+      clientId: user.role === 'client' ? Number(user.clientId) : (clientId ? parseInt(clientId as string) : undefined),
       totemId: totemId ? parseInt(totemId as string) : undefined,
       campaignId: campaignId ? parseInt(campaignId as string) : undefined,
       startDate: startDate as string,
@@ -220,12 +222,10 @@ router.get('/overview', async (req: any, res) => {
     return res.json({
       success: true,
       data: analytics
-    });
-
-  } catch (error: any) {
-    if (isMissingTableError(error)) {
+    });} catch (error: unknown) {
+if (isMissingTableError(error)) {
       return res.json({ success: true, data: emptyAnalyticsResponse() });
-    }
+  }
     return replyAnalyticsError(res, error, 'Erro ao buscar análise detalhada');
   }
 });
@@ -235,7 +235,7 @@ router.get('/overview', async (req: any, res) => {
  * @desc Gera relatório completo
  * @access Private (Admin, Manager, Client)
  */
-router.get('/report', async (req: any, res) => {
+router.get('/report', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const {
       clientId,
@@ -247,7 +247,7 @@ router.get('/report', async (req: any, res) => {
     } = req.query;
 
     const filters: Record<string, unknown> = {
-      clientId: req.user.role === 'client' ? req.user.clientId : (clientId ? parseInt(clientId as string) : undefined),
+      clientId: req.user!.role === 'client' ? req.user!.clientId : (clientId ? parseInt(clientId as string) : undefined),
       totemId: totemId ? parseInt(totemId as string) : undefined,
       campaignId: campaignId ? parseInt(campaignId as string) : undefined,
       startDate: startDate as string,
@@ -267,10 +267,8 @@ router.get('/report', async (req: any, res) => {
     res.json({
       success: true,
       data: report
-    });
-
-  } catch (error: any) {
-    return replyAnalyticsError(res, error, 'Erro ao gerar relatório de analytics');
+    });} catch (error: unknown) {
+return replyAnalyticsError(res, error, 'Erro ao gerar relatório de analytics');
   }
 });
 
@@ -279,7 +277,7 @@ router.get('/report', async (req: any, res) => {
  * @desc Busca análise de uma campanha específica
  * @access Private (Admin, Manager, Client)
  */
-router.get('/campaigns/:campaignId', async (req: any, res) => {
+router.get('/campaigns/:campaignId', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { campaignId } = req.params;
     const { startDate, endDate, groupBy } = req.query;
@@ -301,10 +299,8 @@ router.get('/campaigns/:campaignId', async (req: any, res) => {
     return res.json({
       success: true,
       data: analytics
-    });
-
-  } catch (error: any) {
-    return replyAnalyticsError(res, error, 'Erro ao buscar análise da campanha');
+    });} catch (error: unknown) {
+return replyAnalyticsError(res, error, 'Erro ao buscar análise da campanha');
   }
 });
 
@@ -313,7 +309,7 @@ router.get('/campaigns/:campaignId', async (req: any, res) => {
  * @desc Busca análise de um totem específico
  * @access Private (Admin, Manager, Client)
  */
-router.get('/totems/:totemId', async (req: any, res) => {
+router.get('/totems/:totemId', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { totemId } = req.params;
     const { startDate, endDate, groupBy } = req.query;
@@ -336,7 +332,7 @@ router.get('/totems/:totemId', async (req: any, res) => {
       });
     }
 
-    if (req.user.role === 'client' && req.user.clientId !== (totem as any).clientId) {
+    if (req.user!.role === 'client' && req.user!.clientId !== (totem as any).clientId) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode ver análises de seus próprios totems'
@@ -357,10 +353,8 @@ router.get('/totems/:totemId', async (req: any, res) => {
     return res.json({
       success: true,
       data: analytics
-    });
-
-  } catch (error: any) {
-    return replyAnalyticsError(res, error, 'Erro ao buscar análise do totem');
+    });} catch (error: unknown) {
+return replyAnalyticsError(res, error, 'Erro ao buscar análise do totem');
   }
 });
 
@@ -369,13 +363,13 @@ router.get('/totems/:totemId', async (req: any, res) => {
  * @desc Busca análise de um cliente específico
  * @access Private (Admin, Manager, Client)
  */
-router.get('/clients/:clientId', async (req: any, res) => {
+router.get('/clients/:clientId', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { clientId } = req.params;
     const { startDate, endDate, groupBy } = req.query;
 
     // Verificar permissão
-    if (req.user.role === 'client' && req.user.clientId !== parseInt(clientId)) {
+    if (req.user!.role === 'client' && req.user!.clientId !== parseInt(clientId)) {
       return res.status(403).json({
         success: false,
         message: 'Acesso negado: Você só pode ver análises de seu próprio cliente'
@@ -396,15 +390,14 @@ router.get('/clients/:clientId', async (req: any, res) => {
     return res.json({
       success: true,
       data: analytics
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar análise do cliente', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar análise do cliente', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -443,15 +436,14 @@ router.get('/performance', authorizeRole(['admin', 'gerente_marketing', 'visuali
     res.json({
       success: true,
       data: performance
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar métricas de performance', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar métricas de performance', e.error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -477,15 +469,14 @@ router.get('/revenue', authorizeRole(['admin', 'gerente_marketing', 'visualizado
     res.json({
       success: true,
       data: analytics.revenue
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar métricas de receita', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar métricas de receita', e.error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -494,7 +485,7 @@ router.get('/revenue', authorizeRole(['admin', 'gerente_marketing', 'visualizado
  * @desc Busca tendências de visualização
  * @access Private (Admin, Manager, Client)
  */
-router.get('/trends', async (req: any, res) => {
+router.get('/trends', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const {
       clientId,
@@ -506,7 +497,7 @@ router.get('/trends', async (req: any, res) => {
     } = req.query;
 
     const filters: Record<string, unknown> = {
-      clientId: req.user.role === 'client' ? req.user.clientId : (clientId ? parseInt(clientId as string) : undefined),
+      clientId: req.user!.role === 'client' ? req.user!.clientId : (clientId ? parseInt(clientId as string) : undefined),
       totemId: totemId ? parseInt(totemId as string) : undefined,
       campaignId: campaignId ? parseInt(campaignId as string) : undefined,
       startDate: startDate as string,
@@ -530,10 +521,8 @@ router.get('/trends', async (req: any, res) => {
         peakViewingTime: analytics.peakViewingTime,
         averageViewDuration: analytics.averageViewDuration
       }
-    });
-
-  } catch (error: any) {
-    return replyAnalyticsError(res, error, 'Erro ao buscar tendências');
+    });} catch (error: unknown) {
+return replyAnalyticsError(res, error, 'Erro ao buscar tendências');
   }
 });
 
@@ -542,7 +531,7 @@ router.get('/trends', async (req: any, res) => {
  * @desc Exporta dados de análise
  * @access Private (Admin, Manager, Client)
  */
-router.get('/export', async (req: any, res) => {
+router.get('/export', async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const {
       clientId,
@@ -555,7 +544,7 @@ router.get('/export', async (req: any, res) => {
     } = req.query;
 
     const filters: Record<string, unknown> = {
-      clientId: req.user.role === 'client' ? req.user.clientId : (clientId ? parseInt(clientId as string) : undefined),
+      clientId: req.user!.role === 'client' ? req.user!.clientId : (clientId ? parseInt(clientId as string) : undefined),
       totemId: totemId ? parseInt(totemId as string) : undefined,
       campaignId: campaignId ? parseInt(campaignId as string) : undefined,
       startDate: startDate as string,
@@ -585,10 +574,9 @@ router.get('/export', async (req: any, res) => {
       res.setHeader('Content-Type', 'application/json');
       res.setHeader('Content-Disposition', 'attachment; filename="analytics-report.json"');
       res.json(report);
-    }
-
-  } catch (error: any) {
-    return replyAnalyticsError(res, error, 'Erro ao exportar análise');
+ 
+}} catch (error: unknown) {
+  return replyAnalyticsError(res, error, 'Erro ao exportar análise');
   }
 });
 
@@ -605,15 +593,14 @@ router.get('/alerts', authorizeRole(['admin', 'gerente_marketing', 'visualizador
     res.json({
       success: true,
       data: stats.alerts
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar alertas de analytics', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar alertas de analytics', e.error);
     res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 

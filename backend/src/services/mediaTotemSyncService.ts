@@ -9,6 +9,7 @@ import { getDatabase } from '../config/database';
 import { getCacheService } from './cacheService';
 import { getRemoteCommandService } from './remoteCommandService';
 import { logError, logInfo } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export const OFFLINE_HEARTBEAT_MS = 5 * 60 * 1000;
 
@@ -218,7 +219,8 @@ export class MediaTotemSyncService {
         );
         commandQueued = true;
         commandsQueued += 1;
-      } catch (e: any) {
+} catch (rawErr: unknown) {
+        const e = normalizeError(rawErr);
         await logError('Falha ao enfileirar invalidate_media após alteração de mídia', e, {
           mediaId,
           totemId: totem.totemId,

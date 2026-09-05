@@ -4,10 +4,12 @@
  */
 
 import { Router, Response } from 'express';
+
 import { authMiddleware, AuthenticatedRequest, authorizeRole } from '../middleware/auth.middleware';
 import { isStudioRuntime } from '../config/installationRuntime';
 import { logError } from '../utils/loggerHelper';
 import {
+
   getLabNowPlaying,
   listLabProofs,
   LabSystemTickInput,
@@ -22,6 +24,7 @@ import {
   mockMaestroPlayerAcceptsCue,
   LabSsidBox,
 } from '../services/lab/labEmulation';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 router.use(authMiddleware);
@@ -38,10 +41,11 @@ router.post('/tick', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const body = (req.body || {}) as LabSystemTickInput;
     const result = runLabSystemTick(body);
-    return res.status(202).json({ success: true, ...result });
-  } catch (error: any) {
-    await logError('[lab-system] POST /tick', error);
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(202).json({
+      success: true, ...result });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('[lab-system] POST /tick', e.error);
+    return res.status(500).json({ success: false, error: e.message });
   }
 });
 

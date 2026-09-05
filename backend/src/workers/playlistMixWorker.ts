@@ -7,6 +7,7 @@ import cron from 'node-cron';
 import { getDatabase } from '../config/database';
 import { getTotemPlaylistMixService } from '../services/totemPlaylistMixService';
 import { logInfo, logError, logDebug } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export class PlaylistMixWorker {
   private db = getDatabase();
@@ -112,13 +113,13 @@ export class PlaylistMixWorker {
           await logDebug('Mixagem regenerada com sucesso', {
             totemId: totem.totem_id,
             identifier: totem.identifier
-          });
-        } catch (error: any) {
+          });} catch (error: unknown) {
+          const e = normalizeError(error);
           errorCount++;
-          await logError('Erro ao regenerar mixagem para totem', error, {
+          await logError('Erro ao regenerar mixagem para totem', e.error, {
             totemId: totem.totem_id,
             identifier: totem.identifier
-          });
+        });
         }
       }
 
@@ -127,9 +128,9 @@ export class PlaylistMixWorker {
         total: totems.length,
         success: successCount,
         errors: errorCount
-      });
-    } catch (error: any) {
-      await logError('Erro ao regenerar mixagens', error, { service: 'playlist-mix-worker' });
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao regenerar mixagens', e.error, { service: 'playlist-mix-worker' });
     }
   }
 
@@ -165,17 +166,18 @@ export class PlaylistMixWorker {
           await this.mixService.generateMixForTotem(row.totem_id);
           await logDebug('Mixagem regenerada devido a mudança em campanha', {
             totemId: row.totem_id
-          });
-        } catch (error: any) {
-          await logError('Erro ao regenerar mixagem após mudança em campanha', error, {
+          });} catch (error: unknown) {
+          const e = normalizeError(error);
+          await logError('Erro ao regenerar mixagem após mudança em campanha', e.error, {
             totemId: row.totem_id
-          });
+        });
         }
-      }
-    } catch (error: any) {
-      await logError('Erro ao verificar mudanças em campanhas', error, {
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao verificar mudanças em campanhas', e.error, {
         service: 'playlist-mix-worker'
-      });
+    });
     }
   }
 
@@ -188,13 +190,13 @@ export class PlaylistMixWorker {
       await logInfo('Mixagem regenerada manualmente', {
         service: 'playlist-mix-worker',
         totemId
-      });
-    } catch (error: any) {
-      await logError('Erro ao regenerar mixagem manualmente', error, {
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao regenerar mixagem manualmente', e.error, {
         service: 'playlist-mix-worker',
         totemId
-      });
-      throw error;
+    });
+      throw e.error;
     }
   }
 }

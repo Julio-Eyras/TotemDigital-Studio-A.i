@@ -13,6 +13,7 @@ import { getCacheService } from './cacheService';
 import { getTotemPlaylistMixService } from './totemPlaylistMixService';
 import type { PoolClient } from 'pg';
 import {
+
   assertCompactOwnerPublisher,
   resolveInventoryPublisherScope,
 } from '../utils/compactOwnerPublisher';
@@ -28,6 +29,7 @@ import {
 } from '../utils/displaySchedule';
 import { getRemoteCommandService } from './remoteCommandService';
 import { mergeTdepFillCapabilities } from './lab/tdepDispatchLane';
+import { normalizeError } from '../utils/errors';
 
 function normalizeStockText(value: unknown): string {
   return String(value || '')
@@ -57,7 +59,7 @@ export interface CreateTotemRequest {
   contract_id?: number; // Opcional: contrato que gerou a criação (rastreabilidade)
   location?: string;
   description?: string;
-  config?: any;
+  config?: Record<string, unknown>;
   version?: string;
   firmwareVersion?: string;
   ipAddress?: string;
@@ -74,7 +76,7 @@ export interface UpdateTotemRequest {
   localId?: number; // Totem deve pertencer a um local
   location?: string;
   description?: string;
-  config?: any;
+  config?: Record<string, unknown>;
   version?: string;
   firmwareVersion?: string;
   ipAddress?: string;
@@ -96,7 +98,7 @@ export interface TotemResponse {
   localId?: string;
   location?: string;
   description?: string;
-  config?: any;
+  config?: Record<string, unknown>;
   status: string;
   version?: string;
   firmwareVersion?: string;
@@ -142,7 +144,7 @@ export interface HeartbeatData {
   version?: string;
   firmwareVersion?: string;
   ipAddress?: string;
-  config?: any;
+  config?: Record<string, unknown>;
   metrics?: {
     cpu?: number;
     memory?: number;
@@ -152,15 +154,15 @@ export interface HeartbeatData {
   aiContext?: {
     pedestrian_count?: number;
     pedestrian_density?: 'low' | 'medium' | 'high';
-    pedestrian_demographics?: any;
+    pedestrian_demographics?: unknown;
     sentiment_score?: number;
     sentiment_label?: 'positive' | 'neutral' | 'negative';
     emotion_tags?: string[];
     time_of_day?: string;
     day_type?: string;
-    weather_context?: any;
-    event_context?: any;
-    performance_metrics?: any;
+    weather_context?: unknown;
+    event_context?: unknown;
+    performance_metrics?: unknown;
   };
 }
 
@@ -184,10 +186,10 @@ export class TotemService {
   
   // Lazy initialization - só criar quando necessário
   private getAuditService(): AuditService {
-    if (!(global as any).auditServiceInstance) {
-      (global as any).auditServiceInstance = new AuditService();
+    if (!(global as unknown as Record<string, unknown>).auditServiceInstance) {
+      (global as unknown as Record<string, unknown>).auditServiceInstance = new AuditService();
     }
-    return (global as any).auditServiceInstance;
+    return (global as unknown as Record<string, unknown>).auditServiceInstance as AuditService;
   }
 
   private get eventLogService() {
@@ -216,11 +218,10 @@ export class TotemService {
   }
  
   // Normaliza objeto de totem para garantir campo `totem_id` e `id` consistentes
-  private normalizeTotemObject(t: any): any {
-    if (!t) return t;
+  private normalizeTotemObject(t: Record<string, unknown>): TotemResponse {
+    if (!t) return {} as TotemResponse;
     if (t.id && !t.totem_id) t.totem_id = t.id;
     if (t.totem_id && !t.id) t.id = t.totem_id;
-    // PostgreSQL sem aspas nos aliases → node-pg devolve chaves minúsculas (publisherid, localid).
     const firstNum = (...vals: unknown[]): number | undefined => {
       for (const v of vals) {
         if (v === undefined || v === null || v === '') continue;
@@ -247,7 +248,7 @@ export class TotemService {
       t.local_name = localLabel;
       t.location = localLabel;
     }
-    return t;
+    return t as unknown as TotemResponse;
   }
 
   private async resolveScopedPublisherId(
@@ -311,7 +312,7 @@ export class TotemService {
     try {
       const offset = (page - 1) * limit;
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       // Aplicar filtros (PostgreSQL placeholders $1, $2, ...)
       let paramIndex = 1;
@@ -397,41 +398,44 @@ export class TotemService {
       const total = totalResult?.total || 0;
 
       // Normalizar objetos (garantir totem_id)
-      const normalizedTotems = totems.map((tt: any) => this.normalizeTotemObject(tt));
+      const normalizedTotems = totems.map((ttRaw: unknown) => {
+        const tt = ttRaw as unknown as Record<string, unknown>;
+        return this.normalizeTotemObject(tt);
+      });
 
       // Buscar estatísticas para cada totem
       const totemsWithStats = await Promise.all(
         normalizedTotems.map(async (totem) => {
+          const tExt = totem as unknown as Record<string, unknown>;
           // Se houver forced_online_until no futuro, tratar como 'online' temporariamente
-          const forcedUntil = totem.forced_online_until || totem.forcedOnlineUntil || null;
+          const forcedUntil = tExt.forced_online_until || tExt.forcedOnlineUntil || null;
           if (forcedUntil) {
-            const forcedDate = new Date(forcedUntil);
+            const forcedDate = new Date(forcedUntil as string | number | Date);
             if (!isNaN(forcedDate.getTime()) && forcedDate.getTime() > Date.now()) {
               totem.status = 'online';
-              totem.forced_online = true;
-              totem.forced_online_until = forcedDate.toISOString();
+              tExt.forced_online = true;
+              tExt.forced_online_until = forcedDate.toISOString();
             } else {
-              totem.forced_online = false;
+              tExt.forced_online = false;
             }
           } else {
-            totem.forced_online = false;
+            tExt.forced_online = false;
           }
 
           const stats = await this.getTotemStats(totem.id);
           const uptime = await this.calculateUptime(totem.lastHeartbeat);
-          return { ...totem, ...stats, uptime };
+          return { ...totem, ...(stats as object), uptime } as TotemResponse;
         })
       );
 
       return {
-        totems: totemsWithStats,
+        totems: totemsWithStats as TotemResponse[],
         total,
         page,
         limit
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar totems', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar totems', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -472,9 +476,9 @@ export class TotemService {
            OR UPPER(TRIM(COALESCE(t.identifier, ''))) = UPPER($1)
       `, [lookup]);
 
-      return this.normalizeTotemObject(totem);
-    } catch (error: any) {
-      await logError('Erro ao buscar totem por UIN', error);
+      return this.normalizeTotemObject(totem);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar totem por UIN', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -587,10 +591,10 @@ export class TotemService {
       // Buscar estatísticas
       const stats = await this.getTotemStats(normalized.id);
       const uptime = await this.calculateUptime(normalized.lastHeartbeat);
-      return { ...normalized, ...stats, uptime };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar totem', error);
+      return {
+        ...normalized, ...(stats as object), uptime } as TotemResponse;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar totem', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -634,9 +638,9 @@ export class TotemService {
       `,
         [subscriberId, totemId]
       );
-      return Boolean(row);
-    } catch (error: any) {
-      await logError('isTotemAccessibleToSubscriber', error);
+      return Boolean(row);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('isTotemAccessibleToSubscriber', e.error);
       return false;
     }
   }
@@ -685,10 +689,10 @@ export class TotemService {
       // Buscar estatísticas
       const stats = await this.getTotemStats(normalized.id);
       const uptime = await this.calculateUptime(normalized.lastHeartbeat);
-      return { ...normalized, ...stats, uptime };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar totem por identifier', error);
+      return {
+        ...normalized, ...(stats as object), uptime } as TotemResponse;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar totem por identifier', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -738,10 +742,10 @@ export class TotemService {
       // Buscar estatísticas
       const stats = await this.getTotemStats(normalized.id);
       const uptime = await this.calculateUptime(normalized.lastHeartbeat);
-      return { ...normalized, ...stats, uptime };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar totem por device ID', error);
+      return {
+        ...normalized, ...(stats as object), uptime } as TotemResponse;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar totem por device ID', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -955,7 +959,7 @@ export class TotemService {
       await this.cache.invalidateEntity('totem', newTotem.id).catch(() => {});
       
       return { ...newTotem, ...stats, uptime };
-    }).catch((error: any) => {
+    }).catch((error: unknown) => {
       logError('Erro ao criar totem', error);
       throw error;
     });
@@ -1067,7 +1071,7 @@ export class TotemService {
 
       // Construir query de atualização (PostgreSQL placeholders $1, $2, ...)
       const updates: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
       let paramIndex = 1;
 
       if (data.name !== undefined) {
@@ -1114,7 +1118,7 @@ export class TotemService {
         if (typeof data.playerSettings !== 'object' || Array.isArray(data.playerSettings)) {
           throw new Error('playerSettings deve ser um objeto');
         }
-        const patch = data.playerSettings as Record<string, unknown>;
+        const patch = data.playerSettings as unknown as Record<string, unknown>;
         if (patch.deviceId !== undefined) {
           patch.deviceId = normalizeDeviceId(patch.deviceId);
         }
@@ -1122,7 +1126,7 @@ export class TotemService {
           const err = validateDisplayScheduleInput(patch.displaySchedule);
           if (err) throw new Error(err);
         }
-        const existingSettings = (existingTotem as any).playerSettings ?? (existingTotem as any).player_settings ?? {};
+        const existingSettings = (existingTotem as unknown as Record<string, unknown>).playerSettings ?? (existingTotem as unknown as Record<string, unknown>).player_settings ?? {};
         let nextSettings: Record<string, unknown> =
           existingSettings && typeof existingSettings === 'object' && !Array.isArray(existingSettings)
             ? { ...existingSettings }
@@ -1211,8 +1215,8 @@ export class TotemService {
       // Empurra apply_player_config para o player quando player_settings mudam.
       if (data.playerSettings && typeof data.playerSettings === 'object') {
         try {
-          const settings = (updatedTotem as any).playerSettings || (updatedTotem as any).player_settings || {};
-          const patch = data.playerSettings as Record<string, unknown>;
+          const settings = (updatedTotem as unknown as Record<string, unknown>).playerSettings || (updatedTotem as unknown as Record<string, unknown>).player_settings || {};
+          const patch = data.playerSettings as unknown as Record<string, unknown>;
           const commandData: Record<string, unknown> = {};
 
           const copyKeys = [
@@ -1231,9 +1235,10 @@ export class TotemService {
             'maxCacheSizeMb',
             'maxCachePercentOfVolume',
           ] as const;
+          const s = settings as unknown as Record<string, unknown>;
           for (const key of copyKeys) {
             if (patch[key] !== undefined) {
-              commandData[key] = settings[key] ?? patch[key];
+              commandData[key] = s[key] ?? patch[key];
             }
           }
 
@@ -1257,16 +1262,17 @@ export class TotemService {
               updatedBy
             );
           }
-        } catch (e: any) {
+ 
+} catch (rawErr: unknown) {
+          const e = normalizeError(rawErr);
           await logError('Falha ao enfileirar apply_player_config após update totem', e, { totemId });
         }
       }
 
-      return updatedTotem;
-
-    } catch (error: any) {
-      await logError('Erro ao atualizar totem', error);
-      throw error;
+      return updatedTotem;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar totem', e.error);
+      throw e.error;
     }
   }
 
@@ -1309,7 +1315,7 @@ export class TotemService {
 
       // Atualizar dados do heartbeat (PostgreSQL placeholders $1, $2, ...)
       const updates: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
       let paramIndex = 1;
 
       updates.push('last_heartbeat = CURRENT_TIMESTAMP');
@@ -1353,10 +1359,11 @@ export class TotemService {
         try {
           const mixService = getTotemPlaylistMixService();
           await mixService.updateAIContext(totemId, aiContext);
-          await logDebug('Contexto de IA atualizado via heartbeat', { totemId });
-        } catch (error: any) {
+          await logDebug('Contexto de IA atualizado via heartbeat', {
+            totemId });} catch (error: unknown) {
+          const e = normalizeError(error);
           // Log erro mas não falha o heartbeat
-          await logError('Erro ao atualizar contexto de IA no heartbeat', error, { totemId });
+          await logError('Erro ao atualizar contexto de IA no heartbeat', e.error, { totemId });
         }
       }
 
@@ -1380,24 +1387,24 @@ export class TotemService {
       // Invalidar cache relacionado
       await this.cache.invalidateEntity('totem', totemId).catch(() => {});
 
-      return updatedTotem;
-
-    } catch (error: any) {
-      await logError('Erro ao processar heartbeat', error);
-      throw error;
+      return updatedTotem;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao processar heartbeat', e.error);
+      throw e.error;
     }
   }
 
   /**
    * Salva métricas do totem
    */
-  private async saveTotemMetrics(totemId: number, metrics: any): Promise<void> {
+  private async saveTotemMetrics(totemId: number, metrics: Record<string, unknown>): Promise<void> {
     try {
       // Aqui você pode implementar o salvamento de métricas
       // Por exemplo, em uma tabela de métricas ou sistema de monitoramento
-      await logDebug(`Métricas do totem`, { totemId, metrics });
-    } catch (error: any) {
-      await logError('Erro ao salvar métricas', error);
+      await logDebug(`Métricas do totem`, {
+        totemId, metrics });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao salvar métricas', e.error);
     }
   }
 
@@ -1450,14 +1457,13 @@ export class TotemService {
           return {
             campaignCount: campaignCountResult?.count || 0,
             playlistCount: playlistCountResult?.count || 0
-          };
-
-        } catch (error: any) {
-          await logError('Erro ao buscar estatísticas do totem', error);
+          };} catch (error: unknown) {
+          const e = normalizeError(error);
+          await logError('Erro ao buscar estatísticas do totem', e.error);
           return {
             campaignCount: 0,
             playlistCount: 0
-          };
+        };
         }
       },
       120 // Cache por 2 minutos
@@ -1467,7 +1473,7 @@ export class TotemService {
   /**
    * Registra heartbeat do totem
    */
-  async registerHeartbeat(totemId: number, heartbeatData: any): Promise<any> {
+  async registerHeartbeat(totemId: number, heartbeatData: Record<string, unknown>): Promise<Record<string, unknown>> {
     try {
       const existingTotem = await this.getTotemById(totemId);
       if (!existingTotem) {
@@ -1501,18 +1507,19 @@ export class TotemService {
         await this.logTotemHeartbeatEvent({
           totem: updatedTotem,
           previousStatus,
-          status: heartbeatData.status || updatedTotem.status,
-          ipAddress: heartbeatData.ipAddress,
+          status: heartbeatData.status != null ? String(heartbeatData.status) : updatedTotem.status,
+          ipAddress: heartbeatData.ipAddress != null ? String(heartbeatData.ipAddress) : undefined,
           version: updatedTotem.version,
           firmwareVersion: updatedTotem.firmwareVersion,
-          metrics: heartbeatData.systemInfo,
+          metrics: heartbeatData.systemInfo as HeartbeatData['metrics'],
           source: 'registerHeartbeat'
         });
       }
 
-      return { success: true, timestamp: new Date().toISOString() };
-    } catch (error: any) {
-      await logError('Erro ao registrar heartbeat', error);
+      return {
+        success: true, timestamp: new Date().toISOString() };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao registrar heartbeat', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -1520,7 +1527,7 @@ export class TotemService {
   /**
    * Busca histórico de heartbeats
    */
-  async getHeartbeatHistory(totemId: number, filters: any): Promise<any[]> {
+  async getHeartbeatHistory(totemId: number, filters: Record<string, unknown>): Promise<Record<string, unknown>[]> {
     try {
       const heartbeats = await this.db.findMany(`
         SELECT
@@ -1538,9 +1545,9 @@ export class TotemService {
         LIMIT $2
       `, [totemId, filters.limit || 100]);
 
-      return heartbeats;
-    } catch (error: any) {
-      await logError('Erro ao buscar histórico de heartbeats', error);
+      return heartbeats;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar histórico de heartbeats', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -1566,17 +1573,20 @@ export class TotemService {
       }
       
       // Converter mix_items para formato de playlist
-      const playlistItems = currentMix.mix_items.map((item: any, index: number) => ({
-        item_id: index + 1,
-        media_id: item.media_id,
-        playlist_id: item.playlist_id,
-        campaign_id: item.campaign_id,
-        order_index: typeof item.order_index === 'number' ? item.order_index : index,
-        duration: item.duration || 10,
-        weight: item.weight,
-        priority: item.priority,
-        tags: item.tags || [],
-      }));
+      const playlistItems = currentMix.mix_items.map((itemRaw: unknown, index: number) => {
+        const item = itemRaw as unknown as Record<string, unknown>;
+        return ({
+          item_id: index + 1,
+          media_id: item.media_id,
+          playlist_id: item.playlist_id,
+          campaign_id: item.campaign_id,
+          order_index: typeof item.order_index === 'number' ? item.order_index : index,
+          duration: item.duration || 10,
+          weight: item.weight,
+          priority: item.priority,
+          tags: item.tags || [],
+        });
+      });
       
       return {
         mix_id: currentMix.mix_id,
@@ -1590,9 +1600,9 @@ export class TotemService {
         context_snapshot: currentMix.context_snapshot,
         generated_at: currentMix.generated_at,
         applied_at: currentMix.applied_at,
-      };
-    } catch (error: any) {
-      await logError('Erro ao obter playlist mixada', error, { totemId });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter playlist mixada', e.error, { totemId });
       // Fallback para método antigo se houver erro
       return this.getCurrentPlaylist(totemId);
     }
@@ -1617,10 +1627,10 @@ export class TotemService {
         generated_at: newMix.generated_at,
         applied_at: newMix.applied_at,
         items: newMix.mix_items,
-      };
-    } catch (error: any) {
-      await logError('Erro ao gerar playlist mixada', error, { totemId });
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar playlist mixada', e.error, { totemId });
+      throw e.error;
     }
   }
 
@@ -1696,9 +1706,9 @@ export class TotemService {
         items,
         total_items: latest.total_items,
         total_duration: latest.total_duration_seconds,
-      };
-    } catch (error: any) {
-      await logError('Erro ao buscar playlist atual', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar playlist atual', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -1706,7 +1716,7 @@ export class TotemService {
   /**
    * Busca analytics do totem
    */
-  async getTotemAnalytics(totemId: number, filters: any): Promise<any> {
+  async getTotemAnalytics(totemId: number, filters: Record<string, unknown>): Promise<Record<string, unknown>> {
     try {
       const analytics = await this.db.findFirst(`
         SELECT
@@ -1723,9 +1733,9 @@ export class TotemService {
         totemId,
         period: filters.period || '30d',
         ...analytics
-      };
-    } catch (error: any) {
-      await logError('Erro ao buscar analytics do totem', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar analytics do totem', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -1807,8 +1817,8 @@ export class TotemService {
           });
         }
       }
-    } catch (eventError: any) {
-      await logError('Erro ao registrar eventos do totem', eventError, {
+ 
+} catch (eventError: unknown) {      await logError('Erro ao registrar eventos do totem', eventError, {
         totemId: options.totem.id
       });
     }
@@ -1875,10 +1885,9 @@ export class TotemService {
           heartbeats: heartbeatsResult?.count || 0,
           errors: errorsResult?.count || 0
         }
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar estatísticas gerais', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar estatísticas gerais', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -1909,11 +1918,10 @@ export class TotemService {
       await this.getAuditService().log('totem', 'deactivated', deactivatedBy, {
         totemId,
         identifier: totem.identifier
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao desativar totem', error);
-      throw error;
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao desativar totem', e.error);
+      throw e.error;
     }
   }
 
@@ -1943,11 +1951,10 @@ export class TotemService {
       await this.getAuditService().log('totem', 'activated', activatedBy, {
         totemId,
         identifier: totem.identifier
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao ativar totem', error);
-      throw error;
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao ativar totem', e.error);
+      throw e.error;
     }
   }
 
@@ -1974,10 +1981,11 @@ export class TotemService {
       });
 
       // Invalidate cache
-      await this.cache.invalidateEntity('totem', totemId).catch(() => {});
-    } catch (error: any) {
-      await logError('Erro ao forçar totem online', error, { totemId, minutes, requestedBy });
-      throw error;
+      await this.cache.invalidateEntity('totem', totemId).catch(() => {
+        });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao forçar totem online', e.error, { totemId, minutes, requestedBy });
+      throw e.error;
     }
   }
 
@@ -2029,15 +2037,17 @@ export class TotemService {
       });
 
       // Invalidar cache relacionado
-      await this.cache.invalidateEntity('totem', totemId).catch(() => {});
-    } catch (error: any) {
-      await logError('Erro ao remover totem', error);
-      if (error?.code === '23503') {
+      await this.cache.invalidateEntity('totem', totemId).catch(() => {
+        });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao remover totem', e.error);
+      const raw = e.raw as { code?: string; detail?: string } | null;
+      if (raw?.code === '23503') {
         throw new Error(
-          `Falha ao remover totem: ainda existem registros vinculados (${error?.detail || error?.message})`
+          `Falha ao remover totem: ainda existem registros vinculados (${raw?.detail || e.message})`
         );
       }
-      throw error;
+      throw e.error;
     }
   }
 
@@ -2075,18 +2085,20 @@ export class TotemService {
         ORDER BY t.last_heartbeat ASC
       `, [minutes]);
 
-      return totems.map((tt: any) => this.normalizeTotemObject(tt));
-
-    } catch (error: any) {
-      await logError('Erro ao buscar totems offline', error);
+      return totems.map((ttRaw: unknown) => {
+        const tt = ttRaw as unknown as Record<string, unknown>;
+        return this.normalizeTotemObject(tt);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar totems offline', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
 }
 
 export function getTotemService(): TotemService {
-  if (!(global as any).totemServiceInstance) {
-    (global as any).totemServiceInstance = new TotemService();
+  if (!(global as unknown as Record<string, unknown>).totemServiceInstance) {
+    (global as unknown as Record<string, unknown>).totemServiceInstance = new TotemService();
   }
-  return (global as any).totemServiceInstance;
+  return (global as unknown as Record<string, unknown>).totemServiceInstance as TotemService;
 }

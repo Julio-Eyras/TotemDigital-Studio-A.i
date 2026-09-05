@@ -16,14 +16,15 @@ import { normalizeDeviceId } from '../utils/normalizeDeviceId';
 import { resolveDispatchPlanState } from '../utils/dispatchPlanState';
 import { getPlaybackTelemetryService } from './playbackTelemetryService';
 import { getWebSocketService } from './websocketService';
+import { normalizeError } from '../utils/errors';
 
 export interface DispatcherRequest {
   endpoint: string;
   method: string;
   uin?: string;
   totemId?: number;
-  query?: any;
-  body?: any;
+  query: Record<string, unknown>;
+  body: Record<string, unknown>;
   ipAddress?: string;
   userAgent?: string;
   deviceId?: string;
@@ -33,7 +34,7 @@ export interface DispatcherRequest {
 
 export interface DispatcherResponse {
   success: boolean;
-  data?: any;
+  data: Record<string, unknown>;
   error?: string;
   statusCode: number;
   duration: number;
@@ -65,6 +66,15 @@ class DispatcherRouter {
       };
 
       // Log incoming (amarelo) - requisição recebida
+      const body = dispatcherRequest.body && typeof dispatcherRequest.body === 'object'
+        ? (dispatcherRequest.body as unknown as Record<string, unknown>)
+        : {};
+      const media = body.media && typeof body.media === 'object'
+        ? (body.media as Record<string, unknown>)
+        : {};
+      const meta = body.metadata && typeof body.metadata === 'object'
+        ? (body.metadata as Record<string, unknown>)
+        : {};
       dispatcherDebugService.logMessage('incoming', {
         traceId,
         totemId: undefined, // Será preenchido depois
@@ -78,11 +88,11 @@ class DispatcherRouter {
           ...(dispatcherRequest.query || {}),
         },
         ipAddress: dispatcherRequest.ipAddress,
-        eventType: dispatcherRequest.body?.eventType,
+        eventType: body.eventType != null ? String(body.eventType) : undefined,
         mediaName:
-          dispatcherRequest.body?.media?.name ||
-          dispatcherRequest.body?.metadata?.mediaName ||
-          dispatcherRequest.body?.metadata?.name,
+          (media.name != null ? String(media.name) : undefined) ||
+          (meta.mediaName != null ? String(meta.mediaName) : undefined) ||
+          (meta.name != null ? String(meta.name) : undefined),
       });
 
       // Roteia para handler específico
@@ -110,12 +120,8 @@ class DispatcherRouter {
           break;
         
         default:
-          handlerResponse = {
-            success: false,
-            error: `Endpoint não encontrado: ${endpoint}`,
-            statusCode: 404,
-            duration: Date.now() - startTime,
-          };
+          handlerResponse = { success: false, data: {}, error: `Endpoint não encontrado: ${endpoint}`, statusCode: 404, duration: Date.now() - startTime,
+           };
       }
 
       // Log outgoing (verde se sucesso, vermelho se erro)
@@ -131,11 +137,11 @@ class DispatcherRouter {
         fromCache: handlerResponse.fromCache,
         ipAddress: dispatcherRequest.ipAddress,
         statusCode: handlerResponse.statusCode,
-        eventType: dispatcherRequest.body?.eventType,
+        eventType: body.eventType != null ? String(body.eventType) : undefined,
         mediaName:
-          dispatcherRequest.body?.media?.name ||
-          dispatcherRequest.body?.metadata?.mediaName ||
-          dispatcherRequest.body?.metadata?.name,
+          (media.name != null ? String(media.name) : undefined) ||
+          (meta.mediaName != null ? String(meta.mediaName) : undefined) ||
+          (meta.name != null ? String(meta.name) : undefined),
       });
 
       // Enviar resposta HTTP
@@ -143,9 +149,8 @@ class DispatcherRouter {
         handlerResponse.success 
           ? handlerResponse.data 
           : { error: handlerResponse.error }
-      );
-
-    } catch (error: any) {
+      );} catch (error: unknown) {
+      const e = normalizeError(error);
       const duration = Date.now() - startTime;
       
       // Log erro
@@ -156,7 +161,7 @@ class DispatcherRouter {
         endpoint,
         method: req.method,
         response: { success: false, error: 'Erro interno' },
-        error: error.message || 'Erro interno do servidor',
+        error: e.message || 'Erro interno do servidor',
         duration,
         ipAddress: req.ip || req.socket.remoteAddress || undefined,
         statusCode: 500,
@@ -164,7 +169,7 @@ class DispatcherRouter {
         mediaName: req.body?.media?.name || req.body?.metadata?.mediaName || req.body?.metadata?.name,
       });
 
-      await logError(`[DispatcherRouter] Erro ao processar requisição ${endpoint}`, error, {
+      await logError(`[DispatcherRouter] Erro ao processar requisição ${endpoint}`, e.error, {
         requestId,
         endpoint,
         uin: req.query.uin,
@@ -172,7 +177,7 @@ class DispatcherRouter {
 
       res.status(500).json({ 
         error: 'Erro interno do servidor',
-        message: error.message 
+        message: e.message 
       });
     }
   }
@@ -185,12 +190,8 @@ class DispatcherRouter {
     
     try {
       if (!request.uin) {
-        return {
-          success: false,
-          error: 'UIN não fornecido',
-          statusCode: 400,
-          duration: Date.now() - startTime,
-        };
+        return { success: false, data: {}, error: 'UIN não fornecido', statusCode: 400, duration: Date.now() - startTime,
+         };
       }
 
       const hmacToken = generateTotemToken(request.uin);
@@ -199,7 +200,9 @@ class DispatcherRouter {
       try {
         const totemService = new TotemService();
         const totem = await totemService.getTotemByUin(request.uin);
-        const totemId = (totem as any)?.id ?? null;
+        const totemId = totem != null
+          ? Number((totem as unknown as Record<string, unknown>).id) || null
+          : null;
 
         const deviceTokenService = getDeviceTokenService();
         await deviceTokenService.createOrUpdateToken({
@@ -213,9 +216,10 @@ class DispatcherRouter {
           userAgent: request.userAgent || null,
           ttlMs: 3600000,
         });
-      } catch (e) {
+} catch (rawErr: unknown) {
+        const e = normalizeError(rawErr);
         await logDebug('Falha ao registrar device_token', {
-          error: (e as any)?.message,
+          error: (e.raw as { message?: string })?.message,
           uin: request.uin,
         });
       }
@@ -228,14 +232,10 @@ class DispatcherRouter {
         },
         statusCode: 200,
         duration: Date.now() - startTime,
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message || 'Erro ao gerar token',
-        statusCode: 500,
-        duration: Date.now() - startTime,
-      };
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      return { success: false, data: {}, error: e.message || 'Erro ao gerar token', statusCode: 500, duration: Date.now() - startTime,
+       };
     }
   }
 
@@ -247,12 +247,8 @@ class DispatcherRouter {
     
     try {
       if (!request.uin) {
-        return {
-          success: false,
-          error: 'UIN não fornecido',
-          statusCode: 400,
-          duration: Date.now() - startTime,
-        };
+        return { success: false, data: {}, error: 'UIN não fornecido', statusCode: 400, duration: Date.now() - startTime,
+         };
       }
 
       // Validar token se fornecido (HMAC OU device_token — alinhado a dispatch/heartbeat/event)
@@ -266,12 +262,8 @@ class DispatcherRouter {
           userAgent: request.userAgent || undefined,
         });
         if (!validHmac && !validDeviceToken) {
-          return {
-            success: false,
-            error: 'Token inválido ou expirado',
-            statusCode: 401,
-            duration: Date.now() - startTime,
-          };
+          return { success: false, data: {}, error: 'Token inválido ou expirado', statusCode: 401, duration: Date.now() - startTime,
+           };
         }
       }
 
@@ -280,15 +272,11 @@ class DispatcherRouter {
       const totem = await totemService.getTotemByUin(request.uin);
 
       if (!totem) {
-        return {
-          success: false,
-          error: 'Totem não encontrado',
-          statusCode: 404,
-          duration: Date.now() - startTime,
-        };
+        return { success: false, data: {}, error: 'Totem não encontrado', statusCode: 404, duration: Date.now() - startTime,
+         };
       }
 
-      const totemId = (totem as any).id;
+      const totemId = Number((totem as unknown as Record<string, unknown>).id) || undefined;
       request.totemId = totemId;
 
       // Buscar informações adicionais (comandos pendentes, playlist ativa)
@@ -302,19 +290,17 @@ class DispatcherRouter {
             id: totemId,
             uin: request.uin,
             active: totem.active,
-            status: (totem as any).status,
+            status: (totem as unknown as Record<string, unknown>).status != null
+              ? String((totem as unknown as Record<string, unknown>).status)
+              : undefined,
           },
         },
         statusCode: 200,
         duration: Date.now() - startTime,
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message || 'Erro ao validar totem',
-        statusCode: 500,
-        duration: Date.now() - startTime,
-      };
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      return { success: false, data: {}, error: e.message || 'Erro ao validar totem', statusCode: 500, duration: Date.now() - startTime,
+       };
     }
   }
 
@@ -326,23 +312,15 @@ class DispatcherRouter {
     
     try {
       if (!request.uin) {
-        return {
-          success: false,
-          error: 'UIN não fornecido',
-          statusCode: 400,
-          duration: Date.now() - startTime,
-        };
+        return { success: false, data: {}, error: 'UIN não fornecido', statusCode: 400, duration: Date.now() - startTime,
+         };
       }
 
       // Validar token
       const token = request.query?.token as string;
       if (!token) {
-        return {
-          success: false,
-          error: 'Token não fornecido',
-          statusCode: 401,
-          duration: Date.now() - startTime,
-        };
+        return { success: false, data: {}, error: 'Token não fornecido', statusCode: 401, duration: Date.now() - startTime,
+         };
       }
 
       const validHmac = validateTotemToken(request.uin, token);
@@ -358,32 +336,20 @@ class DispatcherRouter {
       );
 
       if (!validHmac && !validDeviceToken) {
-        return {
-          success: false,
-          error: 'Token inválido ou expirado',
-          statusCode: 401,
-          duration: Date.now() - startTime,
-        };
+        return { success: false, data: {}, error: 'Token inválido ou expirado', statusCode: 401, duration: Date.now() - startTime,
+         };
       }
 
       // Buscar totem
       const totemService = new TotemService();
       const totem = await totemService.getTotemByUin(request.uin);
       if (!totem) {
-        return {
-          success: false,
-          error: 'Totem não cadastrado no painel (UIN ou identificador desconhecido)',
-          statusCode: 404,
-          duration: Date.now() - startTime,
-        };
+        return { success: false, data: {}, error: 'Totem não cadastrado no painel (UIN ou identificador desconhecido)', statusCode: 404, duration: Date.now() - startTime,
+         };
       }
       if (!totem.active) {
-        return {
-          success: false,
-          error: 'Totem desativado no painel; reative em Totens para obter plano',
-          statusCode: 404,
-          duration: Date.now() - startTime,
-        };
+        return { success: false, data: {}, error: 'Totem desativado no painel; reative em Totens para obter plano', statusCode: 404, duration: Date.now() - startTime,
+         };
       }
 
       const totemId = totem.id;
@@ -411,6 +377,7 @@ class DispatcherRouter {
       if (!dispatchResponse.success) {
         return {
           success: false,
+          data: {},
           error: dispatchResponse.error || 'Não foi possível gerar plano de exibição',
           statusCode: 200, // Mantém 200 para compatibilidade com player
           duration: Date.now() - startTime,
@@ -427,10 +394,11 @@ class DispatcherRouter {
       if (noPlan || planHasNoItems) {
         try {
           emptyExplanation = await dispatcher.buildEmptyPlanExplanation(totemId, timestamp, timezone);
-        } catch (ex: any) {
+} catch (ex: unknown) {
+          const e = normalizeError(ex);
           await logDebug('[DispatcherRouter] buildEmptyPlanExplanation falhou', {
             totemId,
-            error: ex?.message,
+            error: e.message,
           });
         }
       }
@@ -489,14 +457,10 @@ class DispatcherRouter {
         statusCode: 200,
         duration: Date.now() - startTime,
         fromCache: dispatchResponse.fromCache,
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message || 'Erro ao obter dispatch plan',
-        statusCode: 500,
-        duration: Date.now() - startTime,
-      };
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      return { success: false, data: {}, error: e.message || 'Erro ao obter dispatch plan', statusCode: 500, duration: Date.now() - startTime,
+       };
     }
   }
 
@@ -511,12 +475,8 @@ class DispatcherRouter {
     
     try {
       if (!request.uin) {
-        return {
-          success: false,
-          error: 'UIN não fornecido',
-          statusCode: 400,
-          duration: Date.now() - startTime,
-        };
+        return { success: false, data: {}, error: 'UIN não fornecido', statusCode: 400, duration: Date.now() - startTime,
+         };
       }
 
       const deviceTokenService = getDeviceTokenService();
@@ -524,12 +484,8 @@ class DispatcherRouter {
         // A rota sync fornece um totem já autenticado para não validar o envelope duas vezes.
         const token = request.query?.token as string;
         if (!token) {
-          return {
-            success: false,
-            error: 'Token não fornecido',
-            statusCode: 401,
-            duration: Date.now() - startTime,
-          };
+          return { success: false, data: {}, error: 'Token não fornecido', statusCode: 401, duration: Date.now() - startTime,
+           };
         }
 
         const validHmac = validateTotemToken(request.uin, token);
@@ -544,12 +500,8 @@ class DispatcherRouter {
         );
 
         if (!validHmac && !validDeviceToken) {
-          return {
-            success: false,
-            error: 'Token inválido ou expirado',
-            statusCode: 401,
-            duration: Date.now() - startTime,
-          };
+          return { success: false, data: {}, error: 'Token inválido ou expirado', statusCode: 401, duration: Date.now() - startTime,
+           };
         }
       }
 
@@ -557,27 +509,42 @@ class DispatcherRouter {
       const totemService = new TotemService();
       const totem = authenticatedTotem || (await totemService.getTotemByUin(request.uin));
       if (!totem) {
-        return {
-          success: false,
-          error: 'Totem não cadastrado no painel (UIN ou identificador desconhecido)',
-          statusCode: 404,
-          duration: Date.now() - startTime,
-        };
+        return { success: false, data: {}, error: 'Totem não cadastrado no painel (UIN ou identificador desconhecido)', statusCode: 404, duration: Date.now() - startTime,
+         };
       }
       if (!totem.active) {
-        return {
-          success: false,
-          error: 'Totem desativado no painel; reative em Totens para enviar heartbeat',
-          statusCode: 404,
-          duration: Date.now() - startTime,
-        };
+        return { success: false, data: {}, error: 'Totem desativado no painel; reative em Totens para enviar heartbeat', statusCode: 404, duration: Date.now() - startTime,
+         };
       }
 
-      const totemId = (totem as any).id;
+      const totemId = Number((totem as unknown as Record<string, unknown>).id) || 0;
       request.totemId = totemId;
 
       // Processar heartbeat
-      const { executedCommands, metrics, status, version, firmwareVersion, ipAddress: heartbeatIp, config } = request.body || {};
+      const bodyHb = request.body && typeof request.body === 'object'
+        ? (request.body as unknown as Record<string, unknown>)
+        : {};
+      const executedCommands = Array.isArray(bodyHb.executedCommands) ? bodyHb.executedCommands : [];
+      const metricsRaw = bodyHb.metrics;
+      const metrics = metricsRaw && typeof metricsRaw === 'object' && !Array.isArray(metricsRaw)
+        ? (metricsRaw as unknown as Record<string, unknown>)
+        : undefined;
+      const status = bodyHb.status != null ? String(bodyHb.status) : undefined;
+      const version = bodyHb.version != null ? String(bodyHb.version) : undefined;
+      const firmwareVersion = bodyHb.firmwareVersion != null ? String(bodyHb.firmwareVersion) : undefined;
+      const heartbeatIp = bodyHb.ipAddress != null ? String(bodyHb.ipAddress) : undefined;
+      const configRaw = bodyHb.config;
+      const config = configRaw && typeof configRaw === 'object' && !Array.isArray(configRaw)
+        ? (configRaw as Record<string, unknown>)
+        : undefined;
+      const metricsObj: { cpu?: number; memory?: number; disk?: number; temperature?: number } | undefined = metrics
+        ? {
+            cpu: metrics.cpu != null ? Number(metrics.cpu) : undefined,
+            memory: metrics.memory != null ? Number(metrics.memory) : undefined,
+            disk: metrics.disk != null ? Number(metrics.disk) : undefined,
+            temperature: metrics.temperature != null ? Number(metrics.temperature) : undefined,
+          }
+        : undefined;
 
       await totemService.processHeartbeat({
         totemId,
@@ -586,19 +553,19 @@ class DispatcherRouter {
         firmwareVersion,
         ipAddress: heartbeatIp || request.ipAddress || undefined,
         config,
-        metrics,
+        metrics: metricsObj,
       });
 
       // Espelho nowPlaying + telemetria do Player-AD (relógio, idle, versão).
       // NÃO sobrescrever displaySchedule / pollAdaptive do cadastro com o espelho do player.
       try {
-        const m = metrics && typeof metrics === 'object' ? (metrics as Record<string, unknown>) : {};
+        const m = metrics && typeof metrics === 'object' ? (metrics as unknown as Record<string, unknown>) : {};
         const nowPlaying = m.nowPlaying ?? m.now_playing ?? null;
         const rawPs =
           m.playerSettings && typeof m.playerSettings === 'object' && !Array.isArray(m.playerSettings)
-            ? (m.playerSettings as Record<string, unknown>)
+            ? (m.playerSettings as unknown as Record<string, unknown>)
             : m.player_settings && typeof m.player_settings === 'object' && !Array.isArray(m.player_settings)
-              ? (m.player_settings as Record<string, unknown>)
+              ? (m.player_settings as unknown as Record<string, unknown>)
               : {};
         const deviceClock =
           m.deviceClock ?? m.device_clock ?? rawPs.reportedDeviceClock ?? null;
@@ -606,9 +573,9 @@ class DispatcherRouter {
         const telemetry: Record<string, unknown> = {};
         if (deviceClock != null && typeof deviceClock === 'object' && !Array.isArray(deviceClock)) {
           const serverReceivedAtMs = Date.now();
-          const epochMs = Number((deviceClock as Record<string, unknown>).epochMs || 0);
+          const epochMs = Number((deviceClock as unknown as Record<string, unknown>).epochMs || 0);
           telemetry.reportedDeviceClock = {
-            ...(deviceClock as Record<string, unknown>),
+            ...(deviceClock as unknown as Record<string, unknown>),
             serverReceivedAtMs,
             ...(Number.isFinite(epochMs) && epochMs > 0
               ? { clockDriftMs: epochMs - serverReceivedAtMs }
@@ -657,7 +624,10 @@ class DispatcherRouter {
             deviceClock: telemetry.reportedDeviceClock ?? null,
           });
         }
-      } catch (e: any) {
+ 
+} catch (eCatch: unknown) {
+
+        const e = normalizeError(eCatch);
         await logDebug('Falha ao gravar now_playing/player_settings (colunas podem faltar até apply schema)', {
           error: e?.message,
           totemId,
@@ -705,15 +675,16 @@ class DispatcherRouter {
           userAgent: request.userAgent || null,
           ttlMs: 3600000,
         });
-      } catch (e) {
+} catch (rawErr: unknown) {
+        const e = normalizeError(rawErr);
         await logDebug('Falha ao renovar device_token no heartbeat', {
-          error: (e as any)?.message,
+          error: (e.raw as { message?: string })?.message,
           uin: request.uin,
         });
       }
 
       const { resolveOtaUpdateForHeartbeat } = await import('./otaHeartbeatHelper');
-      const otaUpdate = await resolveOtaUpdateForHeartbeat(totemId, request.body as Record<string, unknown>);
+      const otaUpdate = await resolveOtaUpdateForHeartbeat(totemId, request.body as unknown as Record<string, unknown>);
       const telemetryObservation = await getPlaybackTelemetryService().getObservation(totemId);
 
       let displaySchedule: unknown = null;
@@ -726,8 +697,8 @@ class DispatcherRouter {
         );
         const settings = row?.player_settings;
         if (settings && typeof settings === 'object' && !Array.isArray(settings)) {
-          displaySchedule = (settings as any).displaySchedule ?? null;
-          pollAdaptive = (settings as any).pollAdaptive ?? null;
+          displaySchedule = (settings as unknown as Record<string, unknown>).displaySchedule ?? null;
+          pollAdaptive = (settings as unknown as Record<string, unknown>).pollAdaptive ?? null;
         } else if (typeof settings === 'string') {
           try {
             const parsed = JSON.parse(settings);
@@ -748,7 +719,7 @@ class DispatcherRouter {
       let needsDispatch = true;
       try {
         const metricsObj =
-          metrics && typeof metrics === 'object' ? (metrics as Record<string, unknown>) : {};
+          metrics && typeof metrics === 'object' ? (metrics as unknown as Record<string, unknown>) : {};
         const knownPlanVersion = String(
           metricsObj.knownPlanVersion ||
             metricsObj.known_plan_version ||
@@ -792,14 +763,10 @@ class DispatcherRouter {
         },
         statusCode: 200,
         duration: Date.now() - startTime,
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message || 'Erro ao processar heartbeat',
-        statusCode: 500,
-        duration: Date.now() - startTime,
-      };
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      return { success: false, data: {}, error: e.message || 'Erro ao processar heartbeat', statusCode: 500, duration: Date.now() - startTime,
+       };
     }
   }
 
@@ -811,12 +778,8 @@ class DispatcherRouter {
     
     try {
       if (!request.uin) {
-        return {
-          success: false,
-          error: 'UIN não fornecido',
-          statusCode: 400,
-          duration: Date.now() - startTime,
-        };
+        return { success: false, data: {}, error: 'UIN não fornecido', statusCode: 400, duration: Date.now() - startTime,
+         };
       }
 
       // Validar token se fornecido (HMAC do totem OU device_token — igual a dispatch/heartbeat)
@@ -826,8 +789,8 @@ class DispatcherRouter {
         const deviceTokenService = getDeviceTokenService();
         const meta = request.body?.metadata;
         const deviceIdFromMeta =
-          meta && typeof meta === 'object' && meta !== null && typeof (meta as any).deviceId === 'string'
-            ? normalizeDeviceId((meta as any).deviceId) || null
+          meta && typeof meta === 'object' && meta !== null && typeof (meta as unknown as Record<string, unknown>).deviceId === 'string'
+            ? normalizeDeviceId((meta as unknown as Record<string, unknown>).deviceId) || null
             : null;
         const effectiveDeviceId = normalizeDeviceId(request.deviceId) || deviceIdFromMeta;
         const validDeviceToken = await deviceTokenService.validateToken(request.uin, token, {
@@ -837,12 +800,8 @@ class DispatcherRouter {
         });
 
         if (!validHmac && !validDeviceToken) {
-          return {
-            success: false,
-            error: 'Token inválido ou expirado',
-            statusCode: 401,
-            duration: Date.now() - startTime,
-          };
+          return { success: false, data: {}, error: 'Token inválido ou expirado', statusCode: 401, duration: Date.now() - startTime,
+           };
         }
       }
 
@@ -850,33 +809,39 @@ class DispatcherRouter {
       const totemService = new TotemService();
       const totem = await totemService.getTotemByUin(request.uin);
       if (!totem) {
-        return {
-          success: false,
-          error: 'Totem não cadastrado no painel (UIN ou identificador desconhecido)',
-          statusCode: 404,
-          duration: Date.now() - startTime,
-        };
+        return { success: false, data: {}, error: 'Totem não cadastrado no painel (UIN ou identificador desconhecido)', statusCode: 404, duration: Date.now() - startTime,
+         };
       }
       if (!totem.active) {
-        return {
-          success: false,
-          error: 'Totem desativado no painel; reative em Totens para registar eventos',
-          statusCode: 404,
-          duration: Date.now() - startTime,
-        };
+        return { success: false, data: {}, error: 'Totem desativado no painel; reative em Totens para registar eventos', statusCode: 404, duration: Date.now() - startTime,
+         };
       }
 
-      const totemId = totem.id;
+      const totemId = Number(totem.id) || 0;
       request.totemId = totemId;
 
       // Registrar evento no event_logs (totem_id, entityType, entityId, etc.)
-      const { eventType, mediaId: rawMediaId, playlistId, campaignId, metadata } = request.body || {};
+      const bodyEv = request.body && typeof request.body === 'object'
+        ? (request.body as unknown as Record<string, unknown>)
+        : {};
+      const eventType = bodyEv.eventType;
+      const rawMediaId = bodyEv.mediaId;
+      const rawPlaylistId = bodyEv.playlistId;
+      const rawCampaignId = bodyEv.campaignId;
+      const rawMetadata = bodyEv.metadata;
+      const metadata = rawMetadata && typeof rawMetadata === 'object' && !Array.isArray(rawMetadata)
+        ? (rawMetadata as Record<string, unknown>)
+        : undefined;
       const eventLogService = getEventLogService();
 
       // mediaId pode ser número ou string de fallback (fb-*); event_logs.media_id é INTEGER
       const isFallbackId = typeof rawMediaId === 'string' && rawMediaId.startsWith('fb-');
       const mediaIdNum = rawMediaId != null && !isFallbackId ? Number(rawMediaId) : null;
       const validMediaId = typeof mediaIdNum === 'number' && !Number.isNaN(mediaIdNum) ? mediaIdNum : null;
+      const playlistIdNum = rawPlaylistId != null ? Number(rawPlaylistId) : null;
+      const playlistId = typeof playlistIdNum === 'number' && !Number.isNaN(playlistIdNum) ? playlistIdNum : undefined;
+      const campaignIdNum = rawCampaignId != null ? Number(rawCampaignId) : null;
+      const campaignId = typeof campaignIdNum === 'number' && !Number.isNaN(campaignIdNum) ? campaignIdNum : undefined;
       const effectiveEntityId = validMediaId ?? playlistId ?? totemId;
       const entityType = validMediaId != null ? 'media' : playlistId ? 'playlist' : 'totem';
 
@@ -900,14 +865,10 @@ class DispatcherRouter {
         },
         statusCode: 200,
         duration: Date.now() - startTime,
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message || 'Erro ao registrar evento',
-        statusCode: 500,
-        duration: Date.now() - startTime,
-      };
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      return { success: false, data: {}, error: e.message || 'Erro ao registrar evento', statusCode: 500, duration: Date.now() - startTime,
+       };
     }
   }
 }

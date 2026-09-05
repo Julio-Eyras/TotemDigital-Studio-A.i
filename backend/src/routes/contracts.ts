@@ -1,5 +1,7 @@
-import express from 'express';
+
+
 // Imports não utilizados removidos
+import express, { Request, Response } from 'express';
 import { validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole } from '../middleware/auth.middleware';
 import { protectContractValues } from '../middleware/contractValuesProtection.middleware';
@@ -9,6 +11,7 @@ import { logError } from '../utils/loggerHelper';
 import { assertTenantClientParamAccess } from '../utils/tenantClientAccess';
 import { isAdminRole } from '../utils/tenantScope';
 import { 
+
   createSubscriberContractValidators, 
   updateSubscriberContractValidators,
   createPublisherContractValidators,
@@ -16,6 +19,7 @@ import {
   contractFilterValidators
 } from '../validators/contract.validators';
 import { paginationValidators, searchValidators, idParamValidatorDefault } from '../validators/common.validators';
+import { normalizeError } from '../utils/errors';
 
 const router = express.Router();
 
@@ -26,13 +30,14 @@ router.use(authMiddleware);
 const createContractValidator = createSubscriberContractValidators;
 const updateContractValidator = updateSubscriberContractValidators;
 
-const validateRequest = (req: any, res: any, next: any) => {
+const validateRequest = (req: Request, res: Response, next: express.NextFunction) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'Dados inválidos',
       details: errors.array()
     });
+    return;
   }
   return next();
 };
@@ -47,7 +52,7 @@ router.get('/',
   ...contractFilterValidators,
   validateRequest,
   protectContractValues,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { page = 1, limit = 20, search, subscriberId, planId, status, contractType, activeOnly } = req.query;
       
@@ -62,9 +67,10 @@ router.get('/',
         activeOnly: activeOnly === 'true',
       });
 
-      return res.json({ success: true, data: result });
-    } catch (error: any) {
-      await logError('Erro ao listar contratos', error);
+      return res.json({
+        success: true, data: result });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar contratos', e.error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -78,7 +84,7 @@ router.get('/:id(\\d+)',
   ...idParamValidatorDefault,
   validateRequest,
   protectContractValues,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       
@@ -91,7 +97,8 @@ router.get('/:id(\\d+)',
       if (!isAdminRole(req.user?.role)) {
         try {
           await assertTenantClientParamAccess(req, contract.subscriber_id);
-        } catch (e: any) {
+} catch (rawErr: unknown) {
+  const e = normalizeError(rawErr);
           if (e?.statusCode === 403) {
             return res.status(403).json({ error: e.message || 'Acesso negado' });
           }
@@ -99,9 +106,10 @@ router.get('/:id(\\d+)',
         }
       }
 
-      return res.json({ success: true, data: contract });
-    } catch (error: any) {
-      await logError('Erro ao obter contrato', error);
+      return res.json({
+        success: true, data: contract });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter contrato', e.error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -114,7 +122,7 @@ router.get('/:id(\\d+)',
 router.get('/:id(\\d+)/publishers',
   ...idParamValidatorDefault,
   validateRequest,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const cid = parseInt(id, 10);
@@ -127,7 +135,8 @@ router.get('/:id(\\d+)/publishers',
       if (!isAdminRole(req.user?.role)) {
         try {
           await assertTenantClientParamAccess(req, sid);
-        } catch (e: any) {
+} catch (rawErr: unknown) {
+  const e = normalizeError(rawErr);
           if (e?.statusCode === 403) {
             return res.status(403).json({ error: e.message || 'Acesso negado' });
           }
@@ -137,9 +146,10 @@ router.get('/:id(\\d+)/publishers',
 
       const publishers = await getContractService().getContractPublishers(cid);
 
-      return res.json({ success: true, data: publishers });
-    } catch (error: any) {
-      await logError('Erro ao obter publishers do contrato', error);
+      return res.json({
+        success: true, data: publishers });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter publishers do contrato', e.error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -153,16 +163,17 @@ router.post('/',
   createContractValidator,
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const contract = await getContractService().createContract(req.body);
-      return res.status(201).json({ success: true, data: contract });
-    } catch (error: any) {
-      await logError('Erro ao criar contrato', error);
-      if (error?.message === 'Número de contrato já existe') {
-        return res.status(409).json({ error: error.message });
-      }
-      return res.status(500).json({ error: error.message || 'Erro interno do servidor' });
+      return res.status(201).json({
+        success: true, data: contract });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar contrato', e.error);
+      if (e.message === 'Número de contrato já existe') {
+        return res.status(409).json({ error: e.message });
+    }
+      return res.status(500).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -176,17 +187,18 @@ router.put('/:id(\\d+)',
   ...updateContractValidator,
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const contract = await getContractService().updateContract(parseInt(id), req.body);
-      return res.json({ success: true, data: contract });
-    } catch (error: any) {
-      await logError('Erro ao atualizar contrato', error);
-      if (error?.message === 'Número de contrato já existe') {
-        return res.status(409).json({ error: error.message });
-      }
-      return res.status(500).json({ error: error.message || 'Erro interno do servidor' });
+      return res.json({
+        success: true, data: contract });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar contrato', e.error);
+      if (e.message === 'Número de contrato já existe') {
+        return res.status(409).json({ error: e.message });
+    }
+      return res.status(500).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -199,14 +211,15 @@ router.delete('/:id(\\d+)',
   ...idParamValidatorDefault,
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento']),
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       await getContractService().deleteContract(parseInt(id));
-      return res.json({ success: true, message: 'Contrato excluído com sucesso' });
-    } catch (error: any) {
-      await logError('Erro ao excluir contrato', error);
-      return res.status(500).json({ error: error.message || 'Erro interno do servidor' });
+      return res.json({
+        success: true, message: 'Contrato excluído com sucesso' });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao excluir contrato', e.error);
+      return res.status(500).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -225,7 +238,7 @@ router.get('/publisher-contracts',
   ...contractFilterValidators,
   validateRequest,
   protectContractValues,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { page = 1, limit = 20, search, publisherId, status, contractType, activeOnly } = req.query;
       
@@ -239,9 +252,10 @@ router.get('/publisher-contracts',
         activeOnly: activeOnly === 'true',
       });
 
-      return res.json({ success: true, data: result });
-    } catch (error: any) {
-      await logError('Erro ao listar publisher contracts', error);
+      return res.json({
+        success: true, data: result });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar publisher contracts', e.error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -255,7 +269,7 @@ router.get('/publisher-contracts/:id',
   ...idParamValidatorDefault,
   validateRequest,
   protectContractValues,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const contract = await getPublisherContractService().getContractById(parseInt(id, 10));
@@ -269,7 +283,8 @@ router.get('/publisher-contracts/:id',
           await assertTenantClientParamAccess(req, contract.publisher_id, {
             requestedIdIsPublisherScope: true,
           });
-        } catch (e: any) {
+} catch (rawErr: unknown) {
+  const e = normalizeError(rawErr);
           if (e?.statusCode === 403) {
             return res.status(403).json({ error: e.message || 'Acesso negado' });
           }
@@ -277,9 +292,10 @@ router.get('/publisher-contracts/:id',
         }
       }
 
-      return res.json({ success: true, data: contract });
-    } catch (error: any) {
-      await logError('Erro ao obter publisher contract', error);
+      return res.json({
+        success: true, data: contract });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter publisher contract', e.error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }
@@ -293,16 +309,17 @@ router.post('/publisher-contracts',
   ...createPublisherContractValidators,
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const contract = await getPublisherContractService().createContract(req.body, req.user?.userId);
-      return res.status(201).json({ success: true, data: contract });
-    } catch (error: any) {
-      await logError('Erro ao criar publisher contract', error);
-      if (error?.message === 'Número de contrato já existe') {
-        return res.status(409).json({ error: error.message });
-      }
-      return res.status(500).json({ error: error.message || 'Erro interno do servidor' });
+      return res.status(201).json({
+        success: true, data: contract });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar publisher contract', e.error);
+      if (e.message === 'Número de contrato já existe') {
+        return res.status(409).json({ error: e.message });
+    }
+      return res.status(500).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -316,17 +333,18 @@ router.put('/publisher-contracts/:id',
   ...updatePublisherContractValidators,
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']),
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const contract = await getPublisherContractService().updateContract(parseInt(id), req.body);
-      return res.json({ success: true, data: contract });
-    } catch (error: any) {
-      await logError('Erro ao atualizar publisher contract', error);
-      if (error?.message === 'Número de contrato já existe') {
-        return res.status(409).json({ error: error.message });
-      }
-      return res.status(500).json({ error: error.message || 'Erro interno do servidor' });
+      return res.json({
+        success: true, data: contract });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar publisher contract', e.error);
+      if (e.message === 'Número de contrato já existe') {
+        return res.status(409).json({ error: e.message });
+    }
+      return res.status(500).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -339,14 +357,15 @@ router.delete('/publisher-contracts/:id',
   ...idParamValidatorDefault,
   validateRequest,
   authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento']),
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       await getPublisherContractService().deleteContract(parseInt(id));
-      return res.json({ success: true, message: 'Contrato excluído com sucesso' });
-    } catch (error: any) {
-      await logError('Erro ao excluir publisher contract', error);
-      return res.status(500).json({ error: error.message || 'Erro interno do servidor' });
+      return res.json({
+        success: true, message: 'Contrato excluído com sucesso' });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao excluir publisher contract', e.error);
+      return res.status(500).json({ error: e.message || 'Erro interno do servidor' });
     }
   }
 );
@@ -359,7 +378,7 @@ router.get('/publishers/:id/contracts',
   ...idParamValidatorDefault,
   validateRequest,
   protectContractValues,
-  async (req: any, res: any) => {
+  async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
     try {
       const { id } = req.params;
       const result = await getPublisherContractService().getAllContracts({
@@ -368,9 +387,10 @@ router.get('/publishers/:id/contracts',
         limit: 1000,
       });
 
-      return res.json({ success: true, data: result.data });
-    } catch (error: any) {
-      await logError('Erro ao listar contratos do publisher', error);
+      return res.json({
+        success: true, data: result.data });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar contratos do publisher', e.error);
       return res.status(500).json({ error: 'Erro interno do servidor' });
     }
   }

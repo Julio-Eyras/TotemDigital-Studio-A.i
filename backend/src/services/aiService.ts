@@ -7,6 +7,7 @@ import { getDatabase } from '../config/database';
 import axios from 'axios';
 import { logError } from '../utils/loggerHelper';
 import { config } from '../config/env';
+import { normalizeError } from '../utils/errors';
 
 export interface AIRequest {
   prompt: string;
@@ -27,7 +28,7 @@ export interface AIResponse {
   cost: number;
   processingTime: number;
   timestamp: string;
-  metadata?: any;
+  metadata: Record<string, unknown>;
 }
 
 export interface AIConfig {
@@ -179,11 +180,10 @@ export class AIService {
       // Salvar no banco de dados
       await this.saveAIRequest(aiResponse, userId);
 
-      return aiResponse;
-
-    } catch (error: any) {
-      await logError('Erro ao processar requisição de IA', error, { request });
-      throw error;
+      return aiResponse;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao processar requisição de IA', e.error, { request });
+      throw e.error;
     }
   }
 
@@ -211,10 +211,9 @@ export class AIService {
           created_at: response.data.created_at,
           done: response.data.done
         }
-      };
-
-    } catch (error: any) {
-      await logError('Erro na requisição Ollama', error, { prompt, model });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro na requisição Ollama', e.error, { prompt, model });
       throw new Error('Erro ao processar requisição via Ollama');
     }
   }
@@ -257,10 +256,9 @@ export class AIService {
           created: response.data.created,
           finish_reason: response.data.choices[0].finish_reason
         }
-      };
-
-    } catch (error: any) {
-      await logError('Erro na requisição OpenAI', error, { prompt, model });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro na requisição OpenAI', e.error, { prompt, model });
       throw new Error('Erro ao processar requisição via OpenAI');
     }
   }
@@ -299,10 +297,9 @@ export class AIService {
           id: response.data.id,
           type: response.data.type
         }
-      };
-
-    } catch (error: any) {
-      await logError('Erro na requisição Anthropic', error, { prompt, model });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro na requisição Anthropic', e.error, { prompt, model });
       throw new Error('Erro ao processar requisição via Anthropic');
     }
   }
@@ -329,10 +326,9 @@ export class AIService {
         aiResponse.cost,
         aiResponse.processingTime,
         aiResponse.metadata ? JSON.stringify(aiResponse.metadata) : null
-      ]);
-
-    } catch (error: any) {
-      await logError('Erro ao salvar requisição de IA', error, { requestId: aiResponse.id });
+      ]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao salvar requisição de IA', e.error, { requestId: aiResponse.id });
       // Não falhar a requisição por erro de salvamento
     }
   }
@@ -354,7 +350,7 @@ export class AIService {
     try {
       const offset = (page - 1) * limit;
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       // Aplicar filtros
       if (filters.userId) {
@@ -413,10 +409,9 @@ export class AIService {
         total,
         page,
         limit
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar requisições de IA', error, { filters });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar requisições de IA', e.error, { filters });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -496,10 +491,9 @@ export class AIService {
           tokens: recentActivity?.tokens || 0,
           cost: recentActivity?.cost || 0
         }
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar estatísticas de IA', error, {});
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar estatísticas de IA', e.error, {});
       throw new Error('Erro interno do servidor');
     }
   }
@@ -524,10 +518,9 @@ export class AIService {
         .map(line => line.replace(/^\d+\.\s*/, '').trim())
         .slice(0, 5);
 
-      return suggestions;
-
-    } catch (error: any) {
-      await logError('Erro ao gerar sugestões de conteúdo', error, { context });
+      return suggestions;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar sugestões de conteúdo', e.error, { context });
       throw new Error('Erro ao gerar sugestões de conteúdo');
     }
   }
@@ -552,10 +545,9 @@ export class AIService {
         temperature: 0.7
       }, userId);
 
-      return response.response;
-
-    } catch (error: any) {
-      await logError('Erro ao analisar performance da campanha', error, {});
+      return response.response;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao analisar performance da campanha', e.error, {});
       throw new Error('Erro ao analisar performance da campanha');
     }
   }
@@ -563,7 +555,7 @@ export class AIService {
   /**
    * Gera relatório inteligente
    */
-  async generateIntelligentReport(data: any, userId: number): Promise<string> {
+  async generateIntelligentReport(data: unknown, userId: number): Promise<string> {
     try {
       const prompt = `Com base nos seguintes dados de analytics, gere um relatório inteligente com insights e recomendações:
       
@@ -582,10 +574,10 @@ export class AIService {
         temperature: 0.6
       }, userId);
 
-      return response.response;
-
-    } catch (error: any) {
-      await logError('Erro ao gerar relatório inteligente', error, { filters: data?.filters || null });
+      return response.response;} catch (error: unknown) {
+      const e = normalizeError(error);
+      const d = data as Record<string, unknown>;
+      await logError('Erro ao gerar relatório inteligente', e.error, { filters: d?.filters || null });
       throw new Error('Erro ao gerar relatório inteligente');
     }
   }
@@ -672,14 +664,13 @@ export class AIService {
         provider: this.config.provider,
         status: 'online',
         message: 'Serviço de IA funcionando normalmente'
-      };
-
-    } catch (error: any) {
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
       return {
         enabled: this.config.enabled,
         provider: this.config.provider,
         status: 'error',
-        message: error.message
+        message: e.message
       };
     }
   }

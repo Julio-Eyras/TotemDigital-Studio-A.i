@@ -5,6 +5,7 @@ import { getCacheService } from './cacheService';
 import { getSubscriberService } from './subscriberService';
 import { getBillingEnforcementService } from './billingEnforcementService';
 import { getPlaylistEngineServiceInstance } from './playlistEngineService';
+import { normalizeError } from '../utils/errors';
 
 export type QuickPublishPreset = 'menu' | 'promotion' | 'ad' | 'announcement' | 'institutional';
 
@@ -131,10 +132,13 @@ export class QuickPublishService {
         options?.userRole
       );
 
-      let eligibleTotems: any[];
+      let eligibleTotems: unknown[];
       if (contractId != null) {
         const contracts = await subscriberService.getSubscriberContracts(subscriberId, true);
-        const contract = contracts.find((item: any) => Number(item.contract_id) === contractId);
+        const contract = contracts.find((itemRaw: unknown) => {
+          const item = itemRaw as unknown as Record<string, unknown>;
+          return Number(item.contract_id) === contractId;
+        });
         if (!contract) {
           throw new Error('Contrato ativo não encontrado para este anunciante');
         }
@@ -146,7 +150,10 @@ export class QuickPublishService {
         // Multi Lite / sem contrato: totens via subscriber_publisher_access
         eligibleTotems = await subscriberService.getTotemsBySubscriber(subscriberId);
       }
-      const eligibleTotemIds = new Set(eligibleTotems.map((item: any) => Number(item.totem_id)));
+      const eligibleTotemIds = new Set(eligibleTotems.map((itemRaw: unknown) => {
+        const item = itemRaw as unknown as Record<string, unknown>;
+        return Number(item.totem_id);
+      }));
       const invalidTotemIds = totemIds.filter((id) => !eligibleTotemIds.has(id));
       if (invalidTotemIds.length > 0) {
         throw new Error(
@@ -171,24 +178,34 @@ export class QuickPublishService {
       `, [mediaIds]);
 
       if (mediaRows.length !== mediaIds.length) {
-        const foundIds = mediaRows.map((item: any) => Number(item.media_id));
+        const foundIds = mediaRows.map((itemRaw: unknown) => {
+          const item = itemRaw as unknown as Record<string, unknown>;
+          return Number(item.media_id);
+        });
         const missing = mediaIds.filter((id) => !foundIds.includes(id));
         throw new Error(`Mídias não encontradas ou inativas: ${missing.join(', ')}`);
       }
 
-      const invalidMediaOwners = mediaRows.filter((item: any) => Number(item.subscriber_id) !== subscriberId);
+      const invalidMediaOwners = mediaRows.filter((itemRaw: unknown) => {
+        const item = itemRaw as unknown as Record<string, unknown>;
+        return Number(item.subscriber_id) !== subscriberId;
+      });
       if (invalidMediaOwners.length > 0) {
         throw new Error('Todas as mídias devem pertencer ao anunciante selecionado');
       }
 
-      const notApproved = mediaRows.filter((item: any) => {
+      const notApproved = mediaRows.filter((itemRaw: unknown) => {
+        const item = itemRaw as unknown as Record<string, unknown>;
         const status = String(item.status || '').toLowerCase();
         const approvalStatus = String(item.approval_status || '').toLowerCase();
         return status !== 'approved' || approvalStatus !== 'approved';
       });
       if (notApproved.length > 0) {
         throw new Error(
-          `A publicação rápida exige mídias aprovadas: ${notApproved.map((item: any) => item.name).join(', ')}`
+          `A publicação rápida exige mídias aprovadas: ${notApproved.map((itemRaw: unknown) => {
+            const item = itemRaw as unknown as Record<string, unknown>;
+            return item.name;
+          }).join(', ')}`
         );
       }
 
@@ -200,7 +217,10 @@ export class QuickPublishService {
           AND COALESCE(t.is_active, true) = true
           AND COALESCE(l.is_active, true) = true
       `, [totemIds]);
-      const publisherIds = [...new Set(totemRows.map((item: any) => Number(item.publisher_id)).filter(Boolean))];
+      const publisherIds = [...new Set(totemRows.map((itemRaw: unknown) => {
+        const item = itemRaw as unknown as Record<string, unknown>;
+        return Number(item.publisher_id);
+      }).filter(Boolean))];
       if (publisherIds.length === 0) {
         throw new Error('Não foi possível identificar as organizações (publishers) dos totens selecionados');
       }
@@ -226,7 +246,10 @@ export class QuickPublishService {
 
         for (let index = 0; index < mediaIds.length; index++) {
           const mediaId = mediaIds[index];
-          const media = mediaRows.find((item: any) => Number(item.media_id) === mediaId);
+          const media = mediaRows.find((itemRaw: unknown) => {
+            const item = itemRaw as unknown as Record<string, unknown>;
+            return Number(item.media_id) === mediaId;
+          }) as unknown as Record<string, unknown> | undefined;
           const mediaType = String(media?.media_type || '').toLowerCase();
           const displaySeconds =
             mediaType === 'video' || mediaType === 'audio'
@@ -317,8 +340,9 @@ export class QuickPublishService {
         try {
           await engine.generatePlaylistForTotem(totemId, undefined, true);
           regeneratedTotemIds.push(totemId);
-        } catch (error) {
-          await logError('Erro ao regenerar playlist após publicação rápida', error, { totemId });
+} catch (error: unknown) {
+          const e = normalizeError(error);
+          await logError('Erro ao regenerar playlist após publicação rápida', e.error, { totemId });
         }
       }
 
@@ -338,10 +362,10 @@ export class QuickPublishService {
           : publishNow
             ? 'Conteúdo publicado com sucesso'
             : 'Publicação criada como rascunho',
-      };
-    } catch (error: any) {
-      await logError('Erro na publicação rápida', error, { subscriberId, contractId, totemIds, mediaIds, preset });
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro na publicação rápida', e.error, { subscriberId, contractId, totemIds, mediaIds, preset });
+      throw e.error;
     }
   }
 }

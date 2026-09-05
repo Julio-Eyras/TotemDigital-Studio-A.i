@@ -3,14 +3,17 @@
  * Rotas de autenticação
  */
 
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
+import express from 'express';
+
 import { body, validationResult } from 'express-validator';
 import { AuthService } from '../services/authService';
 import { getTwoFactorService } from '../services/twoFactorService';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { logInfo, logWarn, logError, sanitizeForLogging } from '../utils/loggerHelper';
-import { authLimiter } from '../middleware/security.middleware';
+import { authLimiter, loginHardLimiter, passwordRecoveryLimiter } from '../middleware/security.middleware';
 import { getAuthServiceInstance } from '../utils/globalInstances';
+import { normalizeError, detectUniqueViolation } from '../utils/errors';
 
 const router = Router();
 
@@ -132,7 +135,7 @@ const subscriberLoginValidator = [
     .withMessage('Senha deve ter pelo menos 6 caracteres')
 ];
 
-router.post('/subscriber-login', authLimiter, subscriberLoginValidator, async (req: Request, res: Response) => {
+router.post('/subscriber-login', authLimiter, loginHardLimiter, subscriberLoginValidator, async (req: express.Request, res: express.Response) => {
   const email = req.body?.email;
   try {
     await logInfo('[Auth] POST /api/auth/subscriber-login - Recebendo requisição', {
@@ -188,13 +191,12 @@ router.post('/subscriber-login', authLimiter, subscriberLoginValidator, async (r
       token: result.token,
       refreshToken: result.refreshToken,
       user: result.user
-    });
-
-  } catch (error: any) {
-    await logError('Erro no endpoint /subscriber-login', error, { email });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro no endpoint /subscriber-login', e.error, { email });
     return res.status(500).json({
-      error: `Erro interno do servidor: ${error.message}`,
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      error: `Erro interno do servidor: ${e.message}`,
+      details: process.env.NODE_ENV === 'development' ? e.error.stack : undefined
     });
   }
 });
@@ -203,7 +205,7 @@ router.post('/subscriber-login', authLimiter, subscriberLoginValidator, async (r
  * POST /api/auth/login
  * Autentica usuário
  */
-router.post('/login', authLimiter, loginValidator, async (req: Request, res: Response) => {
+router.post('/login', authLimiter, loginHardLimiter, loginValidator, async (req: express.Request, res: express.Response) => {
   const username = req.body?.username;
   try {
     await logInfo('[Auth] POST /api/auth/login - Recebendo requisição', {
@@ -263,13 +265,12 @@ router.post('/login', authLimiter, loginValidator, async (req: Request, res: Res
       token: result.token,
       refreshToken: result.refreshToken,
       user: result.user
-    });
-
-  } catch (error: any) {
-    await logError('Erro no endpoint /login', error, { username });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro no endpoint /login', e.error, { username });
     return res.status(500).json({
-      error: `Erro interno do servidor: ${error.message}`,
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      error: `Erro interno do servidor: ${e.message}`,
+      details: process.env.NODE_ENV === 'development' ? e.error.stack : undefined
     });
   }
 });
@@ -278,7 +279,7 @@ router.post('/login', authLimiter, loginValidator, async (req: Request, res: Res
  * POST /api/auth/register
  * Registra novo usuário
  */
-router.post('/register', authLimiter, registerValidator, async (req: Request, res: Response) => {
+router.post('/register', authLimiter, registerValidator, async (req: express.Request, res: express.Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -301,12 +302,17 @@ router.post('/register', authLimiter, registerValidator, async (req: Request, re
       token: result.token,
       refreshToken: result.refreshToken,
       user: result.user
-    });
-
-  } catch (error: any) {
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
     // Sanitizar dados antes de logar
     const sanitizedBody = req.body ? sanitizeForLogging(req.body) : null;
-    await logError('Erro no registro', error, { username: sanitizedBody?.username });
+    const unique = detectUniqueViolation(error);
+    await logError('Erro no registro', e.error, { username: sanitizedBody?.username, uniqueViolation: unique.unique });
+    if (unique.unique) {
+      return res.status(409).json({
+        error: unique.message || 'Nome de usuário ou email já cadastrado',
+      });
+    }
     return res.status(500).json({
       error: 'Erro interno do servidor'
     });
@@ -317,7 +323,7 @@ router.post('/register', authLimiter, registerValidator, async (req: Request, re
  * POST /api/auth/refresh
  * Atualiza token de acesso
  */
-router.post('/refresh', refreshTokenValidator, async (req: Request, res: Response) => {
+router.post('/refresh', refreshTokenValidator, async (req: express.Request, res: express.Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -339,10 +345,9 @@ router.post('/refresh', refreshTokenValidator, async (req: Request, res: Respons
       message: 'Token atualizado com sucesso',
       token: result.token,
       user: result.user
-    });
-
-  } catch (error: any) {
-    await logError('Erro no refresh token', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro no refresh token', e.error);
     return res.status(500).json({
       error: 'Erro interno do servidor'
     });
@@ -353,7 +358,7 @@ router.post('/refresh', refreshTokenValidator, async (req: Request, res: Respons
  * GET /api/auth/me
  * Retorna dados do usuário autenticado
  */
-router.get('/me', authMiddleware as any, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/me', authMiddleware as any, async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const user = await getAuthService().getMe(req.user!.id);
     
@@ -365,10 +370,9 @@ router.get('/me', authMiddleware as any, async (req: AuthenticatedRequest, res: 
 
     return res.json({
       user
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar dados do usuário autenticado', error, { userId: req.user?.id });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar dados do usuário autenticado', e.error, { userId: req.user?.id });
     return res.status(500).json({
       error: 'Erro interno do servidor'
     });
@@ -379,7 +383,7 @@ router.get('/me', authMiddleware as any, async (req: AuthenticatedRequest, res: 
  * POST /api/auth/change-password
  * Altera senha do usuário
  */
-router.post('/change-password', authMiddleware as any, ...changePasswordValidator, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/change-password', authMiddleware as any, ...changePasswordValidator, async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -399,10 +403,9 @@ router.post('/change-password', authMiddleware as any, ...changePasswordValidato
 
     return res.json({
       message: 'Senha alterada com sucesso'
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao alterar senha', error, { userId: req.user?.id });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao alterar senha', e.error, { userId: req.user?.id });
     return res.status(500).json({
       error: 'Erro interno do servidor'
     });
@@ -413,7 +416,7 @@ router.post('/change-password', authMiddleware as any, ...changePasswordValidato
  * POST /api/auth/logout
  * Logout do usuário
  */
-router.post('/logout', authMiddleware as any, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/logout', authMiddleware as any, async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const result = await getAuthService().logout(req.user!.id);
     
@@ -425,10 +428,9 @@ router.post('/logout', authMiddleware as any, async (req: AuthenticatedRequest, 
 
     return res.json({
       message: 'Logout realizado com sucesso'
-    });
-
-  } catch (error: any) {
-    await logError('Erro no logout', error, { userId: req.user?.id });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro no logout', e.error, { userId: req.user?.id });
     return res.status(500).json({
       error: 'Erro interno do servidor'
     });
@@ -439,7 +441,7 @@ router.post('/logout', authMiddleware as any, async (req: AuthenticatedRequest, 
  * POST /api/auth/verify-abandon-pin
  * Verifica PIN de abandono do player
  */
-router.post('/verify-abandon-pin', abandonPinValidator, async (req: Request, res: Response) => {
+router.post('/verify-abandon-pin', abandonPinValidator, async (req: express.Request, res: express.Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -460,10 +462,9 @@ router.post('/verify-abandon-pin', abandonPinValidator, async (req: Request, res
     return res.json({
       message: 'PIN verificado com sucesso',
       valid: true
-    });
-
-  } catch (error: any) {
-    await logError('Erro na verificação do PIN de abandono', error, {
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro na verificação do PIN de abandono', e.error, {
       hasPin: Boolean(req.body?.pin)
     });
     return res.status(500).json({
@@ -476,7 +477,7 @@ router.post('/verify-abandon-pin', abandonPinValidator, async (req: Request, res
  * GET /api/auth/default-credentials
  * Retorna credenciais padrão para primeira execução
  */
-router.get('/default-credentials', async (_req: Request, res: Response) => {
+router.get('/default-credentials', async (_req: express.Request, res: express.Response) => {
   try {
     // Verificar se é primeira execução (sem usuários)
     const { getDatabase } = await import('../config/database');
@@ -495,10 +496,9 @@ router.get('/default-credentials', async (_req: Request, res: Response) => {
         password: 'admin',
         message: 'Use estas credenciais para o primeiro acesso. Altere imediatamente após o login.'
       } : null
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao verificar credenciais padrão', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao verificar credenciais padrão', e.error);
     return res.status(500).json({
       error: 'Erro interno do servidor'
     });
@@ -509,7 +509,7 @@ router.get('/default-credentials', async (_req: Request, res: Response) => {
  * POST /api/auth/forgot-password
  * Solicita recuperação de senha
  */
-router.post('/forgot-password', authLimiter, forgotPasswordValidator, async (req: Request, res: Response) => {
+router.post('/forgot-password', authLimiter, passwordRecoveryLimiter, forgotPasswordValidator, async (req: express.Request, res: express.Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -534,12 +534,11 @@ router.post('/forgot-password', authLimiter, forgotPasswordValidator, async (req
       message: result.message,
       // Em desenvolvimento, retornar token para facilitar testes
       ...(process.env.NODE_ENV === 'development' && result.token ? { token: result.token } : {})
-    });
-
-  } catch (error: any) {
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
     // Sanitizar dados antes de logar (email pode ser considerado sensível)
     const sanitizedBody = req.body ? sanitizeForLogging(req.body) : null;
-    await logError('Erro ao solicitar recuperação de senha', error, { email: sanitizedBody?.email });
+    await logError('Erro ao solicitar recuperação de senha', e.error, { email: sanitizedBody?.email });
     return res.status(500).json({
       error: 'Erro interno do servidor'
     });
@@ -550,7 +549,7 @@ router.post('/forgot-password', authLimiter, forgotPasswordValidator, async (req
  * POST /api/auth/reset-password
  * Redefine senha usando token
  */
-router.post('/reset-password', authLimiter, resetPasswordValidator, async (req: Request, res: Response) => {
+router.post('/reset-password', authLimiter, resetPasswordValidator, async (req: express.Request, res: express.Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -572,10 +571,9 @@ router.post('/reset-password', authLimiter, resetPasswordValidator, async (req: 
     return res.json({
       success: true,
       message: result.message
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao redefinir senha', error, {
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao redefinir senha', e.error, {
       tokenLength: req.body?.token ? String(req.body.token).length : 0
     });
     return res.status(500).json({
@@ -600,7 +598,7 @@ const twoFactorCodeValidator = [
  * POST /api/auth/2fa/verify
  * Verifica código 2FA após login inicial
  */
-router.post('/2fa/verify', authLimiter, twoFactorCodeValidator, async (req: Request, res: Response) => {
+router.post('/2fa/verify', authLimiter, twoFactorCodeValidator, async (req: express.Request, res: express.Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -663,10 +661,9 @@ router.post('/2fa/verify', authLimiter, twoFactorCodeValidator, async (req: Requ
         role: user.role,
         subscriberId: (user as any).subscriber_id
       }
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao verificar 2FA', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao verificar 2FA', e.error);
     return res.status(500).json({
       error: 'Erro interno do servidor'
     });
@@ -677,15 +674,15 @@ router.post('/2fa/verify', authLimiter, twoFactorCodeValidator, async (req: Requ
  * POST /api/auth/2fa/setup
  * Inicia setup de 2FA (gera QR code)
  */
-router.post('/2fa/setup', authMiddleware as any, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/2fa/setup', authMiddleware as any, async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({
         error: 'Não autenticado'
       });
     }
-    const userId = req.user.id;
-    const userEmail = req.user.email || `${req.user.username}@smartsignage.local`;
+    const userId = req.user!.id;
+    const userEmail = req.user!.email || `${req.user!.username}@smartsignage.local`;
 
     const twoFactorService = getTwoFactorService();
     const setup = await twoFactorService.setupTwoFactor(userId, userEmail);
@@ -695,10 +692,9 @@ router.post('/2fa/setup', authMiddleware as any, async (req: AuthenticatedReques
     return res.json({
       success: true,
       data: setup
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao iniciar setup 2FA', error, { userId: (req as any).user?.id });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao iniciar setup 2FA', e.error, { userId: (req as any).user?.id });
     return res.status(500).json({
       error: 'Erro interno do servidor'
     });
@@ -709,7 +705,7 @@ router.post('/2fa/setup', authMiddleware as any, async (req: AuthenticatedReques
  * POST /api/auth/2fa/enable
  * Habilita 2FA após verificação do código
  */
-router.post('/2fa/enable', authMiddleware as any, twoFactorCodeValidator, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/2fa/enable', authMiddleware as any, twoFactorCodeValidator, async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -724,7 +720,7 @@ router.post('/2fa/enable', authMiddleware as any, twoFactorCodeValidator, async 
         error: 'Não autenticado'
       });
     }
-    const userId = req.user.id;
+    const userId = req.user!.id;
     const { code } = req.body;
 
     const twoFactorService = getTwoFactorService();
@@ -741,10 +737,9 @@ router.post('/2fa/enable', authMiddleware as any, twoFactorCodeValidator, async 
     return res.json({
       success: true,
       message: 'Autenticação de dois fatores habilitada com sucesso'
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao habilitar 2FA', error, { userId: (req as any).user?.id });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao habilitar 2FA', e.error, { userId: (req as any).user?.id });
     return res.status(500).json({
       error: 'Erro interno do servidor'
     });
@@ -755,14 +750,14 @@ router.post('/2fa/enable', authMiddleware as any, twoFactorCodeValidator, async 
  * POST /api/auth/2fa/disable
  * Desabilita 2FA
  */
-router.post('/2fa/disable', authMiddleware as any, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/2fa/disable', authMiddleware as any, async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({
         error: 'Não autenticado'
       });
     }
-    const userId = req.user.id;
+    const userId = req.user!.id;
 
     const twoFactorService = getTwoFactorService();
     const result = await twoFactorService.disableTwoFactor(userId);
@@ -778,10 +773,9 @@ router.post('/2fa/disable', authMiddleware as any, async (req: AuthenticatedRequ
     return res.json({
       success: true,
       message: 'Autenticação de dois fatores desabilitada com sucesso'
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao desabilitar 2FA', error, { userId: (req as any).user?.id });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao desabilitar 2FA', e.error, { userId: (req as any).user?.id });
     return res.status(500).json({
       error: 'Erro interno do servidor'
     });
@@ -792,14 +786,14 @@ router.post('/2fa/disable', authMiddleware as any, async (req: AuthenticatedRequ
  * GET /api/auth/2fa/status
  * Obtém status e estatísticas de 2FA
  */
-router.get('/2fa/status', authMiddleware as any, async (req: AuthenticatedRequest, res: Response) => {
+router.get('/2fa/status', authMiddleware as any, async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({
         error: 'Não autenticado'
       });
     }
-    const userId = req.user.id;
+    const userId = req.user!.id;
 
     const twoFactorService = getTwoFactorService();
     const stats = await twoFactorService.getTwoFactorStats(userId);
@@ -807,10 +801,9 @@ router.get('/2fa/status', authMiddleware as any, async (req: AuthenticatedReques
     return res.json({
       success: true,
       data: stats
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao obter status 2FA', error, { userId: (req as any).user?.id });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao obter status 2FA', e.error, { userId: (req as any).user?.id });
     return res.status(500).json({
       error: 'Erro interno do servidor'
     });
@@ -821,14 +814,14 @@ router.get('/2fa/status', authMiddleware as any, async (req: AuthenticatedReques
  * POST /api/auth/2fa/regenerate-backup-codes
  * Regenera códigos de backup
  */
-router.post('/2fa/regenerate-backup-codes', authMiddleware as any, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/2fa/regenerate-backup-codes', authMiddleware as any, async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({
         error: 'Não autenticado'
       });
     }
-    const userId = req.user.id;
+    const userId = req.user!.id;
 
     const twoFactorService = getTwoFactorService();
     const backupCodes = await twoFactorService.regenerateBackupCodes(userId);
@@ -840,10 +833,9 @@ router.post('/2fa/regenerate-backup-codes', authMiddleware as any, async (req: A
       data: {
         backupCodes
       }
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao regenerar backup codes', error, { userId: (req as any).user?.id });
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao regenerar backup codes', e.error, { userId: (req as any).user?.id });
     return res.status(500).json({
       error: 'Erro interno do servidor'
     });

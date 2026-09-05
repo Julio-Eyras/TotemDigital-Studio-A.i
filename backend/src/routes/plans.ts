@@ -4,9 +4,12 @@
  */
 
 import { Router } from 'express';
+import express from 'express';
+
 import { PlanService } from '../services/planService';
 import { authenticateToken, authorizeRole } from '../middleware/auth.middleware';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -30,15 +33,14 @@ router.get('/', async (_req, res) => {
     return res.json({
       success: true,
       data: plans
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao listar planos', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao listar planos', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -55,15 +57,14 @@ router.get('/all', authenticateToken, authorizeRole(['admin', 'admin_sql']), asy
     return res.json({
       success: true,
       data: plans
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao listar todos os planos', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao listar todos os planos', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -80,14 +81,15 @@ router.get('/:id/network-topology', authenticateToken, async (req, res) => {
     }
 
     const topology = await getPlanService().getPlanNetworkTopology(planId);
-    return res.json({ success: true, data: topology });
-  } catch (error: any) {
-    await logError('Erro ao buscar topologia do plano', error);
-    const status = error.message === 'Plano não encontrado' ? 404 : 500;
+    return res.json({
+      success: true, data: topology });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar topologia do plano', e.error);
+    const status = e.message === 'Plano não encontrado' ? 404 : 500;
     return res.status(status).json({
       success: false,
-      message: error.message || 'Erro interno do servidor',
-    });
+      message: e.message || 'Erro interno do servidor',
+  });
   }
 });
 
@@ -111,15 +113,14 @@ router.get('/:id', async (req, res) => {
     return res.json({
       success: true,
       data: plan
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar plano', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar plano', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -143,15 +144,14 @@ router.get('/slug/:slug', async (req, res) => {
     return res.json({
       success: true,
       data: plan
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao buscar plano por slug', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao buscar plano por slug', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -160,7 +160,7 @@ router.get('/slug/:slug', async (req, res) => {
  * @desc Cria novo plano
  * @access Private (Apenas roles administrativos - baseado em contrato)
  */
-router.post('/', authenticateToken, authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']), async (req: any, res) => {
+router.post('/', authenticateToken, authorizeRole(['admin', 'admin_sql', 'owner_system', 'operador_faturamento', 'operador_comercial']), async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const planData = req.body;
 
@@ -170,15 +170,14 @@ router.post('/', authenticateToken, authorizeRole(['admin', 'admin_sql', 'owner_
       success: true,
       message: 'Plano criado com sucesso',
       data: plan
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao criar plano', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao criar plano', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao criar plano',
-      error: error.message
-    });
+      message: e.message || 'Erro ao criar plano',
+      error: e.message
+  });
   }
 });
 
@@ -187,7 +186,7 @@ router.post('/', authenticateToken, authorizeRole(['admin', 'admin_sql', 'owner_
  * @desc Atualiza plano
  * @access Private (Admin)
  */
-router.put('/:id', authenticateToken, authorizeRole(['admin']), async (req: any, res) => {
+router.put('/:id', authenticateToken, authorizeRole(['admin']), async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { id } = req.params;
     const updateData = req.body;
@@ -198,15 +197,14 @@ router.put('/:id', authenticateToken, authorizeRole(['admin']), async (req: any,
       success: true,
       message: 'Plano atualizado com sucesso',
       data: plan
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao atualizar plano', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao atualizar plano', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao atualizar plano',
-      error: error.message
-    });
+      message: e.message || 'Erro ao atualizar plano',
+      error: e.message
+  });
   }
 });
 
@@ -215,7 +213,7 @@ router.put('/:id', authenticateToken, authorizeRole(['admin']), async (req: any,
  * @desc Remove plano
  * @access Private (Admin)
  */
-router.delete('/:id', authenticateToken, authorizeRole(['admin']), async (req: any, res) => {
+router.delete('/:id', authenticateToken, authorizeRole(['admin']), async (req: express.Request, res: express.Response): Promise<express.Response | void> => {
   try {
     const { id } = req.params;
 
@@ -224,15 +222,14 @@ router.delete('/:id', authenticateToken, authorizeRole(['admin']), async (req: a
     return res.json({
       success: true,
       message: 'Plano removido com sucesso'
-    });
-
-  } catch (error: any) {
-    await logError('Erro ao remover plano', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao remover plano', e.error);
     return res.status(400).json({
       success: false,
-      message: error.message || 'Erro ao remover plano',
-      error: error.message
-    });
+      message: e.message || 'Erro ao remover plano',
+      error: e.message
+  });
   }
 });
 

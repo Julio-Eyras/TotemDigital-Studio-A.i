@@ -6,6 +6,7 @@
 import Stripe from 'stripe';
 import { config } from '../config/env';
 import { logError, logInfo } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export class StripeService {
   private stripe: Stripe | null = null;
@@ -16,9 +17,10 @@ export class StripeService {
         this.stripe = new Stripe(config.stripe.secretKey, {
           apiVersion: config.stripe.apiVersion as any,
         });
-        logInfo('Stripe inicializado com sucesso', {});
-      } catch (error: any) {
-        logError('Erro ao inicializar Stripe', error);
+        logInfo('Stripe inicializado com sucesso', {
+          });} catch (error: unknown) {
+      const e = normalizeError(error);
+        logError('Erro ao inicializar Stripe', e.error);
       }
     }
   }
@@ -59,11 +61,10 @@ export class StripeService {
       });
 
       await logInfo('Customer criado no Stripe', { customerId: customer.id, clientId });
-      return customer;
-
-    } catch (error: any) {
-      await logError('Erro ao criar/buscar customer no Stripe', error, { clientId, email });
-      throw error;
+      return customer;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar/buscar customer no Stripe', e.error, { clientId, email });
+      throw e.error;
     }
   }
 
@@ -90,11 +91,10 @@ export class StripeService {
       });
 
       await logInfo('Subscription criada no Stripe', { subscriptionId: subscription.id, customerId });
-      return subscription;
-
-    } catch (error: any) {
-      await logError('Erro ao criar subscription no Stripe', error, { customerId, priceId });
-      throw error;
+      return subscription;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar subscription no Stripe', e.error, { customerId, priceId });
+      throw e.error;
     }
   }
 
@@ -112,11 +112,10 @@ export class StripeService {
       });
 
       await logInfo('Subscription cancelada no Stripe', { subscriptionId, cancelAtPeriodEnd });
-      return subscription;
-
-    } catch (error: any) {
-      await logError('Erro ao cancelar subscription no Stripe', error, { subscriptionId });
-      throw error;
+      return subscription;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao cancelar subscription no Stripe', e.error, { subscriptionId });
+      throw e.error;
     }
   }
 
@@ -134,11 +133,10 @@ export class StripeService {
       });
 
       await logInfo('Subscription retomada no Stripe', { subscriptionId });
-      return subscription;
-
-    } catch (error: any) {
-      await logError('Erro ao retomar subscription no Stripe', error, { subscriptionId });
-      throw error;
+      return subscription;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao retomar subscription no Stripe', e.error, { subscriptionId });
+      throw e.error;
     }
   }
 
@@ -152,11 +150,10 @@ export class StripeService {
 
     try {
       const subscription = await this.stripe!.subscriptions.retrieve(subscriptionId);
-      return subscription;
-
-    } catch (error: any) {
-      await logError('Erro ao buscar subscription no Stripe', error, { subscriptionId });
-      throw error;
+      return subscription;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar subscription no Stripe', e.error, { subscriptionId });
+      throw e.error;
     }
   }
 
@@ -185,11 +182,10 @@ export class StripeService {
       });
 
       await logInfo('Payment intent criado no Stripe', { paymentIntentId: paymentIntent.id, amount });
-      return paymentIntent;
-
-    } catch (error: any) {
-      await logError('Erro ao criar payment intent no Stripe', error, { amount, currency });
-      throw error;
+      return paymentIntent;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar payment intent no Stripe', e.error, { amount, currency });
+      throw e.error;
     }
   }
 
@@ -203,11 +199,10 @@ export class StripeService {
 
     try {
       const invoice = await this.stripe!.invoices.retrieve(invoiceId);
-      return invoice;
-
-    } catch (error: any) {
-      await logError('Erro ao buscar invoice no Stripe', error, { invoiceId });
-      throw error;
+      return invoice;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar invoice no Stripe', e.error, { invoiceId });
+      throw e.error;
     }
   }
 
@@ -242,11 +237,10 @@ export class StripeService {
       });
 
       await logInfo('Checkout session criada no Stripe', { sessionId: session.id });
-      return session;
-
-    } catch (error: any) {
-      await logError('Erro ao criar checkout session no Stripe', error, { priceId });
-      throw error;
+      return session;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar checkout session no Stripe', e.error, { priceId });
+      throw e.error;
     }
   }
 
@@ -306,10 +300,9 @@ export class StripeService {
         signature,
         config.stripe.webhookSecret
       );
-      return event;
-
-    } catch (error: any) {
-      await logError('Erro ao verificar webhook signature', error);
+      return event;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao verificar webhook signature', e.error);
       throw new Error('Webhook signature inválida');
     }
   }

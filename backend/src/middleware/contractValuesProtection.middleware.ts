@@ -22,25 +22,32 @@ const SENSITIVE_FIELDS = [
  * Middleware para proteger valores contratuais na resposta
  */
 export const protectContractValues = (req: Request, res: Response, next: NextFunction): void => {
-  const user = (req as any).user;
-  const canViewSensitiveValues = user && AUTHORIZED_ROLES.includes(user.role);
+  const user = req.user;
+  const canViewSensitiveValues = Boolean(user && AUTHORIZED_ROLES.includes(user.role));
 
   // Interceptar resposta
   const originalJson = res.json.bind(res);
   
-  res.json = function(data: any) {
-    if (!canViewSensitiveValues && data) {
+  res.json = function (data: unknown) {
+    if (!canViewSensitiveValues && data != null && typeof data === 'object') {
+      const d = data as Record<string, unknown>;
       // Se for array, processar cada item
-      if (Array.isArray(data.data)) {
-        data.data = data.data.map((contract: any) => sanitizeContract(contract));
+      if (Array.isArray(d.data)) {
+        (d.data as unknown[]) = (d.data as unknown[]).map(
+          (contract) => sanitizeContract(contract as Record<string, unknown>)
+        );
       } else if (Array.isArray(data)) {
-        data = data.map((contract: any) => sanitizeContract(contract));
-      } else if (data.data && typeof data.data === 'object') {
+        return originalJson(
+          (data as unknown[]).map((contract) =>
+            sanitizeContract(contract as Record<string, unknown>)
+          )
+        );
+      } else if (d.data && typeof d.data === 'object' && !Array.isArray(d.data)) {
         // Se for objeto único
-        data.data = sanitizeContract(data.data);
-      } else if (typeof data === 'object' && !Array.isArray(data)) {
+        d.data = sanitizeContract(d.data as Record<string, unknown>);
+      } else if (typeof data === 'object') {
         // Se for objeto direto
-        data = sanitizeContract(data);
+        return originalJson(sanitizeContract(data as Record<string, unknown>));
       }
     }
     
@@ -53,18 +60,18 @@ export const protectContractValues = (req: Request, res: Response, next: NextFun
 /**
  * Remove campos sensíveis de um contrato
  */
-function sanitizeContract(contract: any): any {
+function sanitizeContract<T extends Record<string, unknown>>(contract: T): T {
   if (!contract || typeof contract !== 'object') {
     return contract;
   }
 
-  const sanitized = { ...contract };
+  const sanitized: Record<string, unknown> = { ...contract };
   
-  SENSITIVE_FIELDS.forEach(field => {
+  for (const field of SENSITIVE_FIELDS) {
     if (field in sanitized) {
       delete sanitized[field];
     }
-  });
+  }
 
-  return sanitized;
+  return sanitized as T;
 }

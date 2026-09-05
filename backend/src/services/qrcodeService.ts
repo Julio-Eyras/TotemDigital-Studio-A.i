@@ -10,6 +10,7 @@ import { AuditService } from './auditService';
 import { logError } from '../utils/loggerHelper';
 import { getEventLogService } from './eventLogService';
 import * as QRCode from 'qrcode';
+import { normalizeError } from '../utils/errors';
 
 export interface CreateQRCodeRequest {
   campaignId: number; // OBRIGATÓRIO: QR code pertence a uma campanha
@@ -114,10 +115,10 @@ export class QRCodeService {
   
   // Lazy initialization - só criar quando necessário
   private getAuditService(): AuditService {
-    if (!(global as any).auditServiceInstance) {
-      (global as any).auditServiceInstance = new AuditService();
+    if (!(global as unknown as Record<string, unknown>).auditServiceInstance) {
+      (global as unknown as Record<string, unknown>).auditServiceInstance = new AuditService();
     }
-    return (global as any).auditServiceInstance;
+    return (global as unknown as Record<string, unknown>).auditServiceInstance as AuditService;
   }
 
   /**
@@ -147,8 +148,7 @@ export class QRCodeService {
         scanResult: 'success', // Padrão conceitual: 'success' | 'failure'
         deviceInfo: scanData.deviceInfo
       });
-    } catch (eventError: any) {
-      await logError('Erro ao registrar evento de scan de QR Code', eventError, {
+} catch (eventError: unknown) {      await logError('Erro ao registrar evento de scan de QR Code', eventError, {
         qrCodeId: qrCode.id
       });
     }
@@ -172,7 +172,7 @@ export class QRCodeService {
     try {
       const offset = (page - 1) * limit;
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       // Aplicar filtros
       // QR codes não têm client_id direto - derivar de campaign_id
@@ -272,10 +272,9 @@ export class QRCodeService {
         total,
         page,
         limit
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar QR Codes', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar QR Codes', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -328,10 +327,10 @@ export class QRCodeService {
 
       const info = this.getQRCodeInfo(qrCode);
       const qrCodeImage = await this.generateQRCodeImage(qrCode);
-      return { ...qrCode, ...info, qrCodeImage };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar QR Code', error);
+      return {
+        ...qrCode, ...info, qrCodeImage };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar QR Code', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -465,8 +464,7 @@ export class QRCodeService {
           const buffer = Buffer.from(base64Data, 'base64');
           fs.writeFileSync(filePath, buffer, { mode: 0o644 });
           imageUrl = `/assets/uploads/qrcodes/${fileName}`;
-        } catch (saveError: any) {
-          await logError('Erro ao salvar imagem QR em disco (mantendo base64 em metadata)', saveError);
+} catch (saveError: unknown) {          await logError('Erro ao salvar imagem QR em disco (mantendo base64 em metadata)', saveError);
         }
         const metadataWithImage = JSON.stringify({ image_base64: qrCodeImage });
         
@@ -475,8 +473,7 @@ export class QRCodeService {
           SET metadata = $1, image_url = COALESCE($2, image_url), updated_at = CURRENT_TIMESTAMP
           WHERE qr_id = $3
         `, [metadataWithImage, imageUrl, insertedQRCode.qr_id]);
-      } catch (qrError: any) {
-        await logError('Erro ao gerar imagem QR code (continuando sem imagem)', qrError);
+} catch (qrError: unknown) {        await logError('Erro ao gerar imagem QR code (continuando sem imagem)', qrError);
         // Continuar sem imagem
       }
 
@@ -494,11 +491,10 @@ export class QRCodeService {
         clientId: newQRCode.clientId
       });
 
-      return newQRCode;
-
-    } catch (error: any) {
-      await logError('Erro ao criar QR Code', error);
-      throw error;
+      return newQRCode;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar QR Code', e.error);
+      throw e.error;
     }
   }
 
@@ -515,7 +511,7 @@ export class QRCodeService {
 
       // Construir query de atualização
       const updates: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (data.title !== undefined) {
         updates.push('title = ?');
@@ -610,11 +606,10 @@ export class QRCodeService {
         changes: data
       });
 
-      return updatedQRCode;
-
-    } catch (error: any) {
-      await logError('Erro ao atualizar QR Code', error);
-      throw error;
+      return updatedQRCode;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar QR Code', e.error);
+      throw e.error;
     }
   }
 
@@ -639,11 +634,10 @@ export class QRCodeService {
         qrCodeId,
         title: qrCode.title,
         clientId: qrCode.clientId
-      });
-
-    } catch (error: any) {
-      await logError('Erro ao remover QR Code', error);
-      throw error;
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao remover QR Code', e.error);
+      throw e.error;
     }
   }
 
@@ -689,11 +683,10 @@ export class QRCodeService {
       `, [qrCodeId]);
 
       // Registrar evento no EventLogService (não bloqueia fluxo)
-      await this.logQRCodeScanEvent(qrCode, scanData);
-
-    } catch (error: any) {
-      await logError('Erro ao registrar scan', error);
-      throw error;
+      await this.logQRCodeScanEvent(qrCode, scanData);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao registrar scan', e.error);
+      throw e.error;
     }
   }
 
@@ -783,10 +776,9 @@ export class QRCodeService {
           scanCount: q.scanCount,
           clientName: q.clientName
         }))
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar estatísticas', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar estatísticas', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -834,10 +826,9 @@ export class QRCodeService {
         feature: 'qr_code_scans',
         reason: 'Histórico detalhado adiado até tabela qr_code_scans no schema v2',
         deferredUntil: 'v6.x+',
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar scans do QR Code', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar scans do QR Code', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -858,10 +849,9 @@ export class QRCodeService {
       };
 
       const qrCodeDataURL = await QRCode.toDataURL(qrCode.content, options);
-      return qrCodeDataURL;
-
-    } catch (error: any) {
-      await logError('Erro ao gerar imagem do QR Code', error);
+      return qrCodeDataURL;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar imagem do QR Code', e.error);
       return '';
     }
   }
@@ -996,10 +986,9 @@ export class QRCodeService {
         })
       );
 
-      return qrCodesWithInfo;
-
-    } catch (error: any) {
-      await logError('Erro ao buscar QR Codes por cliente', error);
+      return qrCodesWithInfo;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar QR Codes por cliente', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -1054,10 +1043,9 @@ export class QRCodeService {
         })
       );
 
-      return qrCodesWithInfo;
-
-    } catch (error: any) {
-      await logError('Erro ao buscar QR Codes por totem', error);
+      return qrCodesWithInfo;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar QR Codes por totem', e.error);
       throw new Error('Erro interno do servidor');
     }
   }

@@ -24,6 +24,7 @@ import { getFxTelemetryService } from './fxTelemetryService';
 import { ingestFxInteractionForAce, rejectFxAiEventForAce } from './ace/aceFxBridge';
 import { fxRuleMatchesAceHint } from './ace/aceFxPublish';
 import { getAceHintStore } from './ace/aceHintStore';
+import { normalizeError } from '../utils/errors';
 
 // ---------------------------------------------------------------------------
 // Tipos básicos segundo o protocolo SmartDisplayFlow
@@ -191,10 +192,10 @@ export class FxOrchestratorService {
           targetTotemId: toTotemId,
           effectId,
         },
-      });
-    } catch (error: any) {
-      await logError('Erro em handleInteractionEvent', error, { event }).catch(() => {});
-      throw error;
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro em handleInteractionEvent', e.error, { event }).catch(() => {});
+      throw e.error;
     }
   }
 
@@ -284,10 +285,10 @@ export class FxOrchestratorService {
           targetTotemId: toTotemId,
           effectId,
         },
-      });
-    } catch (error: any) {
-      await logError('Erro em handleAiEvent', error, { event }).catch(() => {});
-      throw error;
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro em handleAiEvent', e.error, { event }).catch(() => {});
+      throw e.error;
     }
   }
 
@@ -336,10 +337,10 @@ export class FxOrchestratorService {
         },
       });
 
-      return params;
-    } catch (error: any) {
-      await logError('Erro em triggerEffect', error, { params }).catch(() => {});
-      throw error;
+      return params;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro em triggerEffect', e.error, { params }).catch(() => {});
+      throw e.error;
     }
   }
 
@@ -387,7 +388,7 @@ export class FxOrchestratorService {
         try {
           const totemCampaigns = await campaignService.getActiveCampaignsForTotem(totem.totem_id);
           siteCampaigns.push(...totemCampaigns.map(c => ({ ...c, totemId: totem.totem_id })));
-        } catch (e) {
+} catch (e: unknown) {
           // Ignorar erros ao buscar campanhas de um totem específico
         }
       }
@@ -590,10 +591,10 @@ export class FxOrchestratorService {
         await this.messageBridge.publishTimeline(timelineMessage);
       }
 
-      return timeline;
-    } catch (error: any) {
-      await logError('Erro em generateTimeline', error, { siteId }).catch(() => {});
-      throw error;
+      return timeline;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro em generateTimeline', e.error, { siteId }).catch(() => {});
+      throw e.error;
     }
   }
 
@@ -675,9 +676,9 @@ export class FxOrchestratorService {
         return String(nearby[0]);
       }
 
-      return fromTotemId;
-    } catch (error: any) {
-      await logError('Erro em findTargetTotem', error, { siteId, fromTotemId }).catch(() => {});
+      return fromTotemId;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro em findTargetTotem', e.error, { siteId, fromTotemId }).catch(() => {});
       return fromTotemId;
     }
   }
@@ -788,18 +789,19 @@ export class FxOrchestratorService {
             } else {
               // Tag não encontrada, considerar como não correspondente
               return false;
-            }
-          } catch (error: any) {
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
             // Se não conseguir buscar tag, considerar como não correspondente
-            await logError('Erro ao buscar tag para avaliação de regra', error, { tagId }).catch(() => {});
+            await logError('Erro ao buscar tag para avaliação de regra', e.error, { tagId }).catch(() => {});
             return false;
           }
         }
       }
 
-      return true;
-    } catch (error: any) {
-      await logError('Erro em evaluateRuleConditions', error, { conditions, event }).catch(() => {});
+      return true;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro em evaluateRuleConditions', e.error, { conditions, event }).catch(() => {});
       return false;
     }
   }
@@ -856,5 +858,4 @@ export function getFxOrchestratorService(): FxOrchestratorService {
   }
   return fxOrchestratorInstance;
 }
-
 

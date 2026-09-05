@@ -1,0 +1,120 @@
+    try {
+      const rows = await this.db.findMany(
+        `
+        SELECT id, file_path
+        FROM remote_screenshots
+        WHERE created_at < NOW() - ($1::text || ' days')::interval
+      `,
+        [String(Math.max(1, days))]
+      );
+      let deleted = 0;
+      const fs = await import('fs');
+      for (const row of rows as Array<{ id: number; file_path: string }>) {
+        try {
+          if (row.file_path && fs.existsSync(row.file_path)) {
+            await fs.promises.unlink(row.file_path);
+          }
+        } catch {
+          /* best-effort */
+        }
+        await this.db.executeRaw(`DELETE FROM remote_screenshots WHERE id = $1`, [row.id]);
+        deleted += 1;
+      }
+      if (deleted > 0) {
+        await logInfo('Screenshots remotos antigos limpos', { deleted, days });
+      }
+      return deleted;
+    } catch (error: any) {
+      await logError('Erro ao limpar screenshots antigos', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Mant├®m no m├íximo [keepPerTotem] capturas por totem (mais recentes).
+   */
+  async pruneScreenshotsPerTotem(keepPerTotem: number = 20): Promise<number> {
+    try {
+      const overflow = await this.db.findMany(
+        `
+        SELECT id, file_path FROM (
+          SELECT id, file_path, totem_id,
+                 ROW_NUMBER() OVER (PARTITION BY totem_id ORDER BY created_at DESC) AS rn
+          FROM remote_screenshots
+        ) t
+        WHERE rn > $1
+      `,
+        [keepPerTotem]
+      );
+      let deleted = 0;
+      const fs = await import('fs');
+      for (const row of overflow as Array<{ id: number; file_path: string }>) {
+        try {
+          if (row.file_path && fs.existsSync(row.file_path)) {
+            await fs.promises.unlink(row.file_path);
+          }
+        } catch {
+          /* best-effort */
+        }
+        await this.db.executeRaw(`DELETE FROM remote_screenshots WHERE id = $1`, [row.id]);
+        deleted += 1;
+      }
+      return deleted;
+    } catch (error: any) {
+      await logError('Erro ao podar screenshots por totem', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Limpa comandos antigos (mais de 30 dias)
+   */
+  async cleanupOldCommands(): Promise<number> {
+    try {
+      const result = await this.db.executeRaw(`
+        DELETE FROM remote_commands
+        WHERE created_at < NOW() - INTERVAL '30 days'
+          AND status IN ('completed', 'failed', 'timeout')
+      `);
+
+      const deletedCount = result.rowCount || 0;
+
+      if (deletedCount > 0) {
+        await logInfo('Comandos antigos limpos', { deletedCount });
+      }
+
+      return deletedCount;
+    } catch (error: any) {
+      await logError('Erro ao limpar comandos antigos', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Mapeia resultado do banco para RemoteCommand
+   */
+  private mapToRemoteCommand(row: any): RemoteCommand {
+    const params = row.parameters ?? row.command_data;
+    return {
+      id: row.command_id ?? row.id,
+      totemId: row.totem_id,
+      commandType: row.command_type,
+      commandData: params ? (typeof params === 'string' ? JSON.parse(params) : params) : undefined,
+      status: row.status === 'executing' ? 'executing' : (row.status === 'sent' ? 'sent' : row.status),
+      result: row.response ?? row.result,
+      errorMessage: row.error_message,
+      sentAt: row.sent_at ? new Date(row.sent_at) : (row.executed_at ? new Date(row.executed_at) : undefined),
+      executedAt: row.executed_at ? new Date(row.executed_at) : undefined,
+      completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
+      createdBy: row.user_id ?? row.created_by,
+      createdAt: new Date(row.created_at),
+      updatedAt: row.updated_at ? new Date(row.updated_at) : new Date(row.created_at)
+    };
+  }
+}
+
+// Singleton instance
+let remoteCommandServiceInstance: RemoteCommandService | null = null;
+
+export function getRemoteCommandService(): RemoteCommandService {
+  if (!remoteCommandServiceInstance) {

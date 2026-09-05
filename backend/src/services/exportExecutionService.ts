@@ -1,5 +1,6 @@
 import { getDatabase } from '../config/database';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export interface ExportExecution {
   execution_id: number;
@@ -59,8 +60,8 @@ export class ExportExecutionService {
         WHERE 1=1
       `;
 
-      const params: any[] = [];
-      const countParams: any[] = [];
+      const params: unknown[] = [];
+      const countParams: unknown[] = [];
 
       if (filters?.scheduleId) {
         sql += ' AND ee.schedule_id = ?';
@@ -126,10 +127,10 @@ export class ExportExecutionService {
         total,
         page,
         limit
-      };
-    } catch (error: any) {
-      await logError('Erro ao listar execuções de exportação', error, { filters });
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar execuções de exportação', e.error, { filters });
+      throw e.error;
     }
   }
 
@@ -150,10 +151,10 @@ export class ExportExecutionService {
         return null;
       }
 
-      return this.mapToExecution(row);
-    } catch (error: any) {
-      await logError('Erro ao buscar execução', error, { executionId });
-      throw error;
+      return this.mapToExecution(row);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar execução', e.error, { executionId });
+      throw e.error;
     }
   }
 
@@ -179,30 +180,31 @@ export class ExportExecutionService {
       return {
         filePath: execution.file_path,
         fileName
-      };
-    } catch (error: any) {
-      await logError('Erro ao obter arquivo da execução', error, { executionId });
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter arquivo da execução', e.error, { executionId });
+      throw e.error;
     }
   }
 
-  private mapToExecution(row: any): ExportExecution {
+  private mapToExecution(row: unknown): ExportExecution {
+    const r = row as unknown as Record<string, unknown>;
     return {
-      execution_id: row.execution_id,
-      schedule_id: row.schedule_id,
-      schedule_name: row.schedule_name,
-      query_id: row.query_id,
-      query_name: row.query_name,
-      job_id: row.job_id,
-      status: row.status,
-      started_at: row.started_at,
-      completed_at: row.completed_at,
-      records_exported: row.records_exported || 0,
-      file_path: row.file_path,
-      file_size: row.file_size,
-      error_message: row.error_message,
-      execution_log: row.execution_log,
-      created_at: row.created_at
+      execution_id: Number(r.execution_id),
+      schedule_id: r.schedule_id !== undefined && r.schedule_id !== null ? Number(r.schedule_id) : null,
+      schedule_name: r.schedule_name !== undefined && r.schedule_name !== null ? String(r.schedule_name) : null,
+      query_id: Number(r.query_id),
+      query_name: r.query_name !== undefined && r.query_name !== null ? String(r.query_name) : null,
+      job_id: r.job_id !== undefined && r.job_id !== null ? String(r.job_id) : null,
+      status: r.status as ExportExecution['status'],
+      started_at: r.started_at !== undefined && r.started_at !== null ? new Date(r.started_at as string | number | Date) : null,
+      completed_at: r.completed_at !== undefined && r.completed_at !== null ? new Date(r.completed_at as string | number | Date) : null,
+      records_exported: Number(r.records_exported || 0),
+      file_path: r.file_path !== undefined && r.file_path !== null ? String(r.file_path) : null,
+      file_size: r.file_size !== undefined && r.file_size !== null ? Number(r.file_size) : null,
+      error_message: r.error_message !== undefined && r.error_message !== null ? String(r.error_message) : null,
+      execution_log: r.execution_log !== undefined && r.execution_log !== null ? String(r.execution_log) : null,
+      created_at: new Date(r.created_at as string | number | Date)
     };
   }
 
@@ -216,5 +218,4 @@ export class ExportExecutionService {
 }
 
 export const exportExecutionService = new ExportExecutionService();
-
 

@@ -7,6 +7,7 @@ import { query, validationResult } from 'express-validator';
 import { authMiddleware, authorizeRole, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { getBillingControlService } from '../services/billingControlService';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const router = express.Router();
 
@@ -46,10 +47,10 @@ router.get(
       let publisherId = req.query.publisherId ? parseInt(req.query.publisherId as string, 10) : undefined;
 
       if (role === 'subscriber_user' && req.user?.subscriberId != null) {
-        subscriberId = Number(req.user.subscriberId);
+        subscriberId = Number(req.user!.subscriberId);
       }
       if (role === 'publisher_user' && req.user?.publisherId != null) {
-        publisherId = Number(req.user.publisherId);
+        publisherId = Number(req.user!.publisherId);
       }
 
       const dueSoonDays = req.query.dueSoonDays
@@ -62,14 +63,15 @@ router.get(
         dueSoonDays,
       });
 
-      return res.json({ success: true, data });
-    } catch (error: any) {
-      await logError('Erro no painel de faturamento', error);
+      return res.json({
+        success: true, data });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro no painel de faturamento', e.error);
       return res.status(500).json({
         success: false,
         error: 'Erro ao carregar painel de faturamento',
-        message: error.message || 'Erro interno do servidor',
-      });
+        message: e.message || 'Erro interno do servidor',
+    });
     }
   }
 );

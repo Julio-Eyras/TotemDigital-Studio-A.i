@@ -1,18 +1,23 @@
 /**
  * Autorização de leitura por campanha (listagens / rotas por campaign_id).
  */
+import { Request } from 'express';
 import { getCampaignService } from '../services/campaignService';
 import { isAdminRole } from './tenantScope';
 import { isSubscriberTenantRole, resolvePublisherIdFromRequest } from './tenantClientAccess';
 
-export async function assertCampaignReadAccess(req: any, campaignId: number): Promise<void> {
+interface CampaignAccessError extends Error {
+  statusCode?: number;
+}
+
+export async function assertCampaignReadAccess(req: Request, campaignId: number): Promise<void> {
   if (isAdminRole(req.user?.role)) {
     return;
   }
 
   const campaign = await getCampaignService().getCampaignById(campaignId);
   if (!campaign) {
-    const err: any = new Error('Campanha não encontrada');
+    const err = new Error('Campanha não encontrada') as CampaignAccessError;
     err.statusCode = 404;
     throw err;
   }
@@ -20,7 +25,7 @@ export async function assertCampaignReadAccess(req: any, campaignId: number): Pr
   if (isSubscriberTenantRole(req)) {
     const sid = req.subscriberId ?? req.user?.subscriberId ?? req.user?.clientId;
     if (sid == null || Number(campaign.subscriberId) !== Number(sid)) {
-      const err: any = new Error('Acesso negado');
+      const err = new Error('Acesso negado') as CampaignAccessError;
       err.statusCode = 403;
       throw err;
     }
@@ -34,7 +39,7 @@ export async function assertCampaignReadAccess(req: any, campaignId: number): Pr
 
   const ok = await getCampaignService().isCampaignVisibleToPublisher(campaignId, pubId);
   if (!ok) {
-    const err: any = new Error('Acesso negado');
+    const err = new Error('Acesso negado') as CampaignAccessError;
     err.statusCode = 403;
     throw err;
   }

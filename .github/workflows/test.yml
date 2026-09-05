@@ -60,9 +60,13 @@ jobs:
         working-directory: ./backend
         run: npm ci
 
-      - name: Run linter
+      - name: Run backend typecheck
         working-directory: ./backend
-        run: npm run lint || echo "Linter not fully configured"
+        run: npm run typecheck
+
+      - name: Run backend linter (soft - warn only on new PRs)
+        working-directory: ./backend
+        run: npm run lint:soft
 
       - name: Run tests with coverage
         working-directory: ./backend
@@ -167,6 +171,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --prefix frontend
+
+      - name: Run frontend typecheck
+        run: npx --prefix frontend tsc --noEmit
+
+      - name: Run frontend linter (soft)
+        run: npm run lint --prefix frontend || echo "Frontend lint warnings detected"
 
       - name: Run frontend unit tests
         env:

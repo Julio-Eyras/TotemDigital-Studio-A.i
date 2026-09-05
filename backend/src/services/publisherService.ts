@@ -2,9 +2,11 @@ import { getDatabase } from '../config/database';
 import { isStudioRuntime } from '../config/installationRuntime';
 import { logError } from '../utils/loggerHelper';
 import {
+
   assertPortalSlugAvailable,
   maybeSyncPortalHostsAfterSlugChange,
 } from './portalHostService';
+import { normalizeError } from '../utils/errors';
 
 export interface Publisher {
   publisher_id: number;
@@ -203,9 +205,9 @@ export class PublisherService {
         total: parseInt(totalResult?.total || '0'),
         page,
         limit,
-      };
-    } catch (error: any) {
-      await logError('Erro ao listar publishers', error, { params });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar publishers', e.error, { params });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -224,9 +226,9 @@ export class PublisherService {
           AND COALESCE(p.is_active, true) = true
           AND COALESCE(p.is_system_owner, false) = false
       `);
-      return Number(row?.total ?? 0);
-    } catch (error: any) {
-      await logError('Erro ao contar publishers não-owner', error);
+      return Number(row?.total ?? 0);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao contar publishers não-owner', e.error);
       return 0;
     }
   }
@@ -244,9 +246,9 @@ export class PublisherService {
       `,
         [id]
       );
-      return !!row;
-    } catch (error: any) {
-      await logError('Erro ao verificar system owner publisher', error, { id });
+      return !!row;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao verificar system owner publisher', e.error, { id });
       return false;
     }
   }
@@ -279,9 +281,10 @@ export class PublisherService {
 
       if (!row) return null;
       // Contrato da API: retornar "active" (frontend usa); coluna no BD é is_active
-      return { ...row, active: !!row.is_active } as Publisher;
-    } catch (error: any) {
-      await logError('Erro ao obter publisher', error, { id });
+      return {
+        ...row, active: !!row.is_active } as Publisher;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter publisher', e.error, { id });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -401,12 +404,12 @@ export class PublisherService {
         throw new Error('Erro ao buscar publisher criado');
       }
 
-      return newPublisher;
-    } catch (error: any) {
+      return newPublisher;} catch (error: unknown) {
+      const e = normalizeError(error);
       // Capturar unique constraint violation (nome/email duplicado)
-      if (error && (error.code === '23505' || (error.message && error.message.includes('duplicate key')))) {
+      if (error && (e.code === '23505' || (e.message && e.message.includes('duplicate key')))) {
         // Tentar inferir qual campo
-        const msg = error.detail || error.message || '';
+        const msg = (e.raw as { detail?: string })?.detail || e.message || '';
         if (msg.includes('name')) {
           throw new Error('Publisher com este nome já existe');
         }
@@ -415,8 +418,8 @@ export class PublisherService {
         }
         throw new Error('Publisher com valores duplicados (nome/email) já existe');
       }
-      await logError('Erro ao criar publisher', error, { data });
-      throw error;
+      await logError('Erro ao criar publisher', e.error, { data });
+      throw e.error;
     }
   }
 
@@ -614,10 +617,10 @@ export class PublisherService {
         await maybeSyncPortalHostsAfterSlugChange(this.db as any);
       }
 
-      return updatedPublisher;
-    } catch (error: any) {
-      await logError('Erro ao atualizar publisher', error, { id, data });
-      throw error;
+      return updatedPublisher;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar publisher', e.error, { id, data });
+      throw e.error;
     }
   }
 
@@ -637,10 +640,10 @@ export class PublisherService {
         UPDATE publishers 
         SET is_active = false, updated_at = CURRENT_TIMESTAMP
         WHERE publisher_id = $1
-      `, [id]);
-    } catch (error: any) {
-      await logError('Erro ao excluir publisher', error, { id });
-      throw error;
+      `, [id]);} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao excluir publisher', e.error, { id });
+      throw e.error;
     }
   }
 
@@ -671,9 +674,9 @@ export class PublisherService {
         ORDER BY l.name
       `, [publisherId]);
 
-      return locals;
-    } catch (error: any) {
-      await logError('Erro ao buscar locals do publisher', error, { publisherId });
+      return locals;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar locals do publisher', e.error, { publisherId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -713,9 +716,9 @@ export class PublisherService {
         ORDER BY l.name, t.name
       `, [publisherId]);
 
-      return totems;
-    } catch (error: any) {
-      await logError('Erro ao buscar totems do publisher', error, { publisherId });
+      return totems;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar totems do publisher', e.error, { publisherId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -757,9 +760,9 @@ export class PublisherService {
         ORDER BY l.name, t.name, st.name
       `, [publisherId]);
 
-      return smartTvs;
-    } catch (error: any) {
-      await logError('Erro ao buscar smart TVs do publisher', error, { publisherId });
+      return smartTvs;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar smart TVs do publisher', e.error, { publisherId });
       throw new Error('Erro interno do servidor');
     }
   }
@@ -840,9 +843,9 @@ export class PublisherService {
         activeCampaignsCount: parseInt(campaignsCountResult?.count || '0'),
         onlineTotems: parseInt(onlineTotemsResult?.count || '0'),
         playingTvs: parseInt(playingTvsResult?.count || '0'),
-      };
-    } catch (error: any) {
-      await logError('Erro ao buscar estatísticas do publisher', error, { publisherId });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar estatísticas do publisher', e.error, { publisherId });
       throw new Error('Erro interno do servidor');
     }
   }

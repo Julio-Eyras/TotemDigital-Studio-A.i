@@ -7,6 +7,7 @@ import { getDatabase } from '../config/database';
 import { logError, logWarn } from '../utils/loggerHelper';
 import type { TenantScope } from '../utils/tenantScope';
 import { getAnalyticsCacheService } from './analyticsCacheService';
+import { normalizeError } from '../utils/errors';
 
 /** Totens não têm coluna `location`; usar dados do local. */
 const sqlTotemLocation = (alias: string): string =>
@@ -179,11 +180,16 @@ export interface ReportData {
   };
 }
 
+let analyticsServiceInstance: AnalyticsService | null = null;
+export function getAnalyticsService(): AnalyticsService {
+  if (!analyticsServiceInstance) analyticsServiceInstance = new AnalyticsService();
+  return analyticsServiceInstance;
+}
+
 export class AnalyticsService {
   private get db() {
     return getDatabase();
   }
-
 
   private get analyticsCache() {
     return getAnalyticsCacheService();
@@ -191,10 +197,10 @@ export class AnalyticsService {
   
   // Lazy initialization de audit service (reservado para uso futuro)
   // private getAuditService(): AuditService {
-  //   if (!(global as any).auditServiceInstance) {
-  //     (global as any).auditServiceInstance = new AuditService();
+  //   if (!(global as unknown as Record<string, unknown>).auditServiceInstance) {
+  //     (global as unknown as Record<string, unknown>).auditServiceInstance = new AuditService();
   //   }
-  //   return (global as any).auditServiceInstance;
+  //   return (global as unknown as Record<string, unknown>).auditServiceInstance;
   // }
 
   /**
@@ -240,9 +246,9 @@ export class AnalyticsService {
         return await this.fetchDashboardStatsForSubscriber(sub);
       }
 
-      return await this.fetchDashboardStatsGlobal();
-    } catch (error: any) {
-      await logError('Erro ao buscar estatísticas do dashboard', error);
+      return await this.fetchDashboardStatsGlobal();} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar estatísticas do dashboard', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -905,7 +911,7 @@ export class AnalyticsService {
       } = filters;
 
       let whereClause = 'WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (totemId) {
         whereClause += ' AND el.totem_id = ?';
@@ -1256,11 +1262,10 @@ export class AnalyticsService {
           conversionRate: 0
         })),
         revenue
-      };
-
-    } catch (error: any) {
-      await logError('Erro ao buscar análise', error);
-      throw error;
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar análise', e.error);
+      throw e.error;
     }
   }
 
@@ -1283,9 +1288,9 @@ export class AnalyticsService {
         WHERE c.campaign_id = ?
       `, [campaignId]);
 
-      return campaign;
-    } catch (error: any) {
-      await logError('Erro ao buscar campanha', error);
+      return campaign;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar campanha', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -1309,9 +1314,9 @@ export class AnalyticsService {
         WHERE t.totem_id = ?
       `, [totemId]);
 
-      return totem;
-    } catch (error: any) {
-      await logError('Erro ao buscar totem', error);
+      return totem;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar totem', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -1340,10 +1345,9 @@ export class AnalyticsService {
         }
       };
 
-      return report;
-
-    } catch (error: any) {
-      await logError('Erro ao gerar relatório', error);
+      return report;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao gerar relatório', e.error);
       throw new Error('Erro interno do servidor');
     }
   }
@@ -1377,9 +1381,9 @@ export class AnalyticsService {
         total: 0,
         bySubscriber: [],
         byCampaign: []
-      };
-    } catch (error: any) {
-      await logError('Erro ao buscar estatísticas de receita', error);
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar estatísticas de receita', e.error);
       return {
         total: 0,
         bySubscriber: [],
@@ -1497,10 +1501,9 @@ export class AnalyticsService {
         });
       }
 
-      return alerts;
-
-    } catch (error: any) {
-      await logError('Erro ao buscar alertas', error);
+      return alerts;} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar alertas', e.error);
       return [];
     }
   }
@@ -1528,7 +1531,8 @@ export class AnalyticsService {
             return isNaN(usage) ? 0 : usage;
           }
         }
-      } catch (dfError: any) {
+ 
+} catch (dfError: unknown) {
         // Se df falhar, tentar calcular manualmente
         await logWarn('Comando df não disponível, calculando uso manualmente');
       }
@@ -1539,13 +1543,14 @@ export class AnalyticsService {
         // Esta é uma aproximação - em produção, use uma biblioteca como 'diskusage'
         // Por enquanto, retornar um valor baseado no espaço disponível
         return 50; // Valor padrão se não conseguir calcular
-      } catch (statError: any) {
-        await logWarn('Não foi possível calcular uso de disco', { error: statError.message });
+} catch (statError: unknown) {
+  const e = normalizeError(statError);
+        await logWarn('Não foi possível calcular uso de disco', { error: e.message });
         return 0;
-      }
-
-    } catch (error: any) {
-      await logError('Erro ao obter uso de disco', error);
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao obter uso de disco', e.error);
       return 0;
     }
   }

@@ -1,9 +1,9 @@
 jest.mock('../../../middleware/auth.middleware', () => ({
-  authMiddleware: (req: any, _res: any, next: any) => {
-    req.user = { id: 1, userId: 1, role: 'admin', username: 'lab' };
+  authMiddleware: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
+    req.user = { id: 1, userId: 1, role: 'admin', username: 'lab', email: 'lab@example.com' };
     next();
   },
-  authorizeRole: () => (_req: any, _res: any, next: any) => next(),
+  authorizeRole: () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
 }));
 
 jest.mock('../../../config/installationRuntime', () => ({

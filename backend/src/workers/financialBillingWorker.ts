@@ -9,6 +9,7 @@ import { getFinancialNotificationService } from '../services/financialNotificati
 import { resolveFinancialWorkerEnabled } from '../services/financialIntegrationConfigService';
 import { logError, logInfo } from '../utils/loggerHelper';
 import { getDatabase } from '../config/database';
+import { normalizeError } from '../utils/errors';
 
 export class FinancialBillingWorker {
   private jobs: cron.ScheduledTask[] = [];
@@ -41,9 +42,9 @@ export class FinancialBillingWorker {
               includeRevenueSharePayouts: financialConfig.autoRevenueSharePayouts,
               revenueShareSinceDays: financialConfig.revenueShareSinceDays,
             });
-            await logInfo('Financeiro: emissão concluída', result);
-          } catch (error: any) {
-            await logError('Financeiro: erro na emissão automática', error);
+            await logInfo('Financeiro: emissão concluída', result);} catch (error: unknown) {
+            const e = normalizeError(error);
+            await logError('Financeiro: erro na emissão automática', e.error);
           }
         });
       })
@@ -58,9 +59,9 @@ export class FinancialBillingWorker {
               const result = await getFinancialAdminService().issueRevenueSharePayouts({
                 sinceDays: financialConfig.revenueShareSinceDays,
               });
-              await logInfo('Financeiro: repasses concluídos', result);
-            } catch (error: any) {
-              await logError('Financeiro: erro nos repasses revenue share', error);
+              await logInfo('Financeiro: repasses concluídos', result);} catch (error: unknown) {
+              const e = normalizeError(error);
+              await logError('Financeiro: erro nos repasses revenue share', e.error);
             }
           });
         })
@@ -87,9 +88,9 @@ export class FinancialBillingWorker {
             await logInfo('Financeiro: faturas marcadas como vencidas', {
               subscriber: sub.rowCount || 0,
               publisherIncoming: pub.rowCount || 0,
-            });
-          } catch (error: any) {
-            await logError('Financeiro: erro ao marcar vencidas', error);
+            });} catch (error: unknown) {
+            const e = normalizeError(error);
+            await logError('Financeiro: erro ao marcar vencidas', e.error);
           }
         });
       })
@@ -100,9 +101,9 @@ export class FinancialBillingWorker {
         await this.runIfWorkerEnabled(async () => {
           try {
             const result = await getFinancialNotificationService().sendPendingInvoiceReminders();
-            await logInfo('Financeiro: lembretes por e-mail', result);
-          } catch (error: any) {
-            await logError('Financeiro: erro nos lembretes', error);
+            await logInfo('Financeiro: lembretes por e-mail', result);} catch (error: unknown) {
+            const e = normalizeError(error);
+            await logError('Financeiro: erro nos lembretes', e.error);
           }
         });
       })
@@ -114,9 +115,9 @@ export class FinancialBillingWorker {
           try {
             const { getBillingEnforcementService } = await import('../services/billingEnforcementService');
             const result = await getBillingEnforcementService().enforceAutomaticBlocks();
-            await logInfo('Financeiro: bloqueio automático por inadimplência', result);
-          } catch (error: any) {
-            await logError('Financeiro: erro no bloqueio automático', error);
+            await logInfo('Financeiro: bloqueio automático por inadimplência', result);} catch (error: unknown) {
+            const e = normalizeError(error);
+            await logError('Financeiro: erro no bloqueio automático', e.error);
           }
         });
       })

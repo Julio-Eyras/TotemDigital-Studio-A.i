@@ -20,6 +20,7 @@ import { responseFormatMiddleware } from './middleware/responseFormat.middleware
 import { authMiddleware } from './middleware/auth.middleware';
 import { auditSystemUsers } from './middleware/auditSystemUsers.middleware';
 import { detectSubdomain, validateSubdomainAccess } from './middleware/subdomain.middleware';
+import { localeMiddleware } from './middleware/locale.middleware';
 import { getLogger } from './config/logger';
 import { LogRotationService } from './services/logRotationService';
 import { logInfo, logError, logWarn, logInfoSync, logWarnSync } from './utils/loggerHelper';
@@ -35,6 +36,7 @@ import { openApiSpec } from './config/swagger';
 import { getExpressLimit, getStoragePath } from './config/mediaConfig';
 import { registerCompactRoutes } from './startup/registerCompactRoutes';
 import {
+
   getInstallationProfileFromEnv,
   isSinglePublisherInstallation,
 } from './policy/installationPolicy';
@@ -43,6 +45,7 @@ import playerDebugRoutes from './routes/player-debug';
 
 // Services
 import { SystemService } from './services/systemService';
+import { normalizeError } from './utils/errors';
 
 const app = express();
 const PORT = config.server.port;
@@ -157,6 +160,10 @@ app.use(responseFormatMiddleware);
 if (!bootStudioMode) {
   app.use(detectSubdomain);
 }
+
+// Detecção de locale (query ?lang= / Accept-Language / subdomínio)
+// Injeta req.locale e req.t(translationKey, params?) — fallback pt-BR
+app.use(localeMiddleware);
 
 // Security middlewares
 app.use(validateOrigin);
@@ -323,12 +330,12 @@ app.get('/health', async (_req, res) => {
       memory: health.memory,
       disk: health.disk,
       uptime: process.uptime()
-    });
-  } catch (error: any) {
+    });} catch (error: unknown) {
+      const e = normalizeError(error);
     res.status(503).json({
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
-      error: error.message
+      error: e.message
     });
   }
 });
@@ -344,9 +351,9 @@ app.get('/api/system/info', async (_req, res) => {
       studioMode: bootStudioMode,
     compactMode: bootStudioMode,
     installationProfile: bootInstallationProfile,
-    });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    });} catch (error: unknown) {
+      const e = normalizeError(error);
+    res.status(500).json({ error: e.message });
   }
 });
 
@@ -370,12 +377,12 @@ app.get('/api/health', async (_req, res) => {
       memory: health.memory,
       disk: health.disk,
       uptime: process.uptime()
-    });
-  } catch (error: any) {
+    });} catch (error: unknown) {
+      const e = normalizeError(error);
     res.status(503).json({
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
-      error: error.message
+      error: e.message
     });
   }
 });
@@ -507,9 +514,10 @@ async function gracefulShutdown(signal: string): Promise<void> {
     
     // Sair com código de erro se alguma operação falhou
     process.exit(shutdownFailed ? 1 : 0);
-  } catch (error) {
+} catch (error: unknown) {
+    const e = normalizeError(error);
     try {
-      await logError('Erro durante shutdown', error);
+      await logError('Erro durante shutdown', e.error);
     } catch {
       // Silenciosamente falhar - logging não disponível
     }
@@ -546,8 +554,11 @@ async function startServer() {
           { envProfile: bootInstallationProfile, runtimeProfile: profile }
         );
       }
-    } catch (err: any) {
-      await logWarn('Perfil de instalação: usando variáveis de ambiente', { error: err.message });
+ 
+} catch (err: unknown) {
+
+      const e = normalizeError(err);
+      await logWarn('Perfil de instalação: usando variáveis de ambiente', { error: e.message });
     }
     
     // Conectar query logger para debug online
@@ -557,8 +568,9 @@ async function startServer() {
         dispatcherDebugService.logQuery(query, params, duration, rowCount, error, 'dispatcher');
       });
       await logInfo('Query logger conectado para debug online');
-    } catch (err: any) {
-      await logWarn('Erro ao conectar query logger (debug continuará funcionando)', { error: err.message });
+} catch (err: unknown) {
+  const e = normalizeError(err);
+      await logWarn('Erro ao conectar query logger (debug continuará funcionando)', { error: e.message });
     }
     
     // Carregar configurações de mídia DEPOIS de inicializar o banco
@@ -567,8 +579,9 @@ async function startServer() {
     try {
       await loadMediaConfig();
       await logInfo('Configurações de mídia carregadas do banco de dados');
-    } catch (err: any) {
-      await logWarn('Erro ao carregar configurações de mídia (usando padrões)', { error: err.message });
+} catch (err: unknown) {
+  const e = normalizeError(err);
+      await logWarn('Erro ao carregar configurações de mídia (usando padrões)', { error: e.message });
     }
 
     // Registrar rotas da API conforme perfil (compacto/pro)
@@ -604,9 +617,10 @@ async function startServer() {
           await logWarn('Redis não conectado, continuando sem cache');
         } else {
           await logInfo('Redis conectado com sucesso');
-        }
-      } catch (error: any) {
-        await logWarn('Erro ao conectar ao Redis, continuando sem cache', { error: error.message });
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+        await logWarn('Erro ao conectar ao Redis, continuando sem cache', { error: e.message });
       }
       
     } else {
@@ -706,11 +720,9 @@ async function startServer() {
         websocket: 'Ativo',
         aiProvider: process.env.AI_PROVIDER || 'ollama'
       });
-    });
-
-    
-  } catch (error: any) {
-    await logError('Erro ao iniciar servidor', error);
+    });} catch (error: unknown) {
+      const e = normalizeError(error);
+    await logError('Erro ao iniciar servidor', e.error);
     process.exit(1);
   }
 }
@@ -736,7 +748,7 @@ process.on('uncaughtException', (error: Error) => {
   setTimeout(() => process.exit(1), FATAL_EXIT_DELAY_MS);
 });
 
-process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
+process.on('unhandledRejection', (reason: unknown, promise: Promise<unknown>) => {
   const err = reason instanceof Error ? reason : new Error(String(reason));
   // eslint-disable-next-line no-console
   console.error('[FATAL][unhandledRejection]', err);

@@ -65,6 +65,9 @@ const AIContextDashboard = React.lazy(() => import('./pages/AIContext/AIContextD
 const PlaylistMixAnalytics = React.lazy(() => import('./pages/PlaylistMix/PlaylistMixAnalytics'));
 const OTAUpdates = React.lazy(() => import('./components/OTAUpdates/OTAUpdates'));
 const SmartDisplayFx = React.lazy(() => import('./pages/SmartDisplayFx/SmartDisplayFx'));
+const AceDashboardPage = React.lazy(() => import('./pages/Dashboards/AceDashboardPage'));
+const FxDashboardPage = React.lazy(() => import('./pages/Dashboards/FxDashboardPage'));
+const GeneralAnalyticsPage = React.lazy(() => import('./pages/Dashboards/GeneralAnalyticsPage'));
 const SubscriberDashboard = React.lazy(() => import('./pages/SubscriberDashboard/SubscriberDashboard'));
 const PlanPublisherAccess = React.lazy(() => import('./pages/PlanPublisherAccess/PlanPublisherAccess'));
 const SubscriberPublisherAccess = React.lazy(() => import('./pages/SubscriberPublisherAccess/SubscriberPublisherAccess'));
@@ -811,6 +814,30 @@ const AppContent: React.FC = () => {
             element={
               <ProtectedRoute>
                 <SmartDisplayFxRoute />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboards/ace"
+            element={
+              <ProtectedRoute>
+                <AceDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboards/fx"
+            element={
+              <ProtectedRoute>
+                <FxDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboards/general"
+            element={
+              <ProtectedRoute>
+                <GeneralAnalyticsPage />
               </ProtectedRoute>
             }
           />

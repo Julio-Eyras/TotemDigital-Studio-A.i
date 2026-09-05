@@ -4,12 +4,15 @@
  * @access Private (Admin SQL apenas)
  */
 
-import { Router, Response } from 'express';
+import { Router} from 'express';
+import express from 'express';
+
 import { body, query, param, validationResult } from 'express-validator';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { requireAdminSql } from '../middleware/adminSql.middleware';
 import { getPermissionService } from '../services/permissionService';
 import { logError } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 const router = Router();
 
@@ -19,7 +22,7 @@ router.use(authMiddleware);
 // Todas as rotas requerem ADMIN_SQL
 router.use(requireAdminSql);
 
-const validateRequest = (req: any, res: any, next: any) => {
+const validateRequest = (req: express.Request, res: express.Response, next: express.NextFunction): express.Response | void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -42,7 +45,7 @@ router.get('/',
   query('resource').optional().isString(),
   query('action').optional().isString(),
   validateRequest,
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const { page, limit, search, resource, action } = req.query;
       
@@ -57,14 +60,14 @@ router.get('/',
       return res.json({
         success: true,
         data: result
-      });
-    } catch (error: any) {
-      await logError('Erro ao listar permissions', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar permissions', e.error);
       return res.status(500).json({
         success: false,
         message: 'Erro interno do servidor',
-        error: error.message
-      });
+        error: e.message
+    });
     }
   }
 );
@@ -74,21 +77,21 @@ router.get('/',
  * @desc Lista todos os recursos únicos
  * @access Private (Admin SQL apenas)
  */
-router.get('/resources', async (_req: any, res: Response) => {
+router.get('/resources', async (_req: express.Request, res: express.Response) => {
   try {
     const resources = await getPermissionService().getResources();
 
     return res.json({
       success: true,
       data: resources
-    });
-  } catch (error: any) {
-    await logError('Erro ao listar recursos', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao listar recursos', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -97,21 +100,21 @@ router.get('/resources', async (_req: any, res: Response) => {
  * @desc Lista todas as ações únicas
  * @access Private (Admin SQL apenas)
  */
-router.get('/actions', async (_req: any, res: Response) => {
+router.get('/actions', async (_req: express.Request, res: express.Response) => {
   try {
     const actions = await getPermissionService().getActions();
 
     return res.json({
       success: true,
       data: actions
-    });
-  } catch (error: any) {
-    await logError('Erro ao listar ações', error);
+    });} catch (error: unknown) {
+    const e = normalizeError(error);
+    await logError('Erro ao listar ações', e.error);
     return res.status(500).json({
       success: false,
       message: 'Erro interno do servidor',
-      error: error.message
-    });
+      error: e.message
+  });
   }
 });
 
@@ -123,7 +126,7 @@ router.get('/actions', async (_req: any, res: Response) => {
 router.get('/:id',
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const permissionId = parseInt(req.params.id);
       const permission = await getPermissionService().getPermissionById(permissionId);
@@ -138,14 +141,14 @@ router.get('/:id',
       return res.json({
         success: true,
         data: permission
-      });
-    } catch (error: any) {
-      await logError('Erro ao buscar permission', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar permission', e.error);
       return res.status(500).json({
         success: false,
         message: 'Erro interno do servidor',
-        error: error.message
-      });
+        error: e.message
+    });
     }
   }
 );
@@ -161,7 +164,7 @@ router.post('/',
   body('action').notEmpty().withMessage('Action é obrigatório').isString(),
   body('description').optional({ nullable: true }).isString(),
   validateRequest,
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const { name, resource, action, description } = req.body;
 
@@ -176,14 +179,14 @@ router.post('/',
         success: true,
         message: 'Permission criada com sucesso',
         data: permission
-      });
-    } catch (error: any) {
-      await logError('Erro ao criar permission', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar permission', e.error);
       return res.status(400).json({
         success: false,
-        message: error.message || 'Erro ao criar permission',
-        error: error.message
-      });
+        message: e.message || 'Erro ao criar permission',
+        error: e.message
+    });
     }
   }
 );
@@ -200,7 +203,7 @@ router.put('/:id',
   body('action').optional({ nullable: true }).isString(),
   body('description').optional({ nullable: true }).isString(),
   validateRequest,
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const permissionId = parseInt(req.params.id);
       const { name, resource, action, description } = req.body;
@@ -216,14 +219,14 @@ router.put('/:id',
         success: true,
         message: 'Permission atualizada com sucesso',
         data: permission
-      });
-    } catch (error: any) {
-      await logError('Erro ao atualizar permission', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao atualizar permission', e.error);
       return res.status(400).json({
         success: false,
-        message: error.message || 'Erro ao atualizar permission',
-        error: error.message
-      });
+        message: e.message || 'Erro ao atualizar permission',
+        error: e.message
+    });
     }
   }
 );
@@ -236,7 +239,7 @@ router.put('/:id',
 router.delete('/:id',
   param('id').isInt({ min: 1 }),
   validateRequest,
-  async (req: any, res: Response) => {
+  async (req: express.Request, res: express.Response) => {
     try {
       const permissionId = parseInt(req.params.id);
       await getPermissionService().deletePermission(permissionId);
@@ -244,14 +247,14 @@ router.delete('/:id',
       return res.json({
         success: true,
         message: 'Permission deletada com sucesso'
-      });
-    } catch (error: any) {
-      await logError('Erro ao deletar permission', error);
+      });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao deletar permission', e.error);
       return res.status(400).json({
         success: false,
-        message: error.message || 'Erro ao deletar permission',
-        error: error.message
-      });
+        message: e.message || 'Erro ao deletar permission',
+        error: e.message
+    });
     }
   }
 );

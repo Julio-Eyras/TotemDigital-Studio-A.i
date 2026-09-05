@@ -2,6 +2,7 @@
  * Compatibilidade idempotente de schema — alinhado a database/smartchannel-db-v2-compat-remote-command-types.sql
  */
 import { logInfoSync, logWarnSync } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export const REMOTE_COMMAND_TYPES = [
   'restart',
@@ -65,11 +66,12 @@ export async function ensureRemoteCommandTypesConstraint(
     logInfoSync('Schema compat: chk_remote_command_type atualizado', {
       types: REMOTE_COMMAND_TYPES.length,
     });
-    return true;
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
+    return true;} catch (error: unknown) {
+      const e = normalizeError(error);
+
+    const message = error instanceof Error ? e.message : String(error);
     if (options?.strict) {
-      throw error;
+      throw e.error;
     }
     logWarnSync('Schema compat: falha ao atualizar chk_remote_command_type', {
       error: message,
@@ -118,10 +120,11 @@ export async function ensureRemoteScreenshotsSchema(
         ON remote_screenshots (totem_id, created_at DESC);
     `);
     logInfoSync('Schema compat: remote_screenshots / player_settings OK');
-    return true;
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (options?.strict) throw error;
+    return true;} catch (error: unknown) {
+      const e = normalizeError(error);
+
+    const message = error instanceof Error ? e.message : String(error);
+    if (options?.strict) throw e.error;
     logWarnSync('Schema compat: falha remote_screenshots/player_settings', { error: message });
     return false;
   }

@@ -21,7 +21,7 @@ describe('loggerHelper - sanitizeForLogging', () => {
         password: 'secret123',
         email: 'john@example.com'
       };
-      const result = sanitizeForLogging(input);
+      const result = sanitizeForLogging(input) as typeof input;
       expect(result.username).toBe('john');
       expect(result.password).toBe('[REDACTED]');
       expect(result.email).toBe('john@example.com');
@@ -33,7 +33,7 @@ describe('loggerHelper - sanitizeForLogging', () => {
         authorization: 'Bearer abc123',
         access_token: 'access-xyz'
       };
-      const result = sanitizeForLogging(input);
+      const result = sanitizeForLogging(input) as typeof input;
       expect(result.token).toBe('[REDACTED]');
       expect(result.authorization).toBe('[REDACTED]');
       expect(result.access_token).toBe('[REDACTED]');
@@ -46,7 +46,7 @@ describe('loggerHelper - sanitizeForLogging', () => {
           password: 'secret'
         }
       };
-      const result = sanitizeForLogging(input);
+      const result = sanitizeForLogging(input) as typeof input;
       expect(result.user.name).toBe('John');
       expect(result.user.password).toBe('[REDACTED]');
     });
@@ -55,7 +55,7 @@ describe('loggerHelper - sanitizeForLogging', () => {
       const input = [
         { id: 1, secret: 'value' }
       ];
-      const result = sanitizeForLogging(input);
+      const result = sanitizeForLogging(input) as typeof input;
       expect(result[0].id).toBe(1);
       expect(result[0].secret).toBe('[REDACTED]');
     });
@@ -66,7 +66,7 @@ describe('loggerHelper - sanitizeForLogging', () => {
         campaignId: 42,
         metadata: { foo: 'bar' }
       };
-      const result = sanitizeForLogging(input);
+      const result = sanitizeForLogging(input) as typeof input;
       expect(result.userId).toBe(1);
       expect(result.campaignId).toBe(42);
       expect(result.metadata.foo).toBe('bar');

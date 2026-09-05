@@ -4,6 +4,7 @@
 
 import { logError, logInfo, logWarn } from '../utils/loggerHelper';
 import { resolveWhatsAppIntegrationConfig } from './financialIntegrationConfigService';
+import { normalizeError } from '../utils/errors';
 
 export interface WhatsAppSendResult {
   sent: boolean;
@@ -100,15 +101,16 @@ export class WhatsappMessagingService {
       await logInfo('WhatsApp Cloud API: mensagem enviada', {
         to: digits.slice(0, 6) + '***',
       });
-      return { sent: true, mode: 'cloud_api', waMeUrl };
-    } catch (error: any) {
-      await logError('Erro WhatsApp Cloud API', error);
+      return {
+        sent: true, mode: 'cloud_api', waMeUrl };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro WhatsApp Cloud API', e.error);
       return {
         sent: false,
         mode: 'wa_me_link',
-        reason: error.message,
+        reason: e.message,
         waMeUrl,
-      };
+    };
     }
   }
 

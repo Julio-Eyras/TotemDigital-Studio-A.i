@@ -5,6 +5,7 @@
 
 import { getDatabase } from '../config/database';
 import { logInfo, logError, logDebug } from '../utils/loggerHelper';
+import { normalizeError } from '../utils/errors';
 
 export interface Tag {
   id: number;
@@ -79,10 +80,11 @@ export class TagService {
 
         await logInfo('Tag criada', { tagId: request.tagId });
         return this.mapToTag(result.rows[0]);
-      }
-    } catch (error: any) {
-      await logError('Erro ao criar/atualizar tag', error, { tagId: request.tagId });
-      throw error;
+ 
+}} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao criar/atualizar tag', e.error, { tagId: request.tagId });
+      throw e.error;
     }
   }
 
@@ -104,9 +106,9 @@ export class TagService {
       return {
         contentId: tag.content_id || null,
         tag: this.mapToTag(tag)
-      };
-    } catch (error: any) {
-      await logError('Erro ao buscar conteúdo da tag', error, { tagId });
+      };} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao buscar conteúdo da tag', e.error, { tagId });
       return { contentId: null, tag: null };
     }
   }
@@ -121,7 +123,7 @@ export class TagService {
   }): Promise<Tag[]> {
     try {
       let query = 'SELECT * FROM tags WHERE 1=1';
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (filters?.tagType) {
         query += ' AND tag_type = $' + (params.length + 1);
@@ -141,10 +143,10 @@ export class TagService {
       }
 
       const tags = await this.db.findMany(query, params);
-      return tags.map(tag => this.mapToTag(tag));
-    } catch (error: any) {
-      await logError('Erro ao listar tags', error);
-      throw error;
+      return tags.map(tag => this.mapToTag(tag));} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao listar tags', e.error);
+      throw e.error;
     }
   }
 
@@ -159,10 +161,11 @@ export class TagService {
         WHERE tag_id = $1
       `, [tagId]);
 
-      await logInfo('Tag desativada', { tagId });
-    } catch (error: any) {
-      await logError('Erro ao desativar tag', error, { tagId });
-      throw error;
+      await logInfo('Tag desativada', {
+        tagId });} catch (error: unknown) {
+      const e = normalizeError(error);
+      await logError('Erro ao desativar tag', e.error, { tagId });
+      throw e.error;
     }
   }
 
@@ -176,7 +179,7 @@ export class TagService {
       if (typeof row.metadata === 'string') {
         try {
           metadata = JSON.parse(row.metadata);
-        } catch (e) {
+} catch (e: unknown) {
           metadata = {};
         }
       } else {

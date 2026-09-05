@@ -6,6 +6,7 @@
 import { getDatabase } from '../config/database';
 import { logWarn } from '../utils/loggerHelper';
 import { batchLoadRelations } from '../utils/queryOptimizer';
+import { normalizeError } from '../utils/errors';
 
 export interface QueryAnalysis {
   query: string;
@@ -51,10 +52,11 @@ export class QueryOptimizationService {
         analyses.push(analysis);
       }
 
-      return analyses;
-    } catch (error: unknown) {
+      return analyses;} catch (error: unknown) {
+        const e = normalizeError(error);
+
       await logWarn('Erro ao analisar queries', {
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? e.message : String(error)
       });
       return [];
     }
@@ -144,12 +146,14 @@ export class QueryOptimizationService {
       return campaigns.map((campaign: Record<string, unknown>) => ({
         ...campaign,
         totems: totemsMap.get(campaign.id as number) || []
-      })) as Array<Record<string, unknown> & { totems: unknown[] }>;
-    } catch (error: unknown) {
+      })) as Array<Record<string, unknown> & {
+        totems: unknown[] }>;} catch (error: unknown) {
+        const e = normalizeError(error);
+
       await logWarn('Erro ao buscar campanhas otimizadas', {
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? e.message : String(error)
       });
-      throw error;
+      throw e.error;
     }
   }
 }
